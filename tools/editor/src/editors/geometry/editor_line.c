@@ -35,14 +35,6 @@ bool editor_line_editor_create(EditorLineEditor *editor, FontAsset *font) {
         editor_line_editor_destroy(editor);
         return false;
     }
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1) {
-        char name[32];
-        snprintf(name, sizeof(name), "line_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->line_labels[i])) {
-            editor_line_editor_destroy(editor);
-            return false;
-        }
-    }
     return true;
 }
 
@@ -54,8 +46,7 @@ void editor_line_editor_destroy(EditorLineEditor *editor) {
     rohr_graphics_text_destroy(&editor->constrained_label);
     rohr_graphics_text_destroy(&editor->length_field);
     rohr_graphics_text_destroy(&editor->delete_label);
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1)
-        rohr_graphics_text_destroy(&editor->line_labels[i]);
+    editor_mode_text_cache_destroy(&editor->line_labels);
     *editor = (EditorLineEditor){0};
 }
 
@@ -83,18 +74,20 @@ bool editor_line_editor_draw(EditorLineEditor *editor,
     line = context->viewport->selected_line;
     if(hitbox == NULL || line >= hitbox->vertex_count ||
             line >= EDITOR_HITBOX_VERTEX_MAX) return false;
+    if(!editor_mode_text_cache_reserve(&editor->line_labels,
+            hitbox->vertex_count)) return false;
     a = &hitbox->vertices[line];
     b = &hitbox->vertices[(line + 1) % hitbox->vertex_count];
     constrained = a->position_locked && b->position_locked;
     length = editor_project_hitbox_line_length_get(hitbox, line);
     snprintf(edited_name, sizeof(edited_name), "%s", hitbox->line_names[line]);
     if(!editor_mode_named_text_sync(editor->font, hitbox->line_names[line],
-            &editor->line_labels[line], editor->line_name_cache[line],
+            &editor->line_labels.labels[line], editor->line_labels.values[line],
             EDITOR_OBJECT_NAME_MAX)) return false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 48.0f, 48.0f, 24.0f});
     name_result = editor_mode_name_field("editor.line.name", edited_name,
-        sizeof(edited_name), &editor->line_labels[line],
+        sizeof(edited_name), &editor->line_labels.labels[line],
         (UIRect){context->x + 56.0f, 48.0f, context->width - 64.0f, 24.0f});
     field_active = name_result.active;
     if(name_result.changed) {

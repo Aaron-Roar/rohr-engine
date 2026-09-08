@@ -5,7 +5,7 @@
 #ifndef ROHR_EDITOR_LINE_H
 #define ROHR_EDITOR_LINE_H
 
-#include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef struct EditorLineEditor {
     FontAsset *font;
@@ -15,8 +15,7 @@ typedef struct EditorLineEditor {
     TextAsset constrained_label;
     TextAsset length_field;
     TextAsset delete_label;
-    TextAsset line_labels[EDITOR_HITBOX_VERTEX_MAX];
-    char line_name_cache[EDITOR_HITBOX_VERTEX_MAX][EDITOR_OBJECT_NAME_MAX];
+    EditorModeTextCache line_labels;
 } EditorLineEditor;
 
 bool editor_line_editor_create(EditorLineEditor *editor, FontAsset *font);

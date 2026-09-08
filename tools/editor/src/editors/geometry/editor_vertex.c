@@ -24,14 +24,6 @@ bool editor_vertex_editor_create(EditorVertexEditor *editor, FontAsset *font) {
         editor_vertex_editor_destroy(editor);
         return false;
     }
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1) {
-        char name[32];
-        snprintf(name, sizeof(name), "vertex_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->vertex_labels[i])) {
-            editor_vertex_editor_destroy(editor);
-            return false;
-        }
-    }
     return true;
 }
 
@@ -45,8 +37,7 @@ void editor_vertex_editor_destroy(EditorVertexEditor *editor) {
     rohr_graphics_text_destroy(&editor->x_field);
     rohr_graphics_text_destroy(&editor->y_field);
     rohr_graphics_text_destroy(&editor->delete_label);
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1)
-        rohr_graphics_text_destroy(&editor->vertex_labels[i]);
+    editor_mode_text_cache_destroy(&editor->vertex_labels);
     *editor = (EditorVertexEditor){0};
 }
 
@@ -70,15 +61,17 @@ bool editor_vertex_editor_draw(EditorVertexEditor *editor,
     index = context->viewport->selected_vertex;
     if(hitbox == NULL || index >= hitbox->vertex_count ||
             index >= EDITOR_HITBOX_VERTEX_MAX) return false;
+    if(!editor_mode_text_cache_reserve(&editor->vertex_labels,
+            hitbox->vertex_count)) return false;
     vertex = &hitbox->vertices[index];
     snprintf(edited_name, sizeof(edited_name), "%s", vertex->name);
     if(!editor_mode_named_text_sync(editor->font, vertex->name,
-            &editor->vertex_labels[index], editor->vertex_name_cache[index],
+            &editor->vertex_labels.labels[index], editor->vertex_labels.values[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 48.0f, 48.0f, 24.0f});
     name_result = editor_mode_name_field("editor.vertex.name", edited_name,
-        sizeof(edited_name), &editor->vertex_labels[index],
+        sizeof(edited_name), &editor->vertex_labels.labels[index],
         (UIRect){context->x + 56.0f, 48.0f, context->width - 64.0f, 24.0f});
     field_active = name_result.active;
     if(name_result.changed) {

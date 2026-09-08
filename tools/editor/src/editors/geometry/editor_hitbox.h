@@ -5,7 +5,7 @@
 #ifndef EDITOR_HITBOX_H
 #define EDITOR_HITBOX_H
 
-#include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
 
 typedef struct EditorHitboxEditor {
@@ -18,11 +18,9 @@ typedef struct EditorHitboxEditor {
     TextAsset hidden_label;
     TextAsset delete_label;
     TextAsset hitbox_names[EDITOR_BODY_HITBOX_MAX];
-    TextAsset vertex_names[EDITOR_HITBOX_VERTEX_MAX];
-    TextAsset line_names[EDITOR_HITBOX_VERTEX_MAX];
+    EditorModeTextCache vertex_names;
+    EditorModeTextCache line_names;
     char hitbox_cache[EDITOR_BODY_HITBOX_MAX][EDITOR_OBJECT_NAME_MAX];
-    char vertex_cache[EDITOR_HITBOX_VERTEX_MAX][EDITOR_OBJECT_NAME_MAX];
-    char line_cache[EDITOR_HITBOX_VERTEX_MAX][EDITOR_OBJECT_NAME_MAX];
     bool auto_shape_picker_open;
 } EditorHitboxEditor;
 

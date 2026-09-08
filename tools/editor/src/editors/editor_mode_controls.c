@@ -5,6 +5,7 @@
 #include "editor_mode_controls.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 bool editor_mode_text_create(FontAsset *font, const char *value,
@@ -103,6 +104,38 @@ bool editor_mode_named_text_sync(FontAsset *font,
     } else if(!rohr_graphics_text_value_set(label, name)) return false;
     snprintf(cache, cache_capacity, "%s", name);
     return true;
+}
+
+bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required) {
+    TextAsset *labels;
+    char (*values)[EDITOR_OBJECT_NAME_MAX];
+    size_t capacity;
+    if(cache == NULL || required > EDITOR_HITBOX_VERTEX_MAX) return false;
+    if(required <= cache->capacity) return true;
+    capacity = cache->capacity == 0 ? EDITOR_HITBOX_VERTEX_MIN : cache->capacity;
+    while(capacity < required) capacity *= 2;
+    if(capacity > EDITOR_HITBOX_VERTEX_MAX) capacity = EDITOR_HITBOX_VERTEX_MAX;
+    labels = realloc(cache->labels, capacity * sizeof(*labels));
+    if(labels == NULL) return false;
+    cache->labels = labels;
+    values = realloc(cache->values, capacity * sizeof(*values));
+    if(values == NULL) return false;
+    cache->values = values;
+    memset(cache->labels + cache->capacity, 0,
+        (capacity - cache->capacity) * sizeof(*cache->labels));
+    memset(cache->values + cache->capacity, 0,
+        (capacity - cache->capacity) * sizeof(*cache->values));
+    cache->capacity = capacity;
+    return true;
+}
+
+void editor_mode_text_cache_destroy(EditorModeTextCache *cache) {
+    if(cache == NULL) return;
+    for(size_t i = 0; i < cache->capacity; i += 1)
+        rohr_graphics_text_destroy(&cache->labels[i]);
+    free(cache->labels);
+    free(cache->values);
+    *cache = (EditorModeTextCache){0};
 }
 
 UIFieldResult editor_mode_name_field(const char *id,

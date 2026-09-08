@@ -40,13 +40,6 @@ bool editor_hitbox_editor_create(EditorHitboxEditor *editor, FontAsset *font) {
         snprintf(name, sizeof(name), "hitbox_%zu", i + 1);
         if(!editor_mode_text_create(font, name, &editor->hitbox_names[i])) goto fail;
     }
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1) {
-        char name[32];
-        snprintf(name, sizeof(name), "vertex_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->vertex_names[i])) goto fail;
-        snprintf(name, sizeof(name), "line_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->line_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_hitbox_editor_destroy(editor);
@@ -64,10 +57,8 @@ void editor_hitbox_editor_destroy(EditorHitboxEditor *editor) {
     rohr_graphics_text_destroy(&editor->delete_label);
     for(size_t i = 0; i < EDITOR_BODY_HITBOX_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->hitbox_names[i]);
-    for(size_t i = 0; i < EDITOR_HITBOX_VERTEX_MAX; i += 1) {
-        rohr_graphics_text_destroy(&editor->vertex_names[i]);
-        rohr_graphics_text_destroy(&editor->line_names[i]);
-    }
+    editor_mode_text_cache_destroy(&editor->vertex_names);
+    editor_mode_text_cache_destroy(&editor->line_names);
     *editor = (EditorHitboxEditor){0};
 }
 
@@ -88,6 +79,10 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
     hitbox = body == NULL ? NULL : editor_project_hitbox_get(body,
         context->viewport->selected_hitbox);
     if(hitbox == NULL) return false;
+    if(!editor_mode_text_cache_reserve(&editor->vertex_names,
+            hitbox->vertex_count) ||
+            !editor_mode_text_cache_reserve(&editor->line_names,
+                hitbox->vertex_count)) return false;
     hitbox_index = (size_t)(hitbox - body->hitboxes);
     if(hitbox_index >= EDITOR_BODY_HITBOX_MAX) return false;
     snprintf(edited_name, sizeof(edited_name), "%s", hitbox->name);
@@ -154,10 +149,10 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                     body->id, hitbox->id, hitbox->vertices[i].id});
         UIButtonResult result;
         if(!editor_mode_named_text_sync(editor->font, hitbox->vertices[i].name,
-                &editor->vertex_names[i], editor->vertex_cache[i],
+                &editor->vertex_names.labels[i], editor->vertex_names.values[i],
                 EDITOR_OBJECT_NAME_MAX)) return field_active;
         snprintf(id, sizeof(id), "editor.vertex.%u", hitbox->vertices[i].id);
-        result = rohr_ui_button(id, &editor->vertex_names[i],
+        result = rohr_ui_button(id, &editor->vertex_names.labels[i],
             (UIRect){context->x + 18.0f, 138.0f + (float)i * 27.0f,
                 context->width - 26.0f, 23.0f}, selected ? &style : NULL);
         if(result.clicked || result.focus_changed) {
@@ -182,10 +177,10 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                         body->id, hitbox->id, i});
             UIButtonResult result;
             if(!editor_mode_named_text_sync(editor->font, hitbox->line_names[i],
-                    &editor->line_names[i], editor->line_cache[i],
+                    &editor->line_names.labels[i], editor->line_names.values[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
             snprintf(id, sizeof(id), "editor.line.%u", i);
-            result = rohr_ui_button(id, &editor->line_names[i],
+            result = rohr_ui_button(id, &editor->line_names.labels[i],
                 (UIRect){context->x + 18.0f, base + 28.0f + (float)i * 27.0f,
                     context->width - 26.0f, 23.0f}, selected ? &style : NULL);
             if(result.clicked || result.focus_changed) {
