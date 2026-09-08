@@ -332,6 +332,7 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
     if(browser == NULL || !browser->active || field_display == NULL) return result;
     if(browser->refresh_pending) {
         browser->refresh_pending = false;
+        editor_file_browser_preview_clear(browser);
         if(!editor_file_browser_refresh(browser)) {
             browser->active = false;
             return result;
@@ -521,7 +522,6 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
                 selected ? &selected_style : NULL);
             if(!interaction.clicked || !have_path) continue;
             if(interaction.double_clicked && browser->preview_entries[i].directory) {
-                editor_file_browser_preview_clear(browser);
                 snprintf(browser->directory, sizeof(browser->directory), "%s", path);
                 browser->refresh_pending = true;
                 break;
