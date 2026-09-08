@@ -388,7 +388,6 @@ static const Time camera_collision_zoom_out_duration = 3.0;
 static const float camera_collision_physics_scale = 0.2f;
 
 int main(void) {
-    UIPhysicsDebugPanel debug_panel = {0};
     const float wheel_horizontal_offset =
         chassis_dimensions.x * wheel_horizontal_position_ratio;
     const float chassis_wheel_vertical_offset =
@@ -415,8 +414,6 @@ int main(void) {
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
             !result_ok(rohr_physics_substeps_set(4)) ||
             !result_ok(rohr_graphics_start())) goto fail;
-    if(!result_ok(rohr_ui_physics_debug_panel_init(&debug_panel,
-            (FontDescriptor){"assets/debug/jetbrains_mono_bold_italic.ttf", 11.0f}))) goto fail;
     if(!rohr_controller_axis_add(&controller, "torque", (ControllerAxisBinding){
                 .positive_x = SDLK_D,
                 .negative_x = SDLK_A,
@@ -528,7 +525,7 @@ int main(void) {
                 if(!result_ok(rohr_physics_torque_for_one_tick_apply(
                             wheels[0].disk, -torque_axis.x * control_torque))) goto fail;
             }
-            rohr_physics_update(ticks);
+            if(rohr_error_check(rohr_physics_update(ticks))) goto fail;
             if(!collision_zoom_started) {
                 for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
                     if(!rohr_physics_contact_check(chassis, particles[i])) continue;
@@ -574,17 +571,14 @@ int main(void) {
                 wheels[i].hub, GRAPHICS_FILLED, hub_color);
         }
         rohr_graphics_layer_set(200);
-        rohr_ui_physics_debug_panel_draw(&debug_panel);
         rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
     rohr_graphics_end();
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_engine_shutdown();
     return 0;
 
 fail:
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     fprintf(stderr, "soft-body example failed\n");
     rohr_graphics_end();
     rohr_engine_shutdown();

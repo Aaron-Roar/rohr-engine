@@ -198,7 +198,6 @@ static EngineResult pong_constrain_paddle(
 }
 
 int main(void) {
-    UIPhysicsDebugPanel debug_panel = {0};
     if(!example_use_executable_directory()) return 1;
     KeyboardState keyboard = {0};
     Controller left_controller = rohr_controller_wasd_default_get();
@@ -266,14 +265,6 @@ int main(void) {
             PRINT_ENGINE_ERROR(graphics_result);
             rohr_engine_shutdown();
             return 1;
-        }
-    }
-    {
-        EngineResult debug_result = rohr_ui_physics_debug_panel_init(&debug_panel,
-            (FontDescriptor){"assets/debug/jetbrains_mono_bold_italic.ttf", 11.0f});
-        if(rohr_error_check(debug_result)) {
-            PRINT_ENGINE_ERROR(debug_result);
-            goto fail;
         }
     }
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
@@ -460,7 +451,7 @@ int main(void) {
         }
 
         ticks_advanced = rohr_system_tick_update();
-        rohr_physics_update(ticks_advanced);
+        if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
         if(rohr_physics_contact_check(ball, paddle_left) ||
                 rohr_physics_contact_check(ball, paddle_right)) {
             if(!game_ball_on_fire_set(ball, true)) {
@@ -561,7 +552,6 @@ int main(void) {
                 : fire_result.result.value;
         }
         rohr_graphics_layer_set(200);
-        rohr_ui_physics_debug_panel_draw(&debug_panel);
         rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
@@ -573,12 +563,10 @@ int main(void) {
     game_components_clear(ball);
     game_components_shutdown();
     rohr_graphics_end();
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_engine_shutdown();
     return 0;
 
 fail:
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     if(right_viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(right_viewport);
     if(left_viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(left_viewport);
     if(left_camera != CAMERA_INVALID) (void)rohr_camera_active_set(left_camera);

@@ -14,6 +14,7 @@
 #include "physics/soft_body/soft_body.h"
 #include "physics/physics_step_internal.h"
 #include "math2d.h"
+#include "engine.h"
 #include <math.h>
 #include <float.h>
 #include <stdio.h>
@@ -22,8 +23,8 @@
 Shape system_generate_global_hitbox(Entity entity);
 
 AABBTree physics_broadphase_tree = {.root = AABB_TREE_NODE_INVALID};
-PhysicsDebugStats physics_step_debug_stats;
-bool physics_step_debug_stats_enabled;
+PhysicsUpdateReport physics_update_report;
+bool physics_update_report_enabled = true;
 ContactConstraintList physics_step_contact_constraints;
 JointConstraintList physics_step_joint_constraints;
 static bool system_hitbox_dirty[MAX_ENTITIES];
@@ -35,22 +36,14 @@ double physics_step_elapsed_ms(uint64_t start) {
         (double)SDL_GetPerformanceFrequency();
 }
 
-PhysicsDebugStats system_physics_debug_stats_get(void) {
-    return physics_step_debug_stats;
+PhysicsUpdateReport system_physics_update_report_get(void) {
+    return physics_update_report;
 }
 
-PhysicsDebugStats physics_debug_stats_get(void) {
-    return system_physics_debug_stats_get();
+PhysicsUpdateReport physics_update_report_get(void) {
+    return system_physics_update_report_get();
 }
 
-void system_physics_debug_stats_enabled_set(bool enabled) {
-    physics_step_debug_stats_enabled = enabled;
-    if(!enabled) physics_step_debug_stats = (PhysicsDebugStats){0};
-}
-
-void physics_debug_stats_enabled_set(bool enabled) {
-    system_physics_debug_stats_enabled_set(enabled);
-}
 
 EngineResult physics_broadphase_init(void) {
     EngineResult result = aabb_tree_init(&physics_broadphase_tree, 0);
@@ -197,9 +190,9 @@ void physics_pipeline_joint_constraints_solve(void *context) {
     physics_joint_constraints_solve();
 }
 
-void system_physics_update(double dt) {
+EngineResult system_physics_update(double dt) {
     physics_hitbox_animation_bindings_update();
-    physics_pipeline_update(dt);
+    return physics_pipeline_update(dt);
 }
 
 void print_entity_movement(Entity entity) {

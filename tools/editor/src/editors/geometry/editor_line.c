@@ -123,22 +123,16 @@ bool editor_line_editor_draw(EditorLineEditor *editor,
             (UIRect){context->x + 5.0f, 190.0f,
                 context->width - 10.0f, 38.0f});
     } else {
-        UISliderConfig slider = rohr_ui_slider_config_default_get();
         UIFieldResult result = rohr_ui_field("editor.line.length.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &length},
             &editor->length_field, (UIRect){context->x + 60.0f, 150.0f,
                 context->width - 70.0f, 26.0f}, NULL);
-        UISliderResult slider_result;
         field_active = field_active || result.active;
-        if(result.changed) editor_line_length_set(context->project,
-            object->id, body->id, hitbox->id, line, length);
-        slider.center = (Position){context->x + context->width * 0.5f, 202.0f};
-        slider.length = context->width - 36.0f;
-        slider.min_value = 5.0f;
-        slider.max_value = context->x;
-        slider_result = rohr_ui_slider("editor.line.length", length, &slider);
-        if(slider_result.changed) editor_line_length_set(context->project,
-            object->id, body->id, hitbox->id, line, slider_result.value);
+        if(result.changed) {
+            length = fminf(ROHR_WORLD_COORDINATE_MAX, fmaxf(0.0011f, length));
+            editor_line_length_set(context->project,
+                object->id, body->id, hitbox->id, line, length);
+        }
     }
     if(context->delete_y_get != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();

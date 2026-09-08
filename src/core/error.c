@@ -100,6 +100,8 @@ const char *error_code_message_get(EngineError error) {
             return "component index out of range";
         case ERROR_ENGINE_INVALID_SHAPE:
             return "invalid polygon shape";
+        case ERROR_ENGINE_POSITION_OUT_OF_RANGE:
+            return "physics position is outside the supported world range";
         case ERROR_ENGINE_TEXTURE_LOAD_FAILED:
             return "texture load failed";
         case ERROR_ENGINE_FONT_LOAD_FAILED:

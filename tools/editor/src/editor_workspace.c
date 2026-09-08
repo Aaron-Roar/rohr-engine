@@ -1259,7 +1259,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "            if(event.type == SDL_EVENT_QUIT) goto done;\n"
         "        }\n"
         "        if(rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;\n"
-        "        rohr_physics_update(rohr_system_tick_update());\n"
+        "        if(!ok(rohr_physics_update(rohr_system_tick_update()))) goto fail;\n"
         "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), "
         "rohr_engine_time_get());\n"
         "        rohr_graphics_layer_set(-100);\n"

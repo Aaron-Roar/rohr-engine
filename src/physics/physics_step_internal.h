@@ -12,8 +12,8 @@
 #include "physics/joints/joint_constraint.h"
 
 extern AABBTree physics_broadphase_tree;
-extern PhysicsDebugStats physics_step_debug_stats;
-extern bool physics_step_debug_stats_enabled;
+extern PhysicsUpdateReport physics_update_report;
+extern bool physics_update_report_enabled;
 extern ContactConstraintList physics_step_contact_constraints;
 extern JointConstraintList physics_step_joint_constraints;
 
@@ -43,7 +43,7 @@ void physics_pipeline_contact_constraints_finalize(
 );
 void physics_pipeline_joint_constraints_solve(void *context);
 
-void physics_rigid_integrate(double dt);
+EngineResult physics_rigid_integrate(double dt);
 void physics_rigid_accelerations_clear(void);
 void physics_rigid_gravity_apply(Acceleration gravity);
 void physics_rigid_constraints_gather(void);

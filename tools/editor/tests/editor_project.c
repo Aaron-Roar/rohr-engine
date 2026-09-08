@@ -461,6 +461,15 @@ int main(void) {
     }
     first = hitbox->vertices[0].position;
     second = hitbox->vertices[1].position;
+    {
+        float original_length = editor_project_hitbox_line_length_get(hitbox, 0);
+        if(!editor_project_hitbox_line_length_set(hitbox, 0,
+                    ROHR_WORLD_COORDINATE_MAX) ||
+                editor_project_hitbox_line_length_set(hitbox, 0,
+                    ROHR_WORLD_COORDINATE_MAX + 1.0f) ||
+                !editor_project_hitbox_line_length_set(hitbox, 0,
+                    original_length)) return 1;
+    }
     if(!editor_project_hitbox_vertex_insert(&project, hitbox, 0) ||
             hitbox->vertex_count != 4 ||
             !position_equal(hitbox->vertices[0].position, first) ||

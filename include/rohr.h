@@ -457,8 +457,8 @@ void rohr_physics_pipeline_accelerations_clear(void);
 void rohr_physics_pipeline_gravity_apply(void);
 /** Applies spring-joint and soft-body-beam forces. */
 void rohr_physics_pipeline_forces_apply(void);
-/** Integrates rigid-body state by dt seconds. */
-void rohr_physics_pipeline_integrate(double dt);
+/** Integrates rigid-body state and reports world-boundary failures. */
+EngineResult rohr_physics_pipeline_integrate(double dt);
 /** Detects contacts and gathers contact constraints. */
 void rohr_physics_pipeline_contacts_gather(void);
 /** Gathers active pin and weld joint constraints. */
@@ -466,13 +466,13 @@ void rohr_physics_pipeline_joints_gather(void);
 /** Solves currently gathered contacts and joints. */
 void rohr_physics_pipeline_constraints_solve(uint32_t iterations);
 /** Runs one standard physics substep. */
-void rohr_physics_pipeline_substep(double dt);
+EngineResult rohr_physics_pipeline_substep(double dt);
 /** Runs the standard plug-and-play physics pipeline. */
-void rohr_physics_pipeline_update(double dt);
-/** Advances physics using the supplied number of elapsed engine ticks. */
-void rohr_physics_update(Tick ticks);
+EngineResult rohr_physics_pipeline_update(double dt);
+/** Advances physics and returns any pipeline failure. */
+EngineResult rohr_physics_update(Tick ticks);
 /** Advances physics once with an explicit exceptional delta. */
-void rohr_physics_dt_update(Time dt);
+EngineResult rohr_physics_dt_update(Time dt);
 
 /**
  * @brief Translates a local shape into world space.
@@ -1821,7 +1821,7 @@ AABB rohr_math_aabb_create(Shape world_shape);
  * @brief Runs one physics-system update.
  * @param dt Simulation delta time in seconds.
  */
-void rohr_system_physics_update(double dt);
+EngineResult rohr_system_physics_update(double dt);
 
 /**
  * @brief Advances engine time and clears expired entities.
@@ -2140,11 +2140,8 @@ bool rohr_ui_navigation_focus_bounds_get(UIRect *bounds);
 
 /** @brief Draws reusable text centered inside bounds. */
 void rohr_ui_label(const TextAsset *text, UIRect bounds);
-EngineResult rohr_ui_physics_debug_panel_init(UIPhysicsDebugPanel *panel, FontDescriptor font);
-void rohr_ui_physics_debug_panel_draw(UIPhysicsDebugPanel *panel);
-void rohr_ui_physics_debug_panel_destroy(UIPhysicsDebugPanel *panel);
-PhysicsDebugStats rohr_physics_debug_stats_get(void);
-void rohr_physics_debug_stats_enabled_set(bool enabled);
+/** Returns a snapshot of the latest physics update report. */
+PhysicsUpdateReport rohr_physics_update_report_get(void);
 
 /** @brief Draws a disabled button that cannot capture input. */
 void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style);

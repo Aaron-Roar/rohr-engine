@@ -8,7 +8,11 @@
 #include "math2d.h"
 #include "entity_components.h"
 
-typedef struct PhysicsDebugStats {
+typedef struct PhysicsUpdateReport {
+    /** Engine time at which the latest physics update began. */
+    Time timestamp;
+    /** Engine tick associated with the latest physics update. */
+    Tick tick;
     double total_ms;
     double broadphase_build_ms;
     double broadphase_query_ms;
@@ -21,14 +25,17 @@ typedef struct PhysicsDebugStats {
     size_t narrowphase_test_count;
     size_t overlap_count;
     size_t contact_count;
-} PhysicsDebugStats;
+    size_t simulated_entity_count;
+    size_t quarantined_entity_count;
+} PhysicsUpdateReport;
 
-PhysicsDebugStats physics_debug_stats_get(void);
-void physics_debug_stats_enabled_set(bool enabled);
+/** Return a snapshot of the latest completed or failed physics update. */
+PhysicsUpdateReport physics_update_report_get(void);
 
 #define PHYSICS_SOLVER_ITERATIONS_DEFAULT 8u
 #define PHYSICS_SUBSTEPS_DEFAULT 1u
 #define ROHR_PHYSICS_GRAVITY_DEFAULT ((Acceleration){0.0f, 980.0f})
+#define ROHR_WORLD_COORDINATE_MAX 1000000.0f
 
 EngineResult physics_solver_iterations_set(uint32_t iterations);
 uint32_t physics_solver_iterations_get(void);
@@ -45,8 +52,8 @@ void physics_pipeline_accelerations_clear(void);
 void physics_pipeline_gravity_apply(void);
 /** Apply spring-joint and soft-body-beam forces for the current substep. */
 void physics_pipeline_forces_apply(void);
-/** Integrate rigid-body positions and velocities for one substep. */
-void physics_pipeline_integrate(double dt);
+/** Integrate rigid-body state, quarantining entities outside the world range. */
+EngineResult physics_pipeline_integrate(double dt);
 /** Detect rigid and soft-body contacts and gather their constraints. */
 void physics_pipeline_contacts_gather(void);
 /** Gather active pin and weld joint constraints. */
@@ -54,9 +61,9 @@ void physics_pipeline_joints_gather(void);
 /** Solve all currently gathered contact and joint constraints. */
 void physics_pipeline_constraints_solve(uint32_t iterations);
 /** Run the standard sequence for one substep. */
-void physics_pipeline_substep(double dt);
+EngineResult physics_pipeline_substep(double dt);
 /** Run the plug-and-play physics pipeline, including configured substeps. */
-void physics_pipeline_update(double dt);
+EngineResult physics_pipeline_update(double dt);
 /** Result type for functions that return a Shape. */
 ERROR_DECLARE_RESULT_TYPE(ShapeResult, Shape);
 /** Result type for hitbox variant counts and indices. */
@@ -838,7 +845,7 @@ Time physics_dt_per_tick_get(void);
 /** Return physics timing to the engine time-per-tick default. */
 void physics_engine_time_per_tick_use(void);
 /** Advance physics for a number of elapsed engine ticks. */
-void physics_update(Tick ticks);
+EngineResult physics_update(Tick ticks);
 /** Advance physics once using an explicit exceptional delta. */
-void physics_dt_update(Time dt);
+EngineResult physics_dt_update(Time dt);
 #endif

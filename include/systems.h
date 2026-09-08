@@ -19,9 +19,8 @@ Tick system_tick_update(void);
  *
  * @param dt Delta time in seconds.
  */
-void system_physics_update(double dt);
-PhysicsDebugStats system_physics_debug_stats_get(void);
-void system_physics_debug_stats_enabled_set(bool enabled);
+EngineResult system_physics_update(double dt);
+PhysicsUpdateReport system_physics_update_report_get(void);
 
 /**
  * Delete entities whose lifetime has expired.

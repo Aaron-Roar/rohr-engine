@@ -111,14 +111,14 @@ void rohr_physics_pipeline_substep_begin(void) { physics_pipeline_substep_begin(
 void rohr_physics_pipeline_accelerations_clear(void) { physics_pipeline_accelerations_clear(); }
 void rohr_physics_pipeline_gravity_apply(void) { physics_pipeline_gravity_apply(); }
 void rohr_physics_pipeline_forces_apply(void) { physics_pipeline_forces_apply(); }
-void rohr_physics_pipeline_integrate(double dt) { physics_pipeline_integrate(dt); }
+EngineResult rohr_physics_pipeline_integrate(double dt) { return physics_pipeline_integrate(dt); }
 void rohr_physics_pipeline_contacts_gather(void) { physics_pipeline_contacts_gather(); }
 void rohr_physics_pipeline_joints_gather(void) { physics_pipeline_joints_gather(); }
 void rohr_physics_pipeline_constraints_solve(uint32_t iterations) { physics_pipeline_constraints_solve(iterations); }
-void rohr_physics_pipeline_substep(double dt) { physics_pipeline_substep(dt); }
-void rohr_physics_pipeline_update(double dt) { physics_pipeline_update(dt); }
-void rohr_physics_update(Tick ticks) { physics_update(ticks); }
-void rohr_physics_dt_update(Time dt) { physics_dt_update(dt); }
+EngineResult rohr_physics_pipeline_substep(double dt) { return physics_pipeline_substep(dt); }
+EngineResult rohr_physics_pipeline_update(double dt) { return physics_pipeline_update(dt); }
+EngineResult rohr_physics_update(Tick ticks) { return physics_update(ticks); }
+EngineResult rohr_physics_dt_update(Time dt) { return physics_dt_update(dt); }
 Shape rohr_physics_shape_world_translate(Shape shape, Position position, Orientation angle) { return physics_shape_world_translate(shape, position, angle); }
 float rohr_physics_polygon_moment_of_inertia(Shape shape, Mass mass_value) { return physics_polygon_moment_of_inertia(shape, mass_value); }
 OverlapInfo rohr_physics_sat_overlap_get(Shape shape_1, Shape shape_2) { return physics_sat_overlap_get(shape_1, shape_2); }
@@ -455,7 +455,7 @@ Shape rohr_math_vertex_add(Shape shape) { return math_vertex_add(shape); }
 Shape rohr_math_vertex_delete(Shape shape) { return math_vertex_delete(shape); }
 AABB rohr_math_aabb_create(Shape world_shape) { return math_aabb_create(world_shape); }
 
-void rohr_system_physics_update(double dt) { system_physics_update(dt); }
+EngineResult rohr_system_physics_update(double dt) { return system_physics_update(dt); }
 Tick rohr_system_tick_update(void) { return system_tick_update(); }
 void rohr_system_entities_past_lifetime_clean(void) { system_entities_past_lifetime_clean(); }
 
@@ -563,11 +563,7 @@ bool rohr_ui_navigation_move(UINavigationDirection direction) { return ui_naviga
 bool rohr_ui_navigation_activate(void) { return ui_navigation_activate(); }
 bool rohr_ui_navigation_focus_bounds_get(UIRect *bounds) { return ui_navigation_focus_bounds_get(bounds); }
 void rohr_ui_label(const TextAsset *text, UIRect bounds) { ui_label(text, bounds); }
-EngineResult rohr_ui_physics_debug_panel_init(UIPhysicsDebugPanel *panel, FontDescriptor font) { return ui_physics_debug_panel_init(panel, font); }
-void rohr_ui_physics_debug_panel_draw(UIPhysicsDebugPanel *panel) { ui_physics_debug_panel_draw(panel); }
-void rohr_ui_physics_debug_panel_destroy(UIPhysicsDebugPanel *panel) { ui_physics_debug_panel_destroy(panel); }
-PhysicsDebugStats rohr_physics_debug_stats_get(void) { return physics_debug_stats_get(); }
-void rohr_physics_debug_stats_enabled_set(bool enabled) { physics_debug_stats_enabled_set(enabled); }
+PhysicsUpdateReport rohr_physics_update_report_get(void) { return physics_update_report_get(); }
 void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style) { ui_button_disabled(bounds, style); }
 bool rohr_ui_pointer_consumed_get(void) { return ui_pointer_consumed_get(); }
 void rohr_ui_frame_end(void) { ui_frame_end(); }

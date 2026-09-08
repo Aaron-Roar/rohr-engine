@@ -89,6 +89,38 @@ int main(void) {
         }
     }
 
+    {
+        EntityResult runaway = rohr_entity_add();
+        PositionResult position;
+        PhysicsUpdateReport report;
+        if(rohr_error_check(runaway) ||
+                rohr_error_check(rohr_physics_dynamic_set(runaway.result.value)) ||
+                rohr_error_check(rohr_physics_position_set(runaway.result.value,
+                    (Position){ROHR_WORLD_COORDINATE_MAX, 0.0f})) ||
+                rohr_error_check(rohr_physics_velocity_set(runaway.result.value,
+                    (Velocity){10.0f, 0.0f})) ||
+                rohr_error_check(rohr_physics_hitbox_set(runaway.result.value,
+                    rohr_math_square_create(1.0f, 1.0f))) ||
+                !rohr_error_check(rohr_physics_position_set(runaway.result.value,
+                    (Position){ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f})) ||
+                !rohr_error_check(rohr_physics_pipeline_update(0.2))) {
+            rohr_engine_shutdown();
+            return 1;
+        }
+        report = rohr_physics_update_report_get();
+        position = rohr_physics_position_get(runaway.result.value);
+        if(rohr_error_check(position) ||
+                position.result.value.x != ROHR_WORLD_COORDINATE_MAX ||
+                !rohr_entity_components_check(runaway.result.value, ROHR_HOLD) ||
+                rohr_entity_components_check(runaway.result.value, ROHR_HIT_BOX) ||
+                report.quarantined_entity_count != 1 ||
+                report.simulated_entity_count == 0 || report.total_ms < 0.0 ||
+                rohr_error_check(rohr_entity_delete(runaway.result.value))) {
+            rohr_engine_shutdown();
+            return 1;
+        }
+    }
+
     gravity_entity = rohr_entity_add();
     if(rohr_error_check(gravity_entity) ||
             rohr_error_check(rohr_physics_dynamic_set(gravity_entity.result.value)) ||

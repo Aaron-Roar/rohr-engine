@@ -11,7 +11,6 @@
         rohr_error_message_get(engine_result))
 
 int main(void) {
-    UIPhysicsDebugPanel debug_panel = {0};
     if(!example_use_executable_directory()) return 1;
     KeyboardState keyboard = {0};
     MouseState mouse = {0};
@@ -49,8 +48,6 @@ int main(void) {
             return 1;
         }
     }
-    if(rohr_error_check(rohr_ui_physics_debug_panel_init(&debug_panel,
-            (FontDescriptor){"assets/debug/jetbrains_mono_bold_italic.ttf", 11.0f}))) goto fail;
     {
         EngineResult state_result = rohr_game_state_file_load(
             "assets/user-interface/game.json"
@@ -292,7 +289,6 @@ int main(void) {
         rohr_graphics_contacts_draw();
         rohr_graphics_layer_set(0);
         rohr_graphics_layer_set(200);
-        rohr_ui_physics_debug_panel_draw(&debug_panel);
         rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
@@ -308,12 +304,10 @@ int main(void) {
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
     rohr_graphics_end();
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_engine_shutdown();
     return 0;
 
 fail:
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_graphics_text_destroy(&slider_plus);
     rohr_graphics_text_destroy(&slider_minus);
     rohr_graphics_text_destroy(&slider_value_label);

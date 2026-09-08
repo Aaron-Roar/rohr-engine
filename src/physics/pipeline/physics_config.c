@@ -56,11 +56,12 @@ uint32_t physics_substeps_get(void) {
     return physics_substeps;
 }
 
-void physics_update(Tick ticks) {
-    if(ticks == 0) return;
-    system_physics_update(physics_dt_per_tick_get() * (Time)ticks);
+EngineResult physics_update(Tick ticks) {
+    if(ticks == 0) return error_result_value(true);
+    return system_physics_update(physics_dt_per_tick_get() * (Time)ticks);
 }
 
-void physics_dt_update(Time dt) {
-    if(dt > 0.0) system_physics_update(dt);
+EngineResult physics_dt_update(Time dt) {
+    if(dt <= 0.0) return error_result_value(true);
+    return system_physics_update(dt);
 }

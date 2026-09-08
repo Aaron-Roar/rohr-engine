@@ -1433,7 +1433,8 @@ bool editor_project_hitbox_line_length_set(EditorHitbox *hitbox,
     Vec2D direction;
     float current;
 
-    if(hitbox == NULL || length <= 0.001f ||
+    if(hitbox == NULL || !isfinite(length) || length <= 0.001f ||
+            length > ROHR_WORLD_COORDINATE_MAX ||
             line_index >= hitbox->vertex_count) return false;
     first = &hitbox->vertices[line_index];
     second = &hitbox->vertices[(line_index + 1) % hitbox->vertex_count];

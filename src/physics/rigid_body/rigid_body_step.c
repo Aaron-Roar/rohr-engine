@@ -54,7 +54,8 @@ Shape system_generate_global_hitbox(Entity entity) {
         return (Shape){0};
 }
 
-void system_positions_update(double dt) {
+static bool system_positions_update(double dt) {
+    bool valid = true;
     for(uint32_t alive_position = 0; alive_position < entity_alive_count_get(); alive_position += 1) {
         EntityIndex i;
 
@@ -62,12 +63,29 @@ void system_positions_update(double dt) {
             continue;
         }
         if(physics_entity_movable_get(i)) {
-            positions[i] = (Position){
+            Position next = {
                 .x = positions[i].x + (velocities[i].x)*dt,
                 .y = positions[i].y + (velocities[i].y)*dt
             };
+            physics_update_report.simulated_entity_count += 1;
+            if(!isfinite(next.x) || !isfinite(next.y) ||
+                    fabsf(next.x) > ROHR_WORLD_COORDINATE_MAX ||
+                    fabsf(next.y) > ROHR_WORLD_COORDINATE_MAX) {
+                Entity entity;
+                valid = false;
+                physics_update_report.quarantined_entity_count += 1;
+                entity_mask[i] |= ROHR_HOLD;
+                velocities[i] = (Velocity){0};
+                accelerations[i] = (Acceleration){0};
+                force_accelerations[i] = (Acceleration){0};
+                if(physics_step_entity_from_index_get(i, &entity))
+                    (void)physics_hitbox_remove(entity);
+                continue;
+            }
+            positions[i] = next;
         }
     }
+    return valid;
 }
 
 void system_orientations_update(double dt) {
@@ -762,16 +780,16 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     if(query == NULL || target <= query->source ||
             !entity_index_get(target, &target_index) ||
             !entity_index_alive_check(target_index)) return true;
-    if(physics_step_debug_stats_enabled) physics_step_debug_stats.candidate_pair_count += 1;
+    if(physics_update_report_enabled) physics_update_report.candidate_pair_count += 1;
     if(!physics_collision_between_check(query->source, target)) return true;
-    if(physics_step_debug_stats_enabled) {
-        physics_step_debug_stats.narrowphase_test_count += 1;
+    if(physics_update_report_enabled) {
+        physics_update_report.narrowphase_test_count += 1;
         started = SDL_GetPerformanceCounter();
     }
     overlap = system_entity_overlap_get(query->source_index, target_index);
-    if(physics_step_debug_stats_enabled) physics_step_debug_stats.narrowphase_ms += physics_rigid_elapsed_ms(started);
+    if(physics_update_report_enabled) physics_update_report.narrowphase_ms += physics_rigid_elapsed_ms(started);
     if(!overlap.detected) return true;
-    if(physics_step_debug_stats_enabled) physics_step_debug_stats.overlap_count += 1;
+    if(physics_update_report_enabled) physics_update_report.overlap_count += 1;
     responds = entity_index_components_check(query->source_index, ROHR_COLLISION) &&
         entity_index_components_check(target_index, ROHR_COLLISION);
     return contact_constraint_list_append(&physics_step_contact_constraints,
@@ -922,8 +940,8 @@ static void system_rigid_contact_constraint_solve(
         : overlap;
     constraint->value.rigid.solved = true;
     if(responds) {
-        if(physics_step_debug_stats_enabled && first_solve) {
-            physics_step_debug_stats.contact_count += 1;
+        if(physics_update_report_enabled && first_solve) {
+            physics_update_report.contact_count += 1;
         }
         physics_step_hitbox_dirty_add(first);
         physics_step_hitbox_dirty_add(second);
@@ -955,7 +973,7 @@ static void system_broadphase_build(void) {
         if(!physics_step_alive_index_at(alive_position, &index) ||
                 !entity_index_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
-        if(physics_step_debug_stats_enabled) physics_step_debug_stats.collider_count += 1;
+        if(physics_update_report_enabled) physics_update_report.collider_count += 1;
         (void)aabb_tree_insert(
             &physics_broadphase_tree,
             entity,
@@ -1211,17 +1229,19 @@ void system_transform_locks_apply(void) {
     }
 }
 
-void physics_rigid_integrate(double dt) {
+EngineResult physics_rigid_integrate(double dt) {
     system_forces_apply();
     system_torques_apply();
     system_velocities_update(dt);
     system_angular_velocities_update(dt);
     system_angular_velocity_maximums_apply();
     system_orientations_update(dt);
-    system_positions_update(dt);
+    if(!system_positions_update(dt))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     system_axis_locks_apply();
     system_angle_locks_apply();
     system_transform_locks_apply();
+    return error_result_value(true);
 }
 
 void physics_rigid_accelerations_clear(void) {
@@ -1232,13 +1252,13 @@ void physics_rigid_constraints_gather(void) {
     uint64_t started = 0;
 
     system_generate_global_hitboxes();
-    if(physics_step_debug_stats_enabled) started = SDL_GetPerformanceCounter();
+    if(physics_update_report_enabled) started = SDL_GetPerformanceCounter();
     system_broadphase_build();
-    if(physics_step_debug_stats_enabled) {
-        physics_step_debug_stats.broadphase_build_ms +=
+    if(physics_update_report_enabled) {
+        physics_update_report.broadphase_build_ms +=
             physics_rigid_elapsed_ms(started);
-        physics_step_debug_stats.tree_node_count = physics_broadphase_tree.count;
-        physics_step_debug_stats.tree_height =
+        physics_update_report.tree_node_count = physics_broadphase_tree.count;
+        physics_update_report.tree_height =
             physics_broadphase_tree.root == AABB_TREE_NODE_INVALID
                 ? 0
                 : physics_broadphase_tree.nodes[physics_broadphase_tree.root].height;

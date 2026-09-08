@@ -69,6 +69,8 @@ typedef enum EngineError {
     ERROR_ENGINE_INDEX_OUT_OF_RANGE,
     /** A polygon shape is degenerate, self-intersecting, or otherwise invalid. */
     ERROR_ENGINE_INVALID_SHAPE,
+    /** A physics position is non-finite or outside the supported world range. */
+    ERROR_ENGINE_POSITION_OUT_OF_RANGE,
     /** A texture asset could not be loaded. */
     ERROR_ENGINE_TEXTURE_LOAD_FAILED,
     /** A font asset could not be loaded. */

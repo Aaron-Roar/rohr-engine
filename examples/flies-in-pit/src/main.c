@@ -16,7 +16,6 @@ const Torque large_fly_control_torque = 2000000.0f;
         rohr_error_message_get(engine_result))
 
 int main(void) {
-    UIPhysicsDebugPanel debug_panel = {0};
     if(!example_use_executable_directory()) return 1;
     KeyboardState keyboard = {0};
 
@@ -41,15 +40,6 @@ int main(void) {
             PRINT_ENGINE_ERROR(graphics_result);
             rohr_engine_shutdown();
             return 1;
-        }
-    }
-
-    {
-        EngineResult debug_result = rohr_ui_physics_debug_panel_init(&debug_panel,
-            (FontDescriptor){"assets/debug/jetbrains_mono_bold_italic.ttf", 11.0f});
-        if(rohr_error_check(debug_result)) {
-            PRINT_ENGINE_ERROR(debug_result);
-            goto fail;
         }
     }
     EngineResult load_result = rohr_game_state_file_load(
@@ -143,7 +133,7 @@ int main(void) {
         }
 
         //physics
-        rohr_physics_update(ticks_advanced);
+        if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
 
         //render
         rohr_graphics_layer_set(-100);
@@ -168,18 +158,15 @@ int main(void) {
         rohr_graphics_local_origins_draw();
         rohr_graphics_layer_set(0);
         rohr_graphics_layer_set(200);
-        rohr_ui_physics_debug_panel_draw(&debug_panel);
         rohr_graphics_layer_set(0);
         rohr_graphics_show();
 
     }
     rohr_graphics_end();
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_engine_shutdown();
     return 0;
 
 fail:
-    rohr_ui_physics_debug_panel_destroy(&debug_panel);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;
