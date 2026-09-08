@@ -20,6 +20,7 @@
 #include "editor_navigation.h"
 #include "editor_command.h"
 #include "editor_object_commands.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/geometry/editor_origin_panel.h"
 #include "editors/multi/editor_bulk_panel.h"
 #include "panels/editor_build_settings_panel.h"
@@ -714,6 +715,17 @@ static float editor_panel_delete_y_get(const EditorProject *project,
     const EditorRigidBodyEditor *rigid_body_editor) {
     return editor_panel_content_height_get(project, state,
         rigid_body_editor) - 50.0f;
+}
+
+static bool editor_panel_delete_footer_check(EditorViewportMode mode) {
+    return mode == EDITOR_VIEWPORT_OBJECT || mode == EDITOR_VIEWPORT_RIGID_BODY ||
+        mode == EDITOR_VIEWPORT_HITBOX || mode == EDITOR_VIEWPORT_VERTEX ||
+        mode == EDITOR_VIEWPORT_LINE || mode == EDITOR_VIEWPORT_JOINT ||
+        mode == EDITOR_VIEWPORT_ANCHOR || mode == EDITOR_VIEWPORT_SOFT_BODY ||
+        mode == EDITOR_VIEWPORT_SOFT_NODE || mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+        mode == EDITOR_VIEWPORT_SPRITE ||
+        mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
+        mode == EDITOR_VIEWPORT_ANIMATION_FRAME;
 }
 
 static bool editor_use_executable_directory(void) {
@@ -2361,9 +2373,12 @@ int main(void) {
             collide_with_open = false;
             rigid_body_editor.binding_hitbox_open = 0;
         }
+        bool delete_footer = editor_panel_delete_footer_check(viewport_state.mode);
+        float delete_footer_height = delete_footer ? 54.0f : 0.0f;
         panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
             (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
-                EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT},
+                EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
+                    delete_footer_height},
             fmaxf(editor_panel_content_height_get(&project, &viewport_state,
                     &rigid_body_editor),
                 editor_bulk_panel_content_height_get(&viewport_state)),
@@ -2432,6 +2447,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary},
@@ -2445,7 +2461,8 @@ int main(void) {
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_AUTO_SHAPE) {
             field_editing = editor_auto_shape_editor_draw(&auto_shape_editor,
                 &(EditorModeContext){.project = &project,
@@ -2460,7 +2477,8 @@ int main(void) {
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LINE) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
@@ -2470,7 +2488,8 @@ int main(void) {
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_JOINT) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
@@ -2485,6 +2504,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
@@ -2497,7 +2517,8 @@ int main(void) {
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_BODY) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -2516,6 +2537,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
@@ -2539,6 +2561,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .primary_button = hierarchy_primary},
                 editor_soft_node_collision_menu_draw, &collision_context);
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_BEAM) {
@@ -2554,7 +2577,8 @@ int main(void) {
                     .color_context = &color_context,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_AREA) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -2574,7 +2598,8 @@ int main(void) {
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
-                    .delete_context = &delete_context},
+                    .delete_context = &delete_context,
+                    .delete_footer = true},
                 editor_mode_rigid_body_preview, &viewport_state);
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANIMATION_FRAME) {
             EditorModeDeleteContext delete_context = {
@@ -2585,7 +2610,8 @@ int main(void) {
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
-                    .delete_context = &delete_context});
+                    .delete_context = &delete_context,
+                    .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
@@ -2609,6 +2635,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary},
@@ -2637,6 +2664,7 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
+                    .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary},
@@ -2659,6 +2687,86 @@ int main(void) {
                 &viewport_state, &history, hierarchy_primary))
             pointer_selection_handled = true;
         rohr_ui_scroll_region_end();
+        if(delete_footer) {
+            const TextAsset *delete_label = NULL;
+            const char *delete_id = NULL;
+            bool delete_enabled = true;
+            UIRect delete_bounds = {EDITOR_VIEWPORT_WIDTH + 10.0f,
+                EDITOR_WINDOW_HEIGHT - 44.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
+            UIButtonStyle delete_style = editor_mode_delete_style_get();
+            switch(viewport_state.mode) {
+                case EDITOR_VIEWPORT_OBJECT:
+                    delete_label = &object_editor.delete_label;
+                    delete_id = "editor.object.delete";
+                    break;
+                case EDITOR_VIEWPORT_RIGID_BODY:
+                    delete_label = &rigid_body_editor.delete_label;
+                    delete_id = "editor.rigid_body.delete";
+                    break;
+                case EDITOR_VIEWPORT_HITBOX:
+                    delete_label = &hitbox_editor.delete_label;
+                    delete_id = "editor.hitbox.delete";
+                    break;
+                case EDITOR_VIEWPORT_VERTEX:
+                case EDITOR_VIEWPORT_LINE: {
+                    EditorObject *object = editor_project_selected_get(&project);
+                    EditorHitbox *hitbox = editor_selected_hitbox_get(object,
+                        &viewport_state);
+                    delete_enabled = hitbox != NULL &&
+                        hitbox->vertex_count > EDITOR_HITBOX_VERTEX_MIN;
+                    delete_label = viewport_state.mode == EDITOR_VIEWPORT_VERTEX ?
+                        &vertex_editor.delete_label : &line_editor.delete_label;
+                    delete_id = viewport_state.mode == EDITOR_VIEWPORT_VERTEX ?
+                        "editor.vertex.delete" : "editor.line.delete";
+                    break;
+                }
+                case EDITOR_VIEWPORT_JOINT:
+                    delete_label = &joint_editor.delete_label;
+                    delete_id = "editor.joint.delete";
+                    break;
+                case EDITOR_VIEWPORT_ANCHOR:
+                    delete_label = &anchor_editor.delete_label;
+                    delete_id = "editor.anchor.delete";
+                    break;
+                case EDITOR_VIEWPORT_SOFT_BODY:
+                    delete_label = &soft_body_editor.delete_label;
+                    delete_id = "editor.soft_body.delete";
+                    break;
+                case EDITOR_VIEWPORT_SOFT_NODE:
+                    delete_label = &soft_node_editor.delete_label;
+                    delete_id = "editor.soft_node.delete";
+                    break;
+                case EDITOR_VIEWPORT_SOFT_BEAM:
+                    delete_label = &soft_beam_editor.delete_label;
+                    delete_id = "editor.soft_beam.delete";
+                    break;
+                case EDITOR_VIEWPORT_SPRITE:
+                    delete_label = &sprite_editor.delete_label;
+                    delete_id = "editor.sprite.delete";
+                    break;
+                case EDITOR_VIEWPORT_ANIMATED_SPRITE:
+                    delete_label = &animated_sprite_editor.delete_label;
+                    delete_id = "editor.animated_sprite.delete";
+                    break;
+                case EDITOR_VIEWPORT_ANIMATION_FRAME:
+                    delete_label = &animation_frame_editor.delete_label;
+                    delete_id = "editor.animation_frame.delete";
+                    break;
+                default: break;
+            }
+            rohr_ui_surface((UIRect){EDITOR_VIEWPORT_WIDTH,
+                EDITOR_WINDOW_HEIGHT - delete_footer_height,
+                EDITOR_TOOLS_WIDTH, 1.0f}, (Color){75, 84, 100, 255});
+            if(delete_label != NULL && delete_id != NULL) {
+                if(!delete_enabled) {
+                    rohr_ui_button_disabled(delete_bounds, &delete_style);
+                    rohr_ui_label(delete_label, delete_bounds);
+                } else if(rohr_ui_button(delete_id, delete_label, delete_bounds,
+                        &delete_style).clicked) {
+                    (void)editor_open_item_delete(&project, &viewport_state);
+                }
+            }
+        }
         rohr_graphics_screen_clip_clear();
         (void)rohr_graphics_screen_clip_set(
             0.0f, EDITOR_MENU_HEIGHT, EDITOR_VIEWPORT_WIDTH,

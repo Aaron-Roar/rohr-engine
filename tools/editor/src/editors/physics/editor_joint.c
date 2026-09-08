@@ -301,7 +301,8 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             &editor->damping_field, 506.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
     }
-    if(context->delete_y_get != NULL && context->delete_open_item != NULL) {
+    if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
+            !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.joint.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

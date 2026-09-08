@@ -522,7 +522,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             context->primary_button == MOUSE_BUTTON_STATE_PRESSED &&
             !binding_pointer_inside && !binding_click_handled)
         editor->binding_hitbox_open = 0;
-    if(context->delete_y_get != NULL && context->delete_open_item != NULL) {
+    if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
+            !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         float panel_delete_y = context->delete_y_get(context->delete_context);
         if(delete_y < panel_delete_y) delete_y = panel_delete_y;

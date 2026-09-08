@@ -147,7 +147,7 @@ bool editor_line_editor_draw(EditorLineEditor *editor,
         if(slider_result.changed) editor_line_length_set(context->project,
             object->id, body->id, hitbox->id, line, slider_result.value);
     }
-    if(context->delete_y_get != NULL) {
+    if(context->delete_y_get != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         UIRect bounds = {context->x + 10.0f,
             context->delete_y_get(context->delete_context),

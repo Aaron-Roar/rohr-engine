@@ -294,7 +294,8 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_NODE,
             object->id, body->id, node->id, EDITOR_PROPERTY_COLOR);
     }
-    if(context->delete_y_get != NULL && context->delete_open_item != NULL) {
+    if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
+            !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.soft_node.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

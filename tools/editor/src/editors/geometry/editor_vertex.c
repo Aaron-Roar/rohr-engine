@@ -143,7 +143,7 @@ bool editor_vertex_editor_draw(EditorVertexEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
-    if(context->delete_y_get != NULL) {
+    if(context->delete_y_get != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         UIRect bounds = {context->x + 10.0f,
             context->delete_y_get(context->delete_context),

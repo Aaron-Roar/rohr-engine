@@ -188,7 +188,8 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             anchor->id, EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY,
             orientation_result.selected_index == 1);
     }
-    if(context->delete_y_get != NULL && context->delete_open_item != NULL) {
+    if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
+            !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.anchor.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

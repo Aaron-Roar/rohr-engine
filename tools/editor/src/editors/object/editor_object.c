@@ -238,7 +238,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             (void)editor_viewport_selection_set(context->project,
                 context->viewport, ref, false);
     }
-    if(context->delete_open_item != NULL) {
+    if(context->delete_open_item != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.object.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

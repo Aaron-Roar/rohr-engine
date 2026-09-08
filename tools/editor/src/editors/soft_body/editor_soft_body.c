@@ -318,7 +318,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             editor->auto_shape_picker_open = false;
         }
     }
-    if(context->delete_open_item != NULL) {
+    if(context->delete_open_item != NULL && !context->delete_footer) {
         UIButtonStyle delete_style = delete_style_get();
         if(rohr_ui_button(
             "editor.soft_body.delete", &editor->delete_label,

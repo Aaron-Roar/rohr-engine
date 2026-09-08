@@ -197,7 +197,8 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
             }
         }
     }
-    if(context->delete_y_get != NULL && context->delete_open_item != NULL) {
+    if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
+            !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         float delete_y = 209.0f + (float)hitbox->vertex_count * 54.0f;
         float panel_delete_y = context->delete_y_get(context->delete_context);

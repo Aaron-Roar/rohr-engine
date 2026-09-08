@@ -183,7 +183,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
             .data.sprite_boolean_set = {object->id, sprite->id, follow}};
         (void)editor_command_execute(context->project, &command);
     }
-    if(context->delete_open_item != NULL) {
+    if(context->delete_open_item != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.sprite.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

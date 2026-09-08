@@ -254,7 +254,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             break;
         }
     }
-    if(context->delete_open_item != NULL) {
+    if(context->delete_open_item != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.animated_sprite.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,

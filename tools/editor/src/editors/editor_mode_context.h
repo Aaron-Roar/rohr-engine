@@ -30,6 +30,7 @@ typedef struct EditorModeContext {
     EditorModeDeleteYGetFunction delete_y_get;
     EditorModeDeleteFunction delete_open_item;
     void *delete_context;
+    bool delete_footer;
     EditorModeHierarchyRowFunction hierarchy_row;
     void *hierarchy_context;
     MouseButtonState primary_button;

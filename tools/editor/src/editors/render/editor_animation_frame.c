@@ -115,7 +115,7 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
                 .size = {width, height}}};
         (void)editor_command_execute(context->project, &command);
     }
-    if(context->delete_y_get != NULL) {
+    if(context->delete_y_get != NULL && !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
         if(rohr_ui_button("editor.animation_frame.delete", &editor->delete_label,
                 (UIRect){context->x + 10.0f,
