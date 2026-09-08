@@ -99,7 +99,8 @@ static uint32_t editor_vertex_count_clamp(uint32_t vertex_count) {
     if(vertex_count < EDITOR_HITBOX_VERTEX_MIN) {
         return EDITOR_HITBOX_VERTEX_MIN;
     }
-    return vertex_count;
+    return vertex_count > EDITOR_HITBOX_VERTEX_MAX ?
+        EDITOR_HITBOX_VERTEX_MAX : vertex_count;
 }
 
 static bool editor_hitbox_vertices_reserve(EditorHitbox *hitbox,
@@ -107,7 +108,7 @@ static bool editor_hitbox_vertices_reserve(EditorHitbox *hitbox,
     EditorVertex *vertices;
     char (*line_names)[EDITOR_OBJECT_NAME_MAX];
     size_t capacity;
-    if(hitbox == NULL) return false;
+    if(hitbox == NULL || required > EDITOR_HITBOX_VERTEX_MAX) return false;
     if(required <= hitbox->vertex_capacity) return true;
     capacity = hitbox->vertex_capacity == 0 ? 4 : hitbox->vertex_capacity;
     while(capacity < required) capacity *= 2;

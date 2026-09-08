@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 #define MAX_VECTORS 100
-#define MAX_VERTICIES 50
+#define MAX_VERTICIES 100
 #define MIN_VERTICIES 3
 #define MAX_CONCAVE_PIECES (MAX_VERTICIES - 2)
 

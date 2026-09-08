@@ -49,6 +49,15 @@ int main(void) {
         .vertices = {{0.0f, 0.0f}, {2.0f, 2.0f},
             {0.0f, 2.0f}, {2.0f, 0.0f}}
     };
+    Shape maximum = {.amount_of_vertices = MAX_VERTICIES};
+
+    for(uint16_t i = 0; i < maximum.amount_of_vertices; i += 1) {
+        float angle = 6.28318530718f * (float)i /
+            (float)maximum.amount_of_vertices;
+        maximum.vertices[i] = (Vec2D){cosf(angle), sinf(angle)};
+    }
+    if(!physics_shape_collision_prepare(maximum, &maximum) ||
+            maximum.concave_piece_count != 0) return 15;
 
     if(!physics_shape_collision_prepare(l_shape_get(), &concave)) return 1;
     if(concave.concave_piece_count != 4) return 2;
