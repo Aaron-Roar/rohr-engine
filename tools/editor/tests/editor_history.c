@@ -176,6 +176,22 @@ int main(void) {
     assert(body != NULL);
     hitbox = editor_project_hitbox_add(&project, body);
     assert(hitbox != NULL && hitbox->vertex_count > 0);
+    {
+        Position rotation_handle = test_world_to_screen((Position){
+            body->position.x,
+            body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+        body->particle = true;
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_PARTICLE;
+        viewport.selection = EDITOR_SELECTION_PARTICLE;
+        viewport.selected_rigid_body = body->id;
+        assert(editor_viewport_update(&viewport, &project, rotation_handle,
+            MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false));
+        assert(viewport.rotated_body);
+        editor_viewport_transform_cancel(&viewport);
+        body->particle = false;
+    }
     original_vertex = hitbox->vertices[0].position;
     editor_history_reset(&history);
     command = (EditorCommand){.type = EDITOR_COMMAND_VERTEX_POSITION,
