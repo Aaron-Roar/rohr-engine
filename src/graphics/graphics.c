@@ -2172,42 +2172,11 @@ static void graphics_commands_execute(void) {
     graphics_clip_stack_count = 0;
 }
 
-static bool graphics_renderable_viewport_check(void) {
-    for(size_t viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        size_t camera_slot;
-        if(viewports_used[viewport_slot] && viewports[viewport_slot].enabled &&
-                graphics_camera_slot(viewports[viewport_slot].camera, &camera_slot))
-            return true;
-    }
-    return false;
-}
-
-static void graphics_commands_discard(void) {
-    for(size_t i = 0; i < graphics_layer_count; i += 1)
-        graphics_layers[i].count = 0;
-    graphics_layer_count = 0;
-    graphics_active_layer = 0;
-    graphics_active_layer_index = SIZE_MAX;
-    graphics_clip_state = (GraphicsClipState){0};
-    graphics_clip_stack_count = 0;
-}
-
 void graphics_show(void) {
-    bool renderable;
     graphics_camera_motions_update();
-    renderable = graphics_renderable_viewport_check();
     graphics_render_viewport_cameras();
-    if(renderable) {
-        graphics_commands_execute();
-        graphics_viewports_draw();
-    } else {
-        (void)SDL_SetRenderTarget(sdl_renderer, NULL);
-        (void)SDL_SetRenderViewport(sdl_renderer, NULL);
-        (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
-        (void)SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-        (void)SDL_RenderClear(sdl_renderer);
-        graphics_commands_discard();
-    }
+    graphics_commands_execute();
+    graphics_viewports_draw();
     if(screen_recorder.recording) {
         if(!graphics_record_frame()) {
             graphics_recording_stop();
