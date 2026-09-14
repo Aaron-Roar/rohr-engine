@@ -23,6 +23,25 @@ static bool navigation_mode_open_check(EditorProject *project,
     return editor_navigation_selected_open(project, state) && state->mode == expected;
 }
 
+static bool modifier_click_toggle_check(EditorProject *project,
+        EditorViewportState *state, EditorSelectionRef fallback,
+        EditorSelectionRef clicked) {
+    editor_viewport_selection_clear(state);
+    if(!editor_viewport_selection_set(project, state, fallback, false) ||
+            !editor_viewport_selection_set(project, state, clicked, true) ||
+            state->selected_item_count != 2 ||
+            !editor_viewport_selection_contains(state, clicked) ||
+            !editor_viewport_selection_set(project, state, clicked, true) ||
+            state->selected_item_count != 1 ||
+            editor_viewport_selection_contains(state, clicked)) return false;
+    editor_viewport_selection_clear(state);
+    if(!editor_viewport_selection_set(project, state, clicked, false) ||
+            !editor_viewport_selection_set(project, state, clicked, true) ||
+            state->selected_item_count != 0 ||
+            state->selection != EDITOR_SELECTION_NONE) return false;
+    return true;
+}
+
 int main(void) {
     static EditorProject project;
     EditorObject *object;
@@ -502,6 +521,141 @@ int main(void) {
                 state.mode != EDITOR_VIEWPORT_ANIMATED_SPRITE ||
                 state.selection != EDITOR_SELECTION_ANIMATED_SPRITE ||
                 state.selected_animated_sprite != animation->id) return 1;
+    }
+    {
+        EditorProject click_project;
+        EditorViewportState click_state;
+        EditorObject *clicked_object;
+        EditorObject *fallback_object;
+        EditorRigidBody *clicked_body;
+        EditorHitbox *clicked_hitbox;
+        EditorAnchor *clicked_anchor;
+        EditorJoint *clicked_joint;
+        EditorSoftBody *clicked_soft_body;
+        EditorSoftNode *clicked_node;
+        EditorSoftNode *clicked_node_b;
+        EditorSoftNode *clicked_node_c;
+        EditorSoftBeam *clicked_beam;
+        EditorSprite *clicked_sprite;
+        EditorAnimatedSprite *clicked_animation;
+        EditorSelectionRef fallback;
+        EditorSelectionRef selections[17];
+        EditorSoftNodeId clicked_node_id;
+        EditorSoftNodeId clicked_node_b_id;
+        EditorSoftNodeId clicked_node_c_id;
+        EditorSoftBeamId clicked_beam_id;
+        EditorObjectId fallback_object_id;
+        size_t selection_count = 0;
+
+        editor_project_init(&click_project);
+        editor_viewport_state_init(&click_state);
+        fallback_object = editor_project_object_add(
+            &click_project, (Position){500.0f, 500.0f});
+        if(fallback_object == NULL) return 1;
+        fallback_object_id = fallback_object->id;
+        clicked_object = editor_project_object_add(&click_project, (Position){0});
+        if(clicked_object == NULL || fallback_object == NULL) return 1;
+        clicked_body = editor_project_rigid_body_add(
+            &click_project, clicked_object);
+        if(clicked_body == NULL) return 1;
+        clicked_hitbox = &clicked_body->hitboxes[0];
+        clicked_anchor = editor_project_anchor_add(&click_project, clicked_object,
+            (Position){100.0f, 0.0f}, clicked_body->id);
+        clicked_joint = editor_project_joint_add(
+            &click_project, clicked_object, EDITOR_JOINT_SPRING);
+        clicked_soft_body = editor_project_soft_body_add(
+            &click_project, clicked_object);
+        if(clicked_anchor == NULL || clicked_joint == NULL ||
+                clicked_soft_body == NULL) return 1;
+        clicked_node = editor_project_soft_node_add(&click_project,
+            clicked_soft_body, (Position){0});
+        if(clicked_node == NULL) return 1;
+        clicked_node_id = clicked_node->id;
+        clicked_node_b = editor_project_soft_node_add(&click_project,
+            clicked_soft_body, (Position){20.0f, 0.0f});
+        clicked_node_c = editor_project_soft_node_add(&click_project,
+            clicked_soft_body, (Position){0.0f, 20.0f});
+        if(clicked_node_b == NULL || clicked_node_c == NULL) return 1;
+        clicked_node_b_id = clicked_node_b->id;
+        clicked_node_c_id = clicked_node_c->id;
+        clicked_beam = editor_project_soft_beam_add(&click_project,
+            clicked_soft_body, clicked_node_id, clicked_node_b_id);
+        if(clicked_beam == NULL) return 1;
+        clicked_beam_id = clicked_beam->id;
+        if(
+                editor_project_soft_beam_add(&click_project, clicked_soft_body,
+                    clicked_node_b_id, clicked_node_c_id) == NULL ||
+                editor_project_soft_beam_add(&click_project, clicked_soft_body,
+                    clicked_node_c_id, clicked_node_id) == NULL) return 1;
+        editor_project_soft_areas_sync(&click_project, clicked_soft_body);
+        clicked_sprite = editor_project_sprite_add(&click_project, clicked_object,
+            "click_sprite", "click_sprite.png");
+        clicked_animation = editor_project_animated_sprite_add(
+            &click_project, clicked_object);
+        if(clicked_soft_body->area_count == 0 || clicked_sprite == NULL ||
+                clicked_animation == NULL ||
+                !editor_project_animation_frame_add(&click_project,
+                    clicked_animation, "click_frame", "click_frame.png",
+                    (Scale){16.0f, 16.0f})) return 1;
+
+        fallback = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+            fallback_object_id, 0, 0, fallback_object_id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_OBJECT, clicked_object->id, 0, 0,
+            clicked_object->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_RIGID_BODY, clicked_object->id, 0, 0,
+            clicked_body->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_PARTICLE, clicked_object->id, 0, 0,
+            clicked_body->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_HITBOX, clicked_object->id, clicked_body->id, 0,
+            clicked_hitbox->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_JOINT, clicked_object->id, 0, 0,
+            clicked_joint->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_ANCHOR, clicked_object->id, 0, 0,
+            clicked_anchor->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_SOFT_BODY, clicked_object->id, 0, 0,
+            clicked_soft_body->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_SOFT_NODE, clicked_object->id,
+            clicked_soft_body->id, 0, clicked_node_id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_SOFT_BEAM, clicked_object->id,
+            clicked_soft_body->id, 0, clicked_beam_id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_SOFT_AREA, clicked_object->id,
+            clicked_soft_body->id, 0, clicked_soft_body->areas[0].id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_ORIGIN, clicked_object->id,
+            EDITOR_ORIGIN_RIGID_BODY, 0, clicked_body->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_ORIGIN, clicked_object->id,
+            EDITOR_ORIGIN_SOFT_BODY, 0, clicked_soft_body->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_LINE, clicked_object->id, clicked_body->id,
+            clicked_hitbox->id, 0};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_VERTEX, clicked_object->id, clicked_body->id,
+            clicked_hitbox->id, clicked_hitbox->vertices[0].id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_SPRITE, clicked_object->id, 0, 0,
+            clicked_sprite->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_ANIMATED_SPRITE, clicked_object->id, 0, 0,
+            clicked_animation->id};
+        selections[selection_count++] = (EditorSelectionRef){
+            EDITOR_SELECTION_ANIMATION_FRAME, clicked_object->id,
+            clicked_animation->id, 0, clicked_animation->frames[0].id};
+        for(size_t i = 0; i < selection_count; i += 1)
+            if(!modifier_click_toggle_check(&click_project, &click_state,
+                    fallback, selections[i])) return 1;
+        editor_viewport_state_destroy(&click_state);
+        editor_project_destroy(&click_project);
     }
     editor_history_destroy(&history);
     editor_viewport_state_destroy(&state);
