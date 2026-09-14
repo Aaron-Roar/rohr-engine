@@ -469,11 +469,22 @@ void ui_field_focus_clear(void) {
     ui_context.field_cursor = 0;
 }
 
+static void ui_field_float_format(float number, char *value, size_t capacity) {
+    char *end;
+    if(value == NULL || capacity == 0) return;
+    snprintf(value, capacity, "%.6f", (double)number);
+    end = value + strlen(value);
+    while(end > value && end[-1] == '0') end -= 1;
+    if(end > value && end[-1] == '.') end -= 1;
+    *end = '\0';
+    if(strcmp(value, "-0") == 0) snprintf(value, capacity, "0");
+}
+
 static void ui_field_binding_display_set(UIFieldBinding binding, TextAsset *display) {
     char value[UI_FIELD_EDIT_MAX] = {0};
 
     if(binding.kind == UI_FIELD_FLOAT && binding.number != NULL) {
-        snprintf(value, sizeof(value), "%.1f", *binding.number);
+        ui_field_float_format(*binding.number, value, sizeof(value));
     } else if(binding.kind == UI_FIELD_STRING && binding.string != NULL) {
         snprintf(value, sizeof(value), "%s", binding.string);
     }
@@ -494,7 +505,7 @@ static bool ui_field_value_valid(UIFieldBinding binding, const char *value) {
             continue;
         }
         if(character < '0' || character > '9') return false;
-        if(decimal && ++decimal_digits > 1) return false;
+        if(decimal && ++decimal_digits > 6) return false;
     }
     return true;
 }
@@ -690,7 +701,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
     } else if(display != NULL) {
         char value[UI_FIELD_EDIT_MAX];
         if(binding.kind == UI_FIELD_FLOAT && binding.number != NULL) {
-            snprintf(value, sizeof(value), "%.1f", *binding.number);
+            ui_field_float_format(*binding.number, value, sizeof(value));
             (void)graphics_text_value_set(display, value);
         } else if(binding.kind == UI_FIELD_STRING && binding.string != NULL) {
             (void)graphics_text_value_set(display, binding.string);

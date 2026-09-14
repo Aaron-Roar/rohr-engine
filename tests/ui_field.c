@@ -173,8 +173,8 @@ int main(void) {
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("number", (UIFieldBinding){
             .kind = UI_FIELD_FLOAT, .number = &number
-        }, NULL, bounds, NULL).changed || fabsf(number - 12.3f) > 0.001f) {
-        fprintf(stderr, "numeric field produced %.3f instead of 12.3\n", number);
+        }, NULL, bounds, NULL).changed || fabsf(number - 12.34f) > 0.001f) {
+        fprintf(stderr, "numeric field produced %.3f instead of 12.34\n", number);
         return 1;
     }
     rohr_ui_frame_end();

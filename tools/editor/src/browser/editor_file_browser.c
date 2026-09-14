@@ -329,6 +329,7 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
     float field_y;
     float action_y;
     size_t multi_selected_count = 0;
+    bool submit_requested = false;
     if(browser == NULL || !browser->active || field_display == NULL) return result;
     if(browser->refresh_pending) {
         browser->refresh_pending = false;
@@ -443,6 +444,9 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
             } else {
                 snprintf(browser->filename, sizeof(browser->filename), "%s",
                     browser->entries[i].name);
+                if(interaction.double_clicked &&
+                        browser->mode == EDITOR_FILE_BROWSER_OPEN_PNG)
+                    submit_requested = true;
             }
         }
     }
@@ -558,14 +562,14 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
         for(size_t i = 0; i < browser->entry_count; i += 1)
             if(browser->entry_selected[i] && !browser->entries[i].directory)
                 multi_selected_count += 1;
-    if(rohr_ui_button("editor.file_browser.submit",
+    if((submit_requested || rohr_ui_button("editor.file_browser.submit",
             browser->mode == EDITOR_FILE_BROWSER_SAVE ? save_label :
                 (browser->mode == EDITOR_FILE_BROWSER_CREATE_DIRECTORY ?
                     create_label : open_label),
             browser->mode == EDITOR_FILE_BROWSER_CREATE_DIRECTORY ?
                 (UIRect){dialog.x + 14.0f, field_y, 150.0f, 34.0f} :
                 (UIRect){dialog.x + dialog.width - 274.0f, action_y,
-                    120.0f, 34.0f}, NULL).clicked &&
+                    120.0f, 34.0f}, NULL).clicked) &&
             ((browser->mode == EDITOR_FILE_BROWSER_DIRECTORY &&
                 editor_file_browser_directory_path_get(
                     browser, result.path, sizeof(result.path))) ||
