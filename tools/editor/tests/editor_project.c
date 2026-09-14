@@ -156,6 +156,9 @@ int main(void) {
                 !position_equal(loaded_project.objects[0].position,
                     (Position){0.0f, 0.0f}) ||
                 loaded_project.objects[0].rigid_body_count != 7 ||
+                loaded_project.objects[0].camera_count != 1 ||
+                strcmp(loaded_project.objects[0].cameras[0].name,
+                    "main_camera") != 0 ||
                 !position_equal(loaded_project.objects[0].rigid_bodies[0].position,
                     (Position){0.0f, -200.0f}) ||
                 !position_equal(loaded_project.objects[0].rigid_bodies[1].position,
@@ -175,6 +178,9 @@ int main(void) {
                     "rohr_physics_gravity_set((Acceleration){0.0f, -900.0f})") ||
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_objects_draw_all(&objects") ||
+                !file_contains(path, "rohr_camera_render_callback_set") ||
+                !file_contains(path, "rohr_viewport_camera_set") ||
+                !file_contains(path, "rohr_viewport_enable_set") ||
                 !file_contains(path, "project_objects_destroy_all(&objects")) {
             workspace_fixture_remove(fixture);
             return 1;
@@ -969,6 +975,7 @@ int main(void) {
                 creation_project.objects[0].soft_body_count != 1 ||
                 creation_project.objects[0].sprite_count != 1 ||
                 creation_project.objects[0].animated_sprite_count != 2 ||
+                creation_project.objects[0].camera_count != 1 ||
                 creation_project.objects[0].animated_sprite_items[0].rigid_body == 0 ||
                 creation_project.objects[0].animated_sprite_items[1].rigid_body != 0 ||
                 !SDL_GetPathInfo(path, &info) ||
@@ -994,6 +1001,7 @@ int main(void) {
                 reloaded_project.objects[0].soft_body_count != 1 ||
                 reloaded_project.objects[0].sprite_count != 1 ||
                 reloaded_project.objects[0].animated_sprite_count != 2 ||
+                reloaded_project.objects[0].camera_count != 1 ||
                 reloaded_project.objects[0].animated_sprite_items[0].rigid_body == 0 ||
                 reloaded_project.objects[0].animated_sprite_items[1].rigid_body != 0) {
             workspace_fixture_remove(fixture);
