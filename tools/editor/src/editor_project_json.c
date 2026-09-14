@@ -8,6 +8,7 @@
 #include "yyjson.h"
 
 #include <math.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -32,8 +33,9 @@ static bool editor_json_position_read(yyjson_val *value, Position *position) {
 }
 
 static bool editor_json_uint(yyjson_val *object, const char *key, uint32_t *value) {
+    if(!yyjson_is_obj(object) || key == NULL || value == NULL) return false;
     yyjson_val *item = yyjson_obj_get(object, key);
-    if(!yyjson_is_uint(item) || yyjson_get_uint(item) > UINT32_MAX || value == NULL) {
+    if(!yyjson_is_uint(item) || yyjson_get_uint(item) > UINT32_MAX) {
         return false;
     }
     *value = (uint32_t)yyjson_get_uint(item);
@@ -51,6 +53,16 @@ static bool editor_json_real(yyjson_val *object, const char *key, float *value) 
     yyjson_val *item = yyjson_obj_get(object, key);
     if(!yyjson_is_num(item) || value == NULL) return false;
     *value = (float)yyjson_get_num(item);
+    return true;
+}
+
+static bool editor_json_int(yyjson_val *object, const char *key, int *value) {
+    yyjson_val *item = yyjson_obj_get(object, key);
+    int64_t number;
+    if(!yyjson_is_int(item) || value == NULL) return false;
+    number = yyjson_get_sint(item);
+    if(number < INT_MIN || number > INT_MAX) return false;
+    *value = (int)number;
     return true;
 }
 
@@ -317,6 +329,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_doc *document;
     yyjson_mut_val *root;
     yyjson_mut_val *objects;
+    yyjson_mut_val *layout_viewports;
     yyjson_mut_val *collision_masks;
     bool success;
     if(project == NULL || path == NULL || path[0] == '\0') return false;
@@ -324,6 +337,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     if(document == NULL) return false;
     root = yyjson_mut_obj(document);
     objects = yyjson_mut_arr(document);
+    layout_viewports = yyjson_mut_arr(document);
     collision_masks = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
@@ -375,6 +389,10 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_animated_sprite_id);
     yyjson_mut_obj_add_uint(document, root, "next_camera_id",
         project->next_camera_id);
+    yyjson_mut_obj_add_uint(document, root, "next_layout_viewport_id",
+        project->next_layout_viewport_id);
+    yyjson_mut_obj_add_uint(document, root, "next_viewport_camera_item_id",
+        project->next_viewport_camera_item_id);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -469,6 +487,45 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_arr_add_val(objects, value);
     }
     yyjson_mut_obj_add_val(document, root, "objects", objects);
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+        const EditorLayoutViewport *viewport = &project->layout_viewports[i];
+        yyjson_mut_val *value = yyjson_mut_obj(document);
+        yyjson_mut_val *camera_items = yyjson_mut_arr(document);
+        yyjson_mut_obj_add_uint(document, value, "id", viewport->id);
+        yyjson_mut_obj_add_strcpy(document, value, "name", viewport->name);
+        yyjson_mut_obj_add_real(document, value, "x", viewport->config.rectangle.x);
+        yyjson_mut_obj_add_real(document, value, "y", viewport->config.rectangle.y);
+        yyjson_mut_obj_add_real(document, value, "width",
+            viewport->config.rectangle.width);
+        yyjson_mut_obj_add_real(document, value, "height",
+            viewport->config.rectangle.height);
+        yyjson_mut_obj_add_uint(document, value, "fit", viewport->config.fit);
+        yyjson_mut_obj_add_bool(document, value, "enabled", viewport->enabled);
+        for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
+            const EditorViewportCameraItem *camera = &viewport->camera_items[j];
+            yyjson_mut_val *item = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_uint(document, item, "id", camera->id);
+            yyjson_mut_obj_add_strcpy(document, item, "name", camera->name);
+            yyjson_mut_obj_add_uint(document, item, "object", camera->object);
+            yyjson_mut_obj_add_uint(document, item, "camera", camera->camera);
+            yyjson_mut_obj_add_real(document, item, "x", camera->placement.rectangle.x);
+            yyjson_mut_obj_add_real(document, item, "y", camera->placement.rectangle.y);
+            yyjson_mut_obj_add_real(document, item, "width",
+                camera->placement.rectangle.width);
+            yyjson_mut_obj_add_real(document, item, "height",
+                camera->placement.rectangle.height);
+            yyjson_mut_obj_add_uint(document, item, "fit", camera->placement.fit);
+            yyjson_mut_obj_add_real(document, item, "orientation",
+                camera->placement.orientation);
+            yyjson_mut_obj_add_sint(document, item, "layer", camera->placement.layer);
+            yyjson_mut_obj_add_bool(document, item, "visible",
+                camera->placement.visible);
+            yyjson_mut_arr_add_val(camera_items, item);
+        }
+        yyjson_mut_obj_add_val(document, value, "camera_items", camera_items);
+        yyjson_mut_arr_add_val(layout_viewports, value);
+    }
+    yyjson_mut_obj_add_val(document, root, "layout_viewports", layout_viewports);
     success = yyjson_mut_write_file(path, document, YYJSON_WRITE_PRETTY, NULL, NULL);
     yyjson_mut_doc_free(document);
     return success;
@@ -979,6 +1036,20 @@ static bool editor_json_references_valid(EditorProject *project) {
             }
         }
     }
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+        EditorLayoutViewport *viewport = &project->layout_viewports[i];
+        for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
+            EditorViewportCameraItem *item = &viewport->camera_items[j];
+            EditorObject *object = NULL;
+            for(size_t object_index = 0; object_index < project->object_count;
+                    object_index += 1) {
+                if(project->objects[object_index].id == item->object)
+                    object = &project->objects[object_index];
+            }
+            if(object == NULL || editor_project_camera_get(object, item->camera) == NULL)
+                return false;
+        }
+    }
     return project->selected == 0 || editor_project_selected_get(project) != NULL;
 }
 
@@ -988,6 +1059,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     yyjson_read_err read_error = {0};
     yyjson_val *root;
     yyjson_val *objects;
+    yyjson_val *layout_viewports;
     yyjson_val *collision_masks;
     uint32_t version;
     EditorResult result = editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
@@ -1008,6 +1080,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     }
     root = yyjson_doc_get_root(document);
     objects = yyjson_obj_get(root, "objects");
+    layout_viewports = yyjson_obj_get(root, "layout_viewports");
     collision_masks = yyjson_obj_get(root, "collision_masks");
     editor_project_destroy(&loaded);
     editor_project_init(&loaded);
@@ -1109,14 +1182,26 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         yyjson_val *next_sprite = yyjson_obj_get(root, "next_sprite_id");
         yyjson_val *next_animated = yyjson_obj_get(root, "next_animated_sprite_id");
         yyjson_val *next_camera = yyjson_obj_get(root, "next_camera_id");
+        yyjson_val *next_layout_viewport = yyjson_obj_get(root,
+            "next_layout_viewport_id");
+        yyjson_val *next_viewport_camera_item = yyjson_obj_get(root,
+            "next_viewport_camera_item_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
                     &loaded.next_sprite_id)) ||
                 (next_animated != NULL && !editor_json_uint(root,
                     "next_animated_sprite_id", &loaded.next_animated_sprite_id)) ||
                 (next_camera != NULL && !editor_json_uint(root,
                     "next_camera_id", &loaded.next_camera_id)) ||
+                (next_layout_viewport != NULL && !editor_json_uint(root,
+                    "next_layout_viewport_id", &loaded.next_layout_viewport_id)) ||
+                (next_viewport_camera_item != NULL && !editor_json_uint(root,
+                    "next_viewport_camera_item_id",
+                    &loaded.next_viewport_camera_item_id)) ||
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
-                loaded.next_camera_id == 0) goto done;
+                loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
+                loaded.next_viewport_camera_item_id == 0 ||
+                (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)))
+            goto done;
     }
     loaded.collision_mask_count = yyjson_arr_size(collision_masks);
     if(!EDITOR_ARRAY_RESERVE(loaded.collision_masks,
@@ -1289,6 +1374,70 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     object->hierarchy_count != expected_count)) goto done;
         }
         if(loaded.next_id <= object->id) loaded.next_id = object->id + 1;
+    }
+    loaded.layout_viewport_count = layout_viewports == NULL ? 0 :
+        yyjson_arr_size(layout_viewports);
+    if(loaded.layout_viewport_count > EDITOR_LAYOUT_VIEWPORT_MAX ||
+            !EDITOR_ARRAY_RESERVE(loaded.layout_viewports,
+                loaded.layout_viewport_capacity, loaded.layout_viewport_count)) goto done;
+    if(loaded.layout_viewport_count > 0) memset(loaded.layout_viewports, 0,
+        loaded.layout_viewport_count * sizeof(*loaded.layout_viewports));
+    for(size_t i = 0; i < loaded.layout_viewport_count; i += 1) {
+        yyjson_val *value = yyjson_arr_get(layout_viewports, i);
+        yyjson_val *camera_items = yyjson_obj_get(value, "camera_items");
+        EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
+        uint32_t fit;
+        if(!yyjson_is_obj(value) ||
+                !editor_json_uint(value, "id", &viewport->id) || viewport->id == 0 ||
+                !editor_json_name(value, viewport->name) ||
+                !editor_json_real(value, "x", &viewport->config.rectangle.x) ||
+                !editor_json_real(value, "y", &viewport->config.rectangle.y) ||
+                !editor_json_real(value, "width", &viewport->config.rectangle.width) ||
+                !editor_json_real(value, "height", &viewport->config.rectangle.height) ||
+                !editor_json_uint(value, "fit", &fit) || fit > SCREEN_FIT_COVER ||
+                !editor_json_bool(value, "enabled", &viewport->enabled) ||
+                !yyjson_is_arr(camera_items) ||
+                viewport->config.rectangle.width <= 0.0f ||
+                viewport->config.rectangle.height <= 0.0f) goto done;
+        viewport->config.fit = (ScreenFit)fit;
+        editor_project_object_name_format(viewport->name, sizeof(viewport->name),
+            viewport->name);
+        viewport->camera_item_count = yyjson_arr_size(camera_items);
+        if(viewport->camera_item_count > EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX ||
+                !EDITOR_ARRAY_RESERVE(viewport->camera_items,
+                    viewport->camera_item_capacity,
+                    viewport->camera_item_count)) goto done;
+        for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
+            yyjson_val *item_value = yyjson_arr_get(camera_items, j);
+            EditorViewportCameraItem *item = &viewport->camera_items[j];
+            uint32_t item_fit;
+            if(!yyjson_is_obj(item_value) ||
+                    !editor_json_uint(item_value, "id", &item->id) || item->id == 0 ||
+                    !editor_json_name(item_value, item->name) ||
+                    !editor_json_uint(item_value, "object", &item->object) ||
+                    !editor_json_uint(item_value, "camera", &item->camera) ||
+                    !editor_json_real(item_value, "x", &item->placement.rectangle.x) ||
+                    !editor_json_real(item_value, "y", &item->placement.rectangle.y) ||
+                    !editor_json_real(item_value, "width",
+                        &item->placement.rectangle.width) ||
+                    !editor_json_real(item_value, "height",
+                        &item->placement.rectangle.height) ||
+                    !editor_json_uint(item_value, "fit", &item_fit) ||
+                    item_fit > SCREEN_FIT_COVER ||
+                    !editor_json_real(item_value, "orientation",
+                        &item->placement.orientation) ||
+                    !editor_json_int(item_value, "layer", &item->placement.layer) ||
+                    !editor_json_bool(item_value, "visible", &item->placement.visible) ||
+                    item->placement.rectangle.width <= 0.0f ||
+                    item->placement.rectangle.height <= 0.0f) goto done;
+            item->placement.fit = (ScreenFit)item_fit;
+            editor_project_property_name_format(item->name, sizeof(item->name),
+                item->name);
+            if(loaded.next_viewport_camera_item_id <= item->id)
+                loaded.next_viewport_camera_item_id = item->id + 1;
+        }
+        if(loaded.next_layout_viewport_id <= viewport->id)
+            loaded.next_layout_viewport_id = viewport->id + 1;
     }
     if(!editor_json_references_valid(&loaded)) {
         result = editor_result_error(EDITOR_ERROR_REFERENCE_INVALID,

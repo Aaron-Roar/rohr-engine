@@ -212,6 +212,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     EditorSprite *sprite;
     EditorAnimatedSprite *animation;
     EditorCamera *camera;
+    EditorLayoutViewport *layout_viewport;
     EditorRigidBodyId box_id;
     EditorRigidBodyId chassis_id;
     EditorRigidBodyId wheel_id;
@@ -235,6 +236,10 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     snprintf(camera->name, sizeof(camera->name), "main_camera");
     camera->position = (Position){0.0f, 0.0f};
     camera->dimensions = (Scale){WINDOW_WIDTH, WINDOW_HEIGHT};
+    layout_viewport = editor_project_layout_viewport_add(project);
+    if(layout_viewport == NULL || editor_viewport_camera_add(project,
+            layout_viewport, starter->id, camera->id) == NULL) return false;
+    snprintf(layout_viewport->name, sizeof(layout_viewport->name), "main_viewport");
     floor_body = editor_project_rigid_body_add(project, starter);
     if(floor_body == NULL) return false;
     snprintf(floor_body->name, sizeof(floor_body->name), "floor");
@@ -1330,23 +1335,67 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "}\n\n"
         "int main(void) {\n"
         "    KeyboardState keyboard = {0};\n"
-        "    ViewportId viewport = VIEWPORT_INVALID;\n");
+        "    ViewportId viewports[MAX_VIEWPORTS] = {0};\n"
+        "    size_t viewport_count = 0;\n");
     fprintf(file, "    ProjectObjects objects = {0};\n");
     fprintf(file,
         "    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start()) ||\n"
         "            !ok(rohr_physics_gravity_set((Acceleration){0.0f, -900.0f}))) goto fail;\n"
         );
     fprintf(file, "    if(!ok(project_objects_create_all(&objects))) goto fail;\n");
-    if(main_camera != NULL) fprintf(file,
+    if(project->layout_viewport_count == 0 && main_camera != NULL) fprintf(file,
         "    { ViewportIdResult created = rohr_viewport_create("
         "rohr_viewport_config_default_get());\n"
         "      if(rohr_error_check(created)) goto fail;\n"
-        "      viewport = created.result.value;\n"
+        "      viewports[viewport_count++] = created.result.value;\n"
         "      if(!ok(rohr_camera_render_callback_set(objects.%s.camera_%s, "
         "render_scene, &objects)) ||\n"
-        "              !ok(rohr_viewport_camera_set(viewport, objects.%s.camera_%s)) ||\n"
-        "              !ok(rohr_viewport_enable_set(viewport))) goto fail; }\n",
+        "              !ok(rohr_viewport_camera_set(viewports[0], objects.%s.camera_%s)) ||\n"
+        "              !ok(rohr_viewport_enable_set(viewports[0]))) goto fail; }\n",
         camera_object, main_camera->name, camera_object, main_camera->name);
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+        const EditorLayoutViewport *viewport = &project->layout_viewports[i];
+        fprintf(file,
+            "    { ViewportIdResult created = rohr_viewport_create((ViewportConfig){"
+            "{%.8ff, %.8ff, %.8ff, %.8ff}, %d});\n"
+            "      if(rohr_error_check(created)) goto fail;\n"
+            "      viewports[viewport_count++] = created.result.value;\n",
+            viewport->config.rectangle.x, viewport->config.rectangle.y,
+            viewport->config.rectangle.width, viewport->config.rectangle.height,
+            (int)viewport->config.fit);
+        for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
+            const EditorViewportCameraItem *item = &viewport->camera_items[j];
+            const EditorObject *object = NULL;
+            const EditorCamera *camera = NULL;
+            char object_name[EDITOR_OBJECT_NAME_MAX];
+            for(size_t k = 0; k < project->object_count; k += 1)
+                if(project->objects[k].id == item->object) object = &project->objects[k];
+            if(object != NULL) camera = editor_project_camera_get(
+                (EditorObject *)object, item->camera);
+            if(object == NULL || camera == NULL) {
+                fclose(file);
+                return false;
+            }
+            editor_project_property_name_format(object_name, sizeof(object_name),
+                object->name);
+            fprintf(file,
+                "      if(!ok(rohr_camera_render_callback_set(objects.%s.camera_%s, "
+                "render_scene, &objects))) goto fail;\n"
+                "      { ViewportItemIdResult item = rohr_viewport_camera_add("
+                "viewports[viewport_count - 1], objects.%s.camera_%s, "
+                "(ViewportItemConfig){{%.8ff, %.8ff, %.8ff, %.8ff}, %d, %.8ff, %d, %s});\n"
+                "        if(rohr_error_check(item)) goto fail; }\n",
+                object_name, camera->name, object_name, camera->name,
+                item->placement.rectangle.x, item->placement.rectangle.y,
+                item->placement.rectangle.width, item->placement.rectangle.height,
+                (int)item->placement.fit, item->placement.orientation,
+                item->placement.layer, item->placement.visible ? "true" : "false");
+        }
+        if(viewport->enabled) fprintf(file,
+            "      if(!ok(rohr_viewport_enable_set(viewports[viewport_count - 1]))) "
+            "goto fail;\n");
+        fprintf(file, "    }\n");
+    }
     fprintf(file,
         "    while(true) {\n"
         "        SDL_Event event;\n"
@@ -1363,14 +1412,16 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "        rohr_graphics_show();\n"
         "    }\n"
         "done:\n"
-        "    if(viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(viewport);\n"
+        "    for(size_t i = 0; i < viewport_count; i += 1) "
+        "(void)rohr_viewport_destroy(viewports[i]);\n"
         "    project_objects_destroy_all(&objects);\n"
         "    rohr_graphics_end();\n"
         "    rohr_engine_shutdown();\n"
         "    return 0;\n"
         "fail:\n"
         "    fprintf(stderr, \"Game initialization failed\\n\");\n"
-        "    if(viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(viewport);\n"
+        "    for(size_t i = 0; i < viewport_count; i += 1) "
+        "(void)rohr_viewport_destroy(viewports[i]);\n"
         "    project_objects_destroy_all(&objects);\n"
         "    rohr_graphics_end();\n"
         "    rohr_engine_shutdown();\n"

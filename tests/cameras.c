@@ -18,6 +18,7 @@ int main(void) {
     CameraIdResult second_result;
     CameraResult camera_result;
     ViewportIdResult viewport_result;
+    ViewportItemIdResult viewport_item_result;
     Position screen;
     int render_count = 0;
     EntityResult target_entity_result;
@@ -204,8 +205,43 @@ int main(void) {
             || rohr_error_check(rohr_camera_render_when_paused_set(original))
             || (rohr_graphics_show(), render_count != 2)
             || (rohr_engine_resume(), false)
+            || rohr_error_check(rohr_camera_render_callback_set(
+                second_result.result.value,
+                count_camera_render,
+                &render_count
+            ))
+            || (viewport_item_result = rohr_viewport_camera_add(
+                    viewport_result.result.value,
+                    second_result.result.value,
+                    (ViewportItemConfig){
+                        .rectangle = {20.0f, 30.0f, 320.0f, 180.0f},
+                        .fit = SCREEN_FIT_COVER,
+                        .orientation = 0.25f,
+                        .layer = 2,
+                        .visible = true,
+                    }), rohr_error_check(viewport_item_result))
+            || (rohr_graphics_show(), render_count != 4)
+            || rohr_error_check(rohr_viewport_item_set(
+                viewport_result.result.value,
+                viewport_item_result.result.value,
+                (ViewportItemConfig){
+                    .rectangle = {40.0f, 50.0f, 160.0f, 90.0f},
+                    .fit = SCREEN_FIT_CONTAIN,
+                    .layer = -1,
+                    .visible = false,
+                }
+            ))
+            || (rohr_graphics_show(), render_count != 5)
+            || rohr_error_check(rohr_viewport_item_remove(
+                viewport_result.result.value,
+                viewport_item_result.result.value
+            ))
+            || !rohr_error_check(rohr_viewport_item_remove(
+                viewport_result.result.value,
+                viewport_item_result.result.value
+            ))
             || rohr_error_check(rohr_viewport_disable_set(viewport_result.result.value))
-            || (rohr_graphics_show(), render_count != 2)
+            || (rohr_graphics_show(), render_count != 5)
             || rohr_error_check(rohr_viewport_camera_clear(viewport_result.result.value))
             || rohr_error_check(rohr_viewport_destroy(viewport_result.result.value))) {
         rohr_graphics_end();

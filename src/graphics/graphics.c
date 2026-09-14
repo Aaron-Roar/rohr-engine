@@ -150,7 +150,12 @@ ERROR_DECLARE_RESULT_TYPE(ScreenIdResult, ScreenId);
 typedef struct GraphicsViewport {
     ViewportRectangle rectangle;
     ScreenFit fit;
-    CameraId camera;
+    struct {
+        CameraId camera;
+        ViewportItemConfig config;
+        uint32_t generation;
+        bool used;
+    } items[MAX_VIEWPORT_ITEMS];
     bool enabled;
 } GraphicsViewport;
 
@@ -268,11 +273,15 @@ static bool graphics_camera_viewport_size(CameraId camera_id, int *width, int *h
     if(width == NULL || height == NULL) return false;
     for(slot = 0; slot < MAX_VIEWPORTS; slot += 1) {
         if(!viewports_used[slot]) continue;
-        if(viewports[slot].camera == camera_id || (!found && camera_id == CAMERA_INVALID)) {
-            *width = (int)viewports[slot].rectangle.width;
-            *height = (int)viewports[slot].rectangle.height;
-            found = true;
-            if(viewports[slot].camera == camera_id) return true;
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            if(!viewports[slot].items[item].used) continue;
+            if(viewports[slot].items[item].camera == camera_id ||
+                    (!found && camera_id == CAMERA_INVALID)) {
+                *width = (int)viewports[slot].items[item].config.rectangle.width;
+                *height = (int)viewports[slot].items[item].config.rectangle.height;
+                found = true;
+                if(viewports[slot].items[item].camera == camera_id) return true;
+            }
         }
     }
     return found;
@@ -883,8 +892,11 @@ EngineResult graphics_camera_destroy(CameraId id) {
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        if(viewports_used[viewport_slot] && viewports[viewport_slot].camera == id) {
-            viewports[viewport_slot].camera = CAMERA_INVALID;
+        if(!viewports_used[viewport_slot]) continue;
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            if(viewports[viewport_slot].items[item].used &&
+                    viewports[viewport_slot].items[item].camera == id)
+                viewports[viewport_slot].items[item].used = false;
         }
     }
     cameras_used[slot] = false;
@@ -1396,6 +1408,14 @@ ViewportConfig graphics_viewport_config_default_get(void) {
     };
 }
 
+ViewportItemConfig graphics_viewport_item_config_default_get(void) {
+    return (ViewportItemConfig){
+        .rectangle = {0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT},
+        .fit = SCREEN_FIT_CONTAIN,
+        .visible = true,
+    };
+}
+
 ViewportIdResult graphics_viewport_create(ViewportConfig config) {
     size_t slot;
     ViewportConfig defaults = graphics_viewport_config_default_get();
@@ -1412,7 +1432,6 @@ ViewportIdResult graphics_viewport_create(ViewportConfig config) {
         viewports[slot] = (GraphicsViewport){
             .rectangle = config.rectangle,
             .fit = config.fit,
-            .camera = CAMERA_INVALID,
             .enabled = false,
         };
         return ERROR_RESULT_MAKE_VALUE(
@@ -1421,6 +1440,71 @@ ViewportIdResult graphics_viewport_create(ViewportConfig config) {
         );
     }
     return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+static bool graphics_viewport_item_slot(GraphicsViewport *viewport,
+        ViewportItemId id, size_t *slot) {
+    size_t value;
+    uint32_t generation;
+    if(viewport == NULL || id == VIEWPORT_ITEM_INVALID || slot == NULL) return false;
+    value = (size_t)((id & 0xffu) - 1u);
+    generation = id >> 8;
+    if(value >= MAX_VIEWPORT_ITEMS || !viewport->items[value].used ||
+            viewport->items[value].generation != generation) return false;
+    *slot = value;
+    return true;
+}
+
+ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera_id,
+        ViewportItemConfig config) {
+    size_t viewport_slot;
+    size_t camera_slot;
+    ViewportItemConfig defaults = graphics_viewport_item_config_default_get();
+    if(!graphics_viewport_slot(id, &viewport_slot) ||
+            !graphics_camera_slot(camera_id, &camera_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    if(config.rectangle.width <= 0.0f) config.rectangle.width = defaults.rectangle.width;
+    if(config.rectangle.height <= 0.0f) config.rectangle.height = defaults.rectangle.height;
+    if(config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER)
+        config.fit = defaults.fit;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+        uint32_t generation;
+        if(viewports[viewport_slot].items[item].used) continue;
+        generation = viewports[viewport_slot].items[item].generation + 1;
+        if(generation == 0) generation = 1;
+        viewports[viewport_slot].items[item].camera = camera_id;
+        viewports[viewport_slot].items[item].config = config;
+        viewports[viewport_slot].items[item].generation = generation;
+        viewports[viewport_slot].items[item].used = true;
+        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
+            (generation << 8) | (uint32_t)(item + 1));
+    }
+    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+EngineResult graphics_viewport_item_remove(ViewportId id, ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot) ||
+            !graphics_viewport_item_slot(&viewports[viewport_slot], item_id, &item_slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    viewports[viewport_slot].items[item_slot].used = false;
+    return error_result_value(true);
+}
+
+EngineResult graphics_viewport_item_set(ViewportId id, ViewportItemId item_id,
+        ViewportItemConfig config) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot) ||
+            !graphics_viewport_item_slot(&viewports[viewport_slot], item_id, &item_slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(config.rectangle.width <= 0.0f || config.rectangle.height <= 0.0f ||
+            config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER)
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    viewports[viewport_slot].items[item_slot].config = config;
+    return error_result_value(true);
 }
 
 EngineResult graphics_viewport_destroy(ViewportId id) {
@@ -1439,8 +1523,17 @@ EngineResult graphics_viewport_camera_set(ViewportId id, CameraId camera_id) {
     if(!graphics_viewport_slot(id, &slot) || !graphics_camera_slot(camera_id, &camera_slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    viewports[slot].camera = camera_id;
-    return error_result_value(true);
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
+        viewports[slot].items[item].used = false;
+    {
+        ViewportItemConfig config = graphics_viewport_item_config_default_get();
+        config.rectangle.width = viewports[slot].rectangle.width;
+        config.rectangle.height = viewports[slot].rectangle.height;
+        config.fit = viewports[slot].fit;
+        return graphics_viewport_camera_add(id, camera_id, config).kind ==
+                ERROR_RESULT_ERROR
+            ? error_result_error(ERROR_MEMORY_POOL_FULL) : error_result_value(true);
+    }
 }
 
 EngineResult graphics_viewport_camera_clear(ViewportId id) {
@@ -1448,7 +1541,8 @@ EngineResult graphics_viewport_camera_clear(ViewportId id) {
     if(!graphics_viewport_slot(id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    viewports[slot].camera = CAMERA_INVALID;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
+        viewports[slot].items[item].used = false;
     return error_result_value(true);
 }
 
@@ -1892,29 +1986,6 @@ void graphics_rect_draw(Shape rect, Position pos) {
     }
 }
 
-static void graphics_empty_viewport_draw(ViewportRectangle rectangle) {
-    SDL_FRect background = {
-        rectangle.x,
-        rectangle.y,
-        rectangle.width,
-        rectangle.height,
-    };
-    float offset;
-    SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    (void)SDL_RenderFillRect(sdl_renderer, &background);
-    SDL_SetRenderDrawColor(sdl_renderer, 45, 45, 45, SDL_ALPHA_OPAQUE);
-    for(offset = -rectangle.height; offset < rectangle.width; offset += 24.0f) {
-        float start_x = rectangle.x + (offset < 0.0f ? 0.0f : offset);
-        float start_y = rectangle.y + rectangle.height + (offset < 0.0f ? offset : 0.0f);
-        float end_x = rectangle.x + (offset + rectangle.height > rectangle.width
-            ? rectangle.width
-            : offset + rectangle.height);
-        float end_y = rectangle.y + rectangle.height
-            - (end_x - rectangle.x - offset);
-        (void)SDL_RenderLine(sdl_renderer, start_x, start_y, end_x, end_y);
-    }
-}
-
 static void graphics_camera_motions_update(void) {
     Tick current_tick = engine_tick_get();
     size_t slot;
@@ -1956,20 +2027,42 @@ static void graphics_render_viewport_cameras(void) {
     bool rendered[MAX_CAMERAS] = {0};
     size_t viewport_slot;
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        CameraId camera_id;
-        CameraRuntime *runtime;
-        size_t camera_slot;
         if(!viewports_used[viewport_slot] || !viewports[viewport_slot].enabled) continue;
-        camera_id = viewports[viewport_slot].camera;
-        if(!graphics_camera_slot(camera_id, &camera_slot) || rendered[camera_slot]) continue;
-        rendered[camera_slot] = true;
-        runtime = &camera_runtime[camera_slot];
-        if(!runtime->enabled || runtime->callback == NULL
-                || (runtime->pause_with_engine && engine_paused_get())) continue;
-        if(graphics_camera_begin(camera_id).kind == ERROR_RESULT_ERROR) continue;
-        runtime->callback(camera_id, runtime->context);
-        (void)graphics_camera_end();
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            CameraId camera_id;
+            CameraRuntime *runtime;
+            size_t camera_slot;
+            if(!viewports[viewport_slot].items[item].used ||
+                    !viewports[viewport_slot].items[item].config.visible) continue;
+            camera_id = viewports[viewport_slot].items[item].camera;
+            if(!graphics_camera_slot(camera_id, &camera_slot) || rendered[camera_slot])
+                continue;
+            rendered[camera_slot] = true;
+            runtime = &camera_runtime[camera_slot];
+            if(!runtime->enabled || runtime->callback == NULL
+                    || (runtime->pause_with_engine && engine_paused_get())) continue;
+            if(graphics_camera_begin(camera_id).kind == ERROR_RESULT_ERROR) continue;
+            runtime->callback(camera_id, runtime->context);
+            (void)graphics_camera_end();
+        }
     }
+}
+
+static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
+        const bool drawn[MAX_VIEWPORT_ITEMS]) {
+    size_t selected = MAX_VIEWPORT_ITEMS;
+    if(viewport == NULL) return selected;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+        if(drawn[item] || !viewport->items[item].used ||
+                !viewport->items[item].config.visible) continue;
+        if(selected == MAX_VIEWPORT_ITEMS ||
+                viewport->items[item].config.layer <
+                    viewport->items[selected].config.layer ||
+                (viewport->items[item].config.layer ==
+                    viewport->items[selected].config.layer && item < selected))
+            selected = item;
+    }
+    return selected;
 }
 
 static void graphics_viewports_draw(void) {
@@ -1989,13 +2082,8 @@ static void graphics_viewports_draw(void) {
     (void)SDL_RenderClear(sdl_renderer);
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
         GraphicsViewport *viewport;
-        GraphicsScreen *screen;
         SDL_Rect clip;
-        SDL_FRect destination;
-        size_t screen_slot;
-        float scale_x;
-        float scale_y;
-        float scale;
+        bool drawn[MAX_VIEWPORT_ITEMS] = {0};
         if(!viewports_used[viewport_slot] || !viewports[viewport_slot].enabled) continue;
         viewport = &viewports[viewport_slot];
         clip = (SDL_Rect){
@@ -2005,10 +2093,6 @@ static void graphics_viewports_draw(void) {
             (int)viewport->rectangle.height,
         };
         (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
-        if(!graphics_screen_for_camera(viewport->camera, &screen_slot)) {
-            graphics_empty_viewport_draw(viewport->rectangle);
-            continue;
-        }
         SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
         {
             SDL_FRect background = {
@@ -2019,28 +2103,44 @@ static void graphics_viewports_draw(void) {
             };
             (void)SDL_RenderFillRect(sdl_renderer, &background);
         }
-        screen = &screens[screen_slot];
-        destination = (SDL_FRect){
-            viewport->rectangle.x,
-            viewport->rectangle.y,
-            viewport->rectangle.width,
-            viewport->rectangle.height,
-        };
-        scale_x = viewport->rectangle.width / (float)screen->width;
-        scale_y = viewport->rectangle.height / (float)screen->height;
-        if(viewport->fit == SCREEN_FIT_NONE) {
-            destination.w = (float)screen->width;
-            destination.h = (float)screen->height;
-        } else if(viewport->fit != SCREEN_FIT_STRETCH) {
-            scale = viewport->fit == SCREEN_FIT_COVER
-                ? fmaxf(scale_x, scale_y)
-                : fminf(scale_x, scale_y);
-            destination.w = (float)screen->width * scale;
-            destination.h = (float)screen->height * scale;
+        for(;;) {
+            size_t item = graphics_viewport_next_item_get(viewport, drawn);
+            size_t screen_slot;
+            GraphicsScreen *screen;
+            ViewportItemConfig *config;
+            SDL_FRect destination;
+            float scale_x;
+            float scale_y;
+            float scale;
+            if(item == MAX_VIEWPORT_ITEMS) break;
+            drawn[item] = true;
+            config = &viewport->items[item].config;
+            if(!graphics_screen_for_camera(viewport->items[item].camera, &screen_slot))
+                continue;
+            screen = &screens[screen_slot];
+            destination = (SDL_FRect){
+                viewport->rectangle.x + config->rectangle.x,
+                viewport->rectangle.y + config->rectangle.y,
+                config->rectangle.width,
+                config->rectangle.height,
+            };
+            scale_x = config->rectangle.width / (float)screen->width;
+            scale_y = config->rectangle.height / (float)screen->height;
+            if(config->fit == SCREEN_FIT_NONE) {
+                destination.w = (float)screen->width;
+                destination.h = (float)screen->height;
+            } else if(config->fit != SCREEN_FIT_STRETCH) {
+                scale = config->fit == SCREEN_FIT_COVER
+                    ? fmaxf(scale_x, scale_y) : fminf(scale_x, scale_y);
+                destination.w = (float)screen->width * scale;
+                destination.h = (float)screen->height * scale;
+            }
+            destination.x += (config->rectangle.width - destination.w) * 0.5f;
+            destination.y += (config->rectangle.height - destination.h) * 0.5f;
+            (void)SDL_RenderTextureRotated(sdl_renderer, screen->texture, NULL,
+                &destination, (double)(config->orientation * -180.0f / PI_F),
+                NULL, SDL_FLIP_NONE);
         }
-        destination.x += (viewport->rectangle.width - destination.w) * 0.5f;
-        destination.y += (viewport->rectangle.height - destination.h) * 0.5f;
-        (void)SDL_RenderTexture(sdl_renderer, screen->texture, NULL, &destination);
     }
     (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
 }

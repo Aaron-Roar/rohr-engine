@@ -23,6 +23,7 @@
 #define MAX_CAMERAS 16
 #define MAX_SCREENS 16
 #define MAX_VIEWPORTS 16
+#define MAX_VIEWPORT_ITEMS 32
 
 #define RECORDING_WIDTH  WINDOW_WIDTH
 #define RECORDING_HEIGHT WINDOW_HEIGHT
@@ -111,8 +112,10 @@ typedef struct {
 ERROR_DECLARE_RESULT_TYPE(CameraAttachmentResult, CameraAttachment);
 
 typedef uint32_t ViewportId;
+typedef uint32_t ViewportItemId;
 
 #define VIEWPORT_INVALID 0
+#define VIEWPORT_ITEM_INVALID 0
 
 typedef enum ScreenFit {
     SCREEN_FIT_NONE,
@@ -128,7 +131,17 @@ typedef struct ViewportConfig {
     ScreenFit fit;
 } ViewportConfig;
 
+/** Viewport-local placement of camera content. */
+typedef struct ViewportItemConfig {
+    ViewportRectangle rectangle;
+    ScreenFit fit;
+    Orientation orientation;
+    int layer;
+    bool visible;
+} ViewportItemConfig;
+
 ERROR_DECLARE_RESULT_TYPE(ViewportIdResult, ViewportId);
+ERROR_DECLARE_RESULT_TYPE(ViewportItemIdResult, ViewportItemId);
 
 /** Descriptor for loading a texture from disk. */
 typedef struct {
@@ -516,8 +529,15 @@ CameraZoomResult graphics_camera_zoom_get(CameraId camera);
 
 /** Return a disabled, full-window viewport using contain fitting. */
 ViewportConfig graphics_viewport_config_default_get(void);
+ViewportItemConfig graphics_viewport_item_config_default_get(void);
 ViewportIdResult graphics_viewport_create(ViewportConfig config);
 EngineResult graphics_viewport_destroy(ViewportId viewport);
+ViewportItemIdResult graphics_viewport_camera_add(ViewportId viewport,
+    CameraId camera, ViewportItemConfig config);
+EngineResult graphics_viewport_item_remove(ViewportId viewport,
+    ViewportItemId item);
+EngineResult graphics_viewport_item_set(ViewportId viewport,
+    ViewportItemId item, ViewportItemConfig config);
 /** Assign a camera without transferring ownership. */
 EngineResult graphics_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult graphics_viewport_camera_clear(ViewportId viewport);

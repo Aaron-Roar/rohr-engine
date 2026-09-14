@@ -164,7 +164,9 @@ void editor_project_init(EditorProject *project) {
         .next_soft_area_id = 1,
         .next_sprite_id = 1,
         .next_animated_sprite_id = 1,
-        .next_camera_id = 1
+        .next_camera_id = 1,
+        .next_layout_viewport_id = 1,
+        .next_viewport_camera_item_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -175,6 +177,8 @@ void editor_project_init(EditorProject *project) {
     }
     (void)EDITOR_ARRAY_RESERVE(project->objects, project->object_capacity,
         EDITOR_OBJECT_MAX);
+    (void)EDITOR_ARRAY_RESERVE(project->layout_viewports,
+        project->layout_viewport_capacity, EDITOR_LAYOUT_VIEWPORT_MAX);
 }
 
 void editor_project_animated_sprite_destroy(EditorAnimatedSprite *sprite) {
@@ -721,8 +725,11 @@ void editor_project_destroy(EditorProject *project) {
     if(project == NULL) return;
     for(size_t i = 0; i < project->object_count; i += 1)
         editor_project_object_destroy(&project->objects[i]);
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1)
+        free(project->layout_viewports[i].camera_items);
     free(project->collision_masks);
     free(project->objects);
+    free(project->layout_viewports);
     *project = (EditorProject){0};
 }
 
@@ -732,14 +739,20 @@ bool editor_project_clone(EditorProject *destination,
     *destination = *source;
     destination->collision_masks = NULL;
     destination->objects = NULL;
+    destination->layout_viewports = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
+    destination->layout_viewport_count = 0;
     destination->collision_mask_capacity = 0;
     destination->object_capacity = 0;
+    destination->layout_viewport_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
-                destination->object_capacity, source->object_count)) goto fail;
+                destination->object_capacity, source->object_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->layout_viewports,
+                destination->layout_viewport_capacity,
+                source->layout_viewport_count)) goto fail;
     if(source->collision_mask_count > 0)
         memcpy(destination->collision_masks, source->collision_masks,
             source->collision_mask_count * sizeof(*source->collision_masks));
@@ -748,6 +761,18 @@ bool editor_project_clone(EditorProject *destination,
         if(!editor_project_object_clone(&destination->objects[i],
                 &source->objects[i])) goto fail;
         destination->object_count += 1;
+    }
+    for(size_t i = 0; i < source->layout_viewport_count; i += 1) {
+        EditorLayoutViewport *viewport = &destination->layout_viewports[i];
+        *viewport = source->layout_viewports[i];
+        viewport->camera_items = NULL;
+        viewport->camera_item_capacity = 0;
+        if(!EDITOR_ARRAY_RESERVE(viewport->camera_items,
+                viewport->camera_item_capacity, viewport->camera_item_count)) goto fail;
+        if(viewport->camera_item_count > 0) memcpy(viewport->camera_items,
+            source->layout_viewports[i].camera_items,
+            viewport->camera_item_count * sizeof(*viewport->camera_items));
+        destination->layout_viewport_count += 1;
     }
     return true;
 fail:
@@ -834,6 +859,15 @@ bool editor_project_object_remove(EditorProject *project, EditorObjectId id) {
         if(project->objects[index].id == id) break;
     }
     if(index == project->object_count) return false;
+    for(size_t viewport_index = 0;
+            viewport_index < project->layout_viewport_count; viewport_index += 1) {
+        EditorLayoutViewport *viewport = &project->layout_viewports[viewport_index];
+        for(size_t item = viewport->camera_item_count; item > 0; item -= 1) {
+            if(viewport->camera_items[item - 1].object == id)
+                (void)editor_viewport_camera_remove(viewport,
+                    viewport->camera_items[item - 1].id);
+        }
+    }
     editor_project_object_destroy(&project->objects[index]);
     for(size_t i = index + 1; i < project->object_count; i += 1) {
         project->objects[i - 1] = project->objects[i];
@@ -841,6 +875,88 @@ bool editor_project_object_remove(EditorProject *project, EditorObjectId id) {
     project->object_count -= 1;
     project->objects[project->object_count] = (EditorObject){0};
     if(project->selected == id) project->selected = EDITOR_OBJECT_INVALID;
+    return true;
+}
+
+EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project) {
+    EditorLayoutViewport *viewport;
+    if(project == NULL || project->layout_viewport_count >= EDITOR_LAYOUT_VIEWPORT_MAX ||
+            !EDITOR_ARRAY_RESERVE(project->layout_viewports,
+                project->layout_viewport_capacity,
+                project->layout_viewport_count + 1)) return NULL;
+    viewport = &project->layout_viewports[project->layout_viewport_count++];
+    *viewport = (EditorLayoutViewport){
+        .id = project->next_layout_viewport_id++,
+        .config = rohr_viewport_config_default_get(),
+        .enabled = true,
+    };
+    snprintf(viewport->name, sizeof(viewport->name), "Viewport%u", viewport->id);
+    return viewport;
+}
+
+EditorLayoutViewport *editor_project_layout_viewport_get(EditorProject *project,
+        EditorLayoutViewportId id) {
+    if(project == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1)
+        if(project->layout_viewports[i].id == id) return &project->layout_viewports[i];
+    return NULL;
+}
+
+bool editor_project_layout_viewport_remove(EditorProject *project,
+        EditorLayoutViewportId id) {
+    size_t index;
+    if(project == NULL || id == 0) return false;
+    for(index = 0; index < project->layout_viewport_count; index += 1)
+        if(project->layout_viewports[index].id == id) break;
+    if(index == project->layout_viewport_count) return false;
+    free(project->layout_viewports[index].camera_items);
+    for(size_t i = index + 1; i < project->layout_viewport_count; i += 1)
+        project->layout_viewports[i - 1] = project->layout_viewports[i];
+    project->layout_viewport_count -= 1;
+    project->layout_viewports[project->layout_viewport_count] =
+        (EditorLayoutViewport){0};
+    return true;
+}
+
+EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
+        EditorLayoutViewport *viewport, EditorObjectId object_id,
+        EditorCameraId camera_id) {
+    EditorObject *object = NULL;
+    EditorViewportCameraItem *item;
+    if(project == NULL || viewport == NULL || object_id == 0 || camera_id == 0 ||
+            viewport->camera_item_count >= EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX)
+        return NULL;
+    for(size_t i = 0; i < project->object_count; i += 1)
+        if(project->objects[i].id == object_id) object = &project->objects[i];
+    if(object == NULL || editor_project_camera_get(object, camera_id) == NULL ||
+            !EDITOR_ARRAY_RESERVE(viewport->camera_items,
+                viewport->camera_item_capacity,
+                viewport->camera_item_count + 1)) return NULL;
+    item = &viewport->camera_items[viewport->camera_item_count++];
+    *item = (EditorViewportCameraItem){
+        .id = project->next_viewport_camera_item_id++,
+        .object = object_id,
+        .camera = camera_id,
+        .placement = rohr_viewport_item_config_default_get(),
+    };
+    item->placement.rectangle.width = viewport->config.rectangle.width;
+    item->placement.rectangle.height = viewport->config.rectangle.height;
+    snprintf(item->name, sizeof(item->name), "camera_%u", item->id);
+    return item;
+}
+
+bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
+        EditorViewportCameraItemId id) {
+    size_t index;
+    if(viewport == NULL || id == 0) return false;
+    for(index = 0; index < viewport->camera_item_count; index += 1)
+        if(viewport->camera_items[index].id == id) break;
+    if(index == viewport->camera_item_count) return false;
+    for(size_t i = index + 1; i < viewport->camera_item_count; i += 1)
+        viewport->camera_items[i - 1] = viewport->camera_items[i];
+    viewport->camera_item_count -= 1;
+    viewport->camera_items[viewport->camera_item_count] =
+        (EditorViewportCameraItem){0};
     return true;
 }
 

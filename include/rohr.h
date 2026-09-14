@@ -1599,8 +1599,14 @@ EngineResult rohr_camera_zoom_set(CameraId camera, float zoom, Time duration);
 CameraZoomResult rohr_camera_zoom_get(CameraId camera);
 
 ViewportConfig rohr_viewport_config_default_get(void);
+ViewportItemConfig rohr_viewport_item_config_default_get(void);
 ViewportIdResult rohr_viewport_create(ViewportConfig config);
 EngineResult rohr_viewport_destroy(ViewportId viewport);
+ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport,
+    CameraId camera, ViewportItemConfig config);
+EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item);
+EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item,
+    ViewportItemConfig config);
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult rohr_viewport_camera_clear(ViewportId viewport);
 EngineResult rohr_viewport_enable_set(ViewportId viewport);

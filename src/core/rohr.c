@@ -420,8 +420,12 @@ EngineResult rohr_camera_moving_get(CameraId camera) { return graphics_camera_mo
 EngineResult rohr_camera_zoom_set(CameraId camera, float zoom, Time duration) { return graphics_camera_zoom_set(camera, zoom, duration); }
 CameraZoomResult rohr_camera_zoom_get(CameraId camera) { return graphics_camera_zoom_get(camera); }
 ViewportConfig rohr_viewport_config_default_get(void) { return graphics_viewport_config_default_get(); }
+ViewportItemConfig rohr_viewport_item_config_default_get(void) { return graphics_viewport_item_config_default_get(); }
 ViewportIdResult rohr_viewport_create(ViewportConfig config) { return graphics_viewport_create(config); }
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
+ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemConfig config) { return graphics_viewport_camera_add(viewport, camera, config); }
+EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item) { return graphics_viewport_item_remove(viewport, item); }
+EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(viewport, item, config); }
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera) { return graphics_viewport_camera_set(viewport, camera); }
 EngineResult rohr_viewport_camera_clear(ViewportId viewport) { return graphics_viewport_camera_clear(viewport); }
 EngineResult rohr_viewport_enable_set(ViewportId viewport) { return graphics_viewport_enable_set(viewport); }

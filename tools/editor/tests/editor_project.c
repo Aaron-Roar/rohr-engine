@@ -157,6 +157,12 @@ int main(void) {
                     (Position){0.0f, 0.0f}) ||
                 loaded_project.objects[0].rigid_body_count != 7 ||
                 loaded_project.objects[0].camera_count != 1 ||
+                loaded_project.layout_viewport_count != 1 ||
+                loaded_project.layout_viewports[0].camera_item_count != 1 ||
+                loaded_project.layout_viewports[0].camera_items[0].object !=
+                    loaded_project.objects[0].id ||
+                loaded_project.layout_viewports[0].camera_items[0].camera !=
+                    loaded_project.objects[0].cameras[0].id ||
                 strcmp(loaded_project.objects[0].cameras[0].name,
                     "main_camera") != 0 ||
                 !position_equal(loaded_project.objects[0].rigid_bodies[0].position,
@@ -177,9 +183,9 @@ int main(void) {
                 !file_contains(path,
                     "rohr_physics_gravity_set((Acceleration){0.0f, -900.0f})") ||
                 !file_contains(path, "project_objects_create_all(&objects") ||
-                !file_contains(path, "project_objects_draw_all(&objects") ||
+                !file_contains(path, "project_objects_draw_all(objects") ||
                 !file_contains(path, "rohr_camera_render_callback_set") ||
-                !file_contains(path, "rohr_viewport_camera_set") ||
+                !file_contains(path, "rohr_viewport_camera_add") ||
                 !file_contains(path, "rohr_viewport_enable_set") ||
                 !file_contains(path, "project_objects_destroy_all(&objects")) {
             workspace_fixture_remove(fixture);

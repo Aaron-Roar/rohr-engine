@@ -22,6 +22,8 @@
 #define EDITOR_SOFT_BEAM_MAX 128
 #define EDITOR_SOFT_AREA_MAX 128
 #define EDITOR_CAMERA_MAX MAX_CAMERAS
+#define EDITOR_LAYOUT_VIEWPORT_MAX MAX_VIEWPORTS
+#define EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX MAX_VIEWPORT_ITEMS
 #define EDITOR_SOFT_AREA_NODE_MAX EDITOR_SOFT_NODE_MAX
 #define EDITOR_OBJECT_HIERARCHY_MAX \
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
@@ -45,6 +47,8 @@ typedef uint32_t EditorSoftAreaId;
 typedef uint32_t EditorSpriteId;
 typedef uint32_t EditorAnimatedSpriteId;
 typedef uint32_t EditorCameraId;
+typedef uint32_t EditorLayoutViewportId;
+typedef uint32_t EditorViewportCameraItemId;
 
 typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_RIGID_BODY,
@@ -322,6 +326,24 @@ typedef struct EditorObject {
     size_t hierarchy_capacity;
 } EditorObject;
 
+typedef struct EditorViewportCameraItem {
+    EditorViewportCameraItemId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    EditorObjectId object;
+    EditorCameraId camera;
+    ViewportItemConfig placement;
+} EditorViewportCameraItem;
+
+typedef struct EditorLayoutViewport {
+    EditorLayoutViewportId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    ViewportConfig config;
+    bool enabled;
+    EditorViewportCameraItem *camera_items;
+    size_t camera_item_count;
+    size_t camera_item_capacity;
+} EditorLayoutViewport;
+
 typedef struct EditorNavigationState {
     uint32_t mode;
     uint32_t selection;
@@ -353,6 +375,9 @@ typedef struct EditorProject {
     EditorObject *objects;
     size_t object_count;
     size_t object_capacity;
+    EditorLayoutViewport *layout_viewports;
+    size_t layout_viewport_count;
+    size_t layout_viewport_capacity;
     EditorObjectId next_id;
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
@@ -366,6 +391,8 @@ typedef struct EditorProject {
     EditorSpriteId next_sprite_id;
     EditorAnimatedSpriteId next_animated_sprite_id;
     EditorCameraId next_camera_id;
+    EditorLayoutViewportId next_layout_viewport_id;
+    EditorViewportCameraItemId next_viewport_camera_item_id;
     EditorObjectId selected;
 } EditorProject;
 
@@ -400,6 +427,15 @@ EditorObject *editor_project_object_add(EditorProject *project, Position positio
 bool editor_project_object_remove(EditorProject *project, EditorObjectId id);
 EditorObject *editor_project_selected_get(EditorProject *project);
 bool editor_project_object_select(EditorProject *project, EditorObjectId id);
+EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project);
+EditorLayoutViewport *editor_project_layout_viewport_get(EditorProject *project,
+    EditorLayoutViewportId id);
+bool editor_project_layout_viewport_remove(EditorProject *project,
+    EditorLayoutViewportId id);
+EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
+    EditorLayoutViewport *viewport, EditorObjectId object, EditorCameraId camera);
+bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
+    EditorViewportCameraItemId id);
 void editor_project_selection_clear(EditorProject *project);
 void editor_project_object_hierarchy_sync(EditorObject *object);
 size_t editor_project_object_hierarchy_index_get(const EditorObject *object,
