@@ -166,6 +166,8 @@ JointAnchorPositionResult physics_joint_anchor_world_position_get(JointAnchorId 
 EngineResult physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset) {
     uint32_t slot;
 
+    if(!physics_world_position_check(local_offset))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     if(!physics_joint_anchor_slot_get(anchor, &slot)) {
         return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
     }
@@ -313,4 +315,3 @@ EntityResult physics_joint_create(
 
     return ERROR_RESULT_MAKE_VALUE(EntityResult, joint);
 }
-

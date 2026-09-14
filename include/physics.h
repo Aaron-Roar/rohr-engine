@@ -150,6 +150,9 @@ typedef Vec1D Restitution;
 typedef Vec1D Orientation;
 /** Entity world position. */
 typedef Vec2D Position;
+
+/** Check that both coordinates are finite and inside the supported world. */
+bool physics_world_position_check(Position position);
 /** Entity linear velocity. */
 typedef Vec2D Velocity;
 /** Particle circle geometry stored relative to its rigid body's origin. */

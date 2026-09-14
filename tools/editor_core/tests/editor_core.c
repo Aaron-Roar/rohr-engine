@@ -507,7 +507,10 @@ static int transform_commands_test(void) {
             ROHR_WORLD_COORDINATE_MAX + 1.0f;
         node_position.data.soft_node_position.position.y =
             ROHR_WORLD_COORDINATE_MAX + 1.0f;
+        commands[0].data.object_position.position.x = NAN;
         if(editor_command_execute(&project, &vertex_position).kind != ERROR_RESULT_ERROR ||
+                editor_command_execute(&project, &commands[0]).kind !=
+                    ERROR_RESULT_ERROR ||
                 editor_command_execute(&project, &node_position).kind != ERROR_RESULT_ERROR)
             return 1;
     }

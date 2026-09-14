@@ -28,6 +28,8 @@ EngineResult physics_axis_lock_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_world_position_check(axis_point))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     result = entity_components_add(entity, ROHR_AXIS_LOCK);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     normalized_axis = math_vector_normalize(axis);

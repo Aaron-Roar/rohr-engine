@@ -516,8 +516,15 @@ static void editor_operation_command_executing(const EditorProject *project,
 
 static void editor_operation_command_finished(const EditorCommand *command,
         const EditorCommandResult *result, void *context) {
-    (void)context;
+    EditorNotificationPanel *notifications = context;
     editor_history_command_finish(editor_operation_history, command, result);
+    if(notifications != NULL && result != NULL &&
+            result->kind == ERROR_RESULT_ERROR) {
+        EditorResult error = {.kind = ERROR_RESULT_ERROR,
+            .result.error = result->result.error};
+        editor_result_stderr_print(error);
+        editor_error_notification_failure(notifications, "Editor command", error);
+    }
 }
 
 static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspace,
@@ -1913,7 +1920,8 @@ int main(void) {
     editor_operation_history = &history;
     editor_command_executing_callback_set(editor_operation_command_executing, NULL);
     editor_command_executed_callback_set(editor_operation_command_write, NULL);
-    editor_command_finished_callback_set(editor_operation_command_finished, NULL);
+    editor_command_finished_callback_set(editor_operation_command_finished,
+        &notification_panel);
     saved_project_hash = editor_project_hash_get(&project);
     editor_viewport_state_init(&viewport_state);
     editor_navigation_state_apply(&project, &viewport_state, &project.navigation);

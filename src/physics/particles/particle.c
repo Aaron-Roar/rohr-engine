@@ -46,8 +46,8 @@ EngineResult physics_particle_origin_set(Entity entity, Position local_origin) {
     ParticleGeometry geometry;
 
     if(error_check(result)) return result;
-    if(!isfinite(local_origin.x) || !isfinite(local_origin.y))
-        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!physics_world_position_check(local_origin))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     geometry = physics_particle_geometry_effective_get(index);
     geometry.local_origin = local_origin;
     geometry.origin_explicit = true;

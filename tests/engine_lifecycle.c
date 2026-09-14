@@ -93,7 +93,12 @@ int main(void) {
         EntityResult runaway = rohr_entity_add();
         PositionResult position;
         PhysicsUpdateReport report;
-        if(rohr_error_check(runaway) ||
+        if(!rohr_physics_world_position_check((Position){
+                    ROHR_WORLD_COORDINATE_MAX, -ROHR_WORLD_COORDINATE_MAX}) ||
+                rohr_physics_world_position_check((Position){
+                    ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f}) ||
+                rohr_physics_world_position_check((Position){NAN, 0.0f}) ||
+                rohr_error_check(runaway) ||
                 rohr_error_check(rohr_physics_dynamic_set(runaway.result.value)) ||
                 rohr_error_check(rohr_physics_position_set(runaway.result.value,
                     (Position){ROHR_WORLD_COORDINATE_MAX, 0.0f})) ||
@@ -103,6 +108,11 @@ int main(void) {
                     rohr_math_square_create(1.0f, 1.0f))) ||
                 !rohr_error_check(rohr_physics_position_set(runaway.result.value,
                     (Position){ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f})) ||
+                !rohr_error_check(rohr_physics_velocity_toward_position_set(
+                    runaway.result.value, 1.0f,
+                    (Position){ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f})) ||
+                !rohr_error_check(rohr_physics_acceleration_toward_position_set(
+                    runaway.result.value, 1.0f, (Position){NAN, 0.0f})) ||
                 !rohr_error_check(rohr_physics_pipeline_update(0.2))) {
             rohr_engine_shutdown();
             return 1;

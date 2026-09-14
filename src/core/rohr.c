@@ -147,6 +147,7 @@ EngineResult rohr_physics_group_acceleration_away_from_entity_set(GroupId group,
     return physics_group_acceleration_away_from_entity_set(group, acceleration_magnitude, target);
 }
 EngineResult rohr_physics_velocity_set(Entity entity, Velocity v) { return physics_velocity_set(entity, v); }
+bool rohr_physics_world_position_check(Position position) { return physics_world_position_check(position); }
 EngineResult rohr_physics_velocity_toward_position_set(Entity entity, float speed, Position position) {
     return physics_velocity_toward_position_set(entity, speed, position);
 }

@@ -1270,6 +1270,8 @@ static EngineResult graphics_camera_start_motion(
     if(!graphics_camera_slot(camera_id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
+    if(!physics_world_position_check(target))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     result = graphics_camera_resolve_and_detach(camera_id, &value);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(duration <= 0.0) {
@@ -2599,6 +2601,8 @@ EngineResult graphics_sprite_body_offset_set(Entity entity, Position offset) {
     if(!entity_index_components_check(index, ROHR_SPRITE) ||
             index >= sprites_pool.capacity || !sprites_pool.used[index])
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(!physics_world_position_check(offset))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     sprite_components[index].body_offset = offset;
     return error_result_value(true);
 }

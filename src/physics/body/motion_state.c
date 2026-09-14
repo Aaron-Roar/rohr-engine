@@ -9,6 +9,12 @@
 
 #include <math.h>
 
+bool physics_world_position_check(Position position) {
+    return isfinite(position.x) && isfinite(position.y) &&
+        fabsf(position.x) <= ROHR_WORLD_COORDINATE_MAX &&
+        fabsf(position.y) <= ROHR_WORLD_COORDINATE_MAX;
+}
+
 Vec2D physics_direction_between_positions(Position from, Position to) {
     Vec2D delta = {
         .x = to.x - from.x,
@@ -70,6 +76,8 @@ EngineResult physics_velocity_toward_position_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_world_position_check(position))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     direction = physics_direction_between_positions(positions[index], position);
     return physics_velocity_set(entity, (Velocity){
         .x = direction.x * speed,
@@ -121,9 +129,7 @@ EngineResult physics_position_set(Entity entity, Position position) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(!isfinite(position.x) || !isfinite(position.y) ||
-            fabsf(position.x) > ROHR_WORLD_COORDINATE_MAX ||
-            fabsf(position.y) > ROHR_WORLD_COORDINATE_MAX)
+    if(!physics_world_position_check(position))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     (void)PositionPool_store_at(&positions_pool, index, position);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Position: {x: %f, y: %f}\n",

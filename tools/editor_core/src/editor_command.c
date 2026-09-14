@@ -32,9 +32,42 @@ static bool editor_command_position_equal(Position first, Position second) {
 }
 
 static bool editor_command_world_position_check(Position position) {
-    return isfinite(position.x) && isfinite(position.y) &&
-        fabsf(position.x) <= ROHR_WORLD_COORDINATE_MAX &&
-        fabsf(position.y) <= ROHR_WORLD_COORDINATE_MAX;
+    return physics_world_position_check(position);
+}
+
+static EditorCommandResult editor_command_world_position_error(void) {
+    return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "position is outside the supported world range").result.error);
+}
+
+static bool editor_command_world_position_get(const EditorCommand *command,
+        Position *position) {
+    switch(command->type) {
+        case EDITOR_COMMAND_OBJECT_ADD:
+            *position = command->data.object_add.position; return true;
+        case EDITOR_COMMAND_OBJECT_POSITION:
+            *position = command->data.object_position.position; return true;
+        case EDITOR_COMMAND_RIGID_BODY_TRANSFORM:
+            *position = command->data.rigid_body_transform.position; return true;
+        case EDITOR_COMMAND_VERTEX_POSITION:
+            *position = command->data.vertex_position.position; return true;
+        case EDITOR_COMMAND_ANCHOR_TRANSFORM:
+            *position = command->data.anchor_transform.position; return true;
+        case EDITOR_COMMAND_SOFT_BODY_TRANSFORM:
+            *position = command->data.soft_body_transform.position; return true;
+        case EDITOR_COMMAND_SOFT_NODE_POSITION:
+            *position = command->data.soft_node_position.position; return true;
+        case EDITOR_COMMAND_RIGID_BODY_ORIGIN:
+        case EDITOR_COMMAND_SOFT_BODY_ORIGIN:
+            *position = command->data.origin.position; return true;
+        case EDITOR_COMMAND_VIEWPORT_CAMERA:
+            *position = command->data.viewport_camera.offset; return true;
+        case EDITOR_COMMAND_SPRITE_POSITION_SET:
+            *position = command->data.sprite_position_set.position; return true;
+        case EDITOR_COMMAND_ANIMATED_SPRITE_POSITION_SET:
+            *position = command->data.animated_sprite_position_set.position; return true;
+        default: return false;
+    }
 }
 
 static Position editor_command_position_rotate(Position position,
@@ -145,9 +178,13 @@ static bool editor_command_collision_mask_find(const EditorProject *project,
 
 static EditorCommandResult editor_command_execute_internal(EditorProject *project,
         const EditorCommand *command) {
+    Position position;
     if(project == NULL || command == NULL)
         return editor_command_error((EditorError){EDITOR_ERROR_INVALID_ARGUMENT,
             "command execution requires a project and command"});
+    if(editor_command_world_position_get(command, &position) &&
+            !editor_command_world_position_check(position))
+        return editor_command_world_position_error();
     switch(command->type) {
         case EDITOR_COMMAND_OBJECT_ADD: {
             EditorObjectIdResult result = editor_object_command_add(project,
@@ -210,12 +247,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 command->data.vertex_position.body);
             if(hitbox == NULL) return editor_command_not_found("hitbox",
                 command->data.vertex_position.hitbox);
-            if(!editor_command_world_position_check(
-                    command->data.vertex_position.position))
-                return editor_command_error(editor_result_error(
-                    EDITOR_ERROR_INVALID_ARGUMENT,
-                    "vertex position is outside the supported world range")
-                    .result.error);
             for(uint32_t i = 0; i < hitbox->vertex_count; i += 1) {
                 if(hitbox->vertices[i].id != command->data.vertex_position.vertex) continue;
                 if(hitbox->vertices[i].position_locked)
@@ -277,12 +308,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 command->data.soft_node_position.object);
             if(body == NULL) return editor_command_not_found("soft body",
                 command->data.soft_node_position.body);
-            if(!editor_command_world_position_check(
-                    command->data.soft_node_position.position))
-                return editor_command_error(editor_result_error(
-                    EDITOR_ERROR_INVALID_ARGUMENT,
-                    "soft node position is outside the supported world range")
-                    .result.error);
             for(size_t i = 0; i < body->node_count; i += 1) {
                 if(body->nodes[i].id != command->data.soft_node_position.node) continue;
                 if(editor_command_position_equal(body->nodes[i].position,

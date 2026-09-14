@@ -595,6 +595,9 @@ EngineResult rohr_physics_group_acceleration_away_from_entity_set(GroupId group,
  */
 EngineResult rohr_physics_velocity_set(Entity entity, Velocity v);
 
+/** Check that both coordinates are finite and inside the supported world. */
+bool rohr_physics_world_position_check(Position position);
+
 /**
  * @brief Sets entity velocity toward a world position.
  * @param entity Entity to modify.

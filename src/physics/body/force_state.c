@@ -113,6 +113,8 @@ EngineResult physics_acceleration_toward_position_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_world_position_check(position))
+        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     direction = physics_direction_between_positions(positions[index], position);
     acceleration = (Acceleration){
         .x = direction.x * acceleration_magnitude,
