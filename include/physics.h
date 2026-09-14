@@ -153,6 +153,17 @@ typedef Vec2D Position;
 
 /** Check that both coordinates are finite and inside the supported world. */
 bool physics_world_position_check(Position position);
+EngineResult physics_hitbox_autoshape_circle_set(Entity entity, float radius);
+EngineResult physics_hitbox_autoshape_rectangle_set(Entity entity,
+    float width, float height);
+EngineResult physics_hitbox_autoshape_triangle_set(Entity entity,
+    float width, float height);
+EngineResult physics_soft_body_autoshape_circle_set(Entity soft_body,
+    float radius);
+EngineResult physics_soft_body_autoshape_rectangle_set(Entity soft_body,
+    float width, float height);
+EngineResult physics_soft_body_autoshape_triangle_set(Entity soft_body,
+    float width, float height);
 /** Entity linear velocity. */
 typedef Vec2D Velocity;
 /** Particle circle geometry stored relative to its rigid body's origin. */

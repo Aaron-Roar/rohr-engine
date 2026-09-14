@@ -148,6 +148,12 @@ EngineResult rohr_physics_group_acceleration_away_from_entity_set(GroupId group,
 }
 EngineResult rohr_physics_velocity_set(Entity entity, Velocity v) { return physics_velocity_set(entity, v); }
 bool rohr_physics_world_position_check(Position position) { return physics_world_position_check(position); }
+EngineResult rohr_physics_hitbox_autoshape_circle_set(Entity entity, float radius) { return physics_hitbox_autoshape_circle_set(entity, radius); }
+EngineResult rohr_physics_hitbox_autoshape_rectangle_set(Entity entity, float width, float height) { return physics_hitbox_autoshape_rectangle_set(entity, width, height); }
+EngineResult rohr_physics_hitbox_autoshape_triangle_set(Entity entity, float width, float height) { return physics_hitbox_autoshape_triangle_set(entity, width, height); }
+EngineResult rohr_physics_soft_body_autoshape_circle_set(Entity soft_body, float radius) { return physics_soft_body_autoshape_circle_set(soft_body, radius); }
+EngineResult rohr_physics_soft_body_autoshape_rectangle_set(Entity soft_body, float width, float height) { return physics_soft_body_autoshape_rectangle_set(soft_body, width, height); }
+EngineResult rohr_physics_soft_body_autoshape_triangle_set(Entity soft_body, float width, float height) { return physics_soft_body_autoshape_triangle_set(soft_body, width, height); }
 EngineResult rohr_physics_velocity_toward_position_set(Entity entity, float speed, Position position) {
     return physics_velocity_toward_position_set(entity, speed, position);
 }

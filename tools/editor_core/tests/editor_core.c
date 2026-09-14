@@ -82,26 +82,34 @@ static int auto_shape_test(void) {
                 !position_near(soft_body.nodes[3].position, 83.0f, 84.0f)) return 1;
     }
     hitbox.vertex_count = 3;
+    hitbox.vertices[0].position = (Position){1.0f, 1.0f};
+    hitbox.vertices[1].position = (Position){-1.0f, 1.0f};
+    hitbox.vertices[2].position = (Position){0.0f, -1.0f};
     if(!editor_result_check(editor_auto_shape_hitbox_apply(&hitbox, &rectangle)) ||
             editor_result_check(editor_auto_shape_hitbox_apply(&hitbox, &triangle)) ||
-            !position_near(hitbox.vertices[0].position, 0.0f, -2.0f)) return 1;
+            !position_near(hitbox.vertices[2].position, 0.0f, -2.0f)) return 1;
     triangle.triangle_kind = EDITOR_AUTO_TRIANGLE_EQUILATERAL;
     triangle.width = 4.0f;
     triangle.height = 999.0f;
     if(editor_result_check(editor_auto_shape_hitbox_apply(&hitbox, &triangle)) ||
-            !position_near(hitbox.vertices[0].position, 0.0f, -sqrtf(3.0f)) ||
-            !position_near(hitbox.vertices[1].position, 2.0f, sqrtf(3.0f)))
+            !position_near(hitbox.vertices[2].position, 0.0f, -sqrtf(3.0f)) ||
+            !position_near(hitbox.vertices[0].position, 2.0f, sqrtf(3.0f)))
         return 1;
     triangle.triangle_kind = EDITOR_AUTO_TRIANGLE_SCALENE;
     triangle.width = 8.0f;
     triangle.height = 6.0f;
     triangle.apex_offset = 1.5f;
     if(editor_result_check(editor_auto_shape_hitbox_apply(&hitbox, &triangle)) ||
-            !position_near(hitbox.vertices[0].position, 1.5f, -3.0f) ||
-            !position_near(hitbox.vertices[1].position, 4.0f, 3.0f) ||
-            !position_near(hitbox.vertices[2].position, -4.0f, 3.0f)) return 1;
+            !position_near(hitbox.vertices[2].position, 1.5f, -3.0f) ||
+            !position_near(hitbox.vertices[0].position, 4.0f, 3.0f) ||
+            !position_near(hitbox.vertices[1].position, -4.0f, 3.0f)) return 1;
 
     hitbox.vertex_count = 5;
+    for(size_t i = 0; i < hitbox.vertex_count; i += 1) {
+        float angle = -1.57079632679f + 6.28318530718f * (float)i /
+            (float)hitbox.vertex_count;
+        hitbox.vertices[i].position = (Position){cosf(angle), sinf(angle)};
+    }
     rectangle.width = 8.0f;
     rectangle.height = 4.0f;
     if(!editor_auto_shape_control_check(&rectangle, 5, 0) ||
@@ -112,8 +120,14 @@ static int auto_shape_test(void) {
             !position_near((Position){rectangle.width, rectangle.height},
                 12.0f, 8.0f) ||
             editor_result_check(editor_auto_shape_hitbox_apply(
-                &hitbox, &rectangle)) ||
-            !position_near(hitbox.vertices[3].position, 6.0f, 4.0f)) return 1;
+                &hitbox, &rectangle))) return 1;
+    {
+        bool corner_found = false;
+        for(size_t i = 0; i < hitbox.vertex_count; i += 1)
+            if(position_near(hitbox.vertices[i].position, 6.0f, 4.0f))
+                corner_found = true;
+        if(!corner_found) return 1;
+    }
 
     if(!editor_auto_shape_control_check(&circle, 6, 4) ||
             editor_result_check(editor_auto_shape_control_set(

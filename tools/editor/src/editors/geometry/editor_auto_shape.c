@@ -18,6 +18,30 @@ static EditorSoftBody *soft_body_get(EditorObject *object, EditorSoftBodyId id) 
     return NULL;
 }
 
+static void auto_shape_ids_order(uint32_t *ids, Position *points, size_t count) {
+    Position centroid = {0};
+    for(size_t i = 0; i < count; i += 1) {
+        centroid.x += points[i].x;
+        centroid.y += points[i].y;
+    }
+    centroid.x /= (float)count;
+    centroid.y /= (float)count;
+    for(size_t i = 1; i < count; i += 1) {
+        uint32_t id = ids[i];
+        Position point = points[i];
+        float angle = atan2f(point.y - centroid.y, point.x - centroid.x);
+        size_t at = i;
+        while(at > 0 && atan2f(points[at - 1].y - centroid.y,
+                points[at - 1].x - centroid.x) > angle) {
+            ids[at] = ids[at - 1];
+            points[at] = points[at - 1];
+            at -= 1;
+        }
+        ids[at] = id;
+        points[at] = point;
+    }
+}
+
 static void icon_line_draw(Position start, Position end, Color color) {
     Vec2D delta = {end.x - start.x, end.y - start.y};
     float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
@@ -247,12 +271,23 @@ size_t editor_auto_shape_hitbox_points_capture(EditorViewportState *viewport,
         const EditorHitbox *hitbox) {
     if(viewport == NULL || object == NULL || body == NULL || hitbox == NULL) return 0;
     viewport->auto_shape_point_count = 0;
+    Position points[EDITOR_HITBOX_VERTEX_MAX];
     for(size_t i = 0; i < hitbox->vertex_count; i += 1)
         if(editor_viewport_selection_contains(viewport,
                 (EditorSelectionRef){EDITOR_SELECTION_VERTEX, object->id,
-                    body->id, hitbox->id, hitbox->vertices[i].id}))
-            viewport->auto_shape_points[viewport->auto_shape_point_count++] =
+                    body->id, hitbox->id, hitbox->vertices[i].id})) {
+            viewport->auto_shape_points[viewport->auto_shape_point_count] =
                 hitbox->vertices[i].id;
+            points[viewport->auto_shape_point_count++] = hitbox->vertices[i].position;
+        }
+    if(viewport->auto_shape_point_count == 0)
+        for(size_t i = 0; i < hitbox->vertex_count; i += 1) {
+            viewport->auto_shape_points[i] = hitbox->vertices[i].id;
+            points[i] = hitbox->vertices[i].position;
+            viewport->auto_shape_point_count += 1;
+        }
+    auto_shape_ids_order(viewport->auto_shape_points, points,
+        viewport->auto_shape_point_count);
     return viewport->auto_shape_point_count;
 }
 
@@ -260,11 +295,22 @@ size_t editor_auto_shape_soft_body_points_capture(EditorViewportState *viewport,
         const EditorObject *object, const EditorSoftBody *body) {
     if(viewport == NULL || object == NULL || body == NULL) return 0;
     viewport->auto_shape_point_count = 0;
+    Position points[EDITOR_SOFT_NODE_MAX];
     for(size_t i = 0; i < body->node_count; i += 1)
         if(editor_viewport_selection_contains(viewport,
                 (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE, object->id,
-                    body->id, 0, body->nodes[i].id}))
-            viewport->auto_shape_points[viewport->auto_shape_point_count++] =
+                    body->id, 0, body->nodes[i].id})) {
+            viewport->auto_shape_points[viewport->auto_shape_point_count] =
                 body->nodes[i].id;
+            points[viewport->auto_shape_point_count++] = body->nodes[i].position;
+        }
+    if(viewport->auto_shape_point_count == 0)
+        for(size_t i = 0; i < body->node_count; i += 1) {
+            viewport->auto_shape_points[i] = body->nodes[i].id;
+            points[i] = body->nodes[i].position;
+            viewport->auto_shape_point_count += 1;
+        }
+    auto_shape_ids_order(viewport->auto_shape_points, points,
+        viewport->auto_shape_point_count);
     return viewport->auto_shape_point_count;
 }

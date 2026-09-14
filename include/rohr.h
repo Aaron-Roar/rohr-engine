@@ -597,6 +597,18 @@ EngineResult rohr_physics_velocity_set(Entity entity, Velocity v);
 
 /** Check that both coordinates are finite and inside the supported world. */
 bool rohr_physics_world_position_check(Position position);
+EngineResult rohr_physics_hitbox_autoshape_circle_set(Entity entity,
+    float radius);
+EngineResult rohr_physics_hitbox_autoshape_rectangle_set(Entity entity,
+    float width, float height);
+EngineResult rohr_physics_hitbox_autoshape_triangle_set(Entity entity,
+    float width, float height);
+EngineResult rohr_physics_soft_body_autoshape_circle_set(Entity soft_body,
+    float radius);
+EngineResult rohr_physics_soft_body_autoshape_rectangle_set(Entity soft_body,
+    float width, float height);
+EngineResult rohr_physics_soft_body_autoshape_triangle_set(Entity soft_body,
+    float width, float height);
 
 /**
  * @brief Sets entity velocity toward a world position.

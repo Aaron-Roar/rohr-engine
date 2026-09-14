@@ -21,6 +21,32 @@ static Position editor_auto_shape_lerp(Position first, Position second, float t)
     };
 }
 
+static void editor_auto_shape_indices_order(const Position *points,
+        size_t *indices, size_t count) {
+    Position centroid = {0};
+    for(size_t i = 0; i < count; i += 1) {
+        centroid.x += points[indices[i]].x;
+        centroid.y += points[indices[i]].y;
+    }
+    centroid.x /= (float)count;
+    centroid.y /= (float)count;
+    for(size_t i = 1; i < count; i += 1) {
+        size_t value = indices[i];
+        float angle = atan2f(points[value].y - centroid.y,
+            points[value].x - centroid.x);
+        size_t at = i;
+        while(at > 0) {
+            size_t previous = indices[at - 1];
+            float previous_angle = atan2f(points[previous].y - centroid.y,
+                points[previous].x - centroid.x);
+            if(previous_angle <= angle) break;
+            indices[at] = previous;
+            at -= 1;
+        }
+        indices[at] = value;
+    }
+}
+
 static void editor_auto_shape_polygon_get(const Position *corners,
         size_t corner_count, Position *output_positions, size_t position_count) {
     size_t edge_segments[4] = {1, 1, 1, 1};
@@ -128,6 +154,8 @@ EditorResult editor_auto_shape_hitbox_apply(EditorHitbox *hitbox,
         const EditorAutoShapeConfig *config) {
     EditorResult result;
     Position *output_positions;
+    Position current[EDITOR_HITBOX_VERTEX_MAX];
+    size_t indices[EDITOR_HITBOX_VERTEX_MAX];
     if(hitbox == NULL || hitbox->vertex_count == 0)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape requires a hitbox");
@@ -136,8 +164,13 @@ EditorResult editor_auto_shape_hitbox_apply(EditorHitbox *hitbox,
         "could not allocate auto-shape hitbox positions");
     result = editor_auto_shape_positions_get(config, output_positions,
         hitbox->vertex_count);
+    for(size_t i = 0; i < hitbox->vertex_count; i += 1) {
+        current[i] = hitbox->vertices[i].position;
+        indices[i] = i;
+    }
+    editor_auto_shape_indices_order(current, indices, hitbox->vertex_count);
     if(!editor_result_check(result)) for(size_t i = 0; i < hitbox->vertex_count;
-            i += 1) hitbox->vertices[i].position = output_positions[i];
+            i += 1) hitbox->vertices[indices[i]].position = output_positions[i];
     free(output_positions);
     return result;
 }
@@ -146,6 +179,8 @@ EditorResult editor_auto_shape_soft_body_apply(EditorSoftBody *body,
         const EditorAutoShapeConfig *config) {
     EditorResult result;
     Position *output_positions;
+    Position current[EDITOR_SOFT_NODE_MAX];
+    size_t indices[EDITOR_SOFT_NODE_MAX];
     if(body == NULL || body->node_count == 0)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape requires a soft body");
@@ -153,8 +188,13 @@ EditorResult editor_auto_shape_soft_body_apply(EditorSoftBody *body,
     if(output_positions == NULL) return editor_result_error(EDITOR_ERROR_CAPACITY,
         "could not allocate auto-shape soft-body positions");
     result = editor_auto_shape_positions_get(config, output_positions, body->node_count);
+    for(size_t i = 0; i < body->node_count; i += 1) {
+        current[i] = body->nodes[i].position;
+        indices[i] = i;
+    }
+    editor_auto_shape_indices_order(current, indices, body->node_count);
     if(!editor_result_check(result)) for(size_t i = 0; i < body->node_count; i += 1)
-        body->nodes[i].position = output_positions[i];
+        body->nodes[indices[i]].position = output_positions[i];
     free(output_positions);
     return result;
 }
@@ -195,6 +235,12 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
         goto finish;
 next_hitbox_point:
         continue;
+    }
+    {
+        Position current[EDITOR_HITBOX_VERTEX_MAX];
+        for(size_t i = 0; i < hitbox->vertex_count; i += 1)
+            current[i] = hitbox->vertices[i].position;
+        editor_auto_shape_indices_order(current, indices, point_count);
     }
     for(size_t point = 0; point < point_count; point += 1)
         hitbox->vertices[indices[point]].position = output_positions[point];
@@ -241,6 +287,12 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
         goto finish;
 next_soft_body_point:
         continue;
+    }
+    {
+        Position current[EDITOR_SOFT_NODE_MAX];
+        for(size_t i = 0; i < body->node_count; i += 1)
+            current[i] = body->nodes[i].position;
+        editor_auto_shape_indices_order(current, indices, point_count);
     }
     for(size_t point = 0; point < point_count; point += 1)
         body->nodes[indices[point]].position = output_positions[point];

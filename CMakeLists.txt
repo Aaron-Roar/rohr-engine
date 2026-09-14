@@ -179,6 +179,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/body/body_state.c
     src/physics/body/force_state.c
     src/physics/body/motion_state.c
+    src/physics/auto_shape.c
     src/physics/collision/contact_constraint.c
     src/physics/collision/contact_manifold.c
     src/physics/collision/contact_query.c
@@ -449,6 +450,12 @@ if(ROHR_BUILD_TESTS)
     target_link_libraries(soft_body_test PRIVATE rohr_engine)
     set_target_properties(soft_body_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body COMMAND soft_body_test)
+
+    add_executable(auto_shape_test tests/auto_shape.c)
+    target_link_libraries(auto_shape_test PRIVATE rohr_engine)
+    set_target_properties(auto_shape_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME auto_shape COMMAND auto_shape_test)
 
     add_executable(collision_sensor_test tests/collision_sensor.c)
     target_include_directories(collision_sensor_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
