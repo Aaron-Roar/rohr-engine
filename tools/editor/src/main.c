@@ -3490,7 +3490,11 @@ int main(void) {
                         (void)editor_viewport_selection_primary_set(&project,
                             &viewport_state, viewport_state.selected_items[
                                 viewport_state.selected_item_count - 1]);
-                    else viewport_state.selection = EDITOR_SELECTION_NONE;
+                    else {
+                        viewport_state.selection = EDITOR_SELECTION_NONE;
+                        if(viewport_state.mode == EDITOR_VIEWPORT_HIERARCHY)
+                            editor_project_selection_clear(&project);
+                    }
                 }
             }
             if(mouse.button_states[MOUSE_BUTTON_LEFT] ==

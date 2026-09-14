@@ -1900,6 +1900,20 @@ static bool editor_group_point_get(EditorProject *project,
     return false;
 }
 
+static bool editor_soft_body_internal_selection_check(
+        const EditorViewportState *state, EditorObjectId object,
+        EditorSoftBodyId body) {
+    if(state == NULL || state->selected_item_count == 0) return false;
+    for(size_t i = 0; i < state->selected_item_count; i += 1) {
+        EditorSelectionRef ref = state->selected_items[i];
+        if(ref.object != object || ref.parent != body ||
+                (ref.kind != EDITOR_SELECTION_SOFT_NODE &&
+                    ref.kind != EDITOR_SELECTION_SOFT_BEAM &&
+                    ref.kind != EDITOR_SELECTION_SOFT_AREA)) return false;
+    }
+    return true;
+}
+
 static bool editor_group_rotation_control_get(EditorProject *project,
         EditorSelectionRef ref, Position *center, Position *handle,
         float *rotation) {
@@ -3062,6 +3076,12 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(object->visible) {
         for(size_t soft_index = 0; soft_index < object->soft_body_count; soft_index += 1) {
             EditorSoftBody *soft_body = &object->soft_body_items[soft_index];
+            EditorSelectionRef body_selection = {EDITOR_SELECTION_SOFT_BODY,
+                object->id, 0, 0, soft_body->id};
+            bool body_focused = state->mode == EDITOR_VIEWPORT_SOFT_BODY &&
+                state->selected_soft_body == soft_body->id;
+            bool internal_only = editor_soft_body_internal_selection_check(state,
+                object->id, soft_body->id);
             if(!soft_body->visible) continue;
             for(size_t i = 0; i < soft_body->node_count; i += 1) {
                 EditorSoftNode *node = &soft_body->nodes[i];
@@ -3077,13 +3097,6 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     return true;
                 }
                 state->selected_soft_body = soft_body->id;
-                if(state->selection_modifier) {
-                    (void)editor_viewport_selection_set(project, state,
-                        (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
-                            object->id, soft_body->id, 0, node->id}, true);
-                    state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-                    return true;
-                }
                 {
                     Uint64 now = SDL_GetTicks();
                     bool double_clicked = state->last_viewport_click_selection ==
@@ -3091,19 +3104,31 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         state->last_viewport_click_object == object->id &&
                         state->last_viewport_click_index == node->id &&
                         now - state->last_viewport_click_at <= 400;
-                    if(double_clicked) {
-                        state->selection = EDITOR_SELECTION_SOFT_NODE;
-                        state->selected_soft_node = node->id;
-                        state->mode = EDITOR_VIEWPORT_SOFT_NODE;
+                    EditorSelectionRef node_selection = {
+                        EDITOR_SELECTION_SOFT_NODE, object->id,
+                        soft_body->id, 0, node->id};
+                    if(body_focused || internal_only || double_clicked) {
+                        if(state->selection_modifier &&
+                                editor_viewport_selection_contains(state,
+                                    body_selection))
+                            (void)editor_viewport_selection_set(project, state,
+                                body_selection, true);
+                        (void)editor_viewport_selection_set(project, state,
+                            node_selection, state->selection_modifier);
+                        if(!state->selection_modifier)
+                            state->mode = EDITOR_VIEWPORT_SOFT_NODE;
                         state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     } else {
-                        state->selection = EDITOR_SELECTION_SOFT_BODY;
-                        state->mode = EDITOR_VIEWPORT_SOFT_BODY;
-                        state->dragged_soft_body = true;
-                        state->drag_offset = (Vec2D){
-                            pointer.x - object->position.x - soft_body->position.x,
-                            pointer.y - object->position.y - soft_body->position.y
-                        };
+                        (void)editor_viewport_selection_set(project, state,
+                            body_selection, state->selection_modifier);
+                        if(!state->selection_modifier) {
+                            state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+                            state->dragged_soft_body = true;
+                            state->drag_offset = (Vec2D){pointer.x -
+                                object->position.x - soft_body->position.x,
+                                pointer.y - object->position.y -
+                                    soft_body->position.y};
+                        }
                         state->last_viewport_click_selection = EDITOR_SELECTION_SOFT_NODE;
                         state->last_viewport_click_object = object->id;
                         state->last_viewport_click_index = node->id;
@@ -3125,13 +3150,6 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         editor_soft_node_world_get(object, soft_body, a),
                         editor_soft_node_world_get(object, soft_body, b)) > 36.0f) continue;
                 state->selected_soft_body = soft_body->id;
-                if(state->selection_modifier) {
-                    (void)editor_viewport_selection_set(project, state,
-                        (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
-                            object->id, soft_body->id, 0, beam->id}, true);
-                    state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-                    return true;
-                }
                 {
                     Uint64 now = SDL_GetTicks();
                     bool double_clicked = state->last_viewport_click_selection ==
@@ -3139,19 +3157,31 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         state->last_viewport_click_object == object->id &&
                         state->last_viewport_click_index == beam->id &&
                         now - state->last_viewport_click_at <= 400;
-                    if(double_clicked) {
-                        state->selection = EDITOR_SELECTION_SOFT_BEAM;
-                        state->selected_soft_beam = beam->id;
-                        state->mode = EDITOR_VIEWPORT_SOFT_BEAM;
+                    EditorSelectionRef beam_selection = {
+                        EDITOR_SELECTION_SOFT_BEAM, object->id,
+                        soft_body->id, 0, beam->id};
+                    if(body_focused || internal_only || double_clicked) {
+                        if(state->selection_modifier &&
+                                editor_viewport_selection_contains(state,
+                                    body_selection))
+                            (void)editor_viewport_selection_set(project, state,
+                                body_selection, true);
+                        (void)editor_viewport_selection_set(project, state,
+                            beam_selection, state->selection_modifier);
+                        if(!state->selection_modifier)
+                            state->mode = EDITOR_VIEWPORT_SOFT_BEAM;
                         state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     } else {
-                        state->selection = EDITOR_SELECTION_SOFT_BODY;
-                        state->mode = EDITOR_VIEWPORT_SOFT_BODY;
-                        state->dragged_soft_body = true;
-                        state->drag_offset = (Vec2D){
-                            pointer.x - object->position.x - soft_body->position.x,
-                            pointer.y - object->position.y - soft_body->position.y
-                        };
+                        (void)editor_viewport_selection_set(project, state,
+                            body_selection, state->selection_modifier);
+                        if(!state->selection_modifier) {
+                            state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+                            state->dragged_soft_body = true;
+                            state->drag_offset = (Vec2D){pointer.x -
+                                object->position.x - soft_body->position.x,
+                                pointer.y - object->position.y -
+                                    soft_body->position.y};
+                        }
                         state->last_viewport_click_selection = EDITOR_SELECTION_SOFT_BEAM;
                         state->last_viewport_click_object = object->id;
                         state->last_viewport_click_index = beam->id;
@@ -3161,8 +3191,6 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 return true;
             }
             {
-                bool parent_editor_active = state->mode == EDITOR_VIEWPORT_SOFT_BODY &&
-                    state->selected_soft_body == soft_body->id;
                 state->soft_area_candidate_count = 0;
                 for(size_t i = 0; i < soft_body->area_count; i += 1) {
                     EditorSoftArea *area = &soft_body->areas[i];
@@ -3170,39 +3198,39 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             object, soft_body, area, pointer)) continue;
                     state->soft_area_candidates[state->soft_area_candidate_count++] = area->id;
                 }
-                if(state->soft_area_candidate_count > 0 && !parent_editor_active) {
-                    state->selected_soft_body = soft_body->id;
-                    state->selection = EDITOR_SELECTION_SOFT_BODY;
-                    state->mode = EDITOR_VIEWPORT_SOFT_BODY;
-                    state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-                    return true;
-                }
                 if(state->soft_area_candidate_count > 0) {
                     EditorSoftAreaId area_id = state->soft_area_candidates[0];
-                    if(state->selection_modifier) {
-                        (void)editor_viewport_selection_set(project, state,
-                            (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
-                                object->id, soft_body->id, 0, area_id}, true);
-                        state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-                        return true;
-                    }
                     Uint64 now = SDL_GetTicks();
                     bool double_clicked = state->last_viewport_click_selection ==
                         EDITOR_SELECTION_SOFT_AREA &&
                         state->last_viewport_click_object == object->id &&
                         state->last_viewport_click_index == area_id &&
                         now - state->last_viewport_click_at <= 400;
-                    if(double_clicked) {
-                        state->selection = EDITOR_SELECTION_SOFT_AREA;
-                        state->selected_soft_area = area_id;
-                        state->mode = EDITOR_VIEWPORT_SOFT_AREA;
+                    EditorSelectionRef area_selection = {
+                        EDITOR_SELECTION_SOFT_AREA, object->id,
+                        soft_body->id, 0, area_id};
+                    if(body_focused || internal_only || double_clicked) {
+                        if(state->selection_modifier &&
+                                editor_viewport_selection_contains(state,
+                                    body_selection))
+                            (void)editor_viewport_selection_set(project, state,
+                                body_selection, true);
+                        (void)editor_viewport_selection_set(project, state,
+                            area_selection, state->selection_modifier);
+                        if(!state->selection_modifier)
+                            state->mode = EDITOR_VIEWPORT_SOFT_AREA;
                         state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     } else {
-                        state->dragged_soft_body = true;
-                        state->drag_offset = (Vec2D){
-                            pointer.x - object->position.x - soft_body->position.x,
-                            pointer.y - object->position.y - soft_body->position.y
-                        };
+                        (void)editor_viewport_selection_set(project, state,
+                            body_selection, state->selection_modifier);
+                        if(!state->selection_modifier) {
+                            state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+                            state->dragged_soft_body = true;
+                            state->drag_offset = (Vec2D){pointer.x -
+                                object->position.x - soft_body->position.x,
+                                pointer.y - object->position.y -
+                                    soft_body->position.y};
+                        }
                         state->last_viewport_click_selection = EDITOR_SELECTION_SOFT_AREA;
                         state->last_viewport_click_object = object->id;
                         state->last_viewport_click_index = area_id;
@@ -3212,14 +3240,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
             }
             if(editor_soft_body_area_contains(object, soft_body, pointer)) {
-                state->selection = EDITOR_SELECTION_SOFT_BODY;
-                state->selected_soft_body = soft_body->id;
-                state->mode = EDITOR_VIEWPORT_SOFT_BODY;
-                state->dragged_soft_body = true;
-                state->drag_offset = (Vec2D){
-                    pointer.x - object->position.x - soft_body->position.x,
-                    pointer.y - object->position.y - soft_body->position.y
-                };
+                (void)editor_viewport_selection_set(project, state,
+                    body_selection, state->selection_modifier);
+                if(!state->selection_modifier) {
+                    state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+                    state->dragged_soft_body = true;
+                    state->drag_offset = (Vec2D){
+                        pointer.x - object->position.x - soft_body->position.x,
+                        pointer.y - object->position.y - soft_body->position.y
+                    };
+                }
                 state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                 return true;
             }
