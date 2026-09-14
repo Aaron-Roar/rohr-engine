@@ -51,7 +51,7 @@ int main(void) {
     soft_body = editor_project_soft_body_add(&project, object);
     if(anchor == NULL || joint == NULL || soft_body == NULL) return 1;
     node_a = editor_project_soft_node_add(&project, soft_body, (Position){0});
-    node_b = editor_project_soft_node_add(&project, soft_body, (Position){10.0f, 0.0f});
+    node_b = editor_project_soft_node_add(&project, soft_body, (Position){30.0f, 0.0f});
     if(node_a == NULL || node_b == NULL) return 1;
     beam = editor_project_soft_beam_add(
         &project, soft_body, node_a->id, node_b->id);
@@ -97,6 +97,25 @@ int main(void) {
         if(state.mode != EDITOR_VIEWPORT_RIGID_BODY ||
                 state.selection != EDITOR_SELECTION_RIGID_BODY ||
                 state.selected_rigid_body != body->id) return 1;
+
+        first = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+            object->id, soft_body->id, 0, node_a->id};
+        second = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+            object->id, soft_body->id, 0, node_b->id};
+        if(!editor_viewport_selection_set(&project, &state, first, false) ||
+                !editor_viewport_selection_set(&project, &state, second, true))
+            return 1;
+        state.mode = EDITOR_VIEWPORT_SOFT_NODE;
+        state.selection_modifier = true;
+        if(!editor_viewport_update(&state, &project,
+                (Position){editor_viewport_width * 0.5f + 30.0f,
+                    EDITOR_MENU_HEIGHT +
+                        (editor_viewport_bottom - EDITOR_MENU_HEIGHT) * 0.5f},
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) || state.selected_item_count != 1 ||
+                editor_viewport_selection_contains(&state, second)) return 1;
+        state.selection_modifier = false;
+        editor_viewport_selection_clear(&state);
     }
     if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_OBJECT,
                 EDITOR_VIEWPORT_OBJECT)) return 1;
@@ -134,7 +153,18 @@ int main(void) {
     state.mode = EDITOR_VIEWPORT_RIGID_BODY;
     state.selection = EDITOR_SELECTION_NONE;
     editor_navigation_current_selection_clear(&project, &state);
-    if(state.selection != EDITOR_SELECTION_RIGID_BODY) return 1;
+    if(state.selection != EDITOR_SELECTION_NONE) return 1;
+
+    state.selection = EDITOR_SELECTION_SOFT_NODE;
+    state.selected_soft_body = soft_body->id;
+    state.selected_soft_node = soft_body->nodes[0].id;
+    if(!editor_viewport_selection_set(&project, &state,
+            (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+                project.objects[0].id, soft_body->id, 0,
+                soft_body->nodes[0].id}, true) ||
+            state.selection != EDITOR_SELECTION_NONE ||
+            state.selected_item_count != 0) return 1;
+
     state.mode = EDITOR_VIEWPORT_HIERARCHY;
     editor_navigation_current_selection_clear(&project, &state);
     if(state.selection != EDITOR_SELECTION_NONE || project.selected != 0) return 1;

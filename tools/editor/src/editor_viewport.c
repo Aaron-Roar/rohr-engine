@@ -883,8 +883,7 @@ bool editor_viewport_selection_set(EditorProject *project,
     if(project == NULL || state == NULL || selection.kind == EDITOR_SELECTION_NONE)
         return false;
     if(additive && state->selected_item_count == 0)
-        prior_valid = editor_viewport_selection_ref_get(project, state, &prior) &&
-            !editor_selection_ref_equal(prior, selection);
+        prior_valid = editor_viewport_selection_ref_get(project, state, &prior);
     if(prior_valid) {
         if(state->selected_item_capacity == 0) {
             state->selected_items = malloc(8 * sizeof(*state->selected_items));
@@ -2395,7 +2394,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         return true;
     }
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED &&
-            state->selected_item_count >= 2) {
+            state->selected_item_count >= 2 && !state->selection_modifier) {
         Position rotation_handle;
         if(editor_group_pivot_get(project, state, &state->group_pivot)) {
             rotation_handle = (Position){state->group_pivot.x,
@@ -2928,6 +2927,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 object->id, 0, 0, animation->id};
             (void)editor_viewport_selection_set(project, state, selection,
                 state->selection_modifier);
+            if(state->selection_modifier) return true;
             state->mode = EDITOR_VIEWPORT_ANIMATED_SPRITE;
             state->selection = EDITOR_SELECTION_ANIMATED_SPRITE;
             state->selected_animated_sprite = animation->id;
@@ -2950,6 +2950,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 object->id, 0, 0, sprite->id};
             (void)editor_viewport_selection_set(project, state, selection,
                 state->selection_modifier);
+            if(state->selection_modifier) return true;
             state->mode = EDITOR_VIEWPORT_SPRITE;
             state->selection = EDITOR_SELECTION_SPRITE;
             state->selected_sprite = sprite->id;
@@ -3078,7 +3079,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorSoftBody *soft_body = &object->soft_body_items[soft_index];
             EditorSelectionRef body_selection = {EDITOR_SELECTION_SOFT_BODY,
                 object->id, 0, 0, soft_body->id};
-            bool body_focused = state->mode == EDITOR_VIEWPORT_SOFT_BODY &&
+            bool body_focused = (state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
+                    state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
+                    state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+                    state->mode == EDITOR_VIEWPORT_SOFT_AREA) &&
                 state->selected_soft_body == soft_body->id;
             bool internal_only = editor_soft_body_internal_selection_check(state,
                 object->id, soft_body->id);
@@ -3088,14 +3092,6 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 Position world = editor_soft_node_world_get(object, soft_body, node);
                 if(!node->visible || (pointer.x - world.x) * (pointer.x - world.x) +
                         (pointer.y - world.y) * (pointer.y - world.y) > 100.0f) continue;
-                if(state->mode == EDITOR_VIEWPORT_SOFT_NODE &&
-                        state->selected_soft_body == soft_body->id &&
-                        state->selected_soft_node == node->id) {
-                    state->dragged_soft_node = true;
-                    state->drag_offset = (Vec2D){pointer.x - world.x,
-                        pointer.y - world.y};
-                    return true;
-                }
                 state->selected_soft_body = soft_body->id;
                 {
                     Uint64 now = SDL_GetTicks();
@@ -3115,8 +3111,12 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                                 body_selection, true);
                         (void)editor_viewport_selection_set(project, state,
                             node_selection, state->selection_modifier);
-                        if(!state->selection_modifier)
+                        if(!state->selection_modifier) {
                             state->mode = EDITOR_VIEWPORT_SOFT_NODE;
+                            state->dragged_soft_node = true;
+                            state->drag_offset = (Vec2D){pointer.x - world.x,
+                                pointer.y - world.y};
+                        }
                         state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     } else {
                         (void)editor_viewport_selection_set(project, state,

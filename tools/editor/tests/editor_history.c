@@ -321,8 +321,28 @@ int main(void) {
             MOUSE_BUTTON_STATE_RELEASED));
         assert(history.undo_count == 1);
         shortcut_apply(&history, SDLK_Z);
+        soft_body = NULL;
+        for(size_t i = 0; i < project.objects[0].soft_body_count; i += 1)
+            if(project.objects[0].soft_body_items[i].id ==
+                    viewport.selected_soft_body)
+                soft_body = &project.objects[0].soft_body_items[i];
+        soft_node = NULL;
+        if(soft_body != NULL) for(size_t i = 0; i < soft_body->node_count; i += 1)
+            if(soft_body->nodes[i].id == viewport.selected_soft_node)
+                soft_node = &soft_body->nodes[i];
+        assert(soft_node != NULL);
         assert(soft_node->position.x == original.x);
         shortcut_apply(&history, SDLK_Y);
+        soft_body = NULL;
+        for(size_t i = 0; i < project.objects[0].soft_body_count; i += 1)
+            if(project.objects[0].soft_body_items[i].id ==
+                    viewport.selected_soft_body)
+                soft_body = &project.objects[0].soft_body_items[i];
+        soft_node = NULL;
+        if(soft_body != NULL) for(size_t i = 0; i < soft_body->node_count; i += 1)
+            if(soft_body->nodes[i].id == viewport.selected_soft_node)
+                soft_node = &soft_body->nodes[i];
+        assert(soft_node != NULL);
         assert(soft_node->position.x == original.x + 20.0f);
     }
     editor_history_reset(&history);

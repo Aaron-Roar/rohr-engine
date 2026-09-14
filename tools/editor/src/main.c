@@ -177,6 +177,19 @@ float editor_window_width = WINDOW_WIDTH;
 float editor_window_height = WINDOW_HEIGHT;
 float editor_viewport_bottom = WINDOW_HEIGHT;
 
+static bool editor_control_modifier_check(const KeyboardState *keyboard) {
+    return (SDL_GetModState() & SDL_KMOD_CTRL) != 0 ||
+        rohr_controller_key_down_get(keyboard, SDLK_LCTRL) ||
+        rohr_controller_key_down_get(keyboard, SDLK_RCTRL);
+}
+
+static bool editor_selection_modifier_check(const KeyboardState *keyboard) {
+    return (SDL_GetModState() & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT)) != 0 ||
+        editor_control_modifier_check(keyboard) ||
+        rohr_controller_key_down_get(keyboard, SDLK_LSHIFT) ||
+        rohr_controller_key_down_get(keyboard, SDLK_RSHIFT);
+}
+
 static EditorTerminalPanel *editor_operation_terminal;
 static const EditorWorkspace *editor_operation_workspace;
 static const EditorProject *editor_operation_project;
@@ -2406,10 +2419,7 @@ int main(void) {
         MouseButtonState hierarchy_primary =
             mouse.button_states[MOUSE_BUTTON_LEFT];
         bool hierarchy_additive_selection =
-            rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-            rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
-            rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
-            rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
+            editor_selection_modifier_check(&keyboard);
         bool frame_multi_selection = viewport_state.selected_item_count > 1;
         for(size_t i = 0; i < viewport_state.selected_item_count; i += 1)
             if(viewport_state.selected_items[i].kind !=
@@ -2650,11 +2660,7 @@ int main(void) {
                 .object = &sprite_browser_object,
                 .sprite = &animation_browser_sprite,
                 .action = &workspace_browser_action};
-            bool additive_selection =
-                rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
+            bool additive_selection = editor_selection_modifier_check(&keyboard);
             field_editing = editor_animated_sprite_editor_draw(
                 &animated_sprite_editor,
                 &(EditorModeContext){.project = &project,
@@ -2683,11 +2689,7 @@ int main(void) {
                 .object = &sprite_browser_object,
                 .sprite = &animation_browser_sprite,
                 .action = &workspace_browser_action};
-            bool additive_selection =
-                rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
+            bool additive_selection = editor_selection_modifier_check(&keyboard);
             field_editing = editor_object_editor_draw(&object_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -3442,12 +3444,12 @@ int main(void) {
                 pointer.y < EDITOR_MENU_HEIGHT ||
                 pointer.y >= EDITOR_VIEWPORT_BOTTOM;
             bool viewport_consumed;
+            bool selection_modifier_active =
+                editor_selection_modifier_check(&keyboard);
             bool selection_modifier_press = false;
             bool transform_before =
                 editor_viewport_transform_active_check(&viewport_state);
-            bool pan_modifier =
-                rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL);
+            bool pan_modifier = editor_control_modifier_check(&keyboard);
             if(viewport_state.marquee_active) {
                 viewport_consumed = true;
                 if(mouse.button_states[MOUSE_BUTTON_LEFT] ==
@@ -3463,9 +3465,7 @@ int main(void) {
                     mouse.button_states[MOUSE_BUTTON_MIDDLE], pan_modifier,
                     viewport_wheel_y, ui_consumed);
             } else {
-                selection_modifier_press = (pan_modifier ||
-                    rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
-                    rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT)) &&
+                selection_modifier_press = selection_modifier_active &&
                     mouse.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED;
                 viewport_state.selection_modifier = selection_modifier_press;
@@ -3483,7 +3483,12 @@ int main(void) {
                         viewport_wheel_y, ui_consumed);
                 viewport_state.selection_modifier = false;
             }
-            if(selection_modifier_press && (ui_consumed || viewport_consumed)) {
+            if(selection_modifier_active &&
+                    (mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                            MOUSE_BUTTON_STATE_PRESSED ||
+                        mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                            MOUSE_BUTTON_STATE_RELEASED) &&
+                    (ui_consumed || viewport_consumed)) {
                 pointer_selection_handled = true;
                 if(ui_consumed) {
                     if(viewport_state.selected_item_count > 0)
@@ -3563,9 +3568,7 @@ int main(void) {
                 EditorSelectionRef selection;
                 bool additive = mouse.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
-                    (
-                    rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                    rohr_controller_key_down_get(&keyboard, SDLK_RCTRL));
+                    editor_selection_modifier_check(&keyboard);
                 if(editor_viewport_selection_ref_get(
                         &project, &viewport_state, &selection)) {
                     if(additive && viewport_state.selected_item_count == 0 &&
