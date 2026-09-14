@@ -156,6 +156,15 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
             (UIRect){context->x + 18.0f, 138.0f + (float)i * 27.0f,
                 context->width - 26.0f, 23.0f}, selected ? &style : NULL);
         if(result.clicked || result.focus_changed) {
+            SDL_Keymod modifiers = SDL_GetModState();
+            if(result.clicked && (modifiers & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT))) {
+                (void)editor_viewport_selection_set(context->project,
+                    context->viewport,
+                    (EditorSelectionRef){EDITOR_SELECTION_VERTEX, object->id,
+                        body->id, hitbox->id, hitbox->vertices[i].id}, true);
+                continue;
+            }
+            editor_viewport_selection_clear(context->viewport);
             context->viewport->selection = EDITOR_SELECTION_VERTEX;
             context->viewport->selected_vertex = i;
             if(result.double_clicked)

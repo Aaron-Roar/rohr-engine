@@ -1677,6 +1677,21 @@ bool editor_viewport_auto_shape_update(EditorViewportState *state,
                 world_pointer.y - control.y};
             return true;
         }
+        if(state->auto_shape_point_count > 0) {
+            for(size_t i = 0; i < hitbox->vertex_count; i += 1) {
+                Position point = editor_hitbox_vertex_world_get(object, body,
+                    hitbox, (uint32_t)i);
+                Vec2D delta = {world_pointer.x - point.x, world_pointer.y - point.y};
+                size_t point_index, point_count = hitbox->vertex_count;
+                if(delta.x * delta.x + delta.y * delta.y <=
+                            100.0f / (editor_view_scale * editor_view_scale) &&
+                        !editor_auto_shape_point_index_get(state,
+                            hitbox->vertices[i].id, i, &point_index, &point_count)) {
+                    editor_viewport_back(state);
+                    return true;
+                }
+            }
+        }
         return false;
     }
     if(state->auto_shape_parent_mode == EDITOR_VIEWPORT_SOFT_BODY) {
@@ -1728,6 +1743,21 @@ bool editor_viewport_auto_shape_update(EditorViewportState *state,
             state->drag_offset = (Vec2D){world_pointer.x - control.x,
                 world_pointer.y - control.y};
             return true;
+        }
+        if(state->auto_shape_point_count > 0) {
+            for(size_t i = 0; i < body->node_count; i += 1) {
+                Position point = editor_soft_node_world_get(object, body,
+                    &body->nodes[i]);
+                Vec2D delta = {world_pointer.x - point.x, world_pointer.y - point.y};
+                size_t point_index, point_count = body->node_count;
+                if(delta.x * delta.x + delta.y * delta.y <=
+                            100.0f / (editor_view_scale * editor_view_scale) &&
+                        !editor_auto_shape_point_index_get(state,
+                            body->nodes[i].id, i, &point_index, &point_count)) {
+                    editor_viewport_back(state);
+                    return true;
+                }
+            }
         }
     }
     return false;
@@ -3097,6 +3127,12 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position vertex = editor_hitbox_vertex_world_get(object, body, hitbox, i);
             Vec2D delta = {pointer.x - vertex.x, pointer.y - vertex.y};
             if(delta.x * delta.x + delta.y * delta.y > 100.0f) continue;
+            if(state->selection_modifier) {
+                (void)editor_viewport_selection_set(project, state,
+                    (EditorSelectionRef){EDITOR_SELECTION_VERTEX, object->id,
+                        body->id, hitbox->id, hitbox->vertices[i].id}, true);
+                return true;
+            }
             state->selection = EDITOR_SELECTION_VERTEX;
             state->selected_vertex = i;
             editor_viewport_vertex_editor_enter(state, i);

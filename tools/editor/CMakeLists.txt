@@ -91,6 +91,8 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
+        src/editors/editor_mode_controls.c
+        src/editors/geometry/editor_auto_shape.c
         src/viewport/controls/editor_rotation_control.c
         src/editors/multi/editor_bulk_panel.c
     )

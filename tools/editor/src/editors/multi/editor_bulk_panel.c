@@ -246,7 +246,11 @@ float editor_bulk_panel_content_height_get(const EditorViewportState *state) {
     if(editor_viewport_selection_homogeneous_check(state))
         (void)editor_bulk_properties_get(state->selected_items[0].kind, &count);
     else (void)editor_bulk_mixed_properties_get(state, &count);
-    return 150.0f + (float)count * 36.0f;
+    return 150.0f + (float)count * 36.0f +
+        (editor_viewport_selection_homogeneous_check(state) &&
+            (state->selected_items[0].kind == EDITOR_SELECTION_VERTEX ||
+             state->selected_items[0].kind == EDITOR_SELECTION_SOFT_NODE) ?
+            100.0f : 0.0f);
 }
 
 static EditorItemKind editor_bulk_item_kind_get(EditorHierarchySelection kind) {
@@ -656,7 +660,9 @@ bool editor_bulk_panel_create(EditorBulkPanel *panel, FontAsset *font) {
     memset(panel, 0, sizeof(*panel));
     if(!editor_bulk_text_create(font, "Multiple Selection", &panel->title))
         return false;
-    if(!editor_bulk_text_create(font, "Delete Selected", &panel->delete_label)) {
+    if(!editor_bulk_text_create(font, "Delete Selected", &panel->delete_label) ||
+            !editor_bulk_text_create(font, "Auto Shape",
+                &panel->auto_shape_label)) {
         editor_bulk_panel_destroy(panel);
         return false;
     }
@@ -687,6 +693,7 @@ void editor_bulk_panel_destroy(EditorBulkPanel *panel) {
     if(panel == NULL) return;
     rohr_graphics_text_destroy(&panel->title);
     rohr_graphics_text_destroy(&panel->delete_label);
+    rohr_graphics_text_destroy(&panel->auto_shape_label);
     rohr_graphics_text_destroy(&panel->unset_label);
     rohr_graphics_text_destroy(&panel->dynamic_label);
     rohr_graphics_text_destroy(&panel->static_label);
@@ -725,7 +732,8 @@ static bool editor_bulk_checkbox_draw(const char *id, UIRect bounds,
 }
 
 bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
-        EditorViewportState *state, EditorHistory *history, float x, float width,
+        EditorViewportState *state, EditorHistory *history,
+        EditorAutoShapeEditor *auto_shape, float x, float width,
         float delete_y, EditorBulkColorOpen color_open, void *color_context) {
     const EditorBulkProperty *properties;
     size_t property_count;
@@ -857,9 +865,61 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
             }
         }
     }
+    float footer_y = 96.0f + (float)property_count * 36.0f;
+    if(auto_shape != NULL && editor_viewport_selection_homogeneous_check(state) &&
+            (state->selected_items[0].kind == EDITOR_SELECTION_VERTEX ||
+                state->selected_items[0].kind == EDITOR_SELECTION_SOFT_NODE)) {
+        EditorSelectionRef first_ref = state->selected_items[0];
+        bool same_shape = state->selected_item_count >= 3;
+        for(size_t i = 1; i < state->selected_item_count; i += 1)
+            if(state->selected_items[i].object != first_ref.object ||
+                    state->selected_items[i].parent != first_ref.parent ||
+                    state->selected_items[i].container != first_ref.container)
+                same_shape = false;
+        if(same_shape && rohr_ui_button("editor.bulk.auto_shape",
+                &panel->auto_shape_label,
+                (UIRect){x + 10.0f, footer_y, width - 20.0f, 30.0f}, NULL).clicked)
+            panel->auto_shape_picker_open = !panel->auto_shape_picker_open;
+        if(same_shape && panel->auto_shape_picker_open) {
+            int shape = editor_auto_shape_picker_draw(auto_shape,
+                "editor.bulk.auto_shape.option",
+                (UIRect){x + 10.0f, footer_y + 34.0f, width - 20.0f, 62.0f},
+                state->selected_item_count);
+            if(shape >= 0) {
+                EditorObject *object = editor_project_selected_get(project);
+                auto_shape->config.kind = (EditorAutoShapeKind)shape;
+                if(first_ref.kind == EDITOR_SELECTION_VERTEX) {
+                    EditorRigidBody *body = editor_project_rigid_body_get(object,
+                        first_ref.parent);
+                    EditorHitbox *hitbox = body == NULL ? NULL :
+                        editor_project_hitbox_get(body, first_ref.container);
+                    state->selected_rigid_body = first_ref.parent;
+                    state->selected_hitbox = first_ref.container;
+                    (void)editor_auto_shape_hitbox_points_capture(state,
+                        object, body, hitbox);
+                    state->auto_shape_parent_mode = EDITOR_VIEWPORT_HITBOX;
+                } else {
+                    EditorSoftBody *body = NULL;
+                    if(object != NULL) for(size_t i = 0;
+                            i < object->soft_body_count; i += 1)
+                        if(object->soft_body_items[i].id == first_ref.parent)
+                            body = &object->soft_body_items[i];
+                    state->selected_soft_body = first_ref.parent;
+                    (void)editor_auto_shape_soft_body_points_capture(state,
+                        object, body);
+                    state->auto_shape_parent_mode = EDITOR_VIEWPORT_SOFT_BODY;
+                }
+                if(editor_auto_shape_editor_apply(auto_shape, project, state,
+                        state->auto_shape_parent_mode))
+                    state->mode = EDITOR_VIEWPORT_AUTO_SHAPE;
+                panel->auto_shape_picker_open = false;
+            }
+        }
+        footer_y += panel->auto_shape_picker_open ? 104.0f : 38.0f;
+    } else panel->auto_shape_picker_open = false;
     if(editor_bulk_delete_check(state)) {
         UIButtonStyle style = rohr_ui_button_style_default_get();
-        float y = fmaxf(96.0f + (float)property_count * 36.0f, delete_y);
+        float y = fmaxf(footer_y, delete_y);
         style.idle = (Color){125, 42, 48, 255};
         style.hovered = (Color){165, 52, 60, 255};
         if(rohr_ui_button("editor.bulk.delete", &panel->delete_label,

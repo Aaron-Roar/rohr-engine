@@ -7,6 +7,7 @@
 
 #include "editor_history.h"
 #include "editor_viewport.h"
+#include "editors/geometry/editor_auto_shape_editor.h"
 
 #define EDITOR_BULK_PROPERTY_MAX 24
 
@@ -17,6 +18,7 @@ typedef struct EditorBulkPanel {
     EditorHierarchySelection kind;
     TextAsset title;
     TextAsset delete_label;
+    TextAsset auto_shape_label;
     TextAsset labels[EDITOR_BULK_PROPERTY_MAX];
     TextAsset fields[EDITOR_BULK_PROPERTY_MAX];
     TextAsset unset_label;
@@ -34,12 +36,14 @@ typedef struct EditorBulkPanel {
     float slider_values[EDITOR_BULK_PROPERTY_MAX];
     uint32_t colors[EDITOR_BULK_PROPERTY_MAX];
     size_t property_count;
+    bool auto_shape_picker_open;
 } EditorBulkPanel;
 
 bool editor_bulk_panel_create(EditorBulkPanel *panel, FontAsset *font);
 void editor_bulk_panel_destroy(EditorBulkPanel *panel);
 bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
-    EditorViewportState *state, EditorHistory *history, float x, float width,
+    EditorViewportState *state, EditorHistory *history,
+    EditorAutoShapeEditor *auto_shape, float x, float width,
     float delete_y, EditorBulkColorOpen color_open, void *color_context);
 float editor_bulk_panel_content_height_get(const EditorViewportState *state);
 bool editor_bulk_property_set(EditorProject *project, EditorViewportState *state,

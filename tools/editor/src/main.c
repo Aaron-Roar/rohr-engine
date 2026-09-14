@@ -2404,12 +2404,14 @@ int main(void) {
                     EDITOR_SELECTION_ANIMATION_FRAME) frame_multi_selection = false;
         if(!frame_multi_selection) column_frame_multi_edit_open = false;
         if(viewport_state.selected_item_count > 1 &&
+                viewport_state.mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
                 (!frame_multi_selection || column_frame_multi_edit_open)) {
             EditorBulkColorContext bulk_color = {.picker = &color_picker,
                 .project = &project, .state = &viewport_state,
                 .history = &history};
             field_editing = editor_bulk_panel_draw(&bulk_panel, &project,
-                &viewport_state, &history, EDITOR_VIEWPORT_WIDTH,
+                &viewport_state, &history, &auto_shape_editor,
+                EDITOR_VIEWPORT_WIDTH,
                 EDITOR_TOOLS_WIDTH, editor_panel_delete_y_get(&project,
                     &viewport_state, &rigid_body_editor),
                 editor_bulk_color_picker_open, &bulk_color);
@@ -3434,17 +3436,19 @@ int main(void) {
                     mouse.button_states[MOUSE_BUTTON_MIDDLE], pan_modifier,
                     viewport_wheel_y, ui_consumed);
             } else {
-                bool control_select_press = pan_modifier &&
+                bool selection_modifier_press = (pan_modifier ||
+                    rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
+                    rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT)) &&
                     mouse.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED;
-                viewport_state.selection_modifier = control_select_press;
+                viewport_state.selection_modifier = selection_modifier_press;
                 viewport_consumed = editor_viewport_update(
                     &viewport_state, &project, pointer,
                     mouse.button_states[MOUSE_BUTTON_LEFT],
                     mouse.button_states[MOUSE_BUTTON_MIDDLE],
-                    control_select_press ? false : pan_modifier,
+                    selection_modifier_press ? false : pan_modifier,
                     viewport_wheel_y, ui_consumed);
-                if(control_select_press && !viewport_consumed)
+                if(pan_modifier && selection_modifier_press && !viewport_consumed)
                     viewport_consumed = editor_viewport_update(
                         &viewport_state, &project, pointer,
                         mouse.button_states[MOUSE_BUTTON_LEFT],
