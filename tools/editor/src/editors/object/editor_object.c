@@ -23,7 +23,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Object Name", object_name_label); CREATE("Add Rigid Body", add_rigid_body_label);
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
-    CREATE("Load Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
+    CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE

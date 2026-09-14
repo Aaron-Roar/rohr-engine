@@ -1834,6 +1834,7 @@ int main(void) {
     TextAsset settings_label = {0};
     TextAsset new_label = {0};
     TextAsset open_label = {0};
+    TextAsset load_sprite_label = {0};
     TextAsset load_frame_label = {0};
     TextAsset create_project_label = {0};
     TextAsset save_label = {0};
@@ -2030,6 +2031,7 @@ int main(void) {
             !editor_text_create(&font, "Settings", &settings_label) ||
             !editor_text_create(&font, "New Project", &new_label) ||
             !editor_text_create(&font, "Load Project", &open_label) ||
+            !editor_text_create(&font, "Load Sprite", &load_sprite_label) ||
             !editor_text_create(&font, "Load Frame", &load_frame_label) ||
             !editor_text_create(&font, "Create Project", &create_project_label) ||
             !editor_text_create(&font, "Save", &save_label) ||
@@ -3237,7 +3239,9 @@ int main(void) {
                 &save_label,
                 workspace_browser_action ==
                         EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME ?
-                    &load_frame_label : &open_label,
+                    &load_frame_label :
+                    workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_SPRITE ?
+                        &load_sprite_label : &open_label,
                 &create_project_label, &cancel_label,
                 editor_window_width, EDITOR_VIEWPORT_BOTTOM);
             if(browser_result.submitted) {
@@ -3641,6 +3645,7 @@ int main(void) {
     rohr_graphics_text_destroy(&close_label);
     rohr_graphics_text_destroy(&exit_label);
     rohr_graphics_text_destroy(&open_label);
+    rohr_graphics_text_destroy(&load_sprite_label);
     rohr_graphics_text_destroy(&load_frame_label);
     rohr_graphics_text_destroy(&create_project_label);
     rohr_graphics_text_destroy(&new_label);
@@ -3730,6 +3735,7 @@ fail:
     rohr_graphics_text_destroy(&close_label);
     rohr_graphics_text_destroy(&exit_label);
     rohr_graphics_text_destroy(&open_label);
+    rohr_graphics_text_destroy(&load_sprite_label);
     rohr_graphics_text_destroy(&load_frame_label);
     rohr_graphics_text_destroy(&create_project_label);
     rohr_graphics_text_destroy(&new_label);
