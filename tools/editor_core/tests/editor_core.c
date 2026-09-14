@@ -492,6 +492,25 @@ static int transform_commands_test(void) {
             anchor->rotation != 0.75f || node->position.x == 0.0f ||
             project.viewport_camera_offset.x != 13.0f ||
             project.viewport_camera_zoom != 2.0f || !project.viewport_local_view) return 1;
+    {
+        EditorCommand vertex_position = {.type = EDITOR_COMMAND_VERTEX_POSITION,
+            .data.vertex_position = {object->id, rigid_body->id, hitbox->id,
+                hitbox->vertices[0].id, {ROHR_WORLD_COORDINATE_MAX,
+                    -ROHR_WORLD_COORDINATE_MAX}}};
+        EditorCommand node_position = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
+            .data.soft_node_position = {object->id, soft_body->id, node->id,
+                {-ROHR_WORLD_COORDINATE_MAX, ROHR_WORLD_COORDINATE_MAX}}};
+        if(editor_command_execute(&project, &vertex_position).kind != ERROR_RESULT_VALUE ||
+                editor_command_execute(&project, &node_position).kind != ERROR_RESULT_VALUE)
+            return 1;
+        vertex_position.data.vertex_position.position.x =
+            ROHR_WORLD_COORDINATE_MAX + 1.0f;
+        node_position.data.soft_node_position.position.y =
+            ROHR_WORLD_COORDINATE_MAX + 1.0f;
+        if(editor_command_execute(&project, &vertex_position).kind != ERROR_RESULT_ERROR ||
+                editor_command_execute(&project, &node_position).kind != ERROR_RESULT_ERROR)
+            return 1;
+    }
     parse_result = editor_command_cli_parse(7, camera_arguments,
         &parsed_path, &parsed);
     if(editor_result_check(parse_result) ||

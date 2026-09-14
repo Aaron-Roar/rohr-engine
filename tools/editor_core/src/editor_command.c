@@ -31,6 +31,12 @@ static bool editor_command_position_equal(Position first, Position second) {
         editor_command_float_equal(first.y, second.y);
 }
 
+static bool editor_command_world_position_check(Position position) {
+    return isfinite(position.x) && isfinite(position.y) &&
+        fabsf(position.x) <= ROHR_WORLD_COORDINATE_MAX &&
+        fabsf(position.y) <= ROHR_WORLD_COORDINATE_MAX;
+}
+
 static Position editor_command_position_rotate(Position position,
         Orientation rotation) {
     float cosine = cosf(rotation);
@@ -204,6 +210,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 command->data.vertex_position.body);
             if(hitbox == NULL) return editor_command_not_found("hitbox",
                 command->data.vertex_position.hitbox);
+            if(!editor_command_world_position_check(
+                    command->data.vertex_position.position))
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "vertex position is outside the supported world range")
+                    .result.error);
             for(uint32_t i = 0; i < hitbox->vertex_count; i += 1) {
                 if(hitbox->vertices[i].id != command->data.vertex_position.vertex) continue;
                 if(hitbox->vertices[i].position_locked)
@@ -265,6 +277,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 command->data.soft_node_position.object);
             if(body == NULL) return editor_command_not_found("soft body",
                 command->data.soft_node_position.body);
+            if(!editor_command_world_position_check(
+                    command->data.soft_node_position.position))
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "soft node position is outside the supported world range")
+                    .result.error);
             for(size_t i = 0; i < body->node_count; i += 1) {
                 if(body->nodes[i].id != command->data.soft_node_position.node) continue;
                 if(editor_command_position_equal(body->nodes[i].position,

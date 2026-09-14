@@ -97,39 +97,26 @@ bool editor_vertex_editor_draw(EditorVertexEditor *editor,
     rohr_ui_label(&editor->x_label,
         (UIRect){context->x + 8.0f, 122.0f, 20.0f, 22.0f});
     rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 192.0f, 20.0f, 22.0f});
+        (UIRect){context->x + 8.0f, 158.0f, 20.0f, 22.0f});
     if(vertex->position_locked) {
         editor_mode_numeric_disabled_draw(&editor->x_field, vertex->position.x,
             (UIRect){context->x + 28.0f, 122.0f,
                 context->width - 38.0f, 24.0f});
         editor_mode_numeric_disabled_draw(&editor->y_field, vertex->position.y,
-            (UIRect){context->x + 28.0f, 192.0f,
+            (UIRect){context->x + 28.0f, 158.0f,
                 context->width - 38.0f, 24.0f});
     } else {
         Position edited = vertex->position;
-        UISliderConfig slider = rohr_ui_slider_config_default_get();
         UIFieldResult x_result = rohr_ui_field("editor.vertex.x.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &edited.x},
             &editor->x_field, (UIRect){context->x + 28.0f, 122.0f,
                 context->width - 38.0f, 24.0f}, NULL);
         UIFieldResult y_result = rohr_ui_field("editor.vertex.y.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &edited.y},
-            &editor->y_field, (UIRect){context->x + 28.0f, 192.0f,
+            &editor->y_field, (UIRect){context->x + 28.0f, 158.0f,
                 context->width - 38.0f, 24.0f}, NULL);
-        UISliderResult x_slider;
-        UISliderResult y_slider;
         field_active = field_active || x_result.active || y_result.active;
-        slider.length = context->width - 42.0f;
-        slider.min_value = -context->x * 0.5f;
-        slider.max_value = context->x * 0.5f;
-        slider.center = (Position){context->x + 72.0f, 157.0f};
-        x_slider = rohr_ui_slider("editor.vertex.x", edited.x, &slider);
-        edited.x = x_slider.value;
-        slider.center.y = 227.0f;
-        y_slider = rohr_ui_slider("editor.vertex.y", edited.y, &slider);
-        edited.y = y_slider.value;
-        if(x_result.changed || y_result.changed || x_slider.changed ||
-                y_slider.changed) {
+        if(x_result.changed || y_result.changed) {
             EditorCommand command = {.type = EDITOR_COMMAND_VERTEX_POSITION,
                 .data.vertex_position = {object->id, body->id, hitbox->id,
                     vertex->id, edited}};
