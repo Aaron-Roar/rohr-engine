@@ -204,14 +204,17 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
         size_t point_count) {
     EditorResult result;
     Position *output_positions;
+    Position *current;
     size_t *indices;
     if(hitbox == NULL || points == NULL || point_count == 0)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape received invalid hitbox points");
     output_positions = malloc(point_count * sizeof(*output_positions));
+    current = malloc(point_count * sizeof(*current));
     indices = malloc(point_count * sizeof(*indices));
-    if(output_positions == NULL || indices == NULL) {
+    if(output_positions == NULL || current == NULL || indices == NULL) {
         free(output_positions);
+        free(current);
         free(indices);
         return editor_result_error(EDITOR_ERROR_CAPACITY,
             "could not allocate selected hitbox auto-shape positions");
@@ -226,8 +229,9 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
                     result = editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                         "auto shape contains a duplicate hitbox vertex");
                     goto finish;
-                }
+            }
             indices[point] = vertex;
+            current[point] = hitbox->vertices[vertex].position;
             goto next_hitbox_point;
         }
         result = editor_result_error(EDITOR_ERROR_NOT_FOUND,
@@ -236,17 +240,13 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
 next_hitbox_point:
         continue;
     }
-    {
-        Position current[EDITOR_HITBOX_VERTEX_MAX];
-        for(size_t i = 0; i < hitbox->vertex_count; i += 1)
-            current[i] = hitbox->vertices[i].position;
-        editor_auto_shape_indices_order(current, indices, point_count);
-    }
+    editor_auto_shape_indices_order(current, indices, point_count);
     for(size_t point = 0; point < point_count; point += 1)
         hitbox->vertices[indices[point]].position = output_positions[point];
     result = editor_result_value(true);
 finish:
     free(output_positions);
+    free(current);
     free(indices);
     return result;
 }
@@ -256,14 +256,17 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
         size_t point_count) {
     EditorResult result;
     Position *output_positions;
+    Position *current;
     size_t *indices;
     if(body == NULL || points == NULL || point_count == 0)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape received invalid soft-body nodes");
     output_positions = malloc(point_count * sizeof(*output_positions));
+    current = malloc(point_count * sizeof(*current));
     indices = malloc(point_count * sizeof(*indices));
-    if(output_positions == NULL || indices == NULL) {
+    if(output_positions == NULL || current == NULL || indices == NULL) {
         free(output_positions);
+        free(current);
         free(indices);
         return editor_result_error(EDITOR_ERROR_CAPACITY,
             "could not allocate selected soft-body auto-shape positions");
@@ -278,8 +281,9 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
                     result = editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                         "auto shape contains a duplicate soft-body node");
                     goto finish;
-                }
+            }
             indices[point] = node;
+            current[point] = body->nodes[node].position;
             goto next_soft_body_point;
         }
         result = editor_result_error(EDITOR_ERROR_NOT_FOUND,
@@ -288,17 +292,13 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
 next_soft_body_point:
         continue;
     }
-    {
-        Position current[EDITOR_SOFT_NODE_MAX];
-        for(size_t i = 0; i < body->node_count; i += 1)
-            current[i] = body->nodes[i].position;
-        editor_auto_shape_indices_order(current, indices, point_count);
-    }
+    editor_auto_shape_indices_order(current, indices, point_count);
     for(size_t point = 0; point < point_count; point += 1)
         body->nodes[indices[point]].position = output_positions[point];
     result = editor_result_value(true);
 finish:
     free(output_positions);
+    free(current);
     free(indices);
     return result;
 }

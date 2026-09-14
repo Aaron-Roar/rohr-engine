@@ -1904,7 +1904,6 @@ int main(void) {
     bool terminal_build_operations = true;
     bool collision_category_open = false;
     bool collide_with_open = false;
-    bool auto_shape_picker_open = false;
     bool column_frame_multi_edit_open = false;
     EditorCloseAction close_action = EDITOR_CLOSE_NONE;
     float panel_scroll_offset = 0.0f;
@@ -2203,10 +2202,10 @@ int main(void) {
         } else if(close_action != EDITOR_CLOSE_NONE &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             close_action = EDITOR_CLOSE_NONE;
-        } else if((auto_shape_picker_open ||
+        } else if((soft_body_editor.auto_shape_picker_open ||
                 hitbox_editor.auto_shape_picker_open) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
-            auto_shape_picker_open = false;
+            soft_body_editor.auto_shape_picker_open = false;
             hitbox_editor.auto_shape_picker_open = false;
         } else if((collision_category_open || collide_with_open) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
@@ -2917,7 +2916,7 @@ int main(void) {
                     notification_panel.report_open = false;
                     close_action = EDITOR_CLOSE_NONE;
                     editor_viewport_context_menu_close(&viewport_context_menu);
-                    auto_shape_picker_open = false;
+                    soft_body_editor.auto_shape_picker_open = false;
                     hitbox_editor.auto_shape_picker_open = false;
                     collision_category_open = false;
                     collide_with_open = false;
@@ -3391,7 +3390,8 @@ int main(void) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if((auto_shape_picker_open || hitbox_editor.auto_shape_picker_open) &&
+            if((soft_body_editor.auto_shape_picker_open ||
+                    hitbox_editor.auto_shape_picker_open) &&
                     mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
                 UIRect button_bounds = viewport_state.mode == EDITOR_VIEWPORT_HITBOX ?
                     (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 78.0f,
@@ -3404,9 +3404,10 @@ int main(void) {
                     (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 394.0f,
                         EDITOR_TOOLS_WIDTH - 20.0f, 62.0f};
                 if(!editor_point_in_rect(pointer, button_bounds) &&
-                        !editor_point_in_rect(pointer, picker_bounds))
-                    auto_shape_picker_open = false;
+                        !editor_point_in_rect(pointer, picker_bounds)) {
+                    soft_body_editor.auto_shape_picker_open = false;
                     hitbox_editor.auto_shape_picker_open = false;
+                }
             }
             bool ui_consumed = !workspace.open || file_browser.active ||
                 close_action != EDITOR_CLOSE_NONE ||

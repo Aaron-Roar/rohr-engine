@@ -161,9 +161,6 @@ bool editor_auto_shape_editor_apply(EditorAutoShapeEditor *editor,
     if(object == NULL) return false;
     command.data.auto_shape.object = object->id;
     command.data.auto_shape.config = editor->config;
-    command.data.auto_shape.point_count = viewport->auto_shape_point_count;
-    memcpy(command.data.auto_shape.points, viewport->auto_shape_points,
-        viewport->auto_shape_point_count * sizeof(*viewport->auto_shape_points));
     if(parent_mode == EDITOR_VIEWPORT_HITBOX) {
         EditorRigidBody *body = editor_project_rigid_body_get(object,
             viewport->selected_rigid_body);
@@ -173,12 +170,18 @@ bool editor_auto_shape_editor_apply(EditorAutoShapeEditor *editor,
         command.data.auto_shape.kind = EDITOR_ITEM_HITBOX;
         command.data.auto_shape.parent = body->id;
         command.data.auto_shape.item = hitbox->id;
+        if(viewport->auto_shape_point_count < hitbox->vertex_count)
+            command.data.auto_shape.point_count = viewport->auto_shape_point_count;
     } else if(parent_mode == EDITOR_VIEWPORT_SOFT_BODY) {
         EditorSoftBody *body = soft_body_get(object, viewport->selected_soft_body);
         if(body == NULL) return false;
         command.data.auto_shape.kind = EDITOR_ITEM_SOFT_BODY;
         command.data.auto_shape.item = body->id;
+        if(viewport->auto_shape_point_count < body->node_count)
+            command.data.auto_shape.point_count = viewport->auto_shape_point_count;
     } else return false;
+    memcpy(command.data.auto_shape.points, viewport->auto_shape_points,
+        command.data.auto_shape.point_count * sizeof(*viewport->auto_shape_points));
     result = editor_command_execute(project, &command);
     if(result.kind == ERROR_RESULT_ERROR) {
         fprintf(stderr, "%s\n", result.result.error.message);
