@@ -145,10 +145,12 @@ typedef struct EditorModeDeleteContext {
 typedef struct EditorHierarchyDragState EditorHierarchyDragState;
 
 typedef struct EditorModeHierarchyContext {
+    EditorProject *project;
     EditorHierarchyDragState *drag;
     Position pointer;
     MouseButtonState primary;
     float scroll_offset;
+    bool additive_selection;
 } EditorModeHierarchyContext;
 
 typedef struct EditorCollisionMenuContext {
@@ -1742,6 +1744,10 @@ static void editor_mode_hierarchy_row(void *opaque,
         UIRect bounds, UIButtonResult interaction, bool last) {
     EditorModeHierarchyContext *context = opaque;
     if(context == NULL) return;
+    if(interaction.clicked && context->project != NULL &&
+            context->additive_selection)
+        (void)editor_viewport_selection_set(context->project, viewport,
+            selection, true);
     editor_hierarchy_drag_row(context->drag, viewport, selection, bounds,
         interaction, context->pointer, context->primary,
         context->scroll_offset, last);
@@ -2397,6 +2403,11 @@ int main(void) {
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
             mouse.button_states[MOUSE_BUTTON_LEFT];
+        bool hierarchy_additive_selection =
+            rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
+            rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
+            rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
+            rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
         bool frame_multi_selection = viewport_state.selected_item_count > 1;
         for(size_t i = 0; i < viewport_state.selected_item_count; i += 1)
             if(viewport_state.selected_items[i].kind !=
@@ -2438,9 +2449,10 @@ int main(void) {
                 .project = &project, .viewport = &viewport_state,
                 .rigid_body_editor = &rigid_body_editor};
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             EditorCollisionMenuContext collision_context = {
                 .font = &font, .labels = collision_mask_labels,
                 .caches = collision_mask_cache, .name = collision_mask_name,
@@ -2503,9 +2515,10 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -2534,9 +2547,10 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_body_editor_draw(&soft_body_editor,
                 &auto_shape_editor, &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -2625,9 +2639,10 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
                 .object = &sprite_browser_object,
@@ -2635,7 +2650,9 @@ int main(void) {
                 .action = &workspace_browser_action};
             bool additive_selection =
                 rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL);
+                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
+                rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
+                rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
             field_editing = editor_animated_sprite_editor_draw(
                 &animated_sprite_editor,
                 &(EditorModeContext){.project = &project,
@@ -2655,9 +2672,10 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
                 .object = &sprite_browser_object,
@@ -2665,7 +2683,9 @@ int main(void) {
                 .action = &workspace_browser_action};
             bool additive_selection =
                 rohr_controller_key_down_get(&keyboard, SDLK_LCTRL) ||
-                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL);
+                rohr_controller_key_down_get(&keyboard, SDLK_RCTRL) ||
+                rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
+                rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT);
             field_editing = editor_object_editor_draw(&object_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -2681,9 +2701,10 @@ int main(void) {
                 additive_selection);
         } else {
             EditorModeHierarchyContext hierarchy_context = {
-                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
                 .primary = hierarchy_primary,
-                .scroll_offset = panel_scroll_offset};
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             editor_hierarchy_editor_draw(&hierarchy_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -3417,6 +3438,7 @@ int main(void) {
                 pointer.y < EDITOR_MENU_HEIGHT ||
                 pointer.y >= EDITOR_VIEWPORT_BOTTOM;
             bool viewport_consumed;
+            bool selection_modifier_press = false;
             bool transform_before =
                 editor_viewport_transform_active_check(&viewport_state);
             bool pan_modifier =
@@ -3437,7 +3459,7 @@ int main(void) {
                     mouse.button_states[MOUSE_BUTTON_MIDDLE], pan_modifier,
                     viewport_wheel_y, ui_consumed);
             } else {
-                bool selection_modifier_press = (pan_modifier ||
+                selection_modifier_press = (pan_modifier ||
                     rohr_controller_key_down_get(&keyboard, SDLK_LSHIFT) ||
                     rohr_controller_key_down_get(&keyboard, SDLK_RSHIFT)) &&
                     mouse.button_states[MOUSE_BUTTON_LEFT] ==
@@ -3457,6 +3479,21 @@ int main(void) {
                         viewport_wheel_y, ui_consumed);
                 viewport_state.selection_modifier = false;
             }
+            if(selection_modifier_press && (ui_consumed || viewport_consumed)) {
+                pointer_selection_handled = true;
+                if(ui_consumed) {
+                    if(viewport_state.selected_item_count > 0)
+                        (void)editor_viewport_selection_primary_set(&project,
+                            &viewport_state, viewport_state.selected_items[
+                                viewport_state.selected_item_count - 1]);
+                    else viewport_state.selection = EDITOR_SELECTION_NONE;
+                }
+            }
+            if(mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                        MOUSE_BUTTON_STATE_PRESSED &&
+                    !transform_before &&
+                    editor_viewport_transform_active_check(&viewport_state))
+                pointer_selection_handled = true;
             (void)editor_navigation_viewport_transform_history_update(
                 &project, &viewport_state, &history, transform_before);
 
@@ -3466,8 +3503,8 @@ int main(void) {
                     !viewport_state.camera_panning &&
                     !viewport_state.group_dragging &&
                     !viewport_state.group_rotating &&
-                    !viewport_state.rotated_body &&
-                    !viewport_state.rotated_soft_body &&
+                    !editor_viewport_transform_active_check(&viewport_state) &&
+                    !selection_modifier_press &&
                     viewport_state.mode != EDITOR_VIEWPORT_AUTO_SHAPE) {
                 EditorSelectionRef selection;
                 if(editor_viewport_selection_ref_get(

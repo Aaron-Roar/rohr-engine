@@ -243,8 +243,11 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 editor_viewport_selection_contains(context->viewport, ref)) {
             if(frame_multi_edit_open != NULL) *frame_multi_edit_open = true;
         } else if(result.clicked || result.focus_changed) {
-            (void)editor_viewport_selection_set(context->project, context->viewport,
-                ref, result.clicked ? additive_selection : false);
+            if(!result.clicked || !additive_selection ||
+                    context->hierarchy_row == NULL)
+                (void)editor_viewport_selection_set(context->project,
+                    context->viewport, ref,
+                    result.clicked ? additive_selection : false);
             if(frame_multi_edit_open != NULL) *frame_multi_edit_open = false;
         }
         if(result.double_clicked &&

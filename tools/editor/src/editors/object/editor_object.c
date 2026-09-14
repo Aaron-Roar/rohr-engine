@@ -229,8 +229,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             bool retained = result.double_clicked &&
                 context->viewport->selected_item_count > 1 &&
                 editor_viewport_selection_contains(context->viewport, ref);
-            if(!retained) (void)editor_viewport_selection_set(context->project,
-                context->viewport, ref, additive_selection);
+            if(!retained && (!additive_selection || context->hierarchy_row == NULL))
+                (void)editor_viewport_selection_set(context->project,
+                    context->viewport, ref, additive_selection);
             if(result.double_clicked && !retained)
                 (void)editor_navigation_selected_open(context->project,
                     context->viewport);

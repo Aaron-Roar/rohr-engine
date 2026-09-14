@@ -509,6 +509,48 @@ int main(void) {
         assert(body != NULL && soft_body != NULL);
         assert(fabsf(body->position.x + 10.0f) < 0.001f);
         assert(fabsf(soft_body->position.x - 10.0f) < 0.001f);
+
+        body->rotation = 0.0f;
+        soft_body->rotation = 0.0f;
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+        assert(editor_viewport_selection_set(&project, &viewport, soft, false));
+        assert(editor_viewport_selection_set(&project, &viewport, rigid, true));
+        handle = test_world_to_screen((Position){body->position.x,
+            body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+        target = test_world_to_screen((Position){body->position.x +
+            EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, body->position.y});
+        assert(viewport_pointer_update(&history, &viewport, &project, handle,
+            MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.rotated_body && !viewport.group_rotating);
+        assert(viewport_pointer_update(&history, &viewport, &project, target,
+            MOUSE_BUTTON_STATE_DOWN));
+        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(soft_body->rotation - 1.57079632679f) < 0.001f);
+        assert(!viewport_pointer_update(&history, &viewport, &project, target,
+            MOUSE_BUTTON_STATE_RELEASED));
+        body->rotation = 0.0f;
+        soft_body->rotation = 0.0f;
+        editor_history_reset(&history);
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_SOFT_BODY;
+        assert(editor_viewport_selection_set(&project, &viewport, rigid, false));
+        assert(editor_viewport_selection_set(&project, &viewport, soft, true));
+        handle = test_world_to_screen((Position){soft_body->position.x,
+            soft_body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+        target = test_world_to_screen((Position){soft_body->position.x +
+            EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, soft_body->position.y});
+        assert(viewport_pointer_update(&history, &viewport, &project, handle,
+            MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.rotated_soft_body && !viewport.group_rotating);
+        assert(viewport_pointer_update(&history, &viewport, &project, target,
+            MOUSE_BUTTON_STATE_DOWN));
+        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(soft_body->rotation - 1.57079632679f) < 0.001f);
+        assert(!viewport_pointer_update(&history, &viewport, &project, target,
+            MOUSE_BUTTON_STATE_RELEASED));
+        body->rotation = 0.0f;
+        soft_body->rotation = 0.0f;
     }
 
     {
@@ -805,6 +847,64 @@ int main(void) {
         animation = editor_project_animated_sprite_get(object, animation_id);
         assert(animation != NULL &&
             fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+
+        body = editor_project_rigid_body_get(object, body->id);
+        assert(body != NULL);
+        body->rotation = 0.0f;
+        animation->editor_rotation = 0.0f;
+        animation->rigid_body = body->id;
+        animation->follow_body_rotation = false;
+        editor_history_reset(&history);
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_ANIMATED_SPRITE;
+        assert(editor_viewport_selection_set(&project, &viewport,
+            (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, body->id}, false));
+        assert(editor_viewport_selection_set(&project, &viewport,
+            (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
+                object->id, 0, 0, animation->id}, true));
+        grab = test_world_to_screen((Position){object->position.x +
+            body->position.x + animation->editor_position.x,
+            object->position.y + body->position.y + animation->editor_position.y -
+                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+        moved = test_world_to_screen((Position){object->position.x +
+            body->position.x + animation->editor_position.x +
+                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
+            object->position.y + body->position.y + animation->editor_position.y});
+        assert(viewport_pointer_update(&history, &viewport, &project, grab,
+            MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.rotated_animated_sprite);
+        assert(viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_DOWN));
+        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+        assert(!viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_RELEASED));
+        body->rotation = 0.0f;
+        animation->editor_rotation = 0.0f;
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+        assert(editor_viewport_selection_set(&project, &viewport,
+            (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
+                object->id, 0, 0, animation->id}, false));
+        assert(editor_viewport_selection_set(&project, &viewport,
+            (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, body->id}, true));
+        grab = test_world_to_screen((Position){object->position.x + body->position.x,
+            object->position.y + body->position.y -
+                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+        moved = test_world_to_screen((Position){object->position.x + body->position.x +
+            EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
+            object->position.y + body->position.y});
+        assert(viewport_pointer_update(&history, &viewport, &project, grab,
+            MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.rotated_body && !viewport.group_rotating);
+        assert(viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_DOWN));
+        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+        assert(!viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_RELEASED));
         assert(editor_project_animated_sprite_remove(object, animation_id));
     }
 

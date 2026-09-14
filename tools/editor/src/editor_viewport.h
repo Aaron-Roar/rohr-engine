@@ -140,6 +140,8 @@ bool editor_viewport_selection_contains(const EditorViewportState *state,
 bool editor_viewport_selection_homogeneous_check(const EditorViewportState *state);
 bool editor_viewport_selection_set(EditorProject *project,
     EditorViewportState *state, EditorSelectionRef selection, bool additive);
+bool editor_viewport_selection_primary_set(EditorProject *project,
+    EditorViewportState *state, EditorSelectionRef selection);
 void editor_viewport_marquee_begin(EditorViewportState *state, Position pointer);
 void editor_viewport_marquee_update(EditorViewportState *state, Position pointer);
 bool editor_viewport_marquee_finish(EditorViewportState *state,

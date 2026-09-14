@@ -91,7 +91,7 @@ static Position editor_animated_sprite_world_get(const EditorObject *object,
     const EditorAnimatedSprite *sprite, float *rotation);
 static Orientation editor_sprite_world_rotation_get(const EditorObject *object,
     const EditorSprite *sprite);
-static bool editor_viewport_selection_primary_apply(EditorProject *project,
+bool editor_viewport_selection_primary_set(EditorProject *project,
     EditorViewportState *state, EditorSelectionRef selection);
 
 static Position editor_sprite_rotation_handle_get(Position center,
@@ -685,7 +685,7 @@ void editor_viewport_multi_selection_dismiss(EditorProject *project,
     valid = state->multi_selection_return_valid;
     editor_viewport_selection_clear(state);
     if(valid && project != NULL &&
-            editor_viewport_selection_primary_apply(project, state, restore)) {
+            editor_viewport_selection_primary_set(project, state, restore)) {
         state->mode = mode;
     } else {
         state->selection = EDITOR_SELECTION_NONE;
@@ -799,7 +799,7 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
     }
 }
 
-static bool editor_viewport_selection_primary_apply(EditorProject *project,
+bool editor_viewport_selection_primary_set(EditorProject *project,
         EditorViewportState *state, EditorSelectionRef selection) {
     EditorObject *object;
     if(project == NULL || state == NULL) return false;
@@ -912,7 +912,7 @@ bool editor_viewport_selection_set(EditorProject *project,
             state->selection = EDITOR_SELECTION_NONE;
             return true;
         }
-        return editor_viewport_selection_primary_apply(project, state,
+        return editor_viewport_selection_primary_set(project, state,
             state->selected_items[state->selected_item_count - 1]);
     }
     if(state->selected_item_count == state->selected_item_capacity) {
@@ -926,7 +926,7 @@ bool editor_viewport_selection_set(EditorProject *project,
     }
     state->selected_items[state->selected_item_count] = selection;
     state->selected_item_count += 1;
-    return editor_viewport_selection_primary_apply(project, state, selection);
+    return editor_viewport_selection_primary_set(project, state, selection);
 }
 
 typedef struct EditorMarqueeBounds {
@@ -1302,7 +1302,7 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
     if(state->selected_item_count > 0) {
         EditorSelectionRef primary =
             state->selected_items[state->selected_item_count - 1];
-        if(!editor_viewport_selection_primary_apply(project, state, primary))
+        if(!editor_viewport_selection_primary_set(project, state, primary))
             return false;
         if(state->selected_item_count > 1 && return_valid) {
             state->multi_selection_return_mode = starting_mode;
@@ -1900,6 +1900,51 @@ static bool editor_group_point_get(EditorProject *project,
     return false;
 }
 
+static bool editor_group_rotation_control_get(EditorProject *project,
+        EditorSelectionRef ref, Position *center, Position *handle,
+        float *rotation) {
+    EditorObject *object = editor_group_object_get(project, ref.object);
+    if(object == NULL || center == NULL || handle == NULL || rotation == NULL)
+        return false;
+    if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
+            ref.kind == EDITOR_SELECTION_PARTICLE) {
+        EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
+        if(body == NULL || !body->visible) return false;
+        *center = (Position){object->position.x + body->position.x,
+            object->position.y + body->position.y};
+        *rotation = body->rotation;
+        *handle = editor_body_rotation_handle_get(object, body);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_SOFT_BODY) {
+        EditorSoftBody *body = editor_group_soft_body_get(object, ref.item);
+        if(body == NULL || !body->visible) return false;
+        *center = (Position){object->position.x + body->position.x,
+            object->position.y + body->position.y};
+        *rotation = body->rotation;
+        *handle = editor_soft_body_rotation_handle_get(object, body);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_SPRITE) {
+        EditorSprite *sprite = editor_project_sprite_get(object, ref.item);
+        if(sprite == NULL || !sprite->visible) return false;
+        *center = editor_sprite_world_get(object, sprite);
+        *rotation = editor_sprite_world_rotation_get(object, sprite);
+        *handle = editor_sprite_rotation_handle_get(*center, *rotation);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
+        EditorAnimatedSprite *sprite = editor_project_animated_sprite_get(object,
+            ref.item);
+        if(sprite == NULL || !sprite->visible || sprite->frame_count == 0)
+            return false;
+        *center = editor_animated_sprite_world_get(object, sprite, rotation);
+        *handle = editor_sprite_rotation_handle_get(*center, *rotation);
+        return true;
+    }
+    return false;
+}
+
 static bool editor_group_pivot_get(EditorProject *project,
         const EditorViewportState *state, Position *pivot) {
     Position sum = {0};
@@ -2051,11 +2096,48 @@ static bool editor_group_transform_apply(EditorProject *project,
     for(size_t i = 0; i < state->selected_item_count; i += 1) {
         EditorSelectionRef ref = state->selected_items[i];
         EditorObject *object = editor_group_object_get(project, ref.object);
+        bool parent_selected = editor_group_parent_selected(project, state, ref);
         Position world;
         Position desired;
         EditorCommand command = {0};
-        if(editor_group_parent_selected(project, state, ref) || object == NULL ||
-                !editor_group_point_get(project, ref, &world)) continue;
+        if(object == NULL) continue;
+        if(parent_selected) {
+            if(angle != 0.0f && ref.kind == EDITOR_SELECTION_SPRITE) {
+                EditorSprite *sprite = editor_project_sprite_get(object, ref.item);
+                bool body_drives_rotation = sprite != NULL &&
+                    sprite->follow_body_rotation &&
+                    editor_viewport_selection_contains(state, (EditorSelectionRef){
+                        EDITOR_SELECTION_RIGID_BODY, ref.object, 0, 0,
+                        sprite->rigid_body});
+                if(sprite != NULL && !body_drives_rotation) {
+                    EditorCommand rotate = {
+                        .type = EDITOR_COMMAND_SPRITE_ROTATION_SET,
+                        .data.sprite_rotation_set = {object->id, sprite->id,
+                            sprite->rotation + angle}};
+                    changed = editor_command_execute(project, &rotate).kind ==
+                        ERROR_RESULT_VALUE || changed;
+                }
+            } else if(angle != 0.0f &&
+                    ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
+                EditorAnimatedSprite *sprite =
+                    editor_project_animated_sprite_get(object, ref.item);
+                bool body_drives_rotation = sprite != NULL &&
+                    sprite->follow_body_rotation &&
+                    editor_viewport_selection_contains(state, (EditorSelectionRef){
+                        EDITOR_SELECTION_RIGID_BODY, ref.object, 0, 0,
+                        sprite->rigid_body});
+                if(sprite != NULL && !body_drives_rotation) {
+                    EditorCommand rotate = {
+                        .type = EDITOR_COMMAND_ANIMATED_SPRITE_ROTATION_SET,
+                        .data.animated_sprite_rotation_set = {object->id, sprite->id,
+                            sprite->editor_rotation + angle}};
+                    changed = editor_command_execute(project, &rotate).kind ==
+                        ERROR_RESULT_VALUE || changed;
+                }
+            }
+            continue;
+        }
+        if(!editor_group_point_get(project, ref, &world)) continue;
         desired = (Position){world.x + translation.x, world.y + translation.y};
         if(rotate_about_group_pivot)
             desired = editor_group_rotate_point(desired, state->group_pivot, angle);
@@ -2299,53 +2381,57 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         return true;
     }
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED &&
-            state->selected_item_count >= 2 &&
-            editor_group_pivot_get(project, state, &state->group_pivot)) {
-        bool individual_rotation_handle_hit = false;
-        Position rotation_handle = {state->group_pivot.x,
-            state->group_pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
-        if(hypotf(pointer.x - rotation_handle.x,
-                pointer.y - rotation_handle.y) <= 12.0f / editor_view_scale) {
+            state->selected_item_count >= 2) {
+        Position rotation_handle;
+        if(editor_group_pivot_get(project, state, &state->group_pivot)) {
+            rotation_handle = (Position){state->group_pivot.x,
+                state->group_pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
+        }
+        if(editor_group_pivot_get(project, state, &state->group_pivot) &&
+                hypotf(pointer.x - rotation_handle.x,
+                    pointer.y - rotation_handle.y) <=
+                        12.0f / editor_view_scale) {
             state->group_rotating = true;
             state->group_pointer_angle = atan2f(pointer.y - state->group_pivot.y,
                 pointer.x - state->group_pivot.x);
             return true;
         }
-        if(state->mode == EDITOR_VIEWPORT_RIGID_BODY) {
-            for(size_t i = 0; object != NULL &&
-                    i < state->selected_item_count; i += 1) {
-                EditorSelectionRef ref = state->selected_items[i];
-                EditorRigidBody *selected_body;
-                Position handle;
-                Position center;
-                if(ref.object != object->id ||
-                        (ref.kind != EDITOR_SELECTION_RIGID_BODY &&
-                            ref.kind != EDITOR_SELECTION_PARTICLE)) continue;
-                selected_body = editor_project_rigid_body_get(object, ref.item);
-                if(selected_body == NULL) continue;
-                handle = editor_body_rotation_handle_get(object, selected_body);
+        for(size_t i = state->selected_item_count; i > 0; i -= 1) {
+            EditorSelectionRef ref = state->selected_items[i - 1];
+            EditorObject *selected_object = editor_group_object_get(project,
+                ref.object);
+            Position center;
+            Position handle;
+            float rotation;
+            if(selected_object == NULL || !editor_group_rotation_control_get(
+                    project, ref, &center, &handle, &rotation)) continue;
+            if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
+                    ref.kind == EDITOR_SELECTION_PARTICLE) {
                 if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
                         12.0f / editor_view_scale) continue;
-                (void)editor_viewport_selection_primary_apply(project, state, ref);
-                center = (Position){object->position.x + selected_body->position.x,
-                    object->position.y + selected_body->position.y};
+                (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_body = true;
-                state->rotation_pointer_offset = selected_body->rotation -
-                    atan2f(pointer.y - center.y, pointer.x - center.x);
-                return true;
-            }
-        } else if(state->mode == EDITOR_VIEWPORT_SOFT_BODY) {
-            EditorSoftBody *selected_body = editor_group_soft_body_get(
-                object, state->selected_soft_body);
-            if(selected_body != NULL) {
-                Position handle = editor_soft_body_rotation_handle_get(
-                    object, selected_body);
-                individual_rotation_handle_hit = hypotf(pointer.x - handle.x,
-                    pointer.y - handle.y) <= 12.0f / editor_view_scale;
-            }
+            } else if(ref.kind == EDITOR_SELECTION_SOFT_BODY) {
+                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
+                        12.0f / editor_view_scale) continue;
+                (void)editor_viewport_selection_primary_set(project, state, ref);
+                state->rotated_soft_body = true;
+            } else if(ref.kind == EDITOR_SELECTION_SPRITE) {
+                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
+                        12.0f / editor_view_scale) continue;
+                (void)editor_viewport_selection_primary_set(project, state, ref);
+                state->rotated_sprite = true;
+            } else if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
+                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
+                        12.0f / editor_view_scale) continue;
+                (void)editor_viewport_selection_primary_set(project, state, ref);
+                state->rotated_animated_sprite = true;
+            } else continue;
+            state->rotation_pointer_offset = rotation -
+                atan2f(pointer.y - center.y, pointer.x - center.x);
+            return true;
         }
-        if(!individual_rotation_handle_hit &&
-                editor_group_point_hit(project, state, pointer)) {
+        if(editor_group_point_hit(project, state, pointer)) {
             state->group_dragging = true;
             state->group_pointer = pointer;
             return true;
@@ -2423,6 +2509,15 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
+            if(state->selected_item_count >= 2) {
+                float delta = rotation - sprite->rotation;
+                while(delta > 3.14159265359f) delta -= 6.28318530718f;
+                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                if(delta != 0.0f)
+                    (void)editor_group_transform_apply(project, state,
+                        (Vec2D){0}, delta, false);
+                return true;
+            }
             EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_ROTATION_SET,
                 .data.sprite_rotation_set = {object->id, sprite->id, rotation}};
             (void)editor_command_execute(project, &command);
@@ -2472,6 +2567,15 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
+            if(state->selected_item_count >= 2) {
+                float delta = rotation - sprite->editor_rotation;
+                while(delta > 3.14159265359f) delta -= 6.28318530718f;
+                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                if(delta != 0.0f)
+                    (void)editor_group_transform_apply(project, state,
+                        (Vec2D){0}, delta, false);
+                return true;
+            }
             EditorCommand command = {
                 .type = EDITOR_COMMAND_ANIMATED_SPRITE_ROTATION_SET,
                 .data.animated_sprite_rotation_set = {object->id, sprite->id,
@@ -3315,8 +3419,11 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 object->id, 0, 0, sprite->id);
         if(selected) editor_sprite_outline_draw(world, sprite->size, rotation,
             (Color){255, 215, 70, 255});
-        if(state->mode == EDITOR_VIEWPORT_SPRITE &&
-                state->selected_sprite == sprite->id) {
+        if((state->mode == EDITOR_VIEWPORT_SPRITE &&
+                state->selected_sprite == sprite->id) ||
+                (state->selected_item_count > 1 &&
+                    editor_viewport_path_selected(state, EDITOR_SELECTION_SPRITE,
+                        object->id, 0, 0, sprite->id))) {
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
             editor_circle_draw(handle, 10.0f / editor_view_scale,
@@ -3352,8 +3459,11 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 object->id, 0, 0, animation->id);
         if(selected) editor_sprite_outline_draw(world, size, rotation,
             (Color){255, 215, 70, 255});
-        if(state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
-                state->selected_animated_sprite == animation->id) {
+        if((state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
+                state->selected_animated_sprite == animation->id) ||
+                (state->selected_item_count > 1 && editor_viewport_path_selected(
+                    state, EDITOR_SELECTION_ANIMATED_SPRITE,
+                    object->id, 0, 0, animation->id))) {
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
             editor_circle_draw(handle, 10.0f / editor_view_scale,
@@ -3476,7 +3586,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
     }
 
-    if(state->selected_item_count > 1 && state->mode == EDITOR_VIEWPORT_RIGID_BODY) {
+    if(state->selected_item_count > 1) {
         for(size_t i = 0; i < state->selected_item_count; i += 1) {
             EditorSelectionRef ref = state->selected_items[i];
             const EditorRigidBody *body;
@@ -3580,7 +3690,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
     }
 
-    if(state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
+    if(state->selected_item_count > 1 ||
+            state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
             state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
             (state->mode == EDITOR_VIEWPORT_AUTO_SHAPE &&
                 state->auto_shape_parent_mode == EDITOR_VIEWPORT_SOFT_BODY) ||
@@ -3590,7 +3701,10 @@ static void editor_viewport_object_draw(const EditorObject *object,
             const EditorSoftBody *body = &object->soft_body_items[i];
             Position center;
             Position handle;
-            if(body->id != state->selected_soft_body || !body->visible) continue;
+            bool multi_selected = editor_viewport_path_selected(state,
+                EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id);
+            if((state->selected_item_count > 1 ? !multi_selected :
+                    body->id != state->selected_soft_body) || !body->visible) continue;
             center = (Position){object->position.x + body->position.x,
                 object->position.y + body->position.y};
             handle = editor_soft_body_rotation_handle_get(object, body);
@@ -3599,11 +3713,11 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 (Color){245, 245, 250, 255});
             if(state->selection == EDITOR_SELECTION_ORIGIN)
                 editor_circle_draw(center, 7.0f, (Color){255, 215, 70, 255});
-            if(state->mode == EDITOR_VIEWPORT_SOFT_BODY) {
+            if(state->mode == EDITOR_VIEWPORT_SOFT_BODY || multi_selected) {
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});
                 editor_circle_draw(handle, 10.0f, (Color){255, 215, 70, 255});
             }
-            break;
+            if(state->selected_item_count <= 1) break;
         }
     }
 
@@ -3677,6 +3791,17 @@ void editor_viewport_draw(const EditorProject *project,
     rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
     if(state->selected_item_count >= 2) {
         Position pivot;
+        for(size_t i = 0; i < state->selected_item_count; i += 1) {
+            Position center;
+            Position handle;
+            float rotation;
+            if(!editor_group_rotation_control_get((EditorProject *)project,
+                    state->selected_items[i], &center, &handle, &rotation)) continue;
+            (void)rotation;
+            editor_line_draw(center, handle, (Color){255, 215, 70, 255});
+            editor_circle_draw(handle, 10.0f / editor_view_scale,
+                (Color){255, 215, 70, 255});
+        }
         if(editor_group_pivot_get((EditorProject *)project, state, &pivot)) {
             Position handle = {pivot.x,
                 pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
