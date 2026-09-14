@@ -57,6 +57,8 @@ static bool editor_command_world_position_get(const EditorCommand *command,
             *position = command->data.soft_body_transform.position; return true;
         case EDITOR_COMMAND_SOFT_NODE_POSITION:
             *position = command->data.soft_node_position.position; return true;
+        case EDITOR_COMMAND_CAMERA_TRANSFORM:
+            *position = command->data.camera_transform.position; return true;
         case EDITOR_COMMAND_RIGID_BODY_ORIGIN:
         case EDITOR_COMMAND_SOFT_BODY_ORIGIN:
             *position = command->data.origin.position; return true;
@@ -319,6 +321,68 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             return editor_command_not_found("soft node",
                 command->data.soft_node_position.node);
         }
+        case EDITOR_COMMAND_CAMERA_TRANSFORM: {
+            EditorObject *object = editor_object_query_get(project,
+                command->data.camera_transform.object);
+            EditorCamera *camera = editor_project_camera_get(object,
+                command->data.camera_transform.camera);
+            if(object == NULL) return editor_command_not_found("object",
+                command->data.camera_transform.object);
+            if(camera == NULL) return editor_command_not_found("camera",
+                command->data.camera_transform.camera);
+            camera->position = command->data.camera_transform.position;
+            camera->rotation = command->data.camera_transform.rotation;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_CAMERA_DIMENSIONS_SET: {
+            EditorObject *object = editor_object_query_get(project,
+                command->data.camera_dimensions_set.object);
+            EditorCamera *camera = editor_project_camera_get(object,
+                command->data.camera_dimensions_set.camera);
+            Scale dimensions = command->data.camera_dimensions_set.dimensions;
+            if(camera == NULL) return editor_command_not_found("camera",
+                command->data.camera_dimensions_set.camera);
+            if(!isfinite(dimensions.x) || !isfinite(dimensions.y) ||
+                    dimensions.x <= 0.0f || dimensions.y <= 0.0f)
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "camera dimensions must be positive finite values").result.error);
+            camera->dimensions = dimensions;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_CAMERA_ATTACHMENT_SET: {
+            EditorCameraAttachmentKind kind =
+                command->data.camera_attachment_set.kind;
+            uint32_t target = command->data.camera_attachment_set.target;
+            EditorObject *object = editor_object_query_get(project,
+                command->data.camera_attachment_set.object);
+            EditorCamera *camera = editor_project_camera_get(object,
+                command->data.camera_attachment_set.camera);
+            bool valid = kind == EDITOR_CAMERA_ATTACHMENT_NONE;
+            if(camera == NULL) return editor_command_not_found("camera",
+                command->data.camera_attachment_set.camera);
+            if(kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY)
+                valid = editor_project_rigid_body_get(object, target) != NULL;
+            else if(kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY)
+                valid = editor_command_soft_body_get(object, target) != NULL;
+            else if(kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR)
+                valid = editor_project_anchor_get(object, target) != NULL;
+            else if(kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
+                EditorSoftBody *body = editor_command_soft_body_get(object,
+                    command->data.camera_attachment_set.soft_body);
+                valid = editor_command_soft_node_get(body, target) != NULL;
+            }
+            if(!valid) return editor_command_error(editor_result_error(
+                EDITOR_ERROR_REFERENCE_INVALID,
+                "camera attachment target was not found").result.error);
+            camera->attachment_kind = kind;
+            camera->attachment = kind == EDITOR_CAMERA_ATTACHMENT_NONE ? 0 : target;
+            camera->attachment_soft_body = kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE ?
+                command->data.camera_attachment_set.soft_body : 0;
+            camera->inherit_orientation =
+                command->data.camera_attachment_set.inherit_orientation;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_AUTO_SHAPE: {
             EditorObject *object = editor_object_query_get(project,
                 command->data.auto_shape.object);
@@ -476,6 +540,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                             visible = &body->areas[i].visible;
                     break;
                 }
+                case EDITOR_VISIBILITY_CAMERA: {
+                    EditorCamera *camera = editor_project_camera_get(object,
+                        command->data.visibility.item);
+                    if(camera != NULL) visible = &camera->visible;
+                    break;
+                }
             }
             if(visible == NULL) return editor_command_not_found("visibility target",
                 command->data.visibility.item);
@@ -542,6 +612,9 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 if(value != NULL) { created = value->id; created_name = value->name; }
             } else if(kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *value = editor_project_soft_body_add(project, object);
+                if(value != NULL) { created = value->id; created_name = value->name; }
+            } else if(kind == EDITOR_ITEM_CAMERA) {
+                EditorCamera *value = editor_project_camera_add(project, object);
                 if(value != NULL) { created = value->id; created_name = value->name; }
             } else if(kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
@@ -627,6 +700,9 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             else if(kind == EDITOR_ITEM_SOFT_BODY)
                 removed = editor_project_soft_body_remove(object,
                     command->data.item_remove.item);
+            else if(kind == EDITOR_ITEM_CAMERA)
+                removed = editor_project_camera_remove(object,
+                    command->data.item_remove.item);
             else if(kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
                     command->data.item_remove.parent);
@@ -688,6 +764,10 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 if(value != NULL) name = value->name;
             } else if(kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *value = editor_command_soft_body_get(object,
+                    command->data.item_rename.item);
+                if(value != NULL) name = value->name;
+            } else if(kind == EDITOR_ITEM_CAMERA) {
+                EditorCamera *value = editor_project_camera_get(object,
                     command->data.item_rename.item);
                 if(value != NULL) name = value->name;
             } else if(kind == EDITOR_ITEM_SOFT_NODE) {

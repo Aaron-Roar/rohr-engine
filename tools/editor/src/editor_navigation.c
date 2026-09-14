@@ -126,6 +126,7 @@ static EditorHierarchyItemKind editor_hierarchy_kind_get(
     if(kind == EDITOR_SELECTION_SPRITE) return EDITOR_HIERARCHY_SPRITE;
     if(kind == EDITOR_SELECTION_ANIMATED_SPRITE)
         return EDITOR_HIERARCHY_ANIMATED_SPRITE;
+    if(kind == EDITOR_SELECTION_CAMERA) return EDITOR_HIERARCHY_CAMERA;
     return EDITOR_HIERARCHY_RIGID_BODY;
 }
 
@@ -137,6 +138,7 @@ static EditorSelectionRef editor_hierarchy_selection_get(EditorObjectId object,
     else if(item.kind == EDITOR_HIERARCHY_SPRITE) kind = EDITOR_SELECTION_SPRITE;
     else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE)
         kind = EDITOR_SELECTION_ANIMATED_SPRITE;
+    else if(item.kind == EDITOR_HIERARCHY_CAMERA) kind = EDITOR_SELECTION_CAMERA;
     return (EditorSelectionRef){kind, object, 0, 0, item.id};
 }
 
@@ -426,6 +428,7 @@ static bool editor_selection_remove_command_get(EditorProject *project,
         case EDITOR_SELECTION_HITBOX: kind = EDITOR_ITEM_HITBOX; break;
         case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
         case EDITOR_SELECTION_ANCHOR: kind = EDITOR_ITEM_ANCHOR; break;
+        case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
         case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
@@ -624,6 +627,11 @@ bool editor_navigation_selected_open(EditorProject *project,
                     state->selected_animated_sprite) == NULL) return false;
             state->mode = EDITOR_VIEWPORT_ANIMATED_SPRITE;
             return true;
+        case EDITOR_SELECTION_CAMERA:
+            if(editor_project_camera_get(selected,
+                    state->selected_camera_entity) == NULL) return false;
+            state->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
+            return true;
         case EDITOR_SELECTION_VERTEX:
             if(hitbox == NULL || state->selected_vertex >= hitbox->vertex_count)
                 return false;
@@ -680,6 +688,9 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_ANIMATION_FRAME:
             state->selection = EDITOR_SELECTION_ANIMATION_FRAME;
+            return true;
+        case EDITOR_VIEWPORT_CAMERA_ENTITY:
+            state->selection = EDITOR_SELECTION_CAMERA;
             return true;
         default:
             return false;

@@ -18,6 +18,9 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_ANCHOR_TRANSFORM,
     EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
     EDITOR_COMMAND_SOFT_NODE_POSITION,
+    EDITOR_COMMAND_CAMERA_TRANSFORM,
+    EDITOR_COMMAND_CAMERA_DIMENSIONS_SET,
+    EDITOR_COMMAND_CAMERA_ATTACHMENT_SET,
     EDITOR_COMMAND_AUTO_SHAPE,
     EDITOR_COMMAND_RIGID_BODY_ORIGIN,
     EDITOR_COMMAND_SOFT_BODY_ORIGIN,
@@ -73,7 +76,8 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_SOFT_BEAM,
     EDITOR_ITEM_VERTEX,
     EDITOR_ITEM_LINE,
-    EDITOR_ITEM_SOFT_AREA
+    EDITOR_ITEM_SOFT_AREA,
+    EDITOR_ITEM_CAMERA
 } EditorItemKind;
 
 typedef struct EditorItemAddCommand {
@@ -200,7 +204,8 @@ typedef enum EditorVisibilityKind {
     EDITOR_VISIBILITY_SOFT_BODY,
     EDITOR_VISIBILITY_SOFT_NODE,
     EDITOR_VISIBILITY_SOFT_BEAM,
-    EDITOR_VISIBILITY_SOFT_AREA
+    EDITOR_VISIBILITY_SOFT_AREA,
+    EDITOR_VISIBILITY_CAMERA
 } EditorVisibilityKind;
 
 typedef struct EditorCommand {
@@ -252,6 +257,14 @@ typedef struct EditorCommand {
             EditorSoftNodeId node;
             Position position;
         } soft_node_position;
+        struct { EditorObjectId object; EditorCameraId camera;
+            Position position; Orientation rotation; } camera_transform;
+        struct { EditorObjectId object; EditorCameraId camera;
+            Scale dimensions; } camera_dimensions_set;
+        struct { EditorObjectId object; EditorCameraId camera;
+            EditorCameraAttachmentKind kind; uint32_t target;
+            EditorSoftBodyId soft_body; bool inherit_orientation; }
+            camera_attachment_set;
         struct {
             EditorItemKind kind;
             EditorObjectId object;

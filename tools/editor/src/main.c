@@ -43,6 +43,7 @@
 #include "editors/render/editor_animation_frame.h"
 #include "editors/render/editor_sprite.h"
 #include "editors/render/editor_animated_sprite.h"
+#include "editors/render/editor_camera.h"
 #include "editors/object/editor_object.h"
 #include "editors/object/editor_hierarchy.h"
 #include "editors/soft_body/editor_soft_beam.h"
@@ -580,6 +581,7 @@ static EditorNavigationState editor_navigation_state_get(
         .soft_beam = state->selected_soft_beam,
         .sprite = state->selected_sprite,
         .animated_sprite = state->selected_animated_sprite,
+        .camera = state->selected_camera_entity,
         .animation_frame = state->selected_animation_frame,
         .origin_kind = (uint32_t)state->selected_origin_kind
     };
@@ -602,6 +604,7 @@ static void editor_navigation_state_apply(EditorProject *project,
     state->selected_soft_beam = navigation->soft_beam;
     state->selected_sprite = navigation->sprite;
     state->selected_animated_sprite = navigation->animated_sprite;
+    state->selected_camera_entity = navigation->camera;
     state->selected_animation_frame = navigation->animation_frame;
     state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
 }
@@ -746,6 +749,7 @@ static bool editor_panel_delete_footer_check(EditorViewportMode mode) {
         mode == EDITOR_VIEWPORT_ANCHOR || mode == EDITOR_VIEWPORT_SOFT_BODY ||
         mode == EDITOR_VIEWPORT_SOFT_NODE || mode == EDITOR_VIEWPORT_SOFT_BEAM ||
         mode == EDITOR_VIEWPORT_SPRITE ||
+        mode == EDITOR_VIEWPORT_CAMERA_ENTITY ||
         mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
         mode == EDITOR_VIEWPORT_ANIMATION_FRAME;
 }
@@ -1405,6 +1409,21 @@ static bool editor_single_selected_delete(
         viewport_state->selected_animated_sprite = 0;
         return true;
     }
+    if(viewport_state->selection == EDITOR_SELECTION_CAMERA) {
+        EditorCamera *camera = editor_project_camera_get(selected,
+            viewport_state->selected_camera_entity);
+        EditorCommand command;
+        if(camera == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_REMOVE,
+            .data.item_remove = {.kind = EDITOR_ITEM_CAMERA,
+                .object = selected->id, .item = camera->id}};
+        if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
+            return false;
+        viewport_state->mode = EDITOR_VIEWPORT_OBJECT;
+        viewport_state->selection = EDITOR_SELECTION_OBJECT;
+        viewport_state->selected_camera_entity = 0;
+        return true;
+    }
     if(viewport_state->selection == EDITOR_SELECTION_OBJECT) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_REMOVE,
             .data.item_remove = {EDITOR_ITEM_OBJECT, selected->id, 0, 0, 0}};
@@ -1889,6 +1908,7 @@ int main(void) {
     EditorAnimationFrameEditor animation_frame_editor = {0};
     EditorSpriteEditor sprite_editor = {0};
     EditorAnimatedSpriteEditor animated_sprite_editor = {0};
+    EditorCameraEditor camera_editor = {0};
     EditorObjectEditor object_editor = {0};
     EditorHierarchyEditor hierarchy_editor = {0};
     EditorSoftBeamEditor soft_beam_editor = {0};
@@ -2079,6 +2099,7 @@ int main(void) {
             !editor_animation_frame_editor_create(&animation_frame_editor, &font) ||
             !editor_sprite_editor_create(&sprite_editor, &font) ||
             !editor_animated_sprite_editor_create(&animated_sprite_editor, &font) ||
+            !editor_camera_editor_create(&camera_editor, &font) ||
             !editor_object_editor_create(&object_editor, &font) ||
             !editor_hierarchy_editor_create(&hierarchy_editor, &font) ||
             !editor_soft_beam_editor_create(&soft_beam_editor, &font) ||
@@ -2647,6 +2668,11 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_context = &delete_context,
                     .delete_footer = true});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
+            field_editing = editor_camera_editor_draw(&camera_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
@@ -2785,6 +2811,10 @@ int main(void) {
                 case EDITOR_VIEWPORT_ANIMATION_FRAME:
                     delete_label = &animation_frame_editor.delete_label;
                     delete_id = "editor.animation_frame.delete";
+                    break;
+                case EDITOR_VIEWPORT_CAMERA_ENTITY:
+                    delete_label = &camera_editor.delete_label;
+                    delete_id = "editor.camera.delete";
                     break;
                 default: break;
             }
@@ -3625,6 +3655,7 @@ int main(void) {
     editor_animation_frame_editor_destroy(&animation_frame_editor);
     editor_sprite_editor_destroy(&sprite_editor);
     editor_animated_sprite_editor_destroy(&animated_sprite_editor);
+    editor_camera_editor_destroy(&camera_editor);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
     editor_soft_beam_editor_destroy(&soft_beam_editor);
@@ -3715,6 +3746,7 @@ fail:
     editor_animation_frame_editor_destroy(&animation_frame_editor);
     editor_sprite_editor_destroy(&sprite_editor);
     editor_animated_sprite_editor_destroy(&animated_sprite_editor);
+    editor_camera_editor_destroy(&camera_editor);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
     editor_soft_beam_editor_destroy(&soft_beam_editor);

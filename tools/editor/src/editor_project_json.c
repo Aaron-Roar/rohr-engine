@@ -355,6 +355,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             navigation->animated_sprite);
         yyjson_mut_obj_add_uint(document, value, "animation_frame",
             navigation->animation_frame);
+        yyjson_mut_obj_add_uint(document, value, "camera", navigation->camera);
         yyjson_mut_obj_add_uint(document, value, "origin_kind", navigation->origin_kind);
         yyjson_mut_obj_add_val(document, root, "navigation", value);
     }
@@ -372,6 +373,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_obj_add_uint(document, root, "next_sprite_id", project->next_sprite_id);
     yyjson_mut_obj_add_uint(document, root, "next_animated_sprite_id",
         project->next_animated_sprite_id);
+    yyjson_mut_obj_add_uint(document, root, "next_camera_id",
+        project->next_camera_id);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -386,6 +389,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_val *soft_body_values = yyjson_mut_arr(document);
         yyjson_mut_val *sprites = yyjson_mut_arr(document);
         yyjson_mut_val *animated_sprite_values = yyjson_mut_arr(document);
+        yyjson_mut_val *camera_values = yyjson_mut_arr(document);
         yyjson_mut_val *hierarchy = yyjson_mut_arr(document);
         yyjson_mut_obj_add_uint(document, value, "id", object->id);
         yyjson_mut_obj_add_strcpy(document, value, "name", object->name);
@@ -427,6 +431,26 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_arr_add_val(animated_sprite_values,
                 editor_json_animated_sprite_write(document,
                     &object->animated_sprite_items[j]));
+        for(size_t j = 0; j < object->camera_count; j += 1) {
+            const EditorCamera *camera = &object->cameras[j];
+            yyjson_mut_val *item = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_uint(document, item, "id", camera->id);
+            yyjson_mut_obj_add_strcpy(document, item, "name", camera->name);
+            yyjson_mut_obj_add_val(document, item, "position",
+                editor_json_position_write(document, camera->position));
+            yyjson_mut_obj_add_real(document, item, "rotation", camera->rotation);
+            yyjson_mut_obj_add_real(document, item, "width", camera->dimensions.x);
+            yyjson_mut_obj_add_real(document, item, "height", camera->dimensions.y);
+            yyjson_mut_obj_add_uint(document, item, "attachment_kind",
+                camera->attachment_kind);
+            yyjson_mut_obj_add_uint(document, item, "attachment", camera->attachment);
+            yyjson_mut_obj_add_uint(document, item, "attachment_soft_body",
+                camera->attachment_soft_body);
+            yyjson_mut_obj_add_bool(document, item, "inherit_orientation",
+                camera->inherit_orientation);
+            yyjson_mut_obj_add_bool(document, item, "visible", camera->visible);
+            yyjson_mut_arr_add_val(camera_values, item);
+        }
         for(size_t j = 0; j < object->hierarchy_count; j += 1) {
             yyjson_mut_val *item = yyjson_mut_obj(document);
             yyjson_mut_obj_add_uint(document, item, "kind", object->hierarchy[j].kind);
@@ -440,6 +464,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_val(document, value, "sprites", sprites);
         yyjson_mut_obj_add_val(document, value, "animated_sprites",
             animated_sprite_values);
+        yyjson_mut_obj_add_val(document, value, "cameras", camera_values);
         yyjson_mut_obj_add_val(document, value, "hierarchy", hierarchy);
         yyjson_mut_arr_add_val(objects, value);
     }
@@ -909,6 +934,27 @@ static bool editor_json_references_valid(EditorProject *project) {
                         object->animated_sprite_items[other].rigid_body ==
                             sprite->rigid_body) return false;
         }
+        for(size_t j = 0; j < object->camera_count; j += 1) {
+            EditorCamera *camera = &object->cameras[j];
+            bool valid = camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE;
+            if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY)
+                valid = editor_project_rigid_body_get(object,
+                    camera->attachment) != NULL;
+            else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY) {
+                for(size_t b = 0; b < object->soft_body_count; b += 1)
+                    valid = valid || object->soft_body_items[b].id == camera->attachment;
+            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR)
+                valid = editor_project_anchor_get(object, camera->attachment) != NULL;
+            else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
+                for(size_t b = 0; b < object->soft_body_count; b += 1) {
+                    EditorSoftBody *body = &object->soft_body_items[b];
+                    if(body->id != camera->attachment_soft_body) continue;
+                    for(size_t n = 0; n < body->node_count; n += 1)
+                        valid = valid || body->nodes[n].id == camera->attachment;
+                }
+            }
+            if(!valid) return false;
+        }
         for(size_t j = 0; j < object->rigid_body_count; j += 1) {
             EditorRigidBody *body = &object->rigid_bodies[j];
             for(size_t k = 0; k < body->hitbox_animation_binding_count; k += 1) {
@@ -1019,12 +1065,15 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *sprite = yyjson_obj_get(navigation, "sprite");
             yyjson_val *animated = yyjson_obj_get(navigation, "animated_sprite");
             yyjson_val *frame = yyjson_obj_get(navigation, "animation_frame");
+            yyjson_val *camera = yyjson_obj_get(navigation, "camera");
             if((sprite != NULL && (!yyjson_is_uint(sprite) ||
                         yyjson_get_uint(sprite) > UINT32_MAX)) ||
                     (animated != NULL && (!yyjson_is_uint(animated) ||
                         yyjson_get_uint(animated) > UINT32_MAX)) ||
                     (frame != NULL && (!yyjson_is_uint(frame) ||
-                        yyjson_get_uint(frame) > UINT32_MAX))) goto done;
+                        yyjson_get_uint(frame) > UINT32_MAX)) ||
+                    (camera != NULL && (!yyjson_is_uint(camera) ||
+                        yyjson_get_uint(camera) > UINT32_MAX))) goto done;
             if(sprite != NULL)
                 loaded.navigation.sprite = (uint32_t)yyjson_get_uint(sprite);
             if(animated != NULL)
@@ -1033,6 +1082,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             if(frame != NULL)
                 loaded.navigation.animation_frame =
                     (uint32_t)yyjson_get_uint(frame);
+            if(camera != NULL)
+                loaded.navigation.camera = (uint32_t)yyjson_get_uint(camera);
         }
     }
     if(!editor_json_uint(root, "selected", &loaded.selected) || !yyjson_is_arr(objects) ||
@@ -1057,11 +1108,15 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     {
         yyjson_val *next_sprite = yyjson_obj_get(root, "next_sprite_id");
         yyjson_val *next_animated = yyjson_obj_get(root, "next_animated_sprite_id");
+        yyjson_val *next_camera = yyjson_obj_get(root, "next_camera_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
                     &loaded.next_sprite_id)) ||
                 (next_animated != NULL && !editor_json_uint(root,
                     "next_animated_sprite_id", &loaded.next_animated_sprite_id)) ||
-                loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0) goto done;
+                (next_camera != NULL && !editor_json_uint(root,
+                    "next_camera_id", &loaded.next_camera_id)) ||
+                loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
+                loaded.next_camera_id == 0) goto done;
     }
     loaded.collision_mask_count = yyjson_arr_size(collision_masks);
     if(!EDITOR_ARRAY_RESERVE(loaded.collision_masks,
@@ -1090,6 +1145,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         yyjson_val *sprites = yyjson_obj_get(value, "sprites");
         yyjson_val *animated_sprite_values = yyjson_obj_get(value,
             "animated_sprites");
+        yyjson_val *camera_values = yyjson_obj_get(value, "cameras");
         yyjson_val *hierarchy = yyjson_obj_get(value, "hierarchy");
         if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &object->id) ||
                 object->id == 0 || !editor_json_name(value, object->name) ||
@@ -1100,6 +1156,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 (sprites != NULL && !yyjson_is_arr(sprites)) ||
                 (animated_sprite_values != NULL &&
                     !yyjson_is_arr(animated_sprite_values)) ||
+                (camera_values != NULL && !yyjson_is_arr(camera_values)) ||
                 (hierarchy != NULL && !yyjson_is_arr(hierarchy))) goto done;
         editor_project_object_name_format(object->name, sizeof(object->name), object->name);
         object->rigid_body_count = yyjson_arr_size(bodies);
@@ -1109,6 +1166,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         object->sprite_count = sprites == NULL ? 0 : yyjson_arr_size(sprites);
         object->animated_sprite_count = animated_sprite_values == NULL ? 0 :
             yyjson_arr_size(animated_sprite_values);
+        object->camera_count = camera_values == NULL ? 0 :
+            yyjson_arr_size(camera_values);
+        if(object->camera_count > EDITOR_CAMERA_MAX) goto done;
         if(!EDITOR_ARRAY_RESERVE(object->rigid_bodies,
                 object->rigid_body_capacity, object->rigid_body_count) ||
                 !EDITOR_ARRAY_RESERVE(object->anchors, object->anchor_capacity,
@@ -1121,7 +1181,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     object->sprite_count) ||
                 !EDITOR_ARRAY_RESERVE(object->animated_sprite_items,
                     object->animated_sprite_capacity,
-                    object->animated_sprite_count)) goto done;
+                    object->animated_sprite_count) ||
+                !EDITOR_ARRAY_RESERVE(object->cameras, object->camera_capacity,
+                    object->camera_count)) goto done;
         if(object->rigid_body_count > 0) memset(object->rigid_bodies, 0,
             object->rigid_body_count * sizeof(*object->rigid_bodies));
         if(object->anchor_count > 0) memset(object->anchors, 0,
@@ -1175,6 +1237,34 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             if(!editor_json_animated_sprite_read(
                     yyjson_arr_get(animated_sprite_values, j),
                     &object->animated_sprite_items[j], &loaded)) goto done;
+        for(size_t j = 0; j < object->camera_count; j += 1) {
+            yyjson_val *item = yyjson_arr_get(camera_values, j);
+            EditorCamera *camera = &object->cameras[j];
+            uint32_t kind;
+            if(!yyjson_is_obj(item) ||
+                    !editor_json_uint(item, "id", &camera->id) || camera->id == 0 ||
+                    !editor_json_name(item, camera->name) ||
+                    !editor_json_position_read(yyjson_obj_get(item, "position"),
+                        &camera->position) ||
+                    !editor_json_real(item, "rotation", &camera->rotation) ||
+                    !editor_json_real(item, "width", &camera->dimensions.x) ||
+                    !editor_json_real(item, "height", &camera->dimensions.y) ||
+                    !editor_json_uint(item, "attachment_kind", &kind) ||
+                    kind > EDITOR_CAMERA_ATTACHMENT_ANCHOR ||
+                    !editor_json_uint(item, "attachment", &camera->attachment) ||
+                    !editor_json_uint(item, "attachment_soft_body",
+                        &camera->attachment_soft_body) ||
+                    !editor_json_bool(item, "inherit_orientation",
+                        &camera->inherit_orientation) ||
+                    !editor_json_bool(item, "visible", &camera->visible) ||
+                    camera->dimensions.x <= 0.0f || camera->dimensions.y <= 0.0f)
+                goto done;
+            camera->attachment_kind = (EditorCameraAttachmentKind)kind;
+            editor_project_property_name_format(camera->name, sizeof(camera->name),
+                camera->name);
+            if(loaded.next_camera_id <= camera->id)
+                loaded.next_camera_id = camera->id + 1;
+        }
         if(hierarchy != NULL) {
             object->hierarchy_count = yyjson_arr_size(hierarchy);
             if(!EDITOR_ARRAY_RESERVE(object->hierarchy,
@@ -1183,7 +1273,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *item = yyjson_arr_get(hierarchy, j);
                 uint32_t kind;
                 if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                        kind > EDITOR_HIERARCHY_ANIMATED_SPRITE ||
+                        kind > EDITOR_HIERARCHY_CAMERA ||
                         !editor_json_uint(item, "id", &object->hierarchy[j].id) ||
                         object->hierarchy[j].id == 0) goto done;
                 object->hierarchy[j].kind = (EditorHierarchyItemKind)kind;
@@ -1193,7 +1283,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             size_t serialized_count = object->hierarchy_count;
             size_t expected_count = object->rigid_body_count + object->joint_count +
                 object->soft_body_count + object->sprite_count +
-                object->animated_sprite_count;
+                object->animated_sprite_count + object->camera_count;
             editor_project_object_hierarchy_sync(object);
             if(hierarchy != NULL && (object->hierarchy_count != serialized_count ||
                     object->hierarchy_count != expected_count)) goto done;

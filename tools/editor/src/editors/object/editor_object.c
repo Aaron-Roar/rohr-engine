@@ -24,6 +24,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Object Name", object_name_label); CREATE("Add Rigid Body", add_rigid_body_label);
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
+    CREATE("Add Camera", add_camera_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
@@ -38,6 +39,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(object_name_label); DESTROY(add_rigid_body_label); DESTROY(add_joint_label);
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
+    DESTROY(add_camera_label);
     DESTROY(visible_label); DESTROY(hidden_label); DESTROY(delete_label);
 #undef DESTROY
 #define DESTROY_ARRAY(array, count) \
@@ -48,6 +50,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY_ARRAY(editor->soft_body_names, EDITOR_SOFT_BODY_MAX);
     DESTROY_ARRAY(editor->sprite_names, 64);
     DESTROY_ARRAY(editor->animation_names, 32);
+    DESTROY_ARRAY(editor->camera_names, EDITOR_CAMERA_MAX);
 #undef DESTROY_ARRAY
     *editor = (EditorObjectEditor){0};
 }
@@ -91,7 +94,7 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
                 *label = &editor->sprite_names[i]; *cache = editor->sprite_cache[i];
             }
         *selection = EDITOR_SELECTION_SPRITE; *visibility = EDITOR_VISIBILITY_OBJECT;
-    } else {
+    } else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE) {
         for(size_t i = 0; i < object->animated_sprite_count && i < 32; i += 1)
             if(object->animated_sprite_items[i].id == item.id) {
                 *name = object->animated_sprite_items[i].name;
@@ -100,6 +103,14 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             }
         *selection = EDITOR_SELECTION_ANIMATED_SPRITE;
         *visibility = EDITOR_VISIBILITY_OBJECT;
+    } else {
+        for(size_t i = 0; i < object->camera_count && i < EDITOR_CAMERA_MAX; i += 1)
+            if(object->cameras[i].id == item.id) {
+                *name = object->cameras[i].name; *visible = object->cameras[i].visible;
+                *label = &editor->camera_names[i]; *cache = editor->camera_cache[i];
+            }
+        *selection = EDITOR_SELECTION_CAMERA;
+        *visibility = EDITOR_VISIBILITY_CAMERA;
     }
     return *name != NULL && *label != NULL && *cache != NULL;
 }
@@ -196,6 +207,18 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->selected_animated_sprite = result.result.object;
         }
     }
+    if(rohr_ui_button("editor.add_camera", &editor->add_camera_label,
+            (UIRect){context->x + 10.0f, 318.0f,
+                context->width - 20.0f, 32.0f}, NULL).clicked) {
+        EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
+            .data.item_add = {.kind = EDITOR_ITEM_CAMERA, .object = object->id}};
+        EditorCommandResult result = editor_command_execute(context->project, &command);
+        if(result.kind == ERROR_RESULT_VALUE) {
+            context->viewport->selection = EDITOR_SELECTION_CAMERA;
+            context->viewport->selected_camera_entity = result.result.object;
+            context->viewport->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
+        }
+    }
     editor_project_object_hierarchy_sync(object);
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];
@@ -206,7 +229,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         const char *item_name = NULL;
         bool visible = false;
         char id[64], visibility_id[72];
-        float y = 326.0f + (float)i * 30.0f;
+        float y = 364.0f + (float)i * 30.0f;
         if(!item_info_get(editor, object, item, &item_name, &label, &cache,
                 &visible, &selection, &visibility)) continue;
         if(!editor_mode_named_text_sync(editor->font, item_name, label, cache,

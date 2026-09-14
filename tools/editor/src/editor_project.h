@@ -21,14 +21,16 @@
 #define EDITOR_SOFT_NODE_MAX 64
 #define EDITOR_SOFT_BEAM_MAX 128
 #define EDITOR_SOFT_AREA_MAX 128
+#define EDITOR_CAMERA_MAX MAX_CAMERAS
 #define EDITOR_SOFT_AREA_NODE_MAX EDITOR_SOFT_NODE_MAX
 #define EDITOR_OBJECT_HIERARCHY_MAX \
-    (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX)
+    (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
+        EDITOR_CAMERA_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
 #define EDITOR_PROJECT_FORMAT_VERSION 1
-#define EDITOR_NAVIGATION_MODE_MAX 17
-#define EDITOR_NAVIGATION_SELECTION_MAX 16
+#define EDITOR_NAVIGATION_MODE_MAX 18
+#define EDITOR_NAVIGATION_SELECTION_MAX 17
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -42,13 +44,15 @@ typedef uint32_t EditorSoftBeamId;
 typedef uint32_t EditorSoftAreaId;
 typedef uint32_t EditorSpriteId;
 typedef uint32_t EditorAnimatedSpriteId;
+typedef uint32_t EditorCameraId;
 
 typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_RIGID_BODY,
     EDITOR_HIERARCHY_JOINT,
     EDITOR_HIERARCHY_SOFT_BODY,
     EDITOR_HIERARCHY_SPRITE,
-    EDITOR_HIERARCHY_ANIMATED_SPRITE
+    EDITOR_HIERARCHY_ANIMATED_SPRITE,
+    EDITOR_HIERARCHY_CAMERA
 } EditorHierarchyItemKind;
 
 typedef struct EditorHierarchyItem {
@@ -266,6 +270,27 @@ typedef struct EditorAnimatedSprite {
     bool playing;
 } EditorAnimatedSprite;
 
+typedef enum EditorCameraAttachmentKind {
+    EDITOR_CAMERA_ATTACHMENT_NONE,
+    EDITOR_CAMERA_ATTACHMENT_RIGID_BODY,
+    EDITOR_CAMERA_ATTACHMENT_SOFT_BODY,
+    EDITOR_CAMERA_ATTACHMENT_SOFT_NODE,
+    EDITOR_CAMERA_ATTACHMENT_ANCHOR
+} EditorCameraAttachmentKind;
+
+typedef struct EditorCamera {
+    EditorCameraId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    Position position;
+    Orientation rotation;
+    Scale dimensions;
+    EditorCameraAttachmentKind attachment_kind;
+    uint32_t attachment;
+    EditorSoftBodyId attachment_soft_body;
+    bool inherit_orientation;
+    bool visible;
+} EditorCamera;
+
 typedef struct EditorObject {
     EditorObjectId id;
     char name[EDITOR_OBJECT_NAME_MAX];
@@ -289,6 +314,9 @@ typedef struct EditorObject {
     EditorAnimatedSprite *animated_sprite_items;
     size_t animated_sprite_count;
     size_t animated_sprite_capacity;
+    EditorCamera *cameras;
+    size_t camera_count;
+    size_t camera_capacity;
     EditorHierarchyItem *hierarchy;
     size_t hierarchy_count;
     size_t hierarchy_capacity;
@@ -309,6 +337,7 @@ typedef struct EditorNavigationState {
     EditorSoftBeamId soft_beam;
     EditorSpriteId sprite;
     EditorAnimatedSpriteId animated_sprite;
+    EditorCameraId camera;
     EditorSpriteId animation_frame;
     uint32_t origin_kind;
 } EditorNavigationState;
@@ -336,6 +365,7 @@ typedef struct EditorProject {
     EditorSoftAreaId next_soft_area_id;
     EditorSpriteId next_sprite_id;
     EditorAnimatedSpriteId next_animated_sprite_id;
+    EditorCameraId next_camera_id;
     EditorObjectId selected;
 } EditorProject;
 
@@ -446,6 +476,10 @@ EditorAnimatedSprite *editor_project_animated_sprite_add(EditorProject *project,
     EditorObject *object);
 EditorAnimatedSprite *editor_project_animated_sprite_get(EditorObject *object,
     EditorAnimatedSpriteId id);
+EditorCamera *editor_project_camera_add(EditorProject *project,
+    EditorObject *object);
+EditorCamera *editor_project_camera_get(EditorObject *object, EditorCameraId id);
+bool editor_project_camera_remove(EditorObject *object, EditorCameraId id);
 bool editor_project_animated_sprite_remove(EditorObject *object,
     EditorAnimatedSpriteId id);
 bool editor_project_animation_frame_add(EditorProject *project,

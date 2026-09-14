@@ -34,6 +34,7 @@ add_executable(rohr_editor_gui
     src/editors/soft_body/editor_soft_body.c
     src/editors/render/editor_animation_frame.c
     src/editors/render/editor_sprite.c
+    src/editors/render/editor_camera.c
     src/editors/render/editor_animated_sprite.c
     src/editors/object/editor_object.c
     src/editors/object/editor_hierarchy.c

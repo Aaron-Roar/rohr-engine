@@ -1170,6 +1170,33 @@ static int sprite_commands_test(void) {
     return 0;
 }
 
+static int camera_commands_test(void) {
+    EditorProject project;
+    EditorObject *object;
+    EditorCommand command;
+    EditorCommandResult result;
+    editor_project_init(&project);
+    object = editor_project_object_add(&project, (Position){0});
+    if(object == NULL) return 1;
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_CAMERA, .object = object->id}};
+    result = editor_command_execute(&project, &command);
+    if(result.kind != ERROR_RESULT_VALUE || object->camera_count != 1) return 1;
+    EditorCameraId id = result.result.object;
+    command = (EditorCommand){.type = EDITOR_COMMAND_CAMERA_TRANSFORM,
+        .data.camera_transform = {object->id, id, {12.125f, -8.5f}, 0.25f}};
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
+            object->cameras[0].position.x != 12.125f) return 1;
+    command.data.camera_transform.position.x = INFINITY;
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_ERROR) return 1;
+    command = (EditorCommand){.type = EDITOR_COMMAND_CAMERA_DIMENSIONS_SET,
+        .data.camera_dimensions_set = {object->id, id, {1920.0f, 1080.0f}}};
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
+            object->cameras[0].dimensions.x != 1920.0f) return 1;
+    editor_project_destroy(&project);
+    return 0;
+}
+
 int main(void) {
     const char *path = "/tmp/rohr-editor-core-test.json";
     EditorDocument document;
@@ -1261,6 +1288,7 @@ int main(void) {
     RUN_TEST(auto_shape_test);
     RUN_TEST(auto_shape_command_test);
     RUN_TEST(sprite_commands_test);
+    RUN_TEST(camera_commands_test);
 #undef RUN_TEST
 
     editor_document_destroy(&loaded);

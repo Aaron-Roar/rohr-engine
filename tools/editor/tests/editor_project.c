@@ -214,7 +214,18 @@ int main(void) {
                 editor_project_animated_sprite_add(&loaded_project, generated_object);
             EditorSoftBody *generated_soft_body = editor_project_soft_body_add(
                 &loaded_project, generated_object);
+            EditorCamera *generated_camera = editor_project_camera_add(
+                &loaded_project, generated_object);
             if(generated_soft_body != NULL) generated_soft_body->rotation = 0.5f;
+            if(generated_camera != NULL) {
+                generated_camera->position = (Position){2.5f, -3.25f};
+                generated_camera->rotation = 0.125f;
+                generated_camera->dimensions = (Scale){1280.0f, 720.0f};
+                generated_camera->attachment_kind =
+                    EDITOR_CAMERA_ATTACHMENT_RIGID_BODY;
+                generated_camera->attachment = generated_body->id;
+                generated_camera->inherit_orientation = true;
+            }
             EditorSoftNode *generated_node_a = editor_project_soft_node_add(
                 &loaded_project, generated_soft_body, (Position){0.0f, 40.0f});
             EditorSoftNode *generated_node_b = editor_project_soft_node_add(
@@ -272,6 +283,7 @@ int main(void) {
                     generated_node_b == NULL || generated_node_c == NULL ||
                     generated_beam == NULL || generated_beam_b == NULL ||
                     generated_beam_c == NULL || generated_soft_body->area_count != 1 ||
+                    generated_camera == NULL ||
                     generated_sprite == NULL || generated_animation == NULL ||
                     generated_animation->frame_count != 1 ||
                     !editor_project_joint_anchor_set(generated_object,
@@ -308,6 +320,8 @@ int main(void) {
                 !file_contains(path, "rohr_physics_particle_radius_set") ||
                 !file_contains(path, "generated_world_anchor_create") ||
                 !file_contains(path, "rohr_physics_joint_anchor_create") ||
+                !file_contains(path, "rohr_camera_create") ||
+                !file_contains(path, "rohr_camera_attach") ||
                 !file_contains(path, "rohr_physics_joint_spring_set") ||
                 !file_contains(path, "rohr_physics_soft_body_create") ||
                 !file_contains(path, "rohr_physics_soft_body_node_create") ||
@@ -1029,6 +1043,30 @@ int main(void) {
                 dynamic_object->soft_body_items[0].node_count !=
                     EDITOR_SOFT_NODE_MAX + 1) return 1;
         editor_project_destroy(&dynamic_project);
+    }
+
+    {
+        const char *camera_path = "/tmp/rohr_editor_camera_roundtrip.json";
+        EditorProject camera_project, loaded_camera_project;
+        EditorObject *camera_object;
+        EditorCamera *camera;
+        editor_project_init(&camera_project);
+        editor_project_init(&loaded_camera_project);
+        camera_object = editor_project_object_add(&camera_project, (Position){3, 4});
+        camera = editor_project_camera_add(&camera_project, camera_object);
+        if(camera == NULL) return 1;
+        camera->position = (Position){12.123456f, -9.654321f};
+        camera->rotation = 0.75f;
+        camera->dimensions = (Scale){1920, 1080};
+        if(!editor_project_save(&camera_project, camera_path) ||
+                editor_result_check(editor_project_load(&loaded_camera_project,
+                    camera_path)) || loaded_camera_project.object_count != 1 ||
+                loaded_camera_project.objects[0].camera_count != 1 ||
+                loaded_camera_project.objects[0].cameras[0].dimensions.x != 1920)
+            return 1;
+        editor_project_destroy(&camera_project);
+        editor_project_destroy(&loaded_camera_project);
+        (void)remove(camera_path);
     }
 
     editor_project_selection_clear(&project);

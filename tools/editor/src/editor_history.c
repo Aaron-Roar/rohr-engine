@@ -214,6 +214,15 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
     uint32_t parent;
     if(project == NULL || command == NULL) return NULL;
     switch(command->type) {
+        case EDITOR_COMMAND_CAMERA_TRANSFORM:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
+                command->data.camera_transform.object, 0);
+        case EDITOR_COMMAND_CAMERA_DIMENSIONS_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
+                command->data.camera_dimensions_set.object, 0);
+        case EDITOR_COMMAND_CAMERA_ATTACHMENT_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
+                command->data.camera_attachment_set.object, 0);
         case EDITOR_COMMAND_ITEM_RENAME:
             kind = command->data.item_rename.kind;
             object = command->data.item_rename.object;

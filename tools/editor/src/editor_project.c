@@ -163,7 +163,8 @@ void editor_project_init(EditorProject *project) {
         .next_soft_beam_id = 1,
         .next_soft_area_id = 1,
         .next_sprite_id = 1,
-        .next_animated_sprite_id = 1
+        .next_animated_sprite_id = 1,
+        .next_camera_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -517,6 +518,7 @@ void editor_project_object_destroy(EditorObject *object) {
     free(object->soft_body_items);
     free(object->sprites);
     free(object->animated_sprite_items);
+    free(object->cameras);
     free(object->hierarchy);
     *object = (EditorObject){0};
 }
@@ -531,17 +533,20 @@ bool editor_project_object_clone(EditorObject *destination,
     destination->soft_body_items = NULL;
     destination->sprites = NULL;
     destination->animated_sprite_items = NULL;
+    destination->cameras = NULL;
     destination->hierarchy = NULL;
     destination->rigid_body_count = 0;
     destination->soft_body_count = 0;
     destination->sprite_count = 0;
     destination->animated_sprite_count = 0;
+    destination->camera_count = 0;
     destination->rigid_body_capacity = 0;
     destination->joint_capacity = 0;
     destination->anchor_capacity = 0;
     destination->soft_body_capacity = 0;
     destination->sprite_capacity = 0;
     destination->animated_sprite_capacity = 0;
+    destination->camera_capacity = 0;
     destination->hierarchy_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->rigid_bodies,
             destination->rigid_body_capacity, source->rigid_body_count) ||
@@ -556,6 +561,8 @@ bool editor_project_object_clone(EditorObject *destination,
             !EDITOR_ARRAY_RESERVE(destination->animated_sprite_items,
                 destination->animated_sprite_capacity,
                 source->animated_sprite_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->cameras,
+                destination->camera_capacity, source->camera_count) ||
             !EDITOR_ARRAY_RESERVE(destination->hierarchy,
                 destination->hierarchy_capacity, source->hierarchy_count))
         goto fail;
@@ -587,6 +594,9 @@ bool editor_project_object_clone(EditorObject *destination,
     if(source->sprite_count > 0) memcpy(destination->sprites, source->sprites,
         source->sprite_count * sizeof(*source->sprites));
     destination->sprite_count = source->sprite_count;
+    if(source->camera_count > 0) memcpy(destination->cameras, source->cameras,
+        source->camera_count * sizeof(*source->cameras));
+    destination->camera_count = source->camera_count;
     return true;
 fail:
     editor_project_object_destroy(destination);
@@ -601,9 +611,10 @@ bool editor_project_object_copy_set(EditorObject *destination,
     EditorSoftBody *editor_soft_bodies;
     EditorSprite *sprites;
     EditorAnimatedSprite *sprite_items;
+    EditorCamera *cameras;
     EditorHierarchyItem *hierarchy;
     size_t rigid_capacity, joint_capacity, anchor_capacity, soft_capacity,
-        animated_sprite_capacity, sprite_capacity;
+        animated_sprite_capacity, sprite_capacity, camera_capacity;
     size_t hierarchy_capacity, old_rigid_count, old_soft_count,
         old_animated_sprite_count;
     size_t old_rigid_capacity, old_soft_capacity, old_animated_sprite_capacity;
@@ -625,6 +636,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
             !EDITOR_ARRAY_RESERVE(destination->animated_sprite_items,
                 destination->animated_sprite_capacity,
                 source->animated_sprite_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->cameras,
+                destination->camera_capacity, source->camera_count) ||
             !EDITOR_ARRAY_RESERVE(destination->hierarchy,
                 destination->hierarchy_capacity, source->hierarchy_count)) return false;
     if(destination->rigid_body_capacity > old_rigid_capacity)
@@ -645,6 +658,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
     editor_soft_bodies = destination->soft_body_items;
     sprites = destination->sprites;
     sprite_items = destination->animated_sprite_items;
+    cameras = destination->cameras;
     hierarchy = destination->hierarchy;
     rigid_capacity = destination->rigid_body_capacity;
     joint_capacity = destination->joint_capacity;
@@ -652,6 +666,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
     soft_capacity = destination->soft_body_capacity;
     sprite_capacity = destination->sprite_capacity;
     animated_sprite_capacity = destination->animated_sprite_capacity;
+    camera_capacity = destination->camera_capacity;
     hierarchy_capacity = destination->hierarchy_capacity;
     old_rigid_count = destination->rigid_body_count;
     old_soft_count = destination->soft_body_count;
@@ -678,6 +693,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
         source->anchor_count * sizeof(*anchors));
     if(source->sprite_count > 0) memcpy(sprites, source->sprites,
         source->sprite_count * sizeof(*sprites));
+    if(source->camera_count > 0) memcpy(cameras, source->cameras,
+        source->camera_count * sizeof(*cameras));
     if(source->hierarchy_count > 0) memcpy(hierarchy, source->hierarchy,
         source->hierarchy_count * sizeof(*hierarchy));
     *destination = *source;
@@ -687,6 +704,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
     destination->soft_body_items = editor_soft_bodies;
     destination->sprites = sprites;
     destination->animated_sprite_items = sprite_items;
+    destination->cameras = cameras;
     destination->hierarchy = hierarchy;
     destination->rigid_body_capacity = rigid_capacity;
     destination->joint_capacity = joint_capacity;
@@ -694,6 +712,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
     destination->soft_body_capacity = soft_capacity;
     destination->sprite_capacity = sprite_capacity;
     destination->animated_sprite_capacity = animated_sprite_capacity;
+    destination->camera_capacity = camera_capacity;
     destination->hierarchy_capacity = hierarchy_capacity;
     return true;
 }
@@ -890,6 +909,9 @@ static bool editor_project_hierarchy_item_exists(const EditorObject *object,
     } else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE) {
         for(size_t i = 0; i < object->animated_sprite_count; i += 1)
             if(object->animated_sprite_items[i].id == item.id) return true;
+    } else if(item.kind == EDITOR_HIERARCHY_CAMERA) {
+        for(size_t i = 0; i < object->camera_count; i += 1)
+            if(object->cameras[i].id == item.id) return true;
     }
     return false;
 }
@@ -952,6 +974,14 @@ void editor_project_object_hierarchy_sync(EditorObject *object) {
     }
     for(size_t i = 0; i < object->sprite_count; i += 1) {
         EditorHierarchyItem item = {EDITOR_HIERARCHY_SPRITE, object->sprites[i].id};
+        bool found = false;
+        for(size_t j = 0; j < object->hierarchy_count; j += 1)
+            if(object->hierarchy[j].kind == item.kind &&
+                    object->hierarchy[j].id == item.id) found = true;
+        if(!found) editor_project_hierarchy_item_add(object, item.kind, item.id);
+    }
+    for(size_t i = 0; i < object->camera_count; i += 1) {
+        EditorHierarchyItem item = {EDITOR_HIERARCHY_CAMERA, object->cameras[i].id};
         bool found = false;
         for(size_t j = 0; j < object->hierarchy_count; j += 1)
             if(object->hierarchy[j].kind == item.kind &&
@@ -2226,6 +2256,40 @@ bool editor_project_animated_sprite_remove(EditorObject *object,
         object->animated_sprite_count -= 1;
         object->animated_sprite_items[object->animated_sprite_count] =
             (EditorAnimatedSprite){0};
+        editor_project_object_hierarchy_sync(object);
+        return true;
+    }
+    return false;
+}
+
+EditorCamera *editor_project_camera_add(EditorProject *project,
+        EditorObject *object) {
+    EditorCamera *camera;
+    if(project == NULL || object == NULL || object->camera_count >= EDITOR_CAMERA_MAX ||
+            !EDITOR_ARRAY_RESERVE(object->cameras, object->camera_capacity,
+                object->camera_count + 1)) return NULL;
+    camera = &object->cameras[object->camera_count++];
+    *camera = (EditorCamera){.id = project->next_camera_id++,
+        .dimensions = {640.0f, 360.0f}, .visible = true};
+    snprintf(camera->name, sizeof(camera->name), "camera_%u", camera->id);
+    editor_project_hierarchy_item_add(object, EDITOR_HIERARCHY_CAMERA, camera->id);
+    return camera;
+}
+
+EditorCamera *editor_project_camera_get(EditorObject *object, EditorCameraId id) {
+    if(object == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < object->camera_count; i += 1)
+        if(object->cameras[i].id == id) return &object->cameras[i];
+    return NULL;
+}
+
+bool editor_project_camera_remove(EditorObject *object, EditorCameraId id) {
+    if(object == NULL || id == 0) return false;
+    for(size_t i = 0; i < object->camera_count; i += 1) {
+        if(object->cameras[i].id != id) continue;
+        for(size_t j = i + 1; j < object->camera_count; j += 1)
+            object->cameras[j - 1] = object->cameras[j];
+        object->camera_count -= 1;
         editor_project_object_hierarchy_sync(object);
         return true;
     }

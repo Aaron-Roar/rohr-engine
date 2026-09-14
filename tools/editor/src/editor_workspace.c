@@ -714,6 +714,10 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     object->animated_sprite_items[sprite_index].rigid_body) == NULL)
                 fprintf(header, "    Entity animation_%s;\n",
                     object->animated_sprite_items[sprite_index].name);
+        for(size_t camera_index = 0; camera_index < object->camera_count;
+                camera_index += 1)
+            fprintf(header, "    CameraId camera_%s;\n",
+                object->cameras[camera_index].name);
         fprintf(header,
             "} %s;\n\n"
             "EngineResult %s_create(%s *object, Position position);\n"
@@ -1069,6 +1073,60 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body->name, node->name, node->color);
             }
         }
+        for(size_t camera_index = 0; camera_index < object->camera_count;
+                camera_index += 1) {
+            const EditorCamera *camera = &object->cameras[camera_index];
+            const char *target_name = NULL;
+            char target[EDITOR_OBJECT_NAME_MAX + 16];
+            if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY) {
+                const EditorRigidBody *body = editor_workspace_body_get(object,
+                    camera->attachment);
+                if(body != NULL) target_name = body->name;
+            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY) {
+                for(size_t i = 0; i < object->soft_body_count; i += 1)
+                    if(object->soft_body_items[i].id == camera->attachment)
+                        target_name = object->soft_body_items[i].name;
+            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
+                for(size_t i = 0; i < object->soft_body_count; i += 1)
+                    if(object->soft_body_items[i].id == camera->attachment_soft_body)
+                        for(size_t n = 0; n < object->soft_body_items[i].node_count; n += 1)
+                            if(object->soft_body_items[i].nodes[n].id == camera->attachment)
+                                target_name = object->soft_body_items[i].nodes[n].name;
+            } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) {
+                const EditorAnchor *anchor = editor_project_anchor_get(
+                    (EditorObject *)object, camera->attachment);
+                if(anchor != NULL && editor_workspace_body_get(object,
+                        anchor->rigid_body) == NULL)
+                    snprintf(target, sizeof(target), "anchor_%s_owner", anchor->name);
+                else if(anchor != NULL) {
+                    const EditorRigidBody *body = editor_workspace_body_get(object,
+                        anchor->rigid_body);
+                    if(body != NULL) target_name = body->name;
+                }
+            }
+            if(target_name != NULL)
+                snprintf(target, sizeof(target), "%s", target_name);
+            fprintf(source,
+                "    { CameraIdResult created = rohr_camera_create((CameraConfig){"
+                ".position = (Position){%s%#.9gf, %s%#.9gf}, "
+                ".orientation = %#.9gf, .dimensions = {%#.9gf, %#.9gf}, .zoom = 1.0f});\n"
+                "      if(rohr_error_check(created)) { result = rohr_error_result_error("
+                "created.result.error); goto fail; }\n"
+                "      object->camera_%s = created.result.value;\n",
+                camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE ?
+                    "position.x + " : "", camera->position.x,
+                camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE ?
+                    "position.y + " : "", camera->position.y,
+                camera->rotation, camera->dimensions.x, camera->dimensions.y,
+                camera->name);
+            if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) fprintf(source,
+                "      result = rohr_camera_attach(object->camera_%s, object->%s, "
+                "(Vec2D){%#.9gf, %#.9gf}, %#.9gf, true, %s);\n"
+                "      if(rohr_error_check(result)) goto fail;\n",
+                camera->name, target, camera->position.x, camera->position.y,
+                camera->rotation, camera->inherit_orientation ? "true" : "false");
+            fprintf(source, "    }\n");
+        }
         fprintf(source,
             "    return rohr_error_result_value(true);\n"
             "fail:\n"
@@ -1109,6 +1167,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "(void)rohr_entity_delete(object->joint_%s);\n",
                 joint->name, joint->name);
         }
+        for(size_t camera_index = 0; camera_index < object->camera_count;
+                camera_index += 1)
+            fprintf(source,
+                "    if(object->camera_%s != CAMERA_INVALID) "
+                "(void)rohr_camera_destroy(object->camera_%s);\n",
+                object->cameras[camera_index].name,
+                object->cameras[camera_index].name);
         for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
                 soft_body_index += 1) {
             const EditorSoftBody *body = &object->soft_body_items[soft_body_index];

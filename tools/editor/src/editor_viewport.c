@@ -39,6 +39,9 @@ static size_t editor_animation_preview_capacity;
 static Tick editor_animation_preview_tick;
 static Time editor_animation_preview_time;
 
+static Position editor_camera_world_get(const EditorObject *object,
+    const EditorCamera *camera, Orientation *rotation);
+
 static size_t editor_animation_preview_frame_get(const EditorObject *object,
         const EditorAnimatedSprite *animation) {
     EditorAnimationPreview *preview = NULL;
@@ -789,6 +792,9 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
             selection->parent = state->selected_animated_sprite;
             selection->item = state->selected_animation_frame;
             return selection->parent != 0 && selection->item != 0;
+        case EDITOR_SELECTION_CAMERA:
+            selection->item = state->selected_camera_entity;
+            return selection->item != 0;
         case EDITOR_SELECTION_ORIGIN:
             selection->parent = state->selected_origin_kind;
             selection->item = state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY ?
@@ -863,6 +869,9 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
         case EDITOR_SELECTION_ANIMATION_FRAME:
             state->selected_animated_sprite = selection.parent;
             state->selected_animation_frame = selection.item;
+            break;
+        case EDITOR_SELECTION_CAMERA:
+            state->selected_camera_entity = selection.item;
             break;
         case EDITOR_SELECTION_ORIGIN:
             state->selected_origin_kind = (EditorOriginKind)selection.parent;
@@ -1133,6 +1142,18 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
                     object->id, 0, 0, animation->id});
+    }
+    for(size_t i = 0; i < object->camera_count; i += 1) {
+        const EditorCamera *camera = &object->cameras[i];
+        Position world = editor_camera_world_get(object, camera, NULL);
+        EditorMarqueeBounds bounds = {world.x - camera->dimensions.x * 0.5f,
+            world.x + camera->dimensions.x * 0.5f,
+            world.y - camera->dimensions.y * 0.5f,
+            world.y + camera->dimensions.y * 0.5f, true};
+        if(camera->visible && editor_marquee_bounds_overlap(marquee, bounds))
+            (void)editor_marquee_selection_add(state,
+                (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
+                    object->id, 0, 0, camera->id});
     }
 }
 
@@ -1845,6 +1866,12 @@ static bool editor_group_point_get(EditorProject *project,
         *point = object->position;
         return true;
     }
+    if(ref.kind == EDITOR_SELECTION_CAMERA) {
+        EditorCamera *camera = editor_project_camera_get(object, ref.item);
+        if(camera == NULL) return false;
+        *point = editor_camera_world_get(object, camera, NULL);
+        return true;
+    }
     if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
             ref.kind == EDITOR_SELECTION_PARTICLE) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
@@ -1871,6 +1898,12 @@ static bool editor_group_point_get(EditorProject *project,
             ref.item);
         if(sprite == NULL) return false;
         *point = editor_animated_sprite_world_get(object, sprite, NULL);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_CAMERA) {
+        EditorCamera *camera = editor_project_camera_get(object, ref.item);
+        if(camera == NULL) return false;
+        *point = editor_camera_world_get(object, camera, NULL);
         return true;
     }
     if(ref.kind == EDITOR_SELECTION_ANCHOR) {
@@ -1955,6 +1988,13 @@ static bool editor_group_rotation_control_get(EditorProject *project,
         *handle = editor_sprite_rotation_handle_get(*center, *rotation);
         return true;
     }
+    if(ref.kind == EDITOR_SELECTION_CAMERA) {
+        EditorCamera *camera = editor_project_camera_get(object, ref.item);
+        if(camera == NULL || !camera->visible) return false;
+        *center = editor_camera_world_get(object, camera, rotation);
+        *handle = editor_sprite_rotation_handle_get(*center, *rotation);
+        return true;
+    }
     return false;
 }
 
@@ -2015,6 +2055,13 @@ static bool editor_group_point_hit(EditorProject *project,
                         frame->size.x * animation->scale.x * 0.5f &&
                     fabsf(pointer.y - point.y) <=
                         frame->size.y * animation->scale.y * 0.5f) return true;
+        } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
+            EditorCamera *camera = editor_project_camera_get(object, ref.item);
+            Orientation rotation;
+            if(camera != NULL && camera->visible &&
+                    editor_sprite_point_contains(editor_camera_world_get(object,
+                        camera, &rotation), camera->dimensions, rotation, pointer))
+                return true;
         } else if(editor_group_point_get(project, ref, &point) &&
                 hypotf(pointer.x - point.x, pointer.y - point.y) <= tolerance) {
             return true;
@@ -2227,6 +2274,15 @@ static bool editor_group_transform_apply(EditorProject *project,
                 changed = editor_command_execute(project, &rotate).kind ==
                     ERROR_RESULT_VALUE || changed;
             }
+        } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
+            EditorCamera *camera = editor_project_camera_get(object, ref.item);
+            if(camera == NULL) continue;
+            Position local = camera->position;
+            local.x += desired.x - world.x;
+            local.y += desired.y - world.y;
+            command = (EditorCommand){.type = EDITOR_COMMAND_CAMERA_TRANSFORM,
+                .data.camera_transform = {object->id, camera->id, local,
+                    camera->rotation + angle}};
         } else if(ref.kind == EDITOR_SELECTION_ANCHOR) {
             EditorAnchor *anchor = editor_project_anchor_get(object, ref.item);
             EditorRigidBody *body = anchor == NULL ? NULL :
@@ -2274,6 +2330,7 @@ bool editor_viewport_transform_active_check(const EditorViewportState *state) {
         state->rotated_body || state->dragged_anchor ||
         state->dragged_soft_node || state->dragged_soft_body ||
         state->dragged_sprite || state->dragged_animated_sprite ||
+        state->dragged_camera_entity || state->rotated_camera_entity ||
         state->rotated_sprite || state->rotated_animated_sprite ||
         state->rotated_soft_body || state->dragged_origin ||
         state->group_dragging || state->group_rotating;
@@ -2292,6 +2349,8 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->rotated_sprite = false;
     state->rotated_animated_sprite = false;
     state->rotated_soft_body = false;
+    state->dragged_camera_entity = false;
+    state->rotated_camera_entity = false;
     state->dragged_origin = false;
     state->group_dragging = false;
     state->group_rotating = false;
@@ -2439,6 +2498,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_animated_sprite = true;
+            } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
+                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
+                        12.0f / editor_view_scale) continue;
+                (void)editor_viewport_selection_primary_set(project, state, ref);
+                state->rotated_camera_entity = true;
             } else continue;
             state->rotation_pointer_offset = rotation -
                 atan2f(pointer.y - center.y, pointer.x - center.x);
@@ -2484,6 +2548,43 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     body = editor_selected_body_get(object, state);
     hitbox = editor_selected_hitbox_get(object, state);
+    if(state->dragged_camera_entity && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
+            primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
+        EditorCamera *camera = editor_project_camera_get(object,
+            state->selected_camera_entity);
+        if(camera != NULL) {
+            Position desired = {pointer.x - state->drag_offset.x - object->position.x,
+                pointer.y - state->drag_offset.y - object->position.y};
+            EditorCommand command = {.type = EDITOR_COMMAND_CAMERA_TRANSFORM,
+                .data.camera_transform = {object->id, camera->id, desired,
+                    camera->rotation}};
+            (void)editor_command_execute(project, &command);
+        }
+        return true;
+    }
+    if(state->rotated_camera_entity && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
+            primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
+        EditorCamera *camera = editor_project_camera_get(object,
+            state->selected_camera_entity);
+        if(camera != NULL) {
+            Position center = editor_camera_world_get(object, camera, NULL);
+            Orientation rotation = atan2f(pointer.y - center.y,
+                pointer.x - center.x) + state->rotation_pointer_offset;
+            if(state->selected_item_count >= 2) {
+                float delta = rotation - camera->rotation;
+                while(delta > 3.14159265359f) delta -= 6.28318530718f;
+                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                if(delta != 0.0f) (void)editor_group_transform_apply(project,
+                    state, (Vec2D){0}, delta, false);
+                return true;
+            }
+            EditorCommand command = {.type = EDITOR_COMMAND_CAMERA_TRANSFORM,
+                .data.camera_transform = {object->id, camera->id,
+                    camera->position, rotation}};
+            (void)editor_command_execute(project, &command);
+        }
+        return true;
+    }
     if(state->dragged_sprite && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
         EditorSprite *sprite = editor_project_sprite_get(object,
@@ -2906,7 +3007,45 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
+    if(object->visible && state->mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
+        EditorCamera *camera = editor_project_camera_get(object,
+            state->selected_camera_entity);
+        if(camera != NULL && camera->visible) {
+            Orientation rotation;
+            Position center = editor_camera_world_get(object, camera, &rotation);
+            Position handle = editor_sprite_rotation_handle_get(center, rotation);
+            if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
+                    12.0f / editor_view_scale) {
+                state->rotated_camera_entity = true;
+                state->rotation_pointer_offset = rotation -
+                    atan2f(pointer.y - center.y, pointer.x - center.x);
+                return true;
+            }
+        }
+    }
+
     if(object->visible) {
+        for(size_t i = object->camera_count; i > 0; i -= 1) {
+            EditorCamera *camera = &object->cameras[i - 1];
+            Orientation rotation;
+            Position world;
+            EditorSelectionRef selection;
+            if(!camera->visible) continue;
+            world = editor_camera_world_get(object, camera, &rotation);
+            if(!editor_sprite_point_contains(world, camera->dimensions,
+                    rotation, pointer)) continue;
+            selection = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
+                object->id, 0, 0, camera->id};
+            (void)editor_viewport_selection_set(project, state, selection,
+                state->selection_modifier);
+            if(state->selection_modifier) return true;
+            state->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
+            state->selection = EDITOR_SELECTION_CAMERA;
+            state->selected_camera_entity = camera->id;
+            state->dragged_camera_entity = true;
+            state->drag_offset = (Vec2D){pointer.x - world.x, pointer.y - world.y};
+            return true;
+        }
         for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
             EditorAnimatedSprite *animation = &object->animated_sprite_items[i - 1];
             size_t preview_frame = animation->frame_count == 0 ? 0 :
@@ -3421,6 +3560,110 @@ static void editor_sprite_outline_draw(Position center, Scale size,
         editor_line_draw(corners[i], corners[(i + 1) % 4], color);
 }
 
+static Position editor_camera_world_get(const EditorObject *object,
+        const EditorCamera *camera, Orientation *rotation) {
+    Position base = object->position;
+    Orientation inherited = 0.0f;
+    if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY) {
+        const EditorRigidBody *body = editor_project_rigid_body_get(
+            (EditorObject *)object, camera->attachment);
+        if(body != NULL) { base.x += body->position.x; base.y += body->position.y;
+            inherited = body->rotation; }
+    } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY) {
+        for(size_t i = 0; i < object->soft_body_count; i += 1)
+            if(object->soft_body_items[i].id == camera->attachment) {
+                base.x += object->soft_body_items[i].position.x;
+                base.y += object->soft_body_items[i].position.y;
+                inherited = object->soft_body_items[i].rotation;
+            }
+    } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
+        for(size_t i = 0; i < object->soft_body_count; i += 1) {
+            const EditorSoftBody *body = &object->soft_body_items[i];
+            if(body->id != camera->attachment_soft_body) continue;
+            for(size_t n = 0; n < body->node_count; n += 1)
+                if(body->nodes[n].id == camera->attachment) {
+                    base = editor_soft_node_world_get(object, body, &body->nodes[n]);
+                    inherited = body->rotation;
+                }
+        }
+    } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) {
+        const EditorAnchor *anchor = editor_project_anchor_get(
+            (EditorObject *)object, camera->attachment);
+        if(anchor != NULL) { base = editor_anchor_world_get(object, anchor);
+            inherited = anchor->rotation; }
+    }
+    Position offset = camera->position;
+    if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) {
+        float cosine = cosf(inherited), sine = sinf(inherited);
+        offset = (Position){offset.x * cosine - offset.y * sine,
+            offset.x * sine + offset.y * cosine};
+    }
+    if(rotation != NULL) *rotation = camera->rotation +
+        (camera->inherit_orientation ? inherited : 0.0f);
+    return (Position){base.x + offset.x, base.y + offset.y};
+}
+
+static void editor_dashed_line_draw(Position a, Position b, Color color) {
+    float length = hypotf(b.x - a.x, b.y - a.y);
+    size_t pieces = (size_t)(length / 12.0f) + 1;
+    for(size_t i = 0; i < pieces; i += 2) {
+        float first = (float)i / (float)pieces;
+        float second = (float)(i + 1) / (float)pieces;
+        if(second > 1.0f) second = 1.0f;
+        editor_line_draw((Position){a.x + (b.x - a.x) * first,
+            a.y + (b.y - a.y) * first},
+            (Position){a.x + (b.x - a.x) * second,
+            a.y + (b.y - a.y) * second}, color);
+    }
+}
+
+static void editor_camera_icon_draw(Position center, Color color) {
+    Position screen = editor_view_world_to_screen(center);
+    /* The touching body and lens form one upright, fixed-size silhouette. */
+    (void)rohr_graphics_screen_rect_draw(screen.x - 11.0f, screen.y - 6.0f,
+        17.0f, 12.0f, color);
+    (void)rohr_graphics_screen_rect_draw(screen.x + 6.0f, screen.y - 4.0f,
+        6.0f, 8.0f, color);
+}
+
+static void editor_viewport_cameras_draw(const EditorObject *object,
+        const EditorViewportState *state) {
+    for(size_t c = 0; c < object->camera_count; c += 1) {
+        const EditorCamera *camera = &object->cameras[c];
+        Orientation rotation;
+        Position center, corners[4];
+        bool selected;
+        Color color;
+        if(!camera->visible) continue;
+        center = editor_camera_world_get(object, camera, &rotation);
+        corners[0] = (Position){-camera->dimensions.x * .5f, -camera->dimensions.y * .5f};
+        corners[1] = (Position){camera->dimensions.x * .5f, -camera->dimensions.y * .5f};
+        corners[2] = (Position){camera->dimensions.x * .5f, camera->dimensions.y * .5f};
+        corners[3] = (Position){-camera->dimensions.x * .5f, camera->dimensions.y * .5f};
+        for(size_t i = 0; i < 4; i += 1) {
+            float x = corners[i].x, y = corners[i].y;
+            corners[i] = (Position){center.x + x * cosf(rotation) - y * sinf(rotation),
+                center.y + x * sinf(rotation) + y * cosf(rotation)};
+        }
+        selected = (state->selection == EDITOR_SELECTION_CAMERA &&
+            state->selected_camera_entity == camera->id) ||
+            editor_viewport_path_selected(state, EDITOR_SELECTION_CAMERA,
+                object->id, 0, 0, camera->id);
+        color = selected ? (Color){255, 215, 70, 255} :
+            (Color){90, 210, 235, 255};
+        for(size_t i = 0; i < 4; i += 1)
+            editor_dashed_line_draw(corners[i], corners[(i + 1) % 4], color);
+        editor_dashed_line_draw(corners[0], corners[2], color);
+        editor_dashed_line_draw(corners[1], corners[3], color);
+        editor_camera_icon_draw(center, color);
+        if(selected) {
+            Position handle = editor_sprite_rotation_handle_get(center, rotation);
+            editor_line_draw(center, handle, color);
+            editor_circle_draw(handle, 10.0f / editor_view_scale, color);
+        }
+    }
+}
+
 static void editor_viewport_sprites_draw(const EditorObject *object,
         const EditorViewportState *state, bool object_highlighted) {
     rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_SPRITE);
@@ -3512,6 +3755,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             object->id, 0, 0, object->id);
 
     editor_viewport_sprites_draw(object, state, object_highlighted);
+    editor_viewport_cameras_draw(object, state);
 
     rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
