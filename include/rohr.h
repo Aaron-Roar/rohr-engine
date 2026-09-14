@@ -1074,7 +1074,16 @@ EngineResult rohr_physics_joint_spring_set(
     float damping
 );
 
-/** @brief Creates an empty soft-body owner entity. @return EntityResult containing the owner. */
+/**
+ * @brief Creates an empty soft body and its origin transform.
+ *
+ * The returned owner entity is also the body's origin and may be passed to
+ * rohr_physics_position_set and rohr_physics_orientation_set. Changing that
+ * transform translates or rotates all existing nodes without changing their
+ * topology. SoftBody.origin exposes the same entity for attachment APIs.
+ *
+ * @return EntityResult containing the owner/origin entity.
+ */
 EntityResult rohr_physics_soft_body_create(void);
 /** @brief Returns soft-body topology. @param soft_body Soft-body owner. @return SoftBodyResult. */
 SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
@@ -1087,8 +1096,16 @@ SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
  * @return EntityResult containing the node entity.
  */
 EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius);
+/** Creates a node from a position relative to the soft-body origin. */
+EntityResult rohr_physics_soft_body_node_local_create(
+    Entity soft_body, Position local_position, Mass mass_value, float radius);
 /** @brief Returns soft-body node data. @param node Node entity. @return SoftBodyNodeResult. */
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node);
+/** Returns a node position relative to its soft-body origin. */
+PositionResult rohr_physics_soft_body_node_local_position_get(Entity node);
+/** Sets a node position relative to its soft-body origin. */
+EngineResult rohr_physics_soft_body_node_local_position_set(
+    Entity node, Position local_position);
 /**
  * @brief Sets node-versus-rigid collision filtering.
  * @param node Node entity.

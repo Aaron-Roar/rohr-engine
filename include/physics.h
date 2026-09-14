@@ -346,6 +346,8 @@ typedef struct Joint {
 
 /** Entity-owned collection of soft-body topology entities. */
 typedef struct SoftBody {
+    /** Transform entity used as the body's translation and rotation origin. */
+    Entity origin;
     Entity nodes[SOFT_BODY_MAX_NODES];
     Entity beams[SOFT_BODY_MAX_BEAMS];
     Entity triangles[SOFT_BODY_MAX_TRIANGLES];
@@ -758,7 +760,16 @@ EntityResult physics_soft_body_node_create(
     Mass mass_value,
     float radius
 );
+EntityResult physics_soft_body_node_local_create(
+    Entity soft_body,
+    Position local_position,
+    Mass mass_value,
+    float radius
+);
 SoftBodyNodeResult physics_soft_body_node_get(Entity node);
+PositionResult physics_soft_body_node_local_position_get(Entity node);
+EngineResult physics_soft_body_node_local_position_set(
+    Entity node, Position local_position);
 EngineResult physics_soft_body_node_collision_filter_set(
     Entity node,
     RohrCollisionCategoryMask category,

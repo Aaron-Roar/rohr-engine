@@ -131,6 +131,10 @@ EngineResult physics_position_set(Entity entity, Position position) {
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(!physics_world_position_check(position))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        result = physics_soft_body_origin_position_set(index, position);
+        if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
     (void)PositionPool_store_at(&positions_pool, index, position);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Position: {x: %f, y: %f}\n",
         entity, position.x, position.y);
@@ -154,6 +158,10 @@ EngineResult physics_orientation_set(Entity entity, Orientation orientation) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        result = physics_soft_body_origin_orientation_set(index, orientation);
+        if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
     (void)OrientationPool_store_at(&orientations_pool, index, orientation);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Orientation: %f\n",
         entity, orientation);

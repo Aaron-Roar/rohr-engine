@@ -30,6 +30,10 @@ void physics_force_state_init(void);
 void physics_joint_state_init(void);
 void physics_joint_entity_clear(Entity entity, EntityIndex index);
 void physics_soft_body_entity_clear(Entity entity, EntityIndex index);
+EngineResult physics_soft_body_origin_position_set(
+    EntityIndex body_index, Position position);
+EngineResult physics_soft_body_origin_orientation_set(
+    EntityIndex body_index, Orientation orientation);
 EngineResult physics_interaction_state_init(void);
 void physics_interaction_state_destroy(void);
 void physics_config_init(void);

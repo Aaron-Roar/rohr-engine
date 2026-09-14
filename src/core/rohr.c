@@ -266,7 +266,10 @@ EngineResult rohr_physics_joint_spring_set(Entity joint, JointAnchorId anchor_a,
 EntityResult rohr_physics_soft_body_create(void) { return physics_soft_body_create(); }
 SoftBodyResult rohr_physics_soft_body_get(Entity soft_body) { return physics_soft_body_get(soft_body); }
 EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius) { return physics_soft_body_node_create(soft_body, position, mass_value, radius); }
+EntityResult rohr_physics_soft_body_node_local_create(Entity soft_body, Position local_position, Mass mass_value, float radius) { return physics_soft_body_node_local_create(soft_body, local_position, mass_value, radius); }
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics_soft_body_node_get(node); }
+PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }
+EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
 EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
 EngineResult rohr_physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force) { return physics_soft_body_node_force_for_one_tick_apply(node, force); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }

@@ -4,6 +4,8 @@
 
 #include "rohr.h"
 
+#include <math.h>
+
 int main(void) {
     EntityResult body;
     EntityResult node_a;
@@ -35,6 +37,28 @@ int main(void) {
     node_b = rohr_physics_soft_body_node_create(body.result.value, (Position){10.0f, 0.0f}, 1.0f, 2.0f);
     node_c = rohr_physics_soft_body_node_create(body.result.value, (Position){0.0f, 15.0f}, 1.0f, 2.0f);
     if(rohr_error_check(node_a) || rohr_error_check(node_b) || rohr_error_check(node_c)) goto fail;
+    {
+        SoftBodyResult topology = rohr_physics_soft_body_get(body.result.value);
+        PositionResult position;
+        EntityIndexResult body_index;
+        if(rohr_error_check(topology) ||
+                topology.result.value.origin != body.result.value ||
+                rohr_error_check(rohr_physics_position_set(
+                    body.result.value, (Position){5.0f, 5.0f})) ||
+                rohr_error_check(rohr_physics_orientation_set(
+                    body.result.value, 1.57079632679f))) goto fail;
+        position = rohr_physics_position_get(node_a.result.value);
+        body_index = rohr_entity_index_get(body.result.value);
+        if(rohr_error_check(position) || rohr_error_check(body_index) ||
+                fabsf(position.result.value.x - 5.0f) > 0.0001f ||
+                fabsf(position.result.value.y + 5.0f) > 0.0001f ||
+                fabsf(orientations[body_index.result.value] -
+                    1.57079632679f) > 0.0001f ||
+                rohr_error_check(rohr_physics_orientation_set(
+                    body.result.value, 0.0f)) ||
+                rohr_error_check(rohr_physics_position_set(
+                    body.result.value, (Position){0}))) goto fail;
+    }
     {
         CollisionFilterConfigResult filter =
             rohr_physics_collision_filter_get(node_a.result.value);
@@ -209,6 +233,34 @@ int main(void) {
                 object_position.result.value.y >= -1.25f ||
                 velocities[object_index.result.value].x <= 0.0f ||
                 angular_velocities[object_index.result.value] >= 4.0f) goto fail;
+    }
+    {
+        EntityResult local_body = rohr_physics_soft_body_create();
+        EntityResult local_node;
+        PositionResult world_position;
+        PositionResult local_position;
+        if(rohr_error_check(local_body) ||
+                rohr_error_check(rohr_physics_position_set(
+                    local_body.result.value, (Position){10.0f, 20.0f})) ||
+                rohr_error_check(rohr_physics_orientation_set(
+                    local_body.result.value, 1.57079632679f))) goto fail;
+        local_node = rohr_physics_soft_body_node_local_create(
+            local_body.result.value, (Position){5.0f, 0.0f}, 1.0f, 2.0f);
+        if(rohr_error_check(local_node)) goto fail;
+        world_position = rohr_physics_position_get(local_node.result.value);
+        local_position = rohr_physics_soft_body_node_local_position_get(
+            local_node.result.value);
+        if(rohr_error_check(world_position) || rohr_error_check(local_position) ||
+                fabsf(world_position.result.value.x - 10.0f) > 0.0001f ||
+                fabsf(world_position.result.value.y - 25.0f) > 0.0001f ||
+                fabsf(local_position.result.value.x - 5.0f) > 0.0001f ||
+                fabsf(local_position.result.value.y) > 0.0001f ||
+                rohr_error_check(rohr_physics_soft_body_node_local_position_set(
+                    local_node.result.value, (Position){0.0f, 5.0f}))) goto fail;
+        world_position = rohr_physics_position_get(local_node.result.value);
+        if(rohr_error_check(world_position) ||
+                fabsf(world_position.result.value.x - 5.0f) > 0.0001f ||
+                fabsf(world_position.result.value.y - 20.0f) > 0.0001f) goto fail;
     }
     rohr_engine_shutdown();
     return 0;

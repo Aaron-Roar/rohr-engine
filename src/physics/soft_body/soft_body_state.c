@@ -5,6 +5,11 @@
 #include "physics.h"
 
 #include "physics/physics_internal.h"
+#include "math2d.h"
+
+static Vec2D physics_soft_body_vector_add(Vec2D first, Vec2D second) {
+    return (Vec2D){first.x + second.x, first.y + second.y};
+}
 
 static void physics_soft_body_entity_list_remove(
         Entity *values, uint32_t *count, Entity entity) {
@@ -16,6 +21,75 @@ static void physics_soft_body_entity_list_remove(
         *count -= 1;
         return;
     }
+}
+
+EngineResult physics_soft_body_origin_position_set(
+        EntityIndex body_index, Position position) {
+    Vec2D translation;
+    SoftBody *body;
+    if(body_index >= soft_bodies_pool.capacity ||
+            !soft_bodies_pool.used[body_index] ||
+            !positions_pool.used[body_index]) return error_result_value(true);
+    body = &soft_bodies[body_index];
+    translation = math_vector_subtract(position, positions[body_index]);
+    for(uint32_t i = 0; i < body->node_count; i += 1) {
+        EntityIndex node_index;
+        Position moved;
+        if(!entity_index_get(body->nodes[i], &node_index) ||
+                !positions_pool.used[node_index]) continue;
+        moved = physics_soft_body_vector_add(positions[node_index], translation);
+        if(!physics_world_position_check(moved))
+            return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    }
+    for(uint32_t i = 0; i < body->node_count; i += 1) {
+        EntityIndex node_index;
+        if(!entity_index_get(body->nodes[i], &node_index) ||
+                !positions_pool.used[node_index]) continue;
+        positions[node_index] = physics_soft_body_vector_add(
+            positions[node_index], translation);
+    }
+    return error_result_value(true);
+}
+
+EngineResult physics_soft_body_origin_orientation_set(
+        EntityIndex body_index, Orientation orientation) {
+    Orientation prior;
+    Orientation delta;
+    SoftBody *body;
+    if(body_index >= soft_bodies_pool.capacity ||
+            !soft_bodies_pool.used[body_index] ||
+            !positions_pool.used[body_index] ||
+            !orientations_pool.used[body_index]) return error_result_value(true);
+    body = &soft_bodies[body_index];
+    prior = orientations[body_index];
+    delta = orientation - prior;
+    for(uint32_t i = 0; i < body->node_count; i += 1) {
+        EntityIndex node_index;
+        Vec2D offset;
+        Position rotated;
+        if(!entity_index_get(body->nodes[i], &node_index) ||
+                !positions_pool.used[node_index]) continue;
+        offset = math_vector_subtract(positions[node_index], positions[body_index]);
+        offset = math_vector_rotate(offset, delta);
+        rotated = physics_soft_body_vector_add(positions[body_index], offset);
+        if(!physics_world_position_check(rotated))
+            return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    }
+    for(uint32_t i = 0; i < body->node_count; i += 1) {
+        EntityIndex node_index;
+        Vec2D offset;
+        if(!entity_index_get(body->nodes[i], &node_index) ||
+                !positions_pool.used[node_index]) continue;
+        offset = math_vector_subtract(positions[node_index], positions[body_index]);
+        positions[node_index] = physics_soft_body_vector_add(positions[body_index],
+            math_vector_rotate(offset, delta));
+        if(velocities_pool.used[node_index])
+            velocities[node_index] = math_vector_rotate(velocities[node_index], delta);
+        if(accelerations_pool.used[node_index])
+            accelerations[node_index] =
+                math_vector_rotate(accelerations[node_index], delta);
+    }
+    return error_result_value(true);
 }
 
 void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
@@ -111,7 +185,13 @@ EntityResult physics_soft_body_create(void) {
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(!entity_index_get(result.result.value, &index) ||
-            SoftBodyPool_store_at(&soft_bodies_pool, index, (SoftBody){0}).kind == ERROR_RESULT_ERROR) {
+            physics_position_set(result.result.value, (Position){0}).kind ==
+                ERROR_RESULT_ERROR ||
+            physics_orientation_set(result.result.value, 0.0f).kind ==
+                ERROR_RESULT_ERROR ||
+            SoftBodyPool_store_at(&soft_bodies_pool, index,
+                (SoftBody){.origin = result.result.value}).kind ==
+                ERROR_RESULT_ERROR) {
         (void)entity_delete(result.result.value);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
@@ -176,6 +256,24 @@ EntityResult physics_soft_body_node_create(Entity soft_body, Position position,
     return node;
 }
 
+EntityResult physics_soft_body_node_local_create(Entity soft_body,
+        Position local_position, Mass node_mass, float radius) {
+    EntityIndex body_index;
+    EngineResult result = physics_live_index_get(soft_body, &body_index);
+    Position world_position;
+    if(result.kind == ERROR_RESULT_ERROR ||
+            !entity_index_components_check(body_index, ROHR_SOFT_BODY) ||
+            !soft_bodies_pool.used[body_index] ||
+            !positions_pool.used[body_index] ||
+            !orientations_pool.used[body_index])
+        return ERROR_RESULT_MAKE_ERROR(EntityResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    world_position = physics_soft_body_vector_add(positions[body_index],
+        math_vector_rotate(local_position, orientations[body_index]));
+    return physics_soft_body_node_create(
+        soft_body, world_position, node_mass, radius);
+}
+
 SoftBodyNodeResult physics_soft_body_node_get(Entity node) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(node, &index);
@@ -185,6 +283,44 @@ SoftBodyNodeResult physics_soft_body_node_get(Entity node) {
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeResult, ERROR_ENGINE_COMPONENT_MISSING);
     }
     return ERROR_RESULT_MAKE_VALUE(SoftBodyNodeResult, soft_body_nodes[index]);
+}
+
+PositionResult physics_soft_body_node_local_position_get(Entity node) {
+    EntityIndex node_index;
+    EntityIndex body_index;
+    EngineResult result = physics_live_index_get(node, &node_index);
+    Vec2D offset;
+    if(result.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(PositionResult, result.result.error);
+    if(!entity_index_components_check(node_index, ROHR_SOFT_BODY_NODE) ||
+            !soft_body_nodes_pool.used[node_index] ||
+            !positions_pool.used[node_index] ||
+            !entity_index_get(soft_body_nodes[node_index].soft_body, &body_index) ||
+            !positions_pool.used[body_index] ||
+            !orientations_pool.used[body_index])
+        return ERROR_RESULT_MAKE_ERROR(PositionResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    offset = math_vector_subtract(positions[node_index], positions[body_index]);
+    return ERROR_RESULT_MAKE_VALUE(PositionResult,
+        math_vector_rotate(offset, -orientations[body_index]));
+}
+
+EngineResult physics_soft_body_node_local_position_set(
+        Entity node, Position local_position) {
+    EntityIndex node_index;
+    EntityIndex body_index;
+    EngineResult result = physics_live_index_get(node, &node_index);
+    Position world_position;
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!entity_index_components_check(node_index, ROHR_SOFT_BODY_NODE) ||
+            !soft_body_nodes_pool.used[node_index] ||
+            !entity_index_get(soft_body_nodes[node_index].soft_body, &body_index) ||
+            !positions_pool.used[body_index] ||
+            !orientations_pool.used[body_index])
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    world_position = physics_soft_body_vector_add(positions[body_index],
+        math_vector_rotate(local_position, orientations[body_index]));
+    return physics_position_set(node, world_position);
 }
 
 EngineResult physics_soft_body_node_collision_filter_set(Entity node,
@@ -441,4 +577,3 @@ SoftBodyTriangleResult physics_soft_body_triangle_get(Entity triangle) {
     }
     return ERROR_RESULT_MAKE_VALUE(SoftBodyTriangleResult, soft_body_triangles[index]);
 }
-
