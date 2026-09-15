@@ -349,15 +349,6 @@ typedef enum EditorViewportUiKind {
     EDITOR_VIEWPORT_UI_TEXT
 } EditorViewportUiKind;
 
-typedef struct EditorViewportUiShape {
-    Position vertices[EDITOR_HITBOX_VERTEX_MAX];
-    size_t vertex_count;
-    uint32_t outline_color;
-    uint32_t fill_color;
-    bool button_enabled;
-    char text[UI_LABEL_MAX];
-} EditorViewportUiShape;
-
 typedef struct EditorViewportUiText {
     char text[UI_LABEL_MAX];
     EditorUiFontId font;
@@ -367,6 +358,15 @@ typedef struct EditorViewportUiText {
     float width_scale;
     float height_scale;
 } EditorViewportUiText;
+
+typedef struct EditorViewportUiShape {
+    Position vertices[EDITOR_HITBOX_VERTEX_MAX];
+    size_t vertex_count;
+    uint32_t outline_color;
+    uint32_t fill_color;
+    bool button_enabled;
+    EditorViewportUiText text;
+} EditorViewportUiShape;
 
 typedef struct EditorViewportUiItem {
     EditorViewportUiItemId id;

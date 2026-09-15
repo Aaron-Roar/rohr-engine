@@ -1005,6 +1005,11 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         item->value.shape.vertices[3] = (Position){0.0f, 36.0f};
         item->value.shape.outline_color = 0xFFFFFFFFu;
         item->value.shape.fill_color = 0x394052FFu;
+        item->value.shape.text.color = 0xFFFFFFFFu;
+        item->value.shape.text.box_width = 160.0f;
+        item->value.shape.text.box_height = 28.0f;
+        item->value.shape.text.width_scale = 1.0f;
+        item->value.shape.text.height_scale = 1.0f;
     } else {
         item->value.text.color = 0xFFFFFFFFu;
         item->value.text.box_width = 160.0f;

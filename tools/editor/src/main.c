@@ -2825,10 +2825,19 @@ int main(void) {
                 editor_mode_animation_frame_browser_open, &browser_context,
                 additive_selection, &column_frame_multi_edit_open);
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
+            EditorModeColorContext color_context = {
+                .picker = &color_picker, .project = &project};
+            EditorFontBrowserContext font_browser_context = {
+                .browser = &file_browser, .workspace = &workspace, .font = &font,
+                .action = &workspace_browser_action};
             field_editing = editor_ui_shape_editor_draw(&layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
-                    .width = EDITOR_TOOLS_WIDTH});
+                    .width = EDITOR_TOOLS_WIDTH,
+                    .local_color_open = editor_mode_local_color_picker_open,
+                    .color_context = &color_context,
+                    .font_browser_open = editor_mode_font_browser_open,
+                    .font_browser_context = &font_browser_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -3580,6 +3589,9 @@ int main(void) {
                                 item = &layout->ui_items[i];
                         if(item != NULL && item->kind == EDITOR_VIEWPORT_UI_TEXT)
                             item->value.text.font = added_font->id;
+                        else if(item != NULL &&
+                                item->kind == EDITOR_VIEWPORT_UI_SHAPE)
+                            item->value.shape.text.font = added_font->id;
                     }
                 } else if(strlen(browser_result.path) >= sizeof(command.directory)) {
                     load_result = editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,

@@ -562,7 +562,19 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                 yyjson_mut_obj_add_bool(document, item, "button_enabled",
                     ui->value.shape.button_enabled);
                 yyjson_mut_obj_add_strcpy(document, item, "text",
-                    ui->value.shape.text);
+                    ui->value.shape.text.text);
+                yyjson_mut_obj_add_uint(document, item, "font",
+                    ui->value.shape.text.font);
+                yyjson_mut_obj_add_uint(document, item, "color",
+                    ui->value.shape.text.color);
+                yyjson_mut_obj_add_real(document, item, "box_width",
+                    ui->value.shape.text.box_width);
+                yyjson_mut_obj_add_real(document, item, "box_height",
+                    ui->value.shape.text.box_height);
+                yyjson_mut_obj_add_real(document, item, "width_scale",
+                    ui->value.shape.text.width_scale);
+                yyjson_mut_obj_add_real(document, item, "height_scale",
+                    ui->value.shape.text.height_scale);
             } else {
                 yyjson_mut_obj_add_strcpy(document, item, "text",
                     ui->value.text.text);
@@ -1110,9 +1122,9 @@ static bool editor_json_references_valid(EditorProject *project) {
         }
         for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
             EditorViewportUiItem *item = &viewport->ui_items[j];
-            if(item->kind != EDITOR_VIEWPORT_UI_TEXT || item->value.text.font == 0)
-                continue;
-            if(editor_project_ui_font_get(project, item->value.text.font) == NULL)
+            EditorUiFontId font = item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                item->value.text.font : item->value.shape.text.font;
+            if(font != 0 && editor_project_ui_font_get(project, font) == NULL)
                 return false;
         }
     }
@@ -1554,6 +1566,12 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             item->kind = (EditorViewportUiKind)kind;
             if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                 yyjson_val *vertices = yyjson_obj_get(item_value, "vertices");
+                yyjson_val *font_value = yyjson_obj_get(item_value, "font");
+                yyjson_val *color_value = yyjson_obj_get(item_value, "color");
+                yyjson_val *box_width = yyjson_obj_get(item_value, "box_width");
+                yyjson_val *box_height = yyjson_obj_get(item_value, "box_height");
+                yyjson_val *width_scale = yyjson_obj_get(item_value, "width_scale");
+                yyjson_val *height_scale = yyjson_obj_get(item_value, "height_scale");
                 item->value.shape.vertex_count = yyjson_is_arr(vertices) ?
                     yyjson_arr_size(vertices) : 0;
                 if(item->value.shape.vertex_count < 3 ||
@@ -1568,7 +1586,28 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         vertex += 1)
                     if(!editor_json_position_read(yyjson_arr_get(vertices, vertex),
                             &item->value.shape.vertices[vertex])) goto done;
-                memcpy(item->value.shape.text, yyjson_get_str(text),
+                item->value.shape.text.color = 0xFFFFFFFFu;
+                item->value.shape.text.box_width = 160.0f;
+                item->value.shape.text.box_height = 28.0f;
+                item->value.shape.text.width_scale = 1.0f;
+                item->value.shape.text.height_scale = 1.0f;
+                if(font_value != NULL && !editor_json_uint(item_value, "font",
+                        &item->value.shape.text.font)) goto done;
+                if(color_value != NULL && !editor_json_uint(item_value, "color",
+                        &item->value.shape.text.color)) goto done;
+                if((box_width != NULL && (!editor_json_real(item_value,
+                            "box_width", &item->value.shape.text.box_width) ||
+                        item->value.shape.text.box_width <= 0.0f)) ||
+                        (box_height != NULL && (!editor_json_real(item_value,
+                            "box_height", &item->value.shape.text.box_height) ||
+                        item->value.shape.text.box_height <= 0.0f)) ||
+                        (width_scale != NULL && (!editor_json_real(item_value,
+                            "width_scale", &item->value.shape.text.width_scale) ||
+                        item->value.shape.text.width_scale <= 0.0f)) ||
+                        (height_scale != NULL && (!editor_json_real(item_value,
+                            "height_scale", &item->value.shape.text.height_scale) ||
+                        item->value.shape.text.height_scale <= 0.0f))) goto done;
+                memcpy(item->value.shape.text.text, yyjson_get_str(text),
                     yyjson_get_len(text) + 1);
             } else {
                 yyjson_val *font_value = yyjson_obj_get(item_value, "font");

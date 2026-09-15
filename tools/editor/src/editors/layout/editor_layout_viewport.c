@@ -263,7 +263,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         rohr_ui_label(&editor->name_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
         char *text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-            item->value.shape.text : item->value.text.text;
+            item->value.shape.text.text : item->value.text.text;
         text_result = rohr_ui_field("editor.layout.ui.text",
             (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text,
                 .string_capacity = UI_LABEL_MAX}, &editor->name_field,
@@ -364,18 +364,71 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorViewportUiItem *item = layout_ui_item_get(context,
         EDITOR_VIEWPORT_UI_SHAPE);
-    UIFieldResult text_result;
+    EditorViewportUiText *text;
+    UIFieldResult text_result, box_width_result, box_height_result,
+        width_result, height_result;
+    const TextAsset *font_options[EDITOR_UI_FONT_MAX + 2];
+    size_t selected_font = 0;
     bool button;
     float y = 42.0f;
     bool active;
     if(editor == NULL || item == NULL) return false;
+    text = &item->value.shape.text;
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     text_result = rohr_ui_field("editor.ui_shape.text",
         (UIFieldBinding){.kind = UI_FIELD_STRING,
-            .string = item->value.shape.text,
-            .string_capacity = sizeof(item->value.shape.text)}, &editor->text_field,
+            .string = text->text,
+            .string_capacity = sizeof(text->text)}, &editor->text_field,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+    y += 38.0f;
+    rohr_ui_label(&editor->font_file_label,
+        (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
+    font_options[0] = &editor->default_font_label;
+    font_options[1] = &editor->load_font_label;
+    for(size_t i = 0; i < context->project->ui_font_count; i += 1) {
+        EditorUiFont *font = &context->project->ui_fonts[i];
+        (void)editor_mode_named_text_sync(editor->font, font->name,
+            &editor->font_names[i], editor->font_cache[i], EDITOR_OBJECT_NAME_MAX);
+        font_options[i + 2] = &editor->font_names[i];
+        if(text->font == font->id) selected_font = i + 2;
+    }
+    UIDropdownResult font_result = rohr_ui_dropdown("editor.ui_shape.font",
+        font_options, context->project->ui_font_count + 2, selected_font,
+        (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+    if(font_result.changed) {
+        if(font_result.selected_index == 0) text->font = 0;
+        else if(font_result.selected_index == 1 && context->font_browser_open != NULL)
+            context->font_browser_open(context->font_browser_context);
+        else if(font_result.selected_index >= 2)
+            text->font = context->project->ui_fonts[
+                font_result.selected_index - 2].id;
+    }
+    y += 38.0f;
+    rohr_ui_label(&editor->font_color_label,
+        (UIRect){context->x + 8.0f, y, 120.0f, 28.0f});
+    (void)layout_local_swatch("editor.ui_shape.text_color", &text->color,
+        (UIRect){context->x + context->width - 46.0f, y, 36.0f, 28.0f}, context);
+    y += 38.0f;
+    box_width_result = layout_number(&editor->width_label, &editor->width_field,
+        "editor.ui_shape.text_box_width", context->x, y, context->width,
+        &text->box_width);
+    if(text->box_width <= 0.0f) text->box_width = 1.0f;
+    y += 38.0f;
+    box_height_result = layout_number(&editor->height_label, &editor->height_field,
+        "editor.ui_shape.text_box_height", context->x, y, context->width,
+        &text->box_height);
+    if(text->box_height <= 0.0f) text->box_height = 1.0f;
+    y += 38.0f;
+    width_result = layout_number(&editor->width_scale_label,
+        &editor->width_scale_field, "editor.ui_shape.text_width_scale",
+        context->x, y, context->width, &text->width_scale);
+    if(text->width_scale <= 0.0f) text->width_scale = 0.01f;
+    y += 38.0f;
+    height_result = layout_number(&editor->height_scale_label,
+        &editor->height_scale_field, "editor.ui_shape.text_height_scale",
+        context->x, y, context->width, &text->height_scale);
+    if(text->height_scale <= 0.0f) text->height_scale = 0.01f;
     y += 38.0f;
     button = item->value.shape.button_enabled;
     if(editor_mode_checkbox_left("editor.ui_shape.button", &editor->button_label,
@@ -392,7 +445,8 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
         context->viewport->selected_viewport_ui_item = 0;
         context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
     }
-    return active || text_result.active;
+    return active || text_result.active || box_width_result.active ||
+        box_height_result.active || width_result.active || height_result.active;
 }
 
 bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,

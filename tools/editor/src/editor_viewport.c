@@ -2021,11 +2021,12 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     Position position;
     if(item == NULL || slot >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             editor_viewport_ui_font == NULL) return;
-    value = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? item->value.shape.text :
+    value = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? item->value.shape.text.text :
         item->value.text.text;
-    color = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? 0xFFFFFFFFu :
+    color = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? item->value.shape.text.color :
         item->value.text.color;
-    font_id = item->kind == EDITOR_VIEWPORT_UI_TEXT ? item->value.text.font : 0;
+    font_id = item->kind == EDITOR_VIEWPORT_UI_TEXT ? item->value.text.font :
+        item->value.shape.text.font;
     font = editor_viewport_ui_font_get(project, font_id);
     if(font == NULL) return;
     if(value[0] == '\0') return;
