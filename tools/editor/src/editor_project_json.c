@@ -331,6 +331,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_val *objects;
     yyjson_mut_val *layout_viewports;
     yyjson_mut_val *collision_masks;
+    yyjson_mut_val *ui_fonts;
     bool success;
     if(project == NULL || path == NULL || path[0] == '\0') return false;
     document = yyjson_mut_doc_new(NULL);
@@ -339,6 +340,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     objects = yyjson_mut_arr(document);
     layout_viewports = yyjson_mut_arr(document);
     collision_masks = yyjson_mut_arr(document);
+    ui_fonts = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
     yyjson_mut_obj_add_val(document, root, "viewport_camera_offset",
@@ -395,6 +397,16 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_viewport_camera_item_id);
     yyjson_mut_obj_add_uint(document, root, "next_viewport_ui_item_id",
         project->next_viewport_ui_item_id);
+    yyjson_mut_obj_add_uint(document, root, "next_ui_font_id",
+        project->next_ui_font_id);
+    for(size_t i = 0; i < project->ui_font_count; i += 1) {
+        yyjson_mut_val *font = yyjson_mut_obj(document);
+        yyjson_mut_obj_add_uint(document, font, "id", project->ui_fonts[i].id);
+        yyjson_mut_obj_add_strcpy(document, font, "name", project->ui_fonts[i].name);
+        yyjson_mut_obj_add_strcpy(document, font, "path", project->ui_fonts[i].path);
+        yyjson_mut_arr_add_val(ui_fonts, font);
+    }
+    yyjson_mut_obj_add_val(document, root, "ui_fonts", ui_fonts);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -554,10 +566,14 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             } else {
                 yyjson_mut_obj_add_strcpy(document, item, "text",
                     ui->value.text.text);
-                yyjson_mut_obj_add_strcpy(document, item, "font_file",
-                    ui->value.text.font_file);
+                yyjson_mut_obj_add_uint(document, item, "font",
+                    ui->value.text.font);
                 yyjson_mut_obj_add_uint(document, item, "color",
                     ui->value.text.color);
+                yyjson_mut_obj_add_real(document, item, "box_width",
+                    ui->value.text.box_width);
+                yyjson_mut_obj_add_real(document, item, "box_height",
+                    ui->value.text.box_height);
                 yyjson_mut_obj_add_real(document, item, "width_scale",
                     ui->value.text.width_scale);
                 yyjson_mut_obj_add_real(document, item, "height_scale",
@@ -1092,6 +1108,13 @@ static bool editor_json_references_valid(EditorProject *project) {
             if(object == NULL || editor_project_camera_get(object, item->camera) == NULL)
                 return false;
         }
+        for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
+            EditorViewportUiItem *item = &viewport->ui_items[j];
+            if(item->kind != EDITOR_VIEWPORT_UI_TEXT || item->value.text.font == 0)
+                continue;
+            if(editor_project_ui_font_get(project, item->value.text.font) == NULL)
+                return false;
+        }
     }
     return project->selected == 0 || editor_project_selected_get(project) != NULL;
 }
@@ -1104,6 +1127,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     yyjson_val *objects;
     yyjson_val *layout_viewports;
     yyjson_val *collision_masks;
+    yyjson_val *ui_fonts;
     uint32_t version;
     EditorResult result = editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
         "Project editor state does not match the current schema: %s",
@@ -1125,6 +1149,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     objects = yyjson_obj_get(root, "objects");
     layout_viewports = yyjson_obj_get(root, "layout_viewports");
     collision_masks = yyjson_obj_get(root, "collision_masks");
+    ui_fonts = yyjson_obj_get(root, "ui_fonts");
     editor_project_destroy(&loaded);
     editor_project_init(&loaded);
     if(!yyjson_is_obj(root)) goto done;
@@ -1229,6 +1254,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "next_layout_viewport_id");
         yyjson_val *next_viewport_camera_item = yyjson_obj_get(root,
             "next_viewport_camera_item_id");
+        yyjson_val *next_ui_font = yyjson_obj_get(root, "next_ui_font_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
                     &loaded.next_sprite_id)) ||
                 (next_animated != NULL && !editor_json_uint(root,
@@ -1240,11 +1266,33 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 (next_viewport_camera_item != NULL && !editor_json_uint(root,
                     "next_viewport_camera_item_id",
                     &loaded.next_viewport_camera_item_id)) ||
+                (next_ui_font != NULL && !editor_json_uint(root,
+                    "next_ui_font_id", &loaded.next_ui_font_id)) ||
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
                 loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
                 loaded.next_viewport_camera_item_id == 0 ||
                 (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)))
             goto done;
+    }
+    if(ui_fonts != NULL) {
+        if(!yyjson_is_arr(ui_fonts) || yyjson_arr_size(ui_fonts) > EDITOR_UI_FONT_MAX ||
+                !EDITOR_ARRAY_RESERVE(loaded.ui_fonts, loaded.ui_font_capacity,
+                    yyjson_arr_size(ui_fonts))) goto done;
+        loaded.ui_font_count = yyjson_arr_size(ui_fonts);
+        for(size_t i = 0; i < loaded.ui_font_count; i += 1) {
+            yyjson_val *value = yyjson_arr_get(ui_fonts, i);
+            yyjson_val *path_value = yyjson_obj_get(value, "path");
+            EditorUiFont *font = &loaded.ui_fonts[i];
+            if(!yyjson_is_obj(value) ||
+                    !editor_json_uint(value, "id", &font->id) || font->id == 0 ||
+                    !editor_json_name(value, font->name) ||
+                    !yyjson_is_str(path_value) ||
+                    yyjson_get_len(path_value) >= sizeof(font->path)) goto done;
+            memcpy(font->path, yyjson_get_str(path_value),
+                yyjson_get_len(path_value) + 1);
+            if(loaded.next_ui_font_id <= font->id)
+                loaded.next_ui_font_id = font->id + 1;
+        }
     }
     loaded.collision_mask_count = yyjson_arr_size(collision_masks);
     if(!EDITOR_ARRAY_RESERVE(loaded.collision_masks,
@@ -1523,18 +1571,25 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 memcpy(item->value.shape.text, yyjson_get_str(text),
                     yyjson_get_len(text) + 1);
             } else {
-                yyjson_val *font_file = yyjson_obj_get(item_value, "font_file");
+                yyjson_val *font_value = yyjson_obj_get(item_value, "font");
+                yyjson_val *box_width = yyjson_obj_get(item_value, "box_width");
+                yyjson_val *box_height = yyjson_obj_get(item_value, "box_height");
                 yyjson_val *width_scale = yyjson_obj_get(item_value, "width_scale");
                 yyjson_val *height_scale = yyjson_obj_get(item_value, "height_scale");
                 if(!editor_json_uint(item_value, "color", &item->value.text.color))
                     goto done;
-                if(font_file != NULL && (!yyjson_is_str(font_file) ||
-                        yyjson_get_len(font_file) >= sizeof(item->value.text.font_file)))
-                    goto done;
-                if(font_file != NULL) memcpy(item->value.text.font_file,
-                    yyjson_get_str(font_file), yyjson_get_len(font_file) + 1);
+                if(font_value != NULL && !editor_json_uint(item_value, "font",
+                        &item->value.text.font)) goto done;
                 item->value.text.width_scale = 1.0f;
                 item->value.text.height_scale = 1.0f;
+                item->value.text.box_width = 160.0f;
+                item->value.text.box_height = 28.0f;
+                if((box_width != NULL && (!editor_json_real(item_value,
+                            "box_width", &item->value.text.box_width) ||
+                        item->value.text.box_width <= 0.0f)) ||
+                        (box_height != NULL && (!editor_json_real(item_value,
+                            "box_height", &item->value.text.box_height) ||
+                        item->value.text.box_height <= 0.0f))) goto done;
                 if((width_scale != NULL && (!editor_json_real(item_value,
                             "width_scale", &item->value.text.width_scale) ||
                         item->value.text.width_scale <= 0.0f)) ||

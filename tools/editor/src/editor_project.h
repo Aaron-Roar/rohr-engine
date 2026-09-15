@@ -25,6 +25,7 @@
 #define EDITOR_LAYOUT_VIEWPORT_MAX MAX_VIEWPORTS
 #define EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX MAX_VIEWPORT_ITEMS
 #define EDITOR_LAYOUT_VIEWPORT_UI_MAX 64
+#define EDITOR_UI_FONT_MAX 32
 #define EDITOR_SOFT_AREA_NODE_MAX EDITOR_SOFT_NODE_MAX
 #define EDITOR_OBJECT_HIERARCHY_MAX \
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
@@ -32,8 +33,8 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
 #define EDITOR_PROJECT_FORMAT_VERSION 1
-#define EDITOR_NAVIGATION_MODE_MAX 21
-#define EDITOR_NAVIGATION_SELECTION_MAX 18
+#define EDITOR_NAVIGATION_MODE_MAX 23
+#define EDITOR_NAVIGATION_SELECTION_MAX 22
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -51,6 +52,13 @@ typedef uint32_t EditorCameraId;
 typedef uint32_t EditorLayoutViewportId;
 typedef uint32_t EditorViewportCameraItemId;
 typedef uint32_t EditorViewportUiItemId;
+typedef uint32_t EditorUiFontId;
+
+typedef struct EditorUiFont {
+    EditorUiFontId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    char path[EDITOR_ASSET_PATH_MAX];
+} EditorUiFont;
 
 typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_RIGID_BODY,
@@ -352,8 +360,10 @@ typedef struct EditorViewportUiShape {
 
 typedef struct EditorViewportUiText {
     char text[UI_LABEL_MAX];
-    char font_file[EDITOR_ASSET_PATH_MAX];
+    EditorUiFontId font;
     uint32_t color;
+    float box_width;
+    float box_height;
     float width_scale;
     float height_scale;
 } EditorViewportUiText;
@@ -418,6 +428,9 @@ typedef struct EditorProject {
     EditorLayoutViewport *layout_viewports;
     size_t layout_viewport_count;
     size_t layout_viewport_capacity;
+    EditorUiFont *ui_fonts;
+    size_t ui_font_count;
+    size_t ui_font_capacity;
     EditorObjectId next_id;
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
@@ -434,6 +447,7 @@ typedef struct EditorProject {
     EditorLayoutViewportId next_layout_viewport_id;
     EditorViewportCameraItemId next_viewport_camera_item_id;
     EditorViewportUiItemId next_viewport_ui_item_id;
+    EditorUiFontId next_ui_font_id;
     EditorObjectId selected;
 } EditorProject;
 
@@ -481,6 +495,10 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
     EditorLayoutViewport *viewport, EditorViewportUiKind kind);
 bool editor_viewport_ui_remove(EditorLayoutViewport *viewport,
     EditorViewportUiItemId id);
+EditorUiFont *editor_project_ui_font_add(EditorProject *project,
+    const char *path);
+EditorUiFont *editor_project_ui_font_get(EditorProject *project,
+    EditorUiFontId id);
 void editor_project_selection_clear(EditorProject *project);
 void editor_project_object_hierarchy_sync(EditorObject *object);
 size_t editor_project_object_hierarchy_index_get(const EditorObject *object,

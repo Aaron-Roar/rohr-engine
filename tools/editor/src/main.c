@@ -81,7 +81,8 @@ typedef enum EditorWorkspaceBrowserAction {
     EDITOR_WORKSPACE_BROWSER_NEW,
     EDITOR_WORKSPACE_BROWSER_LOAD,
     EDITOR_WORKSPACE_BROWSER_ADD_SPRITE,
-    EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME
+    EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME,
+    EDITOR_WORKSPACE_BROWSER_ADD_FONT
 } EditorWorkspaceBrowserAction;
 
 static const char *editor_project_relative_path_get(const char *project_directory,
@@ -105,6 +106,26 @@ static const char *editor_project_relative_path_get(const char *project_director
     while(path[directory_length] == '/' || path[directory_length] == '\\')
         directory_length += 1;
     return path + directory_length;
+}
+
+static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspace,
+        const EditorProject *project) {
+    char path[EDITOR_WORKSPACE_PATH_MAX + EDITOR_ASSET_PATH_MAX];
+    if(workspace == NULL || project == NULL) return editor_result_value(true);
+    for(size_t i = 0; i < project->ui_font_count; i += 1) {
+        const EditorUiFont *font = &project->ui_fonts[i];
+        FontAssetResult loaded;
+        if(font->path[0] == '/' || (strlen(font->path) > 2 && font->path[1] == ':'))
+            snprintf(path, sizeof(path), "%s", font->path);
+        else snprintf(path, sizeof(path), "%s/%s", workspace->directory, font->path);
+        loaded = rohr_graphics_font_load((FontDescriptor){.file = path,
+            .point_size = 12.0f});
+        if(rohr_error_check(loaded)) return editor_result_error(
+            EDITOR_ERROR_NOT_FOUND, "Font '%s' is missing or invalid: %s",
+            font->name, path);
+        rohr_graphics_font_destroy(&loaded.result.value);
+    }
+    return editor_result_value(true);
 }
 
 typedef enum EditorCloseAction {
@@ -173,6 +194,13 @@ typedef struct EditorAnimationBrowserContext {
     EditorAnimatedSpriteId *sprite;
     EditorWorkspaceBrowserAction *action;
 } EditorAnimationBrowserContext;
+
+typedef struct EditorFontBrowserContext {
+    EditorFileBrowser *browser;
+    EditorWorkspace *workspace;
+    FontAsset *font;
+    EditorWorkspaceBrowserAction *action;
+} EditorFontBrowserContext;
 
 float editor_viewport_width = WINDOW_WIDTH * 0.8f;
 float editor_window_width = WINDOW_WIDTH;
@@ -567,7 +595,9 @@ static EditorNavigationState editor_navigation_state_get(
     if(project == NULL || state == NULL) return (EditorNavigationState){0};
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR)
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR)
         return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
             .selection = EDITOR_SELECTION_NONE};
     persisted_mode = state->mode == EDITOR_VIEWPORT_AUTO_SHAPE ?
@@ -1292,6 +1322,16 @@ static void editor_mode_sprite_browser_open(void *opaque, EditorObjectId object)
     }
 }
 
+static void editor_mode_font_browser_open(void *opaque) {
+    EditorFontBrowserContext *context = opaque;
+    if(context == NULL || context->workspace == NULL ||
+            !context->workspace->open) return;
+    *context->action = EDITOR_WORKSPACE_BROWSER_ADD_FONT;
+    if(!editor_file_browser_open(context->browser, EDITOR_FILE_BROWSER_OPEN,
+            context->workspace->directory, context->font))
+        *context->action = EDITOR_WORKSPACE_BROWSER_NONE;
+}
+
 static EditorJoint *editor_selected_joint_get(EditorObject *object,
     const EditorViewportState *state) {
     if(object == NULL || state == NULL) return NULL;
@@ -1364,6 +1404,40 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
+            viewport_state->selection == EDITOR_SELECTION_UI_TEXT ||
+            viewport_state->selection == EDITOR_SELECTION_UI_VERTEX ||
+            viewport_state->selection == EDITOR_SELECTION_UI_LINE) {
+        EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
+            viewport_state->selected_layout_viewport);
+        EditorViewportUiItem *item = NULL;
+        if(layout != NULL) for(size_t i = 0; i < layout->ui_item_count; i += 1)
+            if(layout->ui_items[i].id == viewport_state->selected_viewport_ui_item)
+                item = &layout->ui_items[i];
+        if(item == NULL) return false;
+        if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
+                viewport_state->selection == EDITOR_SELECTION_UI_TEXT) {
+            if(!editor_viewport_ui_remove(layout, item->id)) return false;
+            viewport_state->selected_viewport_ui_item = 0;
+            viewport_state->mode = EDITOR_VIEWPORT_LAYOUT;
+            viewport_state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+            return true;
+        }
+        if(item->kind != EDITOR_VIEWPORT_UI_SHAPE ||
+                item->value.shape.vertex_count <= 3) return false;
+        size_t index = viewport_state->selection == EDITOR_SELECTION_UI_VERTEX ?
+            viewport_state->selected_vertex :
+            (viewport_state->selected_line + 1) % item->value.shape.vertex_count;
+        if(index >= item->value.shape.vertex_count) return false;
+        memmove(&item->value.shape.vertices[index],
+            &item->value.shape.vertices[index + 1],
+            (item->value.shape.vertex_count - index - 1) *
+                sizeof(item->value.shape.vertices[0]));
+        item->value.shape.vertex_count -= 1;
+        viewport_state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+        viewport_state->selection = EDITOR_SELECTION_UI_SHAPE;
+        return true;
+    }
     selected = editor_project_selected_get(project);
     if(selected == NULL) return false;
     if(viewport_state->selection == EDITOR_SELECTION_ANIMATION_FRAME) {
@@ -1665,6 +1739,37 @@ static bool editor_selected_delete(EditorProject *project,
     bool removed;
     EditorSelectionRef fallback;
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->selected_item_count > 1 &&
+            editor_viewport_selection_homogeneous_check(viewport_state) &&
+            viewport_state->selected_items[0].kind == EDITOR_SELECTION_UI_VERTEX) {
+        EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
+            viewport_state->selected_items[0].object);
+        EditorViewportUiItemId item_id = viewport_state->selected_items[0].parent;
+        EditorViewportUiItem *item = NULL;
+        bool remove[EDITOR_HITBOX_VERTEX_MAX] = {false};
+        size_t remove_count = 0;
+        if(layout != NULL) for(size_t i = 0; i < layout->ui_item_count; i += 1)
+            if(layout->ui_items[i].id == item_id) item = &layout->ui_items[i];
+        if(item == NULL || item->kind != EDITOR_VIEWPORT_UI_SHAPE) return false;
+        for(size_t i = 0; i < viewport_state->selected_item_count; i += 1) {
+            EditorSelectionRef ref = viewport_state->selected_items[i];
+            if(ref.object != layout->id || ref.parent != item_id || ref.item == 0 ||
+                    ref.item > item->value.shape.vertex_count ||
+                    remove[ref.item - 1]) continue;
+            remove[ref.item - 1] = true;
+            remove_count += 1;
+        }
+        if(item->value.shape.vertex_count - remove_count < 3) return false;
+        for(size_t read = 0, write = 0; read < item->value.shape.vertex_count;
+                read += 1) if(!remove[read])
+            item->value.shape.vertices[write++] = item->value.shape.vertices[read];
+        item->value.shape.vertex_count -= remove_count;
+        viewport_state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+        viewport_state->selection = EDITOR_SELECTION_UI_SHAPE;
+        viewport_state->selected_viewport_ui_item = item_id;
+        editor_viewport_selection_clear(viewport_state);
+        return remove_count > 0;
+    }
     if(viewport_state->selected_item_count > 1)
         return editor_navigation_multi_selection_delete(project, viewport_state,
             editor_operation_history);
@@ -1874,6 +1979,7 @@ int main(void) {
     TextAsset open_label = {0};
     TextAsset load_sprite_label = {0};
     TextAsset load_frame_label = {0};
+    TextAsset load_font_label = {0};
     TextAsset create_project_label = {0};
     TextAsset save_label = {0};
     TextAsset close_label = {0};
@@ -2034,6 +2140,7 @@ int main(void) {
             goto fail;
         }
         font = result.result.value;
+        editor_viewport_ui_font_set(&font);
     }
     {
         startup_stage = "notification font loading";
@@ -2073,6 +2180,7 @@ int main(void) {
             !editor_text_create(&font, "Load Project", &open_label) ||
             !editor_text_create(&font, "Load Sprite", &load_sprite_label) ||
             !editor_text_create(&font, "Load Frame", &load_frame_label) ||
+            !editor_text_create(&font, "Load Font", &load_font_label) ||
             !editor_text_create(&font, "Create Project", &create_project_label) ||
             !editor_text_create(&font, "Save", &save_label) ||
             !editor_text_create(&font, "Close", &close_label) ||
@@ -2274,7 +2382,9 @@ int main(void) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
-                    viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
                 editor_viewport_back(&viewport_state);
             } else if(editor_viewport_hitbox_editor_active_get(&viewport_state)) {
                 editor_viewport_back(&viewport_state);
@@ -2722,12 +2832,27 @@ int main(void) {
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
+            EditorFontBrowserContext font_browser_context = {
+                .browser = &file_browser, .workspace = &workspace, .font = &font,
+                .action = &workspace_browser_action};
             field_editing = editor_ui_text_editor_draw(&layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .local_color_open = editor_mode_local_color_picker_open,
-                    .color_context = &color_context});
+                    .color_context = &color_context,
+                    .font_browser_open = editor_mode_font_browser_open,
+                    .font_browser_context = &font_browser_context});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR) {
+            field_editing = editor_ui_vertex_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
+            field_editing = editor_ui_line_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
@@ -3084,9 +3209,14 @@ int main(void) {
                         workspace.open) {
                     EditorWorkspaceCommand command = {
                         .type = EDITOR_WORKSPACE_COMMAND_GENERATE_C};
+                    EditorResult font_validation =
+                        editor_project_fonts_validate(&workspace, &project);
                     snprintf(command.directory, sizeof(command.directory), "%s",
                         workspace.directory);
-                    if(!editor_result_check(editor_workspace_operation_execute(
+                    if(editor_result_check(font_validation))
+                        editor_error_notification_failure(&notification_panel,
+                            "Generate C", font_validation);
+                    else if(!editor_result_check(editor_workspace_operation_execute(
                             &workspace, &project, &command))) {
                         bool tree_shown = terminal_generated_code &&
                             editor_generation_report_write(&terminal_panel, &project);
@@ -3107,9 +3237,14 @@ int main(void) {
                         workspace.open) {
                     EditorWorkspaceCommand command = {
                         .type = EDITOR_WORKSPACE_COMMAND_GENERATE_C};
+                    EditorResult font_validation =
+                        editor_project_fonts_validate(&workspace, &project);
                     snprintf(command.directory, sizeof(command.directory), "%s",
                         workspace.directory);
-                    if(!editor_result_check(editor_workspace_operation_execute(
+                    if(editor_result_check(font_validation))
+                        editor_error_notification_failure(&notification_panel,
+                            "Build project", font_validation);
+                    else if(!editor_result_check(editor_workspace_operation_execute(
                             &workspace, &project, &command))) {
                         bool tree_shown = terminal_generated_code &&
                             editor_generation_report_write(&terminal_panel, &project);
@@ -3305,7 +3440,9 @@ int main(void) {
                         EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME ?
                     &load_frame_label :
                     workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_SPRITE ?
-                        &load_sprite_label : &open_label,
+                        &load_sprite_label :
+                    workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_FONT ?
+                        &load_font_label : &open_label,
                 &create_project_label, &cancel_label,
                 editor_window_width, EDITOR_VIEWPORT_BOTTOM);
             if(browser_result.submitted) {
@@ -3412,6 +3549,38 @@ int main(void) {
                         }
                     }
                     sprite_browser_object = 0;
+                } else if(workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_FONT) {
+                    const char *font_path = editor_project_relative_path_get(
+                        workspace.directory, browser_result.path);
+                    FontAssetResult loaded_font = rohr_graphics_font_load(
+                        (FontDescriptor){.file = browser_result.path,
+                            .point_size = 12.0f});
+                    EditorUiFont *added_font = NULL;
+                    opened = !rohr_error_check(loaded_font);
+                    if(!opened) {
+                        load_result = editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                            "Could not load font: %s", browser_result.path);
+                    } else {
+                        rohr_graphics_font_destroy(&loaded_font.result.value);
+                        added_font = editor_project_ui_font_add(&project, font_path);
+                        opened = added_font != NULL;
+                        if(!opened) load_result = editor_result_error(
+                            EDITOR_ERROR_CAPACITY, "Could not register font: %s",
+                            font_path);
+                    }
+                    if(opened) {
+                        EditorLayoutViewport *layout =
+                            editor_project_layout_viewport_get(&project,
+                                viewport_state.selected_layout_viewport);
+                        EditorViewportUiItem *item = NULL;
+                        if(layout != NULL) for(size_t i = 0;
+                                i < layout->ui_item_count; i += 1)
+                            if(layout->ui_items[i].id ==
+                                    viewport_state.selected_viewport_ui_item)
+                                item = &layout->ui_items[i];
+                        if(item != NULL && item->kind == EDITOR_VIEWPORT_UI_TEXT)
+                            item->value.text.font = added_font->id;
+                    }
                 } else if(strlen(browser_result.path) >= sizeof(command.directory)) {
                     load_result = editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                         "Project directory path is too long: %s", browser_result.path);
@@ -3434,7 +3603,9 @@ int main(void) {
                 if(opened) {
                     if(workspace_browser_action != EDITOR_WORKSPACE_BROWSER_ADD_SPRITE &&
                             workspace_browser_action !=
-                                EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME) {
+                                EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME &&
+                            workspace_browser_action !=
+                                EDITOR_WORKSPACE_BROWSER_ADD_FONT) {
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_WORKSPACE);
                         editor_history_reset(&history);
@@ -3445,6 +3616,13 @@ int main(void) {
                         panel_scroll_offset = 0.0f;
                         (void)editor_terminal_panel_project_open(
                             &terminal_panel, workspace.directory);
+                        {
+                            EditorResult font_validation =
+                                editor_project_fonts_validate(&workspace, &project);
+                            if(editor_result_check(font_validation))
+                                editor_error_notification_failure(&notification_panel,
+                                    "Load fonts", font_validation);
+                        }
                         if(terminal_editor_operations &&
                                 command.type == EDITOR_WORKSPACE_COMMAND_CREATE) {
                             char cli_command[3072];
@@ -3463,7 +3641,9 @@ int main(void) {
                                 EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME ?
                             "Load frame" :
                         workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_SPRITE ?
-                            "Load sprite" : "Load project",
+                            "Load sprite" :
+                        workspace_browser_action == EDITOR_WORKSPACE_BROWSER_ADD_FONT ?
+                            "Load font" : "Load project",
                         load_result);
                     file_browser.active = true;
                 }
@@ -3718,6 +3898,7 @@ int main(void) {
     rohr_graphics_text_destroy(&open_label);
     rohr_graphics_text_destroy(&load_sprite_label);
     rohr_graphics_text_destroy(&load_frame_label);
+    rohr_graphics_text_destroy(&load_font_label);
     rohr_graphics_text_destroy(&create_project_label);
     rohr_graphics_text_destroy(&new_label);
     rohr_graphics_text_destroy(&settings_label);
@@ -3810,6 +3991,7 @@ fail:
     rohr_graphics_text_destroy(&open_label);
     rohr_graphics_text_destroy(&load_sprite_label);
     rohr_graphics_text_destroy(&load_frame_label);
+    rohr_graphics_text_destroy(&load_font_label);
     rohr_graphics_text_destroy(&create_project_label);
     rohr_graphics_text_destroy(&new_label);
     rohr_graphics_text_destroy(&settings_label);

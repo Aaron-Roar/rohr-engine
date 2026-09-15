@@ -32,7 +32,9 @@ typedef enum EditorViewportMode {
     ,EDITOR_VIEWPORT_CAMERA_ENTITY,
     EDITOR_VIEWPORT_LAYOUT,
     EDITOR_VIEWPORT_UI_SHAPE_EDITOR,
-    EDITOR_VIEWPORT_UI_TEXT_EDITOR
+    EDITOR_VIEWPORT_UI_TEXT_EDITOR,
+    EDITOR_VIEWPORT_UI_VERTEX_EDITOR,
+    EDITOR_VIEWPORT_UI_LINE_EDITOR
 } EditorViewportMode;
 
 typedef enum EditorHierarchySelection {
@@ -54,7 +56,11 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_ANIMATED_SPRITE,
     EDITOR_SELECTION_ANIMATION_FRAME
     ,EDITOR_SELECTION_CAMERA,
-    EDITOR_SELECTION_LAYOUT_VIEWPORT
+    EDITOR_SELECTION_LAYOUT_VIEWPORT,
+    EDITOR_SELECTION_UI_SHAPE,
+    EDITOR_SELECTION_UI_TEXT,
+    EDITOR_SELECTION_UI_VERTEX,
+    EDITOR_SELECTION_UI_LINE
 } EditorHierarchySelection;
 
 typedef enum EditorOriginKind {
@@ -189,6 +195,7 @@ void editor_viewport_draw(
     bool grid_visible
 );
 void editor_viewport_asset_root_set(const char *path);
+void editor_viewport_ui_font_set(FontAsset *font);
 void editor_viewport_assets_destroy(void);
 bool editor_viewport_selection_nudge(EditorViewportState *state,
     EditorProject *project, Vec2D screen_delta);

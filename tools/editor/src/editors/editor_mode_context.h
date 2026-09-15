@@ -13,6 +13,7 @@ typedef void (*EditorModeColorOpenFunction)(void *context, uint32_t *color,
     EditorItemKind kind, EditorObjectId object, uint32_t parent,
     uint32_t item, EditorPropertyKind property);
 typedef void (*EditorModeLocalColorOpenFunction)(void *context, uint32_t *color);
+typedef void (*EditorModeFontBrowserOpenFunction)(void *context);
 typedef float (*EditorModeDeleteYGetFunction)(void *context);
 typedef bool (*EditorModeDeleteFunction)(void *context);
 typedef void (*EditorModeHierarchyRowFunction)(void *context,
@@ -26,6 +27,8 @@ typedef struct EditorModeContext {
     float width;
     EditorModeColorOpenFunction color_open;
     EditorModeLocalColorOpenFunction local_color_open;
+    EditorModeFontBrowserOpenFunction font_browser_open;
+    void *font_browser_context;
     void *color_context;
     EditorModeDeleteYGetFunction delete_y_get;
     EditorModeDeleteFunction delete_open_item;

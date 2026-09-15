@@ -30,6 +30,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add UI Text", add_text_label);
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
+    CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
     CREATE("Font Color", font_color_label);
     CREATE("Width Scale", width_scale_label);
     CREATE("Height Scale", height_scale_label);
@@ -53,6 +54,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
     DESTROY(add_shape_label); DESTROY(add_text_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
+    DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(width_scale_label); DESTROY(height_scale_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
@@ -63,6 +65,8 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
         rohr_graphics_text_destroy(&editor->camera_names[i]);
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->ui_names[i]);
+    for(size_t i = 0; i < EDITOR_UI_FONT_MAX; i += 1)
+        rohr_graphics_text_destroy(&editor->font_names[i]);
     *editor = (EditorLayoutViewportEditor){0};
 }
 
@@ -120,6 +124,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+            context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
         }
     }
     if(rohr_ui_button("editor.layout.add_text", &editor->add_text_label,
@@ -131,6 +136,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+            context->viewport->selection = EDITOR_SELECTION_UI_TEXT;
         }
     }
     y += 40.0f;
@@ -193,6 +199,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                 EDITOR_VIEWPORT_UI_SHAPE_EDITOR : EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+            context->viewport->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                EDITOR_SELECTION_UI_SHAPE : EDITOR_SELECTION_UI_TEXT;
         }
         y += 32.0f;
     }
@@ -388,7 +396,10 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
     EditorViewportUiItem *item = layout_ui_item_get(context,
         EDITOR_VIEWPORT_UI_TEXT);
     EditorViewportUiText *text;
-    UIFieldResult text_result, font_result, width_result, height_result;
+    UIFieldResult text_result, box_width_result, box_height_result,
+        width_result, height_result;
+    const TextAsset *font_options[EDITOR_UI_FONT_MAX + 2];
+    size_t selected_font = 0;
     float y = 42.0f;
     bool active;
     if(editor == NULL || item == NULL) return false;
@@ -402,15 +413,42 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
     y += 38.0f;
     rohr_ui_label(&editor->font_file_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-    font_result = rohr_ui_field("editor.ui_text.font_file",
-        (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text->font_file,
-            .string_capacity = sizeof(text->font_file)}, &editor->font_file_field,
+    font_options[0] = &editor->default_font_label;
+    font_options[1] = &editor->load_font_label;
+    for(size_t i = 0; i < context->project->ui_font_count; i += 1) {
+        EditorUiFont *font = &context->project->ui_fonts[i];
+        if(!editor_mode_named_text_sync(editor->font, font->name,
+                &editor->font_names[i], editor->font_cache[i],
+                EDITOR_OBJECT_NAME_MAX)) continue;
+        font_options[i + 2] = &editor->font_names[i];
+        if(text->font == font->id) selected_font = i + 2;
+    }
+    UIDropdownResult font_result = rohr_ui_dropdown("editor.ui_text.font",
+        font_options, context->project->ui_font_count + 2, selected_font,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+    if(font_result.changed) {
+        if(font_result.selected_index == 0) text->font = 0;
+        else if(font_result.selected_index == 1 && context->font_browser_open != NULL)
+            context->font_browser_open(context->font_browser_context);
+        else if(font_result.selected_index >= 2)
+            text->font = context->project->ui_fonts[
+                font_result.selected_index - 2].id;
+    }
     y += 38.0f;
     rohr_ui_label(&editor->font_color_label,
         (UIRect){context->x + 8.0f, y, 120.0f, 28.0f});
     (void)layout_local_swatch("editor.ui_text.color", &text->color,
         (UIRect){context->x + context->width - 46.0f, y, 36.0f, 28.0f}, context);
+    y += 38.0f;
+    box_width_result = layout_number(&editor->width_label, &editor->width_field,
+        "editor.ui_text.box_width", context->x, y, context->width,
+        &text->box_width);
+    if(text->box_width <= 0.0f) text->box_width = 1.0f;
+    y += 38.0f;
+    box_height_result = layout_number(&editor->height_label, &editor->height_field,
+        "editor.ui_text.box_height", context->x, y, context->width,
+        &text->box_height);
+    if(text->box_height <= 0.0f) text->box_height = 1.0f;
     y += 38.0f;
     width_result = layout_number(&editor->width_scale_label,
         &editor->width_scale_field, "editor.ui_text.width_scale", context->x,
@@ -432,6 +470,75 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         context->viewport->selected_viewport_ui_item = 0;
         context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
     }
-    return active || text_result.active || font_result.active ||
+    return active || text_result.active ||
+        box_width_result.active || box_height_result.active ||
         width_result.active || height_result.active;
+}
+
+bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,
+        const EditorModeContext *context) {
+    EditorViewportUiItem *item = layout_ui_item_get(context,
+        EDITOR_VIEWPORT_UI_SHAPE);
+    UIFieldResult x_result, y_result;
+    Position edited;
+    if(editor == NULL || item == NULL ||
+            context->viewport->selected_vertex >= item->value.shape.vertex_count)
+        return false;
+    edited = item->value.shape.vertices[context->viewport->selected_vertex];
+    x_result = layout_number(&editor->x_label, &editor->x_field,
+        "editor.ui_vertex.x", context->x, 42.0f, context->width, &edited.x);
+    y_result = layout_number(&editor->y_label, &editor->y_field,
+        "editor.ui_vertex.y", context->x, 80.0f, context->width, &edited.y);
+    if(x_result.changed || y_result.changed)
+        item->value.shape.vertices[context->viewport->selected_vertex] = edited;
+    if(item->value.shape.vertex_count <= 3) {
+        rohr_ui_button_disabled((UIRect){context->x + 10.0f, 126.0f,
+            context->width - 20.0f, 32.0f}, NULL);
+        rohr_ui_label(&editor->remove_label, (UIRect){context->x + 10.0f,
+            126.0f, context->width - 20.0f, 32.0f});
+    } else if(rohr_ui_button("editor.ui_vertex.remove", &editor->remove_label,
+            (UIRect){context->x + 10.0f, 126.0f,
+                context->width - 20.0f, 32.0f}, NULL).clicked) {
+        size_t index = context->viewport->selected_vertex;
+        memmove(&item->value.shape.vertices[index],
+            &item->value.shape.vertices[index + 1],
+            (item->value.shape.vertex_count - index - 1) *
+                sizeof(item->value.shape.vertices[0]));
+        item->value.shape.vertex_count -= 1;
+        context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+        context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
+    }
+    return x_result.active || y_result.active;
+}
+
+bool editor_ui_line_editor_draw(EditorLayoutViewportEditor *editor,
+        const EditorModeContext *context) {
+    EditorViewportUiItem *item = layout_ui_item_get(context,
+        EDITOR_VIEWPORT_UI_SHAPE);
+    size_t line;
+    if(editor == NULL || item == NULL || item->value.shape.vertex_count < 2)
+        return false;
+    line = context->viewport->selected_line;
+    if(line >= item->value.shape.vertex_count) return false;
+    if(item->value.shape.vertex_count < EDITOR_HITBOX_VERTEX_MAX &&
+            rohr_ui_button("editor.ui_line.add_vertex", &editor->add_label,
+                (UIRect){context->x + 10.0f, 42.0f,
+                    context->width - 20.0f, 34.0f}, NULL).clicked) {
+        size_t next = (line + 1) % item->value.shape.vertex_count;
+        Position first = item->value.shape.vertices[line];
+        Position second = item->value.shape.vertices[next];
+        Position inserted = {(first.x + second.x) * 0.5f,
+            (first.y + second.y) * 0.5f};
+        size_t insertion = line + 1;
+        memmove(&item->value.shape.vertices[insertion + 1],
+            &item->value.shape.vertices[insertion],
+            (item->value.shape.vertex_count - insertion) *
+                sizeof(item->value.shape.vertices[0]));
+        item->value.shape.vertices[insertion] = inserted;
+        item->value.shape.vertex_count += 1;
+        context->viewport->selected_vertex = (uint32_t)insertion;
+        context->viewport->mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
+        context->viewport->selection = EDITOR_SELECTION_UI_VERTEX;
+    }
+    return false;
 }

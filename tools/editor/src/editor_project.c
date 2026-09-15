@@ -167,7 +167,8 @@ void editor_project_init(EditorProject *project) {
         .next_camera_id = 1,
         .next_layout_viewport_id = 1,
         .next_viewport_camera_item_id = 1,
-        .next_viewport_ui_item_id = 1
+        .next_viewport_ui_item_id = 1,
+        .next_ui_font_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -733,6 +734,7 @@ void editor_project_destroy(EditorProject *project) {
     free(project->collision_masks);
     free(project->objects);
     free(project->layout_viewports);
+    free(project->ui_fonts);
     *project = (EditorProject){0};
 }
 
@@ -743,19 +745,27 @@ bool editor_project_clone(EditorProject *destination,
     destination->collision_masks = NULL;
     destination->objects = NULL;
     destination->layout_viewports = NULL;
+    destination->ui_fonts = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
     destination->layout_viewport_count = 0;
     destination->collision_mask_capacity = 0;
     destination->object_capacity = 0;
     destination->layout_viewport_capacity = 0;
+    destination->ui_font_count = 0;
+    destination->ui_font_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
                 destination->object_capacity, source->object_count) ||
             !EDITOR_ARRAY_RESERVE(destination->layout_viewports,
                 destination->layout_viewport_capacity,
-                source->layout_viewport_count)) goto fail;
+                source->layout_viewport_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->ui_fonts,
+                destination->ui_font_capacity, source->ui_font_count)) goto fail;
+    if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
+        source->ui_font_count * sizeof(*source->ui_fonts));
+    destination->ui_font_count = source->ui_font_count;
     if(source->collision_mask_count > 0)
         memcpy(destination->collision_masks, source->collision_masks,
             source->collision_mask_count * sizeof(*source->collision_masks));
@@ -997,6 +1007,8 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         item->value.shape.fill_color = 0x394052FFu;
     } else {
         item->value.text.color = 0xFFFFFFFFu;
+        item->value.text.box_width = 160.0f;
+        item->value.text.box_height = 28.0f;
         item->value.text.width_scale = 1.0f;
         item->value.text.height_scale = 1.0f;
     }
@@ -1015,6 +1027,38 @@ bool editor_viewport_ui_remove(EditorLayoutViewport *viewport,
     viewport->ui_item_count -= 1;
     viewport->ui_items[viewport->ui_item_count] = (EditorViewportUiItem){0};
     return true;
+}
+
+EditorUiFont *editor_project_ui_font_add(EditorProject *project,
+        const char *path) {
+    EditorUiFont *font;
+    const char *name;
+    const char *slash;
+    if(project == NULL || path == NULL || path[0] == '\0' ||
+            strlen(path) >= EDITOR_ASSET_PATH_MAX ||
+            project->ui_font_count >= EDITOR_UI_FONT_MAX ||
+            !EDITOR_ARRAY_RESERVE(project->ui_fonts, project->ui_font_capacity,
+                project->ui_font_count + 1)) return NULL;
+    for(size_t i = 0; i < project->ui_font_count; i += 1)
+        if(strcmp(project->ui_fonts[i].path, path) == 0) return &project->ui_fonts[i];
+    font = &project->ui_fonts[project->ui_font_count++];
+    *font = (EditorUiFont){.id = project->next_ui_font_id++};
+    snprintf(font->path, sizeof(font->path), "%s", path);
+    slash = strrchr(path, '/');
+    name = slash == NULL ? path : slash + 1;
+    snprintf(font->name, sizeof(font->name), "%s", name);
+    char *extension = strrchr(font->name, '.');
+    if(extension != NULL) *extension = '\0';
+    editor_project_property_name_format(font->name, sizeof(font->name), font->name);
+    return font;
+}
+
+EditorUiFont *editor_project_ui_font_get(EditorProject *project,
+        EditorUiFontId id) {
+    if(project == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < project->ui_font_count; i += 1)
+        if(project->ui_fonts[i].id == id) return &project->ui_fonts[i];
+    return NULL;
 }
 
 EditorObject *editor_project_selected_get(EditorProject *project) {
