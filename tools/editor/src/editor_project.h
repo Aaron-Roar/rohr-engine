@@ -31,8 +31,8 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
 #define EDITOR_PROJECT_FORMAT_VERSION 1
-#define EDITOR_NAVIGATION_MODE_MAX 18
-#define EDITOR_NAVIGATION_SELECTION_MAX 17
+#define EDITOR_NAVIGATION_MODE_MAX 19
+#define EDITOR_NAVIGATION_SELECTION_MAX 18
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;

@@ -4045,6 +4045,39 @@ void editor_viewport_draw(const EditorProject *project,
     if(project == NULL || state == NULL) return;
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+            (EditorProject *)project, state->selected_layout_viewport);
+        if(viewport != NULL) {
+            ViewportRectangle rectangle = viewport->config.rectangle;
+            Color border = {70, 180, 255, 255};
+            (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
+                rectangle.width, 2.0f, border);
+            (void)rohr_graphics_screen_rect_draw(rectangle.x,
+                rectangle.y + rectangle.height - 2.0f, rectangle.width, 2.0f, border);
+            (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
+                2.0f, rectangle.height, border);
+            (void)rohr_graphics_screen_rect_draw(
+                rectangle.x + rectangle.width - 2.0f, rectangle.y,
+                2.0f, rectangle.height, border);
+            for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+                const EditorViewportCameraItem *item = &viewport->camera_items[i];
+                ViewportRectangle camera = item->placement.rectangle;
+                Color color = item->id == state->selected_viewport_camera_item ?
+                    (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
+                camera.x += rectangle.x; camera.y += rectangle.y;
+                (void)rohr_graphics_screen_rect_draw(camera.x, camera.y,
+                    camera.width, 2.0f, color);
+                (void)rohr_graphics_screen_rect_draw(camera.x,
+                    camera.y + camera.height - 2.0f, camera.width, 2.0f, color);
+                (void)rohr_graphics_screen_rect_draw(camera.x, camera.y,
+                    2.0f, camera.height, color);
+                (void)rohr_graphics_screen_rect_draw(camera.x + camera.width - 2.0f,
+                    camera.y, 2.0f, camera.height, color);
+            }
+        }
+        return;
+    }
     selected = NULL;
     for(size_t i = 0; i < project->object_count; i += 1) {
         if(project->objects[i].id == project->selected) selected = &project->objects[i];

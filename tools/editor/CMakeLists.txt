@@ -38,6 +38,7 @@ add_executable(rohr_editor_gui
     src/editors/render/editor_animated_sprite.c
     src/editors/object/editor_object.c
     src/editors/object/editor_hierarchy.c
+    src/editors/layout/editor_layout_viewport.c
     src/viewport/controls/editor_rotation_control.c
     src/viewport/controls/editor_coordinate_toggle.c
     src/viewport/menus/editor_viewport_context_menu.c

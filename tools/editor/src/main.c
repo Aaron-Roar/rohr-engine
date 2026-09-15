@@ -46,6 +46,7 @@
 #include "editors/render/editor_camera.h"
 #include "editors/object/editor_object.h"
 #include "editors/object/editor_hierarchy.h"
+#include "editors/layout/editor_layout_viewport.h"
 #include "editors/soft_body/editor_soft_beam.h"
 #include "editors/soft_body/editor_soft_node.h"
 #include "editors/soft_body/editor_soft_area.h"
@@ -564,6 +565,9 @@ static EditorNavigationState editor_navigation_state_get(
         const EditorProject *project, const EditorViewportState *state) {
     EditorViewportMode persisted_mode;
     if(project == NULL || state == NULL) return (EditorNavigationState){0};
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT)
+        return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
+            .selection = EDITOR_SELECTION_NONE};
     persisted_mode = state->mode == EDITOR_VIEWPORT_AUTO_SHAPE ?
         state->auto_shape_parent_mode : state->mode;
     return (EditorNavigationState){
@@ -1911,6 +1915,7 @@ int main(void) {
     EditorCameraEditor camera_editor = {0};
     EditorObjectEditor object_editor = {0};
     EditorHierarchyEditor hierarchy_editor = {0};
+    EditorLayoutViewportEditor layout_viewport_editor = {0};
     EditorSoftBeamEditor soft_beam_editor = {0};
     EditorSoftNodeEditor soft_node_editor = {0};
     EditorSoftAreaEditor soft_area_editor = {0};
@@ -2102,6 +2107,7 @@ int main(void) {
             !editor_camera_editor_create(&camera_editor, &font) ||
             !editor_object_editor_create(&object_editor, &font) ||
             !editor_hierarchy_editor_create(&hierarchy_editor, &font) ||
+            !editor_layout_viewport_editor_create(&layout_viewport_editor, &font) ||
             !editor_soft_beam_editor_create(&soft_beam_editor, &font) ||
             !editor_soft_node_editor_create(&soft_node_editor, &font) ||
             !editor_soft_area_editor_create(&soft_area_editor, &font) ||
@@ -2702,6 +2708,12 @@ int main(void) {
                 editor_mode_rigid_body_preview, &viewport_state,
                 editor_mode_animation_frame_browser_open, &browser_context,
                 additive_selection, &column_frame_multi_edit_open);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
+            field_editing = editor_layout_viewport_editor_draw(
+                &layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_OBJECT) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
@@ -3658,6 +3670,7 @@ int main(void) {
     editor_camera_editor_destroy(&camera_editor);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
+    editor_layout_viewport_editor_destroy(&layout_viewport_editor);
     editor_soft_beam_editor_destroy(&soft_beam_editor);
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);
@@ -3749,6 +3762,7 @@ fail:
     editor_camera_editor_destroy(&camera_editor);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
+    editor_layout_viewport_editor_destroy(&layout_viewport_editor);
     editor_soft_beam_editor_destroy(&soft_beam_editor);
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);

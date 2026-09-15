@@ -1701,6 +1701,10 @@ static bool editor_command_item_kind_parse(const char *domain, EditorItemKind *k
     else if(strcmp(domain, "soft-area") == 0) *kind = EDITOR_ITEM_SOFT_AREA;
     else if(strcmp(domain, "vertex") == 0) *kind = EDITOR_ITEM_VERTEX;
     else if(strcmp(domain, "line") == 0) *kind = EDITOR_ITEM_LINE;
+    else if(strcmp(domain, "layout-viewport") == 0)
+        *kind = EDITOR_ITEM_LAYOUT_VIEWPORT;
+    else if(strcmp(domain, "viewport-camera") == 0)
+        *kind = EDITOR_ITEM_VIEWPORT_CAMERA;
     else return false;
     return true;
 }
@@ -1718,6 +1722,8 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
         case EDITOR_ITEM_SOFT_AREA: return "soft-area";
         case EDITOR_ITEM_VERTEX: return "vertex";
         case EDITOR_ITEM_LINE: return "line";
+        case EDITOR_ITEM_LAYOUT_VIEWPORT: return "layout-viewport";
+        case EDITOR_ITEM_VIEWPORT_CAMERA: return "viewport-camera";
     }
     return NULL;
 }
@@ -2313,7 +2319,24 @@ property_parse_invalid:
         if(strcmp(action, "add") == 0) {
             command->type = EDITOR_COMMAND_ITEM_ADD;
             command->data.item_add.kind = kind;
-            if(kind == EDITOR_ITEM_RIGID_BODY || kind == EDITOR_ITEM_SOFT_BODY) {
+            if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT) {
+                if(count == 5) {
+                    snprintf(command->data.item_add.name,
+                        sizeof(command->data.item_add.name), "%s", arguments[4]);
+                    return editor_result_value(true);
+                }
+            } else if(kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                if(count == 8 && editor_command_uint_parse(arguments[4],
+                            &command->data.item_add.object) &&
+                        editor_command_uint_parse(arguments[5],
+                            &command->data.item_add.parent) &&
+                        editor_command_uint_parse(arguments[6],
+                            &command->data.item_add.first)) {
+                    snprintf(command->data.item_add.name,
+                        sizeof(command->data.item_add.name), "%s", arguments[7]);
+                    return editor_result_value(true);
+                }
+            } else if(kind == EDITOR_ITEM_RIGID_BODY || kind == EDITOR_ITEM_SOFT_BODY) {
                 if(count == 5 && editor_command_uint_parse(arguments[4],
                         &command->data.item_add.object)) return editor_result_value(true);
             } else if(kind == EDITOR_ITEM_HITBOX) {
@@ -2366,6 +2389,44 @@ property_parse_invalid:
             }
         } else {
             bool rename = strcmp(action, "rename") == 0;
+            if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT &&
+                    count == (rename ? 6 : 5)) {
+                uint32_t item;
+                if(!editor_command_uint_parse(arguments[4], &item)) goto item_invalid;
+                if(rename) {
+                    command->type = EDITOR_COMMAND_ITEM_RENAME;
+                    command->data.item_rename.kind = kind;
+                    command->data.item_rename.item = item;
+                    snprintf(command->data.item_rename.name,
+                        sizeof(command->data.item_rename.name), "%s", arguments[5]);
+                } else {
+                    command->type = EDITOR_COMMAND_ITEM_REMOVE;
+                    command->data.item_remove.kind = kind;
+                    command->data.item_remove.item = item;
+                }
+                return editor_result_value(true);
+            }
+            if(kind == EDITOR_ITEM_VIEWPORT_CAMERA &&
+                    count == (rename ? 7 : 6)) {
+                uint32_t parent, item;
+                if(!editor_command_uint_parse(arguments[4], &parent) ||
+                        !editor_command_uint_parse(arguments[5], &item))
+                    goto item_invalid;
+                if(rename) {
+                    command->type = EDITOR_COMMAND_ITEM_RENAME;
+                    command->data.item_rename.kind = kind;
+                    command->data.item_rename.parent = parent;
+                    command->data.item_rename.item = item;
+                    snprintf(command->data.item_rename.name,
+                        sizeof(command->data.item_rename.name), "%s", arguments[6]);
+                } else {
+                    command->type = EDITOR_COMMAND_ITEM_REMOVE;
+                    command->data.item_remove.kind = kind;
+                    command->data.item_remove.parent = parent;
+                    command->data.item_remove.item = item;
+                }
+                return editor_result_value(true);
+            }
             int base_count = kind == EDITOR_ITEM_HITBOX || kind == EDITOR_ITEM_SOFT_NODE ||
                     kind == EDITOR_ITEM_SOFT_BEAM ? 7 :
                 kind == EDITOR_ITEM_VERTEX || kind == EDITOR_ITEM_LINE ? 8 : 6;
@@ -3192,6 +3253,17 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                             item->name)) goto capacity_error;
                 snprintf(values, sizeof(values), " %.9g %.9g",
                     item->position.x, item->position.y);
+            } else if(item->kind == EDITOR_ITEM_LAYOUT_VIEWPORT) {
+                if(!editor_command_text_append(output, output_capacity, &used, " ") ||
+                        !editor_command_shell_text_append(output, output_capacity,
+                            &used, item->name)) goto capacity_error;
+            } else if(item->kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                snprintf(values, sizeof(values), " %u %u %u ", item->object,
+                    item->parent, item->first);
+                if(!editor_command_text_append(output, output_capacity, &used, values) ||
+                        !editor_command_shell_text_append(output, output_capacity,
+                            &used, item->name)) goto capacity_error;
+                return editor_result_value(true);
             } else if(item->kind == EDITOR_ITEM_RIGID_BODY ||
                     item->kind == EDITOR_ITEM_SOFT_BODY) {
                 snprintf(values, sizeof(values), " %u", item->object);
@@ -3222,6 +3294,10 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                         document_path)) goto capacity_error;
             if(item->kind == EDITOR_ITEM_OBJECT)
                 snprintf(values, sizeof(values), " %u", item->object);
+            else if(item->kind == EDITOR_ITEM_LAYOUT_VIEWPORT)
+                snprintf(values, sizeof(values), " %u", item->item);
+            else if(item->kind == EDITOR_ITEM_VIEWPORT_CAMERA)
+                snprintf(values, sizeof(values), " %u %u", item->parent, item->item);
             else if(item->kind == EDITOR_ITEM_HITBOX ||
                     item->kind == EDITOR_ITEM_SOFT_NODE ||
                     item->kind == EDITOR_ITEM_SOFT_BEAM)
@@ -3243,6 +3319,18 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 if(!editor_command_text_append(output, output_capacity, &used, values) ||
                         !editor_command_shell_text_append(output, output_capacity, &used,
                             item->name)) goto capacity_error;
+                return editor_result_value(true);
+            } else if(item->kind == EDITOR_ITEM_LAYOUT_VIEWPORT) {
+                snprintf(values, sizeof(values), " %u ", item->item);
+                if(!editor_command_text_append(output, output_capacity, &used, values) ||
+                        !editor_command_shell_text_append(output, output_capacity,
+                            &used, item->name)) goto capacity_error;
+                return editor_result_value(true);
+            } else if(item->kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                snprintf(values, sizeof(values), " %u %u ", item->parent, item->item);
+                if(!editor_command_text_append(output, output_capacity, &used, values) ||
+                        !editor_command_shell_text_append(output, output_capacity,
+                            &used, item->name)) goto capacity_error;
                 return editor_result_value(true);
             } else if(item->kind == EDITOR_ITEM_HITBOX ||
                     item->kind == EDITOR_ITEM_SOFT_NODE ||

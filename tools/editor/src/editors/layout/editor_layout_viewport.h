@@ -1,0 +1,26 @@
+/* Copyright 2026 Aaron Rohrer
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+#ifndef EDITOR_LAYOUT_VIEWPORT_H
+#define EDITOR_LAYOUT_VIEWPORT_H
+
+#include "editors/editor_mode_context.h"
+
+typedef struct EditorLayoutViewportEditor {
+    FontAsset *font;
+    TextAsset name_label, x_label, y_label, width_label, height_label;
+    TextAsset enabled_label, cameras_label, add_label, delete_label, remove_label;
+    TextAsset layer_label, visible_label;
+    TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;
+    TextAsset camera_names[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
+    char camera_cache[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
+} EditorLayoutViewportEditor;
+
+bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
+    FontAsset *font);
+void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor);
+bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
+    const EditorModeContext *context);
+
+#endif
