@@ -393,6 +393,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_layout_viewport_id);
     yyjson_mut_obj_add_uint(document, root, "next_viewport_camera_item_id",
         project->next_viewport_camera_item_id);
+    yyjson_mut_obj_add_uint(document, root, "next_viewport_ui_item_id",
+        project->next_viewport_ui_item_id);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -491,6 +493,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         const EditorLayoutViewport *viewport = &project->layout_viewports[i];
         yyjson_mut_val *value = yyjson_mut_obj(document);
         yyjson_mut_val *camera_items = yyjson_mut_arr(document);
+        yyjson_mut_val *ui_items = yyjson_mut_arr(document);
         yyjson_mut_obj_add_uint(document, value, "id", viewport->id);
         yyjson_mut_obj_add_strcpy(document, value, "name", viewport->name);
         yyjson_mut_obj_add_real(document, value, "x", viewport->config.rectangle.x);
@@ -523,6 +526,22 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_arr_add_val(camera_items, item);
         }
         yyjson_mut_obj_add_val(document, value, "camera_items", camera_items);
+        for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
+            const EditorViewportUiItem *ui = &viewport->ui_items[j];
+            yyjson_mut_val *item = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_uint(document, item, "id", ui->id);
+            yyjson_mut_obj_add_uint(document, item, "kind", ui->kind);
+            yyjson_mut_obj_add_strcpy(document, item, "name", ui->name);
+            yyjson_mut_obj_add_strcpy(document, item, "text", ui->text);
+            yyjson_mut_obj_add_real(document, item, "x", ui->rectangle.x);
+            yyjson_mut_obj_add_real(document, item, "y", ui->rectangle.y);
+            yyjson_mut_obj_add_real(document, item, "width", ui->rectangle.width);
+            yyjson_mut_obj_add_real(document, item, "height", ui->rectangle.height);
+            yyjson_mut_obj_add_sint(document, item, "layer", ui->layer);
+            yyjson_mut_obj_add_bool(document, item, "visible", ui->visible);
+            yyjson_mut_arr_add_val(ui_items, item);
+        }
+        yyjson_mut_obj_add_val(document, value, "ui_items", ui_items);
         yyjson_mut_arr_add_val(layout_viewports, value);
     }
     yyjson_mut_obj_add_val(document, root, "layout_viewports", layout_viewports);
@@ -1385,6 +1404,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     for(size_t i = 0; i < loaded.layout_viewport_count; i += 1) {
         yyjson_val *value = yyjson_arr_get(layout_viewports, i);
         yyjson_val *camera_items = yyjson_obj_get(value, "camera_items");
+        yyjson_val *ui_items = yyjson_obj_get(value, "ui_items");
         EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
         uint32_t fit;
         if(!yyjson_is_obj(value) ||
@@ -1435,6 +1455,37 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 item->name);
             if(loaded.next_viewport_camera_item_id <= item->id)
                 loaded.next_viewport_camera_item_id = item->id + 1;
+        }
+        viewport->ui_item_count = ui_items == NULL ? 0 : yyjson_arr_size(ui_items);
+        if((ui_items != NULL && !yyjson_is_arr(ui_items)) ||
+                viewport->ui_item_count > EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
+                !EDITOR_ARRAY_RESERVE(viewport->ui_items,
+                    viewport->ui_item_capacity, viewport->ui_item_count)) goto done;
+        for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
+            yyjson_val *item_value = yyjson_arr_get(ui_items, j);
+            EditorViewportUiItem *item = &viewport->ui_items[j];
+            uint32_t kind;
+            yyjson_val *text;
+            if(!yyjson_is_obj(item_value) ||
+                    !editor_json_uint(item_value, "id", &item->id) || item->id == 0 ||
+                    !editor_json_uint(item_value, "kind", &kind) ||
+                    kind > EDITOR_VIEWPORT_UI_TEXT_FIELD ||
+                    !editor_json_name(item_value, item->name) ||
+                    !editor_json_real(item_value, "x", &item->rectangle.x) ||
+                    !editor_json_real(item_value, "y", &item->rectangle.y) ||
+                    !editor_json_real(item_value, "width", &item->rectangle.width) ||
+                    !editor_json_real(item_value, "height", &item->rectangle.height) ||
+                    !editor_json_int(item_value, "layer", &item->layer) ||
+                    !editor_json_bool(item_value, "visible", &item->visible) ||
+                    item->rectangle.width <= 0.0f || item->rectangle.height <= 0.0f)
+                goto done;
+            text = yyjson_obj_get(item_value, "text");
+            if(!yyjson_is_str(text) || yyjson_get_len(text) >= sizeof(item->text))
+                goto done;
+            memcpy(item->text, yyjson_get_str(text), yyjson_get_len(text) + 1);
+            item->kind = (EditorViewportUiKind)kind;
+            if(loaded.next_viewport_ui_item_id <= item->id)
+                loaded.next_viewport_ui_item_id = item->id + 1;
         }
         if(loaded.next_layout_viewport_id <= viewport->id)
             loaded.next_layout_viewport_id = viewport->id + 1;

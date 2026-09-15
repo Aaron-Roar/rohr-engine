@@ -1457,6 +1457,16 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_OBJECT) {
         state->mode = EDITOR_VIEWPORT_HIERARCHY;
         state->selection = EDITOR_SELECTION_OBJECT;
+    } else if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+        if(state->selected_viewport_camera_item != 0 ||
+                state->selected_viewport_ui_item != 0) {
+            state->selected_viewport_camera_item = 0;
+            state->selected_viewport_ui_item = 0;
+            state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+        } else {
+            state->mode = EDITOR_VIEWPORT_HIERARCHY;
+            state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+        }
     }
     state->dragged_vertex = -1;
 }
@@ -2351,6 +2361,7 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->rotated_soft_body = false;
     state->dragged_camera_entity = false;
     state->rotated_camera_entity = false;
+    state->dragged_viewport_item = false;
     state->dragged_origin = false;
     state->group_dragging = false;
     state->group_rotating = false;
@@ -2379,6 +2390,108 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        if(wheel_y != 0.0f) {
+            float old_zoom = project->viewport_camera_zoom;
+            float zoom = fminf(8.0f, fmaxf(0.1f,
+                old_zoom * powf(1.1f, wheel_y)));
+            Position origin = {center.x + project->viewport_camera_offset.x,
+                center.y + project->viewport_camera_offset.y};
+            Position local = {(pointer.x - origin.x) / old_zoom,
+                (pointer.y - origin.y) / old_zoom};
+            Vec2D offset = {pointer.x - local.x * zoom - center.x,
+                pointer.y - local.y * zoom - center.y};
+            EditorCommand command = {.type = EDITOR_COMMAND_VIEWPORT_CAMERA,
+                .data.viewport_camera = {offset, zoom}};
+            (void)editor_command_execute(project, &command);
+            return true;
+        }
+        if(pan_button == MOUSE_BUTTON_STATE_PRESSED ||
+                (pan_modifier && primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
+            state->camera_panning = true;
+            state->camera_pan_with_primary = pan_modifier;
+            state->camera_pointer = pointer;
+            return true;
+        }
+        if(state->camera_panning &&
+                ((!state->camera_pan_with_primary && pan_button == MOUSE_BUTTON_STATE_DOWN) ||
+                 (state->camera_pan_with_primary && primary_button == MOUSE_BUTTON_STATE_DOWN))) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VIEWPORT_CAMERA,
+                .data.viewport_camera = {{project->viewport_camera_offset.x +
+                        pointer.x - state->camera_pointer.x,
+                    project->viewport_camera_offset.y +
+                        pointer.y - state->camera_pointer.y},
+                    project->viewport_camera_zoom}};
+            (void)editor_command_execute(project, &command);
+            state->camera_pointer = pointer;
+            return true;
+        }
+        {
+            EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+                project, state->selected_layout_viewport);
+            Position origin = {center.x + project->viewport_camera_offset.x,
+                center.y + project->viewport_camera_offset.y};
+            Position local = {(pointer.x - origin.x) / project->viewport_camera_zoom,
+                (pointer.y - origin.y) / project->viewport_camera_zoom};
+            if(viewport == NULL) return false;
+            local.x -= viewport->config.rectangle.x;
+            local.y -= viewport->config.rectangle.y;
+            if(primary_button == MOUSE_BUTTON_STATE_RELEASED)
+                state->dragged_viewport_item = false;
+            if(state->dragged_viewport_item &&
+                    primary_button == MOUSE_BUTTON_STATE_DOWN) {
+                for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+                    EditorViewportCameraItem *item = &viewport->camera_items[i];
+                    if(item->id == state->selected_viewport_camera_item) {
+                        item->placement.rectangle.x = local.x - state->drag_offset.x;
+                        item->placement.rectangle.y = local.y - state->drag_offset.y;
+                        return true;
+                    }
+                }
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(item->id == state->selected_viewport_ui_item) {
+                        item->rectangle.x = local.x - state->drag_offset.x;
+                        item->rectangle.y = local.y - state->drag_offset.y;
+                        return true;
+                    }
+                }
+            }
+            if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+                for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    ViewportRectangle rectangle = item->rectangle;
+                    if(!item->visible || local.x < rectangle.x || local.y < rectangle.y ||
+                            local.x > rectangle.x + rectangle.width ||
+                            local.y > rectangle.y + rectangle.height) continue;
+                    state->selected_viewport_ui_item = item->id;
+                    state->selected_viewport_camera_item = 0;
+                    state->drag_offset = (Vec2D){local.x - rectangle.x,
+                        local.y - rectangle.y};
+                    state->dragged_viewport_item = true;
+                    return true;
+                }
+                for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
+                    EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
+                    ViewportRectangle rectangle = item->placement.rectangle;
+                    if(!item->placement.visible || local.x < rectangle.x ||
+                            local.y < rectangle.y ||
+                            local.x > rectangle.x + rectangle.width ||
+                            local.y > rectangle.y + rectangle.height) continue;
+                    state->selected_viewport_camera_item = item->id;
+                    state->selected_viewport_ui_item = 0;
+                    state->drag_offset = (Vec2D){local.x - rectangle.x,
+                        local.y - rectangle.y};
+                    state->dragged_viewport_item = true;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
     editor_view_transform_set(project, state, object);
     if(wheel_y != 0.0f) {
         Position world = editor_view_screen_to_world(pointer);
@@ -4049,23 +4162,41 @@ void editor_viewport_draw(const EditorProject *project,
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
             (EditorProject *)project, state->selected_layout_viewport);
         if(viewport != NULL) {
+            float zoom = project->viewport_camera_zoom;
+            Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+                EDITOR_MENU_HEIGHT +
+                    (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+            Position origin = {center.x + project->viewport_camera_offset.x,
+                center.y + project->viewport_camera_offset.y};
             ViewportRectangle rectangle = viewport->config.rectangle;
             Color border = {70, 180, 255, 255};
-            (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
-                rectangle.width, 2.0f, border);
-            (void)rohr_graphics_screen_rect_draw(rectangle.x,
-                rectangle.y + rectangle.height - 2.0f, rectangle.width, 2.0f, border);
-            (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
-                2.0f, rectangle.height, border);
-            (void)rohr_graphics_screen_rect_draw(
-                rectangle.x + rectangle.width - 2.0f, rectangle.y,
-                2.0f, rectangle.height, border);
+            rectangle.x = origin.x + rectangle.x * zoom;
+            rectangle.y = origin.y + rectangle.y * zoom;
+            rectangle.width *= zoom; rectangle.height *= zoom;
+            for(float x = 0.0f; x < rectangle.width; x += 12.0f * zoom) {
+                float length = fminf(7.0f * zoom, rectangle.width - x);
+                (void)rohr_graphics_screen_rect_draw(rectangle.x + x, rectangle.y,
+                    length, fmaxf(1.0f, 2.0f * zoom), border);
+                (void)rohr_graphics_screen_rect_draw(rectangle.x + x,
+                    rectangle.y + rectangle.height - fmaxf(1.0f, 2.0f * zoom),
+                    length, fmaxf(1.0f, 2.0f * zoom), border);
+            }
+            for(float y = 0.0f; y < rectangle.height; y += 12.0f * zoom) {
+                float length = fminf(7.0f * zoom, rectangle.height - y);
+                (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y + y,
+                    fmaxf(1.0f, 2.0f * zoom), length, border);
+                (void)rohr_graphics_screen_rect_draw(
+                    rectangle.x + rectangle.width - fmaxf(1.0f, 2.0f * zoom),
+                    rectangle.y + y, fmaxf(1.0f, 2.0f * zoom), length, border);
+            }
             for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
                 ViewportRectangle camera = item->placement.rectangle;
                 Color color = item->id == state->selected_viewport_camera_item ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
-                camera.x += rectangle.x; camera.y += rectangle.y;
+                camera.x = rectangle.x + camera.x * zoom;
+                camera.y = rectangle.y + camera.y * zoom;
+                camera.width *= zoom; camera.height *= zoom;
                 (void)rohr_graphics_screen_rect_draw(camera.x, camera.y,
                     camera.width, 2.0f, color);
                 (void)rohr_graphics_screen_rect_draw(camera.x,
@@ -4074,6 +4205,27 @@ void editor_viewport_draw(const EditorProject *project,
                     2.0f, camera.height, color);
                 (void)rohr_graphics_screen_rect_draw(camera.x + camera.width - 2.0f,
                     camera.y, 2.0f, camera.height, color);
+            }
+            for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                const EditorViewportUiItem *item = &viewport->ui_items[i];
+                ViewportRectangle ui = item->rectangle;
+                Color color = item->id == state->selected_viewport_ui_item ?
+                    (Color){255, 210, 70, 255} :
+                    item->kind == EDITOR_VIEWPORT_UI_BUTTON ?
+                        (Color){190, 120, 255, 255} : (Color){255, 145, 190, 255};
+                ui.x = rectangle.x + ui.x * zoom;
+                ui.y = rectangle.y + ui.y * zoom;
+                ui.width *= zoom; ui.height *= zoom;
+                (void)rohr_graphics_screen_rect_draw(ui.x, ui.y, ui.width,
+                    fmaxf(1.0f, 2.0f * zoom), color);
+                (void)rohr_graphics_screen_rect_draw(ui.x,
+                    ui.y + ui.height - fmaxf(1.0f, 2.0f * zoom), ui.width,
+                    fmaxf(1.0f, 2.0f * zoom), color);
+                (void)rohr_graphics_screen_rect_draw(ui.x, ui.y,
+                    fmaxf(1.0f, 2.0f * zoom), ui.height, color);
+                (void)rohr_graphics_screen_rect_draw(
+                    ui.x + ui.width - fmaxf(1.0f, 2.0f * zoom), ui.y,
+                    fmaxf(1.0f, 2.0f * zoom), ui.height, color);
             }
         }
         return;

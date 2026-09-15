@@ -24,6 +24,7 @@
 #define EDITOR_CAMERA_MAX MAX_CAMERAS
 #define EDITOR_LAYOUT_VIEWPORT_MAX MAX_VIEWPORTS
 #define EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX MAX_VIEWPORT_ITEMS
+#define EDITOR_LAYOUT_VIEWPORT_UI_MAX 64
 #define EDITOR_SOFT_AREA_NODE_MAX EDITOR_SOFT_NODE_MAX
 #define EDITOR_OBJECT_HIERARCHY_MAX \
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
@@ -49,6 +50,7 @@ typedef uint32_t EditorAnimatedSpriteId;
 typedef uint32_t EditorCameraId;
 typedef uint32_t EditorLayoutViewportId;
 typedef uint32_t EditorViewportCameraItemId;
+typedef uint32_t EditorViewportUiItemId;
 
 typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_RIGID_BODY,
@@ -334,6 +336,21 @@ typedef struct EditorViewportCameraItem {
     ViewportItemConfig placement;
 } EditorViewportCameraItem;
 
+typedef enum EditorViewportUiKind {
+    EDITOR_VIEWPORT_UI_BUTTON,
+    EDITOR_VIEWPORT_UI_TEXT_FIELD
+} EditorViewportUiKind;
+
+typedef struct EditorViewportUiItem {
+    EditorViewportUiItemId id;
+    EditorViewportUiKind kind;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    char text[UI_LABEL_MAX];
+    ViewportRectangle rectangle;
+    int layer;
+    bool visible;
+} EditorViewportUiItem;
+
 typedef struct EditorLayoutViewport {
     EditorLayoutViewportId id;
     char name[EDITOR_OBJECT_NAME_MAX];
@@ -342,6 +359,9 @@ typedef struct EditorLayoutViewport {
     EditorViewportCameraItem *camera_items;
     size_t camera_item_count;
     size_t camera_item_capacity;
+    EditorViewportUiItem *ui_items;
+    size_t ui_item_count;
+    size_t ui_item_capacity;
 } EditorLayoutViewport;
 
 typedef struct EditorNavigationState {
@@ -393,6 +413,7 @@ typedef struct EditorProject {
     EditorCameraId next_camera_id;
     EditorLayoutViewportId next_layout_viewport_id;
     EditorViewportCameraItemId next_viewport_camera_item_id;
+    EditorViewportUiItemId next_viewport_ui_item_id;
     EditorObjectId selected;
 } EditorProject;
 
@@ -436,6 +457,10 @@ EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
     EditorLayoutViewport *viewport, EditorObjectId object, EditorCameraId camera);
 bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
     EditorViewportCameraItemId id);
+EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
+    EditorLayoutViewport *viewport, EditorViewportUiKind kind);
+bool editor_viewport_ui_remove(EditorLayoutViewport *viewport,
+    EditorViewportUiItemId id);
 void editor_project_selection_clear(EditorProject *project);
 void editor_project_object_hierarchy_sync(EditorObject *object);
 size_t editor_project_object_hierarchy_index_get(const EditorObject *object,

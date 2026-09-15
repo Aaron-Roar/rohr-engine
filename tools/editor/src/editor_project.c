@@ -166,7 +166,8 @@ void editor_project_init(EditorProject *project) {
         .next_animated_sprite_id = 1,
         .next_camera_id = 1,
         .next_layout_viewport_id = 1,
-        .next_viewport_camera_item_id = 1
+        .next_viewport_camera_item_id = 1,
+        .next_viewport_ui_item_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -727,6 +728,8 @@ void editor_project_destroy(EditorProject *project) {
         editor_project_object_destroy(&project->objects[i]);
     for(size_t i = 0; i < project->layout_viewport_count; i += 1)
         free(project->layout_viewports[i].camera_items);
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1)
+        free(project->layout_viewports[i].ui_items);
     free(project->collision_masks);
     free(project->objects);
     free(project->layout_viewports);
@@ -767,11 +770,18 @@ bool editor_project_clone(EditorProject *destination,
         *viewport = source->layout_viewports[i];
         viewport->camera_items = NULL;
         viewport->camera_item_capacity = 0;
+        viewport->ui_items = NULL;
+        viewport->ui_item_capacity = 0;
         if(!EDITOR_ARRAY_RESERVE(viewport->camera_items,
                 viewport->camera_item_capacity, viewport->camera_item_count)) goto fail;
         if(viewport->camera_item_count > 0) memcpy(viewport->camera_items,
             source->layout_viewports[i].camera_items,
             viewport->camera_item_count * sizeof(*viewport->camera_items));
+        if(!EDITOR_ARRAY_RESERVE(viewport->ui_items,
+                viewport->ui_item_capacity, viewport->ui_item_count)) goto fail;
+        if(viewport->ui_item_count > 0) memcpy(viewport->ui_items,
+            source->layout_viewports[i].ui_items,
+            viewport->ui_item_count * sizeof(*viewport->ui_items));
         destination->layout_viewport_count += 1;
     }
     return true;
@@ -890,6 +900,7 @@ EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project)
         .config = rohr_viewport_config_default_get(),
         .enabled = true,
     };
+    viewport->config.rectangle = (ViewportRectangle){0.0f, 0.0f, 640.0f, 360.0f};
     snprintf(viewport->name, sizeof(viewport->name), "Viewport%u", viewport->id);
     return viewport;
 }
@@ -910,6 +921,7 @@ bool editor_project_layout_viewport_remove(EditorProject *project,
         if(project->layout_viewports[index].id == id) break;
     if(index == project->layout_viewport_count) return false;
     free(project->layout_viewports[index].camera_items);
+    free(project->layout_viewports[index].ui_items);
     for(size_t i = index + 1; i < project->layout_viewport_count; i += 1)
         project->layout_viewports[i - 1] = project->layout_viewports[i];
     project->layout_viewport_count -= 1;
@@ -957,6 +969,40 @@ bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
     viewport->camera_item_count -= 1;
     viewport->camera_items[viewport->camera_item_count] =
         (EditorViewportCameraItem){0};
+    return true;
+}
+
+EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
+        EditorLayoutViewport *viewport, EditorViewportUiKind kind) {
+    EditorViewportUiItem *item;
+    if(project == NULL || viewport == NULL ||
+            (kind != EDITOR_VIEWPORT_UI_BUTTON &&
+                kind != EDITOR_VIEWPORT_UI_TEXT_FIELD) ||
+            viewport->ui_item_count >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
+            !EDITOR_ARRAY_RESERVE(viewport->ui_items, viewport->ui_item_capacity,
+                viewport->ui_item_count + 1)) return NULL;
+    item = &viewport->ui_items[viewport->ui_item_count++];
+    *item = (EditorViewportUiItem){.id = project->next_viewport_ui_item_id++,
+        .kind = kind, .rectangle = {20.0f, 20.0f, 180.0f, 36.0f},
+        .visible = true};
+    snprintf(item->name, sizeof(item->name), "%s_%u",
+        kind == EDITOR_VIEWPORT_UI_BUTTON ? "button" : "text_field", item->id);
+    snprintf(item->text, sizeof(item->text), "%s",
+        kind == EDITOR_VIEWPORT_UI_BUTTON ? "Button" : "Text");
+    return item;
+}
+
+bool editor_viewport_ui_remove(EditorLayoutViewport *viewport,
+        EditorViewportUiItemId id) {
+    size_t index;
+    if(viewport == NULL || id == 0) return false;
+    for(index = 0; index < viewport->ui_item_count; index += 1)
+        if(viewport->ui_items[index].id == id) break;
+    if(index == viewport->ui_item_count) return false;
+    for(size_t i = index + 1; i < viewport->ui_item_count; i += 1)
+        viewport->ui_items[i - 1] = viewport->ui_items[i];
+    viewport->ui_item_count -= 1;
+    viewport->ui_items[viewport->ui_item_count] = (EditorViewportUiItem){0};
     return true;
 }
 

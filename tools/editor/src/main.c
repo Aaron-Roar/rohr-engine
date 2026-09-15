@@ -2270,6 +2270,8 @@ int main(void) {
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
+            } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
+                editor_viewport_back(&viewport_state);
             } else if(editor_viewport_hitbox_editor_active_get(&viewport_state)) {
                 editor_viewport_back(&viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_HIERARCHY &&

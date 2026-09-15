@@ -12,9 +12,12 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset name_label, x_label, y_label, width_label, height_label;
     TextAsset enabled_label, cameras_label, add_label, delete_label, remove_label;
     TextAsset layer_label, visible_label;
+    TextAsset add_button_label, add_text_field_label;
     TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;
     TextAsset camera_names[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
     char camera_cache[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
+    TextAsset ui_names[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
+    char ui_cache[EDITOR_LAYOUT_VIEWPORT_UI_MAX][EDITOR_OBJECT_NAME_MAX];
 } EditorLayoutViewportEditor;
 
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,

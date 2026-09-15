@@ -26,6 +26,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
+    CREATE("Add Button", add_button_label);
+    CREATE("Add Text Field", add_text_field_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
 #undef CREATE
@@ -42,11 +44,14 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
+    DESTROY(add_button_label); DESTROY(add_text_field_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->camera_names[i]);
+    for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1)
+        rohr_graphics_text_destroy(&editor->ui_names[i]);
     *editor = (EditorLayoutViewportEditor){0};
 }
 
@@ -95,6 +100,28 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     rohr_ui_label(&editor->cameras_label,
         (UIRect){context->x + 8.0f, 276.0f, context->width - 16.0f, 28.0f});
     y = 310.0f;
+    if(rohr_ui_button("editor.layout.add_button", &editor->add_button_label,
+            (UIRect){context->x + 8.0f, y, (context->width - 24.0f) * 0.5f,
+                30.0f}, NULL).clicked) {
+        EditorViewportUiItem *item = editor_viewport_ui_add(context->project,
+            viewport, EDITOR_VIEWPORT_UI_BUTTON);
+        if(item != NULL) {
+            context->viewport->selected_viewport_ui_item = item->id;
+            context->viewport->selected_viewport_camera_item = 0;
+        }
+    }
+    if(rohr_ui_button("editor.layout.add_text_field",
+            &editor->add_text_field_label,
+            (UIRect){context->x + 16.0f + (context->width - 24.0f) * 0.5f,
+                y, (context->width - 24.0f) * 0.5f, 30.0f}, NULL).clicked) {
+        EditorViewportUiItem *item = editor_viewport_ui_add(context->project,
+            viewport, EDITOR_VIEWPORT_UI_TEXT_FIELD);
+        if(item != NULL) {
+            context->viewport->selected_viewport_ui_item = item->id;
+            context->viewport->selected_viewport_camera_item = 0;
+        }
+    }
+    y += 40.0f;
     for(size_t object_index = 0; object_index < context->project->object_count;
             object_index += 1) {
         EditorObject *object = &context->project->objects[object_index];
@@ -135,7 +162,24 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(rohr_ui_button(id, &editor->camera_names[i],
                 (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f},
                 NULL).clicked)
-            context->viewport->selected_viewport_camera_item = item->id;
+            context->viewport->selected_viewport_camera_item = item->id,
+            context->viewport->selected_viewport_ui_item = 0;
+        y += 32.0f;
+    }
+    for(size_t i = 0; i < viewport->ui_item_count &&
+            i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1) {
+        EditorViewportUiItem *item = &viewport->ui_items[i];
+        char id[80];
+        if(!editor_mode_named_text_sync(editor->font, item->name,
+                &editor->ui_names[i], editor->ui_cache[i],
+                EDITOR_OBJECT_NAME_MAX)) continue;
+        snprintf(id, sizeof(id), "editor.layout.ui.%u", item->id);
+        if(rohr_ui_button(id, &editor->ui_names[i],
+                (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f},
+                NULL).clicked) {
+            context->viewport->selected_viewport_ui_item = item->id;
+            context->viewport->selected_viewport_camera_item = 0;
+        }
         y += 32.0f;
     }
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
@@ -181,6 +225,55 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             width_result.active || height_result.active || item_x.active ||
             item_y.active || item_width.active || item_height.active ||
             item_layer.active;
+    }
+    for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+        EditorViewportUiItem *item = &viewport->ui_items[i];
+        float layer;
+        bool visible;
+        UIFieldResult text_result, item_x, item_y, item_width, item_height,
+            item_layer;
+        if(item->id != context->viewport->selected_viewport_ui_item) continue;
+        y += 8.0f;
+        rohr_ui_label(&editor->name_label,
+            (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
+        text_result = rohr_ui_field("editor.layout.ui.text",
+            (UIFieldBinding){.kind = UI_FIELD_STRING, .string = item->text,
+                .string_capacity = sizeof(item->text)}, &editor->name_field,
+            (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+        y += 38.0f;
+        item_x = layout_number(&editor->x_label, &editor->x_field,
+            "editor.layout.ui.x", context->x, y, context->width,
+            &item->rectangle.x); y += 38.0f;
+        item_y = layout_number(&editor->y_label, &editor->y_field,
+            "editor.layout.ui.y", context->x, y, context->width,
+            &item->rectangle.y); y += 38.0f;
+        item_width = layout_number(&editor->width_label, &editor->width_field,
+            "editor.layout.ui.width", context->x, y, context->width,
+            &item->rectangle.width); y += 38.0f;
+        item_height = layout_number(&editor->height_label, &editor->height_field,
+            "editor.layout.ui.height", context->x, y, context->width,
+            &item->rectangle.height); y += 38.0f;
+        layer = (float)item->layer;
+        item_layer = layout_number(&editor->layer_label, &editor->layer_field,
+            "editor.layout.ui.layer", context->x, y, context->width, &layer);
+        if(item_layer.changed) item->layer = (int)layer;
+        y += 38.0f;
+        visible = item->visible;
+        if(editor_mode_checkbox_left("editor.layout.ui.visible",
+                &editor->visible_label, (UIRect){context->x + 10.0f, y,
+                    context->width - 20.0f, 28.0f}, &visible))
+            item->visible = visible;
+        y += 38.0f;
+        if(rohr_ui_button("editor.layout.ui.remove", &editor->remove_label,
+                (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+                NULL).clicked) {
+            (void)editor_viewport_ui_remove(viewport, item->id);
+            context->viewport->selected_viewport_ui_item = 0;
+        }
+        return name_result.active || x_result.active || y_result.active ||
+            width_result.active || height_result.active || text_result.active ||
+            item_x.active || item_y.active || item_width.active ||
+            item_height.active || item_layer.active;
     }
     return name_result.active || x_result.active || y_result.active ||
         width_result.active || height_result.active;

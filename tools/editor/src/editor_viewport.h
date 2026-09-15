@@ -83,6 +83,7 @@ typedef struct EditorViewportState {
     bool rotated_soft_body;
     bool dragged_camera_entity;
     bool rotated_camera_entity;
+    bool dragged_viewport_item;
     bool dragged_origin;
     bool group_dragging;
     bool group_rotating;
@@ -122,6 +123,7 @@ typedef struct EditorViewportState {
     EditorCameraId selected_camera_entity;
     EditorLayoutViewportId selected_layout_viewport;
     EditorViewportCameraItemId selected_viewport_camera_item;
+    EditorViewportUiItemId selected_viewport_ui_item;
     EditorSpriteId selected_animation_frame;
     EditorSoftAreaId soft_area_candidates[EDITOR_SOFT_AREA_MAX];
     size_t soft_area_candidate_count;
