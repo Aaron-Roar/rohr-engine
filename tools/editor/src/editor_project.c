@@ -976,19 +976,28 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         EditorLayoutViewport *viewport, EditorViewportUiKind kind) {
     EditorViewportUiItem *item;
     if(project == NULL || viewport == NULL ||
-            (kind != EDITOR_VIEWPORT_UI_BUTTON &&
-                kind != EDITOR_VIEWPORT_UI_TEXT_FIELD) ||
+            (kind != EDITOR_VIEWPORT_UI_SHAPE &&
+                kind != EDITOR_VIEWPORT_UI_TEXT) ||
             viewport->ui_item_count >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             !EDITOR_ARRAY_RESERVE(viewport->ui_items, viewport->ui_item_capacity,
                 viewport->ui_item_count + 1)) return NULL;
     item = &viewport->ui_items[viewport->ui_item_count++];
     *item = (EditorViewportUiItem){.id = project->next_viewport_ui_item_id++,
-        .kind = kind, .rectangle = {20.0f, 20.0f, 180.0f, 36.0f},
+        .kind = kind, .position = {20.0f, 20.0f},
         .visible = true};
     snprintf(item->name, sizeof(item->name), "%s_%u",
-        kind == EDITOR_VIEWPORT_UI_BUTTON ? "button" : "text_field", item->id);
-    snprintf(item->text, sizeof(item->text), "%s",
-        kind == EDITOR_VIEWPORT_UI_BUTTON ? "Button" : "Text");
+        kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text", item->id);
+    if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
+        item->value.shape.vertex_count = 4;
+        item->value.shape.vertices[0] = (Position){0.0f, 0.0f};
+        item->value.shape.vertices[1] = (Position){180.0f, 0.0f};
+        item->value.shape.vertices[2] = (Position){180.0f, 36.0f};
+        item->value.shape.vertices[3] = (Position){0.0f, 36.0f};
+        item->value.shape.outline_color = 0xFFFFFFFFu;
+        item->value.shape.fill_color = 0x394052FFu;
+    } else {
+        item->value.text.color = 0xFFFFFFFFu;
+    }
     return item;
 }
 

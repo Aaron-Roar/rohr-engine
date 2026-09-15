@@ -337,18 +337,35 @@ typedef struct EditorViewportCameraItem {
 } EditorViewportCameraItem;
 
 typedef enum EditorViewportUiKind {
-    EDITOR_VIEWPORT_UI_BUTTON,
-    EDITOR_VIEWPORT_UI_TEXT_FIELD
+    EDITOR_VIEWPORT_UI_SHAPE,
+    EDITOR_VIEWPORT_UI_TEXT
 } EditorViewportUiKind;
+
+typedef struct EditorViewportUiShape {
+    Position vertices[EDITOR_HITBOX_VERTEX_MAX];
+    size_t vertex_count;
+    uint32_t outline_color;
+    uint32_t fill_color;
+    bool button_enabled;
+    char text[UI_LABEL_MAX];
+} EditorViewportUiShape;
+
+typedef struct EditorViewportUiText {
+    char text[UI_LABEL_MAX];
+    uint32_t color;
+} EditorViewportUiText;
 
 typedef struct EditorViewportUiItem {
     EditorViewportUiItemId id;
     EditorViewportUiKind kind;
     char name[EDITOR_OBJECT_NAME_MAX];
-    char text[UI_LABEL_MAX];
-    ViewportRectangle rectangle;
+    Position position;
     int layer;
     bool visible;
+    union {
+        EditorViewportUiShape shape;
+        EditorViewportUiText text;
+    } value;
 } EditorViewportUiItem;
 
 typedef struct EditorLayoutViewport {

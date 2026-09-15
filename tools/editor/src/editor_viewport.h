@@ -84,6 +84,7 @@ typedef struct EditorViewportState {
     bool dragged_camera_entity;
     bool rotated_camera_entity;
     bool dragged_viewport_item;
+    bool dragged_viewport_vertex;
     bool dragged_origin;
     bool group_dragging;
     bool group_rotating;

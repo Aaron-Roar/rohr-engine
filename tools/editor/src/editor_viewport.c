@@ -1801,6 +1801,42 @@ static EditorObject *editor_group_object_get(EditorProject *project,
     return NULL;
 }
 
+static ViewportRectangle editor_viewport_ui_rectangle_get(
+        const EditorViewportUiItem *item) {
+    ViewportRectangle rectangle;
+    if(item == NULL) return (ViewportRectangle){0};
+    if(item->kind == EDITOR_VIEWPORT_UI_TEXT)
+        return (ViewportRectangle){item->position.x, item->position.y, 160.0f, 28.0f};
+    if(item->value.shape.vertex_count == 0)
+        return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
+    rectangle = (ViewportRectangle){item->value.shape.vertices[0].x,
+        item->value.shape.vertices[0].y, item->value.shape.vertices[0].x,
+        item->value.shape.vertices[0].y};
+    for(size_t i = 1; i < item->value.shape.vertex_count; i += 1) {
+        rectangle.x = fminf(rectangle.x, item->value.shape.vertices[i].x);
+        rectangle.y = fminf(rectangle.y, item->value.shape.vertices[i].y);
+        rectangle.width = fmaxf(rectangle.width, item->value.shape.vertices[i].x);
+        rectangle.height = fmaxf(rectangle.height, item->value.shape.vertices[i].y);
+    }
+    rectangle.width -= rectangle.x;
+    rectangle.height -= rectangle.y;
+    rectangle.x += item->position.x;
+    rectangle.y += item->position.y;
+    return rectangle;
+}
+
+static void editor_viewport_screen_dotted_line_draw(Position first,
+        Position second, Color color) {
+    Vec2D delta = {second.x - first.x, second.y - first.y};
+    float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
+    if(length <= 0.0f) return;
+    for(float distance = 0.0f; distance <= length; distance += 6.0f) {
+        float ratio = distance / length;
+        (void)rohr_graphics_screen_rect_draw(first.x + delta.x * ratio - 1.0f,
+            first.y + delta.y * ratio - 1.0f, 3.0f, 3.0f, color);
+    }
+}
+
 static EditorSoftBody *editor_group_soft_body_get(EditorObject *object,
         EditorSoftBodyId id) {
     if(object == NULL) return NULL;
@@ -2362,6 +2398,7 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->dragged_camera_entity = false;
     state->rotated_camera_entity = false;
     state->dragged_viewport_item = false;
+    state->dragged_viewport_vertex = false;
     state->dragged_origin = false;
     state->group_dragging = false;
     state->group_rotating = false;
@@ -2439,8 +2476,24 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(viewport == NULL) return false;
             local.x -= viewport->config.rectangle.x;
             local.y -= viewport->config.rectangle.y;
-            if(primary_button == MOUSE_BUTTON_STATE_RELEASED)
+            if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
                 state->dragged_viewport_item = false;
+                state->dragged_viewport_vertex = false;
+            }
+            if(state->dragged_viewport_vertex &&
+                    primary_button == MOUSE_BUTTON_STATE_DOWN) {
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(item->id == state->selected_viewport_ui_item &&
+                            item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                            state->selected_vertex < item->value.shape.vertex_count) {
+                        item->value.shape.vertices[state->selected_vertex] =
+                            (Position){local.x - item->position.x,
+                                local.y - item->position.y};
+                        return true;
+                    }
+                }
+            }
             if(state->dragged_viewport_item &&
                     primary_button == MOUSE_BUTTON_STATE_DOWN) {
                 for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
@@ -2454,23 +2507,41 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
                     if(item->id == state->selected_viewport_ui_item) {
-                        item->rectangle.x = local.x - state->drag_offset.x;
-                        item->rectangle.y = local.y - state->drag_offset.y;
+                        item->position.x = local.x - state->drag_offset.x;
+                        item->position.y = local.y - state->drag_offset.y;
                         return true;
                     }
                 }
             }
             if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(item->id != state->selected_viewport_ui_item ||
+                            item->kind != EDITOR_VIEWPORT_UI_SHAPE) continue;
+                    for(size_t vertex = 0; vertex < item->value.shape.vertex_count;
+                            vertex += 1) {
+                        Position point = {item->position.x +
+                                item->value.shape.vertices[vertex].x,
+                            item->position.y + item->value.shape.vertices[vertex].y};
+                        Vec2D delta = {local.x - point.x, local.y - point.y};
+                        if(delta.x * delta.x + delta.y * delta.y >
+                                64.0f / (project->viewport_camera_zoom *
+                                    project->viewport_camera_zoom)) continue;
+                        state->selected_vertex = (uint32_t)vertex;
+                        state->dragged_viewport_vertex = true;
+                        return true;
+                    }
+                }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
-                    ViewportRectangle rectangle = item->rectangle;
+                    ViewportRectangle rectangle = editor_viewport_ui_rectangle_get(item);
                     if(!item->visible || local.x < rectangle.x || local.y < rectangle.y ||
                             local.x > rectangle.x + rectangle.width ||
                             local.y > rectangle.y + rectangle.height) continue;
                     state->selected_viewport_ui_item = item->id;
                     state->selected_viewport_camera_item = 0;
-                    state->drag_offset = (Vec2D){local.x - rectangle.x,
-                        local.y - rectangle.y};
+                    state->drag_offset = (Vec2D){local.x - item->position.x,
+                        local.y - item->position.y};
                     state->dragged_viewport_item = true;
                     return true;
                 }
@@ -4208,14 +4279,34 @@ void editor_viewport_draw(const EditorProject *project,
             }
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
-                ViewportRectangle ui = item->rectangle;
+                ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 Color color = item->id == state->selected_viewport_ui_item ?
                     (Color){255, 210, 70, 255} :
-                    item->kind == EDITOR_VIEWPORT_UI_BUTTON ?
+                    item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                         (Color){190, 120, 255, 255} : (Color){255, 145, 190, 255};
                 ui.x = rectangle.x + ui.x * zoom;
                 ui.y = rectangle.y + ui.y * zoom;
                 ui.width *= zoom; ui.height *= zoom;
+                if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                        item->value.shape.vertex_count >= 2) {
+                    for(size_t vertex = 0; vertex < item->value.shape.vertex_count;
+                            vertex += 1) {
+                        size_t next = (vertex + 1) % item->value.shape.vertex_count;
+                        Position first = {rectangle.x + (item->position.x +
+                                item->value.shape.vertices[vertex].x) * zoom,
+                            rectangle.y + (item->position.y +
+                                item->value.shape.vertices[vertex].y) * zoom};
+                        Position second = {rectangle.x + (item->position.x +
+                                item->value.shape.vertices[next].x) * zoom,
+                            rectangle.y + (item->position.y +
+                                item->value.shape.vertices[next].y) * zoom};
+                        editor_viewport_screen_dotted_line_draw(first, second, color);
+                        if(item->id == state->selected_viewport_ui_item)
+                            (void)rohr_graphics_screen_rect_draw(first.x - 4.0f,
+                                first.y - 4.0f, 8.0f, 8.0f, color);
+                    }
+                    continue;
+                }
                 (void)rohr_graphics_screen_rect_draw(ui.x, ui.y, ui.width,
                     fmaxf(1.0f, 2.0f * zoom), color);
                 (void)rohr_graphics_screen_rect_draw(ui.x,
