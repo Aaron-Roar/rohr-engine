@@ -5,6 +5,7 @@
 #include "editor_layout_viewport.h"
 #include "editors/editor_mode_controls.h"
 
+#include <math.h>
 #include <stdio.h>
 
 static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
@@ -31,6 +32,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
+    CREATE("Add Vertex", add_vertex_label); CREATE("Length", length_label);
     CREATE("Font Color", font_color_label);
     CREATE("Width Scale", width_scale_label);
     CREATE("Height Scale", height_scale_label);
@@ -38,6 +40,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
     CREATE("", text_field); CREATE("", font_file_field);
     CREATE("", width_scale_field); CREATE("", height_scale_field);
+    CREATE("", length_field);
 #undef CREATE
     return true;
 fail:
@@ -55,6 +58,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(add_shape_label); DESTROY(add_text_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
+    DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
     DESTROY(width_scale_label); DESTROY(height_scale_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
@@ -516,19 +520,26 @@ bool editor_ui_line_editor_draw(EditorLayoutViewportEditor *editor,
     EditorViewportUiItem *item = layout_ui_item_get(context,
         EDITOR_VIEWPORT_UI_SHAPE);
     size_t line;
+    size_t next;
+    Position *first;
+    Position *second;
+    float length;
+    UIFieldResult length_result;
     if(editor == NULL || item == NULL || item->value.shape.vertex_count < 2)
         return false;
     line = context->viewport->selected_line;
     if(line >= item->value.shape.vertex_count) return false;
+    next = (line + 1) % item->value.shape.vertex_count;
+    first = &item->value.shape.vertices[line];
+    second = &item->value.shape.vertices[next];
+    length = sqrtf((second->x - first->x) * (second->x - first->x) +
+        (second->y - first->y) * (second->y - first->y));
     if(item->value.shape.vertex_count < EDITOR_HITBOX_VERTEX_MAX &&
-            rohr_ui_button("editor.ui_line.add_vertex", &editor->add_label,
+            rohr_ui_button("editor.ui_line.add_vertex", &editor->add_vertex_label,
                 (UIRect){context->x + 10.0f, 42.0f,
                     context->width - 20.0f, 34.0f}, NULL).clicked) {
-        size_t next = (line + 1) % item->value.shape.vertex_count;
-        Position first = item->value.shape.vertices[line];
-        Position second = item->value.shape.vertices[next];
-        Position inserted = {(first.x + second.x) * 0.5f,
-            (first.y + second.y) * 0.5f};
+        Position inserted = {(first->x + second->x) * 0.5f,
+            (first->y + second->y) * 0.5f};
         size_t insertion = line + 1;
         memmove(&item->value.shape.vertices[insertion + 1],
             &item->value.shape.vertices[insertion],
@@ -539,6 +550,22 @@ bool editor_ui_line_editor_draw(EditorLayoutViewportEditor *editor,
         context->viewport->selected_vertex = (uint32_t)insertion;
         context->viewport->mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
         context->viewport->selection = EDITOR_SELECTION_UI_VERTEX;
+        return false;
     }
-    return false;
+    length_result = layout_number(&editor->length_label, &editor->length_field,
+        "editor.ui_line.length", context->x, 86.0f, context->width, &length);
+    if(length_result.changed) {
+        Vec2D direction = {second->x - first->x, second->y - first->y};
+        float prior_length = sqrtf(direction.x * direction.x +
+            direction.y * direction.y);
+        length = fmaxf(0.001f, length);
+        if(prior_length <= 0.0001f) direction = (Vec2D){1.0f, 0.0f};
+        else {
+            direction.x /= prior_length;
+            direction.y /= prior_length;
+        }
+        second->x = first->x + direction.x * length;
+        second->y = first->y + direction.y * length;
+    }
+    return length_result.active;
 }
