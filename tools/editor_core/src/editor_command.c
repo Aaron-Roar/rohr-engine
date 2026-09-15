@@ -590,6 +590,49 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     sizeof(command_result.created.name), "%s", created_object->name);
                 return command_result;
             }
+            if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT) {
+                EditorLayoutViewport *viewport =
+                    editor_project_layout_viewport_add(project);
+                EditorCommandResult result;
+                if(viewport == NULL) return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_CAPACITY, "could not add viewport").result.error);
+                if(command->data.item_add.name[0] != '\0')
+                    editor_project_object_name_format(viewport->name,
+                        sizeof(viewport->name), command->data.item_add.name);
+                result = (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
+                    .result.object = viewport->id,
+                    .created = {.valid = true,
+                        .kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
+                        .item = viewport->id}};
+                snprintf(result.created.name, sizeof(result.created.name), "%s",
+                    viewport->name);
+                return result;
+            }
+            if(kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+                    project, command->data.item_add.parent);
+                EditorViewportCameraItem *value = editor_viewport_camera_add(project,
+                    viewport, command->data.item_add.object,
+                    command->data.item_add.first);
+                EditorCommandResult result;
+                if(value == NULL) return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_CAPACITY,
+                    "could not add camera to viewport").result.error);
+                if(command->data.item_add.name[0] != '\0')
+                    editor_project_property_name_format(value->name,
+                        sizeof(value->name), command->data.item_add.name);
+                result = (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
+                    .result.object = value->id,
+                    .created = {.valid = true,
+                        .kind = EDITOR_ITEM_VIEWPORT_CAMERA,
+                        .object = command->data.item_add.object,
+                        .parent = viewport->id,
+                        .container = command->data.item_add.first,
+                        .item = value->id}};
+                snprintf(result.created.name, sizeof(result.created.name), "%s",
+                    value->name);
+                return result;
+            }
             object = editor_object_query_get(project, command->data.item_add.object);
             if(object == NULL) return editor_command_not_found("object",
                 command->data.item_add.object);
@@ -675,12 +718,28 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         }
         case EDITOR_COMMAND_ITEM_REMOVE: {
             const EditorItemKind kind = command->data.item_remove.kind;
-            EditorObject *object = editor_object_query_get(project,
-                command->data.item_remove.object);
+            EditorObject *object;
             bool removed = false;
             if(kind == EDITOR_ITEM_OBJECT)
                 return editor_command_result_from(editor_object_command_remove(project,
                     command->data.item_remove.object));
+            if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT)
+                return editor_project_layout_viewport_remove(project,
+                        command->data.item_remove.item)
+                    ? (EditorCommandResult){.kind = ERROR_RESULT_VALUE}
+                    : editor_command_not_found("viewport",
+                        command->data.item_remove.item);
+            if(kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+                    project, command->data.item_remove.parent);
+                return editor_viewport_camera_remove(viewport,
+                        command->data.item_remove.item)
+                    ? (EditorCommandResult){.kind = ERROR_RESULT_VALUE}
+                    : editor_command_not_found("viewport camera",
+                        command->data.item_remove.item);
+            }
+            object = editor_object_query_get(project,
+                command->data.item_remove.object);
             if(object == NULL) return editor_command_not_found("object",
                 command->data.item_remove.object);
             if(kind == EDITOR_ITEM_RIGID_BODY)
@@ -700,9 +759,26 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             else if(kind == EDITOR_ITEM_SOFT_BODY)
                 removed = editor_project_soft_body_remove(object,
                     command->data.item_remove.item);
-            else if(kind == EDITOR_ITEM_CAMERA)
+            else if(kind == EDITOR_ITEM_CAMERA) {
+                for(size_t viewport_index = 0;
+                        viewport_index < project->layout_viewport_count;
+                        viewport_index += 1) {
+                    EditorLayoutViewport *viewport =
+                        &project->layout_viewports[viewport_index];
+                    for(size_t item = viewport->camera_item_count; item > 0;
+                            item -= 1) {
+                        EditorViewportCameraItem *camera_item =
+                            &viewport->camera_items[item - 1];
+                        if(camera_item->object == object->id &&
+                                camera_item->camera ==
+                                    command->data.item_remove.item)
+                            (void)editor_viewport_camera_remove(viewport,
+                                camera_item->id);
+                    }
+                }
                 removed = editor_project_camera_remove(object,
                     command->data.item_remove.item);
+            }
             else if(kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
                     command->data.item_remove.parent);
@@ -734,14 +810,36 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         }
         case EDITOR_COMMAND_ITEM_RENAME: {
             const EditorItemKind kind = command->data.item_rename.kind;
-            EditorObject *object = editor_object_query_get(project,
-                command->data.item_rename.object);
+            EditorObject *object;
             char *name = NULL;
             char formatted[EDITOR_OBJECT_NAME_MAX];
             if(kind == EDITOR_ITEM_OBJECT)
                 return editor_command_result_from(editor_object_command_rename(project,
                     command->data.item_rename.object,
                     command->data.item_rename.name));
+            if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT) {
+                EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+                    project, command->data.item_rename.item);
+                if(viewport != NULL) name = viewport->name;
+            } else if(kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+                EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+                    project, command->data.item_rename.parent);
+                if(viewport != NULL) for(size_t i = 0;
+                        i < viewport->camera_item_count; i += 1)
+                    if(viewport->camera_items[i].id == command->data.item_rename.item)
+                        name = viewport->camera_items[i].name;
+            }
+            if(name != NULL) {
+                editor_project_property_name_format(formatted, sizeof(formatted),
+                    command->data.item_rename.name);
+                if(formatted[0] == '\0') return editor_command_error(
+                    editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                        "item name is empty").result.error);
+                snprintf(name, EDITOR_OBJECT_NAME_MAX, "%s", formatted);
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            }
+            object = editor_object_query_get(project,
+                command->data.item_rename.object);
             if(object == NULL) return editor_command_not_found("object",
                 command->data.item_rename.object);
             if(kind == EDITOR_ITEM_RIGID_BODY) {

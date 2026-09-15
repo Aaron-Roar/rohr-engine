@@ -77,7 +77,9 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_VERTEX,
     EDITOR_ITEM_LINE,
     EDITOR_ITEM_SOFT_AREA,
-    EDITOR_ITEM_CAMERA
+    EDITOR_ITEM_CAMERA,
+    EDITOR_ITEM_LAYOUT_VIEWPORT,
+    EDITOR_ITEM_VIEWPORT_CAMERA
 } EditorItemKind;
 
 typedef struct EditorItemAddCommand {
