@@ -997,6 +997,8 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         item->value.shape.fill_color = 0x394052FFu;
     } else {
         item->value.text.color = 0xFFFFFFFFu;
+        item->value.text.width_scale = 1.0f;
+        item->value.text.height_scale = 1.0f;
     }
     return item;
 }

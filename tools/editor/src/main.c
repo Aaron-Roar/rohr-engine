@@ -565,7 +565,9 @@ static EditorNavigationState editor_navigation_state_get(
         const EditorProject *project, const EditorViewportState *state) {
     EditorViewportMode persisted_mode;
     if(project == NULL || state == NULL) return (EditorNavigationState){0};
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT)
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR)
         return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
             .selection = EDITOR_SELECTION_NONE};
     persisted_mode = state->mode == EDITOR_VIEWPORT_AUTO_SHAPE ?
@@ -2270,7 +2272,9 @@ int main(void) {
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
-            } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
+            } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT ||
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
                 editor_viewport_back(&viewport_state);
             } else if(editor_viewport_hitbox_editor_active_get(&viewport_state)) {
                 editor_viewport_back(&viewport_state);
@@ -2710,6 +2714,20 @@ int main(void) {
                 editor_mode_rigid_body_preview, &viewport_state,
                 editor_mode_animation_frame_browser_open, &browser_context,
                 additive_selection, &column_frame_multi_edit_open);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
+            field_editing = editor_ui_shape_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
+            EditorModeColorContext color_context = {
+                .picker = &color_picker, .project = &project};
+            field_editing = editor_ui_text_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH,
+                    .local_color_open = editor_mode_local_color_picker_open,
+                    .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,

@@ -1457,6 +1457,11 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_OBJECT) {
         state->mode = EDITOR_VIEWPORT_HIERARCHY;
         state->selection = EDITOR_SELECTION_OBJECT;
+    } else if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
+        state->mode = EDITOR_VIEWPORT_LAYOUT;
+        state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+        state->selected_viewport_ui_item = 0;
     } else if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         if(state->selected_viewport_camera_item != 0 ||
                 state->selected_viewport_ui_item != 0) {
@@ -1806,7 +1811,9 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
     ViewportRectangle rectangle;
     if(item == NULL) return (ViewportRectangle){0};
     if(item->kind == EDITOR_VIEWPORT_UI_TEXT)
-        return (ViewportRectangle){item->position.x, item->position.y, 160.0f, 28.0f};
+        return (ViewportRectangle){item->position.x, item->position.y,
+            160.0f * item->value.text.width_scale,
+            28.0f * item->value.text.height_scale};
     if(item->value.shape.vertex_count == 0)
         return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
     rectangle = (ViewportRectangle){item->value.shape.vertices[0].x,
@@ -2427,7 +2434,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
             EDITOR_MENU_HEIGHT +
                 (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
@@ -2540,6 +2549,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             local.y > rectangle.y + rectangle.height) continue;
                     state->selected_viewport_ui_item = item->id;
                     state->selected_viewport_camera_item = 0;
+                    state->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                        EDITOR_VIEWPORT_UI_SHAPE_EDITOR :
+                        EDITOR_VIEWPORT_UI_TEXT_EDITOR;
                     state->drag_offset = (Vec2D){local.x - item->position.x,
                         local.y - item->position.y};
                     state->dragged_viewport_item = true;
@@ -4229,7 +4241,9 @@ void editor_viewport_draw(const EditorProject *project,
     if(project == NULL || state == NULL) return;
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
             (EditorProject *)project, state->selected_layout_viewport);
         if(viewport != NULL) {

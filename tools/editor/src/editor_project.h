@@ -32,7 +32,7 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
 #define EDITOR_PROJECT_FORMAT_VERSION 1
-#define EDITOR_NAVIGATION_MODE_MAX 19
+#define EDITOR_NAVIGATION_MODE_MAX 21
 #define EDITOR_NAVIGATION_SELECTION_MAX 18
 
 typedef uint32_t EditorObjectId;
@@ -352,7 +352,10 @@ typedef struct EditorViewportUiShape {
 
 typedef struct EditorViewportUiText {
     char text[UI_LABEL_MAX];
+    char font_file[EDITOR_ASSET_PATH_MAX];
     uint32_t color;
+    float width_scale;
+    float height_scale;
 } EditorViewportUiText;
 
 typedef struct EditorViewportUiItem {

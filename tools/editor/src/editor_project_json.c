@@ -554,8 +554,14 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             } else {
                 yyjson_mut_obj_add_strcpy(document, item, "text",
                     ui->value.text.text);
+                yyjson_mut_obj_add_strcpy(document, item, "font_file",
+                    ui->value.text.font_file);
                 yyjson_mut_obj_add_uint(document, item, "color",
                     ui->value.text.color);
+                yyjson_mut_obj_add_real(document, item, "width_scale",
+                    ui->value.text.width_scale);
+                yyjson_mut_obj_add_real(document, item, "height_scale",
+                    ui->value.text.height_scale);
             }
             yyjson_mut_arr_add_val(ui_items, item);
         }
@@ -1517,8 +1523,24 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 memcpy(item->value.shape.text, yyjson_get_str(text),
                     yyjson_get_len(text) + 1);
             } else {
+                yyjson_val *font_file = yyjson_obj_get(item_value, "font_file");
+                yyjson_val *width_scale = yyjson_obj_get(item_value, "width_scale");
+                yyjson_val *height_scale = yyjson_obj_get(item_value, "height_scale");
                 if(!editor_json_uint(item_value, "color", &item->value.text.color))
                     goto done;
+                if(font_file != NULL && (!yyjson_is_str(font_file) ||
+                        yyjson_get_len(font_file) >= sizeof(item->value.text.font_file)))
+                    goto done;
+                if(font_file != NULL) memcpy(item->value.text.font_file,
+                    yyjson_get_str(font_file), yyjson_get_len(font_file) + 1);
+                item->value.text.width_scale = 1.0f;
+                item->value.text.height_scale = 1.0f;
+                if((width_scale != NULL && (!editor_json_real(item_value,
+                            "width_scale", &item->value.text.width_scale) ||
+                        item->value.text.width_scale <= 0.0f)) ||
+                        (height_scale != NULL && (!editor_json_real(item_value,
+                            "height_scale", &item->value.text.height_scale) ||
+                        item->value.text.height_scale <= 0.0f))) goto done;
                 memcpy(item->value.text.text, yyjson_get_str(text),
                     yyjson_get_len(text) + 1);
             }
