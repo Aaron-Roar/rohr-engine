@@ -4,6 +4,7 @@
 
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -21,10 +22,35 @@ const Torque ball_control_torque = 2000000.0f;
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
 
+typedef struct RenderContext {
+    bool phase_1;
+    bool phase_2;
+    bool phase_3;
+} RenderContext;
+
+static void render_scene(CameraId camera, void *context_value) {
+    RenderContext *context = context_value;
+    (void)camera;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw(background_color);
+    rohr_graphics_layer_set(0);
+    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+    rohr_graphics_animated_sprites_draw();
+    if(context->phase_1) rohr_graphics_hit_boxes_draw();
+    if(context->phase_2) rohr_graphics_particles_draw();
+    rohr_graphics_layer_set(100);
+    rohr_graphics_aabb_tree_draw();
+    rohr_graphics_contacts_draw();
+    if(context->phase_3) rohr_graphics_local_origins_draw();
+    rohr_graphics_layer_set(0);
+}
+
 int main(void) {
     if(!example_use_executable_directory()) return 1;
     GroupId children_group = GROUP_INVALID;
     KeyboardState keyboard = {0};
+    ViewportId viewport = VIEWPORT_INVALID;
+    RenderContext render_context = {0};
 
     {
         EngineResult init_result = rohr_engine_init();
@@ -113,6 +139,7 @@ int main(void) {
         goto fail;
     }
     children_group = children_result.result.value;
+    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
 
     //Game Loop
     rohr_engine_clock_reset();
@@ -141,6 +168,7 @@ int main(void) {
         if(!phase_3 && rohr_engine_time_get() > 7) {
             phase_3 = true;
         }
+        render_context = (RenderContext){phase_1, phase_2, phase_3};
 
         //Game Code
         Time time = rohr_engine_time_get();
@@ -181,37 +209,18 @@ int main(void) {
         //physics
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
 
-        //render
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw(background_color);
-        rohr_graphics_layer_set(0);
-        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-        rohr_graphics_animated_sprites_draw();
-        if(phase_1) {
-            rohr_graphics_hit_boxes_draw();
-        }
-        if(phase_2) {
-            rohr_graphics_particles_draw();
-        }
         rohr_graphics_aabb_tree_debug_set(true);
         rohr_graphics_contacts_debug_set(true);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        if(phase_3) {
-            rohr_graphics_local_origins_draw();
-        }
-        rohr_graphics_layer_set(0);
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
         rohr_graphics_show();
 
     }
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

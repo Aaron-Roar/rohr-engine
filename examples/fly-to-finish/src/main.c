@@ -4,6 +4,7 @@
 
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +19,14 @@ typedef struct ObstacleRecord {
     Color color;
     bool active;
 } ObstacleRecord;
+
+typedef struct RenderContext {
+    Entity player;
+    Entity finish_line;
+    Entity wall_mid;
+    Entity *walls;
+    ObstacleRecord *obstacles;
+} RenderContext;
 
 enum {
     MAX_OBSTACLE_RECORDS = 256
@@ -42,6 +51,34 @@ const Torque player_control_torque = 300000.0f;
 
 const Time spawn_interval_seconds = 0.12;
 const Time player_control_delay_seconds = 2.5f;
+
+static void render_scene(CameraId camera, void *context_value) {
+    RenderContext *context = context_value;
+    (void)camera;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw(background_color);
+    rohr_graphics_layer_set(0);
+    for(size_t i = 0; i < 4; i += 1)
+        rohr_graphics_hit_box_colored_draw(
+            context->walls[i], GRAPHICS_FILLED, wall_color);
+    rohr_graphics_hit_box_colored_draw(context->wall_mid, GRAPHICS_FILLED,
+        context->obstacles[1].color);
+    rohr_graphics_hit_box_colored_draw(context->finish_line, GRAPHICS_FILLED,
+        finish_line_color);
+    rohr_graphics_hit_box_colored_draw(context->player, GRAPHICS_OUTLINE,
+        finish_line_color);
+    for(size_t i = 0; i < MAX_OBSTACLE_RECORDS; i += 1)
+        if(context->obstacles[i].active &&
+                rohr_entity_alive_check(context->obstacles[i].entity))
+            rohr_graphics_hit_box_colored_draw(context->obstacles[i].entity,
+                GRAPHICS_FILLED, context->obstacles[i].color);
+    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+    rohr_graphics_animated_sprites_draw();
+    rohr_graphics_layer_set(100);
+    rohr_graphics_aabb_tree_draw();
+    rohr_graphics_contacts_draw();
+    rohr_graphics_layer_set(0);
+}
 
 static Vec2D player_forward(Orientation orientation) {
     return rohr_math_vector_rotate((Vec2D){0.0f, 1.0f}, orientation);
@@ -193,6 +230,8 @@ int main(void) {
     Orientation player_start_orientation;
     Mass player_mass;
     bool reached_finish = false;
+    ViewportId viewport = VIEWPORT_INVALID;
+    RenderContext render_context = {0};
 
     {
         EngineResult init_result = rohr_engine_init();
@@ -268,6 +307,9 @@ int main(void) {
     player_start_position = positions[player_index];
     player_start_orientation = orientations[player_index];
     player_mass = mass[player_index];
+    render_context = (RenderContext){player, finish_line, wall_mid,
+        walls, obstacle_records};
+    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
 
     srand((unsigned int)time(NULL));
     rohr_engine_clock_reset();
@@ -281,7 +323,6 @@ int main(void) {
         float speed;
         bool level_active;
         bool player_control_enabled;
-        size_t i;
 
         bool exit_requested = false;
         rohr_controller_key_states_update(&keyboard);
@@ -385,42 +426,18 @@ int main(void) {
             }
         }
 
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw(background_color);
-        rohr_graphics_layer_set(0);
-        for(i = 0; i < 4; i += 1) {
-            rohr_graphics_hit_box_colored_draw(
-                walls[i],
-                GRAPHICS_FILLED,
-                wall_color
-            );
-        }
-        rohr_graphics_hit_box_colored_draw(wall_mid, GRAPHICS_FILLED, obstacle_records[1].color);
-        rohr_graphics_hit_box_colored_draw(finish_line, GRAPHICS_FILLED, finish_line_color);
-        rohr_graphics_hit_box_colored_draw(player, GRAPHICS_OUTLINE, finish_line_color);
-        for(i = 0; i < (size_t)MAX_OBSTACLE_RECORDS; i += 1) {
-            if(obstacle_records[i].active && rohr_entity_alive_check(obstacle_records[i].entity)) {
-                rohr_graphics_hit_box_colored_draw(obstacle_records[i].entity, GRAPHICS_FILLED, obstacle_records[i].color);
-            }
-        }
-        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-        rohr_graphics_animated_sprites_draw();
         rohr_graphics_aabb_tree_debug_set(true);
         rohr_graphics_contacts_debug_set(true);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        rohr_graphics_layer_set(0);
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
 
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

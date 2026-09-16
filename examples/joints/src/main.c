@@ -4,6 +4,7 @@
 
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 
 #include <stdio.h>
 
@@ -73,9 +74,37 @@ static bool room_create(Entity walls[4]) {
         walls[2] != ENTITY_INVALID && walls[3] != ENTITY_INVALID;
 }
 
+typedef struct RenderContext {
+    Entity *walls;
+    Entity *bodies;
+} RenderContext;
+
+static void render_scene(CameraId camera, void *context_value) {
+    RenderContext *context = context_value;
+    (void)camera;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw(background_color);
+    rohr_graphics_layer_set(0);
+    for(uint32_t i = 0; i < 4; i += 1)
+        rohr_graphics_hit_box_colored_draw(context->walls[i], GRAPHICS_FILLED,
+            wall_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[0], GRAPHICS_FILLED, pin_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[1], GRAPHICS_FILLED, pin_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[2], GRAPHICS_FILLED, weld_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[3], GRAPHICS_FILLED, weld_secondary_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[4], GRAPHICS_FILLED, spring_color);
+    rohr_graphics_hit_box_colored_draw(context->bodies[5], GRAPHICS_FILLED, spring_color);
+    rohr_graphics_joints_draw(joint_color);
+    rohr_graphics_layer_set(100);
+    rohr_graphics_aabb_tree_draw();
+    rohr_graphics_contacts_draw();
+    rohr_graphics_layer_set(0);
+}
+
 int main(void) {
     Entity walls[4];
     Entity bodies[BODY_COUNT];
+    ViewportId viewport = VIEWPORT_INVALID;
     Entity pin_joint;
     Entity weld_joint;
     Entity spring_joint;
@@ -133,6 +162,9 @@ int main(void) {
                 2.5f
             ))) goto fail;
 
+    RenderContext render_context = {walls, bodies};
+    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+
     rohr_engine_clock_reset();
     while(true) {
         SDL_Event event;
@@ -160,34 +192,19 @@ int main(void) {
         }
 
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw(background_color);
-        rohr_graphics_layer_set(0);
-        for(uint32_t i = 0; i < 4; i += 1) rohr_graphics_hit_box_colored_draw(walls[i], GRAPHICS_FILLED, wall_color);
-        rohr_graphics_hit_box_colored_draw(bodies[0], GRAPHICS_FILLED, pin_color);
-        rohr_graphics_hit_box_colored_draw(bodies[1], GRAPHICS_FILLED, pin_color);
-        rohr_graphics_hit_box_colored_draw(bodies[2], GRAPHICS_FILLED, weld_color);
-        rohr_graphics_hit_box_colored_draw(bodies[3], GRAPHICS_FILLED, weld_secondary_color);
-        rohr_graphics_hit_box_colored_draw(bodies[4], GRAPHICS_FILLED, spring_color);
-        rohr_graphics_hit_box_colored_draw(bodies[5], GRAPHICS_FILLED, spring_color);
-        rohr_graphics_joints_draw(joint_color);
         rohr_graphics_aabb_tree_debug_set(true);
         rohr_graphics_contacts_debug_set(true);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        rohr_graphics_layer_set(0);
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
 
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     fprintf(stderr, "joints example failed\n");
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

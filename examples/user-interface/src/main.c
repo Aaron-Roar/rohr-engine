@@ -5,10 +5,62 @@
 #include <stdio.h>
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
+
+typedef struct RenderContext {
+    MouseState *mouse;
+    TextAsset *title;
+    TextAsset *play_label;
+    TextAsset *settings_label;
+    TextAsset *quit_label;
+    TextAsset *description;
+    TextAsset *slider_label;
+    TextAsset *slider_value_label;
+    TextAsset *slider_minus;
+    TextAsset *slider_plus;
+    UILabelDefinition *title_definition;
+    UILabelDefinition *play_definition;
+    UILabelDefinition *description_definition;
+    UIButtonDefinition *settings_button;
+    UISliderDefinition *value_slider;
+    float slider_value;
+    UIButtonResult play;
+    UIButtonResult settings;
+    UIButtonResult quit;
+    UISliderResult slider;
+} RenderContext;
+
+static void render_scene(CameraId camera, void *context_value) {
+    RenderContext *context = context_value;
+    UIRect play_bounds = context->play_definition->bounds;
+    (void)camera;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw((Color){18, 22, 30, 255});
+    rohr_graphics_layer_set(0);
+    rohr_ui_frame_begin((UIInput){
+        .pointer = rohr_graphics_mouse_screen_position_get(),
+        .primary_button = context->mouse->button_states[MOUSE_BUTTON_LEFT],
+    });
+    rohr_ui_label(context->title, context->title_definition->bounds);
+    context->play = rohr_ui_button("main_menu.play", NULL, play_bounds, NULL);
+    context->settings = rohr_ui_button(context->settings_button->name,
+        context->settings_label, context->settings_button->bounds,
+        &context->settings_button->style);
+    context->quit = rohr_ui_button("main_menu.quit", context->quit_label,
+        (UIRect){220.0f, 280.0f, 200.0f, 55.0f}, NULL);
+    rohr_ui_label(context->play_label, play_bounds);
+    rohr_ui_label(context->description, context->description_definition->bounds);
+    context->slider = rohr_ui_slider_with_text(context->value_slider->name,
+        context->slider_value, &context->value_slider->config,
+        &(UISliderText){.label = context->slider_label,
+            .value = context->slider_value_label, .minus = context->slider_minus,
+            .plus = context->slider_plus});
+    rohr_ui_frame_end();
+}
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
@@ -32,6 +84,8 @@ int main(void) {
     UIButtonDefinition settings_button;
     UISliderDefinition value_slider;
     float slider_value;
+    ViewportId viewport = VIEWPORT_INVALID;
+    RenderContext render_context = {0};
 
     {
         EngineResult init_result = rohr_engine_init();
@@ -206,6 +260,17 @@ int main(void) {
         }
         slider_value_label = value_result.result.value;
     }
+    render_context = (RenderContext){
+        .mouse = &mouse, .title = &title, .play_label = &play_label,
+        .settings_label = &settings_label, .quit_label = &quit_label,
+        .description = &description, .slider_label = &slider_label,
+        .slider_value_label = &slider_value_label, .slider_minus = &slider_minus,
+        .slider_plus = &slider_plus, .title_definition = &title_definition,
+        .play_definition = &play_definition,
+        .description_definition = &description_definition,
+        .settings_button = &settings_button, .value_slider = &value_slider,
+        .slider_value = slider_value};
+    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
 
     while(running) {
         SDL_Event event;
@@ -224,45 +289,10 @@ int main(void) {
         if(exit_requested ||
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
 
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw((Color){18, 22, 30, 255});
-        rohr_graphics_layer_set(0);
-        rohr_ui_frame_begin((UIInput){
-            .pointer = rohr_graphics_mouse_screen_position_get(),
-            .primary_button = mouse.button_states[MOUSE_BUTTON_LEFT],
-        });
-
-        rohr_ui_label(&title, title_definition.bounds);
-
-        UIRect play_bounds = play_definition.bounds;
-        UIButtonResult play = rohr_ui_button("main_menu.play", NULL, play_bounds, NULL);
-        UIButtonResult settings = rohr_ui_button(
-            settings_button.name,
-            &settings_label,
-            settings_button.bounds,
-            &settings_button.style
-        );
-        UIButtonResult quit = rohr_ui_button("main_menu.quit", &quit_label, (UIRect){220.0f, 280.0f, 200.0f, 55.0f}, NULL);
-
-        /* A label can also be drawn separately over an unlabeled button. */
-        rohr_ui_label(&play_label, play_bounds);
-        rohr_ui_label(
-            &description,
-            description_definition.bounds
-        );
-        UISliderResult slider = rohr_ui_slider_with_text(
-            value_slider.name,
-            slider_value,
-            &value_slider.config,
-            &(UISliderText){
-                .label = &slider_label,
-                .value = &slider_value_label,
-                .minus = &slider_minus,
-                .plus = &slider_plus,
-            }
-        );
-        slider_value = slider.value;
-        if(slider.changed) {
+        render_context.slider_value = slider_value;
+        rohr_graphics_show();
+        slider_value = render_context.slider.value;
+        if(render_context.slider.changed) {
             char value_text[UI_LABEL_MAX];
             snprintf(value_text, sizeof(value_text), value_slider.value_format, slider_value);
             rohr_graphics_text_destroy(&slider_value_label);
@@ -277,22 +307,12 @@ int main(void) {
             }
         }
 
-        if(play.clicked) printf("Play clicked\n");
-        if(settings.clicked) printf("Settings clicked\n");
-        if(quit.clicked) running = false;
-
-        rohr_ui_frame_end();
-        rohr_graphics_aabb_tree_debug_set(true);
-        rohr_graphics_contacts_debug_set(true);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        rohr_graphics_layer_set(0);
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
-        rohr_graphics_show();
+        if(render_context.play.clicked) printf("Play clicked\n");
+        if(render_context.settings.clicked) printf("Settings clicked\n");
+        if(render_context.quit.clicked) running = false;
     }
 
+    example_viewport_destroy(&viewport);
     rohr_graphics_text_destroy(&slider_plus);
     rohr_graphics_text_destroy(&slider_minus);
     rohr_graphics_text_destroy(&slider_value_label);
@@ -308,6 +328,7 @@ int main(void) {
     return 0;
 
 fail:
+    example_viewport_destroy(&viewport);
     rohr_graphics_text_destroy(&slider_plus);
     rohr_graphics_text_destroy(&slider_minus);
     rohr_graphics_text_destroy(&slider_value_label);

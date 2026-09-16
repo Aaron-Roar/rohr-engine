@@ -4,6 +4,7 @@
 
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -387,6 +388,48 @@ static const Time camera_collision_zoom_duration = 5.0;
 static const Time camera_collision_zoom_out_duration = 3.0;
 static const float camera_collision_physics_scale = 0.2f;
 
+typedef struct RenderContext {
+    Entity *walls;
+    Entity *ramp;
+    Entity *particles;
+    Entity chassis;
+    Entity cabin;
+    Wheel *wheels;
+} RenderContext;
+
+static void render_scene(CameraId camera, void *context_value) {
+    RenderContext *context = context_value;
+    (void)camera;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw(background_color);
+    rohr_graphics_layer_set(100);
+    rohr_graphics_aabb_tree_draw();
+    rohr_graphics_contacts_draw();
+    rohr_graphics_layer_set(0);
+    for(uint32_t i = 0; i < LEVEL_WALL_COUNT; i += 1)
+        rohr_graphics_hit_box_colored_draw(context->walls[i], GRAPHICS_FILLED,
+            wall_color);
+    for(uint32_t i = 0; i < RAMP_TRIANGLE_COUNT; i += 1)
+        rohr_graphics_hit_box_colored_draw(context->ramp[i], GRAPHICS_FILLED,
+            ramp_color);
+    for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1)
+        rohr_graphics_hit_box_colored_draw(context->particles[i], GRAPHICS_FILLED,
+            particle_color);
+    for(uint32_t i = 0; i < WHEEL_COUNT; i += 1) {
+        (void)rohr_graphics_soft_body_draw(context->wheels[i].soft_body,
+            surface_color, beam_color, node_color);
+        rohr_graphics_hit_box_colored_draw(context->wheels[i].disk,
+            GRAPHICS_FILLED, disk_color);
+    }
+    rohr_graphics_hit_box_colored_draw(context->chassis, GRAPHICS_FILLED,
+        chassis_color);
+    rohr_graphics_hit_box_colored_draw(context->cabin, GRAPHICS_FILLED,
+        cabin_color);
+    for(uint32_t i = 0; i < WHEEL_COUNT; i += 1)
+        rohr_graphics_hit_box_colored_draw(context->wheels[i].hub,
+            GRAPHICS_FILLED, hub_color);
+}
+
 int main(void) {
     const float wheel_horizontal_offset =
         chassis_dimensions.x * wheel_horizontal_position_ratio;
@@ -409,6 +452,7 @@ int main(void) {
     bool collision_zoom_started = false;
     bool collision_slow_motion_active = false;
     bool broadphase_debug = true;
+    ViewportId viewport = VIEWPORT_INVALID;
 
     if(!example_use_executable_directory() || !result_ok(rohr_engine_init())) return 1;
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
@@ -487,6 +531,8 @@ int main(void) {
                 chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
     if(!result_ok(rohr_camera_zoom_set(
                 rohr_camera_active_get(), camera_default_zoom, 0.0))) goto fail;
+    RenderContext render_context = {walls, ramp, particles, chassis, cabin, wheels};
+    if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
 
     rohr_engine_clock_reset();
     while(true) {
@@ -542,44 +588,16 @@ int main(void) {
                 }
             }
         }
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw(background_color);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        rohr_graphics_layer_set(0);
-        for(uint32_t i = 0; i < LEVEL_WALL_COUNT; i += 1) {
-            rohr_graphics_hit_box_colored_draw(walls[i], GRAPHICS_FILLED, wall_color);
-        }
-        for(uint32_t i = 0; i < RAMP_TRIANGLE_COUNT; i += 1) {
-            rohr_graphics_hit_box_colored_draw(ramp[i], GRAPHICS_FILLED, ramp_color);
-        }
-        for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
-            rohr_graphics_hit_box_colored_draw(
-                particles[i], GRAPHICS_FILLED, particle_color);
-        }
-        for(uint32_t i = 0; i < WHEEL_COUNT; i += 1) {
-            (void)rohr_graphics_soft_body_draw(
-                wheels[i].soft_body, surface_color, beam_color, node_color);
-            rohr_graphics_hit_box_colored_draw(
-                wheels[i].disk, GRAPHICS_FILLED, disk_color);
-        }
-        rohr_graphics_hit_box_colored_draw(chassis, GRAPHICS_FILLED, chassis_color);
-        rohr_graphics_hit_box_colored_draw(cabin, GRAPHICS_FILLED, cabin_color);
-        for(uint32_t i = 0; i < WHEEL_COUNT; i += 1) {
-            rohr_graphics_hit_box_colored_draw(
-                wheels[i].hub, GRAPHICS_FILLED, hub_color);
-        }
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
         rohr_graphics_show();
     }
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     fprintf(stderr, "soft-body example failed\n");
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

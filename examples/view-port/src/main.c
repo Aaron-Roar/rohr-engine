@@ -4,6 +4,7 @@
 
 #include "rohr.h"
 #include "example_runtime.h"
+#include "example_viewport.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -19,6 +20,20 @@ const float camera_turn_speed = PI_F * 0.5f;
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
 
+static void render_scene(CameraId camera, void *context) {
+    (void)camera;
+    (void)context;
+    rohr_graphics_layer_set(-100);
+    rohr_graphics_background_draw(background_color);
+    rohr_graphics_layer_set(0);
+    rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
+    rohr_graphics_animated_sprites_draw();
+    rohr_graphics_layer_set(100);
+    rohr_graphics_aabb_tree_draw();
+    rohr_graphics_contacts_draw();
+    rohr_graphics_layer_set(0);
+}
+
 int main(void) {
     if(!example_use_executable_directory()) return 1;
     {
@@ -30,6 +45,7 @@ int main(void) {
     }
     KeyboardState keyboard = {0};
     MouseState mouse = {0};
+    ViewportId viewport = VIEWPORT_INVALID;
     {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
@@ -69,6 +85,7 @@ int main(void) {
     animation_elderfly = animation_result.result.value;
     sprite_elderfly = rohr_graphics_animated_sprite_create(animation_elderfly, (Scale){10,10});
     rohr_graphics_animated_sprite_add(water_smash, sprite_elderfly);
+    if(!example_viewport_create(render_scene, NULL, &viewport)) goto fail;
 
     rohr_engine_clock_reset();
     //Game Loop
@@ -80,20 +97,8 @@ int main(void) {
         Time tick_time = rohr_engine_time_per_tick_get() * (Time)ticks_advanced;
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
 
-        //render
-        rohr_graphics_layer_set(-100);
-        rohr_graphics_background_draw(background_color);
-        rohr_graphics_layer_set(0);
-        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
-        rohr_graphics_animated_sprites_draw();
         rohr_graphics_aabb_tree_debug_set(true);
         rohr_graphics_contacts_debug_set(true);
-        rohr_graphics_layer_set(100);
-        rohr_graphics_aabb_tree_draw();
-        rohr_graphics_contacts_draw();
-        rohr_graphics_layer_set(0);
-        rohr_graphics_layer_set(200);
-        rohr_graphics_layer_set(0);
         rohr_graphics_show();
 
         SDL_Event sdl_event;
@@ -152,11 +157,13 @@ int main(void) {
 
 
     }
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
+    example_viewport_destroy(&viewport);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

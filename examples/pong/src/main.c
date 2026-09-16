@@ -22,6 +22,8 @@ static const Time slow_motion_physics_dt = 1.0 / 480.0;
 static const float paddle_speed = 280.0f;
 static const float goal_y = 330.0f;
 static const float field_camera_center_y = 170.0f;
+static const float field_camera_width = 340.0f;
+static const float field_camera_height = 500.0f;
 static const float paddle_min_x = -190.0f;
 static const float paddle_max_x = 190.0f;
 static const float left_paddle_min_y = 20.0f;
@@ -210,6 +212,8 @@ int main(void) {
     Entity ball;
     CameraId left_camera = CAMERA_INVALID;
     CameraId right_camera = CAMERA_INVALID;
+    ScreenId left_screen = SCREEN_INVALID;
+    ScreenId right_screen = SCREEN_INVALID;
     ViewportId left_viewport = VIEWPORT_INVALID;
     ViewportId right_viewport = VIEWPORT_INVALID;
     PongRenderContext render_context = {0};
@@ -353,7 +357,7 @@ int main(void) {
         Camera left_camera_value = {
             .position = {0.0f, field_camera_center_y},
             .orientation = -PI_F * 0.5f,
-            .dimensions = {340.0f, 500.0f},
+            .dimensions = {field_camera_width, field_camera_height},
             .zoom = 1.0f,
         };
         EngineResult camera_result = rohr_camera_set(left_camera, left_camera_value);
@@ -367,7 +371,7 @@ int main(void) {
         CameraIdResult camera_result;
         config.position = (Position){0.0f, -field_camera_center_y};
         config.orientation = -PI_F * 0.5f;
-        config.dimensions = (Vec2D){340.0f, 500.0f};
+        config.dimensions = (Vec2D){field_camera_width, field_camera_height};
         camera_result = rohr_camera_create(config);
         if(rohr_error_check(camera_result)) {
             PRINT_ENGINE_ERROR(camera_result);
@@ -378,6 +382,13 @@ int main(void) {
     {
         ViewportConfig config = rohr_viewport_config_default_get();
         ViewportIdResult result;
+        ScreenConfig screen_config = rohr_screen_config_default_get();
+        ScreenIdResult screen_result;
+        ViewportItemConfig left_item = rohr_viewport_item_config_default_get();
+        ViewportItemConfig right_item = rohr_viewport_item_config_default_get();
+        float viewport_width = WINDOW_WIDTH * 0.5f;
+        float scale = WINDOW_HEIGHT / field_camera_height;
+        float displayed_width = field_camera_width * scale;
         config.rectangle = (ViewportRectangle){0.0f, 0.0f, WINDOW_WIDTH * 0.5f, WINDOW_HEIGHT};
         result = rohr_viewport_create(config);
         if(rohr_error_check(result)) goto fail;
@@ -386,8 +397,28 @@ int main(void) {
         result = rohr_viewport_create(config);
         if(rohr_error_check(result)) goto fail;
         right_viewport = result.result.value;
-        if(rohr_error_check(rohr_viewport_camera_set(left_viewport, left_camera))
-                || rohr_error_check(rohr_viewport_camera_set(right_viewport, right_camera))
+        screen_config.camera = left_camera;
+        screen_config.width = (int)field_camera_width;
+        screen_config.height = (int)field_camera_height;
+        screen_result = rohr_screen_create(screen_config);
+        if(rohr_error_check(screen_result)) goto fail;
+        left_screen = screen_result.result.value;
+        screen_config.camera = right_camera;
+        screen_result = rohr_screen_create(screen_config);
+        if(rohr_error_check(screen_result)) goto fail;
+        right_screen = screen_result.result.value;
+        left_item.rectangle = (ViewportRectangle){
+            viewport_width - (displayed_width + field_camera_width) * 0.5f,
+            (WINDOW_HEIGHT - field_camera_height) * 0.5f,
+            field_camera_width,
+            field_camera_height};
+        left_item.content_scale = (Scale){scale, scale};
+        right_item = left_item;
+        right_item.rectangle.x = (displayed_width - field_camera_width) * 0.5f;
+        if(rohr_error_check(rohr_viewport_screen_add(
+                    left_viewport, left_screen, left_item))
+                || rohr_error_check(rohr_viewport_screen_add(
+                    right_viewport, right_screen, right_item))
                 || rohr_error_check(rohr_viewport_enable_set(left_viewport))
                 || rohr_error_check(rohr_viewport_enable_set(right_viewport))) goto fail;
     }
@@ -558,6 +589,8 @@ int main(void) {
 
     (void)rohr_viewport_destroy(right_viewport);
     (void)rohr_viewport_destroy(left_viewport);
+    (void)rohr_screen_destroy(right_screen);
+    (void)rohr_screen_destroy(left_screen);
     (void)rohr_camera_active_set(left_camera);
     (void)rohr_camera_destroy(right_camera);
     game_components_clear(ball);
@@ -569,6 +602,8 @@ int main(void) {
 fail:
     if(right_viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(right_viewport);
     if(left_viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(left_viewport);
+    if(right_screen != SCREEN_INVALID) (void)rohr_screen_destroy(right_screen);
+    if(left_screen != SCREEN_INVALID) (void)rohr_screen_destroy(left_screen);
     if(left_camera != CAMERA_INVALID) (void)rohr_camera_active_set(left_camera);
     if(right_camera != CAMERA_INVALID) (void)rohr_camera_destroy(right_camera);
     game_components_shutdown();
