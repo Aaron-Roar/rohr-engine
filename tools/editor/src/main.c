@@ -700,6 +700,30 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
     return hash;
 }
 
+static float editor_layout_ui_common_height_get(
+        const EditorViewportUiItem *item) {
+    float height = 42.0f + 194.0f;
+    if(item == NULL || !item->border_enabled) return height;
+    height += 194.0f;
+    if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) height += 38.0f;
+    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+            item->value.shape.button_enabled) height += 156.0f;
+    return height;
+}
+
+static const EditorViewportUiItem *editor_panel_layout_ui_item_get(
+        const EditorProject *project, const EditorViewportState *state) {
+    const EditorLayoutViewport *viewport;
+    if(project == NULL || state == NULL) return NULL;
+    viewport = editor_project_layout_viewport_get((EditorProject *)project,
+        state->selected_layout_viewport);
+    if(viewport == NULL) return NULL;
+    for(size_t i = 0; i < viewport->ui_item_count; i += 1)
+        if(viewport->ui_items[i].id == state->selected_viewport_ui_item)
+            return &viewport->ui_items[i];
+    return NULL;
+}
+
 static float editor_panel_content_height_get(const EditorProject *project,
     const EditorViewportState *state,
     const EditorRigidBodyEditor *rigid_body_editor) {
@@ -713,11 +737,33 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
         return fmaxf(height, 80.0f + (float)project->object_count * 34.0f);
     }
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+        const EditorLayoutViewport *viewport =
+            editor_project_layout_viewport_get((EditorProject *)project,
+                state->selected_layout_viewport);
+        if(viewport != NULL) return fmaxf(height, 406.0f +
+            (float)(viewport->camera_item_count + viewport->ui_item_count) *
+                32.0f);
+    }
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR)
+        return fmaxf(height, 552.0f);
+    if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
+        const EditorViewportUiItem *item =
+            editor_panel_layout_ui_item_get(project, state);
+        return fmaxf(height, editor_layout_ui_common_height_get(item) + 126.0f);
+    }
+    if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
+        const EditorViewportUiItem *item =
+            editor_panel_layout_ui_item_get(project, state);
+        float common = state->selected_viewport_ui_text_child ? 42.0f :
+            editor_layout_ui_common_height_get(item);
+        return fmaxf(height, common + 362.0f);
+    }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {
-        return fmaxf(height, 350.0f + (float)(object->rigid_body_count +
+        return fmaxf(height, 400.0f + (float)(object->rigid_body_count +
             object->joint_count + object->soft_body_count + object->sprite_count +
-            object->animated_sprite_count) * 30.0f);
+            object->animated_sprite_count + object->camera_count) * 30.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_RIGID_BODY) {
         for(size_t i = 0; i < object->rigid_body_count; i += 1) {
