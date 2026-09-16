@@ -9,11 +9,65 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 float editor_viewport_width = WINDOW_WIDTH * 0.8f;
 float editor_window_width = WINDOW_WIDTH;
 float editor_window_height = WINDOW_HEIGHT;
 float editor_viewport_bottom = WINDOW_HEIGHT;
+
+static bool screen_rotation_pointer_check(float width, float height, float zoom) {
+    EditorProject project;
+    EditorViewportState state;
+    EditorObject *object;
+    EditorCamera *camera;
+    EditorLayoutViewport *viewport;
+    EditorViewportCameraItem *screen;
+    Position view_center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT +
+            (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    Position screen_center;
+    float arm;
+    Position handle;
+    Position target;
+    bool result = false;
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    object = editor_project_object_add(&project, (Position){0});
+    camera = editor_project_camera_add(&project, object);
+    viewport = editor_project_layout_viewport_add(&project);
+    screen = object == NULL || camera == NULL || viewport == NULL ? NULL :
+        editor_viewport_camera_add(&project, viewport, object->id, camera->id);
+    if(screen == NULL) goto done;
+    screen->placement.rectangle = (ViewportRectangle){0.0f, 50.0f,
+        width, height};
+    project.viewport_camera_zoom = zoom;
+    project.viewport_camera_offset = (Vec2D){0};
+    state.mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
+    state.selected_layout_viewport = viewport->id;
+    state.selected_viewport_camera_item = screen->id;
+    screen_center = (Position){width * 0.5f, 50.0f + height * 0.5f};
+    arm = height * 0.5f + 30.0f / zoom;
+    handle = (Position){view_center.x +
+            (viewport->config.rectangle.x + screen_center.x) * zoom,
+        view_center.y + (viewport->config.rectangle.y + screen_center.y - arm) * zoom};
+    if(!editor_viewport_update(&state, &project, handle,
+            MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0.0f,
+            false) || !state.rotated_viewport_item ||
+            editor_viewport_transform_active_check(&state)) goto done;
+    target = (Position){view_center.x +
+            (viewport->config.rectangle.x + screen_center.x + arm) * zoom,
+        view_center.y + (viewport->config.rectangle.y + screen_center.y) * zoom};
+    if(!editor_viewport_update(&state, &project, target,
+            MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP, false, 0.0f,
+            false) || fabsf(screen->placement.orientation - 1.57079632679f) >
+                0.001f) goto done;
+    result = true;
+done:
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    return result;
+}
 
 static bool navigation_mode_open_check(EditorProject *project,
         EditorViewportState *state, EditorHierarchySelection selection,
@@ -58,6 +112,9 @@ int main(void) {
     EditorHistory history;
     EditorFileBrowser browser = {.mode = EDITOR_FILE_BROWSER_DIRECTORY};
     char path[EDITOR_FILE_BROWSER_PATH_MAX];
+
+    if(!screen_rotation_pointer_check(40.0f, 20.0f, 0.5f) ||
+            !screen_rotation_pointer_check(300.0f, 120.0f, 2.0f)) return 1;
 
     editor_project_init(&project);
     if(!editor_history_init(&history, &project)) return 1;

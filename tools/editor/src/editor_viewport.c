@@ -2710,8 +2710,7 @@ bool editor_viewport_transform_active_check(const EditorViewportState *state) {
         state->dragged_sprite || state->dragged_animated_sprite ||
         state->dragged_camera_entity || state->rotated_camera_entity ||
         state->rotated_sprite || state->rotated_animated_sprite ||
-        state->rotated_soft_body || state->rotated_viewport_item ||
-        state->dragged_origin ||
+        state->rotated_soft_body || state->dragged_origin ||
         state->group_dragging || state->group_rotating;
 }
 
@@ -2833,6 +2832,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             item->placement.rectangle.height * 0.5f};
                     item->placement.orientation = atan2f(local.y - screen_center.y,
                         local.x - screen_center.x) + state->rotation_pointer_offset;
+                    item->placement.orientation = fmodf(
+                        item->placement.orientation, 6.28318530718f);
+                    if(item->placement.orientation < 0.0f)
+                        item->placement.orientation += 6.28318530718f;
                     return true;
                 }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
@@ -2956,8 +2959,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             item->placement.rectangle.height * 0.5f};
                     handle = editor_rotation_control_position_get(screen_center,
                         item->placement.orientation,
-                        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH /
-                            project->viewport_camera_zoom);
+                        item->placement.rectangle.height * 0.5f +
+                            30.0f / project->viewport_camera_zoom);
                     if(!editor_rotation_control_hit_check(local, handle,
                             10.0f / project->viewport_camera_zoom)) continue;
                     state->rotated_viewport_item = true;
@@ -3160,6 +3163,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->selected_viewport_camera_item = item->id;
                     state->selected_viewport_ui_item = 0;
                     state->selected_viewport_ui_text_child = false;
+                    state->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
                     state->drag_offset = (Vec2D){local.x - rectangle.x,
                         local.y - rectangle.y};
                     state->dragged_viewport_item = true;
@@ -4919,7 +4923,7 @@ void editor_viewport_draw(const EditorProject *project,
                 if(item->id == state->selected_viewport_camera_item) {
                     Position handle = editor_rotation_control_position_get(
                         screen_center, item->placement.orientation,
-                        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                        camera.height * 0.5f + 30.0f);
                     editor_viewport_screen_line_draw(screen_center, handle, color);
                     editor_viewport_screen_circle_draw(handle, 10.0f, color);
                 }

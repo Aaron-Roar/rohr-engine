@@ -1598,6 +1598,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             item->placement.fit = (ScreenFit)item_fit;
             editor_project_property_name_format(item->name, sizeof(item->name),
                 item->name);
+            if(strncmp(item->name, "camera_", 7) == 0)
+                snprintf(item->name, sizeof(item->name), "screen_%u", item->id);
             if(loaded.next_viewport_camera_item_id <= item->id)
                 loaded.next_viewport_camera_item_id = item->id + 1;
         }

@@ -25,6 +25,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset add_vertex_label, length_label;
     TextAsset width_scale_label, height_scale_label;
     TextAsset content_x_label, content_y_label, content_rotation_label;
+    TextAsset content_width_scale_label, content_height_scale_label;
     TextAsset source_label;
     TextAsset text_offset_x_label, text_offset_y_label;
     TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;

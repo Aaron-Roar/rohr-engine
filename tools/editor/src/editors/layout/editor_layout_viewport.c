@@ -53,7 +53,9 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Text Offset X", text_offset_x_label);
     CREATE("Text Offset Y", text_offset_y_label);
     CREATE("Content X", content_x_label); CREATE("Content Y", content_y_label);
-    CREATE("Content Rotation", content_rotation_label);
+    CREATE("Source Rotation", content_rotation_label);
+    CREATE("Content Width Scale", content_width_scale_label);
+    CREATE("Content Height Scale", content_height_scale_label);
     CREATE("Source", source_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
@@ -96,6 +98,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(width_scale_label); DESTROY(height_scale_label);
     DESTROY(content_x_label); DESTROY(content_y_label);
     DESTROY(content_rotation_label); DESTROY(source_label);
+    DESTROY(content_width_scale_label); DESTROY(content_height_scale_label);
     DESTROY(text_offset_x_label); DESTROY(text_offset_y_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
@@ -188,8 +191,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 .data.item_add = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
                     .object = camera_object->id, .parent = viewport->id,
                     .first = camera->id}};
-            snprintf(command.data.item_add.name, sizeof(command.data.item_add.name),
-                "screen");
             (void)editor_command_execute(context->project, &command);
         }
     }
@@ -212,9 +213,11 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         UIButtonResult camera_result = rohr_ui_button(id, &editor->camera_names[i],
                 (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
                 NULL);
-        if(camera_result.clicked)
+        if(camera_result.clicked) {
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
+            context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
+        }
         if(camera_result.double_clicked)
             context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
         y += 32.0f;
@@ -380,6 +383,8 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     size_t camera_count = 0;
     size_t selected_camera = 0;
     float layer;
+    float rotation_degrees;
+    float source_rotation_degrees;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     viewport = editor_project_layout_viewport_get(context->project,
@@ -389,6 +394,10 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
                 context->viewport->selected_viewport_camera_item)
             item = &viewport->camera_items[i];
     if(item == NULL) return false;
+    rotation_degrees = item->placement.orientation *
+        180.0f / 3.14159265359f;
+    source_rotation_degrees = item->content_rotation *
+        180.0f / 3.14159265359f;
     if(rohr_ui_button("editor.layout.camera.visibility", item->placement.visible ?
             &editor->visible_icon : &editor->hidden_icon,
             (UIRect){context->x + 10.0f, 42.0f, 34.0f, 28.0f}, NULL).clicked)
@@ -439,7 +448,13 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         &item->placement.rectangle.height);
     rotation_result = layout_number(&editor->rotation_label, &editor->rotation_field,
         "editor.layout.screen.rotation", context->x, 270.0f, context->width,
-        &item->placement.orientation);
+        &rotation_degrees);
+    if(rotation_result.changed) {
+        rotation_degrees = fmodf(rotation_degrees, 360.0f);
+        if(rotation_degrees < 0.0f) rotation_degrees += 360.0f;
+        item->placement.orientation = rotation_degrees *
+            3.14159265359f / 180.0f;
+    }
     layer = (float)item->placement.layer;
     layer_result = layout_number(&editor->layer_label, &editor->layer_field,
         "editor.layout.camera_editor.layer", context->x, 308.0f, context->width,
@@ -451,15 +466,21 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     content_y_result = layout_number(&editor->content_y_label,
         &editor->content_y_field, "editor.layout.screen.content_y", context->x,
         384.0f, context->width, &item->content_offset.y);
-    content_width_result = layout_number(&editor->width_scale_label,
+    content_width_result = layout_number(&editor->content_width_scale_label,
         &editor->width_scale_field, "editor.layout.screen.content_width", context->x,
         422.0f, context->width, &item->content_scale.x);
-    content_height_result = layout_number(&editor->height_scale_label,
+    content_height_result = layout_number(&editor->content_height_scale_label,
         &editor->height_scale_field, "editor.layout.screen.content_height", context->x,
         460.0f, context->width, &item->content_scale.y);
     content_rotation_result = layout_number(&editor->content_rotation_label,
         &editor->content_rotation_field, "editor.layout.screen.content_rotation",
-        context->x, 498.0f, context->width, &item->content_rotation);
+        context->x, 498.0f, context->width, &source_rotation_degrees);
+    if(content_rotation_result.changed) {
+        source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
+        if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
+        item->content_rotation = source_rotation_degrees *
+            3.14159265359f / 180.0f;
+    }
     item->content_scale.x = fmaxf(0.01f, item->content_scale.x);
     item->content_scale.y = fmaxf(0.01f, item->content_scale.y);
     return x_result.active || y_result.active || width_result.active ||
