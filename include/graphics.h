@@ -202,6 +202,9 @@ ERROR_DECLARE_RESULT_TYPE(FontAssetResult, FontAsset);
  */
 typedef struct TextAsset {
     TTF_Text *text;
+    TTF_Font *font;
+    SDL_Texture *texture;
+    Color color;
     /** Logical screen-space dimensions of the rendered text. */
     Scale size;
 } TextAsset;
@@ -387,6 +390,8 @@ void graphics_text_destroy(TextAsset *text);
 /** Draw reusable text with its top-left corner in logical screen space. */
 bool graphics_text_draw(const TextAsset *text, Position position);
 bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale);
+bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation);
 
 /** Load an animation from texture descriptors. */
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);

@@ -2535,6 +2535,7 @@ void graphics_font_destroy(FontAsset *font) {
 
 TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color) {
     TextAsset asset = {0};
+    SDL_Surface *surface;
     int width;
     int height;
 
@@ -2557,6 +2558,21 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value, C
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, detail);
         return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
     }
+    if(width > 0 && height > 0) {
+        surface = TTF_RenderText_Blended(font->font, value, 0,
+            (SDL_Color){color.red, color.green, color.blue, color.alpha});
+        asset.texture = surface == NULL ? NULL :
+            SDL_CreateTextureFromSurface(sdl_renderer, surface);
+        if(surface != NULL) SDL_DestroySurface(surface);
+        if(asset.texture == NULL) {
+            TTF_DestroyText(asset.text);
+            error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, SDL_GetError());
+            return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
+                ERROR_ENGINE_TEXT_CREATE_FAILED);
+        }
+    }
+    asset.font = font->font;
+    asset.color = color;
     asset.size = (Scale){
         .x = (float)width,
         .y = (float)height,
@@ -2567,10 +2583,24 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value, C
 bool graphics_text_value_set(TextAsset *text, const char *value) {
     int width;
     int height;
+    SDL_Surface *surface;
+    SDL_Texture *texture;
 
     if(text == NULL || text->text == NULL || value == NULL ||
             !TTF_SetTextString(text->text, value, 0) ||
             !TTF_GetTextSize(text->text, &width, &height)) return false;
+    texture = NULL;
+    if(width > 0 && height > 0) {
+        surface = TTF_RenderText_Blended(text->font, value, 0,
+            (SDL_Color){text->color.red, text->color.green, text->color.blue,
+                text->color.alpha});
+        texture = surface == NULL ? NULL : SDL_CreateTextureFromSurface(sdl_renderer,
+            surface);
+        if(surface != NULL) SDL_DestroySurface(surface);
+        if(texture == NULL) return false;
+    }
+    SDL_DestroyTexture(text->texture);
+    text->texture = texture;
     text->size = (Scale){.x = (float)width, .y = (float)height};
     return true;
 }
@@ -2582,6 +2612,7 @@ void graphics_text_destroy(TextAsset *text) {
     if(text->text != NULL) {
         TTF_DestroyText(text->text);
     }
+    if(text->texture != NULL) SDL_DestroyTexture(text->texture);
     *text = (TextAsset){0};
 }
 
@@ -2599,6 +2630,26 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
     command->data.text.text = text->text;
     command->data.text.position = position;
     command->data.text.scale = scale;
+    return true;
+}
+
+bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+        Position center, Scale scale, Orientation orientation) {
+    GraphicsCommand *command;
+    if(text == NULL || text->texture == NULL || scale.x <= 0.0f ||
+            scale.y <= 0.0f) return false;
+    command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
+    if(command == NULL) return false;
+    command->data.texture.texture = text->texture;
+    command->data.texture.destination = (SDL_FRect){
+        center.x - text->size.x * scale.x * 0.5f,
+        center.y - text->size.y * scale.y * 0.5f,
+        text->size.x * scale.x, text->size.y * scale.y};
+    command->data.texture.center = (SDL_FPoint){
+        command->data.texture.destination.w * 0.5f,
+        command->data.texture.destination.h * 0.5f};
+    command->data.texture.degrees = -(double)orientation * 180.0 / (double)PI_F;
+    command->data.texture.flip = SDL_FLIP_NONE;
     return true;
 }
 

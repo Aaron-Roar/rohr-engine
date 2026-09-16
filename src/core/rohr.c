@@ -349,6 +349,10 @@ bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return g
 void rohr_graphics_text_destroy(TextAsset *text) { graphics_text_destroy(text); }
 bool rohr_graphics_text_draw(const TextAsset *text, Position position) { return graphics_text_draw(text, position); }
 bool rohr_graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) { return graphics_text_scaled_draw(text, position, scale); }
+bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation) {
+    return graphics_screen_text_scaled_rotated_draw(text, center, scale, orientation);
+}
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc) { return graphics_animation_load(anim_desc); }
 AnimatedSprite rohr_graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) { return graphics_animated_sprite_create(asset_ptr, scale); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }

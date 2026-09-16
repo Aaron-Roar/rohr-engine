@@ -11,7 +11,7 @@ typedef struct EditorLayoutViewportEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, width_label, height_label;
     TextAsset enabled_label, cameras_label, add_label, delete_label, remove_label;
-    TextAsset layer_label, visible_label;
+    TextAsset layer_label, visible_label, rotation_label;
     TextAsset visible_icon, hidden_icon;
     TextAsset border_label, border_type_label, border_line_label;
     TextAsset border_hashed_label, border_thickness_label;
@@ -26,6 +26,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset width_scale_label, height_scale_label;
     TextAsset text_offset_x_label, text_offset_y_label;
     TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;
+    TextAsset rotation_field;
     TextAsset text_field, font_file_field, width_scale_field, height_scale_field;
     TextAsset length_field;
     TextAsset border_thickness_field, hash_spacing_field, corner_radius_field;

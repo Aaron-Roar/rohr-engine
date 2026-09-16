@@ -574,6 +574,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                     yyjson_mut_arr_add_val(vertices, editor_json_position_write(
                         document, ui->value.shape.vertices[vertex]));
                 yyjson_mut_obj_add_val(document, item, "vertices", vertices);
+                yyjson_mut_obj_add_real(document, item, "ui_rotation",
+                    ui->value.shape.rotation);
                 yyjson_mut_obj_add_uint(document, item, "outline_color",
                     ui->value.shape.outline_color);
                 yyjson_mut_obj_add_uint(document, item, "fill_color",
@@ -1636,6 +1638,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             item->kind = (EditorViewportUiKind)kind;
             if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                 yyjson_val *vertices = yyjson_obj_get(item_value, "vertices");
+                yyjson_val *rotation = yyjson_obj_get(item_value, "ui_rotation");
                 yyjson_val *font_value = yyjson_obj_get(item_value, "font");
                 yyjson_val *color_value = yyjson_obj_get(item_value, "color");
                 yyjson_val *box_width = yyjson_obj_get(item_value, "box_width");
@@ -1658,6 +1661,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         vertex += 1)
                     if(!editor_json_position_read(yyjson_arr_get(vertices, vertex),
                             &item->value.shape.vertices[vertex])) goto done;
+                if(rotation != NULL && !editor_json_real(item_value, "ui_rotation",
+                        &item->value.shape.rotation)) goto done;
                 item->value.shape.text.color = 0xFFFFFFFFu;
                 item->value.shape.text.box_width = 160.0f;
                 item->value.shape.text.box_height = 28.0f;

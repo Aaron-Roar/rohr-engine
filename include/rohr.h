@@ -1419,6 +1419,8 @@ void rohr_graphics_text_destroy(TextAsset *text);
 bool rohr_graphics_text_draw(const TextAsset *text, Position position);
 bool rohr_graphics_text_scaled_draw(const TextAsset *text, Position position,
     Scale scale);
+bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation);
 
 /**
  * @brief Loads an animation asset.

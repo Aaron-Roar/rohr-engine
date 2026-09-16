@@ -30,6 +30,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
+    CREATE("Rotation", rotation_label);
     CREATE("[X]", visible_icon); CREATE("[ ]", hidden_icon);
     CREATE("Border", border_label); CREATE("Border Type", border_type_label);
     CREATE("Line", border_line_label); CREATE("Hashed", border_hashed_label);
@@ -53,6 +54,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Text Offset Y", text_offset_y_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
+    CREATE("", rotation_field);
     CREATE("", text_field); CREATE("", font_file_field);
     CREATE("", width_scale_field); CREATE("", height_scale_field);
     CREATE("", length_field);
@@ -72,6 +74,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
+    DESTROY(rotation_label); DESTROY(rotation_field);
     DESTROY(visible_icon); DESTROY(hidden_icon);
     DESTROY(border_label); DESTROY(border_type_label); DESTROY(border_line_label);
     DESTROY(border_hashed_label); DESTROY(border_thickness_label);
@@ -233,6 +236,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(ui_result.clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
+            context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
         }
         if(ui_result.double_clicked) {
             context->viewport->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
@@ -525,6 +529,13 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     bool active;
     if(editor == NULL || item == NULL) return false;
     active = layout_ui_common_draw(editor, context, item, &y);
+    {
+        UIFieldResult rotation = layout_number(&editor->rotation_label,
+            &editor->rotation_field, "editor.ui_shape.rotation", context->x, y,
+            context->width, &item->value.shape.rotation);
+        active = active || rotation.active;
+        y += 38.0f;
+    }
     button = item->value.shape.button_enabled;
     if(editor_mode_checkbox_left("editor.ui_shape.button", &editor->button_label,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f},

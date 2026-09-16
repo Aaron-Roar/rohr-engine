@@ -368,6 +368,7 @@ typedef struct EditorViewportUiText {
 typedef struct EditorViewportUiShape {
     Position vertices[EDITOR_HITBOX_VERTEX_MAX];
     size_t vertex_count;
+    Orientation rotation;
     uint32_t outline_color;
     uint32_t fill_color;
     bool button_enabled;
