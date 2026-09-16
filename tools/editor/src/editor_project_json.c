@@ -576,6 +576,10 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                     ui->value.shape.text.text);
                 yyjson_mut_obj_add_uint(document, item, "font",
                     ui->value.shape.text.font);
+                yyjson_mut_obj_add_real(document, item, "text_offset_x",
+                    ui->value.shape.text.offset.x);
+                yyjson_mut_obj_add_real(document, item, "text_offset_y",
+                    ui->value.shape.text.offset.y);
                 yyjson_mut_obj_add_uint(document, item, "color",
                     ui->value.shape.text.color);
                 yyjson_mut_obj_add_real(document, item, "box_width",
@@ -591,6 +595,10 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                     ui->value.text.text);
                 yyjson_mut_obj_add_uint(document, item, "font",
                     ui->value.text.font);
+                yyjson_mut_obj_add_real(document, item, "text_offset_x",
+                    ui->value.text.offset.x);
+                yyjson_mut_obj_add_real(document, item, "text_offset_y",
+                    ui->value.text.offset.y);
                 yyjson_mut_obj_add_uint(document, item, "color",
                     ui->value.text.color);
                 yyjson_mut_obj_add_real(document, item, "box_width",
@@ -1610,6 +1618,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *box_height = yyjson_obj_get(item_value, "box_height");
                 yyjson_val *width_scale = yyjson_obj_get(item_value, "width_scale");
                 yyjson_val *height_scale = yyjson_obj_get(item_value, "height_scale");
+                yyjson_val *offset_x = yyjson_obj_get(item_value, "text_offset_x");
+                yyjson_val *offset_y = yyjson_obj_get(item_value, "text_offset_y");
                 item->value.shape.vertex_count = yyjson_is_arr(vertices) ?
                     yyjson_arr_size(vertices) : 0;
                 if(item->value.shape.vertex_count < 3 ||
@@ -1631,6 +1641,11 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 item->value.shape.text.height_scale = 1.0f;
                 if(font_value != NULL && !editor_json_uint(item_value, "font",
                         &item->value.shape.text.font)) goto done;
+                if((offset_x != NULL && !editor_json_real(item_value,
+                            "text_offset_x", &item->value.shape.text.offset.x)) ||
+                        (offset_y != NULL && !editor_json_real(item_value,
+                            "text_offset_y", &item->value.shape.text.offset.y)))
+                    goto done;
                 if(color_value != NULL && !editor_json_uint(item_value, "color",
                         &item->value.shape.text.color)) goto done;
                 if((box_width != NULL && (!editor_json_real(item_value,
@@ -1653,10 +1668,16 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *box_height = yyjson_obj_get(item_value, "box_height");
                 yyjson_val *width_scale = yyjson_obj_get(item_value, "width_scale");
                 yyjson_val *height_scale = yyjson_obj_get(item_value, "height_scale");
+                yyjson_val *offset_x = yyjson_obj_get(item_value, "text_offset_x");
+                yyjson_val *offset_y = yyjson_obj_get(item_value, "text_offset_y");
                 if(!editor_json_uint(item_value, "color", &item->value.text.color))
                     goto done;
                 if(font_value != NULL && !editor_json_uint(item_value, "font",
                         &item->value.text.font)) goto done;
+                if((offset_x != NULL && !editor_json_real(item_value,
+                            "text_offset_x", &item->value.text.offset.x)) ||
+                        (offset_y != NULL && !editor_json_real(item_value,
+                            "text_offset_y", &item->value.text.offset.y))) goto done;
                 item->value.text.width_scale = 1.0f;
                 item->value.text.height_scale = 1.0f;
                 item->value.text.box_width = 160.0f;

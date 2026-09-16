@@ -1595,9 +1595,16 @@ void editor_viewport_back(EditorViewportState *state) {
         state->selection = EDITOR_SELECTION_UI_SHAPE;
     } else if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
-        state->mode = EDITOR_VIEWPORT_LAYOUT;
-        state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
-        state->selected_viewport_ui_item = 0;
+        if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
+                state->selected_viewport_ui_text_child) {
+            state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+            state->selection = EDITOR_SELECTION_UI_SHAPE;
+            state->selected_viewport_ui_text_child = false;
+        } else {
+            state->mode = EDITOR_VIEWPORT_LAYOUT;
+            state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+            state->selected_viewport_ui_item = 0;
+        }
     } else if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         if(state->selected_viewport_camera_item != 0 ||
                 state->selected_viewport_ui_item != 0) {
@@ -2021,6 +2028,8 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     EditorUiFontId font_id;
     FontAsset *font;
     Position position;
+    Position centroid;
+    Position offset;
     Scale text_scale;
     if(item == NULL || slot >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             editor_viewport_ui_font == NULL) return;
@@ -2056,8 +2065,24 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
             return;
         snprintf(editor_viewport_ui_text_values[slot], UI_LABEL_MAX, "%s", value);
     }
-    position = (Position){viewport.x + item->position.x * zoom,
-        viewport.y + item->position.y * zoom};
+    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+        Shape shape = {.amount_of_vertices =
+            (int)item->value.shape.vertex_count};
+        for(size_t vertex = 0; vertex < item->value.shape.vertex_count; vertex += 1)
+            shape.vertices[vertex] = item->value.shape.vertices[vertex];
+        centroid = shape.amount_of_vertices >= 3 ? rohr_math_polygon_centroid(shape) :
+            (Position){0};
+        offset = item->value.shape.text.offset;
+    } else {
+        centroid = (Position){item->value.text.box_width * 0.5f,
+            item->value.text.box_height * 0.5f};
+        offset = item->value.text.offset;
+    }
+    position = (Position){viewport.x +
+            (item->position.x + centroid.x + offset.x) * zoom -
+                editor_viewport_ui_text_assets[slot].size.x * text_scale.x * 0.5f,
+        viewport.y + (item->position.y + centroid.y + offset.y) * zoom -
+            editor_viewport_ui_text_assets[slot].size.y * text_scale.y * 0.5f};
     (void)rohr_graphics_text_scaled_draw(&editor_viewport_ui_text_assets[slot],
         position, text_scale);
 }
@@ -2708,6 +2733,31 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
                 state->dragged_viewport_item = false;
                 state->dragged_viewport_vertex = false;
+                state->dragged_viewport_text = false;
+            }
+            if(state->dragged_viewport_text &&
+                    primary_button == MOUSE_BUTTON_STATE_DOWN) {
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(item->id != state->selected_viewport_ui_item) continue;
+                    EditorViewportUiText *text = item->kind ==
+                            EDITOR_VIEWPORT_UI_SHAPE ? &item->value.shape.text :
+                        &item->value.text;
+                    Position centroid;
+                    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                        Shape shape = {.amount_of_vertices =
+                            (int)item->value.shape.vertex_count};
+                        for(size_t vertex = 0;
+                                vertex < item->value.shape.vertex_count; vertex += 1)
+                            shape.vertices[vertex] =
+                                item->value.shape.vertices[vertex];
+                        centroid = rohr_math_polygon_centroid(shape);
+                    } else centroid = (Position){text->box_width * 0.5f,
+                        text->box_height * 0.5f};
+                    text->offset = (Position){local.x - item->position.x - centroid.x,
+                        local.y - item->position.y - centroid.y};
+                    return true;
+                }
             }
             if(state->dragged_viewport_vertex &&
                     primary_button == MOUSE_BUTTON_STATE_DOWN) {
@@ -2761,6 +2811,40 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
             }
             if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+                for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    EditorViewportUiText *text;
+                    Position centroid;
+                    if(item->id != state->selected_viewport_ui_item ||
+                            !item->visible) continue;
+                    text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                        &item->value.shape.text : &item->value.text;
+                    if(text->text[0] == '\0') continue;
+                    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                        Shape shape = {.amount_of_vertices =
+                            (int)item->value.shape.vertex_count};
+                        for(size_t vertex = 0;
+                                vertex < item->value.shape.vertex_count; vertex += 1)
+                            shape.vertices[vertex] = item->value.shape.vertices[vertex];
+                        centroid = rohr_math_polygon_centroid(shape);
+                    } else centroid = (Position){text->box_width * 0.5f,
+                        text->box_height * 0.5f};
+                    ViewportRectangle text_bounds = {
+                        item->position.x + centroid.x + text->offset.x -
+                            text->box_width * 0.5f,
+                        item->position.y + centroid.y + text->offset.y -
+                            text->box_height * 0.5f,
+                        text->box_width, text->box_height};
+                    if(local.x < text_bounds.x || local.y < text_bounds.y ||
+                            local.x > text_bounds.x + text_bounds.width ||
+                            local.y > text_bounds.y + text_bounds.height) continue;
+                    state->selected_viewport_ui_text_child =
+                        item->kind == EDITOR_VIEWPORT_UI_SHAPE;
+                    state->mode = EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+                    state->selection = EDITOR_SELECTION_UI_TEXT;
+                    state->dragged_viewport_text = true;
+                    return true;
+                }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
                     if(item->id != state->selected_viewport_ui_item ||
@@ -2827,6 +2911,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         EDITOR_VIEWPORT_UI_TEXT_EDITOR;
                     state->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                         EDITOR_SELECTION_UI_SHAPE : EDITOR_SELECTION_UI_TEXT;
+                    state->selected_viewport_ui_text_child = false;
                     state->drag_offset = (Vec2D){local.x - item->position.x,
                         local.y - item->position.y};
                     state->dragged_viewport_item = true;
@@ -2841,6 +2926,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             local.y > rectangle.y + rectangle.height) continue;
                     state->selected_viewport_camera_item = item->id;
                     state->selected_viewport_ui_item = 0;
+                    state->selected_viewport_ui_text_child = false;
                     state->drag_offset = (Vec2D){local.x - rectangle.x,
                         local.y - rectangle.y};
                     state->dragged_viewport_item = true;
@@ -2850,9 +2936,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
-                    state->mode = EDITOR_VIEWPORT_LAYOUT;
-                    state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
-                    state->selected_viewport_ui_item = 0;
+                    if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
+                            state->selected_viewport_ui_text_child) {
+                        state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+                        state->selection = EDITOR_SELECTION_UI_SHAPE;
+                        state->selected_viewport_ui_text_child = false;
+                    } else {
+                        state->mode = EDITOR_VIEWPORT_LAYOUT;
+                        state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                        state->selected_viewport_ui_item = 0;
+                    }
                     editor_viewport_selection_clear(state);
                     return true;
                 }
@@ -4586,12 +4679,26 @@ void editor_viewport_draw(const EditorProject *project,
                         state->selection == EDITOR_SELECTION_UI_TEXT);
                 Color color = whole_selected ? (Color){255, 210, 70, 255} :
                     rohr_graphics_color_hex_create(item->border_color);
-                editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
                 ui.x = rectangle.x + ui.x * zoom;
                 ui.y = rectangle.y + ui.y * zoom;
                 ui.width *= zoom; ui.height *= zoom;
                 if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
                         item->value.shape.vertex_count >= 2) {
+                    if(item->border_enabled &&
+                            item->value.shape.vertex_count >= 3) {
+                        Shape fill = {.amount_of_vertices =
+                            (int)item->value.shape.vertex_count};
+                        for(size_t vertex = 0;
+                                vertex < item->value.shape.vertex_count; vertex += 1)
+                            fill.vertices[vertex] = (Position){rectangle.x +
+                                    (item->position.x + item->value.shape.vertices[
+                                        vertex].x) * zoom,
+                                rectangle.y + (item->position.y +
+                                    item->value.shape.vertices[vertex].y) * zoom};
+                        (void)rohr_graphics_screen_shape_filled_draw(fill,
+                            rohr_graphics_color_hex_create(item->fill_color));
+                    }
+                    editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
                     for(size_t vertex = 0; vertex < item->value.shape.vertex_count;
                             vertex += 1) {
                         size_t next = (vertex + 1) % item->value.shape.vertex_count;
@@ -4704,6 +4811,10 @@ void editor_viewport_draw(const EditorProject *project,
                     }
                     continue;
                 }
+                if(item->border_enabled)
+                    (void)rohr_graphics_screen_rect_draw(ui.x, ui.y, ui.width,
+                        ui.height, rohr_graphics_color_hex_create(item->fill_color));
+                editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
                 if(whole_selected && !item->border_enabled &&
                         i < EDITOR_LAYOUT_VIEWPORT_UI_MAX &&
                         editor_viewport_ui_text_assets[i].text != NULL) {

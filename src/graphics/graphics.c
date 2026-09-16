@@ -2383,6 +2383,32 @@ bool graphics_shape_filled_draw(Shape shape, Color color)
     return true;
 }
 
+bool graphics_screen_shape_filled_draw(Shape shape, Color color) {
+    Shape prepared;
+    GraphicsCommand *command;
+    if(shape.amount_of_vertices < 3 ||
+            !physics_shape_collision_prepare(shape, &prepared)) return false;
+    command = graphics_command_append(GRAPHICS_COMMAND_SHAPE_FILLED);
+    if(command == NULL) return false;
+    command->data.shape.count = shape.amount_of_vertices;
+    command->data.shape.index_count = 0;
+    command->data.shape.color = color;
+    for(int i = 0; i < shape.amount_of_vertices; i += 1)
+        command->data.shape.points[i] = (SDL_FPoint){shape.vertices[i].x,
+            shape.vertices[i].y};
+    if(prepared.concave_piece_count == 0) {
+        for(int i = 1; i < shape.amount_of_vertices - 1; i += 1) {
+            command->data.shape.indices[command->data.shape.index_count++] = 0;
+            command->data.shape.indices[command->data.shape.index_count++] = i;
+            command->data.shape.indices[command->data.shape.index_count++] = i + 1;
+        }
+    } else for(uint8_t piece = 0; piece < prepared.concave_piece_count; piece += 1)
+        for(uint8_t vertex = 0; vertex < 3; vertex += 1)
+            command->data.shape.indices[command->data.shape.index_count++] =
+                prepared.concave_pieces[piece].vertex_indices[vertex];
+    return true;
+}
+
 void graphics_hit_box_draw(Entity entity, Fill fill_type) {
     ShapeResult shape_result = physics_global_hit_box_get(entity);
     if(shape_result.kind == ERROR_RESULT_ERROR) {

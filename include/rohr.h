@@ -1304,6 +1304,7 @@ int rohr_graphics_layer_get(void);
  * @return true when the draw command was queued.
  */
 bool rohr_graphics_screen_rect_draw(float x, float y, float width, float height, Color color);
+bool rohr_graphics_screen_shape_filled_draw(Shape shape, Color color);
 /** Returns the renderer output size in physical pixels. */
 Scale rohr_graphics_render_output_size_get(void);
 /** Changes the logical screen size while preserving aspect-correct presentation. */

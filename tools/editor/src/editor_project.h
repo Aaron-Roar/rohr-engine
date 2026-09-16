@@ -356,6 +356,7 @@ typedef enum EditorViewportUiBorderType {
 
 typedef struct EditorViewportUiText {
     char text[UI_LABEL_MAX];
+    Position offset;
     EditorUiFontId font;
     uint32_t color;
     float box_width;

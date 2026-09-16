@@ -30,6 +30,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
+    CREATE("[X]", visible_icon); CREATE("[ ]", hidden_icon);
     CREATE("Border", border_label); CREATE("Border Type", border_type_label);
     CREATE("Line", border_line_label); CREATE("Hashed", border_hashed_label);
     CREATE("Border Thickness", border_thickness_label);
@@ -66,6 +67,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
+    DESTROY(visible_icon); DESTROY(hidden_icon);
     DESTROY(border_label); DESTROY(border_type_label); DESTROY(border_line_label);
     DESTROY(border_hashed_label); DESTROY(border_thickness_label);
     DESTROY(hash_spacing_label); DESTROY(corner_radius_label);
@@ -198,8 +200,15 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                     &editor->camera_names[i], editor->camera_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) continue;
         snprintf(id, sizeof(id), "editor.layout.camera.%u", item->id);
+        char visibility_id[88];
+        snprintf(visibility_id, sizeof(visibility_id),
+            "editor.layout.camera.%u.visibility", item->id);
+        if(rohr_ui_button(visibility_id, item->placement.visible ?
+                &editor->visible_icon : &editor->hidden_icon,
+                (UIRect){context->x + 8.0f, y, 34.0f, 28.0f}, NULL).clicked)
+            item->placement.visible = !item->placement.visible;
         if(rohr_ui_button(id, &editor->camera_names[i],
-                (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f},
+                (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
                 NULL).clicked)
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
@@ -209,12 +218,18 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1) {
         EditorViewportUiItem *item = &viewport->ui_items[i];
         char id[80];
+        char visibility_id[88];
         if(!editor_mode_named_text_sync(editor->font, item->name,
                 &editor->ui_names[i], editor->ui_cache[i],
                 EDITOR_OBJECT_NAME_MAX)) continue;
         snprintf(id, sizeof(id), "editor.layout.ui.%u", item->id);
+        snprintf(visibility_id, sizeof(visibility_id),
+            "editor.layout.ui.%u.visibility", item->id);
+        if(rohr_ui_button(visibility_id, item->visible ? &editor->visible_icon :
+                &editor->hidden_icon, (UIRect){context->x + 8.0f, y,
+                    34.0f, 28.0f}, NULL).clicked) item->visible = !item->visible;
         if(rohr_ui_button(id, &editor->ui_names[i],
-                (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f},
+                (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
                 NULL).clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
@@ -370,9 +385,12 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         context->width, &layer);
     if(layer_result.changed) item->layer = (int)layer;
     *y += 38.0f;
-    if(editor_mode_checkbox_left("editor.layout.ui.visible", &editor->visible_label,
-            (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
-            &visible)) item->visible = visible;
+    if(rohr_ui_button("editor.layout.ui.visibility", visible ?
+            &editor->visible_icon : &editor->hidden_icon,
+            (UIRect){context->x + 10.0f, *y, 34.0f, 28.0f}, NULL).clicked)
+        item->visible = !item->visible;
+    rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, *y,
+        context->width - 60.0f, 28.0f});
     *y += 42.0f;
     bool border_enabled = item->border_enabled;
     if(editor_mode_checkbox_left("editor.layout.ui.border", &editor->border_label,
@@ -429,80 +447,24 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorViewportUiItem *item = layout_ui_item_get(context,
         EDITOR_VIEWPORT_UI_SHAPE);
-    EditorViewportUiText *text;
-    UIFieldResult text_result, box_width_result, box_height_result,
-        width_result, height_result;
-    const TextAsset *font_options[EDITOR_UI_FONT_MAX + 2];
-    size_t selected_font = 0;
     bool button;
     float y = 42.0f;
     bool active;
     if(editor == NULL || item == NULL) return false;
-    text = &item->value.shape.text;
     active = layout_ui_common_draw(editor, context, item, &y);
-    rohr_ui_label(&editor->text_label,
-        (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-    text_result = rohr_ui_field("editor.ui_shape.text",
-        (UIFieldBinding){.kind = UI_FIELD_STRING,
-            .string = text->text,
-            .string_capacity = sizeof(text->text)}, &editor->text_field,
-        (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
-    y += 38.0f;
-    rohr_ui_label(&editor->font_file_label,
-        (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-    font_options[0] = &editor->default_font_label;
-    font_options[1] = &editor->load_font_label;
-    for(size_t i = 0; i < context->project->ui_font_count; i += 1) {
-        EditorUiFont *font = &context->project->ui_fonts[i];
-        (void)editor_mode_named_text_sync(editor->font, font->name,
-            &editor->font_names[i], editor->font_cache[i], EDITOR_OBJECT_NAME_MAX);
-        font_options[i + 2] = &editor->font_names[i];
-        if(text->font == font->id) selected_font = i + 2;
-    }
-    UIDropdownResult font_result = rohr_ui_dropdown("editor.ui_shape.font",
-        font_options, context->project->ui_font_count + 2, selected_font,
-        (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
-    if(font_result.changed) {
-        if(font_result.selected_index == 0) text->font = 0;
-        else if(font_result.selected_index == 1 && context->font_browser_open != NULL)
-            context->font_browser_open(context->font_browser_context);
-        else if(font_result.selected_index >= 2)
-            text->font = context->project->ui_fonts[
-                font_result.selected_index - 2].id;
-    }
-    y += 38.0f;
-    rohr_ui_label(&editor->font_color_label,
-        (UIRect){context->x + 8.0f, y, 120.0f, 28.0f});
-    (void)layout_local_swatch("editor.ui_shape.text_color", &text->color,
-        (UIRect){context->x + context->width - 46.0f, y, 36.0f, 28.0f}, context);
-    y += 38.0f;
-    box_width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.ui_shape.text_box_width", context->x, y, context->width,
-        &text->box_width);
-    if(text->box_width <= 0.0f) text->box_width = 1.0f;
-    y += 38.0f;
-    box_height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.ui_shape.text_box_height", context->x, y, context->width,
-        &text->box_height);
-    if(text->box_height <= 0.0f) text->box_height = 1.0f;
-    y += 38.0f;
-    width_result = layout_number(&editor->width_scale_label,
-        &editor->width_scale_field, "editor.ui_shape.text_width_scale",
-        context->x, y, context->width, &text->width_scale);
-    if(text->width_scale <= 0.0f) text->width_scale = 0.01f;
-    y += 38.0f;
-    height_result = layout_number(&editor->height_scale_label,
-        &editor->height_scale_field, "editor.ui_shape.text_height_scale",
-        context->x, y, context->width, &text->height_scale);
-    if(text->height_scale <= 0.0f) text->height_scale = 0.01f;
-    y += 38.0f;
     button = item->value.shape.button_enabled;
     if(editor_mode_checkbox_left("editor.ui_shape.button", &editor->button_label,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f},
             &button)) item->value.shape.button_enabled = button;
     y += 42.0f;
-    return active || text_result.active || box_width_result.active ||
-        box_height_result.active || width_result.active || height_result.active;
+    if(rohr_ui_button("editor.ui_shape.text_child", &editor->text_label,
+            (UIRect){context->x + 10.0f, y, context->width - 20.0f, 30.0f},
+            NULL).clicked) {
+        context->viewport->selected_viewport_ui_text_child = true;
+        context->viewport->mode = EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+        context->viewport->selection = EDITOR_SELECTION_UI_TEXT;
+    }
+    return active;
 }
 
 bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
@@ -516,15 +478,36 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
     size_t selected_font = 0;
     float y = 42.0f;
     bool active;
-    if(editor == NULL || item == NULL) return false;
-    text = &item->value.text;
-    active = layout_ui_common_draw(editor, context, item, &y);
+    if(editor == NULL) return false;
+    if(item == NULL && context != NULL && context->viewport != NULL &&
+            context->viewport->selected_viewport_ui_text_child) {
+        EditorLayoutViewport *layout = editor_project_layout_viewport_get(
+            context->project, context->viewport->selected_layout_viewport);
+        if(layout != NULL) for(size_t i = 0; i < layout->ui_item_count; i += 1)
+            if(layout->ui_items[i].id ==
+                    context->viewport->selected_viewport_ui_item &&
+                    layout->ui_items[i].kind == EDITOR_VIEWPORT_UI_SHAPE)
+                item = &layout->ui_items[i];
+    }
+    if(item == NULL) return false;
+    text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? &item->value.shape.text :
+        &item->value.text;
+    active = item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+        layout_ui_common_draw(editor, context, item, &y) : false;
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     text_result = rohr_ui_field("editor.ui_text.text",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text->text,
             .string_capacity = sizeof(text->text)}, &editor->text_field,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+    y += 38.0f;
+    UIFieldResult offset_x_result = layout_number(&editor->x_label,
+        &editor->x_field, "editor.ui_text.offset_x", context->x, y,
+        context->width, &text->offset.x);
+    y += 38.0f;
+    UIFieldResult offset_y_result = layout_number(&editor->y_label,
+        &editor->y_field, "editor.ui_text.offset_y", context->x, y,
+        context->width, &text->offset.y);
     y += 38.0f;
     rohr_ui_label(&editor->font_file_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
@@ -577,7 +560,8 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
     y += 42.0f;
     return active || text_result.active ||
         box_width_result.active || box_height_result.active ||
-        width_result.active || height_result.active;
+        width_result.active || height_result.active || offset_x_result.active ||
+        offset_y_result.active;
 }
 
 bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,

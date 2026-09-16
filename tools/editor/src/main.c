@@ -1428,6 +1428,16 @@ static bool editor_single_selected_delete(
             if(layout->ui_items[i].id == viewport_state->selected_viewport_ui_item)
                 item = &layout->ui_items[i];
         if(item == NULL) return false;
+        if(viewport_state->selection == EDITOR_SELECTION_UI_TEXT &&
+                viewport_state->selected_viewport_ui_text_child &&
+                item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+            item->value.shape.text.text[0] = '\0';
+            item->value.shape.text.offset = (Position){0};
+            viewport_state->selected_viewport_ui_text_child = false;
+            viewport_state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+            viewport_state->selection = EDITOR_SELECTION_UI_SHAPE;
+            return true;
+        }
         if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
                 viewport_state->selection == EDITOR_SELECTION_UI_TEXT) {
             if(!editor_viewport_ui_remove(layout, item->id)) return false;

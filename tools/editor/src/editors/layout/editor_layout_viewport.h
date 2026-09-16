@@ -12,6 +12,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset name_label, x_label, y_label, width_label, height_label;
     TextAsset enabled_label, cameras_label, add_label, delete_label, remove_label;
     TextAsset layer_label, visible_label;
+    TextAsset visible_icon, hidden_icon;
     TextAsset border_label, border_type_label, border_line_label;
     TextAsset border_hashed_label, border_thickness_label;
     TextAsset hash_spacing_label, corner_radius_label, border_color_label;

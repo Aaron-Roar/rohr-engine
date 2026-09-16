@@ -335,6 +335,7 @@ int graphics_layer_get(void);
 
 /** Draw a filled rectangle in logical screen coordinates. */
 bool graphics_screen_rect_draw(float x, float y, float width, float height, Color color);
+bool graphics_screen_shape_filled_draw(Shape shape, Color color);
 bool graphics_screen_clip_set(float x, float y, float width, float height);
 void graphics_screen_clip_clear(void);
 bool graphics_screen_clip_push(float x, float y, float width, float height);
