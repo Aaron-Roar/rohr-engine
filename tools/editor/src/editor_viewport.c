@@ -37,11 +37,16 @@ void editor_viewport_ui_font_set(FontAsset *font) {
 static Position editor_view_origin;
 static float editor_view_scale = 1.0f;
 static bool editor_view_camera_preview = false;
+static int editor_view_composition_layer_base = 0;
 static Position editor_view_preview_camera;
 static Scale editor_view_preview_scale = {1.0f, 1.0f};
 static Orientation editor_view_preview_camera_rotation;
 static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
+
+static void editor_view_content_layer_set(int layer) {
+    rohr_graphics_layer_set(editor_view_composition_layer_base + layer);
+}
 
 typedef struct EditorPreviewTexture {
     char path[EDITOR_ASSET_PATH_MAX * 2];
@@ -4451,7 +4456,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
 
 static void editor_viewport_particle_fills_draw(const EditorObject *object) {
     if(object == NULL || !object->visible) return;
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
         Position center;
@@ -4677,7 +4682,7 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
 
 static void editor_viewport_sprites_draw(const EditorObject *object,
         const EditorViewportState *state, bool object_highlighted) {
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_SPRITE);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_SPRITE);
     for(size_t i = 0; i < object->sprite_count; i += 1) {
         const EditorSprite *sprite = &object->sprites[i];
         TextureAsset *texture;
@@ -4719,7 +4724,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 (Color){255, 215, 70, 255});
         }
     }
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
     for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
         const EditorAnimatedSprite *animation = &object->animated_sprite_items[i];
         const EditorAnimationFrame *frame;
@@ -4778,7 +4783,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     editor_viewport_sprites_draw(object, state, object_highlighted);
     if(!editor_view_camera_preview) editor_viewport_cameras_draw(object, state);
 
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
         if(!body->visible) continue;
@@ -4900,7 +4905,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
     }
 
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_SOFT_BODY);
     for(size_t soft_index = 0; soft_index < object->soft_body_count; soft_index += 1) {
         const EditorSoftBody *body = &object->soft_body_items[soft_index];
         bool selected_body = state->selection == EDITOR_SELECTION_SOFT_BODY &&
@@ -5019,7 +5024,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
     }
 
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
     for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
         const EditorJoint *joint = &object->joint_items[joint_index];
         const EditorAnchor *a = NULL;
@@ -5066,7 +5071,7 @@ static void editor_viewport_camera_preview_object_draw(
         const EditorObject *object, const EditorViewportState *state) {
     if(object == NULL || state == NULL || !object->visible) return;
     editor_viewport_sprites_draw(object, state, false);
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count;
             body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
@@ -5083,7 +5088,7 @@ static void editor_viewport_camera_preview_object_draw(
                     graphics_color_hex_create(body->border_color));
         }
     }
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_SOFT_BODY);
     for(size_t body_index = 0; body_index < object->soft_body_count;
             body_index += 1) {
         const EditorSoftBody *body = &object->soft_body_items[body_index];
@@ -5119,6 +5124,23 @@ static void editor_viewport_camera_preview_object_draw(
     }
 }
 
+static int editor_viewport_item_layer_base_get(
+        const EditorLayoutViewport *viewport, int layer, size_t order) {
+    size_t rank = 0;
+    if(viewport == NULL) return 0;
+    for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+        int candidate = viewport->camera_items[i].placement.layer;
+        if(candidate < layer || (candidate == layer && i < order)) rank += 1;
+    }
+    for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+        int candidate = viewport->ui_items[i].layer;
+        size_t candidate_order = viewport->camera_item_count + i;
+        if(candidate < layer ||
+                (candidate == layer && candidate_order < order)) rank += 1;
+    }
+    return EDITOR_GRAPHICS_LAYER_COMPOSITION + (int)(rank * 64);
+}
+
 static void editor_viewport_screen_camera_preview_draw(
         const EditorProject *project, const EditorViewportCameraItem *screen,
         ViewportRectangle bounds, float editor_zoom) {
@@ -5136,7 +5158,7 @@ static void editor_viewport_screen_camera_preview_draw(
     bool clip_pushed;
     if(project == NULL || screen == NULL || bounds.width <= 0.0f ||
             bounds.height <= 0.0f) return;
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
     (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
         bounds.height, (Color){18, 22, 30, 255});
     for(size_t i = 0; i < project->object_count; i += 1)
@@ -5177,7 +5199,9 @@ static void editor_viewport_screen_camera_preview_draw(
     clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
         bounds.width, bounds.height);
     editor_view_camera_preview = true;
-    editor_viewport_camera_preview_object_draw(camera_object, &preview_state);
+    for(size_t i = 0; i < project->object_count; i += 1)
+        editor_viewport_camera_preview_object_draw(&project->objects[i],
+            &preview_state);
     editor_view_camera_preview = false;
     if(clip_pushed) rohr_graphics_screen_clip_pop();
     editor_view_origin = saved_origin;
@@ -5223,9 +5247,12 @@ void editor_viewport_draw(const EditorProject *project,
             rectangle.x = origin.x + rectangle.x * zoom;
             rectangle.y = origin.y + rectangle.y * zoom;
             rectangle.width *= zoom; rectangle.height *= zoom;
-            rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 3);
+            editor_view_composition_layer_base =
+                EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
+            editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
             (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
                 rectangle.width, rectangle.height, (Color){12, 16, 24, 255});
+            editor_view_composition_layer_base = 0;
             rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
             for(float x = 0.0f; x < rectangle.width; x += 12.0f * zoom) {
                 float length = fminf(7.0f * zoom, rectangle.width - x);
@@ -5246,8 +5273,9 @@ void editor_viewport_draw(const EditorProject *project,
             for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
                 if(!item->placement.visible) continue;
-                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT +
-                    item->placement.layer);
+                editor_view_composition_layer_base =
+                    editor_viewport_item_layer_base_get(viewport,
+                        item->placement.layer, i);
                 ViewportRectangle camera = item->placement.rectangle;
                 bool selected = item->id == state->selected_viewport_camera_item &&
                     state->selection != EDITOR_SELECTION_NONE;
@@ -5258,6 +5286,7 @@ void editor_viewport_draw(const EditorProject *project,
                 camera.width *= zoom; camera.height *= zoom;
                 editor_viewport_screen_camera_preview_draw(project, item, camera,
                     zoom);
+                editor_view_composition_layer_base = 0;
                 Position screen_center = {camera.x + camera.width * 0.5f,
                     camera.y + camera.height * 0.5f};
                 Position corners[4] = {{camera.x, camera.y},
@@ -5287,7 +5316,10 @@ void editor_viewport_draw(const EditorProject *project,
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
                 if(!item->visible) continue;
-                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT + item->layer);
+                editor_view_composition_layer_base =
+                    editor_viewport_item_layer_base_get(viewport, item->layer,
+                        viewport->camera_item_count + i);
+                editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 bool whole_selected = item->id == state->selected_viewport_ui_item &&
                     state->selection == EDITOR_SELECTION_UI_SHAPE;
@@ -5461,6 +5493,7 @@ void editor_viewport_draw(const EditorProject *project,
                         editor_viewport_screen_circle_draw(handle, 10.0f,
                             (Color){255, 210, 70, 255});
                     }
+                    editor_view_composition_layer_base = 0;
                     continue;
                 }
                 if(item->border_enabled)
@@ -5480,6 +5513,7 @@ void editor_viewport_draw(const EditorProject *project,
                         editor_viewport_screen_dotted_line_draw(corners[edge],
                             corners[(edge + 1) % 4], color, spacing, thickness);
                 }
+                editor_view_composition_layer_base = 0;
             }
         }
         if(!project_preview) return;
