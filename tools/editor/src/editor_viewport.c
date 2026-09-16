@@ -5141,6 +5141,23 @@ static int editor_viewport_item_layer_base_get(
     return EDITOR_GRAPHICS_LAYER_COMPOSITION + (int)(rank * 64);
 }
 
+static void editor_viewport_empty_camera_background_draw(
+        ViewportRectangle bounds) {
+    bool clip_pushed;
+    Color background = {52, 54, 58, 255};
+    Color stripe = {105, 88, 32, 255};
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
+    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
+        bounds.height, background);
+    clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
+        bounds.width, bounds.height);
+    for(float x = -bounds.height; x < bounds.width; x += 24.0f)
+        editor_viewport_screen_line_draw(
+            (Position){bounds.x + x, bounds.y + bounds.height},
+            (Position){bounds.x + x + bounds.height, bounds.y}, stripe);
+    if(clip_pushed) rohr_graphics_screen_clip_pop();
+}
+
 static void editor_viewport_screen_camera_preview_draw(
         const EditorProject *project, const EditorViewportCameraItem *screen,
         ViewportRectangle bounds, float editor_zoom) {
@@ -5158,9 +5175,7 @@ static void editor_viewport_screen_camera_preview_draw(
     bool clip_pushed;
     if(project == NULL || screen == NULL || bounds.width <= 0.0f ||
             bounds.height <= 0.0f) return;
-    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
-    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
-        bounds.height, (Color){18, 22, 30, 255});
+    editor_viewport_empty_camera_background_draw(bounds);
     for(size_t i = 0; i < project->object_count; i += 1)
         if(project->objects[i].id == screen->object) camera_object =
             &project->objects[i];
