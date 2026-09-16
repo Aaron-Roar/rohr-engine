@@ -1541,8 +1541,10 @@ void editor_viewport_object_editor_enter(EditorViewportState *state) {
     state->selected_line = 0;
     state->selected_vertex = 0;
     state->preview_rigid_body = 0;
+    state->preview_soft_body = 0;
     state->preview_anchor = 0;
     state->preview_soft_node = 0;
+    state->preview_camera = 0;
     state->soft_area_candidate_count = 0;
     state->dragged_vertex = -1;
 }
@@ -4494,6 +4496,19 @@ static void editor_camera_icon_draw(Position center, Color color) {
         6.0f, 8.0f, color);
 }
 
+static void editor_camera_attachment_icon_draw(Position center) {
+    Position screen = editor_view_world_to_screen(center);
+    Color color = {70, 74, 82, 255};
+    (void)rohr_graphics_screen_rect_draw(screen.x - 7.0f, screen.y - 12.0f,
+        14.0f, 2.0f, color);
+    (void)rohr_graphics_screen_rect_draw(screen.x - 5.0f, screen.y - 15.0f,
+        2.0f, 3.0f, color);
+    (void)rohr_graphics_screen_rect_draw(screen.x - 1.0f, screen.y - 15.0f,
+        2.0f, 3.0f, color);
+    (void)rohr_graphics_screen_rect_draw(screen.x + 3.0f, screen.y - 15.0f,
+        2.0f, 3.0f, color);
+}
+
 static void editor_viewport_cameras_draw(const EditorObject *object,
         const EditorViewportState *state) {
     for(size_t c = 0; c < object->camera_count; c += 1) {
@@ -4516,7 +4531,8 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
         selected = (state->selection == EDITOR_SELECTION_CAMERA &&
             state->selected_camera_entity == camera->id) ||
             editor_viewport_path_selected(state, EDITOR_SELECTION_CAMERA,
-                object->id, 0, 0, camera->id);
+                object->id, 0, 0, camera->id) ||
+            state->preview_camera == camera->id;
         color = selected ? (Color){255, 215, 70, 255} :
             (Color){90, 210, 235, 255};
         for(size_t i = 0; i < 4; i += 1)
@@ -4524,6 +4540,8 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
         editor_dashed_line_draw(corners[0], corners[2], color);
         editor_dashed_line_draw(corners[1], corners[3], color);
         editor_camera_icon_draw(center, color);
+        if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE)
+            editor_camera_attachment_icon_draw(center);
         if(selected) {
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             editor_line_draw(center, handle, color);
@@ -4763,7 +4781,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
         bool selected_body = state->selection == EDITOR_SELECTION_SOFT_BODY &&
             state->selected_soft_body == body->id;
         selected_body = selected_body || editor_viewport_path_selected(state,
-            EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id);
+            EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id) ||
+            state->preview_soft_body == body->id;
         const EditorSoftArea *selected_area = NULL;
         if(state->selection == EDITOR_SELECTION_SOFT_AREA &&
                 state->selected_soft_body == body->id) {

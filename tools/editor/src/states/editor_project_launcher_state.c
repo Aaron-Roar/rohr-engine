@@ -31,7 +31,7 @@ EditorProjectLauncherRequest editor_project_launcher_state_draw(
         180.0f
     };
     rohr_ui_surface((UIRect){0.0f, EDITOR_MENU_HEIGHT, window_width,
-        viewport_bottom - EDITOR_MENU_HEIGHT}, (Color){12, 14, 18, 238});
+        viewport_bottom - EDITOR_MENU_HEIGHT}, (Color){12, 14, 18, 255});
     rohr_ui_surface(dialog, (Color){42, 47, 58, 255});
     rohr_ui_border(dialog, 2.0f, (Color){8, 9, 12, 255});
     if(rohr_ui_button("editor.start.new", state->new_project_label,

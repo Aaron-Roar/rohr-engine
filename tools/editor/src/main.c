@@ -846,7 +846,13 @@ static float editor_panel_delete_y_get(const EditorProject *project,
         rigid_body_editor) - 50.0f;
 }
 
-static bool editor_panel_delete_footer_check(EditorViewportMode mode) {
+static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
+    EditorViewportMode mode;
+    if(state == NULL) return false;
+    mode = state->mode;
+    if(mode == EDITOR_VIEWPORT_HIERARCHY)
+        return state->selection == EDITOR_SELECTION_OBJECT ||
+            state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT;
     return mode == EDITOR_VIEWPORT_OBJECT || mode == EDITOR_VIEWPORT_RIGID_BODY ||
         mode == EDITOR_VIEWPORT_HITBOX || mode == EDITOR_VIEWPORT_VERTEX ||
         mode == EDITOR_VIEWPORT_LINE || mode == EDITOR_VIEWPORT_JOINT ||
@@ -2665,7 +2671,7 @@ int main(void) {
             collide_with_open = false;
             rigid_body_editor.binding_hitbox_open = 0;
         }
-        bool delete_footer = editor_panel_delete_footer_check(viewport_state.mode);
+        bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
         float delete_footer_height = delete_footer ? 54.0f : 0.0f;
         panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
             (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
@@ -2676,8 +2682,10 @@ int main(void) {
                 editor_bulk_panel_content_height_get(&viewport_state)),
             panel_scroll_offset, 42.0f).offset;
         viewport_state.preview_rigid_body = 0;
+        viewport_state.preview_soft_body = 0;
         viewport_state.preview_anchor = 0;
         viewport_state.preview_soft_node = 0;
+        viewport_state.preview_camera = 0;
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
@@ -3047,6 +3055,16 @@ int main(void) {
                 EDITOR_WINDOW_HEIGHT - 44.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
             UIButtonStyle delete_style = editor_mode_delete_style_get();
             switch(viewport_state.mode) {
+                case EDITOR_VIEWPORT_HIERARCHY:
+                    if(viewport_state.selection == EDITOR_SELECTION_OBJECT) {
+                        delete_label = &hierarchy_editor.delete_object_label;
+                        delete_id = "editor.project.object.delete";
+                    } else if(viewport_state.selection ==
+                            EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+                        delete_label = &hierarchy_editor.delete_viewport_label;
+                        delete_id = "editor.project.viewport.delete";
+                    }
+                    break;
                 case EDITOR_VIEWPORT_OBJECT:
                     delete_label = &object_editor.delete_label;
                     delete_id = "editor.object.delete";

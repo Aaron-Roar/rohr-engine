@@ -429,6 +429,12 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             camera_options, camera_count, selected_camera,
             (UIRect){context->x + 82.0f, 80.0f, context->width - 92.0f, 28.0f},
             NULL);
+        if(source.button_hovered || source.hovered_index >= 0) {
+            size_t preview = source.hovered_index >= 0 ?
+                (size_t)source.hovered_index : selected_camera;
+            if(preview < camera_count)
+                context->viewport->preview_camera = camera_ids[preview];
+        }
         if(source.changed && source.selected_index < camera_count) {
             item->object = camera_objects[source.selected_index];
             item->camera = camera_ids[source.selected_index];

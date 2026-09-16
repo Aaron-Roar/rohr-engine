@@ -16,7 +16,11 @@ bool editor_hierarchy_editor_create(EditorHierarchyEditor *editor,
     if(!editor_mode_text_create(font, "Add Object", &editor->add_object_label) ||
             !editor_mode_text_create(font, "Add Viewport", &editor->add_viewport_label) ||
             !editor_mode_text_create(font, "[X]", &editor->visible_label) ||
-            !editor_mode_text_create(font, "[ ]", &editor->hidden_label)) {
+            !editor_mode_text_create(font, "[ ]", &editor->hidden_label) ||
+            !editor_mode_text_create(font, "Delete Object",
+                &editor->delete_object_label) ||
+            !editor_mode_text_create(font, "Delete Viewport",
+                &editor->delete_viewport_label)) {
         editor_hierarchy_editor_destroy(editor);
         return false;
     }
@@ -29,6 +33,8 @@ void editor_hierarchy_editor_destroy(EditorHierarchyEditor *editor) {
     rohr_graphics_text_destroy(&editor->add_viewport_label);
     rohr_graphics_text_destroy(&editor->visible_label);
     rohr_graphics_text_destroy(&editor->hidden_label);
+    rohr_graphics_text_destroy(&editor->delete_object_label);
+    rohr_graphics_text_destroy(&editor->delete_viewport_label);
     for(size_t i = 0; i < EDITOR_OBJECT_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->object_names[i]);
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_MAX; i += 1)
@@ -107,18 +113,31 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
                     context->viewport);
         }
     }
-    float viewport_y = 154.0f + (float)context->project->object_count * 34.0f;
+    float viewport_y = 144.0f + (float)context->project->object_count * 34.0f;
     for(size_t i = 0; i < context->project->layout_viewport_count &&
             i < EDITOR_LAYOUT_VIEWPORT_MAX; i += 1) {
         EditorLayoutViewport *viewport = &context->project->layout_viewports[i];
-        char id[64];
+        char id[64], visibility_id[72];
         if(!editor_mode_named_text_sync(editor->font, viewport->name,
                 &editor->viewport_names[i], editor->viewport_cache[i],
                 EDITOR_OBJECT_NAME_MAX)) continue;
         snprintf(id, sizeof(id), "editor.layout_viewport.%u", viewport->id);
+        snprintf(visibility_id, sizeof(visibility_id),
+            "editor.layout_viewport.%u.visibility", viewport->id);
+        if(rohr_ui_button(visibility_id, viewport->enabled ? &editor->visible_label :
+                &editor->hidden_label, (UIRect){context->x + 8.0f,
+                    viewport_y + (float)i * 34.0f + 1.0f, 26.0f, 26.0f},
+                NULL).clicked)
+            viewport->enabled = !viewport->enabled;
+        UIButtonStyle style = rohr_ui_button_style_default_get();
+        style.idle = (Color){118, 96, 35, 255};
+        style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult result = rohr_ui_button(id, &editor->viewport_names[i],
             (UIRect){context->x + 40.0f, viewport_y + (float)i * 34.0f,
-                context->width - 48.0f, 28.0f}, NULL);
+                context->width - 48.0f, 28.0f},
+            context->viewport->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                context->viewport->selected_layout_viewport == viewport->id ?
+                &style : NULL);
         if(result.clicked || result.focus_changed) {
             context->viewport->selected_layout_viewport = viewport->id;
             context->viewport->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;

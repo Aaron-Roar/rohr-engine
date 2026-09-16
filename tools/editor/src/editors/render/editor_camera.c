@@ -117,6 +117,20 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     UIDropdownResult attachment = rohr_ui_dropdown("editor.camera.attachment",
         options, option_count, selected,
         (UIRect){context->x + 94, 270, context->width - 104, 28}, NULL);
+    if(attachment.button_hovered || attachment.hovered_index >= 0) {
+        size_t preview = attachment.hovered_index >= 0 ?
+            (size_t)attachment.hovered_index : selected;
+        if(preview < option_count) {
+            if(kinds[preview] == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY)
+                context->viewport->preview_rigid_body = target_ids[preview];
+            else if(kinds[preview] == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY)
+                context->viewport->preview_soft_body = target_ids[preview];
+            else if(kinds[preview] == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE)
+                context->viewport->preview_soft_node = target_ids[preview];
+            else if(kinds[preview] == EDITOR_CAMERA_ATTACHMENT_ANCHOR)
+                context->viewport->preview_anchor = target_ids[preview];
+        }
+    }
     bool inherit = camera->inherit_orientation, visible = camera->visible;
     bool inherit_changed = editor_mode_checkbox_left("editor.camera.inherit",
         &editor->inherit_label, (UIRect){context->x + 10, 308,

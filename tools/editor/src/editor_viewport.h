@@ -145,8 +145,10 @@ typedef struct EditorViewportState {
     uint32_t auto_shape_points[EDITOR_SOFT_NODE_MAX];
     size_t auto_shape_point_count;
     EditorRigidBodyId preview_rigid_body;
+    EditorSoftBodyId preview_soft_body;
     EditorAnchorId preview_anchor;
     EditorSoftNodeId preview_soft_node;
+    EditorCameraId preview_camera;
     EditorSelectionRef *selected_items;
     size_t selected_item_count;
     size_t selected_item_capacity;
