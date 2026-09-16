@@ -2852,14 +2852,24 @@ TextureAssetResult graphics_texture_load(TextureDescriptor text_desc) {
 
 FontAssetResult graphics_font_load(FontDescriptor descriptor) {
     FontAsset asset = {0};
+    char detail[256];
 
-    if(descriptor.file == NULL || descriptor.point_size <= 0.0f || !ttf_initialized) {
-        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, NULL);
+    if(descriptor.file == NULL) {
+        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, "font path is null");
+        return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
+    }
+    if(descriptor.point_size <= 0.0f || !ttf_initialized) {
+        snprintf(detail, sizeof(detail), "font path '%s': %s", descriptor.file,
+            descriptor.point_size <= 0.0f ? "point size must be positive" :
+                "SDL_ttf is not initialized");
+        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, detail);
         return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
     }
     asset.font = TTF_OpenFont(descriptor.file, descriptor.point_size);
     if(asset.font == NULL) {
-        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, SDL_GetError());
+        snprintf(detail, sizeof(detail), "font path '%s': %s", descriptor.file,
+            SDL_GetError());
+        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, detail);
         return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
     }
     return ERROR_RESULT_MAKE_VALUE(FontAssetResult, asset);

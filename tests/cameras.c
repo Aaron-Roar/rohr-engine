@@ -4,6 +4,8 @@
 
 #include "rohr.h"
 
+#include <string.h>
+
 static void count_camera_render(CameraId camera, void *context) {
     int *count = context;
     (void)camera;
@@ -49,6 +51,17 @@ int main(void) {
     if(rohr_error_check(rohr_graphics_start())) {
         rohr_engine_shutdown();
         return 1;
+    }
+    {
+        const char *missing_path = "/missing/custom-font-test.ttf";
+        FontAssetResult missing = rohr_graphics_font_load((FontDescriptor){
+            .file = missing_path, .point_size = 12.0f});
+        if(!rohr_error_check(missing) ||
+                strstr(rohr_error_message_get(missing), missing_path) == NULL) {
+            rohr_graphics_end();
+            rohr_engine_shutdown();
+            return 1;
+        }
     }
     rohr_graphics_layer_set(27);
     if(rohr_graphics_layer_get() != 27) {
