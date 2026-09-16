@@ -3279,6 +3279,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->selected_viewport_camera_item = item->id;
                     state->selected_viewport_ui_item = 0;
                     state->selected_viewport_ui_text_child = false;
+                    state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
                     state->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
                     state->drag_offset = (Vec2D){local.x - rectangle.x,
                         local.y - rectangle.y};
@@ -5239,7 +5240,9 @@ void editor_viewport_draw(const EditorProject *project,
                 rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT +
                     item->placement.layer);
                 ViewportRectangle camera = item->placement.rectangle;
-                Color color = item->id == state->selected_viewport_camera_item ?
+                bool selected = item->id == state->selected_viewport_camera_item &&
+                    state->selection != EDITOR_SELECTION_NONE;
+                Color color = selected ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;

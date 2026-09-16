@@ -220,6 +220,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(camera_result.clicked) {
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
+            context->viewport->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
         }
         if(camera_result.double_clicked)
             context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
