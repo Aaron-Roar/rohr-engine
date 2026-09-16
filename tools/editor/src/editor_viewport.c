@@ -261,6 +261,15 @@ static Position editor_view_world_to_screen(Position world) {
         editor_view_origin.y - world.y * editor_view_scale};
 }
 
+static Orientation editor_view_preview_texture_rotation_get(
+        Orientation world_rotation) {
+    /* Screen textures negate their supplied angle for SDL. Geometry has
+     * already applied the Screen rotation in screen space, so compensate for
+     * that second sign conversion here. */
+    return world_rotation - editor_view_preview_camera_rotation -
+        editor_view_preview_content_rotation;
+}
+
 static Position editor_view_screen_to_world(Position screen) {
     return (Position){(screen.x - editor_view_origin.x) / editor_view_scale,
         (editor_view_origin.y - screen.y) / editor_view_scale};
@@ -4516,8 +4525,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
         if(editor_view_camera_preview) {
             screen_size = (Scale){sprite->size.x * editor_view_preview_scale.x,
                 sprite->size.y * editor_view_preview_scale.y};
-            rotation += -editor_view_preview_camera_rotation +
-                editor_view_preview_content_rotation;
+            rotation = editor_view_preview_texture_rotation_get(rotation);
         }
         if(texture != NULL) rohr_graphics_screen_texture_draw(*texture,
             editor_view_world_to_screen(world), screen_size, rotation);
@@ -4562,8 +4570,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
         if(editor_view_camera_preview) {
             screen_size = (Scale){size.x * editor_view_preview_scale.x,
                 size.y * editor_view_preview_scale.y};
-            rotation += -editor_view_preview_camera_rotation +
-                editor_view_preview_content_rotation;
+            rotation = editor_view_preview_texture_rotation_get(rotation);
         }
         if(texture != NULL) rohr_graphics_screen_texture_draw(*texture,
             editor_view_world_to_screen(world), screen_size, rotation);
