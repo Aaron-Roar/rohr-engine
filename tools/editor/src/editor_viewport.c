@@ -2058,6 +2058,38 @@ static Position editor_viewport_ui_shape_point_get(
         item->position.y + centroid.y + rotated.y};
 }
 
+static bool editor_viewport_ui_vertex_press(EditorViewportState *state,
+        const EditorProject *project, const EditorViewportUiItem *item,
+        Position local) {
+    if(state == NULL || project == NULL || item == NULL ||
+            item->kind != EDITOR_VIEWPORT_UI_SHAPE) return false;
+    for(size_t vertex = 0; vertex < item->value.shape.vertex_count; vertex += 1) {
+        Position point = editor_viewport_ui_shape_point_get(item,
+            item->value.shape.vertices[vertex]);
+        Vec2D delta = {local.x - point.x, local.y - point.y};
+        if(delta.x * delta.x + delta.y * delta.y >
+                100.0f / (project->viewport_camera_zoom *
+                    project->viewport_camera_zoom)) continue;
+        {
+            Position centroid = editor_viewport_ui_shape_centroid_get(item);
+            Vec2D relative = {local.x - item->position.x - centroid.x,
+                local.y - item->position.y - centroid.y};
+            Vec2D unrotated = math_vector_rotate(relative,
+                -item->value.shape.rotation);
+            state->drag_offset = (Vec2D){
+                centroid.x + unrotated.x - item->value.shape.vertices[vertex].x,
+                centroid.y + unrotated.y - item->value.shape.vertices[vertex].y};
+        }
+        state->selected_vertex = (uint32_t)vertex;
+        state->dragged_viewport_vertex = true;
+        state->mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
+        state->selection = EDITOR_SELECTION_UI_VERTEX;
+        state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+        return true;
+    }
+    return false;
+}
+
 static void editor_viewport_screen_dotted_line_draw(Position first,
         Position second, Color color, float spacing, float thickness) {
     Vec2D delta = {second.x - first.x, second.y - first.y};
@@ -3090,6 +3122,18 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    if(item->id != state->selected_viewport_ui_item ||
+                            !item->visible ||
+                            (state->mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
+                                state->mode != EDITOR_VIEWPORT_UI_VERTEX_EDITOR &&
+                                state->selection != EDITOR_SELECTION_UI_SHAPE &&
+                                state->selection != EDITOR_SELECTION_UI_VERTEX))
+                        continue;
+                    if(editor_viewport_ui_vertex_press(state, project, item, local))
+                        return true;
+                }
+                for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i - 1];
                     EditorViewportUiText *text;
                     Position centroid;
                     if((state->mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
@@ -3145,41 +3189,6 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->dragged_viewport_text = true;
                     state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     return true;
-                }
-                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
-                    EditorViewportUiItem *item = &viewport->ui_items[i];
-                    if((state->mode != EDITOR_VIEWPORT_UI_VERTEX_EDITOR &&
-                            !child_double_clicked) ||
-                            item->id != state->selected_viewport_ui_item ||
-                            item->kind != EDITOR_VIEWPORT_UI_SHAPE) continue;
-                    for(size_t vertex = 0; vertex < item->value.shape.vertex_count;
-                            vertex += 1) {
-                        Position point = editor_viewport_ui_shape_point_get(item,
-                            item->value.shape.vertices[vertex]);
-                        Vec2D delta = {local.x - point.x, local.y - point.y};
-                        if(delta.x * delta.x + delta.y * delta.y >
-                                64.0f / (project->viewport_camera_zoom *
-                                    project->viewport_camera_zoom)) continue;
-                        {
-                            Position centroid =
-                                editor_viewport_ui_shape_centroid_get(item);
-                            Vec2D relative = {local.x - item->position.x - centroid.x,
-                                local.y - item->position.y - centroid.y};
-                            Vec2D unrotated = math_vector_rotate(relative,
-                                -item->value.shape.rotation);
-                            state->drag_offset = (Vec2D){
-                                centroid.x + unrotated.x -
-                                    item->value.shape.vertices[vertex].x,
-                                centroid.y + unrotated.y -
-                                    item->value.shape.vertices[vertex].y};
-                        }
-                        state->selected_vertex = (uint32_t)vertex;
-                        state->dragged_viewport_vertex = true;
-                        state->mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
-                        state->selection = EDITOR_SELECTION_UI_VERTEX;
-                        state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-                        return true;
-                    }
                 }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
