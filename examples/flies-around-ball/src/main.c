@@ -51,6 +51,7 @@ int main(void) {
     KeyboardState keyboard = {0};
     ViewportId viewport = VIEWPORT_INVALID;
     RenderContext render_context = {0};
+    bool broadphase_debug = true;
 
     {
         EngineResult init_result = rohr_engine_init();
@@ -140,6 +141,8 @@ int main(void) {
     }
     children_group = children_result.result.value;
     if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+    rohr_graphics_contacts_debug_set(broadphase_debug);
 
     //Game Loop
     rohr_engine_clock_reset();
@@ -158,6 +161,11 @@ int main(void) {
         }
         if(exit_requested ||
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
+        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
+        }
         Tick ticks_advanced = rohr_system_tick_update();
         if(!phase_1 && rohr_engine_time_get() > 3) {
             phase_1 = true;
@@ -209,8 +217,6 @@ int main(void) {
         //physics
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
 
-        rohr_graphics_aabb_tree_debug_set(true);
-        rohr_graphics_contacts_debug_set(true);
         rohr_graphics_show();
 
     }

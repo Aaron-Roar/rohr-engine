@@ -46,6 +46,7 @@ int main(void) {
     KeyboardState keyboard = {0};
     MouseState mouse = {0};
     ViewportId viewport = VIEWPORT_INVALID;
+    bool broadphase_debug = true;
     {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
@@ -86,6 +87,8 @@ int main(void) {
     sprite_elderfly = rohr_graphics_animated_sprite_create(animation_elderfly, (Scale){10,10});
     rohr_graphics_animated_sprite_add(water_smash, sprite_elderfly);
     if(!example_viewport_create(render_scene, NULL, &viewport)) goto fail;
+    rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+    rohr_graphics_contacts_debug_set(broadphase_debug);
 
     rohr_engine_clock_reset();
     //Game Loop
@@ -97,8 +100,6 @@ int main(void) {
         Time tick_time = rohr_engine_time_per_tick_get() * (Time)ticks_advanced;
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
 
-        rohr_graphics_aabb_tree_debug_set(true);
-        rohr_graphics_contacts_debug_set(true);
         rohr_graphics_show();
 
         SDL_Event sdl_event;
@@ -112,6 +113,11 @@ int main(void) {
             rohr_controller_mouse_event_add(&mouse,
                 rohr_controller_mouse_event_capture(&sdl_event));
             if(sdl_event.type == SDL_EVENT_QUIT) exit_requested = true;
+        }
+        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
         }
         if(exit_requested ||
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;

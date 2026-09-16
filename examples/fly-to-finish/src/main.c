@@ -232,6 +232,7 @@ int main(void) {
     bool reached_finish = false;
     ViewportId viewport = VIEWPORT_INVALID;
     RenderContext render_context = {0};
+    bool broadphase_debug = true;
 
     {
         EngineResult init_result = rohr_engine_init();
@@ -310,6 +311,8 @@ int main(void) {
     render_context = (RenderContext){player, finish_line, wall_mid,
         walls, obstacle_records};
     if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+    rohr_graphics_contacts_debug_set(broadphase_debug);
 
     srand((unsigned int)time(NULL));
     rohr_engine_clock_reset();
@@ -333,6 +336,11 @@ int main(void) {
         }
         if(exit_requested ||
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
+        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
+        }
         Tick ticks_advanced = rohr_system_tick_update();
 
         if(rohr_controller_key_pressed_get(&keyboard, SDLK_R)) {
@@ -426,8 +434,6 @@ int main(void) {
             }
         }
 
-        rohr_graphics_aabb_tree_debug_set(true);
-        rohr_graphics_contacts_debug_set(true);
         rohr_graphics_show();
     }
 

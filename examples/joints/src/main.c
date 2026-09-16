@@ -21,6 +21,7 @@ static const RohrCollisionCategoryMask room_category = UINT64_C(1) << 1;
 static const RohrCollisionCategoryMask pin_category = UINT64_C(1) << 2;
 static const RohrCollisionCategoryMask weld_category = UINT64_C(1) << 3;
 static const RohrCollisionCategoryMask spring_category = UINT64_C(1) << 4;
+static const float burst_force_scale = 100.0f;
 
 static bool result_ok(EngineResult result) {
     if(!rohr_error_check(result)) return true;
@@ -33,6 +34,10 @@ static Entity body_create(Position position, Vec2D dimensions,
         Mass body_mass, RohrCollisionCategoryMask category, bool dynamic) {
     EntityResult result = rohr_entity_add();
     Entity entity;
+    RohrCollisionCategoryMask collision_with = ROHR_COLLISION_CATEGORY_ALL;
+
+    if(category == pin_category || category == weld_category)
+        collision_with &= ~category;
 
     if(rohr_error_check(result)) return ENTITY_INVALID;
     entity = result.result.value;
@@ -42,12 +47,12 @@ static Entity body_create(Position position, Vec2D dimensions,
                 entity,
                 rohr_math_square_create(dimensions.x, dimensions.y)
             )) ||
-            !result_ok(rohr_physics_restitution_set(entity, 0.75f)) ||
-            !result_ok(rohr_physics_friction_set(entity, 0.35f)) ||
+            !result_ok(rohr_physics_restitution_set(entity, 0.95f)) ||
+            !result_ok(rohr_physics_friction_set(entity, 0.10f)) ||
             !result_ok(rohr_physics_collision_category_set(entity, category)) ||
             !result_ok(rohr_physics_collision_with_set(
                 entity,
-                dynamic ? room_category : ROHR_COLLISION_CATEGORY_ALL
+                dynamic ? collision_with : ROHR_COLLISION_CATEGORY_ALL
             ))) return ENTITY_INVALID;
     if(dynamic) {
         if(!result_ok(rohr_physics_mass_set(entity, body_mass)) ||
@@ -105,6 +110,7 @@ int main(void) {
     Entity walls[4];
     Entity bodies[BODY_COUNT];
     ViewportId viewport = VIEWPORT_INVALID;
+    bool broadphase_debug = true;
     Entity pin_joint;
     Entity weld_joint;
     Entity spring_joint;
@@ -164,6 +170,8 @@ int main(void) {
 
     RenderContext render_context = {walls, bodies};
     if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
+    rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+    rohr_graphics_contacts_debug_set(broadphase_debug);
 
     rohr_engine_clock_reset();
     while(true) {
@@ -177,12 +185,19 @@ int main(void) {
         }
         if(exit_requested ||
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
+        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
+        }
         Tick ticks_advanced = rohr_system_tick_update();
 
         if(ticks_advanced > 0 && rohr_engine_time_get() >= next_throw) {
             Entity body = bodies[throw_index % BODY_COUNT];
-            Force impulse = throws[throw_index % (sizeof(throws) / sizeof(throws[0]))];
-            if(!result_ok(rohr_physics_impulse_apply(body, impulse)) ||
+            Force force = throws[throw_index % (sizeof(throws) / sizeof(throws[0]))];
+            force.x *= burst_force_scale;
+            force.y *= burst_force_scale;
+            if(!result_ok(rohr_physics_force_for_one_tick_apply(body, force)) ||
                     !result_ok(rohr_physics_torque_for_one_tick_apply(
                         body,
                         (throw_index % 2 == 0 ? 1.0f : -1.0f) * 1800.0f
@@ -192,8 +207,6 @@ int main(void) {
         }
 
         if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
-        rohr_graphics_aabb_tree_debug_set(true);
-        rohr_graphics_contacts_debug_set(true);
         rohr_graphics_show();
     }
 
