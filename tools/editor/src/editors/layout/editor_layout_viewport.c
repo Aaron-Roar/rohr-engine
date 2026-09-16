@@ -42,7 +42,6 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Click Border", click_border_color_label);
     CREATE("Click Fill", click_fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
-    CREATE("Add UI Text", add_text_label);
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
@@ -82,7 +81,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(click_border_color_label); DESTROY(click_fill_color_label);
     DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
     DESTROY(corner_radius_field);
-    DESTROY(add_shape_label); DESTROY(add_text_label); DESTROY(button_label);
+    DESTROY(add_shape_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
@@ -148,7 +147,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         (UIRect){context->x + 8.0f, 276.0f, context->width - 16.0f, 28.0f});
     y = 310.0f;
     if(rohr_ui_button("editor.layout.add_shape", &editor->add_shape_label,
-            (UIRect){context->x + 8.0f, y, (context->width - 24.0f) * 0.5f,
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f,
                 30.0f}, NULL).clicked) {
         EditorViewportUiItem *item = editor_viewport_ui_add(context->project,
             viewport, EDITOR_VIEWPORT_UI_SHAPE);
@@ -157,18 +156,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
             context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
-        }
-    }
-    if(rohr_ui_button("editor.layout.add_text", &editor->add_text_label,
-            (UIRect){context->x + 16.0f + (context->width - 24.0f) * 0.5f,
-                y, (context->width - 24.0f) * 0.5f, 30.0f}, NULL).clicked) {
-        EditorViewportUiItem *item = editor_viewport_ui_add(context->project,
-            viewport, EDITOR_VIEWPORT_UI_TEXT);
-        if(item != NULL) {
-            context->viewport->selected_viewport_ui_item = item->id;
-            context->viewport->selected_viewport_camera_item = 0;
-            context->viewport->mode = EDITOR_VIEWPORT_UI_TEXT_EDITOR;
-            context->viewport->selection = EDITOR_SELECTION_UI_TEXT;
         }
     }
     y += 40.0f;

@@ -1720,6 +1720,23 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         item->value.text.height_scale <= 0.0f))) goto done;
                 memcpy(item->value.text.text, yyjson_get_str(text),
                     yyjson_get_len(text) + 1);
+                {
+                    EditorViewportUiText legacy_text = item->value.text;
+                    memset(&item->value, 0, sizeof(item->value));
+                    item->kind = EDITOR_VIEWPORT_UI_SHAPE;
+                    item->border_enabled = false;
+                    item->value.shape.vertex_count = 4;
+                    item->value.shape.vertices[0] = (Position){0.0f, 0.0f};
+                    item->value.shape.vertices[1] =
+                        (Position){legacy_text.box_width, 0.0f};
+                    item->value.shape.vertices[2] =
+                        (Position){legacy_text.box_width, legacy_text.box_height};
+                    item->value.shape.vertices[3] =
+                        (Position){0.0f, legacy_text.box_height};
+                    item->value.shape.outline_color = 0xFFFFFFFFu;
+                    item->value.shape.fill_color = 0x394052FFu;
+                    item->value.shape.text = legacy_text;
+                }
             }
             if(loaded.next_viewport_ui_item_id <= item->id)
                 loaded.next_viewport_ui_item_id = item->id + 1;

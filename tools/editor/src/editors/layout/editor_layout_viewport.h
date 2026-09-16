@@ -19,7 +19,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset fill_color_label;
     TextAsset hover_border_color_label, hover_fill_color_label;
     TextAsset click_border_color_label, click_fill_color_label;
-    TextAsset add_shape_label, add_text_label, button_label;
+    TextAsset add_shape_label, button_label;
     TextAsset text_label, font_file_label, font_color_label;
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;

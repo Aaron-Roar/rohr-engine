@@ -2951,8 +2951,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
-                    if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
-                            state->selected_viewport_ui_text_child) {
+                    if((state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
+                            state->selected_viewport_ui_text_child) ||
+                            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+                            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
                         state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
                         state->selection = EDITOR_SELECTION_UI_SHAPE;
                         state->selected_viewport_ui_text_child = false;

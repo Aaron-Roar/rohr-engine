@@ -985,9 +985,7 @@ bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
 EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         EditorLayoutViewport *viewport, EditorViewportUiKind kind) {
     EditorViewportUiItem *item;
-    if(project == NULL || viewport == NULL ||
-            (kind != EDITOR_VIEWPORT_UI_SHAPE &&
-                kind != EDITOR_VIEWPORT_UI_TEXT) ||
+    if(project == NULL || viewport == NULL || kind != EDITOR_VIEWPORT_UI_SHAPE ||
             viewport->ui_item_count >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             !EDITOR_ARRAY_RESERVE(viewport->ui_items, viewport->ui_item_capacity,
                 viewport->ui_item_count + 1)) return NULL;
@@ -1000,7 +998,7 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         .hover_fill_color = 0x4A5870FFu, .click_border_color = 0xAFC8F0FFu,
         .click_fill_color = 0x283246FFu};
     snprintf(item->name, sizeof(item->name), "%s_%u",
-        kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text", item->id);
+        "ui_shape", item->id);
     if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
         item->border_enabled = true;
         item->value.shape.vertex_count = 4;
@@ -1015,6 +1013,8 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         item->value.shape.text.box_height = 28.0f;
         item->value.shape.text.width_scale = 1.0f;
         item->value.shape.text.height_scale = 1.0f;
+        snprintf(item->value.shape.text.text,
+            sizeof(item->value.shape.text.text), "sample text");
     } else {
         snprintf(item->value.text.text, sizeof(item->value.text.text),
             "sample text");
