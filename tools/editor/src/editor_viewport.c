@@ -2902,10 +2902,14 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             local.y - item->position.y - centroid.y};
                         Vec2D unrotated = math_vector_rotate(relative,
                             -item->value.shape.rotation);
-                        text->offset = (Position){unrotated.x, unrotated.y};
+                        text->offset = (Position){
+                            unrotated.x - state->drag_offset.x,
+                            unrotated.y - state->drag_offset.y};
                     } else text->offset = (Position){
-                        local.x - item->position.x - centroid.x,
-                        local.y - item->position.y - centroid.y};
+                        local.x - item->position.x - centroid.x -
+                            state->drag_offset.x,
+                        local.y - item->position.y - centroid.y -
+                            state->drag_offset.y};
                     return true;
                 }
             }
@@ -2921,8 +2925,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             local.y - item->position.y - centroid.y};
                         Vec2D local_relative = math_vector_rotate(world_relative,
                             -item->value.shape.rotation);
-                        Position desired = {centroid.x + local_relative.x,
-                            centroid.y + local_relative.y};
+                        Position desired = {
+                            centroid.x + local_relative.x - state->drag_offset.x,
+                            centroid.y + local_relative.y - state->drag_offset.y};
                         Vec2D delta = {
                             desired.x - item->value.shape.vertices[
                                 state->selected_vertex].x,
@@ -3065,6 +3070,17 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         item->kind == EDITOR_VIEWPORT_UI_SHAPE;
                     state->mode = EDITOR_VIEWPORT_UI_TEXT_EDITOR;
                     state->selection = EDITOR_SELECTION_UI_TEXT;
+                    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                        Vec2D relative = {local.x - item->position.x - centroid.x,
+                            local.y - item->position.y - centroid.y};
+                        Vec2D unrotated = math_vector_rotate(relative,
+                            -item->value.shape.rotation);
+                        state->drag_offset = (Vec2D){
+                            unrotated.x - text->offset.x,
+                            unrotated.y - text->offset.y};
+                    } else state->drag_offset = (Vec2D){
+                        local.x - item->position.x - centroid.x - text->offset.x,
+                        local.y - item->position.y - centroid.y - text->offset.y};
                     state->dragged_viewport_text = true;
                     state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     return true;
@@ -3083,6 +3099,19 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         if(delta.x * delta.x + delta.y * delta.y >
                                 64.0f / (project->viewport_camera_zoom *
                                     project->viewport_camera_zoom)) continue;
+                        {
+                            Position centroid =
+                                editor_viewport_ui_shape_centroid_get(item);
+                            Vec2D relative = {local.x - item->position.x - centroid.x,
+                                local.y - item->position.y - centroid.y};
+                            Vec2D unrotated = math_vector_rotate(relative,
+                                -item->value.shape.rotation);
+                            state->drag_offset = (Vec2D){
+                                centroid.x + unrotated.x -
+                                    item->value.shape.vertices[vertex].x,
+                                centroid.y + unrotated.y -
+                                    item->value.shape.vertices[vertex].y};
+                        }
                         state->selected_vertex = (uint32_t)vertex;
                         state->dragged_viewport_vertex = true;
                         state->mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
