@@ -120,9 +120,30 @@ static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspa
         else snprintf(path, sizeof(path), "%s/%s", workspace->directory, font->path);
         loaded = rohr_graphics_font_load((FontDescriptor){.file = path,
             .point_size = 12.0f});
-        if(rohr_error_check(loaded)) return editor_result_error(
-            EDITOR_ERROR_NOT_FOUND, "Font '%s' is missing or invalid: %s",
-            font->name, path);
+        if(rohr_error_check(loaded)) {
+            for(size_t viewport_index = 0;
+                    viewport_index < project->layout_viewport_count;
+                    viewport_index += 1) {
+                const EditorLayoutViewport *viewport =
+                    &project->layout_viewports[viewport_index];
+                for(size_t item_index = 0; item_index < viewport->ui_item_count;
+                        item_index += 1) {
+                    const EditorViewportUiItem *item =
+                        &viewport->ui_items[item_index];
+                    const EditorViewportUiText *text = item->kind ==
+                            EDITOR_VIEWPORT_UI_SHAPE ? &item->value.shape.text :
+                        &item->value.text;
+                    if(text->font == font->id) return editor_result_error(
+                        EDITOR_ERROR_NOT_FOUND,
+                        "Viewport '%s', UI element '%s' uses custom font '%s'. %s",
+                        viewport->name, item->name, font->name,
+                        rohr_error_message_get(loaded));
+                }
+            }
+            return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                "Unused custom font '%s' could not be loaded. %s", font->name,
+                rohr_error_message_get(loaded));
+        }
         rohr_graphics_font_destroy(&loaded.result.value);
     }
     return editor_result_value(true);
