@@ -1167,6 +1167,37 @@ int main(void) {
         (void)remove(anchor_path);
     }
 
+    {
+        const char *hierarchy_path = "/tmp/rohr_editor_project_hierarchy.json";
+        EditorProject hierarchy_project, loaded_hierarchy_project;
+        EditorObject *hierarchy_object;
+        EditorLayoutViewport *hierarchy_viewport;
+        editor_project_init(&hierarchy_project);
+        editor_project_init(&loaded_hierarchy_project);
+        hierarchy_object = editor_project_object_add(&hierarchy_project,
+            (Position){0});
+        hierarchy_viewport = editor_project_layout_viewport_add(&hierarchy_project);
+        if(hierarchy_object == NULL || hierarchy_viewport == NULL ||
+                hierarchy_project.hierarchy_count != 2) return 1;
+        hierarchy_project.hierarchy[0] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_VIEWPORT, hierarchy_viewport->id};
+        hierarchy_project.hierarchy[1] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_OBJECT, hierarchy_object->id};
+        hierarchy_object->visible = false;
+        if(!hierarchy_viewport->enabled ||
+                !editor_project_save(&hierarchy_project, hierarchy_path) ||
+                editor_result_check(editor_project_load(&loaded_hierarchy_project,
+                    hierarchy_path)) || loaded_hierarchy_project.hierarchy_count != 2 ||
+                loaded_hierarchy_project.hierarchy[0].kind !=
+                    EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
+                loaded_hierarchy_project.hierarchy[0].id != hierarchy_viewport->id ||
+                loaded_hierarchy_project.objects[0].visible ||
+                !loaded_hierarchy_project.layout_viewports[0].enabled) return 1;
+        editor_project_destroy(&hierarchy_project);
+        editor_project_destroy(&loaded_hierarchy_project);
+        (void)remove(hierarchy_path);
+    }
+
     editor_project_selection_clear(&project);
     if(editor_project_selected_get(&project) != NULL ||
             !editor_project_object_select(&project, object->id) ||

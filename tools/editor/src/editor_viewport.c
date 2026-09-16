@@ -2083,6 +2083,31 @@ static void editor_viewport_screen_line_draw(Position first, Position second,
         length, 2.0f, -atan2f(delta.y, delta.x), color);
 }
 
+static void editor_viewport_screen_hashed_line_draw(Position first,
+        Position second, Color color, float scale) {
+    Vec2D delta = {second.x - first.x, second.y - first.y};
+    float length = hypotf(delta.x, delta.y);
+    float step = fmaxf(1.0f, 12.0f * scale);
+    float dash = fmaxf(1.0f, 7.0f * scale);
+    float thickness = fmaxf(1.0f, 2.0f * scale);
+    if(length <= 0.0f) return;
+    for(float distance = 0.0f; distance < length; distance += step) {
+        float end = fminf(distance + dash, length);
+        float first_ratio = distance / length;
+        float second_ratio = end / length;
+        Position start = {first.x + delta.x * first_ratio,
+            first.y + delta.y * first_ratio};
+        Position finish = {first.x + delta.x * second_ratio,
+            first.y + delta.y * second_ratio};
+        Vec2D segment = {finish.x - start.x, finish.y - start.y};
+        (void)rohr_graphics_screen_quad_draw(
+            (Position){(start.x + finish.x) * 0.5f,
+                (start.y + finish.y) * 0.5f},
+            hypotf(segment.x, segment.y), thickness,
+            -atan2f(segment.y, segment.x), color);
+    }
+}
+
 static void editor_viewport_screen_circle_draw(Position center, float radius,
         Color color) {
     Position previous = {center.x + radius, center.y};
@@ -5101,6 +5126,9 @@ static void editor_viewport_screen_camera_preview_draw(
     bool clip_pushed;
     if(project == NULL || screen == NULL || bounds.width <= 0.0f ||
             bounds.height <= 0.0f) return;
+    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
+    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
+        bounds.height, (Color){18, 22, 30, 255});
     for(size_t i = 0; i < project->object_count; i += 1)
         if(project->objects[i].id == screen->object) camera_object =
             &project->objects[i];
@@ -5138,13 +5166,8 @@ static void editor_viewport_screen_camera_preview_draw(
         bounds.y + bounds.height * 0.5f + offset.y};
     clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
         bounds.width, bounds.height);
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
-    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
-        bounds.height, (Color){18, 22, 30, 255});
     editor_view_camera_preview = true;
-    for(size_t i = 0; i < project->object_count; i += 1)
-        editor_viewport_camera_preview_object_draw(&project->objects[i],
-            &preview_state);
+    editor_viewport_camera_preview_object_draw(camera_object, &preview_state);
     editor_view_camera_preview = false;
     if(clip_pushed) rohr_graphics_screen_clip_pop();
     editor_view_origin = saved_origin;
@@ -5158,15 +5181,27 @@ void editor_viewport_draw(const EditorProject *project,
     if(project == NULL || state == NULL) return;
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
-        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
-            (EditorProject *)project, state->selected_layout_viewport);
-        if(viewport != NULL && viewport->enabled) {
+        bool project_preview = state->mode == EDITOR_VIEWPORT_HIERARCHY;
+        size_t preview_count = project_preview ? project->hierarchy_count : 1;
+        for(size_t preview_index = preview_count; preview_index > 0;
+                preview_index -= 1) {
+            EditorLayoutViewport *viewport = NULL;
+            if(project_preview) {
+                EditorProjectHierarchyItem item =
+                    project->hierarchy[preview_index - 1];
+                if(item.kind != EDITOR_PROJECT_HIERARCHY_VIEWPORT) continue;
+                viewport = editor_project_layout_viewport_get(
+                    (EditorProject *)project, item.id);
+            } else viewport = editor_project_layout_viewport_get(
+                (EditorProject *)project, state->selected_layout_viewport);
+            if(viewport == NULL || !viewport->enabled) continue;
             float zoom = project->viewport_camera_zoom;
             Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
                 EDITOR_MENU_HEIGHT +
@@ -5178,6 +5213,10 @@ void editor_viewport_draw(const EditorProject *project,
             rectangle.x = origin.x + rectangle.x * zoom;
             rectangle.y = origin.y + rectangle.y * zoom;
             rectangle.width *= zoom; rectangle.height *= zoom;
+            rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 3);
+            (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
+                rectangle.width, rectangle.height, (Color){12, 16, 24, 255});
+            rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
             for(float x = 0.0f; x < rectangle.width; x += 12.0f * zoom) {
                 float length = fminf(7.0f * zoom, rectangle.width - x);
                 (void)rohr_graphics_screen_rect_draw(rectangle.x + x, rectangle.y,
@@ -5197,6 +5236,8 @@ void editor_viewport_draw(const EditorProject *project,
             for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
                 if(!item->placement.visible) continue;
+                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT +
+                    item->placement.layer);
                 ViewportRectangle camera = item->placement.rectangle;
                 Color color = item->id == state->selected_viewport_camera_item ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
@@ -5219,9 +5260,10 @@ void editor_viewport_draw(const EditorProject *project,
                     corners[corner] = (Position){screen_center.x + rotated.x,
                         screen_center.y + rotated.y};
                 }
+                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
                 for(size_t edge = 0; edge < 4; edge += 1)
-                    editor_viewport_screen_line_draw(corners[edge],
-                        corners[(edge + 1) % 4], color);
+                    editor_viewport_screen_hashed_line_draw(corners[edge],
+                        corners[(edge + 1) % 4], color, zoom);
                 if(item->id == state->selected_viewport_camera_item) {
                     Position handle = editor_rotation_control_position_get(
                         screen_center, item->placement.orientation,
@@ -5233,6 +5275,7 @@ void editor_viewport_draw(const EditorProject *project,
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
                 if(!item->visible) continue;
+                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT + item->layer);
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 bool whole_selected = item->id == state->selected_viewport_ui_item &&
                     state->selection == EDITOR_SELECTION_UI_SHAPE;
@@ -5427,7 +5470,7 @@ void editor_viewport_draw(const EditorProject *project,
                 }
             }
         }
-        return;
+        if(!project_preview) return;
     }
     selected = NULL;
     for(size_t i = 0; i < project->object_count; i += 1) {
@@ -5436,11 +5479,20 @@ void editor_viewport_draw(const EditorProject *project,
     editor_view_transform_set(project, state, selected);
     if(grid_visible) editor_viewport_grid_draw();
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        for(size_t i = 0; i < project->object_count; i += 1)
-            editor_viewport_particle_fills_draw(&project->objects[i]);
-        for(size_t i = 0; i < project->object_count; i += 1) {
-            editor_viewport_object_draw(&project->objects[i], state,
-                project->objects[i].id == project->selected);
+        for(size_t i = project->hierarchy_count; i > 0; i -= 1) {
+            EditorProjectHierarchyItem item = project->hierarchy[i - 1];
+            EditorObject *object;
+            if(item.kind != EDITOR_PROJECT_HIERARCHY_OBJECT) continue;
+            object = editor_object_query_get((EditorProject *)project, item.id);
+            editor_viewport_particle_fills_draw(object);
+        }
+        for(size_t i = project->hierarchy_count; i > 0; i -= 1) {
+            EditorProjectHierarchyItem item = project->hierarchy[i - 1];
+            EditorObject *object;
+            if(item.kind != EDITOR_PROJECT_HIERARCHY_OBJECT) continue;
+            object = editor_object_query_get((EditorProject *)project, item.id);
+            editor_viewport_object_draw(object, state,
+                object != NULL && object->id == project->selected);
         }
     } else {
         editor_viewport_particle_fills_draw(selected);

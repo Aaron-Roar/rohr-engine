@@ -74,11 +74,18 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
     }
     (void)rohr_graphics_screen_rect_draw(context->x + 10.0f, 132.0f,
         context->width - 20.0f, 1.0f, (Color){75, 84, 100, 255});
-    for(size_t i = 0; i < context->project->object_count &&
-            i < EDITOR_OBJECT_MAX; i += 1) {
-        EditorObject *object = &context->project->objects[i];
-        float y = 144.0f + (float)i * 34.0f;
+    editor_project_hierarchy_sync(context->project);
+    for(size_t row = 0; row < context->project->hierarchy_count; row += 1) {
+        EditorProjectHierarchyItem hierarchy_item =
+            context->project->hierarchy[row];
+        float y = 144.0f + (float)row * 34.0f;
+        if(hierarchy_item.kind == EDITOR_PROJECT_HIERARCHY_OBJECT) {
+        EditorObject *object = editor_object_query_get(context->project,
+            hierarchy_item.id);
+        size_t i = object == NULL ? context->project->object_count :
+            (size_t)(object - context->project->objects);
         char id[64], visibility_id[72];
+        if(object == NULL || i >= EDITOR_OBJECT_MAX) continue;
         EditorSelectionRef ref = {EDITOR_SELECTION_OBJECT,
             object->id, 0, 0, object->id};
         if(!editor_mode_named_text_sync(editor->font, object->name,
@@ -104,7 +111,8 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             editor_viewport_selection_contains(context->viewport, ref) ? &style : NULL);
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
-                ref, bounds, result, i + 1 == context->project->object_count);
+                ref, bounds, result,
+                row + 1 == context->project->hierarchy_count);
         if(result.clicked || result.focus_changed) {
             (void)editor_project_object_select(context->project, object->id);
             context->viewport->selection = EDITOR_SELECTION_OBJECT;
@@ -112,12 +120,13 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
                 (void)editor_navigation_selected_open(context->project,
                     context->viewport);
         }
-    }
-    float viewport_y = 144.0f + (float)context->project->object_count * 34.0f;
-    for(size_t i = 0; i < context->project->layout_viewport_count &&
-            i < EDITOR_LAYOUT_VIEWPORT_MAX; i += 1) {
-        EditorLayoutViewport *viewport = &context->project->layout_viewports[i];
+        } else {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
+            context->project, hierarchy_item.id);
+        size_t i = viewport == NULL ? context->project->layout_viewport_count :
+            (size_t)(viewport - context->project->layout_viewports);
         char id[64], visibility_id[72];
+        if(viewport == NULL || i >= EDITOR_LAYOUT_VIEWPORT_MAX) continue;
         if(!editor_mode_named_text_sync(editor->font, viewport->name,
                 &editor->viewport_names[i], editor->viewport_cache[i],
                 EDITOR_OBJECT_NAME_MAX)) continue;
@@ -126,23 +135,33 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             "editor.layout_viewport.%u.visibility", viewport->id);
         if(rohr_ui_button(visibility_id, viewport->enabled ? &editor->visible_label :
                 &editor->hidden_label, (UIRect){context->x + 8.0f,
-                    viewport_y + (float)i * 34.0f + 1.0f, 26.0f, 26.0f},
+                    y + 1.0f, 26.0f, 26.0f},
                 NULL).clicked)
             viewport->enabled = !viewport->enabled;
         UIButtonStyle style = rohr_ui_button_style_default_get();
         style.idle = (Color){118, 96, 35, 255};
         style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult result = rohr_ui_button(id, &editor->viewport_names[i],
-            (UIRect){context->x + 40.0f, viewport_y + (float)i * 34.0f,
+            (UIRect){context->x + 40.0f, y,
                 context->width - 48.0f, 28.0f},
             context->viewport->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
                 context->viewport->selected_layout_viewport == viewport->id ?
                 &style : NULL);
+        if(context->hierarchy_row != NULL) {
+            UIRect bounds = {context->x + 40.0f,
+                y,
+                context->width - 48.0f, 28.0f};
+            context->hierarchy_row(context->hierarchy_context, context->viewport,
+                (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+                    0, 0, 0, viewport->id}, bounds, result,
+                row + 1 == context->project->hierarchy_count);
+        }
         if(result.clicked || result.focus_changed) {
             context->viewport->selected_layout_viewport = viewport->id;
             context->viewport->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
             editor_project_selection_clear(context->project);
             if(result.double_clicked) context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
+        }
         }
     }
 }

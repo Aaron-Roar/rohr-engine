@@ -74,6 +74,16 @@ typedef struct EditorHierarchyItem {
     uint32_t id;
 } EditorHierarchyItem;
 
+typedef enum EditorProjectHierarchyItemKind {
+    EDITOR_PROJECT_HIERARCHY_OBJECT,
+    EDITOR_PROJECT_HIERARCHY_VIEWPORT
+} EditorProjectHierarchyItemKind;
+
+typedef struct EditorProjectHierarchyItem {
+    EditorProjectHierarchyItemKind kind;
+    uint32_t id;
+} EditorProjectHierarchyItem;
+
 #define EDITOR_OBJECT_INVALID 0
 
 typedef struct EditorVertex {
@@ -460,6 +470,9 @@ typedef struct EditorProject {
     EditorLayoutViewport *layout_viewports;
     size_t layout_viewport_count;
     size_t layout_viewport_capacity;
+    EditorProjectHierarchyItem *hierarchy;
+    size_t hierarchy_count;
+    size_t hierarchy_capacity;
     EditorUiFont *ui_fonts;
     size_t ui_font_count;
     size_t ui_font_capacity;
@@ -535,6 +548,7 @@ EditorUiFont *editor_project_ui_font_get(EditorProject *project,
     EditorUiFontId id);
 void editor_project_selection_clear(EditorProject *project);
 void editor_project_object_hierarchy_sync(EditorObject *object);
+void editor_project_hierarchy_sync(EditorProject *project);
 size_t editor_project_object_hierarchy_index_get(const EditorObject *object,
     EditorHierarchyItemKind kind, uint32_t id);
 EditorRigidBody *editor_project_rigid_body_add(EditorProject *project,

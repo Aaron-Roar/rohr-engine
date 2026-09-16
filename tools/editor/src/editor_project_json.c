@@ -337,6 +337,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_val *root;
     yyjson_mut_val *objects;
     yyjson_mut_val *layout_viewports;
+    yyjson_mut_val *hierarchy;
     yyjson_mut_val *collision_masks;
     yyjson_mut_val *ui_fonts;
     bool success;
@@ -346,6 +347,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     root = yyjson_mut_obj(document);
     objects = yyjson_mut_arr(document);
     layout_viewports = yyjson_mut_arr(document);
+    hierarchy = yyjson_mut_arr(document);
     collision_masks = yyjson_mut_arr(document);
     ui_fonts = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
@@ -644,6 +646,13 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_arr_add_val(layout_viewports, value);
     }
     yyjson_mut_obj_add_val(document, root, "layout_viewports", layout_viewports);
+    for(size_t i = 0; i < project->hierarchy_count; i += 1) {
+        yyjson_mut_val *item = yyjson_mut_obj(document);
+        yyjson_mut_obj_add_uint(document, item, "kind", project->hierarchy[i].kind);
+        yyjson_mut_obj_add_uint(document, item, "id", project->hierarchy[i].id);
+        yyjson_mut_arr_add_val(hierarchy, item);
+    }
+    yyjson_mut_obj_add_val(document, root, "hierarchy", hierarchy);
     success = yyjson_mut_write_file(path, document, YYJSON_WRITE_PRETTY, NULL, NULL);
     yyjson_mut_doc_free(document);
     return success;
@@ -1215,6 +1224,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     yyjson_val *root;
     yyjson_val *objects;
     yyjson_val *layout_viewports;
+    yyjson_val *hierarchy;
     yyjson_val *collision_masks;
     yyjson_val *ui_fonts;
     uint32_t version;
@@ -1237,6 +1247,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     root = yyjson_doc_get_root(document);
     objects = yyjson_obj_get(root, "objects");
     layout_viewports = yyjson_obj_get(root, "layout_viewports");
+    hierarchy = yyjson_obj_get(root, "hierarchy");
     collision_masks = yyjson_obj_get(root, "collision_masks");
     ui_fonts = yyjson_obj_get(root, "ui_fonts");
     editor_project_destroy(&loaded);
@@ -1360,7 +1371,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
                 loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
                 loaded.next_viewport_camera_item_id == 0 ||
-                (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)))
+                (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)) ||
+                (hierarchy != NULL && !yyjson_is_arr(hierarchy)))
             goto done;
     }
     if(ui_fonts != NULL) {
@@ -1825,6 +1837,29 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         }
         if(loaded.next_layout_viewport_id <= viewport->id)
             loaded.next_layout_viewport_id = viewport->id + 1;
+    }
+    if(hierarchy != NULL) {
+        loaded.hierarchy_count = yyjson_arr_size(hierarchy);
+        if(loaded.hierarchy_count > loaded.object_count +
+                    loaded.layout_viewport_count ||
+                !EDITOR_ARRAY_RESERVE(loaded.hierarchy,
+                    loaded.hierarchy_capacity, loaded.hierarchy_count)) goto done;
+        for(size_t i = 0; i < loaded.hierarchy_count; i += 1) {
+            yyjson_val *item = yyjson_arr_get(hierarchy, i);
+            uint32_t kind;
+            if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
+                    kind > EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
+                    !editor_json_uint(item, "id", &loaded.hierarchy[i].id) ||
+                    loaded.hierarchy[i].id == 0) goto done;
+            loaded.hierarchy[i].kind = (EditorProjectHierarchyItemKind)kind;
+        }
+    }
+    {
+        size_t serialized_count = loaded.hierarchy_count;
+        editor_project_hierarchy_sync(&loaded);
+        if(hierarchy != NULL && (loaded.hierarchy_count != serialized_count ||
+                loaded.hierarchy_count != loaded.object_count +
+                    loaded.layout_viewport_count)) goto done;
     }
     if(!editor_json_references_valid(&loaded)) {
         result = editor_result_error(EDITOR_ERROR_REFERENCE_INVALID,

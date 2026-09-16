@@ -1960,12 +1960,15 @@ static bool editor_hierarchy_soft_child_check(EditorHierarchySelection kind) {
 
 static void editor_hierarchy_drag_row(EditorHierarchyDragState *drag,
         const EditorViewportState *selection, EditorSelectionRef ref,
-        UIRect bounds, UIButtonResult result, Position pointer,
+        UIRect bounds, Position pointer,
         MouseButtonState primary, float scroll_offset, bool last) {
     bool pointer_in_row;
     if(drag == NULL || selection == NULL) return;
     bounds.y -= scroll_offset;
-    if(!drag->active && result.pressed && primary == MOUSE_BUTTON_STATE_PRESSED) {
+    pointer_in_row = pointer.x >= bounds.x &&
+        pointer.x <= bounds.x + bounds.width && pointer.y >= bounds.y &&
+        (pointer.y <= bounds.y + bounds.height || last);
+    if(!drag->active && pointer_in_row && primary == MOUSE_BUTTON_STATE_PRESSED) {
         drag->active = true;
         drag->source = ref;
         drag->target = ref;
@@ -1989,22 +1992,22 @@ static void editor_hierarchy_drag_row(EditorHierarchyDragState *drag,
             bounds.x + bounds.width - 2.0f, bounds.y,
             2.0f, bounds.height, border);
     }
-    pointer_in_row = pointer.x >= bounds.x &&
-        pointer.x <= bounds.x + bounds.width && pointer.y >= bounds.y &&
-        (pointer.y <= bounds.y + bounds.height || last);
     if(drag->dragging && pointer_in_row &&
-            (ref.kind == drag->source.kind ||
-                (editor_hierarchy_object_child_check(ref.kind) &&
-                    editor_hierarchy_object_child_check(drag->source.kind)) ||
-                (editor_hierarchy_soft_child_check(ref.kind) &&
-                    editor_hierarchy_soft_child_check(drag->source.kind))) &&
-            ref.object == drag->source.object &&
-            ref.parent == drag->source.parent &&
-            ref.container == drag->source.container) {
+            (((ref.kind == EDITOR_SELECTION_OBJECT ||
+                    ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+                (drag->source.kind == EDITOR_SELECTION_OBJECT ||
+                    drag->source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT)) ||
+            ((ref.kind == drag->source.kind ||
+                    (editor_hierarchy_object_child_check(ref.kind) &&
+                        editor_hierarchy_object_child_check(drag->source.kind)) ||
+                    (editor_hierarchy_soft_child_check(ref.kind) &&
+                        editor_hierarchy_soft_child_check(drag->source.kind))) &&
+                ref.object == drag->source.object &&
+                ref.parent == drag->source.parent &&
+                ref.container == drag->source.container))) {
         drag->target = ref;
         drag->target_valid = true;
-        drag->target_after = last &&
-            pointer.y >= bounds.y + bounds.height * 0.5f;
+        drag->target_after = pointer.y >= bounds.y + bounds.height * 0.5f;
     }
 }
 
@@ -2018,7 +2021,7 @@ static void editor_mode_hierarchy_row(void *opaque,
         (void)editor_viewport_selection_set(context->project, viewport,
             selection, true);
     editor_hierarchy_drag_row(context->drag, viewport, selection, bounds,
-        interaction, context->pointer, context->primary,
+        context->pointer, context->primary,
         context->scroll_offset, last);
 }
 
@@ -2037,6 +2040,11 @@ static bool editor_hierarchy_drag_update(EditorHierarchyDragState *drag,
             !editor_hierarchy_ref_equal(drag->source, drag->target) &&
             (primary == MOUSE_BUTTON_STATE_PRESSED ||
                 primary == MOUSE_BUTTON_STATE_DOWN)) {
+        if((drag->source.kind == EDITOR_SELECTION_OBJECT ||
+                    drag->source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+                (drag->target.kind == EDITOR_SELECTION_OBJECT ||
+                    drag->target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT))
+            return false;
         if(!drag->transaction_active) {
             if(!editor_history_transaction_begin(history)) return false;
             if(!(drag->source.kind == EDITOR_SELECTION_OBJECT ?
@@ -2052,7 +2060,15 @@ static bool editor_hierarchy_drag_update(EditorHierarchyDragState *drag,
             drag->source, drag->target, drag->target_after, NULL);
     }
     if(primary == MOUSE_BUTTON_STATE_RELEASED) {
-        if(drag->transaction_active) {
+        if((drag->source.kind == EDITOR_SELECTION_OBJECT ||
+                    drag->source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+                (drag->target.kind == EDITOR_SELECTION_OBJECT ||
+                    drag->target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+                drag->dragging && drag->target_valid &&
+                !editor_hierarchy_ref_equal(drag->source, drag->target)) {
+            changed = editor_navigation_selection_reorder(project, selection,
+                drag->source, drag->target, drag->target_after, NULL);
+        } else if(drag->transaction_active) {
             if(!editor_history_transaction_end(history))
                 editor_history_transaction_cancel(history);
             else changed = true;

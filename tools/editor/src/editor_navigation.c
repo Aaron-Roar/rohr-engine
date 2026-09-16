@@ -212,6 +212,12 @@ static bool editor_reorder_storage_get(EditorProject *project,
             project->object_count, sizeof(project->objects[0])};
         return true;
     }
+    if(selection.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        *storage = (EditorReorderStorage){
+            (unsigned char *)project->layout_viewports,
+            project->layout_viewport_count, sizeof(project->layout_viewports[0])};
+        return true;
+    }
     object = editor_object_query_get(project, selection.object);
     if(object == NULL) return false;
     switch(selection.kind) {
@@ -293,8 +299,40 @@ bool editor_navigation_selection_reorder(EditorProject *project,
     size_t output = 0;
     bool source_selected;
 
-    if(project == NULL || state == NULL ||
-            !editor_selection_sibling_check(source, target)) return false;
+    if(project == NULL || state == NULL) return false;
+    if((source.kind == EDITOR_SELECTION_OBJECT ||
+                source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+            (target.kind == EDITOR_SELECTION_OBJECT ||
+                target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT)) {
+        size_t source_index = SIZE_MAX, target_index = SIZE_MAX;
+        EditorProjectHierarchyItem moving;
+        editor_project_hierarchy_sync(project);
+        for(size_t i = 0; i < project->hierarchy_count; i += 1) {
+            EditorProjectHierarchyItem item = project->hierarchy[i];
+            EditorHierarchySelection kind = item.kind ==
+                EDITOR_PROJECT_HIERARCHY_OBJECT ? EDITOR_SELECTION_OBJECT :
+                EDITOR_SELECTION_LAYOUT_VIEWPORT;
+            if(kind == source.kind && item.id == source.item) source_index = i;
+            if(kind == target.kind && item.id == target.item) target_index = i;
+        }
+        if(source_index == SIZE_MAX || target_index == SIZE_MAX ||
+                source_index == target_index) return false;
+        moving = project->hierarchy[source_index];
+        if(source_index < target_index) {
+            memmove(&project->hierarchy[source_index],
+                &project->hierarchy[source_index + 1],
+                (target_index - source_index) * sizeof(project->hierarchy[0]));
+            target_index -= 1;
+        } else {
+            memmove(&project->hierarchy[target_index + 1],
+                &project->hierarchy[target_index],
+                (source_index - target_index) * sizeof(project->hierarchy[0]));
+        }
+        target_index += after ? 1 : 0;
+        project->hierarchy[target_index] = moving;
+        return true;
+    }
+    if(!editor_selection_sibling_check(source, target)) return false;
     if((source.kind == EDITOR_SELECTION_RIGID_BODY ||
                 source.kind == EDITOR_SELECTION_JOINT ||
                 source.kind == EDITOR_SELECTION_SOFT_BODY ||

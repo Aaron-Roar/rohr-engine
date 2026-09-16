@@ -181,6 +181,8 @@ void editor_project_init(EditorProject *project) {
         EDITOR_OBJECT_MAX);
     (void)EDITOR_ARRAY_RESERVE(project->layout_viewports,
         project->layout_viewport_capacity, EDITOR_LAYOUT_VIEWPORT_MAX);
+    (void)EDITOR_ARRAY_RESERVE(project->hierarchy, project->hierarchy_capacity,
+        EDITOR_OBJECT_MAX + EDITOR_LAYOUT_VIEWPORT_MAX);
 }
 
 void editor_project_animated_sprite_destroy(EditorAnimatedSprite *sprite) {
@@ -734,6 +736,7 @@ void editor_project_destroy(EditorProject *project) {
     free(project->collision_masks);
     free(project->objects);
     free(project->layout_viewports);
+    free(project->hierarchy);
     free(project->ui_fonts);
     *project = (EditorProject){0};
 }
@@ -745,13 +748,16 @@ bool editor_project_clone(EditorProject *destination,
     destination->collision_masks = NULL;
     destination->objects = NULL;
     destination->layout_viewports = NULL;
+    destination->hierarchy = NULL;
     destination->ui_fonts = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
     destination->layout_viewport_count = 0;
+    destination->hierarchy_count = 0;
     destination->collision_mask_capacity = 0;
     destination->object_capacity = 0;
     destination->layout_viewport_capacity = 0;
+    destination->hierarchy_capacity = 0;
     destination->ui_font_count = 0;
     destination->ui_font_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
@@ -761,6 +767,8 @@ bool editor_project_clone(EditorProject *destination,
             !EDITOR_ARRAY_RESERVE(destination->layout_viewports,
                 destination->layout_viewport_capacity,
                 source->layout_viewport_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->hierarchy,
+                destination->hierarchy_capacity, source->hierarchy_count) ||
             !EDITOR_ARRAY_RESERVE(destination->ui_fonts,
                 destination->ui_font_capacity, source->ui_font_count)) goto fail;
     if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
@@ -794,6 +802,9 @@ bool editor_project_clone(EditorProject *destination,
             viewport->ui_item_count * sizeof(*viewport->ui_items));
         destination->layout_viewport_count += 1;
     }
+    if(source->hierarchy_count > 0) memcpy(destination->hierarchy,
+        source->hierarchy, source->hierarchy_count * sizeof(*source->hierarchy));
+    destination->hierarchy_count = source->hierarchy_count;
     return true;
 fail:
     editor_project_destroy(destination);
@@ -868,6 +879,7 @@ EditorObject *editor_project_object_add(EditorProject *project, Position positio
         object->hierarchy_capacity * sizeof(*object->hierarchy));
     snprintf(object->name, sizeof(object->name), "Object%u", object->id);
     project->selected = object->id;
+    editor_project_hierarchy_sync(project);
     return object;
 }
 
@@ -895,6 +907,7 @@ bool editor_project_object_remove(EditorProject *project, EditorObjectId id) {
     project->object_count -= 1;
     project->objects[project->object_count] = (EditorObject){0};
     if(project->selected == id) project->selected = EDITOR_OBJECT_INVALID;
+    editor_project_hierarchy_sync(project);
     return true;
 }
 
@@ -912,6 +925,7 @@ EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project)
     };
     viewport->config.rectangle = (ViewportRectangle){0.0f, 0.0f, 640.0f, 360.0f};
     snprintf(viewport->name, sizeof(viewport->name), "Viewport%u", viewport->id);
+    editor_project_hierarchy_sync(project);
     return viewport;
 }
 
@@ -937,7 +951,49 @@ bool editor_project_layout_viewport_remove(EditorProject *project,
     project->layout_viewport_count -= 1;
     project->layout_viewports[project->layout_viewport_count] =
         (EditorLayoutViewport){0};
+    editor_project_hierarchy_sync(project);
     return true;
+}
+
+void editor_project_hierarchy_sync(EditorProject *project) {
+    size_t output = 0;
+    if(project == NULL || !EDITOR_ARRAY_RESERVE(project->hierarchy,
+            project->hierarchy_capacity,
+            project->object_count + project->layout_viewport_count)) return;
+    for(size_t i = 0; i < project->hierarchy_count; i += 1) {
+        EditorProjectHierarchyItem item = project->hierarchy[i];
+        bool valid = false;
+        for(size_t j = 0; j < output; j += 1)
+            if(project->hierarchy[j].kind == item.kind &&
+                    project->hierarchy[j].id == item.id) valid = true;
+        if(valid) continue;
+        if(item.kind == EDITOR_PROJECT_HIERARCHY_OBJECT) {
+            for(size_t j = 0; j < project->object_count; j += 1)
+                if(project->objects[j].id == item.id) valid = true;
+        } else if(item.kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT) {
+            for(size_t j = 0; j < project->layout_viewport_count; j += 1)
+                if(project->layout_viewports[j].id == item.id) valid = true;
+        }
+        if(valid) project->hierarchy[output++] = item;
+    }
+    for(size_t i = 0; i < project->object_count; i += 1) {
+        bool found = false;
+        for(size_t j = 0; j < output; j += 1)
+            if(project->hierarchy[j].kind == EDITOR_PROJECT_HIERARCHY_OBJECT &&
+                    project->hierarchy[j].id == project->objects[i].id) found = true;
+        if(!found) project->hierarchy[output++] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_OBJECT, project->objects[i].id};
+    }
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+        bool found = false;
+        for(size_t j = 0; j < output; j += 1)
+            if(project->hierarchy[j].kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT &&
+                    project->hierarchy[j].id == project->layout_viewports[i].id)
+                found = true;
+        if(!found) project->hierarchy[output++] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_VIEWPORT, project->layout_viewports[i].id};
+    }
+    project->hierarchy_count = output;
 }
 
 EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
