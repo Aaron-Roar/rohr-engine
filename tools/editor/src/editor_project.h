@@ -8,19 +8,19 @@
 #include "rohr.h"
 #include "editor_error.h"
 
-#define EDITOR_OBJECT_MAX 64
+#define EDITOR_OBJECT_MAX 256
 #define EDITOR_HITBOX_VERTEX_MIN 3
 #define EDITOR_HITBOX_VERTEX_MAX MAX_VERTICIES
 #define EDITOR_OBJECT_NAME_MAX 64
 #define EDITOR_ASSET_PATH_MAX 1024
-#define EDITOR_RIGID_BODY_MAX 16
+#define EDITOR_RIGID_BODY_MAX 256
 #define EDITOR_BODY_HITBOX_MAX 8
 #define EDITOR_JOINT_MAX 32
 #define EDITOR_ANCHOR_MAX 64
 #define EDITOR_SOFT_BODY_MAX 8
-#define EDITOR_SOFT_NODE_MAX 64
-#define EDITOR_SOFT_BEAM_MAX 128
-#define EDITOR_SOFT_AREA_MAX 128
+#define EDITOR_SOFT_NODE_MAX SOFT_BODY_MAX_NODES
+#define EDITOR_SOFT_BEAM_MAX SOFT_BODY_MAX_BEAMS
+#define EDITOR_SOFT_AREA_MAX SOFT_BODY_MAX_TRIANGLES
 #define EDITOR_CAMERA_MAX MAX_CAMERAS
 #define EDITOR_LAYOUT_VIEWPORT_MAX MAX_VIEWPORTS
 #define EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX MAX_VIEWPORT_ITEMS
@@ -101,6 +101,7 @@ typedef struct EditorHitboxAnimationBinding {
 
 typedef struct EditorRigidBody {
     EditorRigidBodyId id;
+    EditorRigidBodyId parent;
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
     float rotation;
@@ -298,6 +299,7 @@ typedef struct EditorCamera {
     Position position;
     Orientation rotation;
     Scale dimensions;
+    float zoom;
     EditorCameraAttachmentKind attachment_kind;
     uint32_t attachment;
     EditorSoftBodyId attachment_soft_body;

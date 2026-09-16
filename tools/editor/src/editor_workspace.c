@@ -816,6 +816,22 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    if(rohr_error_check(result)) goto fail;\n",
                     body->name, body->active_hitbox_index);
         }
+        for(size_t body_index = 0; body_index < object->rigid_body_count;
+                body_index += 1) {
+            const EditorRigidBody *body = &object->rigid_bodies[body_index];
+            const EditorRigidBody *parent;
+            if(body->parent == 0) continue;
+            parent = editor_workspace_body_get(object, body->parent);
+            if(parent == NULL) {
+                fclose(header);
+                fclose(source);
+                return false;
+            }
+            fprintf(source,
+                "    result = rohr_entity_parent_set(object->%s, object->%s);\n"
+                "    if(rohr_error_check(result)) goto fail;\n",
+                body->name, parent->name);
+        }
         for(size_t sprite_index = 0; sprite_index < object->sprite_count;
                 sprite_index += 1) {
             const EditorSprite *sprite = &object->sprites[sprite_index];
@@ -1130,7 +1146,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             fprintf(source,
                 "    { CameraIdResult created = rohr_camera_create((CameraConfig){"
                 ".position = (Position){%s%#.9gf, %s%#.9gf}, "
-                ".orientation = %#.9gf, .dimensions = {%#.9gf, %#.9gf}, .zoom = 1.0f});\n"
+                ".orientation = %#.9gf, .dimensions = {%#.9gf, %#.9gf}, .zoom = %#.9gf});\n"
                 "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                 "created.result.error); goto fail; }\n"
                 "      object->camera_%s = created.result.value;\n",
@@ -1139,6 +1155,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_NONE ?
                     "position.y + " : "", camera->position.y,
                 camera->rotation, camera->dimensions.x, camera->dimensions.y,
+                camera->zoom,
                 camera->name);
             if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) fprintf(source,
                 "      result = rohr_camera_attach(object->camera_%s, object->%s, "

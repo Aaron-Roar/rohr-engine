@@ -20,6 +20,7 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_SOFT_NODE_POSITION,
     EDITOR_COMMAND_CAMERA_TRANSFORM,
     EDITOR_COMMAND_CAMERA_DIMENSIONS_SET,
+    EDITOR_COMMAND_CAMERA_ZOOM_SET,
     EDITOR_COMMAND_CAMERA_ATTACHMENT_SET,
     EDITOR_COMMAND_AUTO_SHAPE,
     EDITOR_COMMAND_RIGID_BODY_ORIGIN,
@@ -170,7 +171,8 @@ typedef struct EditorPropertySetCommand {
 typedef enum EditorRelationshipKind {
     EDITOR_RELATIONSHIP_JOINT_ANCHOR,
     EDITOR_RELATIONSHIP_ANCHOR_RIGID_BODY,
-    EDITOR_RELATIONSHIP_SOFT_BEAM_NODE
+    EDITOR_RELATIONSHIP_SOFT_BEAM_NODE,
+    EDITOR_RELATIONSHIP_ENTITY_PARENT
 } EditorRelationshipKind;
 
 typedef struct EditorRelationshipSetCommand {
@@ -263,6 +265,8 @@ typedef struct EditorCommand {
             Position position; Orientation rotation; } camera_transform;
         struct { EditorObjectId object; EditorCameraId camera;
             Scale dimensions; } camera_dimensions_set;
+        struct { EditorObjectId object; EditorCameraId camera;
+            float zoom; } camera_zoom_set;
         struct { EditorObjectId object; EditorCameraId camera;
             EditorCameraAttachmentKind kind; uint32_t target;
             EditorSoftBodyId soft_body; bool inherit_orientation; }

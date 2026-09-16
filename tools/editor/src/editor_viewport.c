@@ -1248,10 +1248,11 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
     for(size_t i = 0; i < object->camera_count; i += 1) {
         const EditorCamera *camera = &object->cameras[i];
         Position world = editor_camera_world_get(object, camera, NULL);
-        EditorMarqueeBounds bounds = {world.x - camera->dimensions.x * 0.5f,
-            world.x + camera->dimensions.x * 0.5f,
-            world.y - camera->dimensions.y * 0.5f,
-            world.y + camera->dimensions.y * 0.5f, true};
+        float zoom = camera->zoom > 0.0f ? camera->zoom : 1.0f;
+        EditorMarqueeBounds bounds = {world.x - camera->dimensions.x / zoom * 0.5f,
+            world.x + camera->dimensions.x / zoom * 0.5f,
+            world.y - camera->dimensions.y / zoom * 0.5f,
+            world.y + camera->dimensions.y / zoom * 0.5f, true};
         if(camera->visible && editor_marquee_bounds_overlap(marquee, bounds))
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
@@ -2466,7 +2467,11 @@ static bool editor_group_point_hit(EditorProject *project,
             Orientation rotation;
             if(camera != NULL && camera->visible &&
                     editor_sprite_point_contains(editor_camera_world_get(object,
-                        camera, &rotation), camera->dimensions, rotation, pointer))
+                        camera, &rotation), (Scale){camera->dimensions.x /
+                            (camera->zoom > 0.0f ? camera->zoom : 1.0f),
+                            camera->dimensions.y /
+                            (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
+                        rotation, pointer))
                 return true;
         } else if(editor_group_point_get(project, ref, &point) &&
                 hypotf(pointer.x - point.x, pointer.y - point.y) <= tolerance) {
@@ -3902,7 +3907,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorSelectionRef selection;
             if(!camera->visible) continue;
             world = editor_camera_world_get(object, camera, &rotation);
-            if(!editor_sprite_point_contains(world, camera->dimensions,
+            if(!editor_sprite_point_contains(world, (Scale){camera->dimensions.x /
+                    (camera->zoom > 0.0f ? camera->zoom : 1.0f),
+                    camera->dimensions.y /
+                    (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
                     rotation, pointer)) continue;
             selection = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
                 object->id, 0, 0, camera->id};
@@ -4519,10 +4527,15 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
         Color color;
         if(!camera->visible) continue;
         center = editor_camera_world_get(object, camera, &rotation);
-        corners[0] = (Position){-camera->dimensions.x * .5f, -camera->dimensions.y * .5f};
-        corners[1] = (Position){camera->dimensions.x * .5f, -camera->dimensions.y * .5f};
-        corners[2] = (Position){camera->dimensions.x * .5f, camera->dimensions.y * .5f};
-        corners[3] = (Position){-camera->dimensions.x * .5f, camera->dimensions.y * .5f};
+        float zoom = camera->zoom > 0.0f ? camera->zoom : 1.0f;
+        corners[0] = (Position){-camera->dimensions.x / zoom * .5f,
+            -camera->dimensions.y / zoom * .5f};
+        corners[1] = (Position){camera->dimensions.x / zoom * .5f,
+            -camera->dimensions.y / zoom * .5f};
+        corners[2] = (Position){camera->dimensions.x / zoom * .5f,
+            camera->dimensions.y / zoom * .5f};
+        corners[3] = (Position){-camera->dimensions.x / zoom * .5f,
+            camera->dimensions.y / zoom * .5f};
         for(size_t i = 0; i < 4; i += 1) {
             float x = corners[i].x, y = corners[i].y;
             corners[i] = (Position){center.x + x * cosf(rotation) - y * sinf(rotation),
@@ -5019,8 +5032,10 @@ static void editor_viewport_screen_camera_preview_draw(
             camera->dimensions.y <= 0.0f) return;
     camera_world = editor_camera_world_get(camera_object, camera,
         &camera_rotation);
-    fit_x = bounds.width / camera->dimensions.x;
-    fit_y = bounds.height / camera->dimensions.y;
+    fit_x = bounds.width * (camera->zoom > 0.0f ? camera->zoom : 1.0f) /
+        camera->dimensions.x;
+    fit_y = bounds.height * (camera->zoom > 0.0f ? camera->zoom : 1.0f) /
+        camera->dimensions.y;
     if(screen->placement.fit == SCREEN_FIT_NONE) {
         fit_x = editor_zoom;
         fit_y = editor_zoom;

@@ -14,10 +14,12 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Angle", angle_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
+    CREATE("Zoom", zoom_label);
     CREATE("Inherit Orientation", inherit_label); CREATE("Visible", visible_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", angle_field);
     CREATE("", width_field); CREATE("", height_field);
+    CREATE("", zoom_field);
 #undef CREATE
     return true;
 fail:
@@ -30,9 +32,11 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(angle_label);
     DESTROY(width_label); DESTROY(height_label); DESTROY(attachment_label);
+    DESTROY(zoom_label);
     DESTROY(inherit_label); DESTROY(visible_label); DESTROY(none_label);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field); DESTROY(angle_field);
     DESTROY(width_field); DESTROY(height_field);
+    DESTROY(zoom_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_CAMERA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->name_values[i]);
@@ -60,8 +64,9 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     EditorSoftBodyId parent_ids[257] = {0};
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
-    float angle, width, height;
-    UIFieldResult name_result, x_result, y_result, angle_result, width_result, height_result;
+    float angle, width, height, zoom;
+    UIFieldResult name_result, x_result, y_result, angle_result, width_result,
+        height_result, zoom_result;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -78,7 +83,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 94, 42, context->width - 104, 28}, NULL);
     position = camera->position; angle = camera->rotation;
-    width = camera->dimensions.x; height = camera->dimensions.y;
+    width = camera->dimensions.x; height = camera->dimensions.y; zoom = camera->zoom;
     camera_label_field(&editor->x_label, &editor->x_field, "editor.camera.x",
         context->x, 80, context->width, &position.x, &x_result);
     camera_label_field(&editor->y_label, &editor->y_field, "editor.camera.y",
@@ -89,6 +94,8 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         context->x, 194, context->width, &width, &width_result);
     camera_label_field(&editor->height_label, &editor->height_field, "editor.camera.height",
         context->x, 232, context->width, &height, &height_result);
+    camera_label_field(&editor->zoom_label, &editor->zoom_field, "editor.camera.zoom",
+        context->x, 270, context->width, &zoom, &zoom_result);
     options[0] = &editor->none_label;
 #define ADD_TARGET(kind_value, id_value, parent_value, source_name) do { \
     if(option_count < 257 && editor_mode_named_text_sync(editor->font, source_name, \
@@ -113,10 +120,10 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             object->anchors[i].name);
 #undef ADD_TARGET
     rohr_ui_label(&editor->attachment_label,
-        (UIRect){context->x + 8, 270, 82, 28});
+        (UIRect){context->x + 8, 308, 82, 28});
     UIDropdownResult attachment = rohr_ui_dropdown("editor.camera.attachment",
         options, option_count, selected,
-        (UIRect){context->x + 94, 270, context->width - 104, 28}, NULL);
+        (UIRect){context->x + 94, 308, context->width - 104, 28}, NULL);
     if(attachment.button_hovered || attachment.hovered_index >= 0) {
         size_t preview = attachment.hovered_index >= 0 ?
             (size_t)attachment.hovered_index : selected;
@@ -133,10 +140,10 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     }
     bool inherit = camera->inherit_orientation, visible = camera->visible;
     bool inherit_changed = editor_mode_checkbox_left("editor.camera.inherit",
-        &editor->inherit_label, (UIRect){context->x + 10, 308,
+        &editor->inherit_label, (UIRect){context->x + 10, 346,
             context->width - 20, 28}, &inherit);
     bool visible_changed = editor_mode_checkbox_left("editor.camera.visible",
-        &editor->visible_label, (UIRect){context->x + 10, 346,
+        &editor->visible_label, (UIRect){context->x + 10, 384,
             context->width - 20, 28}, &visible);
     if(name_result.changed) { EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
         .data.item_rename = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
@@ -151,6 +158,10 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         .type = EDITOR_COMMAND_CAMERA_DIMENSIONS_SET,
         .data.camera_dimensions_set = {object->id, camera->id, {width, height}}};
         (void)editor_command_execute(context->project, &command); }
+    if(zoom_result.changed) { EditorCommand command = {
+        .type = EDITOR_COMMAND_CAMERA_ZOOM_SET,
+        .data.camera_zoom_set = {object->id, camera->id, zoom}};
+        (void)editor_command_execute(context->project, &command); }
     if(attachment.changed || inherit_changed) { size_t choice = attachment.changed ?
         attachment.selected_index : selected; EditorCommand command = {
         .type = EDITOR_COMMAND_CAMERA_ATTACHMENT_SET,
@@ -162,5 +173,6 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             camera->id, visible}}; (void)editor_command_execute(context->project,
         &command); }
     return name_result.active || x_result.active || y_result.active ||
-        angle_result.active || width_result.active || height_result.active;
+        angle_result.active || width_result.active || height_result.active ||
+        zoom_result.active;
 }

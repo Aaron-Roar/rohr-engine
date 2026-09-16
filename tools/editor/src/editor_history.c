@@ -220,6 +220,9 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
         case EDITOR_COMMAND_CAMERA_DIMENSIONS_SET:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
                 command->data.camera_dimensions_set.object, 0);
+        case EDITOR_COMMAND_CAMERA_ZOOM_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
+                command->data.camera_zoom_set.object, 0);
         case EDITOR_COMMAND_CAMERA_ATTACHMENT_SET:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
                 command->data.camera_attachment_set.object, 0);
@@ -244,6 +247,10 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
                     EDITOR_RELATIONSHIP_SOFT_BEAM_NODE) {
                 kind = EDITOR_ITEM_SOFT_BEAM;
                 parent = command->data.relationship_set.parent;
+            } else if(command->data.relationship_set.kind ==
+                    EDITOR_RELATIONSHIP_ENTITY_PARENT) {
+                kind = EDITOR_ITEM_RIGID_BODY;
+                parent = 0;
             } else {
                 kind = EDITOR_ITEM_JOINT;
                 parent = 0;

@@ -18,6 +18,7 @@ typedef struct EditorRigidBodyEditor {
     TextAsset name_label, x_label, y_label, rotation_label;
     TextAsset mass_label, friction_label, restitution_label;
     TextAsset border_color_label, surface_color_label;
+    TextAsset parent_label, none_label;
     TextAsset gravity_label, dynamic_label, static_label;
     TextAsset rotation_unlocked_label, rotation_locked_label;
     TextAsset collision_label, particle_label;
@@ -28,9 +29,11 @@ typedef struct EditorRigidBodyEditor {
     TextAsset x_field, y_field, rotation_field;
     TextAsset mass_field, friction_field, restitution_field;
     TextAsset body_names[EDITOR_RIGID_BODY_MAX];
+    TextAsset parent_names[EDITOR_RIGID_BODY_MAX];
     TextAsset hitbox_names[EDITOR_BODY_HITBOX_MAX];
     TextAsset frame_names[MAX_ANIMATIONS_FRAMES];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
+    char parent_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char hitbox_cache[EDITOR_BODY_HITBOX_MAX][EDITOR_OBJECT_NAME_MAX];
     char frame_cache[MAX_ANIMATIONS_FRAMES][EDITOR_OBJECT_NAME_MAX];
     bool collision_category_open;

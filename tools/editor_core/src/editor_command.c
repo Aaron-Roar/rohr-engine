@@ -350,6 +350,21 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             camera->dimensions = dimensions;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         }
+        case EDITOR_COMMAND_CAMERA_ZOOM_SET: {
+            EditorObject *object = editor_object_query_get(project,
+                command->data.camera_zoom_set.object);
+            EditorCamera *camera = editor_project_camera_get(object,
+                command->data.camera_zoom_set.camera);
+            float zoom = command->data.camera_zoom_set.zoom;
+            if(camera == NULL) return editor_command_not_found("camera",
+                command->data.camera_zoom_set.camera);
+            if(!isfinite(zoom) || zoom <= 0.0f)
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "camera zoom must be a positive finite value").result.error);
+            camera->zoom = zoom;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_CAMERA_ATTACHMENT_SET: {
             EditorCameraAttachmentKind kind =
                 command->data.camera_attachment_set.kind;
@@ -1145,6 +1160,26 @@ property_invalid:
                     return editor_command_not_found("soft node", set->target);
                 if(set->endpoint == 0) beam->node_a = set->target;
                 else beam->node_b = set->target;
+            } else if(set->kind == EDITOR_RELATIONSHIP_ENTITY_PARENT) {
+                EditorRigidBody *body = editor_project_rigid_body_get(object,
+                    set->item);
+                if(body == NULL) return editor_command_not_found("rigid body", set->item);
+                if(set->target == body->id) return editor_command_error(
+                    editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                        "an entity cannot parent itself").result.error);
+                if(set->target != 0 && editor_project_rigid_body_get(object,
+                        set->target) == NULL)
+                    return editor_command_not_found("parent rigid body", set->target);
+                for(EditorRigidBodyId parent = set->target; parent != 0;) {
+                    EditorRigidBody *candidate = editor_project_rigid_body_get(
+                        object, parent);
+                    if(candidate == NULL) break;
+                    if(candidate->parent == body->id) return editor_command_error(
+                        editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                            "entity parenting cannot contain a cycle").result.error);
+                    parent = candidate->parent;
+                }
+                body->parent = set->target;
             } else {
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,

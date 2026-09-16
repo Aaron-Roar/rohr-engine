@@ -1358,6 +1358,9 @@ bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id
         for(size_t j = 0; j < object->sprite_count; j += 1)
             if(object->sprites[j].rigid_body == id)
                 object->sprites[j].rigid_body = 0;
+        for(size_t j = 0; j < object->rigid_body_count; j += 1)
+            if(object->rigid_bodies[j].parent == id)
+                object->rigid_bodies[j].parent = 0;
         editor_project_rigid_body_destroy(&object->rigid_bodies[i]);
         for(size_t j = i + 1; j < object->rigid_body_count; j += 1) {
             object->rigid_bodies[j - 1] = object->rigid_bodies[j];
@@ -2500,7 +2503,7 @@ EditorCamera *editor_project_camera_add(EditorProject *project,
                 object->camera_count + 1)) return NULL;
     camera = &object->cameras[object->camera_count++];
     *camera = (EditorCamera){.id = project->next_camera_id++,
-        .dimensions = {640.0f, 360.0f}, .visible = true};
+        .dimensions = {640.0f, 360.0f}, .zoom = 1.0f, .visible = true};
     snprintf(camera->name, sizeof(camera->name), "camera_%u", camera->id);
     editor_project_hierarchy_item_add(object, EDITOR_HIERARCHY_CAMERA, camera->id);
     return camera;

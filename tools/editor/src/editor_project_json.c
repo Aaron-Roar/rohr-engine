@@ -129,6 +129,7 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
     float particle_radius = body->particle_auto_fit ?
         editor_project_particle_auto_radius_get(body) : body->particle_radius;
     yyjson_mut_obj_add_uint(document, value, "id", body->id);
+    yyjson_mut_obj_add_uint(document, value, "parent", body->parent);
     yyjson_mut_obj_add_strcpy(document, value, "name", body->name);
     yyjson_mut_obj_add_val(document, value, "position",
         editor_json_position_write(document, body->position));
@@ -473,6 +474,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_real(document, item, "rotation", camera->rotation);
             yyjson_mut_obj_add_real(document, item, "width", camera->dimensions.x);
             yyjson_mut_obj_add_real(document, item, "height", camera->dimensions.y);
+            yyjson_mut_obj_add_real(document, item, "zoom", camera->zoom);
             yyjson_mut_obj_add_uint(document, item, "attachment_kind",
                 camera->attachment_kind);
             yyjson_mut_obj_add_uint(document, item, "attachment", camera->attachment);
@@ -709,8 +711,11 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     yyjson_val *surface_color = yyjson_obj_get(value, "surface_color");
     yyjson_val *active_hitbox_index = yyjson_obj_get(value, "active_hitbox_index");
     yyjson_val *bindings = yyjson_obj_get(value, "hitbox_animation_bindings");
+    yyjson_val *parent = yyjson_obj_get(value, "parent");
     uint32_t count;
     *body = editor_project_rigid_body_default_get();
+    if(parent != NULL && !editor_json_uint(value, "parent", &body->parent))
+        return false;
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &body->id) || body->id == 0 ||
             !editor_json_name(value, body->name) || !editor_json_position_read(
                 yyjson_obj_get(value, "position"), &body->position) ||
@@ -1468,6 +1473,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *item = yyjson_arr_get(camera_values, j);
             EditorCamera *camera = &object->cameras[j];
             uint32_t kind;
+            yyjson_val *zoom;
             if(!yyjson_is_obj(item) ||
                     !editor_json_uint(item, "id", &camera->id) || camera->id == 0 ||
                     !editor_json_name(item, camera->name) ||
@@ -1486,6 +1492,10 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(item, "visible", &camera->visible) ||
                     camera->dimensions.x <= 0.0f || camera->dimensions.y <= 0.0f)
                 goto done;
+            zoom = yyjson_obj_get(item, "zoom");
+            if(zoom != NULL && (!yyjson_is_num(zoom) ||
+                    (camera->zoom = (float)yyjson_get_real(zoom)) <= 0.0f)) goto done;
+            if(zoom == NULL) camera->zoom = 1.0f;
             camera->attachment_kind = (EditorCameraAttachmentKind)kind;
             editor_project_property_name_format(camera->name, sizeof(camera->name),
                 camera->name);
