@@ -293,6 +293,35 @@ int main(void) {
     if(!editor_file_browser_directory_path_get(&browser, path, sizeof(path)) ||
             strcmp(path, "/projects/game/assets") != 0) return 1;
     {
+        EditorProject drag_project;
+        EditorViewportState drag_state;
+        EditorObject *drag_object;
+        EditorRigidBody *drag_body;
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+
+        editor_project_init(&drag_project);
+        editor_viewport_state_init(&drag_state);
+        drag_object = editor_project_object_add(&drag_project, (Position){0});
+        drag_body = editor_project_rigid_body_add(&drag_project, drag_object);
+        if(drag_object == NULL || drag_body == NULL ||
+                !editor_project_object_select(&drag_project, drag_object->id)) return 1;
+        drag_state.mode = EDITOR_VIEWPORT_OBJECT;
+        drag_state.selection = EDITOR_SELECTION_OBJECT;
+        if(!editor_viewport_update(&drag_state, &drag_project, center,
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) || !drag_state.dragged_body ||
+                drag_state.mode != EDITOR_VIEWPORT_RIGID_BODY ||
+                drag_state.selected_rigid_body != drag_body->id) return 1;
+        if(!editor_viewport_update(&drag_state, &drag_project,
+                (Position){center.x + 20.0f, center.y}, MOUSE_BUTTON_STATE_DOWN,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                fabsf(drag_body->position.x - 20.0f) > 0.001f) return 1;
+        editor_viewport_state_destroy(&drag_state);
+        editor_project_destroy(&drag_project);
+    }
+    {
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
             EDITOR_MENU_HEIGHT +
                 (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};

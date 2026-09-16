@@ -4350,6 +4350,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         if(!object->visible || !candidate_body->visible) continue;
         for(size_t box_index = 0; box_index < candidate_body->hitbox_count; box_index += 1) {
             EditorHitbox *candidate = &candidate_body->hitboxes[box_index];
+            bool body_selected_for_drag = false;
             if(!candidate->visible ||
                     !editor_hitbox_point_contains(object, candidate_body, candidate, pointer)) {
                 continue;
@@ -4368,6 +4369,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->selection = EDITOR_SELECTION_RIGID_BODY;
                 state->selected_rigid_body = candidate_body->id;
                 state->mode = EDITOR_VIEWPORT_RIGID_BODY;
+                body_selected_for_drag = true;
             } else if(state->selected_rigid_body != candidate_body->id ||
                     (state->mode != EDITOR_VIEWPORT_RIGID_BODY &&
                     state->mode != EDITOR_VIEWPORT_HITBOX &&
@@ -4377,11 +4379,19 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->selected_rigid_body = candidate_body->id;
                 state->mode = EDITOR_VIEWPORT_RIGID_BODY;
                 state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+                body_selected_for_drag = true;
             } else {
                 state->selection = EDITOR_SELECTION_HITBOX;
                 state->selected_rigid_body = candidate_body->id;
                 state->selected_hitbox = candidate->id;
                 editor_viewport_hitbox_editor_enter(state);
+            }
+            if(body_selected_for_drag) {
+                state->dragged_body = true;
+                state->drag_offset = (Vec2D){
+                    pointer.x - object->position.x - candidate_body->position.x,
+                    pointer.y - object->position.y - candidate_body->position.y
+                };
             }
             return true;
         }
