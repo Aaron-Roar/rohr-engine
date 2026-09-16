@@ -22,11 +22,11 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Rigid Body", rigid_body_label); CREATE("Rotation", rotation_label);
+    CREATE("Attachment", attachment_label); CREATE("Rotation", rotation_label);
     CREATE("None", none_label); CREATE("Global Position", position_global_label);
-    CREATE("Body Position", position_body_label);
+    CREATE("Attachment Position", position_body_label);
     CREATE("Global Rotation", rotation_global_label);
-    CREATE("Body Rotation", rotation_body_label);
+    CREATE("Attachment Rotation", rotation_body_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
@@ -39,6 +39,10 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
         char name[32]; snprintf(name, sizeof(name), "body_%zu", i + 1);
         if(!editor_mode_text_create(font, name, &editor->body_names[i])) goto fail;
     }
+    for(size_t i = 0; i < EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX; i += 1) {
+        char name[32]; snprintf(name, sizeof(name), "node_%zu", i + 1);
+        if(!editor_mode_text_create(font, name, &editor->node_names[i])) goto fail;
+    }
     return true;
 fail:
     editor_anchor_editor_destroy(editor);
@@ -49,7 +53,7 @@ void editor_anchor_editor_destroy(EditorAnchorEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label);
-    DESTROY(rigid_body_label); DESTROY(rotation_label); DESTROY(none_label);
+    DESTROY(attachment_label); DESTROY(rotation_label); DESTROY(none_label);
     DESTROY(position_global_label); DESTROY(position_body_label);
     DESTROY(rotation_global_label); DESTROY(rotation_body_label);
     DESTROY(visible_label); DESTROY(hidden_label); DESTROY(delete_label);
@@ -59,6 +63,8 @@ void editor_anchor_editor_destroy(EditorAnchorEditor *editor) {
         rohr_graphics_text_destroy(&editor->anchor_names[i]);
     for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->body_names[i]);
+    for(size_t i = 0; i < EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX; i += 1)
+        rohr_graphics_text_destroy(&editor->node_names[i]);
     *editor = (EditorAnchorEditor){0};
 }
 
@@ -122,36 +128,76 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             .data.anchor_transform = {object->id, anchor->id, position, rotation}};
         (void)editor_command_execute(context->project, &command);
     }
-    rohr_ui_label(&editor->rigid_body_label,
+    rohr_ui_label(&editor->attachment_label,
         (UIRect){context->x + 8.0f, 158.0f, 90.0f, 28.0f});
     {
-        const TextAsset *options[EDITOR_RIGID_BODY_MAX + 1];
-        size_t selected = 0;
+        const size_t maximum = EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1;
+        const TextAsset *options[EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1];
+        EditorAnchorAttachmentKind kinds[EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
+        uint32_t target_ids[EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
+        EditorSoftBodyId parent_ids[EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
+        size_t selected = 0, count = 1, node_index = 0;
+        (void)maximum;
         options[0] = &editor->none_label;
         for(size_t i = 0; i < object->rigid_body_count &&
                 i < EDITOR_RIGID_BODY_MAX; i += 1) {
             if(!editor_mode_named_text_sync(editor->font, object->rigid_bodies[i].name,
                     &editor->body_names[i], editor->body_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return false;
-            options[i + 1] = &editor->body_names[i];
-            if(object->rigid_bodies[i].id == anchor->rigid_body) selected = i + 1;
+            options[count] = &editor->body_names[i];
+            kinds[count] = EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY;
+            target_ids[count] = object->rigid_bodies[i].id;
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY &&
+                    object->rigid_bodies[i].id == anchor->rigid_body) selected = count;
+            count += 1;
         }
-        UIDropdownResult result = rohr_ui_dropdown("editor.anchor.rigid_body",
-            options, object->rigid_body_count + 1, selected,
+        for(size_t b = 0; b < object->soft_body_count; b += 1) {
+            EditorSoftBody *soft = &object->soft_body_items[b];
+            for(size_t n = 0; n < soft->node_count; n += 1) {
+                if(node_index >= EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX) break;
+                if(!editor_mode_named_text_sync(editor->font, soft->nodes[n].name,
+                        &editor->node_names[node_index], editor->node_cache[node_index],
+                        EDITOR_OBJECT_NAME_MAX)) return false;
+                options[count] = &editor->node_names[node_index++];
+                kinds[count] = EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE;
+                target_ids[count] = soft->nodes[n].id;
+                parent_ids[count] = soft->id;
+                if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+                        anchor->attachment_soft_body == soft->id &&
+                        anchor->attachment_soft_node == soft->nodes[n].id)
+                    selected = count;
+                count += 1;
+            }
+        }
+        UIDropdownResult result = rohr_ui_dropdown("editor.anchor.attachment",
+            options, count, selected,
             (UIRect){context->x + 100.0f, 158.0f,
                 context->width - 110.0f, 28.0f}, NULL);
         if(result.hovered_index >= 0) {
             size_t option = (size_t)result.hovered_index;
-            context->viewport->preview_rigid_body = option == 0 ||
-                option > object->rigid_body_count ? 0 :
-                object->rigid_bodies[option - 1].id;
-        } else if(result.button_hovered)
-            context->viewport->preview_rigid_body = anchor->rigid_body;
+            if(option < count && kinds[option] == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY)
+                context->viewport->preview_rigid_body = target_ids[option];
+            else if(option < count && kinds[option] == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)
+                context->viewport->preview_soft_node = target_ids[option];
+        } else if(result.button_hovered) {
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY)
+                context->viewport->preview_rigid_body = anchor->rigid_body;
+            else if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)
+                context->viewport->preview_soft_node = anchor->attachment_soft_node;
+        }
         if(result.changed) {
             EditorCommand command = {.type = EDITOR_COMMAND_RELATIONSHIP_SET,
-                .data.relationship_set = {EDITOR_RELATIONSHIP_ANCHOR_RIGID_BODY,
-                    object->id, 0, anchor->id, 0, result.selected_index == 0 ? 0 :
-                        object->rigid_bodies[result.selected_index - 1].id}};
+                .data.relationship_set = {kinds[result.selected_index] ==
+                        EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ?
+                        EDITOR_RELATIONSHIP_ANCHOR_SOFT_NODE :
+                        EDITOR_RELATIONSHIP_ANCHOR_RIGID_BODY,
+                    object->id, parent_ids[result.selected_index], anchor->id, 0,
+                    target_ids[result.selected_index]}};
             (void)editor_command_execute(context->project, &command);
         }
     }
@@ -169,22 +215,27 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
     {
         const TextAsset *position_options[] = {&editor->position_global_label,
             &editor->position_body_label};
+        const TextAsset *soft_position_options[] = {&editor->position_body_label};
         const TextAsset *rotation_options[] = {&editor->rotation_global_label,
             &editor->rotation_body_label};
+        bool soft_node = anchor->attachment_kind ==
+            EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE;
         UIDropdownResult position_result = rohr_ui_dropdown(
-            "editor.anchor.position_lock", position_options, 2,
-            anchor->position_follows_body ? 1 : 0,
+            "editor.anchor.position_lock", soft_node ? soft_position_options :
+                position_options, soft_node ? 1 : 2,
+            soft_node ? 0 : anchor->position_follows_body ? 1 : 0,
             (UIRect){context->x + 10.0f, 226.0f,
                 context->width - 20.0f, 28.0f}, NULL);
         UIDropdownResult orientation_result = rohr_ui_dropdown(
-            "editor.anchor.rotation_lock", rotation_options, 2,
-            anchor->rotation_follows_body ? 1 : 0,
+            "editor.anchor.rotation_lock", rotation_options,
+            soft_node ? 1 : 2, soft_node ? 0 :
+                anchor->rotation_follows_body ? 1 : 0,
             (UIRect){context->x + 10.0f, 258.0f,
                 context->width - 20.0f, 28.0f}, NULL);
-        if(position_result.changed) boolean_set(context->project, object->id,
+        if(position_result.changed && !soft_node) boolean_set(context->project, object->id,
             anchor->id, EDITOR_PROPERTY_POSITION_FOLLOWS_BODY,
             position_result.selected_index == 1);
-        if(orientation_result.changed) boolean_set(context->project, object->id,
+        if(orientation_result.changed && !soft_node) boolean_set(context->project, object->id,
             anchor->id, EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY,
             orientation_result.selected_index == 1);
     }

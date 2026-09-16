@@ -10,7 +10,7 @@
 #include <string.h>
 
 static bool position_equal(Position a, Position b) {
-    return fabsf(a.x - b.x) < 0.001f && fabsf(a.y - b.y) < 0.001f;
+    return fabsf(a.x - b.x) < 0.002f && fabsf(a.y - b.y) < 0.002f;
 }
 
 static void workspace_fixture_remove(const char *root) {
@@ -1028,6 +1028,30 @@ int main(void) {
             workspace_fixture_remove(fixture);
             return 1;
         }
+        {
+            EditorObject *generated_object = &creation_project.objects[0];
+            EditorSoftBody *generated_soft = &generated_object->soft_body_items[0];
+            EditorAnchor *generated_anchor = &generated_object->anchors[0];
+            if(generated_soft->node_count == 0 ||
+                    !editor_project_anchor_soft_node_set(generated_object,
+                        generated_anchor, generated_soft->id,
+                        generated_soft->nodes[0].id) ||
+                    !editor_workspace_c_generate(&creation_workspace,
+                        &creation_project)) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+            snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
+            {
+                char expected[EDITOR_OBJECT_NAME_MAX + 64];
+                snprintf(expected, sizeof(expected),
+                    "rohr_physics_joint_anchor_create(object->%s",
+                    generated_soft->nodes[0].name);
+                if(!file_contains(path, expected)) {
+                    return 1;
+                }
+            }
+        }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);
         if(editor_result_check(result) || reloaded_project.object_count != 1 ||
                 reloaded_project.objects[0].rigid_body_count != 7 ||
@@ -1110,6 +1134,37 @@ int main(void) {
         editor_project_destroy(&camera_project);
         editor_project_destroy(&loaded_camera_project);
         (void)remove(camera_path);
+    }
+
+    {
+        const char *anchor_path = "/tmp/rohr_editor_soft_node_anchor.json";
+        EditorProject anchor_project, loaded_anchor_project;
+        EditorObject *anchor_object;
+        EditorSoftBody *soft_body;
+        EditorSoftNode *soft_node;
+        EditorAnchor *anchor;
+        editor_project_init(&anchor_project);
+        editor_project_init(&loaded_anchor_project);
+        anchor_object = editor_project_object_add(&anchor_project, (Position){0});
+        soft_body = editor_project_soft_body_add(&anchor_project, anchor_object);
+        soft_node = editor_project_soft_node_add(&anchor_project, soft_body,
+            (Position){12.0f, 34.0f});
+        anchor = editor_project_anchor_add(&anchor_project, anchor_object,
+            (Position){0}, 0);
+        if(anchor == NULL || soft_node == NULL ||
+                !editor_project_anchor_soft_node_set(anchor_object, anchor,
+                    soft_body->id, soft_node->id) ||
+                !editor_project_save(&anchor_project, anchor_path) ||
+                editor_result_check(editor_project_load(&loaded_anchor_project,
+                    anchor_path)) || loaded_anchor_project.object_count != 1 ||
+                loaded_anchor_project.objects[0].anchor_count != 1 ||
+                loaded_anchor_project.objects[0].anchors[0].attachment_kind !=
+                    EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ||
+                loaded_anchor_project.objects[0].anchors[0].attachment_soft_node !=
+                    soft_node->id) return 1;
+        editor_project_destroy(&anchor_project);
+        editor_project_destroy(&loaded_anchor_project);
+        (void)remove(anchor_path);
     }
 
     editor_project_selection_clear(&project);

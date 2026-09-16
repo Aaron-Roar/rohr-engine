@@ -168,6 +168,14 @@ static const EditorSoftNode *editor_workspace_soft_node_get(
     return NULL;
 }
 
+static const EditorSoftBody *editor_workspace_soft_body_get(
+        const EditorObject *object, EditorSoftBodyId id) {
+    if(object == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < object->soft_body_count; i += 1)
+        if(object->soft_body_items[i].id == id) return &object->soft_body_items[i];
+    return NULL;
+}
+
 static void editor_workspace_hitbox_rectangle_set(EditorProject *project,
     EditorHitbox *hitbox, float width, float height) {
     Position vertices[4] = {
@@ -707,8 +715,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
             const EditorAnchor *anchor = &object->anchors[anchor_index];
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) continue;
             fprintf(header, "    JointAnchorId anchor_%s;\n", anchor->name);
-            if(editor_workspace_body_get(object, anchor->rigid_body) == NULL ||
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_NONE ||
                     !anchor->position_follows_body)
                 fprintf(header, "    Entity anchor_%s_owner;\n", anchor->name);
         }
@@ -943,7 +952,21 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             const EditorAnchor *anchor = &object->anchors[anchor_index];
             const EditorRigidBody *body = editor_workspace_body_get(
                 object, anchor->rigid_body);
-            if(body != NULL && anchor->position_follows_body) {
+            const EditorSoftBody *soft_body = editor_workspace_soft_body_get(
+                object, anchor->attachment_soft_body);
+            const EditorSoftNode *soft_node = editor_workspace_soft_node_get(
+                soft_body, anchor->attachment_soft_node);
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+                    soft_node != NULL && anchor->position_follows_body) {
+                fprintf(source,
+                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
+                    "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
+                    "      if(rohr_error_check(created)) { result = rohr_error_result_error("
+                    "created.result.error); goto fail; }\n"
+                    "      object->anchor_%s = created.result.value; }\n",
+                    soft_node->name, anchor->position.x, anchor->position.y,
+                    anchor->name);
+            } else if(body != NULL && anchor->position_follows_body) {
                 fprintf(source,
                     "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
                     "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
@@ -965,6 +988,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             const EditorAnchor *anchor_a = editor_workspace_anchor_get(object, joint->anchor_a);
             const EditorAnchor *anchor_b = editor_workspace_anchor_get(object, joint->anchor_b);
             if(anchor_a == NULL || anchor_b == NULL) continue;
+            if(anchor_a->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ||
+                    anchor_b->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) continue;
             fprintf(source,
                 "    { EntityResult added = rohr_entity_add();\n"
                 "      if(rohr_error_check(added)) { result = rohr_error_result_error("
@@ -1110,6 +1135,59 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body->name, node->name, node->color);
             }
         }
+        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
+            const EditorAnchor *anchor = &object->anchors[anchor_index];
+            const EditorSoftBody *soft_body;
+            const EditorSoftNode *soft_node;
+            if(anchor->attachment_kind != EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) continue;
+            soft_body = editor_workspace_soft_body_get(object,
+                anchor->attachment_soft_body);
+            soft_node = editor_workspace_soft_node_get(soft_body,
+                anchor->attachment_soft_node);
+            if(soft_node == NULL) {
+                fclose(header);
+                fclose(source);
+                return false;
+            }
+            fprintf(source,
+                "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
+                "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
+                "      if(rohr_error_check(created)) { result = rohr_error_result_error("
+                "created.result.error); goto fail; }\n"
+                "      object->anchor_%s = created.result.value; }\n",
+                soft_node->name, anchor->position.x, anchor->position.y,
+                anchor->name);
+        }
+        for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
+            const EditorJoint *joint = &object->joint_items[joint_index];
+            const EditorAnchor *anchor_a = editor_workspace_anchor_get(object,
+                joint->anchor_a);
+            const EditorAnchor *anchor_b = editor_workspace_anchor_get(object,
+                joint->anchor_b);
+            if(anchor_a == NULL || anchor_b == NULL ||
+                    (anchor_a->attachment_kind != EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+                    anchor_b->attachment_kind != EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)) continue;
+            fprintf(source,
+                "    { EntityResult added = rohr_entity_add();\n"
+                "      if(rohr_error_check(added)) { result = rohr_error_result_error("
+                "added.result.error); goto fail; }\n"
+                "      object->joint_%s = added.result.value; }\n",
+                joint->name);
+            if(joint->kind == EDITOR_JOINT_REVOLUTE) fprintf(source,
+                "    result = rohr_physics_joint_pin_set(object->joint_%s, "
+                "object->anchor_%s, object->anchor_%s);\n",
+                joint->name, anchor_a->name, anchor_b->name);
+            else if(joint->kind == EDITOR_JOINT_WELD) fprintf(source,
+                "    result = rohr_physics_joint_weld_set(object->joint_%s, "
+                "object->anchor_%s, object->anchor_%s);\n",
+                joint->name, anchor_a->name, anchor_b->name);
+            else fprintf(source,
+                "    result = rohr_physics_joint_spring_set(object->joint_%s, "
+                "object->anchor_%s, object->anchor_%s, %#.9gf, %#.9gf, %#.9gf);\n",
+                joint->name, anchor_a->name, anchor_b->name,
+                joint->rest_length, joint->stiffness, joint->damping);
+            fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
+        }
         for(size_t camera_index = 0; camera_index < object->camera_count;
                 camera_index += 1) {
             const EditorCamera *camera = &object->cameras[camera_index];
@@ -1132,7 +1210,14 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             } else if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) {
                 const EditorAnchor *anchor = editor_project_anchor_get(
                     (EditorObject *)object, camera->attachment);
-                if(anchor != NULL && editor_workspace_body_get(object,
+                if(anchor != NULL && anchor->attachment_kind ==
+                        EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
+                    const EditorSoftBody *soft_body = editor_workspace_soft_body_get(
+                        object, anchor->attachment_soft_body);
+                    const EditorSoftNode *node = editor_workspace_soft_node_get(
+                        soft_body, anchor->attachment_soft_node);
+                    if(node != NULL) target_name = node->name;
+                } else if(anchor != NULL && editor_workspace_body_get(object,
                         anchor->rigid_body) == NULL)
                     snprintf(target, sizeof(target), "anchor_%s_owner", anchor->name);
                 else if(anchor != NULL) {
@@ -1240,7 +1325,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
             const EditorAnchor *anchor = &object->anchors[anchor_index];
-            if(editor_workspace_body_get(object, anchor->rigid_body) == NULL ||
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_NONE ||
                     !anchor->position_follows_body)
                 fprintf(source,
                     "    if(object->anchor_%s_owner != ENTITY_INVALID) "

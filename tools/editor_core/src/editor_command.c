@@ -1180,6 +1180,14 @@ property_invalid:
                     parent = candidate->parent;
                 }
                 body->parent = set->target;
+            } else if(set->kind == EDITOR_RELATIONSHIP_ANCHOR_SOFT_NODE) {
+                EditorAnchor *anchor = editor_project_anchor_get(object, set->item);
+                if(anchor == NULL) return editor_command_not_found("anchor", set->item);
+                if(!editor_project_anchor_soft_node_set(object, anchor,
+                        set->parent, set->target))
+                    return editor_command_error(editor_result_error(
+                        EDITOR_ERROR_INVALID_ARGUMENT,
+                        "anchor soft-node attachment is invalid").result.error);
             } else {
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,

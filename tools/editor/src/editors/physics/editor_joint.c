@@ -47,7 +47,9 @@ static void anchor_preview_set(EditorViewportState *viewport,
     anchor = editor_project_anchor_get(object, id);
     if(anchor == NULL) return;
     viewport->preview_anchor = anchor->id;
-    viewport->preview_rigid_body = anchor->rigid_body;
+    if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE)
+        viewport->preview_soft_node = anchor->attachment_soft_node;
+    else viewport->preview_rigid_body = anchor->rigid_body;
 }
 
 static UIButtonStyle selected_style_get(void) {

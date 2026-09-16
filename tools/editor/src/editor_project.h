@@ -142,12 +142,21 @@ typedef enum EditorJointKind {
     EDITOR_JOINT_SPRING
 } EditorJointKind;
 
+typedef enum EditorAnchorAttachmentKind {
+    EDITOR_ANCHOR_ATTACHMENT_NONE,
+    EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY,
+    EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE
+} EditorAnchorAttachmentKind;
+
 typedef struct EditorAnchor {
     EditorAnchorId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
     float rotation;
     EditorRigidBodyId rigid_body;
+    EditorAnchorAttachmentKind attachment_kind;
+    EditorSoftBodyId attachment_soft_body;
+    EditorSoftNodeId attachment_soft_node;
     bool position_follows_body;
     bool rotation_follows_body;
     bool visible;
@@ -510,6 +519,8 @@ EditorLayoutViewport *editor_project_layout_viewport_get(EditorProject *project,
     EditorLayoutViewportId id);
 bool editor_project_layout_viewport_remove(EditorProject *project,
     EditorLayoutViewportId id);
+bool editor_project_anchor_soft_node_set(EditorObject *object,
+    EditorAnchor *anchor, EditorSoftBodyId body, EditorSoftNodeId node);
 EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
     EditorLayoutViewport *viewport, EditorObjectId object, EditorCameraId camera);
 bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,

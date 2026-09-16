@@ -1351,6 +1351,7 @@ bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id
                 (void)editor_project_anchor_rotation_lock_set(object, anchor, false);
             }
             anchor->rigid_body = 0;
+            anchor->attachment_kind = EDITOR_ANCHOR_ATTACHMENT_NONE;
         }
         for(size_t j = 0; j < object->animated_sprite_count; j += 1)
             if(object->animated_sprite_items[j].rigid_body == id)
@@ -1423,7 +1424,9 @@ EditorAnchor *editor_project_anchor_add(EditorProject *project, EditorObject *ob
             object->anchor_count + 1)) return NULL;
     anchor = &object->anchors[object->anchor_count++];
     *anchor = (EditorAnchor){.id = project->next_anchor_id++, .position = position,
-        .rigid_body = rigid_body, .position_follows_body = rigid_body != 0,
+        .rigid_body = rigid_body, .attachment_kind = rigid_body != 0 ?
+            EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY : EDITOR_ANCHOR_ATTACHMENT_NONE,
+        .position_follows_body = rigid_body != 0,
         .rotation_follows_body = rigid_body != 0, .visible = true};
     snprintf(anchor->name, sizeof(anchor->name), "anchor_%u", anchor->id);
     return anchor;
@@ -1478,9 +1481,17 @@ bool editor_project_anchor_rigid_body_set(EditorObject *object, EditorAnchor *an
 
     if(object == NULL || anchor == NULL || (rigid_body != 0 &&
             editor_project_rigid_body_get(object, rigid_body) == NULL)) return false;
-    if(anchor->rigid_body == rigid_body) return true;
+    if(anchor->attachment_kind == (rigid_body != 0 ?
+            EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY : EDITOR_ANCHOR_ATTACHMENT_NONE) &&
+            anchor->rigid_body == rigid_body) return true;
     position_locked = anchor->position_follows_body;
     rotation_locked = anchor->rotation_follows_body;
+    if(anchor->attachment_kind != EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY) {
+        anchor->position_follows_body = false;
+        anchor->rotation_follows_body = false;
+        position_locked = rigid_body != 0;
+        rotation_locked = rigid_body != 0;
+    }
     if(position_locked && !editor_project_anchor_position_lock_set(object, anchor, false)) {
         return false;
     }
@@ -1488,10 +1499,42 @@ bool editor_project_anchor_rigid_body_set(EditorObject *object, EditorAnchor *an
         return false;
     }
     anchor->rigid_body = rigid_body;
+    anchor->attachment_kind = rigid_body != 0 ?
+        EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY : EDITOR_ANCHOR_ATTACHMENT_NONE;
+    anchor->attachment_soft_body = 0;
+    anchor->attachment_soft_node = 0;
     if(rigid_body != 0) {
         if(position_locked) (void)editor_project_anchor_position_lock_set(object, anchor, true);
         if(rotation_locked) (void)editor_project_anchor_rotation_lock_set(object, anchor, true);
     }
+    return true;
+}
+
+bool editor_project_anchor_soft_node_set(EditorObject *object,
+        EditorAnchor *anchor, EditorSoftBodyId body_id, EditorSoftNodeId node_id) {
+    EditorSoftBody *body = NULL;
+    EditorSoftNode *node = NULL;
+    if(object == NULL || anchor == NULL) return false;
+    if(body_id == 0 && node_id == 0)
+        return editor_project_anchor_rigid_body_set(object, anchor, 0);
+    for(size_t i = 0; i < object->soft_body_count; i += 1)
+        if(object->soft_body_items[i].id == body_id) body = &object->soft_body_items[i];
+    if(body != NULL) for(size_t i = 0; i < body->node_count; i += 1)
+        if(body->nodes[i].id == node_id) node = &body->nodes[i];
+    if(node == NULL) return false;
+    if(anchor->position_follows_body && anchor->attachment_kind ==
+            EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY)
+        (void)editor_project_anchor_position_lock_set(object, anchor, false);
+    if(anchor->rotation_follows_body && anchor->attachment_kind ==
+            EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY)
+        (void)editor_project_anchor_rotation_lock_set(object, anchor, false);
+    anchor->rigid_body = 0;
+    anchor->attachment_kind = EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE;
+    anchor->attachment_soft_body = body_id;
+    anchor->attachment_soft_node = node_id;
+    anchor->position = (Position){0};
+    anchor->position_follows_body = true;
+    anchor->rotation_follows_body = false;
     return true;
 }
 
@@ -1728,6 +1771,23 @@ bool editor_project_hitbox_line_length_set(EditorHitbox *hitbox,
 static Position editor_anchor_world_position_get(EditorObject *object,
     EditorAnchor *anchor) {
     EditorRigidBody *body = editor_project_rigid_body_get(object, anchor->rigid_body);
+    if(anchor != NULL && anchor->attachment_kind ==
+            EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
+        for(size_t i = 0; i < object->soft_body_count; i += 1) {
+            EditorSoftBody *soft = &object->soft_body_items[i];
+            if(soft->id != anchor->attachment_soft_body) continue;
+            for(size_t n = 0; n < soft->node_count; n += 1) {
+                EditorSoftNode *node = &soft->nodes[n];
+                if(node->id != anchor->attachment_soft_node) continue;
+                float cosine = cosf(soft->rotation), sine = sinf(soft->rotation);
+                return (Position){soft->position.x +
+                    node->position.x * cosine - node->position.y * sine +
+                    anchor->position.x,
+                    soft->position.y + node->position.x * sine +
+                    node->position.y * cosine + anchor->position.y};
+            }
+        }
+    }
     if(body != NULL && anchor->position_follows_body) {
         Position offset = editor_position_rotate(anchor->position, body->rotation);
         return (Position){body->position.x + offset.x, body->position.y + offset.y};
@@ -2109,6 +2169,24 @@ size_t editor_project_soft_body_hierarchy_index_get(const EditorSoftBody *body,
 bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *body,
         EditorSoftNodeId id) {
     if(project == NULL || body == NULL || id == 0) return false;
+    for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
+        EditorObject *object = &project->objects[object_index];
+        bool owns_body = false;
+        for(size_t i = 0; i < object->soft_body_count; i += 1)
+            if(&object->soft_body_items[i] == body) owns_body = true;
+        if(!owns_body) continue;
+        for(size_t i = 0; i < object->anchor_count; i += 1) {
+            EditorAnchor *anchor = &object->anchors[i];
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+                    anchor->attachment_soft_body == body->id &&
+                    anchor->attachment_soft_node == id) {
+                anchor->attachment_kind = EDITOR_ANCHOR_ATTACHMENT_NONE;
+                anchor->attachment_soft_body = 0;
+                anchor->attachment_soft_node = 0;
+                anchor->position_follows_body = false;
+            }
+        }
+    }
     for(size_t i = 0; i < body->node_count; i += 1) {
         if(body->nodes[i].id != id) continue;
         for(size_t j = 0; j < body->beam_count; j += 1) {

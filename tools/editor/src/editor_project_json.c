@@ -186,6 +186,12 @@ static yyjson_mut_val *editor_json_anchor_write(yyjson_mut_doc *document,
         editor_json_position_write(document, anchor->position));
     yyjson_mut_obj_add_real(document, value, "rotation", anchor->rotation);
     yyjson_mut_obj_add_uint(document, value, "rigid_body", anchor->rigid_body);
+    yyjson_mut_obj_add_uint(document, value, "attachment_kind",
+        anchor->attachment_kind);
+    yyjson_mut_obj_add_uint(document, value, "attachment_soft_body",
+        anchor->attachment_soft_body);
+    yyjson_mut_obj_add_uint(document, value, "attachment_soft_node",
+        anchor->attachment_soft_node);
     yyjson_mut_obj_add_bool(document, value, "position_follows_body",
         anchor->position_follows_body);
     yyjson_mut_obj_add_bool(document, value, "rotation_follows_body",
@@ -792,6 +798,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
 
 static bool editor_json_anchor_read(yyjson_val *value, EditorAnchor *anchor,
     EditorProject *project) {
+    yyjson_val *attachment_kind = yyjson_obj_get(value, "attachment_kind");
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &anchor->id) ||
             anchor->id == 0 || !editor_json_name(value, anchor->name) ||
             !editor_json_position_read(yyjson_obj_get(value, "position"), &anchor->position) ||
@@ -800,6 +807,19 @@ static bool editor_json_anchor_read(yyjson_val *value, EditorAnchor *anchor,
             !editor_json_bool(value, "position_follows_body", &anchor->position_follows_body) ||
             !editor_json_bool(value, "rotation_follows_body", &anchor->rotation_follows_body) ||
             !editor_json_bool(value, "visible", &anchor->visible)) return false;
+    if(attachment_kind == NULL) {
+        anchor->attachment_kind = anchor->rigid_body != 0 ?
+            EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY : EDITOR_ANCHOR_ATTACHMENT_NONE;
+    } else {
+        uint32_t kind;
+        if(!editor_json_uint(value, "attachment_kind", &kind) ||
+                kind > EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE ||
+                !editor_json_uint(value, "attachment_soft_body",
+                    &anchor->attachment_soft_body) ||
+                !editor_json_uint(value, "attachment_soft_node",
+                    &anchor->attachment_soft_node)) return false;
+        anchor->attachment_kind = (EditorAnchorAttachmentKind)kind;
+    }
     editor_project_property_name_format(anchor->name, sizeof(anchor->name), anchor->name);
     if(project->next_anchor_id <= anchor->id) project->next_anchor_id = anchor->id + 1;
     return true;
@@ -1056,9 +1076,22 @@ static bool editor_json_references_valid(EditorProject *project) {
             if((body->collision_category & ~valid_masks) != 0 ||
                     (body->collision_with & ~valid_masks) != 0) return false;
         }
-        for(size_t j = 0; j < object->anchor_count; j += 1)
-            if(object->anchors[j].rigid_body != 0 && editor_project_rigid_body_get(
-                    object, object->anchors[j].rigid_body) == NULL) return false;
+        for(size_t j = 0; j < object->anchor_count; j += 1) {
+            EditorAnchor *anchor = &object->anchors[j];
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY &&
+                    (anchor->rigid_body == 0 || editor_project_rigid_body_get(
+                        object, anchor->rigid_body) == NULL)) return false;
+            if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
+                EditorSoftBody *body = NULL;
+                bool found = false;
+                for(size_t b = 0; b < object->soft_body_count; b += 1)
+                    if(object->soft_body_items[b].id == anchor->attachment_soft_body)
+                        body = &object->soft_body_items[b];
+                if(body != NULL) for(size_t n = 0; n < body->node_count; n += 1)
+                    if(body->nodes[n].id == anchor->attachment_soft_node) found = true;
+                if(!found) return false;
+            }
+        }
         for(size_t j = 0; j < object->joint_count; j += 1) {
             EditorJoint *joint = &object->joint_items[j];
             if((joint->anchor_a != 0 && editor_project_anchor_get(object, joint->anchor_a) == NULL) ||

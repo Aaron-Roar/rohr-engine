@@ -387,6 +387,40 @@ int main(void) {
         rohr_ui_frame_end();
     }
 
+    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+        .primary_button = MOUSE_BUTTON_STATE_PRESSED});
+    (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
+        100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
+    (void)rohr_ui_dropdown(
+        "nested-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+    rohr_ui_scroll_region_end();
+    rohr_ui_frame_end();
+    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+        .primary_button = MOUSE_BUTTON_STATE_RELEASED});
+    (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
+        100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
+    if(!rohr_ui_dropdown("nested-dropdown", long_dropdown_options,
+            10, 0, bounds, NULL).open) return 1;
+    rohr_ui_scroll_region_end();
+    rohr_ui_frame_end();
+    {
+        SDL_Event wheel = {0};
+        UIScrollRegionResult parent;
+        UIDropdownResult dropdown;
+        wheel.type = SDL_EVENT_MOUSE_WHEEL;
+        wheel.wheel.y = -1.0f;
+        rohr_ui_field_event_add(&wheel);
+        rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f}});
+        parent = rohr_ui_scroll_region_begin("dropdown-parent",
+            (UIRect){0.0f, 0.0f, 100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
+        dropdown = rohr_ui_dropdown(
+            "nested-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+        rohr_ui_scroll_region_end();
+        if(parent.changed || fabsf(parent.offset) > 0.001f ||
+                !dropdown.open || dropdown.hovered_index != 1) return 1;
+        rohr_ui_frame_end();
+    }
+
     rohr_ui_frame_begin((UIInput){0});
     (void)rohr_ui_button("nav-a", NULL, (UIRect){0.0f, 0.0f, 80.0f, 20.0f}, NULL);
     (void)rohr_ui_button("nav-b", NULL, (UIRect){120.0f, 0.0f, 80.0f, 20.0f}, NULL);

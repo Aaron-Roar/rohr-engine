@@ -12,7 +12,7 @@ typedef struct EditorAnchorEditor {
     TextAsset name_label;
     TextAsset x_label;
     TextAsset y_label;
-    TextAsset rigid_body_label;
+    TextAsset attachment_label;
     TextAsset rotation_label;
     TextAsset none_label;
     TextAsset position_global_label;
@@ -27,8 +27,10 @@ typedef struct EditorAnchorEditor {
     TextAsset rotation_field;
     TextAsset anchor_names[EDITOR_ANCHOR_MAX];
     TextAsset body_names[EDITOR_RIGID_BODY_MAX];
+    TextAsset node_names[EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX];
     char anchor_cache[EDITOR_ANCHOR_MAX][EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
+    char node_cache[EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
 } EditorAnchorEditor;
 
 bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font);

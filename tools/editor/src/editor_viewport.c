@@ -347,6 +347,20 @@ static Position editor_anchor_world_get(const EditorObject *object,
     const EditorAnchor *anchor) {
     const EditorRigidBody *body = NULL;
     if(object == NULL || anchor == NULL) return (Position){0};
+    if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+            anchor->position_follows_body) {
+        for(size_t i = 0; i < object->soft_body_count; i += 1) {
+            const EditorSoftBody *soft = &object->soft_body_items[i];
+            if(soft->id != anchor->attachment_soft_body) continue;
+            for(size_t n = 0; n < soft->node_count; n += 1)
+                if(soft->nodes[n].id == anchor->attachment_soft_node) {
+                    Position node = editor_soft_node_world_get(object, soft,
+                        &soft->nodes[n]);
+                    return (Position){node.x + anchor->position.x,
+                        node.y + anchor->position.y};
+                }
+        }
+    }
     for(size_t i = 0; i < object->rigid_body_count; i += 1) {
         if(object->rigid_bodies[i].id == anchor->rigid_body) body = &object->rigid_bodies[i];
     }
@@ -366,6 +380,19 @@ static Position editor_anchor_world_local_get(const EditorObject *object,
     const EditorAnchor *anchor,
     const EditorRigidBody *body, Position world) {
     Position local = {world.x - object->position.x, world.y - object->position.y};
+    if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
+            anchor->position_follows_body) {
+        for(size_t i = 0; i < object->soft_body_count; i += 1) {
+            const EditorSoftBody *soft = &object->soft_body_items[i];
+            if(soft->id != anchor->attachment_soft_body) continue;
+            for(size_t n = 0; n < soft->node_count; n += 1)
+                if(soft->nodes[n].id == anchor->attachment_soft_node) {
+                    Position node = editor_soft_node_world_get(object, soft,
+                        &soft->nodes[n]);
+                    return (Position){world.x - node.x, world.y - node.y};
+                }
+        }
+    }
     if(body != NULL && anchor->position_follows_body) {
         float cosine = cosf(-body->rotation);
         float sine = sinf(-body->rotation);

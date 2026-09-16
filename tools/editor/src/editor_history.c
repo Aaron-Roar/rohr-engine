@@ -248,6 +248,10 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
                 kind = EDITOR_ITEM_SOFT_BEAM;
                 parent = command->data.relationship_set.parent;
             } else if(command->data.relationship_set.kind ==
+                    EDITOR_RELATIONSHIP_ANCHOR_SOFT_NODE) {
+                kind = EDITOR_ITEM_ANCHOR;
+                parent = 0;
+            } else if(command->data.relationship_set.kind ==
                     EDITOR_RELATIONSHIP_ENTITY_PARENT) {
                 kind = EDITOR_ITEM_RIGID_BODY;
                 parent = 0;
