@@ -17,7 +17,7 @@ void editor_project_launcher_state_init(EditorProjectLauncherState *state,
 EditorProjectLauncherRequest editor_project_launcher_state_draw(
         const EditorProjectLauncherState *state,
         float window_width,
-        float viewport_bottom) {
+        float window_height) {
     UIRect dialog;
 
     if(state == NULL || state->new_project_label == NULL ||
@@ -26,12 +26,12 @@ EditorProjectLauncherRequest editor_project_launcher_state_draw(
     dialog = (UIRect){
         window_width * 0.5f - 230.0f,
         EDITOR_MENU_HEIGHT +
-            (viewport_bottom - EDITOR_MENU_HEIGHT) * 0.5f - 90.0f,
+            (window_height - EDITOR_MENU_HEIGHT) * 0.5f - 90.0f,
         460.0f,
         180.0f
     };
     rohr_ui_surface((UIRect){0.0f, EDITOR_MENU_HEIGHT, window_width,
-        viewport_bottom - EDITOR_MENU_HEIGHT}, (Color){12, 14, 18, 255});
+        window_height - EDITOR_MENU_HEIGHT}, (Color){12, 14, 18, 255});
     rohr_ui_surface(dialog, (Color){42, 47, 58, 255});
     rohr_ui_border(dialog, 2.0f, (Color){8, 9, 12, 255});
     if(rohr_ui_button("editor.start.new", state->new_project_label,

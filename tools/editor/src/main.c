@@ -3591,7 +3591,7 @@ int main(void) {
                 EDITOR_APP_STATE_PROJECT_LAUNCHER && !file_browser.active) {
             EditorProjectLauncherRequest request =
                 editor_project_launcher_state_draw(&project_launcher_state,
-                    editor_window_width, EDITOR_VIEWPORT_BOTTOM);
+                    editor_window_width, EDITOR_WINDOW_HEIGHT);
             if(request == EDITOR_PROJECT_LAUNCHER_REQUEST_NEW_PROJECT) {
                 workspace_browser_action = EDITOR_WORKSPACE_BROWSER_NEW;
                 (void)editor_file_browser_open(&file_browser,

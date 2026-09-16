@@ -22,6 +22,6 @@ void editor_project_launcher_state_init(EditorProjectLauncherState *state,
     const TextAsset *new_project_label, const TextAsset *load_project_label);
 EditorProjectLauncherRequest editor_project_launcher_state_draw(
     const EditorProjectLauncherState *state, float window_width,
-    float viewport_bottom);
+    float window_height);
 
 #endif

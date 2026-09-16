@@ -5072,7 +5072,7 @@ void editor_viewport_draw(const EditorProject *project,
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
             (EditorProject *)project, state->selected_layout_viewport);
-        if(viewport != NULL) {
+        if(viewport != NULL && viewport->enabled) {
             float zoom = project->viewport_camera_zoom;
             Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
                 EDITOR_MENU_HEIGHT +
