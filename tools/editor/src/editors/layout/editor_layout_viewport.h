@@ -24,6 +24,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;
     TextAsset width_scale_label, height_scale_label;
+    TextAsset text_offset_x_label, text_offset_y_label;
     TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;
     TextAsset text_field, font_file_field, width_scale_field, height_scale_field;
     TextAsset length_field;
@@ -40,6 +41,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     FontAsset *font);
 void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor);
 bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
+    const EditorModeContext *context);
+bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     const EditorModeContext *context);
 bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     const EditorModeContext *context);

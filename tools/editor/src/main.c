@@ -594,6 +594,7 @@ static EditorNavigationState editor_navigation_state_get(
     EditorViewportMode persisted_mode;
     if(project == NULL || state == NULL) return (EditorNavigationState){0};
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
@@ -789,6 +790,7 @@ static bool editor_panel_delete_footer_check(EditorViewportMode mode) {
         mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
         mode == EDITOR_VIEWPORT_ANIMATION_FRAME ||
         mode == EDITOR_VIEWPORT_LAYOUT ||
+        mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
@@ -1409,6 +1411,16 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+        EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
+            viewport_state->selected_layout_viewport);
+        if(layout == NULL || !editor_viewport_camera_remove(layout,
+                viewport_state->selected_viewport_camera_item)) return false;
+        viewport_state->selected_viewport_camera_item = 0;
+        viewport_state->mode = EDITOR_VIEWPORT_LAYOUT;
+        viewport_state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+        return true;
+    }
     if(viewport_state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         if(!editor_project_layout_viewport_remove(project,
                 viewport_state->selected_layout_viewport)) return false;
@@ -2420,6 +2432,7 @@ int main(void) {
             if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT ||
+                    viewport_state.mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
@@ -2863,6 +2876,11 @@ int main(void) {
                 editor_mode_rigid_body_preview, &viewport_state,
                 editor_mode_animation_frame_browser_open, &browser_context,
                 additive_selection, &column_frame_multi_edit_open);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+            field_editing = editor_layout_camera_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -3024,6 +3042,10 @@ int main(void) {
                 case EDITOR_VIEWPORT_LAYOUT:
                     delete_label = &layout_viewport_editor.delete_label;
                     delete_id = "editor.layout.delete";
+                    break;
+                case EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR:
+                    delete_label = &layout_viewport_editor.remove_label;
+                    delete_id = "editor.layout.camera_item.delete";
                     break;
                 case EDITOR_VIEWPORT_UI_SHAPE_EDITOR:
                 case EDITOR_VIEWPORT_UI_TEXT_EDITOR:

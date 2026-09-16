@@ -50,6 +50,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Font Color", font_color_label);
     CREATE("Text Width Scale", width_scale_label);
     CREATE("Text Height Scale", height_scale_label);
+    CREATE("Text Offset X", text_offset_x_label);
+    CREATE("Text Offset Y", text_offset_y_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
     CREATE("", text_field); CREATE("", font_file_field);
@@ -85,6 +87,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
     DESTROY(width_scale_label); DESTROY(height_scale_label);
+    DESTROY(text_offset_x_label); DESTROY(text_offset_y_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
     DESTROY(text_field); DESTROY(font_file_field); DESTROY(width_scale_field);
@@ -213,11 +216,14 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 &editor->visible_icon : &editor->hidden_icon,
                 (UIRect){context->x + 8.0f, y, 34.0f, 28.0f}, NULL).clicked)
             item->placement.visible = !item->placement.visible;
-        if(rohr_ui_button(id, &editor->camera_names[i],
+        UIButtonResult camera_result = rohr_ui_button(id, &editor->camera_names[i],
                 (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
-                NULL).clicked)
+                NULL);
+        if(camera_result.clicked)
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
+        if(camera_result.double_clicked)
+            context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
         y += 32.0f;
     }
     for(size_t i = 0; i < viewport->ui_item_count &&
@@ -234,11 +240,14 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(rohr_ui_button(visibility_id, item->visible ? &editor->visible_icon :
                 &editor->hidden_icon, (UIRect){context->x + 8.0f, y,
                     34.0f, 28.0f}, NULL).clicked) item->visible = !item->visible;
-        if(rohr_ui_button(id, &editor->ui_names[i],
+        UIButtonResult ui_result = rohr_ui_button(id, &editor->ui_names[i],
                 (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
-                NULL).clicked) {
+                NULL);
+        if(ui_result.clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
+        }
+        if(ui_result.double_clicked) {
             context->viewport->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                 EDITOR_VIEWPORT_UI_SHAPE_EDITOR : EDITOR_VIEWPORT_UI_TEXT_EDITOR;
             context->viewport->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
@@ -251,7 +260,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         float layer;
         bool visible;
         UIFieldResult item_x, item_y, item_width, item_height, item_layer;
-        if(item->id != context->viewport->selected_viewport_camera_item) continue;
+        if(item->id != context->viewport->selected_viewport_camera_item ||
+                context->viewport->mode == EDITOR_VIEWPORT_LAYOUT) continue;
         y += 8.0f;
         item_x = layout_number(&editor->x_label, &editor->x_field,
             "editor.layout.camera.x", context->x, y, context->width,
@@ -296,7 +306,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         bool visible;
         UIFieldResult text_result, item_x, item_y, item_width, item_height,
             item_layer;
-        if(item->id != context->viewport->selected_viewport_ui_item) continue;
+        if(item->id != context->viewport->selected_viewport_ui_item ||
+                context->viewport->mode == EDITOR_VIEWPORT_LAYOUT) continue;
         y += 8.0f;
         rohr_ui_label(&editor->name_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
@@ -360,6 +371,48 @@ static EditorViewportUiItem *layout_ui_item_get(const EditorModeContext *context
         if(viewport->ui_items[i].id == context->viewport->selected_viewport_ui_item &&
                 viewport->ui_items[i].kind == kind) return &viewport->ui_items[i];
     return NULL;
+}
+
+bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
+        const EditorModeContext *context) {
+    EditorLayoutViewport *viewport;
+    EditorViewportCameraItem *item = NULL;
+    UIFieldResult x_result, y_result, width_result, height_result, layer_result;
+    float layer;
+    if(editor == NULL || context == NULL || context->project == NULL ||
+            context->viewport == NULL) return false;
+    viewport = editor_project_layout_viewport_get(context->project,
+        context->viewport->selected_layout_viewport);
+    if(viewport != NULL) for(size_t i = 0; i < viewport->camera_item_count; i += 1)
+        if(viewport->camera_items[i].id ==
+                context->viewport->selected_viewport_camera_item)
+            item = &viewport->camera_items[i];
+    if(item == NULL) return false;
+    if(rohr_ui_button("editor.layout.camera.visibility", item->placement.visible ?
+            &editor->visible_icon : &editor->hidden_icon,
+            (UIRect){context->x + 10.0f, 42.0f, 34.0f, 28.0f}, NULL).clicked)
+        item->placement.visible = !item->placement.visible;
+    rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, 42.0f,
+        context->width - 60.0f, 28.0f});
+    x_result = layout_number(&editor->x_label, &editor->x_field,
+        "editor.layout.camera_editor.x", context->x, 80.0f, context->width,
+        &item->placement.rectangle.x);
+    y_result = layout_number(&editor->y_label, &editor->y_field,
+        "editor.layout.camera_editor.y", context->x, 118.0f, context->width,
+        &item->placement.rectangle.y);
+    width_result = layout_number(&editor->width_label, &editor->width_field,
+        "editor.layout.camera_editor.width", context->x, 156.0f, context->width,
+        &item->placement.rectangle.width);
+    height_result = layout_number(&editor->height_label, &editor->height_field,
+        "editor.layout.camera_editor.height", context->x, 194.0f, context->width,
+        &item->placement.rectangle.height);
+    layer = (float)item->placement.layer;
+    layer_result = layout_number(&editor->layer_label, &editor->layer_field,
+        "editor.layout.camera_editor.layer", context->x, 232.0f, context->width,
+        &layer);
+    if(layer_result.changed) item->placement.layer = (int)layer;
+    return x_result.active || y_result.active || width_result.active ||
+        height_result.active || layer_result.active;
 }
 
 static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
@@ -534,11 +587,11 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
             .string_capacity = sizeof(text->text)}, &editor->text_field,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
     y += 38.0f;
-    UIFieldResult offset_x_result = layout_number(&editor->x_label,
+    UIFieldResult offset_x_result = layout_number(&editor->text_offset_x_label,
         &editor->x_field, "editor.ui_text.offset_x", context->x, y,
         context->width, &text->offset.x);
     y += 38.0f;
-    UIFieldResult offset_y_result = layout_number(&editor->y_label,
+    UIFieldResult offset_y_result = layout_number(&editor->text_offset_y_label,
         &editor->y_field, "editor.ui_text.offset_y", context->x, y,
         context->width, &text->offset.y);
     y += 38.0f;

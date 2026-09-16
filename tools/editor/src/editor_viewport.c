@@ -1593,6 +1593,10 @@ void editor_viewport_back(EditorViewportState *state) {
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
         state->selection = EDITOR_SELECTION_UI_SHAPE;
+    } else if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+        state->mode = EDITOR_VIEWPORT_LAYOUT;
+        state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+        state->selected_viewport_camera_item = 0;
     } else if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
         if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
@@ -2688,6 +2692,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
@@ -4630,6 +4635,7 @@ void editor_viewport_draw(const EditorProject *project,
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||

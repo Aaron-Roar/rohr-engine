@@ -1002,6 +1002,7 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
     snprintf(item->name, sizeof(item->name), "%s_%u",
         kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text", item->id);
     if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
+        item->border_enabled = true;
         item->value.shape.vertex_count = 4;
         item->value.shape.vertices[0] = (Position){0.0f, 0.0f};
         item->value.shape.vertices[1] = (Position){180.0f, 0.0f};
@@ -1015,6 +1016,8 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         item->value.shape.text.width_scale = 1.0f;
         item->value.shape.text.height_scale = 1.0f;
     } else {
+        snprintf(item->value.text.text, sizeof(item->value.text.text),
+            "sample text");
         item->value.text.color = 0xFFFFFFFFu;
         item->value.text.box_width = 160.0f;
         item->value.text.box_height = 28.0f;
