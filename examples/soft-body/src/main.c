@@ -382,8 +382,8 @@ static const float particle_radius = 3.0f;
 static const Mass particle_mass = 0.3;
 static const float particle_spacing = 17.0f;
 static const Position particle_spawn_origin = {438.5f, -170.0f};
-static const float camera_default_zoom = 1.0f;
-static const float camera_collision_zoom = 2.0f;
+static const float camera_default_zoom = 2.5f;
+static const float camera_collision_zoom = 5.0f;
 static const Time camera_collision_zoom_duration = 5.0;
 static const Time camera_collision_zoom_out_duration = 3.0;
 static const float camera_collision_physics_scale = 0.2f;
@@ -449,8 +449,10 @@ int main(void) {
     KeyboardState keyboard = {0};
     Controller controller = rohr_controller_default_get();
     Tick zoom_end_tick = 0;
+    Tick camera_return_end_tick = 0;
     bool collision_zoom_started = false;
     bool collision_slow_motion_active = false;
+    bool camera_returning = false;
     bool broadphase_debug = true;
     ViewportId viewport = VIEWPORT_INVALID;
 
@@ -558,11 +560,22 @@ int main(void) {
         {
             Tick ticks = rohr_system_tick_update();
             Tick current_tick = rohr_engine_tick_get();
+            if(camera_returning && current_tick >= camera_return_end_tick) {
+                if(!result_ok(rohr_camera_attach(rohr_camera_active_get(),
+                            chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
+                camera_returning = false;
+            }
             if(collision_slow_motion_active && current_tick >= zoom_end_tick) {
                 rohr_physics_engine_time_per_tick_use();
-                if(!result_ok(rohr_camera_zoom_set(
+                if(!result_ok(rohr_camera_position_from_entity_set(
+                            rohr_camera_active_get(), chassis,
+                            camera_collision_zoom_out_duration)) ||
+                        !result_ok(rohr_camera_zoom_set(
                             rohr_camera_active_get(), camera_default_zoom,
                             camera_collision_zoom_out_duration))) goto fail;
+                camera_return_end_tick = current_tick + (Tick)ceil(
+                    camera_collision_zoom_out_duration / physics_tick_time);
+                camera_returning = true;
                 collision_slow_motion_active = false;
             }
             if(ticks > 0) {
@@ -575,7 +588,10 @@ int main(void) {
             if(!collision_zoom_started) {
                 for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
                     if(!rohr_physics_contact_check(chassis, particles[i])) continue;
-                    if(!result_ok(rohr_camera_zoom_set(
+                    if(!result_ok(rohr_camera_position_from_entity_set(
+                                rohr_camera_active_get(), wheels[1].hub,
+                                camera_collision_zoom_duration)) ||
+                            !result_ok(rohr_camera_zoom_set(
                                 rohr_camera_active_get(), camera_collision_zoom,
                                 camera_collision_zoom_duration)) ||
                             !result_ok(rohr_physics_dt_per_tick_set(
