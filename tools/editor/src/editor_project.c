@@ -996,7 +996,9 @@ EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         .kind = kind, .position = {20.0f, 20.0f},
         .visible = true, .border_thickness = 2.0f,
         .border_hash_spacing = 6.0f, .border_color = 0xFFFFFFFFu,
-        .fill_color = 0x394052FFu};
+        .fill_color = 0x394052FFu, .hover_border_color = 0xD8E6FFFFu,
+        .hover_fill_color = 0x4A5870FFu, .click_border_color = 0xAFC8F0FFu,
+        .click_fill_color = 0x283246FFu};
     snprintf(item->name, sizeof(item->name), "%s_%u",
         kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text", item->id);
     if(kind == EDITOR_VIEWPORT_UI_SHAPE) {

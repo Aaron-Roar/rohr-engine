@@ -388,6 +388,10 @@ typedef struct EditorViewportUiItem {
     float border_corner_radius;
     uint32_t border_color;
     uint32_t fill_color;
+    uint32_t hover_border_color;
+    uint32_t hover_fill_color;
+    uint32_t click_border_color;
+    uint32_t click_fill_color;
     union {
         EditorViewportUiShape shape;
         EditorViewportUiText text;

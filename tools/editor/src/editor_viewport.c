@@ -2022,7 +2022,7 @@ static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
 
 static void editor_viewport_ui_text_draw(const EditorProject *project,
         const EditorViewportUiItem *item, size_t slot,
-        ViewportRectangle viewport, float zoom) {
+        ViewportRectangle viewport, float zoom, bool selected) {
     const char *value;
     uint32_t color;
     EditorUiFontId font_id;
@@ -2040,10 +2040,10 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     font_id = item->kind == EDITOR_VIEWPORT_UI_TEXT ? item->value.text.font :
         item->value.shape.text.font;
     text_scale = item->kind == EDITOR_VIEWPORT_UI_TEXT ?
-        (Scale){item->value.text.width_scale * zoom,
-            item->value.text.height_scale * zoom} :
-        (Scale){item->value.shape.text.width_scale * zoom,
-            item->value.shape.text.height_scale * zoom};
+        (Scale){item->value.text.width_scale * zoom * 2.0f,
+            item->value.text.height_scale * zoom * 2.0f} :
+        (Scale){item->value.shape.text.width_scale * zoom * 2.0f,
+            item->value.shape.text.height_scale * zoom * 2.0f};
     font = editor_viewport_ui_font_get(project, font_id);
     if(font == NULL) return;
     if(value[0] == '\0') return;
@@ -2085,6 +2085,16 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
             editor_viewport_ui_text_assets[slot].size.y * text_scale.y * 0.5f};
     (void)rohr_graphics_text_scaled_draw(&editor_viewport_ui_text_assets[slot],
         position, text_scale);
+    if(selected) {
+        float width = editor_viewport_ui_text_assets[slot].size.x * text_scale.x;
+        float height = editor_viewport_ui_text_assets[slot].size.y * text_scale.y;
+        Position corners[4] = {position, {position.x + width, position.y},
+            {position.x + width, position.y + height},
+            {position.x, position.y + height}};
+        for(size_t edge = 0; edge < 4; edge += 1)
+            editor_viewport_screen_dotted_line_draw(corners[edge],
+                corners[(edge + 1) % 4], (Color){255, 210, 70, 255}, 2.0f, 2.0f);
+    }
 }
 
 static EditorSoftBody *editor_group_soft_body_get(EditorObject *object,
@@ -4656,6 +4666,7 @@ void editor_viewport_draw(const EditorProject *project,
             }
             for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
+                if(!item->placement.visible) continue;
                 ViewportRectangle camera = item->placement.rectangle;
                 Color color = item->id == state->selected_viewport_camera_item ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
@@ -4673,15 +4684,32 @@ void editor_viewport_draw(const EditorProject *project,
             }
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
+                if(!item->visible) continue;
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 bool whole_selected = item->id == state->selected_viewport_ui_item &&
-                    (state->selection == EDITOR_SELECTION_UI_SHAPE ||
-                        state->selection == EDITOR_SELECTION_UI_TEXT);
-                Color color = whole_selected ? (Color){255, 210, 70, 255} :
-                    rohr_graphics_color_hex_create(item->border_color);
+                    state->selection == EDITOR_SELECTION_UI_SHAPE;
+                bool text_selected = item->id == state->selected_viewport_ui_item &&
+                    state->selection == EDITOR_SELECTION_UI_TEXT;
+                uint32_t displayed_border = item->border_color;
+                uint32_t displayed_fill = item->fill_color;
                 ui.x = rectangle.x + ui.x * zoom;
                 ui.y = rectangle.y + ui.y * zoom;
                 ui.width *= zoom; ui.height *= zoom;
+                if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                        item->value.shape.button_enabled) {
+                    Position pointer = rohr_graphics_mouse_screen_position_get();
+                    if(pointer.x >= ui.x && pointer.x <= ui.x + ui.width &&
+                            pointer.y >= ui.y && pointer.y <= ui.y + ui.height) {
+                        bool pressed = (SDL_GetMouseState(NULL, NULL) &
+                            SDL_BUTTON_LMASK) != 0;
+                        displayed_border = pressed ? item->click_border_color :
+                            item->hover_border_color;
+                        displayed_fill = pressed ? item->click_fill_color :
+                            item->hover_fill_color;
+                    }
+                }
+                Color color = whole_selected ? (Color){255, 210, 70, 255} :
+                    rohr_graphics_color_hex_create(displayed_border);
                 if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
                         item->value.shape.vertex_count >= 2) {
                     if(item->border_enabled &&
@@ -4696,9 +4724,10 @@ void editor_viewport_draw(const EditorProject *project,
                                 rectangle.y + (item->position.y +
                                     item->value.shape.vertices[vertex].y) * zoom};
                         (void)rohr_graphics_screen_shape_filled_draw(fill,
-                            rohr_graphics_color_hex_create(item->fill_color));
+                            rohr_graphics_color_hex_create(displayed_fill));
                     }
-                    editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
+                    editor_viewport_ui_text_draw(project, item, i, rectangle, zoom,
+                        text_selected);
                     for(size_t vertex = 0; vertex < item->value.shape.vertex_count;
                             vertex += 1) {
                         size_t next = (vertex + 1) % item->value.shape.vertex_count;
@@ -4813,17 +4842,9 @@ void editor_viewport_draw(const EditorProject *project,
                 }
                 if(item->border_enabled)
                     (void)rohr_graphics_screen_rect_draw(ui.x, ui.y, ui.width,
-                        ui.height, rohr_graphics_color_hex_create(item->fill_color));
-                editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
-                if(whole_selected && !item->border_enabled &&
-                        i < EDITOR_LAYOUT_VIEWPORT_UI_MAX &&
-                        editor_viewport_ui_text_assets[i].text != NULL) {
-                    ui.width = editor_viewport_ui_text_assets[i].size.x *
-                        item->value.text.width_scale * zoom;
-                    ui.height = editor_viewport_ui_text_assets[i].size.y *
-                        item->value.text.height_scale * zoom;
-                    color = (Color){255, 210, 70, 255};
-                }
+                        ui.height, rohr_graphics_color_hex_create(displayed_fill));
+                editor_viewport_ui_text_draw(project, item, i, rectangle, zoom,
+                    text_selected);
                 if(item->border_enabled || whole_selected) {
                     Position corners[4] = {{ui.x, ui.y}, {ui.x + ui.width, ui.y},
                         {ui.x + ui.width, ui.y + ui.height},

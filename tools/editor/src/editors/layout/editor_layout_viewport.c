@@ -37,6 +37,10 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Hash Spacing", hash_spacing_label);
     CREATE("Corner Radius", corner_radius_label);
     CREATE("Border Color", border_color_label); CREATE("Fill Color", fill_color_label);
+    CREATE("Hover Border", hover_border_color_label);
+    CREATE("Hover Fill", hover_fill_color_label);
+    CREATE("Click Border", click_border_color_label);
+    CREATE("Click Fill", click_fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
     CREATE("Add UI Text", add_text_label);
     CREATE("Button", button_label);
@@ -72,6 +76,8 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(border_hashed_label); DESTROY(border_thickness_label);
     DESTROY(hash_spacing_label); DESTROY(corner_radius_label);
     DESTROY(border_color_label); DESTROY(fill_color_label);
+    DESTROY(hover_border_color_label); DESTROY(hover_fill_color_label);
+    DESTROY(click_border_color_label); DESTROY(click_fill_color_label);
     DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
     DESTROY(corner_radius_field);
     DESTROY(add_shape_label); DESTROY(add_text_label); DESTROY(button_label);
@@ -437,6 +443,33 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         (void)layout_local_swatch("editor.layout.ui.fill_color", &item->fill_color,
             (UIRect){context->x + context->width - 46.0f, *y, 36.0f, 28.0f}, context);
         *y += 42.0f;
+        if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                item->value.shape.button_enabled) {
+            rohr_ui_label(&editor->hover_border_color_label,
+                (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+            (void)layout_local_swatch("editor.layout.ui.hover_border",
+                &item->hover_border_color, (UIRect){context->x + context->width -
+                    46.0f, *y, 36.0f, 28.0f}, context);
+            *y += 38.0f;
+            rohr_ui_label(&editor->hover_fill_color_label,
+                (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+            (void)layout_local_swatch("editor.layout.ui.hover_fill",
+                &item->hover_fill_color, (UIRect){context->x + context->width -
+                    46.0f, *y, 36.0f, 28.0f}, context);
+            *y += 38.0f;
+            rohr_ui_label(&editor->click_border_color_label,
+                (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+            (void)layout_local_swatch("editor.layout.ui.click_border",
+                &item->click_border_color, (UIRect){context->x + context->width -
+                    46.0f, *y, 36.0f, 28.0f}, context);
+            *y += 38.0f;
+            rohr_ui_label(&editor->click_fill_color_label,
+                (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+            (void)layout_local_swatch("editor.layout.ui.click_fill",
+                &item->click_fill_color, (UIRect){context->x + context->width -
+                    46.0f, *y, 36.0f, 28.0f}, context);
+            *y += 42.0f;
+        }
         return x_result.active || y_result.active || layer_result.active ||
             thickness.active || spacing.active || radius.active;
     }

@@ -559,6 +559,14 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                 ui->border_corner_radius);
             yyjson_mut_obj_add_uint(document, item, "border_color", ui->border_color);
             yyjson_mut_obj_add_uint(document, item, "ui_fill_color", ui->fill_color);
+            yyjson_mut_obj_add_uint(document, item, "hover_border_color",
+                ui->hover_border_color);
+            yyjson_mut_obj_add_uint(document, item, "hover_fill_color",
+                ui->hover_fill_color);
+            yyjson_mut_obj_add_uint(document, item, "click_border_color",
+                ui->click_border_color);
+            yyjson_mut_obj_add_uint(document, item, "click_fill_color",
+                ui->click_fill_color);
             if(ui->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                 yyjson_mut_val *vertices = yyjson_mut_arr(document);
                 for(size_t vertex = 0; vertex < ui->value.shape.vertex_count;
@@ -1583,6 +1591,10 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             item->border_hash_spacing = 6.0f;
             item->border_color = 0xFFFFFFFFu;
             item->fill_color = 0x394052FFu;
+            item->hover_border_color = 0xD8E6FFFFu;
+            item->hover_fill_color = 0x4A5870FFu;
+            item->click_border_color = 0xAFC8F0FFu;
+            item->click_fill_color = 0x283246FFu;
             if(yyjson_obj_get(item_value, "border_enabled") != NULL &&
                     !editor_json_bool(item_value, "border_enabled",
                         &item->border_enabled)) goto done;
@@ -1604,7 +1616,19 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     (yyjson_obj_get(item_value, "border_color") != NULL &&
                     !editor_json_uint(item_value, "border_color", &item->border_color)) ||
                     (yyjson_obj_get(item_value, "ui_fill_color") != NULL &&
-                    !editor_json_uint(item_value, "ui_fill_color", &item->fill_color)))
+                    !editor_json_uint(item_value, "ui_fill_color", &item->fill_color)) ||
+                    (yyjson_obj_get(item_value, "hover_border_color") != NULL &&
+                    !editor_json_uint(item_value, "hover_border_color",
+                        &item->hover_border_color)) ||
+                    (yyjson_obj_get(item_value, "hover_fill_color") != NULL &&
+                    !editor_json_uint(item_value, "hover_fill_color",
+                        &item->hover_fill_color)) ||
+                    (yyjson_obj_get(item_value, "click_border_color") != NULL &&
+                    !editor_json_uint(item_value, "click_border_color",
+                        &item->click_border_color)) ||
+                    (yyjson_obj_get(item_value, "click_fill_color") != NULL &&
+                    !editor_json_uint(item_value, "click_fill_color",
+                        &item->click_fill_color)))
                 goto done;
             text = yyjson_obj_get(item_value, "text");
             if(!yyjson_is_str(text) || yyjson_get_len(text) >= UI_LABEL_MAX)
