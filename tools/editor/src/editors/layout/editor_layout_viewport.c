@@ -26,8 +26,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
 #define CREATE(text, member) if(!editor_mode_text_create(font, text, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
-    CREATE("Enabled", enabled_label); CREATE("Cameras", cameras_label);
-    CREATE("Add", add_label); CREATE("Delete Viewport", delete_label);
+    CREATE("Enabled", enabled_label); CREATE("Screens", cameras_label);
+    CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
     CREATE("Rotation", rotation_label);
@@ -52,12 +52,17 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Text Height Scale", height_scale_label);
     CREATE("Text Offset X", text_offset_x_label);
     CREATE("Text Offset Y", text_offset_y_label);
+    CREATE("Content X", content_x_label); CREATE("Content Y", content_y_label);
+    CREATE("Content Rotation", content_rotation_label);
+    CREATE("Source", source_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
     CREATE("", rotation_field);
     CREATE("", text_field); CREATE("", font_file_field);
     CREATE("", width_scale_field); CREATE("", height_scale_field);
     CREATE("", length_field);
+    CREATE("", content_x_field); CREATE("", content_y_field);
+    CREATE("", content_rotation_field);
     CREATE("", border_thickness_field); CREATE("", hash_spacing_field);
     CREATE("", corner_radius_field);
 #undef CREATE
@@ -89,11 +94,15 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
     DESTROY(width_scale_label); DESTROY(height_scale_label);
+    DESTROY(content_x_label); DESTROY(content_y_label);
+    DESTROY(content_rotation_label); DESTROY(source_label);
     DESTROY(text_offset_x_label); DESTROY(text_offset_y_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(width_field); DESTROY(height_field);
     DESTROY(layer_field);
     DESTROY(text_field); DESTROY(font_file_field); DESTROY(width_scale_field);
     DESTROY(height_scale_field);
+    DESTROY(content_x_field); DESTROY(content_y_field);
+    DESTROY(content_rotation_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->camera_names[i]);
@@ -162,35 +171,29 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 40.0f;
-    for(size_t object_index = 0; object_index < context->project->object_count;
-            object_index += 1) {
-        EditorObject *object = &context->project->objects[object_index];
-        for(size_t camera_index = 0; camera_index < object->camera_count;
-                camera_index += 1) {
-            EditorCamera *camera = &object->cameras[camera_index];
-            char id[96];
-            snprintf(id, sizeof(id), "editor.layout.add_camera.%u.%u",
-                object->id, camera->id);
-            if(rohr_ui_button(id, &editor->add_label,
-                    (UIRect){context->x + 8.0f, y, 54.0f, 28.0f}, NULL).clicked) {
-                EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
-                    .data.item_add = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
-                        .object = object->id, .parent = viewport->id,
-                        .first = camera->id}};
-                snprintf(command.data.item_add.name, sizeof(command.data.item_add.name),
-                    "%s", camera->name);
-                (void)editor_command_execute(context->project, &command);
+    if(rohr_ui_button("editor.layout.add_screen", &editor->add_label,
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            NULL).clicked) {
+        EditorObject *camera_object = NULL;
+        EditorCamera *camera = NULL;
+        for(size_t object_index = 0;
+                object_index < context->project->object_count && camera == NULL;
+                object_index += 1)
+            if(context->project->objects[object_index].camera_count > 0) {
+                camera_object = &context->project->objects[object_index];
+                camera = &camera_object->cameras[0];
             }
-            if(camera_index < EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX &&
-                    editor_mode_named_text_sync(editor->font, camera->name,
-                        &editor->camera_names[camera_index],
-                        editor->camera_cache[camera_index], EDITOR_OBJECT_NAME_MAX))
-                rohr_ui_label(&editor->camera_names[camera_index],
-                    (UIRect){context->x + 70.0f, y, context->width - 78.0f, 28.0f});
-            y += 32.0f;
+        if(camera_object != NULL && camera != NULL) {
+            EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
+                .data.item_add = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
+                    .object = camera_object->id, .parent = viewport->id,
+                    .first = camera->id}};
+            snprintf(command.data.item_add.name, sizeof(command.data.item_add.name),
+                "screen");
+            (void)editor_command_execute(context->project, &command);
         }
     }
-    y += 8.0f;
+    y += 40.0f;
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
         EditorViewportCameraItem *item = &viewport->camera_items[i];
         char id[80];
@@ -368,7 +371,14 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorLayoutViewport *viewport;
     EditorViewportCameraItem *item = NULL;
-    UIFieldResult x_result, y_result, width_result, height_result, layer_result;
+    UIFieldResult x_result, y_result, width_result, height_result, layer_result,
+        rotation_result, content_x_result, content_y_result,
+        content_width_result, content_height_result, content_rotation_result;
+    const TextAsset *camera_options[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
+    EditorObjectId camera_objects[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
+    EditorCameraId camera_ids[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
+    size_t camera_count = 0;
+    size_t selected_camera = 0;
     float layer;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -385,25 +395,78 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         item->placement.visible = !item->placement.visible;
     rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, 42.0f,
         context->width - 60.0f, 28.0f});
+    for(size_t object_index = 0; object_index < context->project->object_count;
+            object_index += 1) {
+        EditorObject *object = &context->project->objects[object_index];
+        for(size_t camera_index = 0; camera_index < object->camera_count &&
+                camera_count < EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX; camera_index += 1) {
+            EditorCamera *camera = &object->cameras[camera_index];
+            if(!editor_mode_named_text_sync(editor->font, camera->name,
+                    &editor->camera_names[camera_count],
+                    editor->camera_cache[camera_count], EDITOR_OBJECT_NAME_MAX))
+                continue;
+            camera_options[camera_count] = &editor->camera_names[camera_count];
+            camera_objects[camera_count] = object->id;
+            camera_ids[camera_count] = camera->id;
+            if(item->object == object->id && item->camera == camera->id)
+                selected_camera = camera_count;
+            camera_count += 1;
+        }
+    }
+    rohr_ui_label(&editor->source_label, (UIRect){context->x + 8.0f, 80.0f,
+        70.0f, 28.0f});
+    if(camera_count > 0) {
+        UIDropdownResult source = rohr_ui_dropdown("editor.layout.screen.source",
+            camera_options, camera_count, selected_camera,
+            (UIRect){context->x + 82.0f, 80.0f, context->width - 92.0f, 28.0f},
+            NULL);
+        if(source.changed && source.selected_index < camera_count) {
+            item->object = camera_objects[source.selected_index];
+            item->camera = camera_ids[source.selected_index];
+        }
+    }
     x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.camera_editor.x", context->x, 80.0f, context->width,
+        "editor.layout.camera_editor.x", context->x, 118.0f, context->width,
         &item->placement.rectangle.x);
     y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.camera_editor.y", context->x, 118.0f, context->width,
+        "editor.layout.camera_editor.y", context->x, 156.0f, context->width,
         &item->placement.rectangle.y);
     width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.camera_editor.width", context->x, 156.0f, context->width,
+        "editor.layout.camera_editor.width", context->x, 194.0f, context->width,
         &item->placement.rectangle.width);
     height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.camera_editor.height", context->x, 194.0f, context->width,
+        "editor.layout.camera_editor.height", context->x, 232.0f, context->width,
         &item->placement.rectangle.height);
+    rotation_result = layout_number(&editor->rotation_label, &editor->rotation_field,
+        "editor.layout.screen.rotation", context->x, 270.0f, context->width,
+        &item->placement.orientation);
     layer = (float)item->placement.layer;
     layer_result = layout_number(&editor->layer_label, &editor->layer_field,
-        "editor.layout.camera_editor.layer", context->x, 232.0f, context->width,
+        "editor.layout.camera_editor.layer", context->x, 308.0f, context->width,
         &layer);
     if(layer_result.changed) item->placement.layer = (int)layer;
+    content_x_result = layout_number(&editor->content_x_label,
+        &editor->content_x_field, "editor.layout.screen.content_x", context->x,
+        346.0f, context->width, &item->content_offset.x);
+    content_y_result = layout_number(&editor->content_y_label,
+        &editor->content_y_field, "editor.layout.screen.content_y", context->x,
+        384.0f, context->width, &item->content_offset.y);
+    content_width_result = layout_number(&editor->width_scale_label,
+        &editor->width_scale_field, "editor.layout.screen.content_width", context->x,
+        422.0f, context->width, &item->content_scale.x);
+    content_height_result = layout_number(&editor->height_scale_label,
+        &editor->height_scale_field, "editor.layout.screen.content_height", context->x,
+        460.0f, context->width, &item->content_scale.y);
+    content_rotation_result = layout_number(&editor->content_rotation_label,
+        &editor->content_rotation_field, "editor.layout.screen.content_rotation",
+        context->x, 498.0f, context->width, &item->content_rotation);
+    item->content_scale.x = fmaxf(0.01f, item->content_scale.x);
+    item->content_scale.y = fmaxf(0.01f, item->content_scale.y);
     return x_result.active || y_result.active || width_result.active ||
-        height_result.active || layer_result.active;
+        height_result.active || rotation_result.active || layer_result.active ||
+        content_x_result.active || content_y_result.active ||
+        content_width_result.active || content_height_result.active ||
+        content_rotation_result.active;
 }
 
 static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,

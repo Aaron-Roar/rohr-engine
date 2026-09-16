@@ -24,11 +24,14 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;
     TextAsset width_scale_label, height_scale_label;
+    TextAsset content_x_label, content_y_label, content_rotation_label;
+    TextAsset source_label;
     TextAsset text_offset_x_label, text_offset_y_label;
     TextAsset name_field, x_field, y_field, width_field, height_field, layer_field;
     TextAsset rotation_field;
     TextAsset text_field, font_file_field, width_scale_field, height_scale_field;
     TextAsset length_field;
+    TextAsset content_x_field, content_y_field, content_rotation_field;
     TextAsset border_thickness_field, hash_spacing_field, corner_radius_field;
     TextAsset camera_names[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
     char camera_cache[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];

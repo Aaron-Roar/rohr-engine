@@ -1570,7 +1570,8 @@ void editor_viewport_back(EditorViewportState *state) {
             state->mode == EDITOR_VIEWPORT_JOINT ||
             state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
             state->mode == EDITOR_VIEWPORT_SPRITE ||
-            state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
+            state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
+            state->mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
         state->mode = EDITOR_VIEWPORT_OBJECT;
         state->selection = EDITOR_SELECTION_OBJECT;
     } else if(state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME) {
@@ -2822,6 +2823,18 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             }
             if(state->rotated_viewport_item &&
                     primary_button == MOUSE_BUTTON_STATE_DOWN) {
+                for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+                    EditorViewportCameraItem *item = &viewport->camera_items[i];
+                    Position screen_center;
+                    if(item->id != state->selected_viewport_camera_item) continue;
+                    screen_center = (Position){item->placement.rectangle.x +
+                            item->placement.rectangle.width * 0.5f,
+                        item->placement.rectangle.y +
+                            item->placement.rectangle.height * 0.5f};
+                    item->placement.orientation = atan2f(local.y - screen_center.y,
+                        local.x - screen_center.x) + state->rotation_pointer_offset;
+                    return true;
+                }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
                     Position centroid;
@@ -2931,6 +2944,28 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->last_viewport_click_index ==
                         state->selected_viewport_ui_item &&
                     click_now - state->last_viewport_click_at <= 400;
+                for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+                    EditorViewportCameraItem *item = &viewport->camera_items[i];
+                    Position screen_center;
+                    Position handle;
+                    if(item->id != state->selected_viewport_camera_item ||
+                            !item->placement.visible) continue;
+                    screen_center = (Position){item->placement.rectangle.x +
+                            item->placement.rectangle.width * 0.5f,
+                        item->placement.rectangle.y +
+                            item->placement.rectangle.height * 0.5f};
+                    handle = editor_rotation_control_position_get(screen_center,
+                        item->placement.orientation,
+                        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH /
+                            project->viewport_camera_zoom);
+                    if(!editor_rotation_control_hit_check(local, handle,
+                            10.0f / project->viewport_camera_zoom)) continue;
+                    state->rotated_viewport_item = true;
+                    state->rotation_pointer_offset = item->placement.orientation -
+                        atan2f(local.y - screen_center.y,
+                            local.x - screen_center.x);
+                    return true;
+                }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
                     Position centroid;
@@ -3110,10 +3145,18 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
                     EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
                     ViewportRectangle rectangle = item->placement.rectangle;
-                    if(!item->placement.visible || local.x < rectangle.x ||
-                            local.y < rectangle.y ||
-                            local.x > rectangle.x + rectangle.width ||
-                            local.y > rectangle.y + rectangle.height) continue;
+                    Position screen_center = {rectangle.x + rectangle.width * 0.5f,
+                        rectangle.y + rectangle.height * 0.5f};
+                    Vec2D relative = {local.x - screen_center.x,
+                        local.y - screen_center.y};
+                    Vec2D unrotated = math_vector_rotate(relative,
+                        -item->placement.orientation);
+                    Position hit = {screen_center.x + unrotated.x,
+                        screen_center.y + unrotated.y};
+                    if(!item->placement.visible || hit.x < rectangle.x ||
+                            hit.y < rectangle.y ||
+                            hit.x > rectangle.x + rectangle.width ||
+                            hit.y > rectangle.y + rectangle.height) continue;
                     state->selected_viewport_camera_item = item->id;
                     state->selected_viewport_ui_item = 0;
                     state->selected_viewport_ui_text_child = false;
@@ -4856,14 +4899,30 @@ void editor_viewport_draw(const EditorProject *project,
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;
                 camera.width *= zoom; camera.height *= zoom;
-                (void)rohr_graphics_screen_rect_draw(camera.x, camera.y,
-                    camera.width, 2.0f, color);
-                (void)rohr_graphics_screen_rect_draw(camera.x,
-                    camera.y + camera.height - 2.0f, camera.width, 2.0f, color);
-                (void)rohr_graphics_screen_rect_draw(camera.x, camera.y,
-                    2.0f, camera.height, color);
-                (void)rohr_graphics_screen_rect_draw(camera.x + camera.width - 2.0f,
-                    camera.y, 2.0f, camera.height, color);
+                Position screen_center = {camera.x + camera.width * 0.5f,
+                    camera.y + camera.height * 0.5f};
+                Position corners[4] = {{camera.x, camera.y},
+                    {camera.x + camera.width, camera.y},
+                    {camera.x + camera.width, camera.y + camera.height},
+                    {camera.x, camera.y + camera.height}};
+                for(size_t corner = 0; corner < 4; corner += 1) {
+                    Vec2D relative = {corners[corner].x - screen_center.x,
+                        corners[corner].y - screen_center.y};
+                    Vec2D rotated = math_vector_rotate(relative,
+                        item->placement.orientation);
+                    corners[corner] = (Position){screen_center.x + rotated.x,
+                        screen_center.y + rotated.y};
+                }
+                for(size_t edge = 0; edge < 4; edge += 1)
+                    editor_viewport_screen_line_draw(corners[edge],
+                        corners[(edge + 1) % 4], color);
+                if(item->id == state->selected_viewport_camera_item) {
+                    Position handle = editor_rotation_control_position_get(
+                        screen_center, item->placement.orientation,
+                        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                    editor_viewport_screen_line_draw(screen_center, handle, color);
+                    editor_viewport_screen_circle_draw(handle, 10.0f, color);
+                }
             }
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];

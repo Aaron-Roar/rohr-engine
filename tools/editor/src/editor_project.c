@@ -960,10 +960,11 @@ EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
         .object = object_id,
         .camera = camera_id,
         .placement = rohr_viewport_item_config_default_get(),
+        .content_scale = {1.0f, 1.0f},
     };
     item->placement.rectangle.width = viewport->config.rectangle.width;
     item->placement.rectangle.height = viewport->config.rectangle.height;
-    snprintf(item->name, sizeof(item->name), "camera_%u", item->id);
+    snprintf(item->name, sizeof(item->name), "screen_%u", item->id);
     return item;
 }
 

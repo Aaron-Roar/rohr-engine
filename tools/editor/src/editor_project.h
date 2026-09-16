@@ -342,6 +342,9 @@ typedef struct EditorViewportCameraItem {
     EditorObjectId object;
     EditorCameraId camera;
     ViewportItemConfig placement;
+    Position content_offset;
+    Scale content_scale;
+    Orientation content_rotation;
 } EditorViewportCameraItem;
 
 typedef enum EditorViewportUiKind {

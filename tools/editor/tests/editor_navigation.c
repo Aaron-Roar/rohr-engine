@@ -203,6 +203,12 @@ int main(void) {
             state.selection != EDITOR_SELECTION_NONE ||
             state.selected_anchor != 0) return 1;
 
+    state.mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
+    state.selection = EDITOR_SELECTION_CAMERA;
+    editor_viewport_back(&state);
+    if(state.mode != EDITOR_VIEWPORT_OBJECT ||
+            state.selection != EDITOR_SELECTION_OBJECT) return 1;
+
     state.mode = EDITOR_VIEWPORT_AUTO_SHAPE;
     state.auto_shape_parent_mode = EDITOR_VIEWPORT_HITBOX;
     editor_viewport_back(&state);

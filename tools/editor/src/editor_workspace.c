@@ -1336,7 +1336,9 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "int main(void) {\n"
         "    KeyboardState keyboard = {0};\n"
         "    ViewportId viewports[MAX_VIEWPORTS] = {0};\n"
-        "    size_t viewport_count = 0;\n");
+        "    size_t viewport_count = 0;\n"
+        "    ScreenId screens[MAX_SCREENS] = {0};\n"
+        "    size_t screen_count = 0;\n");
     fprintf(file, "    ProjectObjects objects = {0};\n");
     fprintf(file,
         "    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start()) ||\n"
@@ -1381,14 +1383,25 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
             fprintf(file,
                 "      if(!ok(rohr_camera_render_callback_set(objects.%s.camera_%s, "
                 "render_scene, &objects))) goto fail;\n"
-                "      { ViewportItemIdResult item = rohr_viewport_camera_add("
-                "viewports[viewport_count - 1], objects.%s.camera_%s, "
-                "(ViewportItemConfig){{%.8ff, %.8ff, %.8ff, %.8ff}, %d, %.8ff, %d, %s});\n"
+                "      { ScreenIdResult screen = rohr_screen_create((ScreenConfig){"
+                "objects.%s.camera_%s, %d, %d});\n"
+                "        if(rohr_error_check(screen)) goto fail;\n"
+                "        screens[screen_count++] = screen.result.value;\n"
+                "        ViewportItemIdResult item = rohr_viewport_screen_add("
+                "viewports[viewport_count - 1], screen.result.value, "
+                "(ViewportItemConfig){.rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, "
+                ".fit=%d, .orientation=%.8ff, .content_offset={%.8ff, %.8ff}, "
+                ".content_scale={%.8ff, %.8ff}, .content_orientation=%.8ff, "
+                ".layer=%d, .visible=%s});\n"
                 "        if(rohr_error_check(item)) goto fail; }\n",
                 object_name, camera->name, object_name, camera->name,
+                (int)camera->dimensions.x, (int)camera->dimensions.y,
                 item->placement.rectangle.x, item->placement.rectangle.y,
                 item->placement.rectangle.width, item->placement.rectangle.height,
                 (int)item->placement.fit, item->placement.orientation,
+                item->content_offset.x, item->content_offset.y,
+                item->content_scale.x, item->content_scale.y,
+                item->content_rotation,
                 item->placement.layer, item->placement.visible ? "true" : "false");
         }
         if(viewport->enabled) fprintf(file,
@@ -1414,6 +1427,8 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "done:\n"
         "    for(size_t i = 0; i < viewport_count; i += 1) "
         "(void)rohr_viewport_destroy(viewports[i]);\n"
+        "    for(size_t i = 0; i < screen_count; i += 1) "
+        "(void)rohr_screen_destroy(screens[i]);\n"
         "    project_objects_destroy_all(&objects);\n"
         "    rohr_graphics_end();\n"
         "    rohr_engine_shutdown();\n"
@@ -1422,6 +1437,8 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "    fprintf(stderr, \"Game initialization failed\\n\");\n"
         "    for(size_t i = 0; i < viewport_count; i += 1) "
         "(void)rohr_viewport_destroy(viewports[i]);\n"
+        "    for(size_t i = 0; i < screen_count; i += 1) "
+        "(void)rohr_screen_destroy(screens[i]);\n"
         "    project_objects_destroy_all(&objects);\n"
         "    rohr_graphics_end();\n"
         "    rohr_engine_shutdown();\n"

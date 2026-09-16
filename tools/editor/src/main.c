@@ -2444,6 +2444,8 @@ int main(void) {
                     viewport_state.selection == EDITOR_SELECTION_OBJECT) {
                 editor_project_selection_clear(&project);
                 viewport_state.selection = EDITOR_SELECTION_NONE;
+            } else if(viewport_state.mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
+                editor_viewport_back(&viewport_state);
             }
         }
         if(workspace.open && !build_settings_panel.open &&

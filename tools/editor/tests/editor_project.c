@@ -185,7 +185,8 @@ int main(void) {
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_objects_draw_all(objects") ||
                 !file_contains(path, "rohr_camera_render_callback_set") ||
-                !file_contains(path, "rohr_viewport_camera_add") ||
+                !file_contains(path, "rohr_screen_create") ||
+                !file_contains(path, "rohr_viewport_screen_add") ||
                 !file_contains(path, "rohr_viewport_enable_set") ||
                 !file_contains(path, "project_objects_destroy_all(&objects")) {
             workspace_fixture_remove(fixture);

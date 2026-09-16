@@ -535,9 +535,19 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_sint(document, item, "layer", camera->placement.layer);
             yyjson_mut_obj_add_bool(document, item, "visible",
                 camera->placement.visible);
+            yyjson_mut_obj_add_real(document, item, "content_x",
+                camera->content_offset.x);
+            yyjson_mut_obj_add_real(document, item, "content_y",
+                camera->content_offset.y);
+            yyjson_mut_obj_add_real(document, item, "content_width_scale",
+                camera->content_scale.x);
+            yyjson_mut_obj_add_real(document, item, "content_height_scale",
+                camera->content_scale.y);
+            yyjson_mut_obj_add_real(document, item, "content_rotation",
+                camera->content_rotation);
             yyjson_mut_arr_add_val(camera_items, item);
         }
-        yyjson_mut_obj_add_val(document, value, "camera_items", camera_items);
+        yyjson_mut_obj_add_val(document, value, "screen_items", camera_items);
         for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
             const EditorViewportUiItem *ui = &viewport->ui_items[j];
             yyjson_mut_val *item = yyjson_mut_obj(document);
@@ -1516,7 +1526,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         loaded.layout_viewport_count * sizeof(*loaded.layout_viewports));
     for(size_t i = 0; i < loaded.layout_viewport_count; i += 1) {
         yyjson_val *value = yyjson_arr_get(layout_viewports, i);
-        yyjson_val *camera_items = yyjson_obj_get(value, "camera_items");
+        yyjson_val *camera_items = yyjson_obj_get(value, "screen_items");
+        if(camera_items == NULL) camera_items = yyjson_obj_get(value, "camera_items");
         yyjson_val *ui_items = yyjson_obj_get(value, "ui_items");
         EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
         uint32_t fit;
@@ -1544,6 +1555,15 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *item_value = yyjson_arr_get(camera_items, j);
             EditorViewportCameraItem *item = &viewport->camera_items[j];
             uint32_t item_fit;
+            yyjson_val *content_x = yyjson_obj_get(item_value, "content_x");
+            yyjson_val *content_y = yyjson_obj_get(item_value, "content_y");
+            yyjson_val *content_width = yyjson_obj_get(item_value,
+                "content_width_scale");
+            yyjson_val *content_height = yyjson_obj_get(item_value,
+                "content_height_scale");
+            yyjson_val *content_rotation = yyjson_obj_get(item_value,
+                "content_rotation");
+            item->content_scale = (Scale){1.0f, 1.0f};
             if(!yyjson_is_obj(item_value) ||
                     !editor_json_uint(item_value, "id", &item->id) || item->id == 0 ||
                     !editor_json_name(item_value, item->name) ||
@@ -1563,6 +1583,18 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(item_value, "visible", &item->placement.visible) ||
                     item->placement.rectangle.width <= 0.0f ||
                     item->placement.rectangle.height <= 0.0f) goto done;
+            if((content_x != NULL && !editor_json_real(item_value, "content_x",
+                        &item->content_offset.x)) ||
+                    (content_y != NULL && !editor_json_real(item_value, "content_y",
+                        &item->content_offset.y)) ||
+                    (content_width != NULL && (!editor_json_real(item_value,
+                        "content_width_scale", &item->content_scale.x) ||
+                        item->content_scale.x <= 0.0f)) ||
+                    (content_height != NULL && (!editor_json_real(item_value,
+                        "content_height_scale", &item->content_scale.y) ||
+                        item->content_scale.y <= 0.0f)) ||
+                    (content_rotation != NULL && !editor_json_real(item_value,
+                        "content_rotation", &item->content_rotation))) goto done;
             item->placement.fit = (ScreenFit)item_fit;
             editor_project_property_name_format(item->name, sizeof(item->name),
                 item->name);

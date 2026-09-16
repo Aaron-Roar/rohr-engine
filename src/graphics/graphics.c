@@ -138,20 +138,11 @@ typedef struct GraphicsScreen {
     SDL_Texture *texture;
 } GraphicsScreen;
 
-typedef uint32_t ScreenId;
-#define SCREEN_INVALID 0
-typedef struct ScreenConfig {
-    CameraId camera;
-    int width;
-    int height;
-} ScreenConfig;
-ERROR_DECLARE_RESULT_TYPE(ScreenIdResult, ScreenId);
-
 typedef struct GraphicsViewport {
     ViewportRectangle rectangle;
     ScreenFit fit;
     struct {
-        CameraId camera;
+        ScreenId screen;
         ViewportItemConfig config;
         uint32_t generation;
         bool used;
@@ -167,7 +158,7 @@ static bool screens_used[MAX_SCREENS] = {0};
 static bool viewports_used[MAX_VIEWPORTS] = {0};
 static ScreenId drawing_screen = SCREEN_INVALID;
 static CameraId camera_before_screen = CAMERA_INVALID;
-static EngineResult graphics_screen_destroy(ScreenId id);
+EngineResult graphics_screen_destroy(ScreenId id);
 
 static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
     GraphicsLayer *layer = NULL;
@@ -274,13 +265,18 @@ static bool graphics_camera_viewport_size(CameraId camera_id, int *width, int *h
     for(slot = 0; slot < MAX_VIEWPORTS; slot += 1) {
         if(!viewports_used[slot]) continue;
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            size_t screen_slot;
             if(!viewports[slot].items[item].used) continue;
-            if(viewports[slot].items[item].camera == camera_id ||
+            if((graphics_screen_slot(viewports[slot].items[item].screen,
+                        &screen_slot) && screens[screen_slot].camera == camera_id) ||
                     (!found && camera_id == CAMERA_INVALID)) {
                 *width = (int)viewports[slot].items[item].config.rectangle.width;
                 *height = (int)viewports[slot].items[item].config.rectangle.height;
                 found = true;
-                if(viewports[slot].items[item].camera == camera_id) return true;
+                if(camera_id != CAMERA_INVALID &&
+                        graphics_screen_slot(viewports[slot].items[item].screen,
+                            &screen_slot) &&
+                        screens[screen_slot].camera == camera_id) return true;
             }
         }
     }
@@ -885,20 +881,21 @@ EngineResult graphics_camera_destroy(CameraId id) {
     if(id == active_camera) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    if(graphics_screen_for_camera(id, &screen_slot)) {
-        EngineResult result = graphics_screen_destroy(
-            graphics_resource_id(screen_generations[screen_slot], screen_slot)
-        );
-        if(result.kind == ERROR_RESULT_ERROR) return result;
-    }
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
         if(!viewports_used[viewport_slot]) continue;
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             if(viewports[viewport_slot].items[item].used &&
-                    viewports[viewport_slot].items[item].camera == id)
+                    graphics_screen_slot(viewports[viewport_slot].items[item].screen,
+                        &screen_slot) && screens[screen_slot].camera == id)
                 viewports[viewport_slot].items[item].used = false;
         }
     }
+    for(screen_slot = 0; screen_slot < MAX_SCREENS; screen_slot += 1)
+        if(screens_used[screen_slot] && screens[screen_slot].camera == id) {
+            EngineResult result = graphics_screen_destroy(graphics_resource_id(
+                screen_generations[screen_slot], screen_slot));
+            if(result.kind == ERROR_RESULT_ERROR) return result;
+        }
     cameras_used[slot] = false;
     cameras[slot] = (Camera){0};
     camera_attachments[slot] = (ActiveCameraAttachment){0};
@@ -1069,7 +1066,7 @@ EngineResult graphics_camera_attachment_remove(CameraId id) {
     return error_result_value(true);
 }
 
-static ScreenConfig graphics_screen_config_default_get(void) {
+ScreenConfig graphics_screen_config_default_get(void) {
     return (ScreenConfig){
         .camera = active_camera,
         .width = WINDOW_WIDTH,
@@ -1077,7 +1074,7 @@ static ScreenConfig graphics_screen_config_default_get(void) {
     };
 }
 
-static ScreenIdResult graphics_screen_create(ScreenConfig config) {
+ScreenIdResult graphics_screen_create(ScreenConfig config) {
     size_t slot;
     if(sdl_renderer == NULL) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
@@ -1118,14 +1115,30 @@ static ScreenIdResult graphics_screen_create(ScreenConfig config) {
     return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-static EngineResult graphics_screen_destroy(ScreenId id) {
+EngineResult graphics_screen_destroy(ScreenId id) {
     size_t slot;
     if(!graphics_screen_slot(id, &slot) || id == drawing_screen) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
+    for(size_t viewport = 0; viewport < MAX_VIEWPORTS; viewport += 1)
+        if(viewports_used[viewport])
+            for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
+                if(viewports[viewport].items[item].used &&
+                        viewports[viewport].items[item].screen == id)
+                    viewports[viewport].items[item].used = false;
     SDL_DestroyTexture(screens[slot].texture);
     screens[slot] = (GraphicsScreen){0};
     screens_used[slot] = false;
+    return error_result_value(true);
+}
+
+EngineResult graphics_screen_camera_set(ScreenId id, CameraId camera_id) {
+    size_t screen_slot;
+    size_t camera_slot;
+    if(!graphics_screen_slot(id, &screen_slot) ||
+            !graphics_camera_slot(camera_id, &camera_slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    screens[screen_slot].camera = camera_id;
     return error_result_value(true);
 }
 
@@ -1412,6 +1425,7 @@ ViewportItemConfig graphics_viewport_item_config_default_get(void) {
     return (ViewportItemConfig){
         .rectangle = {0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT},
         .fit = SCREEN_FIT_CONTAIN,
+        .content_scale = {1.0f, 1.0f},
         .visible = true,
     };
 }
@@ -1457,11 +1471,28 @@ static bool graphics_viewport_item_slot(GraphicsViewport *viewport,
 
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera_id,
         ViewportItemConfig config) {
+    size_t screen_slot;
+    if(!graphics_screen_for_camera(camera_id, &screen_slot)) {
+        ScreenConfig screen_config = graphics_screen_config_default_get();
+        ScreenIdResult created;
+        screen_config.camera = camera_id;
+        created = graphics_screen_create(screen_config);
+        if(created.kind == ERROR_RESULT_ERROR)
+            return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+                created.result.error);
+        return graphics_viewport_screen_add(id, created.result.value, config);
+    }
+    return graphics_viewport_screen_add(id,
+        graphics_resource_id(screen_generations[screen_slot], screen_slot), config);
+}
+
+ViewportItemIdResult graphics_viewport_screen_add(ViewportId id, ScreenId screen_id,
+        ViewportItemConfig config) {
     size_t viewport_slot;
-    size_t camera_slot;
+    size_t screen_slot;
     ViewportItemConfig defaults = graphics_viewport_item_config_default_get();
     if(!graphics_viewport_slot(id, &viewport_slot) ||
-            !graphics_camera_slot(camera_id, &camera_slot))
+            !graphics_screen_slot(screen_id, &screen_slot))
         return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
             ERROR_ENGINE_COMPONENT_MISSING);
     if(config.rectangle.width <= 0.0f) config.rectangle.width = defaults.rectangle.width;
@@ -1473,7 +1504,7 @@ ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera
         if(viewports[viewport_slot].items[item].used) continue;
         generation = viewports[viewport_slot].items[item].generation + 1;
         if(generation == 0) generation = 1;
-        viewports[viewport_slot].items[item].camera = camera_id;
+        viewports[viewport_slot].items[item].screen = screen_id;
         viewports[viewport_slot].items[item].config = config;
         viewports[viewport_slot].items[item].generation = generation;
         viewports[viewport_slot].items[item].used = true;
@@ -2024,7 +2055,7 @@ static void graphics_camera_motions_update(void) {
 }
 
 static void graphics_render_viewport_cameras(void) {
-    bool rendered[MAX_CAMERAS] = {0};
+    bool rendered[MAX_SCREENS] = {0};
     size_t viewport_slot;
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
         if(!viewports_used[viewport_slot] || !viewports[viewport_slot].enabled) continue;
@@ -2032,16 +2063,20 @@ static void graphics_render_viewport_cameras(void) {
             CameraId camera_id;
             CameraRuntime *runtime;
             size_t camera_slot;
+            size_t screen_slot;
             if(!viewports[viewport_slot].items[item].used ||
                     !viewports[viewport_slot].items[item].config.visible) continue;
-            camera_id = viewports[viewport_slot].items[item].camera;
-            if(!graphics_camera_slot(camera_id, &camera_slot) || rendered[camera_slot])
+            if(!graphics_screen_slot(viewports[viewport_slot].items[item].screen,
+                    &screen_slot) || rendered[screen_slot])
                 continue;
-            rendered[camera_slot] = true;
+            rendered[screen_slot] = true;
+            camera_id = screens[screen_slot].camera;
+            if(!graphics_camera_slot(camera_id, &camera_slot)) continue;
             runtime = &camera_runtime[camera_slot];
             if(!runtime->enabled || runtime->callback == NULL
                     || (runtime->pause_with_engine && engine_paused_get())) continue;
-            if(graphics_camera_begin(camera_id).kind == ERROR_RESULT_ERROR) continue;
+            if(graphics_screen_begin(viewports[viewport_slot].items[item].screen).kind ==
+                    ERROR_RESULT_ERROR) continue;
             runtime->callback(camera_id, runtime->context);
             (void)graphics_camera_end();
         }
@@ -2115,7 +2150,7 @@ static void graphics_viewports_draw(void) {
             if(item == MAX_VIEWPORT_ITEMS) break;
             drawn[item] = true;
             config = &viewport->items[item].config;
-            if(!graphics_screen_for_camera(viewport->items[item].camera, &screen_slot))
+            if(!graphics_screen_slot(viewport->items[item].screen, &screen_slot))
                 continue;
             screen = &screens[screen_slot];
             destination = (SDL_FRect){
@@ -2135,10 +2170,24 @@ static void graphics_viewports_draw(void) {
                 destination.w = (float)screen->width * scale;
                 destination.h = (float)screen->height * scale;
             }
-            destination.x += (config->rectangle.width - destination.w) * 0.5f;
-            destination.y += (config->rectangle.height - destination.h) * 0.5f;
+            if(config->content_scale.x > 0.0f)
+                destination.w *= config->content_scale.x;
+            if(config->content_scale.y > 0.0f)
+                destination.h *= config->content_scale.y;
+            {
+                Vec2D content_offset = math_vector_rotate(
+                    (Vec2D){config->content_offset.x, config->content_offset.y},
+                    config->orientation);
+                destination.x = viewport->rectangle.x + config->rectangle.x +
+                    config->rectangle.width * 0.5f + content_offset.x -
+                    destination.w * 0.5f;
+                destination.y = viewport->rectangle.y + config->rectangle.y +
+                    config->rectangle.height * 0.5f + content_offset.y -
+                    destination.h * 0.5f;
+            }
             (void)SDL_RenderTextureRotated(sdl_renderer, screen->texture, NULL,
-                &destination, (double)(config->orientation * -180.0f / PI_F),
+                &destination, (double)((config->orientation +
+                    config->content_orientation) * -180.0f / PI_F),
                 NULL, SDL_FLIP_NONE);
         }
     }

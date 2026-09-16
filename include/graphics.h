@@ -113,9 +113,19 @@ ERROR_DECLARE_RESULT_TYPE(CameraAttachmentResult, CameraAttachment);
 
 typedef uint32_t ViewportId;
 typedef uint32_t ViewportItemId;
+typedef uint32_t ScreenId;
 
 #define VIEWPORT_INVALID 0
 #define VIEWPORT_ITEM_INVALID 0
+#define SCREEN_INVALID 0
+
+typedef struct ScreenConfig {
+    CameraId camera;
+    int width;
+    int height;
+} ScreenConfig;
+
+ERROR_DECLARE_RESULT_TYPE(ScreenIdResult, ScreenId);
 
 typedef enum ScreenFit {
     SCREEN_FIT_NONE,
@@ -136,6 +146,9 @@ typedef struct ViewportItemConfig {
     ViewportRectangle rectangle;
     ScreenFit fit;
     Orientation orientation;
+    Position content_offset;
+    Scale content_scale;
+    Orientation content_orientation;
     int layer;
     bool visible;
 } ViewportItemConfig;
@@ -537,10 +550,16 @@ CameraZoomResult graphics_camera_zoom_get(CameraId camera);
 /** Return a disabled, full-window viewport using contain fitting. */
 ViewportConfig graphics_viewport_config_default_get(void);
 ViewportItemConfig graphics_viewport_item_config_default_get(void);
+ScreenConfig graphics_screen_config_default_get(void);
+ScreenIdResult graphics_screen_create(ScreenConfig config);
+EngineResult graphics_screen_destroy(ScreenId screen);
+EngineResult graphics_screen_camera_set(ScreenId screen, CameraId camera);
 ViewportIdResult graphics_viewport_create(ViewportConfig config);
 EngineResult graphics_viewport_destroy(ViewportId viewport);
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemConfig config);
+ViewportItemIdResult graphics_viewport_screen_add(ViewportId viewport,
+    ScreenId screen, ViewportItemConfig config);
 EngineResult graphics_viewport_item_remove(ViewportId viewport,
     ViewportItemId item);
 EngineResult graphics_viewport_item_set(ViewportId viewport,
