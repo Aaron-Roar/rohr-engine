@@ -153,6 +153,38 @@ typedef struct ViewportItemConfig {
     bool visible;
 } ViewportItemConfig;
 
+typedef enum ViewportUiBorderType {
+    VIEWPORT_UI_BORDER_LINE,
+    VIEWPORT_UI_BORDER_HASHED,
+} ViewportUiBorderType;
+
+typedef struct ViewportUiTextConfig {
+    const struct TextAsset *text;
+    Position position;
+    Position offset;
+    Scale scale;
+    Orientation orientation;
+} ViewportUiTextConfig;
+
+typedef struct ViewportUiShapeConfig {
+    Shape shape;
+    Position position;
+    Orientation orientation;
+    bool border_enabled;
+    ViewportUiBorderType border_type;
+    float border_thickness;
+    float border_hash_spacing;
+    float border_corner_radius;
+    Color border_color;
+    Color fill_color;
+    bool button_enabled;
+    Color hover_border_color;
+    Color hover_fill_color;
+    Color click_border_color;
+    Color click_fill_color;
+    ViewportUiTextConfig text;
+} ViewportUiShapeConfig;
+
 ERROR_DECLARE_RESULT_TYPE(ViewportIdResult, ViewportId);
 ERROR_DECLARE_RESULT_TYPE(ViewportItemIdResult, ViewportItemId);
 
@@ -204,6 +236,7 @@ typedef struct FontDescriptor {
  */
 typedef struct FontAsset {
     TTF_Font *font;
+    bool built_in;
 } FontAsset;
 
 /** Result type for functions that return a FontAsset. */
@@ -217,6 +250,7 @@ typedef struct TextAsset {
     TTF_Text *text;
     TTF_Font *font;
     SDL_Texture *texture;
+    bool built_in;
     Color color;
     /** Logical screen-space dimensions of the rendered text. */
     Scale size;
@@ -390,6 +424,9 @@ void graphics_screen_texture_draw(TextureAsset texture, Position center,
 /** Load a font. The caller must destroy successful assets. */
 FontAssetResult graphics_font_load(FontDescriptor descriptor);
 
+/** Return the engine's file-free built-in font. It does not require destruction. */
+FontAsset graphics_font_default_get(void);
+
 /** Close a loaded font after all text assets using it are destroyed. */
 void graphics_font_destroy(FontAsset *font);
 
@@ -560,6 +597,10 @@ ViewportItemIdResult graphics_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemConfig config);
 ViewportItemIdResult graphics_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
+ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId viewport,
+    ViewportUiShapeConfig shape, ViewportItemConfig config);
+ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId viewport,
+    ViewportUiTextConfig text, ViewportItemConfig config);
 EngineResult graphics_viewport_item_remove(ViewportId viewport,
     ViewportItemId item);
 EngineResult graphics_viewport_item_set(ViewportId viewport,

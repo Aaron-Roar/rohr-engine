@@ -19,6 +19,28 @@ int main(void) {
     CameraResult camera_result;
     ViewportIdResult viewport_result;
     ViewportItemIdResult viewport_item_result;
+    ViewportItemIdResult ui_item_result;
+    ViewportUiShapeConfig ui_shape = {
+        .shape = {.amount_of_vertices = 4, .vertices = {
+            {10.0f, 10.0f}, {110.0f, 10.0f},
+            {110.0f, 70.0f}, {10.0f, 70.0f}}},
+        .position = {5.0f, 8.0f},
+        .orientation = 0.2f,
+        .border_enabled = true,
+        .border_type = VIEWPORT_UI_BORDER_HASHED,
+        .border_thickness = 2.0f,
+        .border_hash_spacing = 7.0f,
+        .border_corner_radius = 9.0f,
+        .border_color = {255, 255, 255, 255},
+        .fill_color = {20, 40, 80, 255},
+        .button_enabled = true,
+        .hover_border_color = {255, 220, 80, 255},
+        .hover_fill_color = {30, 60, 110, 255},
+        .click_border_color = {255, 255, 255, 255},
+        .click_fill_color = {10, 20, 50, 255},
+    };
+    FontAsset default_font;
+    TextAssetResult default_text;
     Position screen;
     int render_count = 0;
     EntityResult target_entity_result;
@@ -255,6 +277,34 @@ int main(void) {
         rohr_engine_shutdown();
         return 1;
     }
+    viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
+    default_font = rohr_graphics_font_default_get();
+    default_text = rohr_graphics_text_create(&default_font, "Built-In 123!",
+        (Color){255, 255, 255, 255});
+    ui_shape.text = (ViewportUiTextConfig){.text =
+        rohr_error_check(default_text) ? NULL : &default_text.result.value,
+        .scale = {2.0f, 2.0f}};
+    if(rohr_error_check(viewport_result) || rohr_error_check(default_text) ||
+            !rohr_graphics_text_value_set(&default_text.result.value,
+                "Built-In Font") ||
+            (ui_item_result = rohr_viewport_ui_shape_add(
+                viewport_result.result.value, ui_shape,
+                (ViewportItemConfig){.layer = 1, .visible = true}),
+                rohr_error_check(ui_item_result)) ||
+            !rohr_error_check(rohr_viewport_ui_shape_add(
+                viewport_result.result.value, (ViewportUiShapeConfig){0},
+                (ViewportItemConfig){.visible = true})) ||
+            rohr_error_check(rohr_viewport_enable_set(viewport_result.result.value)) ||
+            (rohr_graphics_show(), false) ||
+            rohr_error_check(rohr_viewport_item_remove(
+                viewport_result.result.value, ui_item_result.result.value)) ||
+            rohr_error_check(rohr_viewport_destroy(viewport_result.result.value))) {
+        rohr_graphics_end();
+        rohr_engine_shutdown();
+        return 1;
+    }
+    rohr_graphics_text_destroy(&default_text.result.value);
+    rohr_graphics_font_destroy(&default_font);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;

@@ -138,11 +138,22 @@ typedef struct GraphicsScreen {
     SDL_Texture *texture;
 } GraphicsScreen;
 
+typedef enum GraphicsViewportItemKind {
+    GRAPHICS_VIEWPORT_ITEM_SCREEN,
+    GRAPHICS_VIEWPORT_ITEM_UI_SHAPE,
+    GRAPHICS_VIEWPORT_ITEM_UI_TEXT,
+} GraphicsViewportItemKind;
+
 typedef struct GraphicsViewport {
     ViewportRectangle rectangle;
     ScreenFit fit;
     struct {
-        ScreenId screen;
+        GraphicsViewportItemKind kind;
+        union {
+            ScreenId screen;
+            ViewportUiShapeConfig ui_shape;
+            ViewportUiTextConfig ui_text;
+        } value;
         ViewportItemConfig config;
         uint32_t generation;
         bool used;
@@ -266,15 +277,17 @@ static bool graphics_camera_viewport_size(CameraId camera_id, int *width, int *h
         if(!viewports_used[slot]) continue;
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             size_t screen_slot;
-            if(!viewports[slot].items[item].used) continue;
-            if((graphics_screen_slot(viewports[slot].items[item].screen,
+            if(!viewports[slot].items[item].used ||
+                    viewports[slot].items[item].kind !=
+                        GRAPHICS_VIEWPORT_ITEM_SCREEN) continue;
+            if((graphics_screen_slot(viewports[slot].items[item].value.screen,
                         &screen_slot) && screens[screen_slot].camera == camera_id) ||
                     (!found && camera_id == CAMERA_INVALID)) {
                 *width = (int)viewports[slot].items[item].config.rectangle.width;
                 *height = (int)viewports[slot].items[item].config.rectangle.height;
                 found = true;
                 if(camera_id != CAMERA_INVALID &&
-                        graphics_screen_slot(viewports[slot].items[item].screen,
+                        graphics_screen_slot(viewports[slot].items[item].value.screen,
                             &screen_slot) &&
                         screens[screen_slot].camera == camera_id) return true;
             }
@@ -885,7 +898,10 @@ EngineResult graphics_camera_destroy(CameraId id) {
         if(!viewports_used[viewport_slot]) continue;
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             if(viewports[viewport_slot].items[item].used &&
-                    graphics_screen_slot(viewports[viewport_slot].items[item].screen,
+                    viewports[viewport_slot].items[item].kind ==
+                        GRAPHICS_VIEWPORT_ITEM_SCREEN &&
+                    graphics_screen_slot(
+                        viewports[viewport_slot].items[item].value.screen,
                         &screen_slot) && screens[screen_slot].camera == id)
                 viewports[viewport_slot].items[item].used = false;
         }
@@ -1124,7 +1140,9 @@ EngineResult graphics_screen_destroy(ScreenId id) {
         if(viewports_used[viewport])
             for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
                 if(viewports[viewport].items[item].used &&
-                        viewports[viewport].items[item].screen == id)
+                        viewports[viewport].items[item].kind ==
+                            GRAPHICS_VIEWPORT_ITEM_SCREEN &&
+                        viewports[viewport].items[item].value.screen == id)
                     viewports[viewport].items[item].used = false;
     SDL_DestroyTexture(screens[slot].texture);
     screens[slot] = (GraphicsScreen){0};
@@ -1504,7 +1522,64 @@ ViewportItemIdResult graphics_viewport_screen_add(ViewportId id, ScreenId screen
         if(viewports[viewport_slot].items[item].used) continue;
         generation = viewports[viewport_slot].items[item].generation + 1;
         if(generation == 0) generation = 1;
-        viewports[viewport_slot].items[item].screen = screen_id;
+        viewports[viewport_slot].items[item].kind = GRAPHICS_VIEWPORT_ITEM_SCREEN;
+        viewports[viewport_slot].items[item].value.screen = screen_id;
+        viewports[viewport_slot].items[item].config = config;
+        viewports[viewport_slot].items[item].generation = generation;
+        viewports[viewport_slot].items[item].used = true;
+        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
+            (generation << 8) | (uint32_t)(item + 1));
+    }
+    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId id,
+        ViewportUiShapeConfig shape, ViewportItemConfig config) {
+    size_t viewport_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    if(shape.shape.amount_of_vertices < 3 ||
+            shape.shape.amount_of_vertices > MAX_VERTICIES)
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+            ERROR_ENGINE_INVALID_SHAPE);
+    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
+    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
+    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
+    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+        uint32_t generation;
+        if(viewports[viewport_slot].items[item].used) continue;
+        generation = viewports[viewport_slot].items[item].generation + 1;
+        if(generation == 0) generation = 1;
+        viewports[viewport_slot].items[item].kind =
+            GRAPHICS_VIEWPORT_ITEM_UI_SHAPE;
+        viewports[viewport_slot].items[item].value.ui_shape = shape;
+        viewports[viewport_slot].items[item].config = config;
+        viewports[viewport_slot].items[item].generation = generation;
+        viewports[viewport_slot].items[item].used = true;
+        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
+            (generation << 8) | (uint32_t)(item + 1));
+    }
+    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId id,
+        ViewportUiTextConfig text, ViewportItemConfig config) {
+    size_t viewport_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot) || text.text == NULL)
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
+    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+        uint32_t generation;
+        if(viewports[viewport_slot].items[item].used) continue;
+        generation = viewports[viewport_slot].items[item].generation + 1;
+        if(generation == 0) generation = 1;
+        viewports[viewport_slot].items[item].kind =
+            GRAPHICS_VIEWPORT_ITEM_UI_TEXT;
+        viewports[viewport_slot].items[item].value.ui_text = text;
         viewports[viewport_slot].items[item].config = config;
         viewports[viewport_slot].items[item].generation = generation;
         viewports[viewport_slot].items[item].used = true;
@@ -2065,8 +2140,11 @@ static void graphics_render_viewport_cameras(void) {
             size_t camera_slot;
             size_t screen_slot;
             if(!viewports[viewport_slot].items[item].used ||
+                    viewports[viewport_slot].items[item].kind !=
+                        GRAPHICS_VIEWPORT_ITEM_SCREEN ||
                     !viewports[viewport_slot].items[item].config.visible) continue;
-            if(!graphics_screen_slot(viewports[viewport_slot].items[item].screen,
+            if(!graphics_screen_slot(
+                    viewports[viewport_slot].items[item].value.screen,
                     &screen_slot) || rendered[screen_slot])
                 continue;
             rendered[screen_slot] = true;
@@ -2075,7 +2153,8 @@ static void graphics_render_viewport_cameras(void) {
             runtime = &camera_runtime[camera_slot];
             if(!runtime->enabled || runtime->callback == NULL
                     || (runtime->pause_with_engine && engine_paused_get())) continue;
-            if(graphics_screen_begin(viewports[viewport_slot].items[item].screen).kind ==
+            if(graphics_screen_begin(
+                    viewports[viewport_slot].items[item].value.screen).kind ==
                     ERROR_RESULT_ERROR) continue;
             runtime->callback(camera_id, runtime->context);
             (void)graphics_camera_end();
@@ -2098,6 +2177,199 @@ static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
             selected = item;
     }
     return selected;
+}
+
+static Position graphics_viewport_ui_point_get(const GraphicsViewport *viewport,
+        const ViewportUiShapeConfig *shape, Position point) {
+    Position centroid = math_polygon_centroid(shape->shape);
+    Vec2D relative = {point.x - centroid.x, point.y - centroid.y};
+    Vec2D rotated = math_vector_rotate(relative, shape->orientation);
+    return (Position){viewport->rectangle.x + shape->position.x + centroid.x +
+            rotated.x,
+        viewport->rectangle.y + shape->position.y + centroid.y + rotated.y};
+}
+
+static void graphics_viewport_ui_line_draw(Position start, Position end,
+        float thickness, Color color) {
+    Vec2D edge = {end.x - start.x, end.y - start.y};
+    float length = sqrtf(edge.x * edge.x + edge.y * edge.y);
+    SDL_Vertex vertices[4];
+    int indices[6] = {0, 1, 2, 0, 2, 3};
+    if(length <= 0.001f || thickness <= 0.0f) return;
+    Vec2D normal = {-edge.y / length * thickness * 0.5f,
+        edge.x / length * thickness * 0.5f};
+    Position points[4] = {{start.x + normal.x, start.y + normal.y},
+        {end.x + normal.x, end.y + normal.y},
+        {end.x - normal.x, end.y - normal.y},
+        {start.x - normal.x, start.y - normal.y}};
+    for(size_t i = 0; i < 4; i += 1) vertices[i] = (SDL_Vertex){
+        .position = {points[i].x, points[i].y},
+        .color = {color.red / 255.0f, color.green / 255.0f,
+            color.blue / 255.0f, color.alpha / 255.0f}};
+    (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6);
+}
+
+static void graphics_viewport_ui_border_segment_draw(Position start, Position end,
+        const ViewportUiShapeConfig *shape, Color color) {
+    Vec2D edge = {end.x - start.x, end.y - start.y};
+    float length = sqrtf(edge.x * edge.x + edge.y * edge.y);
+    float thickness = fmaxf(1.0f, shape->border_thickness);
+    if(shape->border_type != VIEWPORT_UI_BORDER_HASHED) {
+        graphics_viewport_ui_line_draw(start, end, thickness, color);
+        return;
+    }
+    float spacing = fmaxf(thickness, shape->border_hash_spacing);
+    float dash = fmaxf(thickness, spacing * 0.55f);
+    if(length <= 0.001f) return;
+    for(float position = 0.0f; position < length; position += spacing) {
+        float finish = fminf(length, position + dash);
+        graphics_viewport_ui_line_draw((Position){start.x + edge.x * position / length,
+                start.y + edge.y * position / length},
+            (Position){start.x + edge.x * finish / length,
+                start.y + edge.y * finish / length}, thickness, color);
+    }
+}
+
+static Position graphics_viewport_ui_corner_point_get(Position corner,
+        Position neighbor, float radius) {
+    Vec2D edge = {neighbor.x - corner.x, neighbor.y - corner.y};
+    float length = sqrtf(edge.x * edge.x + edge.y * edge.y);
+    if(length <= 0.001f) return corner;
+    radius = fminf(radius, length * 0.5f);
+    return (Position){corner.x + edge.x * radius / length,
+        corner.y + edge.y * radius / length};
+}
+
+static void graphics_viewport_ui_border_draw(const Position *points, size_t count,
+        const ViewportUiShapeConfig *shape, Color color) {
+    float radius = fmaxf(0.0f, shape->border_corner_radius);
+    if(radius <= 0.0f) {
+        for(size_t i = 0; i < count; i += 1)
+            graphics_viewport_ui_border_segment_draw(points[i],
+                points[(i + 1) % count], shape, color);
+        return;
+    }
+    for(size_t i = 0; i < count; i += 1) {
+        size_t previous = (i + count - 1) % count;
+        size_t next = (i + 1) % count;
+        Position outgoing = graphics_viewport_ui_corner_point_get(points[i],
+            points[next], radius);
+        Position incoming_next = graphics_viewport_ui_corner_point_get(points[next],
+            points[i], radius);
+        Position incoming = graphics_viewport_ui_corner_point_get(points[i],
+            points[previous], radius);
+        Position arc_start = incoming;
+        graphics_viewport_ui_border_segment_draw(outgoing, incoming_next,
+            shape, color);
+        for(size_t step = 1; step <= 6; step += 1) {
+            float amount = (float)step / 6.0f;
+            float inverse = 1.0f - amount;
+            Position arc_end = {
+                inverse * inverse * incoming.x +
+                    2.0f * inverse * amount * points[i].x +
+                    amount * amount * outgoing.x,
+                inverse * inverse * incoming.y +
+                    2.0f * inverse * amount * points[i].y +
+                    amount * amount * outgoing.y};
+            graphics_viewport_ui_border_segment_draw(arc_start, arc_end,
+                shape, color);
+            arc_start = arc_end;
+        }
+    }
+}
+
+static bool graphics_viewport_ui_point_inside(Position point,
+        const Position *vertices, size_t count) {
+    bool inside = false;
+    size_t previous = count - 1;
+    for(size_t i = 0; i < count; i += 1) {
+        bool crosses = (vertices[i].y > point.y) !=
+            (vertices[previous].y > point.y) &&
+            point.x < (vertices[previous].x - vertices[i].x) *
+                (point.y - vertices[i].y) /
+                (vertices[previous].y - vertices[i].y) + vertices[i].x;
+        if(crosses) inside = !inside;
+        previous = i;
+    }
+    return inside;
+}
+
+static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
+        const ViewportUiTextConfig *text, Position anchor,
+        Orientation inherited_orientation) {
+    const TextAsset *asset;
+    Scale scale;
+    SDL_FRect destination;
+    if(viewport == NULL || text == NULL || text->text == NULL ||
+            text->text->texture == NULL) return;
+    asset = text->text;
+    scale = text->scale;
+    if(scale.x <= 0.0f) scale.x = 1.0f;
+    if(scale.y <= 0.0f) scale.y = 1.0f;
+    anchor.x += viewport->rectangle.x + text->position.x + text->offset.x;
+    anchor.y += viewport->rectangle.y + text->position.y + text->offset.y;
+    destination = (SDL_FRect){anchor.x - asset->size.x * scale.x * 0.5f,
+        anchor.y - asset->size.y * scale.y * 0.5f,
+        asset->size.x * scale.x, asset->size.y * scale.y};
+    (void)SDL_RenderTextureRotated(sdl_renderer, asset->texture, NULL,
+        &destination, (double)((inherited_orientation + text->orientation) *
+            180.0f / PI_F), NULL, SDL_FLIP_NONE);
+}
+
+static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
+        const ViewportUiShapeConfig *shape) {
+    Shape prepared;
+    Position points[MAX_VERTICIES];
+    SDL_Vertex vertices[MAX_VERTICIES];
+    int indices[MAX_CONCAVE_PIECES * 3];
+    int index_count = 0;
+    Color fill;
+    Color border;
+    Position pointer;
+    bool hovered;
+    if(viewport == NULL || shape == NULL || shape->shape.amount_of_vertices < 3 ||
+            !physics_shape_collision_prepare(shape->shape, &prepared)) return;
+    for(size_t i = 0; i < shape->shape.amount_of_vertices; i += 1)
+        points[i] = graphics_viewport_ui_point_get(viewport, shape,
+            shape->shape.vertices[i]);
+    pointer = graphics_mouse_screen_position_get();
+    hovered = shape->button_enabled && graphics_viewport_ui_point_inside(pointer,
+        points, shape->shape.amount_of_vertices);
+    fill = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
+        shape->click_fill_color : shape->hover_fill_color) : shape->fill_color;
+    border = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
+        shape->click_border_color : shape->hover_border_color) :
+        shape->border_color;
+    for(size_t i = 0; i < shape->shape.amount_of_vertices; i += 1)
+        vertices[i] = (SDL_Vertex){.position = {points[i].x, points[i].y},
+            .color = {fill.red / 255.0f, fill.green / 255.0f,
+                fill.blue / 255.0f, fill.alpha / 255.0f}};
+    if(prepared.concave_piece_count == 0) {
+        for(int i = 1; i < shape->shape.amount_of_vertices - 1; i += 1) {
+            indices[index_count++] = 0;
+            indices[index_count++] = i;
+            indices[index_count++] = i + 1;
+        }
+    } else for(uint8_t piece = 0; piece < prepared.concave_piece_count; piece += 1)
+        for(uint8_t vertex = 0; vertex < 3; vertex += 1)
+            indices[index_count++] =
+                prepared.concave_pieces[piece].vertex_indices[vertex];
+    if(shape->border_enabled) {
+        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices,
+            shape->shape.amount_of_vertices, indices, index_count);
+        graphics_viewport_ui_border_draw(points,
+            shape->shape.amount_of_vertices, shape, border);
+    }
+    {
+        Position centroid = math_polygon_centroid(shape->shape);
+        Vec2D offset = math_vector_rotate((Vec2D){shape->text.offset.x,
+            shape->text.offset.y}, shape->orientation);
+        ViewportUiTextConfig text = shape->text;
+        text.offset = (Position){offset.x, offset.y};
+        graphics_viewport_ui_text_draw(viewport, &text,
+            (Position){shape->position.x + centroid.x,
+                shape->position.y + centroid.y}, shape->orientation);
+    }
 }
 
 static void graphics_viewports_draw(void) {
@@ -2158,7 +2430,18 @@ static void graphics_viewports_draw(void) {
             if(item == MAX_VIEWPORT_ITEMS) break;
             drawn[item] = true;
             config = &viewport->items[item].config;
-            if(!graphics_screen_slot(viewport->items[item].screen, &screen_slot))
+            if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI_SHAPE) {
+                graphics_viewport_ui_shape_draw(viewport,
+                    &viewport->items[item].value.ui_shape);
+                continue;
+            }
+            if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI_TEXT) {
+                graphics_viewport_ui_text_draw(viewport,
+                    &viewport->items[item].value.ui_text, (Position){0}, 0.0f);
+                continue;
+            }
+            if(!graphics_screen_slot(viewport->items[item].value.screen,
+                    &screen_slot))
                 continue;
             screen = &screens[screen_slot];
             destination = (SDL_FRect){
@@ -2582,12 +2865,46 @@ FontAssetResult graphics_font_load(FontDescriptor descriptor) {
     return ERROR_RESULT_MAKE_VALUE(FontAssetResult, asset);
 }
 
+FontAsset graphics_font_default_get(void) {
+    return (FontAsset){.built_in = true};
+}
+
 void graphics_font_destroy(FontAsset *font) {
-    if(font == NULL || font->font == NULL) {
-        return;
-    }
-    TTF_CloseFont(font->font);
+    if(font == NULL) return;
+    if(font->font != NULL) TTF_CloseFont(font->font);
     *font = (FontAsset){0};
+}
+
+static SDL_Texture *graphics_builtin_text_texture_create(const char *value,
+        Color color, Scale *size) {
+    SDL_Texture *texture;
+    SDL_Texture *previous;
+    size_t length;
+    if(value == NULL || size == NULL || sdl_renderer == NULL) return NULL;
+    length = strlen(value);
+    *size = (Scale){(float)(length * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE),
+        length > 0 ? (float)SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE : 0.0f};
+    if(length == 0) return NULL;
+    texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET, (int)size->x, (int)size->y);
+    if(texture == NULL) return NULL;
+    (void)SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    previous = SDL_GetRenderTarget(sdl_renderer);
+    if(!SDL_SetRenderTarget(sdl_renderer, texture)) {
+        SDL_DestroyTexture(texture);
+        return NULL;
+    }
+    (void)SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 0);
+    (void)SDL_RenderClear(sdl_renderer);
+    (void)SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
+        color.blue, color.alpha);
+    if(!SDL_RenderDebugText(sdl_renderer, 0.0f, 0.0f, value)) {
+        (void)SDL_SetRenderTarget(sdl_renderer, previous);
+        SDL_DestroyTexture(texture);
+        return NULL;
+    }
+    (void)SDL_SetRenderTarget(sdl_renderer, previous);
+    return texture;
 }
 
 TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color) {
@@ -2596,9 +2913,20 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value, C
     int width;
     int height;
 
-    if(font == NULL || font->font == NULL || value == NULL || ttf_text_engine == NULL) {
+    if(font == NULL || value == NULL || (!font->built_in &&
+            (font->font == NULL || ttf_text_engine == NULL))) {
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
         return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
+    }
+    if(font->built_in) {
+        asset.texture = graphics_builtin_text_texture_create(value, color,
+            &asset.size);
+        if(value[0] != '\0' && asset.texture == NULL)
+            return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
+                ERROR_ENGINE_TEXT_CREATE_FAILED);
+        asset.built_in = true;
+        asset.color = color;
+        return ERROR_RESULT_MAKE_VALUE(TextAssetResult, asset);
     }
     asset.text = TTF_CreateText(ttf_text_engine, font->font, value, 0);
     if(asset.text == NULL || !TTF_SetTextColor(
@@ -2643,7 +2971,17 @@ bool graphics_text_value_set(TextAsset *text, const char *value) {
     SDL_Surface *surface;
     SDL_Texture *texture;
 
-    if(text == NULL || text->text == NULL || value == NULL ||
+    if(text == NULL || value == NULL) return false;
+    if(text->built_in) {
+        Scale size;
+        texture = graphics_builtin_text_texture_create(value, text->color, &size);
+        if(value[0] != '\0' && texture == NULL) return false;
+        SDL_DestroyTexture(text->texture);
+        text->texture = texture;
+        text->size = size;
+        return true;
+    }
+    if(text->text == NULL ||
             !TTF_SetTextString(text->text, value, 0) ||
             !TTF_GetTextSize(text->text, &width, &height)) return false;
     texture = NULL;
@@ -2679,8 +3017,21 @@ bool graphics_text_draw(const TextAsset *text, Position position) {
 
 bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) {
     GraphicsCommand *command;
-    if(text == NULL || text->text == NULL || scale.x <= 0.0f || scale.y <= 0.0f) {
+    if(text == NULL || scale.x <= 0.0f || scale.y <= 0.0f ||
+            (text->text == NULL && !text->built_in)) {
         return false;
+    }
+    if(text->built_in) {
+        if(text->texture == NULL) return true;
+        command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
+        if(command == NULL) return false;
+        command->data.texture.texture = text->texture;
+        command->data.texture.destination = (SDL_FRect){position.x, position.y,
+            text->size.x * scale.x, text->size.y * scale.y};
+        command->data.texture.center = (SDL_FPoint){0};
+        command->data.texture.degrees = 0.0;
+        command->data.texture.flip = SDL_FLIP_NONE;
+        return true;
     }
     command = graphics_command_append(GRAPHICS_COMMAND_TEXT);
     if(command == NULL) return false;

@@ -345,6 +345,7 @@ void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
     graphics_screen_texture_draw(texture, center, size, orientation);
 }
 FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor) { return graphics_font_load(descriptor); }
+FontAsset rohr_graphics_font_default_get(void) { return graphics_font_default_get(); }
 void rohr_graphics_font_destroy(FontAsset *font) { graphics_font_destroy(font); }
 TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color) { return graphics_text_create(font, value, color); }
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return graphics_text_value_set(text, value); }
@@ -437,6 +438,8 @@ ViewportIdResult rohr_viewport_create(ViewportConfig config) { return graphics_v
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemConfig config) { return graphics_viewport_camera_add(viewport, camera, config); }
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemConfig config) { return graphics_viewport_screen_add(viewport, screen, config); }
+ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport, ViewportUiShapeConfig shape, ViewportItemConfig config) { return graphics_viewport_ui_shape_add(viewport, shape, config); }
+ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport, ViewportUiTextConfig text, ViewportItemConfig config) { return graphics_viewport_ui_text_add(viewport, text, config); }
 EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item) { return graphics_viewport_item_remove(viewport, item); }
 EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(viewport, item, config); }
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera) { return graphics_viewport_camera_set(viewport, camera); }

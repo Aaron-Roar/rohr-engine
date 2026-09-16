@@ -1409,6 +1409,9 @@ void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
 /** @brief Loads a caller-owned font asset. */
 FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
 
+/** @brief Returns the engine's file-free built-in font. */
+FontAsset rohr_graphics_font_default_get(void);
+
 /** @brief Destroys a font after its text assets have been destroyed. */
 void rohr_graphics_font_destroy(FontAsset *font);
 
@@ -1619,6 +1622,10 @@ ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemConfig config);
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
+ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport,
+    ViewportUiShapeConfig shape, ViewportItemConfig config);
+ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport,
+    ViewportUiTextConfig text, ViewportItemConfig config);
 EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item);
 EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item,
     ViewportItemConfig config);
