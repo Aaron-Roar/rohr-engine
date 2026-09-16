@@ -69,6 +69,8 @@ typedef struct UIContext {
     UIScrollRecord scroll_previous[UI_SCROLL_RECORD_MAX];
     size_t scroll_record_count;
     size_t scroll_previous_count;
+    uint64_t scrollbar_active_id;
+    float scrollbar_drag_offset;
     bool modal_active;
     bool modal_controls;
     UIRect modal_bounds;
@@ -176,6 +178,55 @@ static void ui_scrollbar_raw(UIRect bounds, float visible_amount,
         width, bounds.height}, (Color){18, 20, 25, 220});
     ui_surface_raw((UIRect){bounds.x + bounds.width - width, handle_y,
         width, handle_height}, (Color){105, 115, 135, 255});
+}
+
+static float ui_scrollbar_update(uint64_t id, UIRect bounds,
+        float visible_amount, float total_amount, float offset,
+        bool interaction_allowed) {
+    const float width = 6.0f;
+    float handle_height;
+    float maximum;
+    float travel;
+    float handle_y;
+    UIRect track;
+    UIRect handle;
+
+    if(id == 0 || bounds.width <= 0.0f || bounds.height <= 0.0f ||
+            visible_amount <= 0.0f || total_amount <= visible_amount) return offset;
+    handle_height = fmaxf(16.0f, bounds.height * visible_amount / total_amount);
+    if(handle_height > bounds.height) handle_height = bounds.height;
+    maximum = total_amount - visible_amount;
+    travel = bounds.height - handle_height;
+    handle_y = bounds.y + (maximum <= 0.0f ? 0.0f : offset / maximum * travel);
+    track = (UIRect){bounds.x + bounds.width - width, bounds.y, width, bounds.height};
+    handle = (UIRect){track.x, handle_y, width, handle_height};
+    if(interaction_allowed && ui_context.input.primary_button ==
+            MOUSE_BUTTON_STATE_PRESSED && ui_point_in_rect(ui_context.input.pointer, track) &&
+            (!ui_context.pointer_claimed || ui_context.scrollbar_active_id == id ||
+                ui_context.active_id == id)) {
+        ui_context.scrollbar_active_id = id;
+        ui_context.scrollbar_drag_offset = ui_point_in_rect(ui_context.input.pointer, handle) ?
+            ui_context.input.pointer.y - handle_y : handle_height * 0.5f;
+        ui_context.pointer_claimed = true;
+    }
+    if(ui_context.scrollbar_active_id == id) {
+        ui_context.pointer_claimed = true;
+        if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED ||
+                ui_context.input.primary_button == MOUSE_BUTTON_STATE_DOWN ||
+                ui_context.input.primary_button == MOUSE_BUTTON_STATE_RELEASED) {
+            float next_handle_y = ui_context.input.pointer.y -
+                ui_context.scrollbar_drag_offset;
+            float amount = travel <= 0.0f ? 0.0f :
+                (next_handle_y - bounds.y) / travel;
+            if(amount < 0.0f) amount = 0.0f;
+            if(amount > 1.0f) amount = 1.0f;
+            offset = amount * maximum;
+            ui_context.pointer_consumed = true;
+        }
+        if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_RELEASED)
+            ui_context.scrollbar_active_id = 0;
+    }
+    return offset;
 }
 
 static void ui_dropdown_divider_raw(UIRect bounds) {
@@ -773,6 +824,11 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             (int)fmaxf(1.0f, resolved_bounds.width - 12.0f));
         if(TTF_GetTextSize(display->text, &text_width, &text_height))
             display->size = (Scale){(float)text_width, (float)text_height};
+        if(result.active) {
+            ui_context.field_scroll_y = ui_scrollbar_update(field_id, resolved_bounds,
+                resolved_bounds.height, display->size.y + 12.0f,
+                ui_context.field_scroll_y, true);
+        }
         if(result.active && result.hovered && ui_context.wheel_y != 0.0f) {
             float maximum = fmaxf(0.0f, display->size.y - resolved_bounds.height + 12.0f);
             ui_context.field_scroll_y = fmaxf(0.0f, fminf(maximum,
@@ -821,6 +877,9 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             (Position){resolved_bounds.x + 6.0f,
                 resolved_bounds.y + 6.0f - ui_context.field_scroll_y});
         if(clipped) ui_clip_end();
+        if(result.active && display != NULL)
+            ui_scrollbar_raw(resolved_bounds, resolved_bounds.height,
+                display->size.y + 12.0f, ui_context.field_scroll_y);
     } else ui_label_raw(display, resolved_bounds);
     return result;
 }
@@ -886,6 +945,10 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
             option_count : UI_DROPDOWN_VISIBLE_MAX;
         UIRect menu_bounds = {resolved_bounds.x, resolved_bounds.y + resolved_bounds.height,
             resolved_bounds.width, resolved_bounds.height * (float)visible_count};
+        float first_option = ui_scrollbar_update(dropdown_id, menu_bounds,
+            (float)visible_count, (float)option_count,
+            (float)ui_context.dropdown_first_option, true);
+        ui_context.dropdown_first_option = (size_t)lroundf(first_option);
         if(ui_point_in_rect(ui_context.input.pointer, menu_bounds) &&
                 ui_context.wheel_y != 0.0f && option_count > visible_count) {
             int direction = ui_context.wheel_y < 0.0f ? 1 : -1;
@@ -976,6 +1039,7 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     uint64_t scroll_id = ui_hash_id(id);
     uint64_t wheel_target = 0;
     size_t target_depth = 0;
+    bool dropdown_over_pointer = false;
     if(!ui_context.frame_active || scroll_id == 0 || bounds.width <= 0.0f ||
             bounds.height <= 0.0f || content_height < 0.0f || wheel_step <= 0.0f ||
             ui_context.scroll_depth >= UI_SCROLL_REGION_MAX) return result;
@@ -994,7 +1058,8 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
             ui_context.dropdown_bounds.width,
             ui_context.dropdown_bounds.height *
                 (float)ui_context.dropdown_option_count};
-        if(ui_point_in_rect(ui_context.input.pointer, menu)) wheel_target = UINT64_MAX;
+        dropdown_over_pointer = ui_point_in_rect(ui_context.input.pointer, menu);
+        if(dropdown_over_pointer) wheel_target = UINT64_MAX;
     }
     if(ui_context.scroll_record_count < UI_SCROLL_RECORD_MAX)
         ui_context.scroll_records[ui_context.scroll_record_count++] =
@@ -1002,6 +1067,13 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     result.hovered = ui_point_in_rect(ui_context.input.pointer, resolved_bounds) &&
         ui_point_in_scroll_clip(ui_context.input.pointer);
     maximum = fmaxf(0.0f, content_height - bounds.height);
+    {
+        float previous = result.offset;
+        result.offset = ui_scrollbar_update(scroll_id, resolved_bounds, bounds.height,
+            content_height, result.offset, !dropdown_over_pointer ||
+                ui_context.scrollbar_active_id == scroll_id);
+        if(result.offset != previous) result.changed = true;
+    }
     if(result.hovered && ui_context.wheel_y != 0.0f &&
             (wheel_target == 0 || wheel_target == scroll_id)) {
         result.offset -= ui_context.wheel_y * wheel_step;

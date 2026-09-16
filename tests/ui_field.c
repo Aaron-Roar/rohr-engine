@@ -387,6 +387,37 @@ int main(void) {
         rohr_ui_frame_end();
     }
 
+    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 45.0f},
+        .primary_button = MOUSE_BUTTON_STATE_PRESSED});
+    {
+        UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
+            "interactive-scrollbar", (UIRect){0.0f, 0.0f, 100.0f, 50.0f},
+            100.0f, 0.0f, 10.0f);
+        if(!scroll.changed || fabsf(scroll.offset - 50.0f) > 0.001f) return 1;
+        rohr_ui_scroll_region_end();
+    }
+    rohr_ui_frame_end();
+    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 25.0f},
+        .primary_button = MOUSE_BUTTON_STATE_DOWN});
+    {
+        UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
+            "interactive-scrollbar", (UIRect){0.0f, 0.0f, 100.0f, 50.0f},
+            100.0f, 50.0f, 10.0f);
+        if(!scroll.changed || fabsf(scroll.offset - 25.0f) > 0.001f) return 1;
+        rohr_ui_scroll_region_end();
+    }
+    rohr_ui_frame_end();
+    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 12.5f},
+        .primary_button = MOUSE_BUTTON_STATE_RELEASED});
+    {
+        UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
+            "interactive-scrollbar", (UIRect){0.0f, 0.0f, 100.0f, 50.0f},
+            100.0f, 25.0f, 10.0f);
+        if(!scroll.changed || fabsf(scroll.offset) > 0.001f) return 1;
+        rohr_ui_scroll_region_end();
+    }
+    rohr_ui_frame_end();
+
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
