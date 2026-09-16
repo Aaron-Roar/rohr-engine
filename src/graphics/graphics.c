@@ -2102,15 +2102,23 @@ static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
 
 static void graphics_viewports_draw(void) {
     size_t viewport_slot;
+    bool has_viewport = false;
     bool has_enabled_viewport = false;
     (void)SDL_SetRenderTarget(sdl_renderer, NULL);
     (void)SDL_SetRenderViewport(sdl_renderer, NULL);
     (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        if(viewports_used[viewport_slot] && viewports[viewport_slot].enabled) {
+        if(!viewports_used[viewport_slot]) continue;
+        has_viewport = true;
+        if(viewports[viewport_slot].enabled) {
             has_enabled_viewport = true;
             break;
         }
+    }
+    if(!has_viewport) {
+        SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+        (void)SDL_RenderClear(sdl_renderer);
+        return;
     }
     if(!has_enabled_viewport) return;
     SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);

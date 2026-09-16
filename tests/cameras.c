@@ -179,6 +179,13 @@ int main(void) {
             return 1;
         }
     }
+    if(rohr_error_check(rohr_camera_render_callback_set(original,
+                count_camera_render, &render_count)) ||
+            (rohr_graphics_show(), render_count != 0)) {
+        rohr_graphics_end();
+        rohr_engine_shutdown();
+        return 1;
+    }
     {
         ViewportConfig viewport_config = rohr_viewport_config_default_get();
         viewport_result = rohr_viewport_create(viewport_config);

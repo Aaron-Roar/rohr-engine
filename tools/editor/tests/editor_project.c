@@ -158,6 +158,12 @@ int main(void) {
                 loaded_project.objects[0].rigid_body_count != 7 ||
                 loaded_project.objects[0].camera_count != 1 ||
                 loaded_project.layout_viewport_count != 1 ||
+                strcmp(loaded_project.layout_viewports[0].name,
+                    "InitialViewport") != 0 ||
+                loaded_project.layout_viewports[0].config.rectangle.width !=
+                    WINDOW_WIDTH ||
+                loaded_project.layout_viewports[0].config.rectangle.height !=
+                    WINDOW_HEIGHT ||
                 loaded_project.layout_viewports[0].camera_item_count != 1 ||
                 loaded_project.layout_viewports[0].camera_items[0].object !=
                     loaded_project.objects[0].id ||
