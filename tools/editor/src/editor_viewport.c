@@ -1968,14 +1968,16 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
 }
 
 static void editor_viewport_screen_dotted_line_draw(Position first,
-        Position second, Color color) {
+        Position second, Color color, float spacing, float thickness) {
     Vec2D delta = {second.x - first.x, second.y - first.y};
     float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
     if(length <= 0.0f) return;
-    for(float distance = 0.0f; distance <= length; distance += 6.0f) {
+    spacing = fmaxf(thickness, spacing);
+    for(float distance = 0.0f; distance <= length; distance += spacing) {
         float ratio = distance / length;
-        (void)rohr_graphics_screen_rect_draw(first.x + delta.x * ratio - 1.0f,
-            first.y + delta.y * ratio - 1.0f, 3.0f, 3.0f, color);
+        (void)rohr_graphics_screen_rect_draw(first.x + delta.x * ratio -
+                thickness * 0.5f, first.y + delta.y * ratio - thickness * 0.5f,
+            thickness, thickness, color);
     }
 }
 
@@ -2019,6 +2021,7 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     EditorUiFontId font_id;
     FontAsset *font;
     Position position;
+    Scale text_scale;
     if(item == NULL || slot >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             editor_viewport_ui_font == NULL) return;
     value = item->kind == EDITOR_VIEWPORT_UI_SHAPE ? item->value.shape.text.text :
@@ -2027,6 +2030,11 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
         item->value.text.color;
     font_id = item->kind == EDITOR_VIEWPORT_UI_TEXT ? item->value.text.font :
         item->value.shape.text.font;
+    text_scale = item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+        (Scale){item->value.text.width_scale * zoom,
+            item->value.text.height_scale * zoom} :
+        (Scale){item->value.shape.text.width_scale * zoom,
+            item->value.shape.text.height_scale * zoom};
     font = editor_viewport_ui_font_get(project, font_id);
     if(font == NULL) return;
     if(value[0] == '\0') return;
@@ -2050,7 +2058,8 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     }
     position = (Position){viewport.x + item->position.x * zoom,
         viewport.y + item->position.y * zoom};
-    (void)rohr_graphics_text_draw(&editor_viewport_ui_text_assets[slot], position);
+    (void)rohr_graphics_text_scaled_draw(&editor_viewport_ui_text_assets[slot],
+        position, text_scale);
 }
 
 static EditorSoftBody *editor_group_soft_body_get(EditorObject *object,
@@ -4572,10 +4581,11 @@ void editor_viewport_draw(const EditorProject *project,
             for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
-                Color color = item->id == state->selected_viewport_ui_item ?
-                    (Color){255, 210, 70, 255} :
-                    item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-                        (Color){190, 120, 255, 255} : (Color){255, 145, 190, 255};
+                bool whole_selected = item->id == state->selected_viewport_ui_item &&
+                    (state->selection == EDITOR_SELECTION_UI_SHAPE ||
+                        state->selection == EDITOR_SELECTION_UI_TEXT);
+                Color color = whole_selected ? (Color){255, 210, 70, 255} :
+                    rohr_graphics_color_hex_create(item->border_color);
                 editor_viewport_ui_text_draw(project, item, i, rectangle, zoom);
                 ui.x = rectangle.x + ui.x * zoom;
                 ui.y = rectangle.y + ui.y * zoom;
@@ -4593,29 +4603,55 @@ void editor_viewport_draw(const EditorProject *project,
                                 item->value.shape.vertices[next].x) * zoom,
                             rectangle.y + (item->position.y +
                                 item->value.shape.vertices[next].y) * zoom};
-                        editor_viewport_screen_dotted_line_draw(first, second, color);
-                        if(item->id == state->selected_viewport_ui_item ||
-                                editor_viewport_selection_contains(state,
+                        bool line_selected = item->id ==
+                                state->selected_viewport_ui_item &&
+                            state->selection == EDITOR_SELECTION_UI_LINE &&
+                            state->selected_line == vertex;
+                        bool vertex_selected = item->id ==
+                                state->selected_viewport_ui_item &&
+                            state->selection == EDITOR_SELECTION_UI_VERTEX &&
+                            state->selected_vertex == vertex;
+                        bool vertex_multi = editor_viewport_selection_contains(state,
                                     (EditorSelectionRef){
                                         .kind = EDITOR_SELECTION_UI_VERTEX,
                                         .object = state->selected_layout_viewport,
                                         .parent = item->id,
-                                        .item = (uint32_t)vertex + 1}))
+                                        .item = (uint32_t)vertex + 1});
+                        if(item->border_enabled || whole_selected || line_selected)
+                            editor_viewport_screen_dotted_line_draw(first, second,
+                                line_selected ? (Color){255, 210, 70, 255} : color,
+                                item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED ?
+                                    item->border_hash_spacing * zoom :
+                                    fmaxf(1.0f, item->border_thickness * zoom),
+                                fmaxf(1.0f, item->border_thickness * zoom));
+                        if(whole_selected || vertex_selected || vertex_multi)
                             (void)rohr_graphics_screen_rect_draw(first.x - 4.0f,
-                                first.y - 4.0f, 8.0f, 8.0f, color);
+                                first.y - 4.0f, 8.0f, 8.0f,
+                                (Color){255, 210, 70, 255});
                     }
                     continue;
                 }
-                (void)rohr_graphics_screen_rect_draw(ui.x, ui.y, ui.width,
-                    fmaxf(1.0f, 2.0f * zoom), color);
-                (void)rohr_graphics_screen_rect_draw(ui.x,
-                    ui.y + ui.height - fmaxf(1.0f, 2.0f * zoom), ui.width,
-                    fmaxf(1.0f, 2.0f * zoom), color);
-                (void)rohr_graphics_screen_rect_draw(ui.x, ui.y,
-                    fmaxf(1.0f, 2.0f * zoom), ui.height, color);
-                (void)rohr_graphics_screen_rect_draw(
-                    ui.x + ui.width - fmaxf(1.0f, 2.0f * zoom), ui.y,
-                    fmaxf(1.0f, 2.0f * zoom), ui.height, color);
+                if(whole_selected && !item->border_enabled &&
+                        i < EDITOR_LAYOUT_VIEWPORT_UI_MAX &&
+                        editor_viewport_ui_text_assets[i].text != NULL) {
+                    ui.width = editor_viewport_ui_text_assets[i].size.x *
+                        item->value.text.width_scale * zoom;
+                    ui.height = editor_viewport_ui_text_assets[i].size.y *
+                        item->value.text.height_scale * zoom;
+                    color = (Color){255, 210, 70, 255};
+                }
+                if(item->border_enabled || whole_selected) {
+                    Position corners[4] = {{ui.x, ui.y}, {ui.x + ui.width, ui.y},
+                        {ui.x + ui.width, ui.y + ui.height},
+                        {ui.x, ui.y + ui.height}};
+                    float thickness = fmaxf(1.0f, item->border_thickness * zoom);
+                    float spacing = item->border_type ==
+                            EDITOR_VIEWPORT_UI_BORDER_HASHED ?
+                        item->border_hash_spacing * zoom : thickness;
+                    for(size_t edge = 0; edge < 4; edge += 1)
+                        editor_viewport_screen_dotted_line_draw(corners[edge],
+                            corners[(edge + 1) % 4], color, spacing, thickness);
+                }
             }
         }
         return;

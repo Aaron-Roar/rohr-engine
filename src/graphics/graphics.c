@@ -71,7 +71,7 @@ typedef struct GraphicsCommand {
             int index_count;
             Color color;
         } shape;
-        struct { TTF_Text *text; Position position; } text;
+        struct { TTF_Text *text; Position position; Scale scale; } text;
         struct {
             SDL_Texture *texture;
             SDL_FRect destination;
@@ -2246,9 +2246,12 @@ static void graphics_commands_execute(void) {
                     break;
                 }
                 case GRAPHICS_COMMAND_TEXT:
+                    (void)SDL_SetRenderScale(sdl_renderer,
+                        command->data.text.scale.x, command->data.text.scale.y);
                     (void)TTF_DrawRendererText(command->data.text.text,
-                                               command->data.text.position.x,
-                                               command->data.text.position.y);
+                        command->data.text.position.x / command->data.text.scale.x,
+                        command->data.text.position.y / command->data.text.scale.y);
+                    (void)SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f);
                     break;
                 case GRAPHICS_COMMAND_TEXTURE:
                     (void)SDL_RenderTextureRotated(
@@ -2557,14 +2560,19 @@ void graphics_text_destroy(TextAsset *text) {
 }
 
 bool graphics_text_draw(const TextAsset *text, Position position) {
+    return graphics_text_scaled_draw(text, position, (Scale){1.0f, 1.0f});
+}
+
+bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) {
     GraphicsCommand *command;
-    if(text == NULL || text->text == NULL) {
+    if(text == NULL || text->text == NULL || scale.x <= 0.0f || scale.y <= 0.0f) {
         return false;
     }
     command = graphics_command_append(GRAPHICS_COMMAND_TEXT);
     if(command == NULL) return false;
     command->data.text.text = text->text;
     command->data.text.position = position;
+    command->data.text.scale = scale;
     return true;
 }
 

@@ -27,6 +27,12 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
+    CREATE("Border", border_label); CREATE("Border Type", border_type_label);
+    CREATE("Line", border_line_label); CREATE("Hashed", border_hashed_label);
+    CREATE("Border Thickness", border_thickness_label);
+    CREATE("Hash Spacing", hash_spacing_label);
+    CREATE("Corner Radius", corner_radius_label);
+    CREATE("Border Color", border_color_label); CREATE("Fill Color", fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
     CREATE("Add UI Text", add_text_label);
     CREATE("Button", button_label);
@@ -34,13 +40,15 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
     CREATE("Add Vertex", add_vertex_label); CREATE("Length", length_label);
     CREATE("Font Color", font_color_label);
-    CREATE("Width Scale", width_scale_label);
-    CREATE("Height Scale", height_scale_label);
+    CREATE("Text Width Scale", width_scale_label);
+    CREATE("Text Height Scale", height_scale_label);
     CREATE("", name_field); CREATE("", x_field); CREATE("", y_field);
     CREATE("", width_field); CREATE("", height_field); CREATE("", layer_field);
     CREATE("", text_field); CREATE("", font_file_field);
     CREATE("", width_scale_field); CREATE("", height_scale_field);
     CREATE("", length_field);
+    CREATE("", border_thickness_field); CREATE("", hash_spacing_field);
+    CREATE("", corner_radius_field);
 #undef CREATE
     return true;
 fail:
@@ -55,6 +63,12 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
+    DESTROY(border_label); DESTROY(border_type_label); DESTROY(border_line_label);
+    DESTROY(border_hashed_label); DESTROY(border_thickness_label);
+    DESTROY(hash_spacing_label); DESTROY(corner_radius_label);
+    DESTROY(border_color_label); DESTROY(fill_color_label);
+    DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
+    DESTROY(corner_radius_field);
     DESTROY(add_shape_label); DESTROY(add_text_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
@@ -357,6 +371,54 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
             &visible)) item->visible = visible;
     *y += 42.0f;
+    bool border_enabled = item->border_enabled;
+    if(editor_mode_checkbox_left("editor.layout.ui.border", &editor->border_label,
+            (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
+            &border_enabled)) item->border_enabled = border_enabled;
+    *y += 38.0f;
+    if(item->border_enabled) {
+        const TextAsset *types[] = {&editor->border_line_label,
+            &editor->border_hashed_label};
+        rohr_ui_label(&editor->border_type_label,
+            (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
+        UIDropdownResult type = rohr_ui_dropdown("editor.layout.ui.border_type",
+            types, 2, item->border_type, (UIRect){context->x + 94.0f, *y,
+                context->width - 104.0f, 28.0f}, NULL);
+        if(type.changed) item->border_type =
+            (EditorViewportUiBorderType)type.selected_index;
+        *y += 38.0f;
+        UIFieldResult thickness = layout_number(&editor->border_thickness_label,
+            &editor->border_thickness_field, "editor.layout.ui.border_thickness",
+            context->x, *y, context->width, &item->border_thickness);
+        item->border_thickness = fmaxf(0.1f, item->border_thickness);
+        *y += 38.0f;
+        UIFieldResult spacing = {0};
+        if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) {
+            spacing = layout_number(&editor->hash_spacing_label,
+                &editor->hash_spacing_field, "editor.layout.ui.hash_spacing",
+                context->x, *y, context->width, &item->border_hash_spacing);
+            item->border_hash_spacing = fmaxf(0.1f, item->border_hash_spacing);
+            *y += 38.0f;
+        }
+        UIFieldResult radius = layout_number(&editor->corner_radius_label,
+            &editor->corner_radius_field, "editor.layout.ui.corner_radius",
+            context->x, *y, context->width, &item->border_corner_radius);
+        item->border_corner_radius = fmaxf(0.0f, item->border_corner_radius);
+        *y += 38.0f;
+        rohr_ui_label(&editor->border_color_label,
+            (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+        (void)layout_local_swatch("editor.layout.ui.border_color",
+            &item->border_color, (UIRect){context->x + context->width - 46.0f,
+                *y, 36.0f, 28.0f}, context);
+        *y += 38.0f;
+        rohr_ui_label(&editor->fill_color_label,
+            (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+        (void)layout_local_swatch("editor.layout.ui.fill_color", &item->fill_color,
+            (UIRect){context->x + context->width - 46.0f, *y, 36.0f, 28.0f}, context);
+        *y += 42.0f;
+        return x_result.active || y_result.active || layer_result.active ||
+            thickness.active || spacing.active || radius.active;
+    }
     return x_result.active || y_result.active || layer_result.active;
 }
 

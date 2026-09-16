@@ -385,6 +385,7 @@ void graphics_text_destroy(TextAsset *text);
 
 /** Draw reusable text with its top-left corner in logical screen space. */
 bool graphics_text_draw(const TextAsset *text, Position position);
+bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale);
 
 /** Load an animation from texture descriptors. */
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);

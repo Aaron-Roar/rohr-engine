@@ -548,6 +548,17 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_real(document, item, "y", ui->position.y);
             yyjson_mut_obj_add_sint(document, item, "layer", ui->layer);
             yyjson_mut_obj_add_bool(document, item, "visible", ui->visible);
+            yyjson_mut_obj_add_bool(document, item, "border_enabled",
+                ui->border_enabled);
+            yyjson_mut_obj_add_uint(document, item, "border_type", ui->border_type);
+            yyjson_mut_obj_add_real(document, item, "border_thickness",
+                ui->border_thickness);
+            yyjson_mut_obj_add_real(document, item, "border_hash_spacing",
+                ui->border_hash_spacing);
+            yyjson_mut_obj_add_real(document, item, "border_corner_radius",
+                ui->border_corner_radius);
+            yyjson_mut_obj_add_uint(document, item, "border_color", ui->border_color);
+            yyjson_mut_obj_add_uint(document, item, "ui_fill_color", ui->fill_color);
             if(ui->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                 yyjson_mut_val *vertices = yyjson_mut_arr(document);
                 for(size_t vertex = 0; vertex < ui->value.shape.vertex_count;
@@ -1559,6 +1570,33 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_real(item_value, "y", &item->position.y) ||
                     !editor_json_int(item_value, "layer", &item->layer) ||
                     !editor_json_bool(item_value, "visible", &item->visible))
+                goto done;
+            item->border_thickness = 2.0f;
+            item->border_hash_spacing = 6.0f;
+            item->border_color = 0xFFFFFFFFu;
+            item->fill_color = 0x394052FFu;
+            if(yyjson_obj_get(item_value, "border_enabled") != NULL &&
+                    !editor_json_bool(item_value, "border_enabled",
+                        &item->border_enabled)) goto done;
+            if(yyjson_obj_get(item_value, "border_type") != NULL) {
+                uint32_t border_type;
+                if(!editor_json_uint(item_value, "border_type", &border_type) ||
+                        border_type > EDITOR_VIEWPORT_UI_BORDER_HASHED) goto done;
+                item->border_type = (EditorViewportUiBorderType)border_type;
+            }
+            if((yyjson_obj_get(item_value, "border_thickness") != NULL &&
+                    (!editor_json_real(item_value, "border_thickness",
+                        &item->border_thickness) || item->border_thickness <= 0.0f)) ||
+                    (yyjson_obj_get(item_value, "border_hash_spacing") != NULL &&
+                    (!editor_json_real(item_value, "border_hash_spacing",
+                        &item->border_hash_spacing) || item->border_hash_spacing <= 0.0f)) ||
+                    (yyjson_obj_get(item_value, "border_corner_radius") != NULL &&
+                    (!editor_json_real(item_value, "border_corner_radius",
+                        &item->border_corner_radius) || item->border_corner_radius < 0.0f)) ||
+                    (yyjson_obj_get(item_value, "border_color") != NULL &&
+                    !editor_json_uint(item_value, "border_color", &item->border_color)) ||
+                    (yyjson_obj_get(item_value, "ui_fill_color") != NULL &&
+                    !editor_json_uint(item_value, "ui_fill_color", &item->fill_color)))
                 goto done;
             text = yyjson_obj_get(item_value, "text");
             if(!yyjson_is_str(text) || yyjson_get_len(text) >= UI_LABEL_MAX)

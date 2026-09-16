@@ -1416,6 +1416,8 @@ void rohr_graphics_text_destroy(TextAsset *text);
 
 /** @brief Draws text in logical screen coordinates. */
 bool rohr_graphics_text_draw(const TextAsset *text, Position position);
+bool rohr_graphics_text_scaled_draw(const TextAsset *text, Position position,
+    Scale scale);
 
 /**
  * @brief Loads an animation asset.

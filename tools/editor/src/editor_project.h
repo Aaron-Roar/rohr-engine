@@ -349,6 +349,11 @@ typedef enum EditorViewportUiKind {
     EDITOR_VIEWPORT_UI_TEXT
 } EditorViewportUiKind;
 
+typedef enum EditorViewportUiBorderType {
+    EDITOR_VIEWPORT_UI_BORDER_LINE,
+    EDITOR_VIEWPORT_UI_BORDER_HASHED
+} EditorViewportUiBorderType;
+
 typedef struct EditorViewportUiText {
     char text[UI_LABEL_MAX];
     EditorUiFontId font;
@@ -375,6 +380,13 @@ typedef struct EditorViewportUiItem {
     Position position;
     int layer;
     bool visible;
+    bool border_enabled;
+    EditorViewportUiBorderType border_type;
+    float border_thickness;
+    float border_hash_spacing;
+    float border_corner_radius;
+    uint32_t border_color;
+    uint32_t fill_color;
     union {
         EditorViewportUiShape shape;
         EditorViewportUiText text;

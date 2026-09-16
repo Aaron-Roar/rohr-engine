@@ -1423,8 +1423,14 @@ static bool editor_single_selected_delete(
             viewport_state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
             return true;
         }
-        if(item->kind != EDITOR_VIEWPORT_UI_SHAPE ||
-                item->value.shape.vertex_count <= 3) return false;
+        if(item->kind != EDITOR_VIEWPORT_UI_SHAPE) return false;
+        if(item->value.shape.vertex_count <= 3) {
+            if(!editor_viewport_ui_remove(layout, item->id)) return false;
+            viewport_state->selected_viewport_ui_item = 0;
+            viewport_state->mode = EDITOR_VIEWPORT_LAYOUT;
+            viewport_state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+            return true;
+        }
         size_t index = viewport_state->selection == EDITOR_SELECTION_UI_VERTEX ?
             viewport_state->selected_vertex :
             (viewport_state->selected_line + 1) % item->value.shape.vertex_count;
@@ -1696,6 +1702,11 @@ static bool editor_single_selected_delete(
         uint32_t index = viewport_state->selected_vertex;
         EditorCommand command;
         if(body == NULL || hitbox == NULL || index >= hitbox->vertex_count) return false;
+        if(hitbox->vertex_count <= EDITOR_HITBOX_VERTEX_MIN) {
+            viewport_state->selection = EDITOR_SELECTION_HITBOX;
+            viewport_state->mode = EDITOR_VIEWPORT_HITBOX;
+            return editor_single_selected_delete(project, viewport_state);
+        }
         command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_REMOVE,
             .data.item_remove = {EDITOR_ITEM_VERTEX, selected->id, body->id,
                 hitbox->id, hitbox->vertices[index].id}};
@@ -1720,6 +1731,11 @@ static bool editor_single_selected_delete(
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_REMOVE,
             .data.item_remove = {EDITOR_ITEM_LINE, selected->id,
                 body == NULL ? 0 : body->id, hitbox == NULL ? 0 : hitbox->id, index}};
+        if(hitbox != NULL && hitbox->vertex_count <= EDITOR_HITBOX_VERTEX_MIN) {
+            viewport_state->selection = EDITOR_SELECTION_HITBOX;
+            viewport_state->mode = EDITOR_VIEWPORT_HITBOX;
+            return editor_single_selected_delete(project, viewport_state);
+        }
         if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
             return false;
         viewport_state->mode = EDITOR_VIEWPORT_HITBOX;
