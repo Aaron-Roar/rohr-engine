@@ -15,7 +15,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Angle", angle_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
     CREATE("Zoom", zoom_label);
-    CREATE("Inherit Orientation", inherit_label); CREATE("Visible", visible_label);
+    CREATE("Follow Orientation", inherit_label); CREATE("Visible", visible_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", angle_field);
     CREATE("", width_field); CREATE("", height_field);

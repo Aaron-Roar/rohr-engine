@@ -24,9 +24,9 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Attachment", attachment_label); CREATE("Rotation", rotation_label);
     CREATE("None", none_label); CREATE("Global Position", position_global_label);
-    CREATE("Attachment Position", position_body_label);
+    CREATE("Follow Position", position_body_label);
     CREATE("Global Rotation", rotation_global_label);
-    CREATE("Attachment Rotation", rotation_body_label);
+    CREATE("Follow Rotation", rotation_body_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
