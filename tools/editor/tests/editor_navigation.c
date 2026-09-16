@@ -329,6 +329,43 @@ int main(void) {
         editor_project_destroy(&drag_project);
     }
     {
+        EditorProject camera_project;
+        EditorViewportState camera_state;
+        EditorObject *camera_object;
+        EditorRigidBody *camera_body;
+        EditorCamera *camera;
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        Position grab;
+
+        editor_project_init(&camera_project);
+        editor_viewport_state_init(&camera_state);
+        camera_object = editor_project_object_add(&camera_project, (Position){0});
+        camera_body = editor_project_rigid_body_add(&camera_project, camera_object);
+        camera = editor_project_camera_add(&camera_project, camera_object);
+        if(camera_object == NULL || camera_body == NULL || camera == NULL ||
+                !editor_project_object_select(
+                    &camera_project, camera_object->id)) return 1;
+        camera_body->rotation = 1.57079632679f;
+        camera->position = (Position){20.0f, 0.0f};
+        camera->dimensions = (Scale){100.0f, 100.0f};
+        camera->attachment_kind = EDITOR_CAMERA_ATTACHMENT_RIGID_BODY;
+        camera->attachment = camera_body->id;
+        camera_state.mode = EDITOR_VIEWPORT_OBJECT;
+        grab = (Position){center.x + 5.0f, center.y - 20.0f};
+        if(!editor_viewport_update(&camera_state, &camera_project, grab,
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) || !camera_state.dragged_camera_entity) return 1;
+        if(!editor_viewport_update(&camera_state, &camera_project,
+                (Position){grab.x + 10.0f, grab.y}, MOUSE_BUTTON_STATE_DOWN,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                fabsf(camera->position.x - 20.0f) > 0.001f ||
+                fabsf(camera->position.y + 10.0f) > 0.001f) return 1;
+        editor_viewport_state_destroy(&camera_state);
+        editor_project_destroy(&camera_project);
+    }
+    {
         EditorProject area_project;
         EditorViewportState area_state;
         EditorObject *area_object;

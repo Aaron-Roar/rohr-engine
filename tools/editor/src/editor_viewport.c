@@ -67,7 +67,9 @@ static Tick editor_animation_preview_tick;
 static Time editor_animation_preview_time;
 
 static Position editor_camera_world_get(const EditorObject *object,
-    const EditorCamera *camera, Orientation *rotation);
+        const EditorCamera *camera, Orientation *rotation);
+static Orientation editor_camera_attachment_rotation_get(
+    const EditorObject *object, const EditorCamera *camera);
 
 static size_t editor_animation_preview_frame_get(const EditorObject *object,
         const EditorAnimatedSprite *animation) {
@@ -3440,12 +3442,18 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         EditorCamera *camera = editor_project_camera_get(object,
             state->selected_camera_entity);
         if(camera != NULL) {
-            Position desired = {pointer.x - state->drag_offset.x - object->position.x,
-                pointer.y - state->drag_offset.y - object->position.y};
+            Vec2D delta = {pointer.x - state->drag_offset.x,
+                pointer.y - state->drag_offset.y};
+            Orientation attachment_rotation =
+                editor_camera_attachment_rotation_get(object, camera);
+            Vec2D local_delta = math_vector_rotate(delta, -attachment_rotation);
+            Position desired = {camera->position.x + local_delta.x,
+                camera->position.y + local_delta.y};
             EditorCommand command = {.type = EDITOR_COMMAND_CAMERA_TRANSFORM,
                 .data.camera_transform = {object->id, camera->id, desired,
                     camera->rotation}};
             (void)editor_command_execute(project, &command);
+            state->drag_offset = (Vec2D){pointer.x, pointer.y};
         }
         return true;
     }
@@ -3947,7 +3955,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->selection = EDITOR_SELECTION_CAMERA;
             state->selected_camera_entity = camera->id;
             state->dragged_camera_entity = true;
-            state->drag_offset = (Vec2D){pointer.x - world.x, pointer.y - world.y};
+            state->drag_offset = (Vec2D){pointer.x, pointer.y};
             return true;
         }
         for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
@@ -4522,6 +4530,32 @@ static Position editor_camera_world_get(const EditorObject *object,
     if(rotation != NULL) *rotation = camera->rotation +
         (camera->inherit_orientation ? inherited : 0.0f);
     return (Position){base.x + offset.x, base.y + offset.y};
+}
+
+static Orientation editor_camera_attachment_rotation_get(
+        const EditorObject *object, const EditorCamera *camera) {
+    if(object == NULL || camera == NULL) return 0.0f;
+    if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_RIGID_BODY) {
+        const EditorRigidBody *body = editor_project_rigid_body_get(
+            (EditorObject *)object, camera->attachment);
+        return body == NULL ? 0.0f : body->rotation;
+    }
+    if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY ||
+            camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) {
+        EditorSoftBodyId body_id = camera->attachment_kind ==
+                EDITOR_CAMERA_ATTACHMENT_SOFT_NODE ?
+            camera->attachment_soft_body : camera->attachment;
+        for(size_t i = 0; i < object->soft_body_count; i += 1)
+            if(object->soft_body_items[i].id == body_id)
+                return object->soft_body_items[i].rotation;
+        return 0.0f;
+    }
+    if(camera->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) {
+        const EditorAnchor *anchor = editor_project_anchor_get(
+            (EditorObject *)object, camera->attachment);
+        return anchor == NULL ? 0.0f : anchor->rotation;
+    }
+    return 0.0f;
 }
 
 static void editor_dashed_line_draw(Position a, Position b, Color color) {
