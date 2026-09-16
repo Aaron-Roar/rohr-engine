@@ -525,6 +525,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_real(document, value, "height",
             viewport->config.rectangle.height);
         yyjson_mut_obj_add_uint(document, value, "fit", viewport->config.fit);
+        yyjson_mut_obj_add_uint(document, value, "background_color",
+            viewport->background_color);
         yyjson_mut_obj_add_bool(document, value, "enabled", viewport->enabled);
         for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
             const EditorViewportCameraItem *camera = &viewport->camera_items[j];
@@ -1586,6 +1588,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         yyjson_val *ui_items = yyjson_obj_get(value, "ui_items");
         EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
         uint32_t fit;
+        viewport->config = rohr_viewport_config_default_get();
+        viewport->background_color = 0x000000FFu;
         if(!yyjson_is_obj(value) ||
                 !editor_json_uint(value, "id", &viewport->id) || viewport->id == 0 ||
                 !editor_json_name(value, viewport->name) ||
@@ -1598,6 +1602,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !yyjson_is_arr(camera_items) ||
                 viewport->config.rectangle.width <= 0.0f ||
                 viewport->config.rectangle.height <= 0.0f) goto done;
+        if(yyjson_obj_get(value, "background_color") != NULL &&
+                !editor_json_uint(value, "background_color",
+                    &viewport->background_color)) goto done;
         viewport->config.fit = (ScreenFit)fit;
         editor_project_object_name_format(viewport->name, sizeof(viewport->name),
             viewport->name);

@@ -19,6 +19,9 @@ static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
         (UIRect){field_x, y, field_width, 28.0f}, NULL);
 }
 
+static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
+    const EditorModeContext *context);
+
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
         FontAsset *font) {
     if(editor == NULL || font == NULL) return false;
@@ -26,7 +29,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
 #define CREATE(text, member) if(!editor_mode_text_create(font, text, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
-    CREATE("Enabled", enabled_label); CREATE("Screens", cameras_label);
+    CREATE("Enabled", enabled_label); CREATE("Background", background_color_label);
+    CREATE("Screens", cameras_label);
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Visible", visible_label);
@@ -78,7 +82,8 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(width_label);
-    DESTROY(height_label); DESTROY(enabled_label); DESTROY(cameras_label);
+    DESTROY(height_label); DESTROY(enabled_label); DESTROY(background_color_label);
+    DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
     DESTROY(rotation_label); DESTROY(rotation_field);
@@ -150,6 +155,12 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     if(editor_mode_checkbox_left("editor.layout.enabled", &editor->enabled_label,
             (UIRect){context->x + 10.0f, 232.0f, context->width - 20.0f, 28.0f},
             &enabled)) viewport->enabled = enabled;
+    rohr_ui_label(&editor->background_color_label,
+        (UIRect){context->x + 8.0f, 270.0f, context->width - 64.0f, 28.0f});
+    (void)layout_local_swatch("editor.layout.background_color",
+        &viewport->background_color,
+        (UIRect){context->x + context->width - 48.0f, 270.0f, 38.0f, 28.0f},
+        context);
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
@@ -159,8 +170,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     rohr_ui_label(&editor->cameras_label,
-        (UIRect){context->x + 8.0f, 276.0f, context->width - 16.0f, 28.0f});
-    y = 310.0f;
+        (UIRect){context->x + 8.0f, 314.0f, context->width - 16.0f, 28.0f});
+    y = 348.0f;
     if(rohr_ui_button("editor.layout.add_shape", &editor->add_shape_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f,
                 30.0f}, NULL).clicked) {

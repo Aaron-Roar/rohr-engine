@@ -762,7 +762,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,
                 state->selected_layout_viewport);
-        if(viewport != NULL) return fmaxf(height, 406.0f +
+        if(viewport != NULL) return fmaxf(height, 444.0f +
             (float)(viewport->camera_item_count + viewport->ui_item_count) *
                 32.0f);
     }
@@ -3015,11 +3015,15 @@ int main(void) {
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
+            EditorModeColorContext color_context = {
+                .picker = &color_picker, .project = &project};
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
-                    .width = EDITOR_TOOLS_WIDTH});
+                    .width = EDITOR_TOOLS_WIDTH,
+                    .local_color_open = editor_mode_local_color_picker_open,
+                    .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_OBJECT) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};

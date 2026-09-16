@@ -165,6 +165,8 @@ int main(void) {
                     WINDOW_WIDTH ||
                 loaded_project.layout_viewports[0].config.rectangle.height !=
                     WINDOW_HEIGHT ||
+                loaded_project.layout_viewports[0].background_color !=
+                    0x000000FFu ||
                 loaded_project.layout_viewports[0].camera_item_count != 1 ||
                 loaded_project.layout_viewports[0].camera_items[0].object !=
                     loaded_project.objects[0].id ||
@@ -203,6 +205,7 @@ int main(void) {
                 !file_contains(path, "rohr_screen_create") ||
                 !file_contains(path, "rohr_viewport_screen_add") ||
                 !file_contains(path, "rohr_viewport_ui_shape_add") ||
+                !file_contains(path, ".background_color=") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
                 !file_contains(path, "sample text") ||
                 !file_contains(path, "rohr_viewport_enable_set")) {
@@ -1183,6 +1186,7 @@ int main(void) {
             EDITOR_PROJECT_HIERARCHY_VIEWPORT, hierarchy_viewport->id};
         hierarchy_project.hierarchy[1] = (EditorProjectHierarchyItem){
             EDITOR_PROJECT_HIERARCHY_OBJECT, hierarchy_object->id};
+        hierarchy_viewport->background_color = 0x12345678u;
         hierarchy_object->visible = false;
         if(!hierarchy_viewport->enabled ||
                 !editor_project_save(&hierarchy_project, hierarchy_path) ||
@@ -1192,7 +1196,9 @@ int main(void) {
                     EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
                 loaded_hierarchy_project.hierarchy[0].id != hierarchy_viewport->id ||
                 loaded_hierarchy_project.objects[0].visible ||
-                !loaded_hierarchy_project.layout_viewports[0].enabled) return 1;
+                !loaded_hierarchy_project.layout_viewports[0].enabled ||
+                loaded_hierarchy_project.layout_viewports[0].background_color !=
+                    0x12345678u) return 1;
         editor_project_destroy(&hierarchy_project);
         editor_project_destroy(&loaded_hierarchy_project);
         (void)remove(hierarchy_path);

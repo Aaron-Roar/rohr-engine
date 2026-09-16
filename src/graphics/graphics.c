@@ -147,6 +147,7 @@ typedef enum GraphicsViewportItemKind {
 typedef struct GraphicsViewport {
     ViewportRectangle rectangle;
     ScreenFit fit;
+    Color background_color;
     struct {
         GraphicsViewportItemKind kind;
         union {
@@ -1436,6 +1437,7 @@ ViewportConfig graphics_viewport_config_default_get(void) {
     return (ViewportConfig){
         .rectangle = {0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT},
         .fit = SCREEN_FIT_CONTAIN,
+        .background_color = {0, 0, 0, 255},
     };
 }
 
@@ -1464,6 +1466,7 @@ ViewportIdResult graphics_viewport_create(ViewportConfig config) {
         viewports[slot] = (GraphicsViewport){
             .rectangle = config.rectangle,
             .fit = config.fit,
+            .background_color = config.background_color,
             .enabled = false,
         };
         return ERROR_RESULT_MAKE_VALUE(
@@ -2408,7 +2411,9 @@ static void graphics_viewports_draw(void) {
             (int)viewport->rectangle.height,
         };
         (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
-        SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(sdl_renderer, viewport->background_color.red,
+            viewport->background_color.green, viewport->background_color.blue,
+            viewport->background_color.alpha);
         {
             SDL_FRect background = {
                 viewport->rectangle.x,

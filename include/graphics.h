@@ -139,6 +139,8 @@ typedef struct ViewportConfig {
     ViewportRectangle rectangle;
     /** How assigned screen content is fitted into the rectangle. */
     ScreenFit fit;
+    /** Color drawn inside the viewport before its items are composed. */
+    Color background_color;
 } ViewportConfig;
 
 /** Viewport-local placement of camera content. */

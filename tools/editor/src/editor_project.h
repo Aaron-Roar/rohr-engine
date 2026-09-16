@@ -427,6 +427,7 @@ typedef struct EditorLayoutViewport {
     EditorLayoutViewportId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     ViewportConfig config;
+    uint32_t background_color;
     bool enabled;
     EditorViewportCameraItem *camera_items;
     size_t camera_item_count;

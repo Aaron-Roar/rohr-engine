@@ -1482,14 +1482,15 @@ static bool editor_workspace_generated_viewports_write(
             &project->layout_viewports[viewport_index];
         fprintf(source,
             "    { ViewportIdResult created = rohr_viewport_create((ViewportConfig){"
-            "{%.8ff, %.8ff, %.8ff, %.8ff}, %d});\n"
+            ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
+            ".background_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
             "      if(rohr_error_check(created)) { result = "
                 "rohr_error_result_error(created.result.error); goto fail; }\n"
             "      resources->viewports[resources->viewport_count++] = "
                 "created.result.value;\n",
             viewport->config.rectangle.x, viewport->config.rectangle.y,
             viewport->config.rectangle.width, viewport->config.rectangle.height,
-            (int)viewport->config.fit);
+            (int)viewport->config.fit, viewport->background_color);
         for(size_t item_index = 0; item_index < viewport->camera_item_count;
                 item_index += 1) {
             const EditorViewportCameraItem *item =

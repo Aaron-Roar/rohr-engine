@@ -5251,7 +5251,8 @@ void editor_viewport_draw(const EditorProject *project,
                 EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
             editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
             (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
-                rectangle.width, rectangle.height, (Color){12, 16, 24, 255});
+                rectangle.width, rectangle.height,
+                rohr_graphics_color_hex_create(viewport->background_color));
             editor_view_composition_layer_base = 0;
             rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
             for(float x = 0.0f; x < rectangle.width; x += 12.0f * zoom) {

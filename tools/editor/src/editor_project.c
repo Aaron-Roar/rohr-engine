@@ -921,6 +921,7 @@ EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project)
     *viewport = (EditorLayoutViewport){
         .id = project->next_layout_viewport_id++,
         .config = rohr_viewport_config_default_get(),
+        .background_color = 0x000000FFu,
         .enabled = true,
     };
     viewport->config.rectangle = (ViewportRectangle){0.0f, 0.0f, 640.0f, 360.0f};
