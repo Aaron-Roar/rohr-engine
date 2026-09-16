@@ -307,8 +307,15 @@ int main(void) {
         drag_body = editor_project_rigid_body_add(&drag_project, drag_object);
         if(drag_object == NULL || drag_body == NULL ||
                 !editor_project_object_select(&drag_project, drag_object->id)) return 1;
-        drag_state.mode = EDITOR_VIEWPORT_OBJECT;
-        drag_state.selection = EDITOR_SELECTION_OBJECT;
+        drag_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+        if(!editor_viewport_update(&drag_state, &drag_project, center,
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                drag_state.mode != EDITOR_VIEWPORT_OBJECT ||
+                drag_state.selection != EDITOR_SELECTION_OBJECT) return 1;
+        (void)editor_viewport_update(&drag_state, &drag_project, center,
+            MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false);
         if(!editor_viewport_update(&drag_state, &drag_project, center,
                 MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false) || !drag_state.dragged_body ||
@@ -320,6 +327,76 @@ int main(void) {
                 fabsf(drag_body->position.x - 20.0f) > 0.001f) return 1;
         editor_viewport_state_destroy(&drag_state);
         editor_project_destroy(&drag_project);
+    }
+    {
+        EditorProject area_project;
+        EditorViewportState area_state;
+        EditorObject *area_object;
+        EditorSoftBody *area_body;
+        EditorSoftNode *area_a;
+        EditorSoftNode *area_b;
+        EditorSoftNode *area_c;
+        EditorSelectionRef area_selection;
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+
+        editor_project_init(&area_project);
+        editor_viewport_state_init(&area_state);
+        area_object = editor_project_object_add(&area_project, (Position){0});
+        area_body = editor_project_soft_body_add(&area_project, area_object);
+        area_a = editor_project_soft_node_add(
+            &area_project, area_body, (Position){-40.0f, -30.0f});
+        area_b = editor_project_soft_node_add(
+            &area_project, area_body, (Position){40.0f, -30.0f});
+        area_c = editor_project_soft_node_add(
+            &area_project, area_body, (Position){0.0f, 40.0f});
+        if(area_object == NULL || area_body == NULL || area_a == NULL ||
+                area_b == NULL || area_c == NULL ||
+                editor_project_soft_beam_add(&area_project, area_body,
+                    area_a->id, area_b->id) == NULL ||
+                editor_project_soft_beam_add(&area_project, area_body,
+                    area_b->id, area_c->id) == NULL ||
+                editor_project_soft_beam_add(&area_project, area_body,
+                    area_c->id, area_a->id) == NULL) return 1;
+        editor_project_soft_areas_sync(&area_project, area_body);
+        if(area_body->area_count == 0 ||
+                !editor_project_object_select(&area_project, area_object->id)) return 1;
+        area_selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
+            area_object->id, area_body->id, 0, area_body->areas[0].id};
+        if(!editor_viewport_selection_set(
+                &area_project, &area_state, area_selection, false)) return 1;
+        area_state.mode = EDITOR_VIEWPORT_SOFT_AREA;
+        if(!editor_viewport_update(&area_state, &area_project,
+                (Position){center.x, center.y + 6.0f}, MOUSE_BUTTON_STATE_PRESSED,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                !area_state.dragged_soft_body ||
+                area_state.selection != EDITOR_SELECTION_SOFT_AREA ||
+                area_state.mode != EDITOR_VIEWPORT_SOFT_AREA) return 1;
+        if(!editor_viewport_update(&area_state, &area_project,
+                (Position){center.x, center.y + 6.0f}, MOUSE_BUTTON_STATE_DOWN,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                area_state.selection != EDITOR_SELECTION_SOFT_AREA ||
+                area_state.mode != EDITOR_VIEWPORT_SOFT_AREA ||
+                fabsf(area_body->position.x) > 0.001f) return 1;
+        if(!editor_viewport_update(&area_state, &area_project,
+                (Position){center.x + 20.0f, center.y + 6.0f},
+                MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                fabsf(area_body->position.x - 20.0f) > 0.001f ||
+                area_state.selection != EDITOR_SELECTION_SOFT_BODY ||
+                area_state.mode != EDITOR_VIEWPORT_SOFT_BODY) return 1;
+        (void)editor_viewport_update(&area_state, &area_project,
+            (Position){center.x + 20.0f, center.y + 6.0f},
+            MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false);
+        if(!editor_viewport_update(&area_state, &area_project,
+                (Position){center.x + 20.0f,
+                    center.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH},
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) || !area_state.rotated_soft_body) return 1;
+        editor_viewport_state_destroy(&area_state);
+        editor_project_destroy(&area_project);
     }
     {
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,

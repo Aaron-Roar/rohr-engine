@@ -210,13 +210,16 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 &editor->visible_icon : &editor->hidden_icon,
                 (UIRect){context->x + 8.0f, y, 34.0f, 28.0f}, NULL).clicked)
             item->placement.visible = !item->placement.visible;
+        UIButtonStyle selected_style = rohr_ui_button_style_default_get();
+        selected_style.idle = (Color){118, 96, 35, 255};
+        selected_style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult camera_result = rohr_ui_button(id, &editor->camera_names[i],
                 (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
-                NULL);
+                context->viewport->selected_viewport_camera_item == item->id ?
+                    &selected_style : NULL);
         if(camera_result.clicked) {
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
-            context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
         }
         if(camera_result.double_clicked)
             context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;

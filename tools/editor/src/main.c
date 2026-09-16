@@ -1484,7 +1484,9 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
-    if(viewport_state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+    if(viewport_state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
+            (viewport_state->mode == EDITOR_VIEWPORT_LAYOUT &&
+                viewport_state->selected_viewport_camera_item != 0)) {
         EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
             viewport_state->selected_layout_viewport);
         if(layout == NULL || !editor_viewport_camera_remove(layout,

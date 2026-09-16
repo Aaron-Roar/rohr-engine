@@ -4,6 +4,7 @@
 
 #include "editor_soft_area.h"
 
+#include "editor_navigation.h"
 #include "editors/editor_mode_controls.h"
 
 #include <math.h>
@@ -230,7 +231,9 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor,
         if(result.clicked || result.focus_changed) {
             context->viewport->selection = EDITOR_SELECTION_SOFT_BEAM;
             context->viewport->selected_soft_beam = beam->id;
-            context->viewport->mode = EDITOR_VIEWPORT_SOFT_BEAM;
+            if(result.double_clicked)
+                (void)editor_navigation_selected_open(context->project,
+                    context->viewport);
         }
     }
     return name_result.active;
