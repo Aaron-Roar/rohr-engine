@@ -10,10 +10,13 @@
 
 static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
         const char *id, float x, float y, float width, float *value) {
-    rohr_ui_label(label, (UIRect){x + 8.0f, y, 82.0f, 28.0f});
+    float field_width = fminf(116.0f, fmaxf(72.0f, width * 0.42f));
+    float field_x = x + width - field_width - 10.0f;
+    rohr_ui_label(label, (UIRect){x + 8.0f, y,
+        fmaxf(1.0f, field_x - x - 12.0f), 28.0f});
     return rohr_ui_field(id,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = value}, field,
-        (UIRect){x + 94.0f, y, width - 104.0f, 28.0f}, NULL);
+        (UIRect){field_x, y, field_width, 28.0f}, NULL);
 }
 
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
@@ -436,6 +439,7 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     bool active;
     if(editor == NULL || item == NULL) return false;
     text = &item->value.shape.text;
+    active = layout_ui_common_draw(editor, context, item, &y);
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     text_result = rohr_ui_field("editor.ui_shape.text",
@@ -497,16 +501,6 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f},
             &button)) item->value.shape.button_enabled = button;
     y += 42.0f;
-    active = layout_ui_common_draw(editor, context, item, &y);
-    if(rohr_ui_button("editor.ui_shape.remove", &editor->remove_label,
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            NULL).clicked) {
-        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
-            context->project, context->viewport->selected_layout_viewport);
-        (void)editor_viewport_ui_remove(viewport, item->id);
-        context->viewport->selected_viewport_ui_item = 0;
-        context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
-    }
     return active || text_result.active || box_width_result.active ||
         box_height_result.active || width_result.active || height_result.active;
 }
@@ -524,6 +518,7 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
     bool active;
     if(editor == NULL || item == NULL) return false;
     text = &item->value.text;
+    active = layout_ui_common_draw(editor, context, item, &y);
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     text_result = rohr_ui_field("editor.ui_text.text",
@@ -580,16 +575,6 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         y, context->width, &text->height_scale);
     if(text->height_scale <= 0.0f) text->height_scale = 0.01f;
     y += 42.0f;
-    active = layout_ui_common_draw(editor, context, item, &y);
-    if(rohr_ui_button("editor.ui_text.remove", &editor->remove_label,
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            NULL).clicked) {
-        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
-            context->project, context->viewport->selected_layout_viewport);
-        (void)editor_viewport_ui_remove(viewport, item->id);
-        context->viewport->selected_viewport_ui_item = 0;
-        context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
-    }
     return active || text_result.active ||
         box_width_result.active || box_height_result.active ||
         width_result.active || height_result.active;
@@ -611,23 +596,6 @@ bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,
         "editor.ui_vertex.y", context->x, 80.0f, context->width, &edited.y);
     if(x_result.changed || y_result.changed)
         item->value.shape.vertices[context->viewport->selected_vertex] = edited;
-    if(item->value.shape.vertex_count <= 3) {
-        rohr_ui_button_disabled((UIRect){context->x + 10.0f, 126.0f,
-            context->width - 20.0f, 32.0f}, NULL);
-        rohr_ui_label(&editor->remove_label, (UIRect){context->x + 10.0f,
-            126.0f, context->width - 20.0f, 32.0f});
-    } else if(rohr_ui_button("editor.ui_vertex.remove", &editor->remove_label,
-            (UIRect){context->x + 10.0f, 126.0f,
-                context->width - 20.0f, 32.0f}, NULL).clicked) {
-        size_t index = context->viewport->selected_vertex;
-        memmove(&item->value.shape.vertices[index],
-            &item->value.shape.vertices[index + 1],
-            (item->value.shape.vertex_count - index - 1) *
-                sizeof(item->value.shape.vertices[0]));
-        item->value.shape.vertex_count -= 1;
-        context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
-        context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
-    }
     return x_result.active || y_result.active;
 }
 

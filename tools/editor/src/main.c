@@ -787,7 +787,12 @@ static bool editor_panel_delete_footer_check(EditorViewportMode mode) {
         mode == EDITOR_VIEWPORT_SPRITE ||
         mode == EDITOR_VIEWPORT_CAMERA_ENTITY ||
         mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
-        mode == EDITOR_VIEWPORT_ANIMATION_FRAME;
+        mode == EDITOR_VIEWPORT_ANIMATION_FRAME ||
+        mode == EDITOR_VIEWPORT_LAYOUT ||
+        mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+        mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+        mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+        mode == EDITOR_VIEWPORT_UI_LINE_EDITOR;
 }
 
 static bool editor_use_executable_directory(void) {
@@ -1404,6 +1409,14 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        if(!editor_project_layout_viewport_remove(project,
+                viewport_state->selected_layout_viewport)) return false;
+        viewport_state->selected_layout_viewport = 0;
+        viewport_state->mode = EDITOR_VIEWPORT_HIERARCHY;
+        viewport_state->selection = EDITOR_SELECTION_NONE;
+        return true;
+    }
     if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
             viewport_state->selection == EDITOR_SELECTION_UI_TEXT ||
             viewport_state->selection == EDITOR_SELECTION_UI_VERTEX ||
@@ -2997,6 +3010,20 @@ int main(void) {
                 case EDITOR_VIEWPORT_CAMERA_ENTITY:
                     delete_label = &camera_editor.delete_label;
                     delete_id = "editor.camera.delete";
+                    break;
+                case EDITOR_VIEWPORT_LAYOUT:
+                    delete_label = &layout_viewport_editor.delete_label;
+                    delete_id = "editor.layout.delete";
+                    break;
+                case EDITOR_VIEWPORT_UI_SHAPE_EDITOR:
+                case EDITOR_VIEWPORT_UI_TEXT_EDITOR:
+                    delete_label = &layout_viewport_editor.remove_label;
+                    delete_id = "editor.layout.ui.delete";
+                    break;
+                case EDITOR_VIEWPORT_UI_VERTEX_EDITOR:
+                case EDITOR_VIEWPORT_UI_LINE_EDITOR:
+                    delete_label = &layout_viewport_editor.remove_label;
+                    delete_id = "editor.layout.ui.part.delete";
                     break;
                 default: break;
             }

@@ -4603,6 +4603,53 @@ void editor_viewport_draw(const EditorProject *project,
                                 item->value.shape.vertices[next].x) * zoom,
                             rectangle.y + (item->position.y +
                                 item->value.shape.vertices[next].y) * zoom};
+                        Position original_first = first;
+                        Position rounded_incoming = first;
+                        bool rounded = false;
+                        if(item->border_corner_radius > 0.0f) {
+                            size_t previous = (vertex +
+                                item->value.shape.vertex_count - 1) %
+                                item->value.shape.vertex_count;
+                            size_t after = (next + 1) %
+                                item->value.shape.vertex_count;
+                            Position previous_point = {rectangle.x +
+                                    (item->position.x + item->value.shape.vertices[
+                                        previous].x) * zoom,
+                                rectangle.y + (item->position.y +
+                                    item->value.shape.vertices[previous].y) * zoom};
+                            Position after_point = {rectangle.x +
+                                    (item->position.x + item->value.shape.vertices[
+                                        after].x) * zoom,
+                                rectangle.y + (item->position.y +
+                                    item->value.shape.vertices[after].y) * zoom};
+                            Vec2D edge = {second.x - first.x, second.y - first.y};
+                            Vec2D prior = {previous_point.x - first.x,
+                                previous_point.y - first.y};
+                            Vec2D following = {after_point.x - second.x,
+                                after_point.y - second.y};
+                            float edge_length = sqrtf(edge.x * edge.x + edge.y * edge.y);
+                            float prior_length = sqrtf(prior.x * prior.x + prior.y * prior.y);
+                            float following_length = sqrtf(following.x * following.x +
+                                following.y * following.y);
+                            float radius = item->border_corner_radius * zoom;
+                            float first_radius = fminf(radius,
+                                fminf(edge_length, prior_length) * 0.5f);
+                            float second_radius = fminf(radius,
+                                fminf(edge_length, following_length) * 0.5f);
+                            if(edge_length > 0.001f) {
+                                if(prior_length > 0.001f) {
+                                    rounded_incoming.x += prior.x / prior_length *
+                                        first_radius;
+                                    rounded_incoming.y += prior.y / prior_length *
+                                        first_radius;
+                                }
+                                first.x += edge.x / edge_length * first_radius;
+                                first.y += edge.y / edge_length * first_radius;
+                                second.x -= edge.x / edge_length * second_radius;
+                                second.y -= edge.y / edge_length * second_radius;
+                                rounded = first_radius > 0.0f;
+                            }
+                        }
                         bool line_selected = item->id ==
                                 state->selected_viewport_ui_item &&
                             state->selection == EDITOR_SELECTION_UI_LINE &&
@@ -4624,9 +4671,35 @@ void editor_viewport_draw(const EditorProject *project,
                                     item->border_hash_spacing * zoom :
                                     fmaxf(1.0f, item->border_thickness * zoom),
                                 fmaxf(1.0f, item->border_thickness * zoom));
+                        if(rounded && (item->border_enabled || whole_selected ||
+                                line_selected)) {
+                            Position arc_start = rounded_incoming;
+                            for(size_t step = 1; step <= 4; step += 1) {
+                                float amount = (float)step / 4.0f;
+                                float inverse = 1.0f - amount;
+                                Position arc_end = {
+                                    inverse * inverse * rounded_incoming.x +
+                                        2.0f * inverse * amount * original_first.x +
+                                        amount * amount * first.x,
+                                    inverse * inverse * rounded_incoming.y +
+                                        2.0f * inverse * amount * original_first.y +
+                                        amount * amount * first.y};
+                                editor_viewport_screen_dotted_line_draw(arc_start,
+                                    arc_end, line_selected ?
+                                        (Color){255, 210, 70, 255} : color,
+                                    item->border_type ==
+                                            EDITOR_VIEWPORT_UI_BORDER_HASHED ?
+                                        item->border_hash_spacing * zoom :
+                                        fmaxf(1.0f,
+                                            item->border_thickness * zoom),
+                                    fmaxf(1.0f, item->border_thickness * zoom));
+                                arc_start = arc_end;
+                            }
+                        }
                         if(whole_selected || vertex_selected || vertex_multi)
-                            (void)rohr_graphics_screen_rect_draw(first.x - 4.0f,
-                                first.y - 4.0f, 8.0f, 8.0f,
+                            (void)rohr_graphics_screen_rect_draw(
+                                original_first.x - 4.0f,
+                                original_first.y - 4.0f, 8.0f, 8.0f,
                                 (Color){255, 210, 70, 255});
                     }
                     continue;

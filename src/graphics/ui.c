@@ -37,6 +37,7 @@ typedef struct UIContext {
     SDL_Keycode field_keys[UI_FIELD_KEY_EVENT_MAX];
     SDL_Keymod field_modifiers[UI_FIELD_KEY_EVENT_MAX];
     size_t field_key_count;
+    char field_text[UI_FIELD_EDIT_MAX];
     size_t field_cursor;
     float field_scroll_y;
     bool field_select_all;
@@ -451,6 +452,13 @@ void ui_event_add(const SDL_Event *event) {
         ui_context.wheel_y += event->wheel.y;
         return;
     }
+    if(event->type == SDL_EVENT_TEXT_INPUT) {
+        size_t used = strlen(ui_context.field_text);
+        size_t added = strlen(event->text.text);
+        if(used + added < sizeof(ui_context.field_text))
+            memcpy(ui_context.field_text + used, event->text.text, added + 1);
+        return;
+    }
     if(event->type != SDL_EVENT_KEY_DOWN ||
             ui_context.field_key_count >= UI_FIELD_KEY_EVENT_MAX) return;
     ui_context.field_keys[ui_context.field_key_count] = event->key.key;
@@ -612,6 +620,8 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             ui_context.field_scroll_y = 0.0f;
         }
         ui_context.field_id = field_id;
+        if(newly_active && SDL_GetKeyboardFocus() != NULL)
+            (void)SDL_StartTextInput(SDL_GetKeyboardFocus());
         ui_context.field_select_all = newly_active && binding.kind == UI_FIELD_FLOAT;
         if(!ui_context.field_select_all) {
             ui_field_cursor_from_pointer(display, resolved_bounds, multiline);
@@ -628,6 +638,21 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
     result.active = ui_context.field_id == field_id;
     if(result.active) ui_context.field_seen = true;
     if(result.active) {
+        if(binding.kind == UI_FIELD_STRING && ui_context.field_text[0] != '\0') {
+            size_t length = strlen(ui_context.field_edit);
+            size_t added = strlen(ui_context.field_text);
+            size_t cursor = ui_context.field_cursor;
+            if(ui_context.field_select_all) length = cursor = 0;
+            if(length + added < sizeof(ui_context.field_edit)) {
+                if(ui_context.field_select_all) ui_context.field_edit[0] = '\0';
+                memmove(ui_context.field_edit + cursor + added,
+                    ui_context.field_edit + cursor, length - cursor + 1);
+                memcpy(ui_context.field_edit + cursor, ui_context.field_text, added);
+                ui_context.field_cursor = cursor + added;
+                ui_context.field_select_all = false;
+                if(ui_field_binding_store(binding)) result.changed = true;
+            }
+        }
         for(size_t i = 0; i < ui_context.field_key_count; i += 1) {
             SDL_Keycode key = ui_context.field_keys[i];
             SDL_Keymod modifiers = ui_context.field_modifiers[i];
@@ -690,7 +715,8 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
                         length - ui_context.field_cursor);
                     edited = true;
                 }
-            } else if(!(modifiers & SDL_KMOD_CTRL) && key >= 0 && key <= 127) {
+            } else if(binding.kind == UI_FIELD_FLOAT &&
+                    !(modifiers & SDL_KMOD_CTRL) && key >= 0 && key <= 127) {
                 edited = ui_field_character_add(binding, (char)key, multiline);
             }
             if(edited && ui_field_binding_store(binding)) result.changed = true;
@@ -1226,6 +1252,7 @@ void ui_frame_end(void) {
     ui_context.navigation_activate_id = 0;
     ui_context.navigation_focus_changed_id = 0;
     ui_context.field_key_count = 0;
+    ui_context.field_text[0] = '\0';
     ui_context.wheel_y = 0.0f;
     ui_context.frame_active = false;
 }
