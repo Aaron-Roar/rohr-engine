@@ -322,6 +322,8 @@ GraphicsWindowPresentationConfig rohr_graphics_window_presentation_get(void) { r
 EngineResult rohr_graphics_window_presentation_set(GraphicsWindowPresentationConfig config) { return graphics_window_presentation_set(config); }
 bool rohr_graphics_screen_clip_set(float x, float y, float width, float height) { return graphics_screen_clip_set(x, y, width, height); }
 void rohr_graphics_screen_clip_clear(void) { graphics_screen_clip_clear(); }
+bool rohr_graphics_screen_clip_push(float x, float y, float width, float height) { return graphics_screen_clip_push(x, y, width, height); }
+void rohr_graphics_screen_clip_pop(void) { graphics_screen_clip_pop(); }
 bool rohr_graphics_screen_quad_draw(Position center, float width, float height, float angle, Color color) { return graphics_screen_quad_draw(center, width, height, angle, color); }
 void rohr_graphics_show(void) { graphics_show(); }
 EngineResult rohr_graphics_vsync_set(bool enabled) { return graphics_vsync_set(enabled); }

@@ -36,6 +36,11 @@ void editor_viewport_ui_font_set(FontAsset *font) {
 
 static Position editor_view_origin;
 static float editor_view_scale = 1.0f;
+static bool editor_view_camera_preview = false;
+static Position editor_view_preview_camera;
+static Scale editor_view_preview_scale = {1.0f, 1.0f};
+static Orientation editor_view_preview_camera_rotation;
+static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
 
 typedef struct EditorPreviewTexture {
@@ -240,6 +245,18 @@ static void editor_view_transform_set(const EditorProject *project,
 }
 
 static Position editor_view_world_to_screen(Position world) {
+    if(editor_view_camera_preview) {
+        Vec2D relative = {world.x - editor_view_preview_camera.x,
+            world.y - editor_view_preview_camera.y};
+        relative = math_vector_rotate(relative,
+            -editor_view_preview_camera_rotation);
+        relative = (Vec2D){relative.x * editor_view_preview_scale.x,
+            -relative.y * editor_view_preview_scale.y};
+        relative = math_vector_rotate(relative,
+            editor_view_preview_content_rotation);
+        return (Position){editor_view_origin.x + relative.x,
+            editor_view_origin.y + relative.y};
+    }
     return (Position){editor_view_origin.x + world.x * editor_view_scale,
         editor_view_origin.y - world.y * editor_view_scale};
 }
@@ -4496,6 +4513,12 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                     rotation += object->rigid_bodies[body].rotation;
         screen_size = (Scale){sprite->size.x * editor_view_scale,
             sprite->size.y * editor_view_scale};
+        if(editor_view_camera_preview) {
+            screen_size = (Scale){sprite->size.x * editor_view_preview_scale.x,
+                sprite->size.y * editor_view_preview_scale.y};
+            rotation += -editor_view_preview_camera_rotation +
+                editor_view_preview_content_rotation;
+        }
         if(texture != NULL) rohr_graphics_screen_texture_draw(*texture,
             editor_view_world_to_screen(world), screen_size, rotation);
         selected = object_highlighted ||
@@ -4536,6 +4559,12 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
             frame->size.y * animation->scale.y};
         screen_size = (Scale){size.x * editor_view_scale,
             size.y * editor_view_scale};
+        if(editor_view_camera_preview) {
+            screen_size = (Scale){size.x * editor_view_preview_scale.x,
+                size.y * editor_view_preview_scale.y};
+            rotation += -editor_view_preview_camera_rotation +
+                editor_view_preview_content_rotation;
+        }
         if(texture != NULL) rohr_graphics_screen_texture_draw(*texture,
             editor_view_world_to_screen(world), screen_size, rotation);
         selected = object_highlighted ||
@@ -4568,7 +4597,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             object->id, 0, 0, object->id);
 
     editor_viewport_sprites_draw(object, state, object_highlighted);
-    editor_viewport_cameras_draw(object, state);
+    if(!editor_view_camera_preview) editor_viewport_cameras_draw(object, state);
 
     rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
@@ -4851,6 +4880,128 @@ static void editor_viewport_object_draw(const EditorObject *object,
     }
 }
 
+static void editor_viewport_camera_preview_object_draw(
+        const EditorObject *object, const EditorViewportState *state) {
+    if(object == NULL || state == NULL || !object->visible) return;
+    editor_viewport_sprites_draw(object, state, false);
+    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
+    for(size_t body_index = 0; body_index < object->rigid_body_count;
+            body_index += 1) {
+        const EditorRigidBody *body = &object->rigid_bodies[body_index];
+        if(!body->visible) continue;
+        for(size_t box_index = 0; box_index < body->hitbox_count; box_index += 1) {
+            const EditorHitbox *hitbox = &body->hitboxes[box_index];
+            if(!hitbox->visible) continue;
+            editor_hitbox_filled_draw(object, body, hitbox,
+                graphics_color_hex_create(body->surface_color));
+            for(uint32_t vertex = 0; vertex < hitbox->vertex_count; vertex += 1)
+                editor_line_draw(editor_hitbox_vertex_world_get(object, body,
+                    hitbox, vertex), editor_hitbox_vertex_world_get(object, body,
+                    hitbox, (vertex + 1) % hitbox->vertex_count),
+                    graphics_color_hex_create(body->border_color));
+        }
+    }
+    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+    for(size_t body_index = 0; body_index < object->soft_body_count;
+            body_index += 1) {
+        const EditorSoftBody *body = &object->soft_body_items[body_index];
+        if(!body->visible) continue;
+        for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
+            const EditorSoftArea *area = &body->areas[area_index];
+            if(area->visible) editor_soft_area_filled_draw(object, body, area,
+                graphics_color_hex_create(area->color_overridden ? area->color :
+                    body->area_color));
+        }
+        for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
+            const EditorSoftBeam *beam = &body->beams[beam_index];
+            const EditorSoftNode *a = NULL;
+            const EditorSoftNode *b = NULL;
+            if(!beam->visible) continue;
+            for(size_t node = 0; node < body->node_count; node += 1) {
+                if(body->nodes[node].id == beam->node_a) a = &body->nodes[node];
+                if(body->nodes[node].id == beam->node_b) b = &body->nodes[node];
+            }
+            if(a != NULL && b != NULL) editor_line_draw(
+                editor_soft_node_world_get(object, body, a),
+                editor_soft_node_world_get(object, body, b),
+                graphics_color_hex_create(beam->color_overridden ? beam->color :
+                    body->beam_color));
+        }
+        for(size_t node = 0; node < body->node_count; node += 1) {
+            const EditorSoftNode *item = &body->nodes[node];
+            if(item->visible) editor_quad_draw(
+                editor_soft_node_world_get(object, body, item), 8.0f, 8.0f,
+                0.0f, graphics_color_hex_create(item->color_overridden ?
+                    item->color : body->node_color));
+        }
+    }
+}
+
+static void editor_viewport_screen_camera_preview_draw(
+        const EditorProject *project, const EditorViewportCameraItem *screen,
+        ViewportRectangle bounds, float editor_zoom) {
+    const EditorObject *camera_object = NULL;
+    const EditorCamera *camera = NULL;
+    EditorViewportState preview_state = {.mode = EDITOR_VIEWPORT_HIERARCHY,
+        .dragged_vertex = -1};
+    Position camera_world;
+    Orientation camera_rotation = 0.0f;
+    Position saved_origin = editor_view_origin;
+    float saved_scale = editor_view_scale;
+    float fit_x;
+    float fit_y;
+    Vec2D offset;
+    bool clip_pushed;
+    if(project == NULL || screen == NULL || bounds.width <= 0.0f ||
+            bounds.height <= 0.0f) return;
+    for(size_t i = 0; i < project->object_count; i += 1)
+        if(project->objects[i].id == screen->object) camera_object =
+            &project->objects[i];
+    if(camera_object != NULL)
+        camera = editor_project_camera_get((EditorObject *)camera_object,
+            screen->camera);
+    if(camera == NULL || !camera->visible || camera->dimensions.x <= 0.0f ||
+            camera->dimensions.y <= 0.0f) return;
+    camera_world = editor_camera_world_get(camera_object, camera,
+        &camera_rotation);
+    fit_x = bounds.width / camera->dimensions.x;
+    fit_y = bounds.height / camera->dimensions.y;
+    if(screen->placement.fit == SCREEN_FIT_NONE) {
+        fit_x = editor_zoom;
+        fit_y = editor_zoom;
+    } else if(screen->placement.fit == SCREEN_FIT_CONTAIN) {
+        fit_x = fit_y = fminf(fit_x, fit_y);
+    } else if(screen->placement.fit == SCREEN_FIT_COVER) {
+        fit_x = fit_y = fmaxf(fit_x, fit_y);
+    }
+    editor_view_preview_camera = camera_world;
+    editor_view_preview_camera_rotation = camera_rotation;
+    editor_view_preview_content_rotation = screen->placement.orientation +
+        screen->content_rotation;
+    editor_view_preview_scale = (Scale){
+        fit_x * fmaxf(0.01f, screen->content_scale.x),
+        fit_y * fmaxf(0.01f, screen->content_scale.y)};
+    editor_view_scale = (editor_view_preview_scale.x +
+        editor_view_preview_scale.y) * 0.5f;
+    offset = math_vector_rotate((Vec2D){screen->content_offset.x * editor_zoom,
+        screen->content_offset.y * editor_zoom}, screen->placement.orientation);
+    editor_view_origin = (Position){bounds.x + bounds.width * 0.5f + offset.x,
+        bounds.y + bounds.height * 0.5f + offset.y};
+    clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
+        bounds.width, bounds.height);
+    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
+    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
+        bounds.height, (Color){18, 22, 30, 255});
+    editor_view_camera_preview = true;
+    for(size_t i = 0; i < project->object_count; i += 1)
+        editor_viewport_camera_preview_object_draw(&project->objects[i],
+            &preview_state);
+    editor_view_camera_preview = false;
+    if(clip_pushed) rohr_graphics_screen_clip_pop();
+    editor_view_origin = saved_origin;
+    editor_view_scale = saved_scale;
+}
+
 void editor_viewport_draw(const EditorProject *project,
         const EditorViewportState *state, bool grid_visible) {
     const EditorObject *selected;
@@ -4903,6 +5054,8 @@ void editor_viewport_draw(const EditorProject *project,
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;
                 camera.width *= zoom; camera.height *= zoom;
+                editor_viewport_screen_camera_preview_draw(project, item, camera,
+                    zoom);
                 Position screen_center = {camera.x + camera.width * 0.5f,
                     camera.y + camera.height * 0.5f};
                 Position corners[4] = {{camera.x, camera.y},

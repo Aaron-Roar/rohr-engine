@@ -1322,6 +1322,10 @@ EngineResult rohr_graphics_window_presentation_set(
 bool rohr_graphics_screen_clip_set(float x, float y, float width, float height);
 /** Clears the active screen-space drawing clip. */
 void rohr_graphics_screen_clip_clear(void);
+/** Pushes a nested screen-space clip intersected with the active clip. */
+bool rohr_graphics_screen_clip_push(float x, float y, float width, float height);
+/** Restores the previous screen-space clip. */
+void rohr_graphics_screen_clip_pop(void);
 
 /** @brief Draws a centered rotated rectangle in logical screen space. */
 bool rohr_graphics_screen_quad_draw(Position center, float width, float height, float angle, Color color);
