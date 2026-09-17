@@ -24,6 +24,9 @@
 #define MAX_SCREENS 16
 #define MAX_VIEWPORTS 16
 #define MAX_VIEWPORT_ITEMS 32
+#define MAX_GRAPHICS_UI_ELEMENTS 128
+#define MAX_GRAPHICS_LAYERS 128
+#define GRAPHICS_LAYER_NAME_MAX 64
 
 #define RECORDING_WIDTH  WINDOW_WIDTH
 #define RECORDING_HEIGHT WINDOW_HEIGHT
@@ -113,10 +116,15 @@ ERROR_DECLARE_RESULT_TYPE(CameraAttachmentResult, CameraAttachment);
 
 typedef uint32_t ViewportId;
 typedef uint32_t ViewportItemId;
+/** Reusable UI definition that may be mounted in multiple viewports. */
+typedef uint32_t GraphicsUiId;
+typedef uint32_t GraphicsLayerId;
 typedef uint32_t ScreenId;
 
 #define VIEWPORT_INVALID 0
 #define VIEWPORT_ITEM_INVALID 0
+#define GRAPHICS_UI_INVALID 0
+#define GRAPHICS_LAYER_INVALID 0
 #define SCREEN_INVALID 0
 
 typedef struct ScreenConfig {
@@ -153,6 +161,10 @@ typedef struct ViewportItemConfig {
     Orientation content_orientation;
     int layer;
     bool visible;
+    /** Clip this item to a viewport-local rectangle. */
+    bool clip_enabled;
+    /** Viewport-local clip rectangle, independent from item placement. */
+    ViewportRectangle clip_rectangle;
 } ViewportItemConfig;
 
 typedef enum ViewportUiBorderType {
@@ -189,6 +201,12 @@ typedef struct ViewportUiShapeConfig {
 
 ERROR_DECLARE_RESULT_TYPE(ViewportIdResult, ViewportId);
 ERROR_DECLARE_RESULT_TYPE(ViewportItemIdResult, ViewportItemId);
+ERROR_DECLARE_RESULT_TYPE(ViewportItemConfigResult, ViewportItemConfig);
+ERROR_DECLARE_RESULT_TYPE(GraphicsUiIdResult, GraphicsUiId);
+ERROR_DECLARE_RESULT_TYPE(GraphicsUiShapeResult, ViewportUiShapeConfig);
+ERROR_DECLARE_RESULT_TYPE(GraphicsUiTextResult, ViewportUiTextConfig);
+ERROR_DECLARE_RESULT_TYPE(GraphicsLayerIdResult, GraphicsLayerId);
+ERROR_DECLARE_RESULT_TYPE(GraphicsLayerValueResult, int);
 
 /** Descriptor for loading a texture from disk. */
 typedef struct {
@@ -379,11 +397,34 @@ bool graphics_events_poll(SDL_Event *event);
 /** Clear the render target with a background color. */
 void graphics_background_draw(Color color);
 
-/** Set the ordering layer captured by subsequent draw commands. */
-void graphics_layer_set(int layer);
+/** Create a uniquely named layer. Different layers may share a numeric value. */
+GraphicsLayerIdResult graphics_layer_create(const char *name, int value);
+EngineResult graphics_layer_destroy(GraphicsLayerId layer);
+EngineResult graphics_layer_set(GraphicsLayerId layer, int value);
+GraphicsLayerValueResult graphics_layer_get(GraphicsLayerId layer);
+EngineResult graphics_layer_name_set(const char *name, int value);
+GraphicsLayerValueResult graphics_layer_name_get(const char *name);
+GraphicsLayerIdResult graphics_layer_name_id_get(const char *name);
 
-/** Return the ordering layer used by subsequent draw commands. */
-int graphics_layer_get(void);
+EngineResult graphics_layer_entity_set(Entity entity, int value);
+EngineResult graphics_layer_entity_id_set(Entity entity, GraphicsLayerId layer);
+EngineResult graphics_layer_entity_name_set(Entity entity, const char *name);
+GraphicsLayerValueResult graphics_layer_entity_get(Entity entity);
+GraphicsLayerIdResult graphics_layer_entity_id_get(Entity entity);
+EngineResult graphics_layer_entity_clear(Entity entity);
+
+EngineResult graphics_layer_ui_set(ViewportItemId item, int value);
+EngineResult graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer);
+EngineResult graphics_layer_ui_name_set(ViewportItemId item, const char *name);
+GraphicsLayerValueResult graphics_layer_ui_get(ViewportItemId item);
+GraphicsLayerIdResult graphics_layer_ui_id_get(ViewportItemId item);
+EngineResult graphics_layer_ui_clear(ViewportItemId item);
+
+/** Set the explicit ordering layer captured by subsequent direct draw commands. */
+void graphics_layer_active_set(int value);
+int graphics_layer_active_get(void);
+EngineResult graphics_layer_active_id_set(GraphicsLayerId layer);
+EngineResult graphics_layer_active_name_set(const char *name);
 
 /** Draw a filled rectangle in logical screen coordinates. */
 bool graphics_screen_rect_draw(float x, float y, float width, float height, Color color);
@@ -599,14 +640,29 @@ ViewportItemIdResult graphics_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemConfig config);
 ViewportItemIdResult graphics_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
+GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape);
+GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text);
+EngineResult graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
+GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId ui);
+EngineResult graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
+GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId ui);
+EngineResult graphics_ui_destroy(GraphicsUiId ui);
+ViewportItemIdResult graphics_viewport_ui_add(ViewportId viewport,
+    GraphicsUiId ui, ViewportItemConfig config);
+/** Compatibility helpers that create a viewport-owned UI definition. */
 ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId viewport,
     ViewportUiShapeConfig shape, ViewportItemConfig config);
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId viewport,
     ViewportUiTextConfig text, ViewportItemConfig config);
-EngineResult graphics_viewport_item_remove(ViewportId viewport,
-    ViewportItemId item);
-EngineResult graphics_viewport_item_set(ViewportId viewport,
-    ViewportItemId item, ViewportItemConfig config);
+EngineResult graphics_viewport_item_remove(ViewportItemId item);
+EngineResult graphics_viewport_item_set(ViewportItemId item,
+    ViewportItemConfig config);
+ViewportItemConfigResult graphics_viewport_item_get(ViewportItemId item);
+ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item);
+/** Return whether this mounted UI instance was hovered during its latest draw. */
+bool graphics_viewport_ui_hovered_check(ViewportItemId item);
+/** Return whether this mounted UI instance was pressed during its latest draw. */
+bool graphics_viewport_ui_pressed_check(ViewportItemId item);
 /** Assign a camera without transferring ownership. */
 EngineResult graphics_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult graphics_viewport_camera_clear(ViewportId viewport);

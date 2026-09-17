@@ -38,9 +38,9 @@ static void render_scene(CameraId camera, void *context_value) {
     RenderContext *context = context_value;
     UIRect play_bounds = context->play_definition->bounds;
     (void)camera;
-    rohr_graphics_layer_set(-100);
+    rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw((Color){18, 22, 30, 255});
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
     rohr_ui_frame_begin((UIInput){
         .pointer = rohr_graphics_mouse_screen_position_get(),
         .primary_button = context->mouse->button_states[MOUSE_BUTTON_LEFT],

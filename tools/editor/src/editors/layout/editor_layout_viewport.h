@@ -11,8 +11,9 @@ typedef struct EditorLayoutViewportEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, width_label, height_label;
     TextAsset enabled_label, background_color_label;
+    TextAsset graphics_layers_label, add_layer_label;
     TextAsset cameras_label, add_label, delete_label, remove_label;
-    TextAsset layer_label, visible_label, rotation_label;
+    TextAsset layer_label, direct_layer_label, visible_label, rotation_label;
     TextAsset visible_icon, hidden_icon;
     TextAsset border_label, border_type_label, border_line_label;
     TextAsset border_hashed_label, border_thickness_label;
@@ -20,7 +21,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset fill_color_label;
     TextAsset hover_border_color_label, hover_fill_color_label;
     TextAsset click_border_color_label, click_fill_color_label;
-    TextAsset add_shape_label, button_label;
+    TextAsset add_shape_label, mount_ui_label, button_label;
     TextAsset text_label, font_file_label, font_color_label;
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;
@@ -41,6 +42,10 @@ typedef struct EditorLayoutViewportEditor {
     char ui_cache[EDITOR_LAYOUT_VIEWPORT_UI_MAX][EDITOR_OBJECT_NAME_MAX];
     TextAsset font_names[EDITOR_UI_FONT_MAX];
     char font_cache[EDITOR_UI_FONT_MAX][EDITOR_OBJECT_NAME_MAX];
+    TextAsset layer_names[MAX_GRAPHICS_LAYERS];
+    char layer_cache[MAX_GRAPHICS_LAYERS][GRAPHICS_LAYER_NAME_MAX];
+    TextAsset definition_names[MAX_GRAPHICS_UI_ELEMENTS];
+    char definition_cache[MAX_GRAPHICS_UI_ELEMENTS][EDITOR_OBJECT_NAME_MAX];
 } EditorLayoutViewportEditor;
 
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,

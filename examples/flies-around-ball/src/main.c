@@ -31,18 +31,18 @@ typedef struct RenderContext {
 static void render_scene(CameraId camera, void *context_value) {
     RenderContext *context = context_value;
     (void)camera;
-    rohr_graphics_layer_set(-100);
+    rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
     rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
     rohr_graphics_animated_sprites_draw();
     if(context->phase_1) rohr_graphics_hit_boxes_draw();
     if(context->phase_2) rohr_graphics_particles_draw();
-    rohr_graphics_layer_set(100);
+    rohr_graphics_layer_active_set(100);
     rohr_graphics_aabb_tree_draw();
     rohr_graphics_contacts_draw();
     if(context->phase_3) rohr_graphics_local_origins_draw();
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
 }
 
 int main(void) {

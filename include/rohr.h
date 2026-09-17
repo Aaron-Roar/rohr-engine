@@ -1293,11 +1293,29 @@ bool rohr_graphics_events_poll(SDL_Event *event);
  */
 void rohr_graphics_background_draw(Color color);
 
-/** Sets the ordering layer captured by subsequent draw commands. */
-void rohr_graphics_layer_set(int layer);
-
-/** Returns the ordering layer used by subsequent draw commands. */
-int rohr_graphics_layer_get(void);
+GraphicsLayerIdResult rohr_graphics_layer_create(const char *name, int value);
+EngineResult rohr_graphics_layer_destroy(GraphicsLayerId layer);
+EngineResult rohr_graphics_layer_set(GraphicsLayerId layer, int value);
+GraphicsLayerValueResult rohr_graphics_layer_get(GraphicsLayerId layer);
+EngineResult rohr_graphics_layer_name_set(const char *name, int value);
+GraphicsLayerValueResult rohr_graphics_layer_name_get(const char *name);
+GraphicsLayerIdResult rohr_graphics_layer_name_id_get(const char *name);
+EngineResult rohr_graphics_layer_entity_set(Entity entity, int value);
+EngineResult rohr_graphics_layer_entity_id_set(Entity entity, GraphicsLayerId layer);
+EngineResult rohr_graphics_layer_entity_name_set(Entity entity, const char *name);
+GraphicsLayerValueResult rohr_graphics_layer_entity_get(Entity entity);
+GraphicsLayerIdResult rohr_graphics_layer_entity_id_get(Entity entity);
+EngineResult rohr_graphics_layer_entity_clear(Entity entity);
+EngineResult rohr_graphics_layer_ui_set(ViewportItemId item, int value);
+EngineResult rohr_graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer);
+EngineResult rohr_graphics_layer_ui_name_set(ViewportItemId item, const char *name);
+GraphicsLayerValueResult rohr_graphics_layer_ui_get(ViewportItemId item);
+GraphicsLayerIdResult rohr_graphics_layer_ui_id_get(ViewportItemId item);
+EngineResult rohr_graphics_layer_ui_clear(ViewportItemId item);
+void rohr_graphics_layer_active_set(int value);
+int rohr_graphics_layer_active_get(void);
+EngineResult rohr_graphics_layer_active_id_set(GraphicsLayerId layer);
+EngineResult rohr_graphics_layer_active_name_set(const char *name);
 
 /**
  * @brief Draws a filled rectangle in logical screen coordinates.
@@ -1622,13 +1640,25 @@ ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport,
     CameraId camera, ViewportItemConfig config);
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
+GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape);
+GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text);
+EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
+GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
+GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui);
+ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport,
+    GraphicsUiId ui, ViewportItemConfig config);
 ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport,
     ViewportUiShapeConfig shape, ViewportItemConfig config);
 ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport,
     ViewportUiTextConfig text, ViewportItemConfig config);
-EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item);
-EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item,
-    ViewportItemConfig config);
+EngineResult rohr_viewport_item_remove(ViewportItemId item);
+EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config);
+ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item);
+ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item);
+bool rohr_viewport_ui_hovered_check(ViewportItemId item);
+bool rohr_viewport_ui_pressed_check(ViewportItemId item);
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult rohr_viewport_camera_clear(ViewportId viewport);
 EngineResult rohr_viewport_enable_set(ViewportId viewport);

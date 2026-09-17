@@ -87,9 +87,9 @@ typedef struct RenderContext {
 static void render_scene(CameraId camera, void *context_value) {
     RenderContext *context = context_value;
     (void)camera;
-    rohr_graphics_layer_set(-100);
+    rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
     for(uint32_t i = 0; i < 4; i += 1)
         rohr_graphics_hit_box_colored_draw(context->walls[i], GRAPHICS_FILLED,
             wall_color);
@@ -100,10 +100,10 @@ static void render_scene(CameraId camera, void *context_value) {
     rohr_graphics_hit_box_colored_draw(context->bodies[4], GRAPHICS_FILLED, spring_color);
     rohr_graphics_hit_box_colored_draw(context->bodies[5], GRAPHICS_FILLED, spring_color);
     rohr_graphics_joints_draw(joint_color);
-    rohr_graphics_layer_set(100);
+    rohr_graphics_layer_active_set(100);
     rohr_graphics_aabb_tree_draw();
     rohr_graphics_contacts_draw();
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
 }
 
 int main(void) {

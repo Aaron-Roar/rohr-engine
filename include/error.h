@@ -107,6 +107,12 @@ typedef enum EngineError {
     ERROR_ENGINE_STATE_ASSET_REFERENCE_NOT_FOUND,
     /** No loaded UI button has the requested authored name. */
     ERROR_ENGINE_UI_DEFINITION_NOT_FOUND,
+    /** A reusable graphics UI definition is still mounted in a viewport. */
+    ERROR_ENGINE_GRAPHICS_UI_IN_USE,
+    ERROR_ENGINE_INVALID_GRAPHICS_LAYER_NAME,
+    ERROR_ENGINE_GRAPHICS_LAYER_NAME_TOO_LONG,
+    ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME,
+    ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND,
 } EngineError;
 
 /**

@@ -55,9 +55,9 @@ const Time player_control_delay_seconds = 2.5f;
 static void render_scene(CameraId camera, void *context_value) {
     RenderContext *context = context_value;
     (void)camera;
-    rohr_graphics_layer_set(-100);
+    rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw(background_color);
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
     for(size_t i = 0; i < 4; i += 1)
         rohr_graphics_hit_box_colored_draw(
             context->walls[i], GRAPHICS_FILLED, wall_color);
@@ -74,10 +74,10 @@ static void render_scene(CameraId camera, void *context_value) {
                 GRAPHICS_FILLED, context->obstacles[i].color);
     rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), rohr_engine_time_get());
     rohr_graphics_animated_sprites_draw();
-    rohr_graphics_layer_set(100);
+    rohr_graphics_layer_active_set(100);
     rohr_graphics_aabb_tree_draw();
     rohr_graphics_contacts_draw();
-    rohr_graphics_layer_set(0);
+    rohr_graphics_layer_active_set(0);
 }
 
 static Vec2D player_forward(Orientation orientation) {

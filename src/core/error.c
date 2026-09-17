@@ -138,6 +138,16 @@ const char *error_code_message_get(EngineError error) {
             return "game state asset reference not found";
         case ERROR_ENGINE_UI_DEFINITION_NOT_FOUND:
             return "UI definition not found";
+        case ERROR_ENGINE_GRAPHICS_UI_IN_USE:
+            return "graphics UI definition is still mounted";
+        case ERROR_ENGINE_INVALID_GRAPHICS_LAYER_NAME:
+            return "invalid graphics layer name";
+        case ERROR_ENGINE_GRAPHICS_LAYER_NAME_TOO_LONG:
+            return "graphics layer name is too long";
+        case ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME:
+            return "duplicate graphics layer name";
+        case ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND:
+            return "graphics layer not found";
         default:
             return "unknown error";
     }

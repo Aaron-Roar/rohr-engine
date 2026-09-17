@@ -95,6 +95,34 @@ static size_t graphics_layer_capacity = 0;
 static int graphics_active_layer = 0;
 static size_t graphics_active_layer_index = SIZE_MAX;
 
+typedef enum GraphicsLayerBindingKind {
+    GRAPHICS_LAYER_BINDING_NONE,
+    GRAPHICS_LAYER_BINDING_VALUE,
+    GRAPHICS_LAYER_BINDING_ID,
+} GraphicsLayerBindingKind;
+
+typedef struct GraphicsLayerBinding {
+    GraphicsLayerBindingKind kind;
+    int value;
+    GraphicsLayerId layer;
+} GraphicsLayerBinding;
+
+typedef struct GraphicsRegisteredLayer {
+    char name[GRAPHICS_LAYER_NAME_MAX];
+    int value;
+    uint32_t generation;
+    bool used;
+} GraphicsRegisteredLayer;
+
+typedef struct GraphicsEntityLayerBinding {
+    Entity entity;
+    GraphicsLayerBinding binding;
+} GraphicsEntityLayerBinding;
+
+static GraphicsRegisteredLayer graphics_registered_layers[MAX_GRAPHICS_LAYERS] = {0};
+static uint32_t graphics_registered_layer_generations[MAX_GRAPHICS_LAYERS] = {0};
+static GraphicsEntityLayerBinding graphics_entity_layer_bindings[MAX_ENTITIES] = {0};
+
 typedef struct ActiveCameraAttachment {
     CameraAttachment value;
     bool attached;
@@ -140,9 +168,24 @@ typedef struct GraphicsScreen {
 
 typedef enum GraphicsViewportItemKind {
     GRAPHICS_VIEWPORT_ITEM_SCREEN,
-    GRAPHICS_VIEWPORT_ITEM_UI_SHAPE,
-    GRAPHICS_VIEWPORT_ITEM_UI_TEXT,
+    GRAPHICS_VIEWPORT_ITEM_UI,
 } GraphicsViewportItemKind;
+
+typedef enum GraphicsUiKind {
+    GRAPHICS_UI_SHAPE,
+    GRAPHICS_UI_TEXT,
+} GraphicsUiKind;
+
+typedef struct GraphicsUiElement {
+    GraphicsUiKind kind;
+    union {
+        ViewportUiShapeConfig shape;
+        ViewportUiTextConfig text;
+    } value;
+    uint32_t generation;
+    size_t mount_count;
+    bool used;
+} GraphicsUiElement;
 
 typedef struct GraphicsViewport {
     ViewportRectangle rectangle;
@@ -152,11 +195,14 @@ typedef struct GraphicsViewport {
         GraphicsViewportItemKind kind;
         union {
             ScreenId screen;
-            ViewportUiShapeConfig ui_shape;
-            ViewportUiTextConfig ui_text;
+            GraphicsUiId ui;
         } value;
         ViewportItemConfig config;
-        uint32_t generation;
+        GraphicsLayerBinding layer_binding;
+        ViewportItemId id;
+        bool owns_ui;
+        bool hovered;
+        bool pressed;
         bool used;
     } items[MAX_VIEWPORT_ITEMS];
     bool enabled;
@@ -168,6 +214,9 @@ static uint32_t screen_generations[MAX_SCREENS] = {0};
 static uint32_t viewport_generations[MAX_VIEWPORTS] = {0};
 static bool screens_used[MAX_SCREENS] = {0};
 static bool viewports_used[MAX_VIEWPORTS] = {0};
+static GraphicsUiElement graphics_ui_elements[MAX_GRAPHICS_UI_ELEMENTS] = {0};
+static uint32_t graphics_ui_generations[MAX_GRAPHICS_UI_ELEMENTS] = {0};
+static ViewportItemId graphics_viewport_item_next_id = 1;
 static ScreenId drawing_screen = SCREEN_INVALID;
 static CameraId camera_before_screen = CAMERA_INVALID;
 EngineResult graphics_screen_destroy(ScreenId id);
@@ -235,13 +284,163 @@ static bool graphics_lines_draw(const SDL_FPoint *points, int count, Color color
     return true;
 }
 
-void graphics_layer_set(int layer) {
+void graphics_layer_active_set(int layer) {
     graphics_active_layer = layer;
     graphics_active_layer_index = SIZE_MAX;
 }
 
-int graphics_layer_get(void) {
+int graphics_layer_active_get(void) {
     return graphics_active_layer;
+}
+
+static GraphicsLayerId graphics_registered_layer_id(size_t slot) {
+    return (graphics_registered_layer_generations[slot] << 8) |
+        (GraphicsLayerId)(slot + 1);
+}
+
+static bool graphics_registered_layer_slot(GraphicsLayerId id, size_t *slot) {
+    size_t value;
+    if(id == GRAPHICS_LAYER_INVALID || slot == NULL) return false;
+    value = (size_t)((id & 0xffu) - 1u);
+    if(value >= MAX_GRAPHICS_LAYERS || !graphics_registered_layers[value].used ||
+            graphics_registered_layer_id(value) != id) return false;
+    *slot = value;
+    return true;
+}
+
+static bool graphics_registered_layer_name_slot(const char *name, size_t *slot) {
+    if(name == NULL || slot == NULL) return false;
+    for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1) {
+        if(graphics_registered_layers[i].used &&
+                strcmp(graphics_registered_layers[i].name, name) == 0) {
+            *slot = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static GraphicsLayerValueResult graphics_layer_binding_value_get(
+        GraphicsLayerBinding binding) {
+    size_t slot;
+    if(binding.kind == GRAPHICS_LAYER_BINDING_VALUE)
+        return ERROR_RESULT_MAKE_VALUE(GraphicsLayerValueResult, binding.value);
+    if(binding.kind == GRAPHICS_LAYER_BINDING_ID &&
+            graphics_registered_layer_slot(binding.layer, &slot))
+        return ERROR_RESULT_MAKE_VALUE(GraphicsLayerValueResult,
+            graphics_registered_layers[slot].value);
+    return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+        ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+}
+
+GraphicsLayerIdResult graphics_layer_create(const char *name, int value) {
+    size_t length;
+    size_t existing;
+    if(name == NULL || name[0] == '\0')
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_INVALID_GRAPHICS_LAYER_NAME);
+    length = strlen(name);
+    if(length >= GRAPHICS_LAYER_NAME_MAX)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NAME_TOO_LONG);
+    if(graphics_registered_layer_name_slot(name, &existing))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME);
+    for(size_t slot = 0; slot < MAX_GRAPHICS_LAYERS; slot += 1) {
+        if(graphics_registered_layers[slot].used) continue;
+        graphics_registered_layer_generations[slot] += 1;
+        if(graphics_registered_layer_generations[slot] == 0)
+            graphics_registered_layer_generations[slot] = 1;
+        graphics_registered_layers[slot] = (GraphicsRegisteredLayer){
+            .value = value,
+            .generation = graphics_registered_layer_generations[slot],
+            .used = true,
+        };
+        memcpy(graphics_registered_layers[slot].name, name, length + 1);
+        return ERROR_RESULT_MAKE_VALUE(GraphicsLayerIdResult,
+            graphics_registered_layer_id(slot));
+    }
+    return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+EngineResult graphics_layer_destroy(GraphicsLayerId layer) {
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    for(size_t i = 0; i < MAX_ENTITIES; i += 1) {
+        GraphicsLayerBinding *binding = &graphics_entity_layer_bindings[i].binding;
+        if(binding->kind == GRAPHICS_LAYER_BINDING_ID && binding->layer == layer) {
+            binding->kind = GRAPHICS_LAYER_BINDING_VALUE;
+            binding->value = graphics_registered_layers[slot].value;
+        }
+    }
+    for(size_t viewport = 0; viewport < MAX_VIEWPORTS; viewport += 1)
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            GraphicsLayerBinding *binding = &viewports[viewport].items[item].layer_binding;
+            if(binding->kind == GRAPHICS_LAYER_BINDING_ID && binding->layer == layer) {
+                binding->kind = GRAPHICS_LAYER_BINDING_VALUE;
+                binding->value = graphics_registered_layers[slot].value;
+            }
+        }
+    graphics_registered_layers[slot] = (GraphicsRegisteredLayer){0};
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_set(GraphicsLayerId layer, int value) {
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    graphics_registered_layers[slot].value = value;
+    return error_result_value(true);
+}
+
+GraphicsLayerValueResult graphics_layer_get(GraphicsLayerId layer) {
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerValueResult,
+        graphics_registered_layers[slot].value);
+}
+
+EngineResult graphics_layer_name_set(const char *name, int value) {
+    size_t slot;
+    if(!graphics_registered_layer_name_slot(name, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    graphics_registered_layers[slot].value = value;
+    return error_result_value(true);
+}
+
+GraphicsLayerValueResult graphics_layer_name_get(const char *name) {
+    size_t slot;
+    if(!graphics_registered_layer_name_slot(name, &slot))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerValueResult,
+        graphics_registered_layers[slot].value);
+}
+
+GraphicsLayerIdResult graphics_layer_name_id_get(const char *name) {
+    size_t slot;
+    if(!graphics_registered_layer_name_slot(name, &slot))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerIdResult,
+        graphics_registered_layer_id(slot));
+}
+
+EngineResult graphics_layer_active_id_set(GraphicsLayerId layer) {
+    GraphicsLayerValueResult value = graphics_layer_get(layer);
+    if(value.kind == ERROR_RESULT_ERROR) return error_result_error(value.result.error);
+    graphics_layer_active_set(value.result.value);
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_active_name_set(const char *name) {
+    GraphicsLayerValueResult value = graphics_layer_name_get(name);
+    if(value.kind == ERROR_RESULT_ERROR) return error_result_error(value.result.error);
+    graphics_layer_active_set(value.result.value);
+    return error_result_value(true);
 }
 
 static uint32_t graphics_resource_id(uint32_t generation, size_t slot) {
@@ -395,8 +594,16 @@ EngineResult graphics_tables_init(void) {
     memset(viewports, 0, sizeof(viewports));
     memset(screen_generations, 0, sizeof(screen_generations));
     memset(viewport_generations, 0, sizeof(viewport_generations));
+    memset(graphics_ui_elements, 0, sizeof(graphics_ui_elements));
+    memset(graphics_ui_generations, 0, sizeof(graphics_ui_generations));
+    memset(graphics_registered_layers, 0, sizeof(graphics_registered_layers));
+    memset(graphics_registered_layer_generations, 0,
+        sizeof(graphics_registered_layer_generations));
+    memset(graphics_entity_layer_bindings, 0,
+        sizeof(graphics_entity_layer_bindings));
     memset(screens_used, 0, sizeof(screens_used));
     memset(viewports_used, 0, sizeof(viewports_used));
+    graphics_viewport_item_next_id = 1;
     drawing_screen = SCREEN_INVALID;
     camera_before_screen = CAMERA_INVALID;
     graphics_aabb_tree_debug_enabled = false;
@@ -1477,17 +1684,61 @@ ViewportIdResult graphics_viewport_create(ViewportConfig config) {
     return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-static bool graphics_viewport_item_slot(GraphicsViewport *viewport,
-        ViewportItemId id, size_t *slot) {
+static bool graphics_ui_slot(GraphicsUiId id, size_t *slot) {
     size_t value;
-    uint32_t generation;
-    if(viewport == NULL || id == VIEWPORT_ITEM_INVALID || slot == NULL) return false;
+    if(id == GRAPHICS_UI_INVALID || slot == NULL) return false;
     value = (size_t)((id & 0xffu) - 1u);
-    generation = id >> 8;
-    if(value >= MAX_VIEWPORT_ITEMS || !viewport->items[value].used ||
-            viewport->items[value].generation != generation) return false;
+    if(value >= MAX_GRAPHICS_UI_ELEMENTS || !graphics_ui_elements[value].used ||
+            graphics_resource_id(graphics_ui_generations[value], value) != id)
+        return false;
     *slot = value;
     return true;
+}
+
+static bool graphics_viewport_item_slot(ViewportItemId id,
+        size_t *viewport_slot, size_t *item_slot) {
+    if(id == VIEWPORT_ITEM_INVALID || viewport_slot == NULL || item_slot == NULL)
+        return false;
+    for(size_t viewport = 0; viewport < MAX_VIEWPORTS; viewport += 1) {
+        if(!viewports_used[viewport]) continue;
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            if(viewports[viewport].items[item].used &&
+                    viewports[viewport].items[item].id == id) {
+                *viewport_slot = viewport;
+                *item_slot = item;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void graphics_viewport_item_release(GraphicsViewport *viewport,
+        size_t item_slot) {
+    GraphicsUiId ui;
+    size_t ui_slot;
+    bool owns_ui;
+    if(viewport == NULL || item_slot >= MAX_VIEWPORT_ITEMS ||
+            !viewport->items[item_slot].used) return;
+    if(viewport->items[item_slot].kind != GRAPHICS_VIEWPORT_ITEM_UI) {
+        viewport->items[item_slot].used = false;
+        return;
+    }
+    ui = viewport->items[item_slot].value.ui;
+    owns_ui = viewport->items[item_slot].owns_ui;
+    if(graphics_ui_slot(ui, &ui_slot) &&
+            graphics_ui_elements[ui_slot].mount_count > 0)
+        graphics_ui_elements[ui_slot].mount_count -= 1;
+    viewport->items[item_slot].used = false;
+    if(owns_ui && graphics_ui_slot(ui, &ui_slot) &&
+            graphics_ui_elements[ui_slot].mount_count == 0)
+        graphics_ui_elements[ui_slot] = (GraphicsUiElement){0};
+}
+
+static ViewportItemId graphics_viewport_item_id_create(void) {
+    ViewportItemId id = graphics_viewport_item_next_id++;
+    if(id == VIEWPORT_ITEM_INVALID) id = graphics_viewport_item_next_id++;
+    return id;
 }
 
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera_id,
@@ -1521,98 +1772,368 @@ ViewportItemIdResult graphics_viewport_screen_add(ViewportId id, ScreenId screen
     if(config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER)
         config.fit = defaults.fit;
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-        uint32_t generation;
         if(viewports[viewport_slot].items[item].used) continue;
-        generation = viewports[viewport_slot].items[item].generation + 1;
-        if(generation == 0) generation = 1;
         viewports[viewport_slot].items[item].kind = GRAPHICS_VIEWPORT_ITEM_SCREEN;
         viewports[viewport_slot].items[item].value.screen = screen_id;
         viewports[viewport_slot].items[item].config = config;
-        viewports[viewport_slot].items[item].generation = generation;
+        viewports[viewport_slot].items[item].layer_binding =
+            (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
+                .value = config.layer};
+        viewports[viewport_slot].items[item].id = graphics_viewport_item_id_create();
         viewports[viewport_slot].items[item].used = true;
         return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
-            (generation << 8) | (uint32_t)(item + 1));
+            viewports[viewport_slot].items[item].id);
+    }
+    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
+    if(shape.shape.amount_of_vertices < 3 ||
+            shape.shape.amount_of_vertices > MAX_VERTICIES)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
+            ERROR_ENGINE_INVALID_SHAPE);
+    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
+    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
+    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
+    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
+    for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1) {
+        if(graphics_ui_elements[slot].used) continue;
+        graphics_ui_generations[slot] += 1;
+        if(graphics_ui_generations[slot] == 0) graphics_ui_generations[slot] = 1;
+        graphics_ui_elements[slot] = (GraphicsUiElement){
+            .kind = GRAPHICS_UI_SHAPE,
+            .value.shape = shape,
+            .generation = graphics_ui_generations[slot],
+            .used = true,
+        };
+        return ERROR_RESULT_MAKE_VALUE(GraphicsUiIdResult,
+            graphics_resource_id(graphics_ui_generations[slot], slot));
+    }
+    return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
+    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
+    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1) {
+        if(graphics_ui_elements[slot].used) continue;
+        graphics_ui_generations[slot] += 1;
+        if(graphics_ui_generations[slot] == 0) graphics_ui_generations[slot] = 1;
+        graphics_ui_elements[slot] = (GraphicsUiElement){
+            .kind = GRAPHICS_UI_TEXT,
+            .value.text = text,
+            .generation = graphics_ui_generations[slot],
+            .used = true,
+        };
+        return ERROR_RESULT_MAKE_VALUE(GraphicsUiIdResult,
+            graphics_resource_id(graphics_ui_generations[slot], slot));
+    }
+    return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+EngineResult graphics_ui_shape_set(GraphicsUiId id, ViewportUiShapeConfig shape) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SHAPE)
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(shape.shape.amount_of_vertices < 3 ||
+            shape.shape.amount_of_vertices > MAX_VERTICIES)
+        return error_result_error(ERROR_ENGINE_INVALID_SHAPE);
+    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
+    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
+    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
+    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
+    graphics_ui_elements[slot].value.shape = shape;
+    return error_result_value(true);
+}
+
+GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId id) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SHAPE)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiShapeResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsUiShapeResult,
+        graphics_ui_elements[slot].value.shape);
+}
+
+EngineResult graphics_ui_text_set(GraphicsUiId id, ViewportUiTextConfig text) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_TEXT)
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
+    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    graphics_ui_elements[slot].value.text = text;
+    return error_result_value(true);
+}
+
+GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId id) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_TEXT)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiTextResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsUiTextResult,
+        graphics_ui_elements[slot].value.text);
+}
+
+EngineResult graphics_ui_destroy(GraphicsUiId id) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(graphics_ui_elements[slot].mount_count != 0)
+        return error_result_error(ERROR_ENGINE_GRAPHICS_UI_IN_USE);
+    graphics_ui_elements[slot] = (GraphicsUiElement){0};
+    return error_result_value(true);
+}
+
+ViewportItemIdResult graphics_viewport_ui_add(ViewportId id, GraphicsUiId ui,
+        ViewportItemConfig config) {
+    size_t viewport_slot;
+    size_t ui_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot) ||
+            !graphics_ui_slot(ui, &ui_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+        if(viewports[viewport_slot].items[item].used) continue;
+        viewports[viewport_slot].items[item].kind = GRAPHICS_VIEWPORT_ITEM_UI;
+        viewports[viewport_slot].items[item].value.ui = ui;
+        viewports[viewport_slot].items[item].config = config;
+        viewports[viewport_slot].items[item].layer_binding =
+            (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
+                .value = config.layer};
+        viewports[viewport_slot].items[item].id = graphics_viewport_item_id_create();
+        viewports[viewport_slot].items[item].used = true;
+        graphics_ui_elements[ui_slot].mount_count += 1;
+        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
+            viewports[viewport_slot].items[item].id);
     }
     return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
 ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId id,
         ViewportUiShapeConfig shape, ViewportItemConfig config) {
+    GraphicsUiIdResult created = graphics_ui_shape_create(shape);
+    ViewportItemIdResult mounted;
     size_t viewport_slot;
-    if(!graphics_viewport_slot(id, &viewport_slot))
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
-            ERROR_ENGINE_COMPONENT_MISSING);
-    if(shape.shape.amount_of_vertices < 3 ||
-            shape.shape.amount_of_vertices > MAX_VERTICIES)
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
-            ERROR_ENGINE_INVALID_SHAPE);
-    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
-    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
-    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
-    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
-    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-        uint32_t generation;
-        if(viewports[viewport_slot].items[item].used) continue;
-        generation = viewports[viewport_slot].items[item].generation + 1;
-        if(generation == 0) generation = 1;
-        viewports[viewport_slot].items[item].kind =
-            GRAPHICS_VIEWPORT_ITEM_UI_SHAPE;
-        viewports[viewport_slot].items[item].value.ui_shape = shape;
-        viewports[viewport_slot].items[item].config = config;
-        viewports[viewport_slot].items[item].generation = generation;
-        viewports[viewport_slot].items[item].used = true;
-        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
-            (generation << 8) | (uint32_t)(item + 1));
+    size_t item_slot;
+    if(created.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, created.result.error);
+    mounted = graphics_viewport_ui_add(id, created.result.value, config);
+    if(mounted.kind == ERROR_RESULT_ERROR) {
+        (void)graphics_ui_destroy(created.result.value);
+        return mounted;
     }
-    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
+        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    return mounted;
 }
 
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId id,
         ViewportUiTextConfig text, ViewportItemConfig config) {
-    size_t viewport_slot;
-    if(!graphics_viewport_slot(id, &viewport_slot) || text.text == NULL)
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
-            ERROR_ENGINE_COMPONENT_MISSING);
-    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
-    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
-    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-        uint32_t generation;
-        if(viewports[viewport_slot].items[item].used) continue;
-        generation = viewports[viewport_slot].items[item].generation + 1;
-        if(generation == 0) generation = 1;
-        viewports[viewport_slot].items[item].kind =
-            GRAPHICS_VIEWPORT_ITEM_UI_TEXT;
-        viewports[viewport_slot].items[item].value.ui_text = text;
-        viewports[viewport_slot].items[item].config = config;
-        viewports[viewport_slot].items[item].generation = generation;
-        viewports[viewport_slot].items[item].used = true;
-        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
-            (generation << 8) | (uint32_t)(item + 1));
-    }
-    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
-}
-
-EngineResult graphics_viewport_item_remove(ViewportId id, ViewportItemId item_id) {
+    GraphicsUiIdResult created = graphics_ui_text_create(text);
+    ViewportItemIdResult mounted;
     size_t viewport_slot;
     size_t item_slot;
-    if(!graphics_viewport_slot(id, &viewport_slot) ||
-            !graphics_viewport_item_slot(&viewports[viewport_slot], item_id, &item_slot))
+    if(created.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, created.result.error);
+    mounted = graphics_viewport_ui_add(id, created.result.value, config);
+    if(mounted.kind == ERROR_RESULT_ERROR) {
+        (void)graphics_ui_destroy(created.result.value);
+        return mounted;
+    }
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
+        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    return mounted;
+}
+
+EngineResult graphics_viewport_item_remove(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    viewports[viewport_slot].items[item_slot].used = false;
+    graphics_viewport_item_release(&viewports[viewport_slot], item_slot);
     return error_result_value(true);
 }
 
-EngineResult graphics_viewport_item_set(ViewportId id, ViewportItemId item_id,
-        ViewportItemConfig config) {
+EngineResult graphics_viewport_item_set(ViewportItemId item_id, ViewportItemConfig config) {
     size_t viewport_slot;
     size_t item_slot;
-    if(!graphics_viewport_slot(id, &viewport_slot) ||
-            !graphics_viewport_item_slot(&viewports[viewport_slot], item_id, &item_slot))
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(config.rectangle.width <= 0.0f || config.rectangle.height <= 0.0f ||
-            config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER)
+    if(viewports[viewport_slot].items[item_slot].kind ==
+            GRAPHICS_VIEWPORT_ITEM_SCREEN &&
+            (config.rectangle.width <= 0.0f || config.rectangle.height <= 0.0f ||
+             config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     viewports[viewport_slot].items[item_slot].config = config;
+    viewports[viewport_slot].items[item_slot].layer_binding =
+        (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
+            .value = config.layer};
+    return error_result_value(true);
+}
+
+ViewportItemConfigResult graphics_viewport_item_get(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemConfigResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ViewportItemConfigResult,
+        viewports[viewport_slot].items[item_slot].config);
+}
+
+ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ViewportIdResult,
+        graphics_resource_id(viewport_generations[viewport_slot], viewport_slot));
+}
+
+bool graphics_viewport_ui_hovered_check(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    return graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot) &&
+        viewports[viewport_slot].items[item_slot].kind ==
+            GRAPHICS_VIEWPORT_ITEM_UI &&
+        viewports[viewport_slot].items[item_slot].hovered;
+}
+
+bool graphics_viewport_ui_pressed_check(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    return graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot) &&
+        viewports[viewport_slot].items[item_slot].kind ==
+            GRAPHICS_VIEWPORT_ITEM_UI &&
+        viewports[viewport_slot].items[item_slot].pressed;
+}
+
+static GraphicsEntityLayerBinding *graphics_entity_layer_binding_get(Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || index >= MAX_ENTITIES) return NULL;
+    if(graphics_entity_layer_bindings[index].entity != entity)
+        graphics_entity_layer_bindings[index] = (GraphicsEntityLayerBinding){
+            .entity = entity};
+    return &graphics_entity_layer_bindings[index];
+}
+
+EngineResult graphics_layer_entity_set(Entity entity, int value) {
+    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_VALUE, .value = value};
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_entity_id_set(Entity entity, GraphicsLayerId layer) {
+    GraphicsEntityLayerBinding *entry;
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    entry = graphics_entity_layer_binding_get(entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_ID, .layer = layer};
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_entity_name_set(Entity entity, const char *name) {
+    GraphicsLayerIdResult layer = graphics_layer_name_id_get(name);
+    if(layer.kind == ERROR_RESULT_ERROR) return error_result_error(layer.result.error);
+    return graphics_layer_entity_id_set(entity, layer.result.value);
+}
+
+GraphicsLayerValueResult graphics_layer_entity_get(Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    if(entry == NULL || entry->binding.kind == GRAPHICS_LAYER_BINDING_NONE)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return graphics_layer_binding_value_get(entry->binding);
+}
+
+GraphicsLayerIdResult graphics_layer_entity_id_get(Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    if(entry == NULL || entry->binding.kind != GRAPHICS_LAYER_BINDING_ID)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerIdResult, entry->binding.layer);
+}
+
+EngineResult graphics_layer_entity_clear(Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){0};
+    return error_result_value(true);
+}
+
+static int graphics_entity_layer_begin(Entity entity) {
+    int previous = graphics_layer_active_get();
+    GraphicsLayerValueResult value = graphics_layer_entity_get(entity);
+    if(value.kind == ERROR_RESULT_VALUE)
+        graphics_layer_active_set(value.result.value);
+    return previous;
+}
+
+static GraphicsLayerBinding *graphics_layer_ui_binding_get(ViewportItemId item) {
+    size_t viewport_slot;
+    size_t item_slot;
+    if(!graphics_viewport_item_slot(item, &viewport_slot, &item_slot) ||
+            viewports[viewport_slot].items[item_slot].kind != GRAPHICS_VIEWPORT_ITEM_UI)
+        return NULL;
+    return &viewports[viewport_slot].items[item_slot].layer_binding;
+}
+
+EngineResult graphics_layer_ui_set(ViewportItemId item, int value) {
+    GraphicsLayerBinding *binding = graphics_layer_ui_binding_get(item);
+    if(binding == NULL) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    *binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_VALUE, .value = value};
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer) {
+    GraphicsLayerBinding *binding;
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    binding = graphics_layer_ui_binding_get(item);
+    if(binding == NULL) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    *binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_ID, .layer = layer};
+    return error_result_value(true);
+}
+
+EngineResult graphics_layer_ui_name_set(ViewportItemId item, const char *name) {
+    GraphicsLayerIdResult layer = graphics_layer_name_id_get(name);
+    if(layer.kind == ERROR_RESULT_ERROR) return error_result_error(layer.result.error);
+    return graphics_layer_ui_id_set(item, layer.result.value);
+}
+
+GraphicsLayerValueResult graphics_layer_ui_get(ViewportItemId item) {
+    GraphicsLayerBinding *binding = graphics_layer_ui_binding_get(item);
+    if(binding == NULL) return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+        ERROR_ENGINE_COMPONENT_MISSING);
+    return graphics_layer_binding_value_get(*binding);
+}
+
+GraphicsLayerIdResult graphics_layer_ui_id_get(ViewportItemId item) {
+    GraphicsLayerBinding *binding = graphics_layer_ui_binding_get(item);
+    if(binding == NULL || binding->kind != GRAPHICS_LAYER_BINDING_ID)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerIdResult, binding->layer);
+}
+
+EngineResult graphics_layer_ui_clear(ViewportItemId item) {
+    GraphicsLayerBinding *binding = graphics_layer_ui_binding_get(item);
+    if(binding == NULL) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    *binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_VALUE, .value = 0};
     return error_result_value(true);
 }
 
@@ -1621,6 +2142,8 @@ EngineResult graphics_viewport_destroy(ViewportId id) {
     if(!graphics_viewport_slot(id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
+        graphics_viewport_item_release(&viewports[slot], item);
     viewports[slot] = (GraphicsViewport){0};
     viewports_used[slot] = false;
     return error_result_value(true);
@@ -1633,7 +2156,7 @@ EngineResult graphics_viewport_camera_set(ViewportId id, CameraId camera_id) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
-        viewports[slot].items[item].used = false;
+        graphics_viewport_item_release(&viewports[slot], item);
     {
         ViewportItemConfig config = graphics_viewport_item_config_default_get();
         config.rectangle.width = viewports[slot].rectangle.width;
@@ -1651,7 +2174,7 @@ EngineResult graphics_viewport_camera_clear(ViewportId id) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
-        viewports[slot].items[item].used = false;
+        graphics_viewport_item_release(&viewports[slot], item);
     return error_result_value(true);
 }
 
@@ -2172,24 +2695,51 @@ static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
         if(drawn[item] || !viewport->items[item].used ||
                 !viewport->items[item].config.visible) continue;
+        GraphicsLayerValueResult item_layer = graphics_layer_binding_value_get(
+            viewport->items[item].layer_binding);
+        GraphicsLayerValueResult selected_layer = selected == MAX_VIEWPORT_ITEMS
+            ? ERROR_RESULT_MAKE_VALUE(GraphicsLayerValueResult, 0)
+            : graphics_layer_binding_value_get(
+                viewport->items[selected].layer_binding);
+        int item_value = item_layer.kind == ERROR_RESULT_VALUE
+            ? item_layer.result.value : viewport->items[item].config.layer;
+        int selected_value = selected_layer.kind == ERROR_RESULT_VALUE
+            ? selected_layer.result.value : (selected == MAX_VIEWPORT_ITEMS ? 0 :
+                viewport->items[selected].config.layer);
         if(selected == MAX_VIEWPORT_ITEMS ||
-                viewport->items[item].config.layer <
-                    viewport->items[selected].config.layer ||
-                (viewport->items[item].config.layer ==
-                    viewport->items[selected].config.layer && item < selected))
+                viewport->items[item].kind < viewport->items[selected].kind ||
+                (viewport->items[item].kind == viewport->items[selected].kind &&
+                    (item_value < selected_value ||
+                     (item_value == selected_value && item < selected))))
             selected = item;
     }
     return selected;
 }
 
+static Position graphics_viewport_ui_local_point_get(const GraphicsViewport *viewport,
+        const ViewportItemConfig *item, Position point) {
+    Scale scale = item->content_scale;
+    Orientation orientation = item->orientation + item->content_orientation;
+    Vec2D transformed;
+    if(scale.x <= 0.0f) scale.x = 1.0f;
+    if(scale.y <= 0.0f) scale.y = 1.0f;
+    transformed = math_vector_rotate((Vec2D){point.x * scale.x, point.y * scale.y},
+        orientation);
+    return (Position){viewport->rectangle.x + item->rectangle.x +
+            item->content_offset.x + transformed.x,
+        viewport->rectangle.y + item->rectangle.y +
+            item->content_offset.y + transformed.y};
+}
+
 static Position graphics_viewport_ui_point_get(const GraphicsViewport *viewport,
-        const ViewportUiShapeConfig *shape, Position point) {
+        const ViewportItemConfig *item, const ViewportUiShapeConfig *shape,
+        Position point) {
     Position centroid = math_polygon_centroid(shape->shape);
     Vec2D relative = {point.x - centroid.x, point.y - centroid.y};
     Vec2D rotated = math_vector_rotate(relative, shape->orientation);
-    return (Position){viewport->rectangle.x + shape->position.x + centroid.x +
-            rotated.x,
-        viewport->rectangle.y + shape->position.y + centroid.y + rotated.y};
+    return graphics_viewport_ui_local_point_get(viewport, item,
+        (Position){shape->position.x + centroid.x + rotated.x,
+            shape->position.y + centroid.y + rotated.y});
 }
 
 static void graphics_viewport_ui_line_draw(Position start, Position end,
@@ -2298,7 +2848,7 @@ static bool graphics_viewport_ui_point_inside(Position point,
 }
 
 static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
-        const ViewportUiTextConfig *text, Position anchor,
+        const ViewportItemConfig *item, const ViewportUiTextConfig *text, Position anchor,
         Orientation inherited_orientation) {
     const TextAsset *asset;
     Scale scale;
@@ -2309,18 +2859,23 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
     scale = text->scale;
     if(scale.x <= 0.0f) scale.x = 1.0f;
     if(scale.y <= 0.0f) scale.y = 1.0f;
-    anchor.x += viewport->rectangle.x + text->position.x + text->offset.x;
-    anchor.y += viewport->rectangle.y + text->position.y + text->offset.y;
+    anchor = graphics_viewport_ui_local_point_get(viewport, item,
+        (Position){anchor.x + text->position.x + text->offset.x,
+            anchor.y + text->position.y + text->offset.y});
+    if(item->content_scale.x > 0.0f) scale.x *= item->content_scale.x;
+    if(item->content_scale.y > 0.0f) scale.y *= item->content_scale.y;
     destination = (SDL_FRect){anchor.x - asset->size.x * scale.x * 0.5f,
         anchor.y - asset->size.y * scale.y * 0.5f,
         asset->size.x * scale.x, asset->size.y * scale.y};
     (void)SDL_RenderTextureRotated(sdl_renderer, asset->texture, NULL,
-        &destination, (double)((inherited_orientation + text->orientation) *
+        &destination, (double)((item->orientation + item->content_orientation +
+            inherited_orientation + text->orientation) *
             180.0f / PI_F), NULL, SDL_FLIP_NONE);
 }
 
 static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
-        const ViewportUiShapeConfig *shape) {
+        const ViewportItemConfig *item, const ViewportUiShapeConfig *shape,
+        bool *hovered_result, bool *pressed_result) {
     Shape prepared;
     Position points[MAX_VERTICIES];
     SDL_Vertex vertices[MAX_VERTICIES];
@@ -2333,11 +2888,21 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
     if(viewport == NULL || shape == NULL || shape->shape.amount_of_vertices < 3 ||
             !physics_shape_collision_prepare(shape->shape, &prepared)) return;
     for(size_t i = 0; i < shape->shape.amount_of_vertices; i += 1)
-        points[i] = graphics_viewport_ui_point_get(viewport, shape,
+        points[i] = graphics_viewport_ui_point_get(viewport, item, shape,
             shape->shape.vertices[i]);
     pointer = graphics_mouse_screen_position_get();
     hovered = shape->button_enabled && graphics_viewport_ui_point_inside(pointer,
         points, shape->shape.amount_of_vertices);
+    if(hovered && item->clip_enabled &&
+            (pointer.x < viewport->rectangle.x + item->clip_rectangle.x ||
+             pointer.y < viewport->rectangle.y + item->clip_rectangle.y ||
+             pointer.x > viewport->rectangle.x + item->clip_rectangle.x +
+                item->clip_rectangle.width ||
+             pointer.y > viewport->rectangle.y + item->clip_rectangle.y +
+                item->clip_rectangle.height)) hovered = false;
+    if(hovered_result != NULL) *hovered_result = hovered;
+    if(pressed_result != NULL) *pressed_result = hovered &&
+        (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0;
     fill = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
         shape->click_fill_color : shape->hover_fill_color) : shape->fill_color;
     border = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
@@ -2369,7 +2934,7 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
             shape->text.offset.y}, shape->orientation);
         ViewportUiTextConfig text = shape->text;
         text.offset = (Position){offset.x, offset.y};
-        graphics_viewport_ui_text_draw(viewport, &text,
+        graphics_viewport_ui_text_draw(viewport, item, &text,
             (Position){shape->position.x + centroid.x,
                 shape->position.y + centroid.y}, shape->orientation);
     }
@@ -2423,6 +2988,10 @@ static void graphics_viewports_draw(void) {
             };
             (void)SDL_RenderFillRect(sdl_renderer, &background);
         }
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
+            viewport->items[item].hovered = false;
+            viewport->items[item].pressed = false;
+        }
         for(;;) {
             size_t item = graphics_viewport_next_item_get(viewport, drawn);
             size_t screen_slot;
@@ -2435,14 +3004,38 @@ static void graphics_viewports_draw(void) {
             if(item == MAX_VIEWPORT_ITEMS) break;
             drawn[item] = true;
             config = &viewport->items[item].config;
-            if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI_SHAPE) {
-                graphics_viewport_ui_shape_draw(viewport,
-                    &viewport->items[item].value.ui_shape);
-                continue;
-            }
-            if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI_TEXT) {
-                graphics_viewport_ui_text_draw(viewport,
-                    &viewport->items[item].value.ui_text, (Position){0}, 0.0f);
+            if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI) {
+                size_t ui_slot;
+                if(!graphics_ui_slot(viewport->items[item].value.ui, &ui_slot))
+                    continue;
+                if(config->clip_enabled && config->clip_rectangle.width > 0.0f &&
+                        config->clip_rectangle.height > 0.0f) {
+                    float left = fmaxf(viewport->rectangle.x,
+                        viewport->rectangle.x + config->clip_rectangle.x);
+                    float top = fmaxf(viewport->rectangle.y,
+                        viewport->rectangle.y + config->clip_rectangle.y);
+                    float right = fminf(viewport->rectangle.x + viewport->rectangle.width,
+                        viewport->rectangle.x + config->clip_rectangle.x +
+                            config->clip_rectangle.width);
+                    float bottom = fminf(viewport->rectangle.y + viewport->rectangle.height,
+                        viewport->rectangle.y + config->clip_rectangle.y +
+                            config->clip_rectangle.height);
+                    SDL_Rect item_clip = {(int)left, (int)top,
+                        (int)fmaxf(0.0f, right - left),
+                        (int)fmaxf(0.0f, bottom - top)};
+                    (void)SDL_SetRenderClipRect(sdl_renderer, &item_clip);
+                }
+                if(graphics_ui_elements[ui_slot].kind == GRAPHICS_UI_SHAPE)
+                    graphics_viewport_ui_shape_draw(viewport, config,
+                        &graphics_ui_elements[ui_slot].value.shape,
+                        &viewport->items[item].hovered,
+                        &viewport->items[item].pressed);
+                else
+                    graphics_viewport_ui_text_draw(viewport, config,
+                        &graphics_ui_elements[ui_slot].value.text,
+                        (Position){0}, 0.0f);
+                if(config->clip_enabled)
+                    (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
                 continue;
             }
             if(!graphics_screen_slot(viewport->items[item].value.screen,
@@ -2760,12 +3353,14 @@ void graphics_hit_box_draw(Entity entity, Fill fill_type) {
         return;
     }
     Shape shape = shape_result.result.value;
+    int previous_layer = graphics_entity_layer_begin(entity);
     if(fill_type == GRAPHICS_FILLED) {
         graphics_shape_filled_draw(shape, hit_box_color);
     }
     else {
         graphics_shape_outline_draw(shape, hit_box_color);
     }
+    graphics_layer_active_set(previous_layer);
 }
 
 void graphics_hit_box_colored_draw(Entity entity, Fill fill_type, Color color) {
@@ -2774,12 +3369,14 @@ void graphics_hit_box_colored_draw(Entity entity, Fill fill_type, Color color) {
         return;
     }
     Shape shape = shape_result.result.value;
+    int previous_layer = graphics_entity_layer_begin(entity);
     if(fill_type == GRAPHICS_FILLED) {
         graphics_shape_filled_draw(shape, color);
     }
     else {
         graphics_shape_outline_draw(shape, color);
     }
+    graphics_layer_active_set(previous_layer);
 }
 
 void graphics_hit_boxes_draw(void) {
@@ -2807,12 +3404,14 @@ void graphics_particle_draw(Entity entity, Fill fill_type) {
     if(radius <= 0.0f) return;
     Shape circle = math_circle_create(radius, 10);
     Shape world_circle = physics_shape_world_translate(circle, center, 0);
+    int previous_layer = graphics_entity_layer_begin(entity);
     if(fill_type == GRAPHICS_FILLED) {
         graphics_shape_filled_draw(world_circle, particle_color);
     }
     else {
         graphics_shape_outline_draw(world_circle, particle_color);
     }
+    graphics_layer_active_set(previous_layer);
 }
 void graphics_particles_draw(void) {
   for(int i = 0; i < MAX_ENTITIES; i += 1) {
@@ -3272,12 +3871,14 @@ bool graphics_sprite_draw(Entity entity) {
     asset = sprite_components[index].texture;
     asset.size.x *= sprite_components[index].scale.x;
     asset.size.y *= sprite_components[index].scale.y;
+    int previous_layer = graphics_entity_layer_begin(entity);
     graphics_texture_draw_flipped(asset, graphics_sprite_world_position_get(
             positions[index], orientations[index], sprite_components[index].body_offset),
         sprite_components[index].orientation_offset +
             (sprite_components[index].follow_entity_rotation ? orientations[index] : 0.0f),
         sprite_components[index].direction == DIRECTION_LEFT ?
             SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
+    graphics_layer_active_set(previous_layer);
     return true;
 }
 
@@ -3396,12 +3997,14 @@ bool graphics_animated_sprite_draw(Entity entity) {
             index >= animated_sprites_pool.capacity ||
             !animated_sprites_pool.used[index] || !animated_sprites[index].visible)
         return false;
+    int previous_layer = graphics_entity_layer_begin(entity);
     graphics_animated_sprite_value_draw(animated_sprites[index],
         graphics_sprite_world_position_get(positions[index], orientations[index],
             animated_sprites[index].body_offset),
         animated_sprites[index].orientation_offset +
             (animated_sprites[index].follow_entity_rotation ?
                 orientations[index] : 0.0f));
+    graphics_layer_active_set(previous_layer);
     return true;
 }
 
@@ -3509,6 +4112,7 @@ void graphics_local_origin_draw(Entity entity) {
         graphics_world_to_screen_get(y_positive);
 
     {
+        int previous_layer = graphics_entity_layer_begin(entity);
         SDL_FPoint x_axis[] = {
             {screen_origin.x, screen_origin.y},
             {screen_x_positive.x, screen_x_positive.y}
@@ -3519,6 +4123,7 @@ void graphics_local_origin_draw(Entity entity) {
         };
         (void)graphics_lines_draw(x_axis, 2, (Color){255, 255, 0, 255});
         (void)graphics_lines_draw(y_axis, 2, (Color){0, 255, 255, 255});
+        graphics_layer_active_set(previous_layer);
     }
 }
 
@@ -3625,6 +4230,8 @@ bool graphics_joint_draw(Entity joint_entity, Color color) {
     Position screen_a;
     Position screen_b;
     Position center;
+    bool drawn;
+    int previous_layer;
 
     if(sdl_renderer == NULL || !entity_index_get(joint_entity, &index) ||
             !entity_index_alive_check(index) || !entity_index_components_check(index, ROHR_JOINT) ||
@@ -3634,16 +4241,23 @@ bool graphics_joint_draw(Entity joint_entity, Color color) {
     screen_a = graphics_world_to_screen_get(world_a);
     screen_b = graphics_world_to_screen_get(world_b);
     center = (Position){(screen_a.x + screen_b.x) * 0.5f, (screen_a.y + screen_b.y) * 0.5f};
+    previous_layer = graphics_entity_layer_begin(joint_entity);
     switch(joint.type) {
         case JOINT_SPRING:
-            return graphics_joint_spring_symbol_draw(screen_a, screen_b, color);
+            drawn = graphics_joint_spring_symbol_draw(screen_a, screen_b, color);
+            break;
         case JOINT_PIN:
-            return graphics_joint_pin_symbol_draw(center, color);
+            drawn = graphics_joint_pin_symbol_draw(center, color);
+            break;
         case JOINT_WELD:
-            return graphics_joint_weld_symbol_draw(center, color);
+            drawn = graphics_joint_weld_symbol_draw(center, color);
+            break;
         default:
-            return false;
+            drawn = false;
+            break;
     }
+    graphics_layer_active_set(previous_layer);
+    return drawn;
 }
 
 void graphics_joints_draw(Color color) {
@@ -3661,9 +4275,11 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         Color beam_color, Color node_color) {
     SoftBodyResult body_result = physics_soft_body_get(soft_body_entity);
     SoftBody body;
+    int previous_layer;
 
     if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) return false;
     body = body_result.result.value;
+    previous_layer = graphics_entity_layer_begin(soft_body_entity);
     for(uint32_t i = 0; i < body.triangle_count; i += 1) {
         SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(body.triangles[i]);
         EntityIndex indices[3];
@@ -3693,7 +4309,10 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
             screen_b = graphics_world_to_screen_get(positions[b]);
             points[0] = (SDL_FPoint){screen_a.x, screen_a.y};
             points[1] = (SDL_FPoint){screen_b.x, screen_b.y};
-            if(!graphics_lines_draw(points, 2, color)) return false;
+            if(!graphics_lines_draw(points, 2, color)) {
+                graphics_layer_active_set(previous_layer);
+                return false;
+            }
         }
     }
     for(uint32_t i = 0; i < body.node_count; i += 1) {
@@ -3707,6 +4326,7 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
             node.result.value.draw_color_overridden ?
                 node.result.value.draw_color : node_color);
     }
+    graphics_layer_active_set(previous_layer);
     return true;
 }
 

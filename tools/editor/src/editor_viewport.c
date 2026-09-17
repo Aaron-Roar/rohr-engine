@@ -45,7 +45,7 @@ static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
 
 static void editor_view_content_layer_set(int layer) {
-    rohr_graphics_layer_set(editor_view_composition_layer_base + layer);
+    rohr_graphics_layer_active_set(editor_view_composition_layer_base + layer);
 }
 
 typedef struct EditorPreviewTexture {
@@ -5269,7 +5269,7 @@ void editor_viewport_draw(const EditorProject *project,
                 rectangle.width, rectangle.height,
                 rohr_graphics_color_hex_create(viewport->background_color));
             editor_view_composition_layer_base = 0;
-            rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+            rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
             for(float x = 0.0f; x < rectangle.width; x += 12.0f * zoom) {
                 float length = fminf(7.0f * zoom, rectangle.width - x);
                 (void)rohr_graphics_screen_rect_draw(rectangle.x + x, rectangle.y,
@@ -5317,7 +5317,7 @@ void editor_viewport_draw(const EditorProject *project,
                     corners[corner] = (Position){screen_center.x + rotated.x,
                         screen_center.y + rotated.y};
                 }
-                rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+                rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
                 for(size_t edge = 0; edge < 4; edge += 1)
                     editor_viewport_screen_hashed_line_draw(corners[edge],
                         corners[(edge + 1) % 4], color, zoom);
@@ -5560,7 +5560,7 @@ void editor_viewport_draw(const EditorProject *project,
         editor_viewport_particle_fills_draw(selected);
         editor_viewport_object_draw(selected, state, true);
     }
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+    rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
     if(state->selected_item_count >= 2) {
         Position pivot;
         for(size_t i = 0; i < state->selected_item_count; i += 1) {
@@ -5601,7 +5601,7 @@ void editor_viewport_draw(const EditorProject *project,
         (void)rohr_graphics_screen_rect_draw(right - 1.0f, top, 1.0f,
             bottom - top, border);
     }
-    rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
+    rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_CONTENT);
 }
 
 bool editor_viewport_selection_nudge(EditorViewportState *state,

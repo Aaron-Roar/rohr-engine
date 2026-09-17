@@ -309,8 +309,29 @@ EngineResult rohr_graphics_start(void) { return graphics_start(); }
 void rohr_graphics_end(void) { graphics_end(); }
 bool rohr_graphics_events_poll(SDL_Event *event) { return graphics_events_poll(event); }
 void rohr_graphics_background_draw(Color color) { graphics_background_draw(color); }
-void rohr_graphics_layer_set(int layer) { graphics_layer_set(layer); }
-int rohr_graphics_layer_get(void) { return graphics_layer_get(); }
+GraphicsLayerIdResult rohr_graphics_layer_create(const char *name, int value) { return graphics_layer_create(name, value); }
+EngineResult rohr_graphics_layer_destroy(GraphicsLayerId layer) { return graphics_layer_destroy(layer); }
+EngineResult rohr_graphics_layer_set(GraphicsLayerId layer, int value) { return graphics_layer_set(layer, value); }
+GraphicsLayerValueResult rohr_graphics_layer_get(GraphicsLayerId layer) { return graphics_layer_get(layer); }
+EngineResult rohr_graphics_layer_name_set(const char *name, int value) { return graphics_layer_name_set(name, value); }
+GraphicsLayerValueResult rohr_graphics_layer_name_get(const char *name) { return graphics_layer_name_get(name); }
+GraphicsLayerIdResult rohr_graphics_layer_name_id_get(const char *name) { return graphics_layer_name_id_get(name); }
+EngineResult rohr_graphics_layer_entity_set(Entity entity, int value) { return graphics_layer_entity_set(entity, value); }
+EngineResult rohr_graphics_layer_entity_id_set(Entity entity, GraphicsLayerId layer) { return graphics_layer_entity_id_set(entity, layer); }
+EngineResult rohr_graphics_layer_entity_name_set(Entity entity, const char *name) { return graphics_layer_entity_name_set(entity, name); }
+GraphicsLayerValueResult rohr_graphics_layer_entity_get(Entity entity) { return graphics_layer_entity_get(entity); }
+GraphicsLayerIdResult rohr_graphics_layer_entity_id_get(Entity entity) { return graphics_layer_entity_id_get(entity); }
+EngineResult rohr_graphics_layer_entity_clear(Entity entity) { return graphics_layer_entity_clear(entity); }
+EngineResult rohr_graphics_layer_ui_set(ViewportItemId item, int value) { return graphics_layer_ui_set(item, value); }
+EngineResult rohr_graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer) { return graphics_layer_ui_id_set(item, layer); }
+EngineResult rohr_graphics_layer_ui_name_set(ViewportItemId item, const char *name) { return graphics_layer_ui_name_set(item, name); }
+GraphicsLayerValueResult rohr_graphics_layer_ui_get(ViewportItemId item) { return graphics_layer_ui_get(item); }
+GraphicsLayerIdResult rohr_graphics_layer_ui_id_get(ViewportItemId item) { return graphics_layer_ui_id_get(item); }
+EngineResult rohr_graphics_layer_ui_clear(ViewportItemId item) { return graphics_layer_ui_clear(item); }
+void rohr_graphics_layer_active_set(int layer) { graphics_layer_active_set(layer); }
+int rohr_graphics_layer_active_get(void) { return graphics_layer_active_get(); }
+EngineResult rohr_graphics_layer_active_id_set(GraphicsLayerId layer) { return graphics_layer_active_id_set(layer); }
+EngineResult rohr_graphics_layer_active_name_set(const char *name) { return graphics_layer_active_name_set(name); }
 bool rohr_graphics_screen_rect_draw(float x, float y, float width, float height, Color color) { return graphics_screen_rect_draw(x, y, width, height, color); }
 bool rohr_graphics_screen_shape_filled_draw(Shape shape, Color color) { return graphics_screen_shape_filled_draw(shape, color); }
 Scale rohr_graphics_render_output_size_get(void) { return graphics_render_output_size_get(); }
@@ -438,10 +459,22 @@ ViewportIdResult rohr_viewport_create(ViewportConfig config) { return graphics_v
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemConfig config) { return graphics_viewport_camera_add(viewport, camera, config); }
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemConfig config) { return graphics_viewport_screen_add(viewport, screen, config); }
+GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape) { return graphics_ui_shape_create(shape); }
+GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text) { return graphics_ui_text_create(text); }
+EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape) { return graphics_ui_shape_set(ui, shape); }
+GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui) { return graphics_ui_shape_get(ui); }
+EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text) { return graphics_ui_text_set(ui, text); }
+GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui) { return graphics_ui_text_get(ui); }
+EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui) { return graphics_ui_destroy(ui); }
+ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport, GraphicsUiId ui, ViewportItemConfig config) { return graphics_viewport_ui_add(viewport, ui, config); }
 ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport, ViewportUiShapeConfig shape, ViewportItemConfig config) { return graphics_viewport_ui_shape_add(viewport, shape, config); }
 ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport, ViewportUiTextConfig text, ViewportItemConfig config) { return graphics_viewport_ui_text_add(viewport, text, config); }
-EngineResult rohr_viewport_item_remove(ViewportId viewport, ViewportItemId item) { return graphics_viewport_item_remove(viewport, item); }
-EngineResult rohr_viewport_item_set(ViewportId viewport, ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(viewport, item, config); }
+EngineResult rohr_viewport_item_remove(ViewportItemId item) { return graphics_viewport_item_remove(item); }
+EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(item, config); }
+ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item) { return graphics_viewport_item_get(item); }
+ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item) { return graphics_viewport_item_viewport_get(item); }
+bool rohr_viewport_ui_hovered_check(ViewportItemId item) { return graphics_viewport_ui_hovered_check(item); }
+bool rohr_viewport_ui_pressed_check(ViewportItemId item) { return graphics_viewport_ui_pressed_check(item); }
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera) { return graphics_viewport_camera_set(viewport, camera); }
 EngineResult rohr_viewport_camera_clear(ViewportId viewport) { return graphics_viewport_camera_clear(viewport); }
 EngineResult rohr_viewport_enable_set(ViewportId viewport) { return graphics_viewport_enable_set(viewport); }

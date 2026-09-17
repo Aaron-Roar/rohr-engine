@@ -1413,6 +1413,42 @@ static size_t editor_workspace_ui_font_index_get(const EditorProject *project,
     return 0;
 }
 
+static bool editor_workspace_ui_definition_seen_before(
+        const EditorProject *project, size_t viewport_limit, size_t item_limit,
+        EditorViewportUiDefinitionId definition, size_t *resource_index) {
+    size_t unique_count = 0;
+    if(project == NULL || resource_index == NULL) return false;
+    for(size_t viewport = 0; viewport <= viewport_limit; viewport += 1) {
+        size_t count = viewport == viewport_limit ? item_limit :
+            project->layout_viewports[viewport].ui_item_count;
+        for(size_t item = 0; item < count; item += 1) {
+            EditorViewportUiDefinitionId candidate =
+                project->layout_viewports[viewport].ui_items[item].definition;
+            bool counted = false;
+            for(size_t earlier_viewport = 0;
+                    earlier_viewport <= viewport && !counted; earlier_viewport += 1) {
+                size_t earlier_count = earlier_viewport == viewport ? item :
+                    project->layout_viewports[earlier_viewport].ui_item_count;
+                for(size_t earlier_item = 0; earlier_item < earlier_count;
+                        earlier_item += 1)
+                    if(project->layout_viewports[earlier_viewport]
+                            .ui_items[earlier_item].definition == candidate) {
+                        counted = true;
+                        break;
+                    }
+            }
+            if(counted) continue;
+            if(candidate == definition) {
+                *resource_index = unique_count;
+                return true;
+            }
+            unique_count += 1;
+        }
+    }
+    *resource_index = unique_count;
+    return false;
+}
+
 static bool editor_workspace_generated_viewports_write(
         const EditorWorkspace *workspace, const EditorProject *project) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -1439,10 +1475,14 @@ static bool editor_workspace_generated_viewports_write(
         "    ScreenId screens[MAX_SCREENS];\n"
         "    FontAsset fonts[MAX_VIEWPORT_ITEMS + 1];\n"
         "    TextAsset texts[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
+        "    GraphicsUiId ui_elements[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
+        "    GraphicsLayerId layers[MAX_GRAPHICS_LAYERS];\n"
         "    size_t viewport_count;\n"
         "    size_t screen_count;\n"
         "    size_t font_count;\n"
         "    size_t text_count;\n"
+        "    size_t ui_element_count;\n"
+        "    size_t layer_count;\n"
         "} ProjectViewports;\n\n"
         "EngineResult project_viewports_create(ProjectViewports *resources, "
             "ProjectObjects *objects);\n"
@@ -1454,9 +1494,9 @@ static bool editor_workspace_generated_viewports_write(
         "static void render_scene(CameraId camera, void *context) {\n"
         "    ProjectObjects *objects = context;\n"
         "    (void)camera;\n"
-        "    rohr_graphics_layer_set(-100);\n"
+        "    rohr_graphics_layer_active_set(-100);\n"
         "    rohr_graphics_background_draw((Color){18, 22, 30, 255});\n"
-        "    rohr_graphics_layer_set(0);\n"
+        "    rohr_graphics_layer_active_set(0);\n"
         "    project_objects_draw_all(objects);\n"
         "}\n\n"
         "EngineResult project_viewports_create(ProjectViewports *resources, "
@@ -1465,6 +1505,59 @@ static bool editor_workspace_generated_viewports_write(
         "    if(resources == NULL || objects == NULL) return "
             "rohr_error_result_error(ERROR_ENGINE_COMPONENT_MISSING);\n"
         "    *resources = (ProjectViewports){0};\n");
+    for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
+        fprintf(source,
+            "    { GraphicsLayerIdResult created = rohr_graphics_layer_create("
+                "\"%s\", %d);\n"
+            "      if(rohr_error_check(created)) { result = "
+                "rohr_error_result_error(created.result.error); goto fail; }\n"
+            "      resources->layers[resources->layer_count++] = "
+                "created.result.value; }\n",
+            project->graphics_layers[i].name, project->graphics_layers[i].value);
+    }
+    for(size_t object_index = 0; object_index < project->object_count;
+            object_index += 1) {
+        const EditorObject *object = &project->objects[object_index];
+        char object_variable[EDITOR_OBJECT_NAME_MAX];
+        editor_project_property_name_format(object_variable,
+            sizeof(object_variable), object->name);
+#define WRITE_ENTITY_LAYER(Binding, Prefix, Name) do { \
+    bool found = false; \
+    if((Binding).layer != 0) { \
+        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
+                layer_index += 1) if(project->graphics_layers[layer_index].id == \
+                    (Binding).layer) { \
+            fprintf(source, "    if(rohr_error_check(result = " \
+                "rohr_graphics_layer_entity_id_set(objects->%s.%s%s, " \
+                "resources->layers[%zu]))) goto fail;\n", object_variable, \
+                Prefix, Name, layer_index); \
+            found = true; \
+            break; \
+        } \
+    } \
+    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+        "rohr_graphics_layer_entity_set(objects->%s.%s%s, %d))) goto fail;\n", \
+        object_variable, Prefix, Name, (Binding).value); \
+} while(0)
+        for(size_t i = 0; i < object->rigid_body_count; i += 1)
+            WRITE_ENTITY_LAYER(object->rigid_bodies[i].graphics_layer, "",
+                object->rigid_bodies[i].name);
+        for(size_t i = 0; i < object->joint_count; i += 1)
+            WRITE_ENTITY_LAYER(object->joint_items[i].graphics_layer, "joint_",
+                object->joint_items[i].name);
+        for(size_t i = 0; i < object->soft_body_count; i += 1)
+            WRITE_ENTITY_LAYER(object->soft_body_items[i].graphics_layer, "",
+                object->soft_body_items[i].name);
+        for(size_t i = 0; i < object->sprite_count; i += 1)
+            WRITE_ENTITY_LAYER(object->sprites[i].graphics_layer, "sprite_",
+                object->sprites[i].name);
+        for(size_t i = 0; i < object->animated_sprite_count; i += 1)
+            if(editor_workspace_body_get(object,
+                    object->animated_sprite_items[i].rigid_body) == NULL)
+                WRITE_ENTITY_LAYER(object->animated_sprite_items[i].graphics_layer,
+                    "animation_", object->animated_sprite_items[i].name);
+#undef WRITE_ENTITY_LAYER
+    }
     fprintf(source, "    resources->fonts[resources->font_count++] = "
         "rohr_graphics_font_default_get();\n");
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
@@ -1537,9 +1630,49 @@ static bool editor_workspace_generated_viewports_write(
         for(size_t item_index = 0; item_index < viewport->ui_item_count;
                 item_index += 1) {
             const EditorViewportUiItem *item = &viewport->ui_items[item_index];
-            const EditorViewportUiText *text = item->kind ==
-                    EDITOR_VIEWPORT_UI_SHAPE ? &item->value.shape.text :
-                &item->value.text;
+            const EditorViewportUiDefinition *definition =
+                editor_project_ui_definition_get((EditorProject *)project,
+                    item->definition);
+            size_t ui_resource_index;
+            bool definition_already_created =
+                editor_workspace_ui_definition_seen_before(project,
+                    viewport_index, item_index, item->definition,
+                    &ui_resource_index);
+            if(definition == NULL) goto write_fail;
+            if(definition_already_created) {
+                fprintf(source,
+                    "      { ViewportItemIdResult added = rohr_viewport_ui_add("
+                    "resources->viewports[resources->viewport_count - 1], "
+                    "resources->ui_elements[%zu], (ViewportItemConfig){"
+                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
+                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
+                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
+                    "        if(rohr_error_check(added)) { result = "
+                        "rohr_error_result_error(added.result.error); goto fail; }\n",
+                    ui_resource_index, item->position.x, item->position.y,
+                    item->scale.x, item->scale.y, item->rotation,
+                    item->layer, item->visible ? "true" : "false",
+                    item->clip_enabled ? "true" : "false",
+                    item->clip_rectangle.x, item->clip_rectangle.y,
+                    item->clip_rectangle.width, item->clip_rectangle.height);
+                if(item->graphics_layer != 0)
+                    for(size_t layer_index = 0;
+                            layer_index < project->graphics_layer_count;
+                            layer_index += 1)
+                        if(project->graphics_layers[layer_index].id ==
+                                item->graphics_layer)
+                            fprintf(source,
+                                "        if(rohr_error_check(result = "
+                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
+                                    "resources->layers[%zu]))) goto fail;\n",
+                                layer_index);
+                fprintf(source, "      }\n");
+                continue;
+            }
+            const EditorViewportUiText *text = definition->kind ==
+                    EDITOR_VIEWPORT_UI_SHAPE ? &definition->value.shape.text :
+                &definition->value.text;
             size_t font_index = editor_workspace_ui_font_index_get(project,
                 text->font);
             bool has_text = text->text[0] != '\0';
@@ -1553,10 +1686,10 @@ static bool editor_workspace_generated_viewports_write(
                     "        resources->texts[resources->text_count++] = "
                         "text.result.value; }\n", text->color);
             }
-            if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
-                const EditorViewportUiShape *shape = &item->value.shape;
+            if(definition->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                const EditorViewportUiShape *shape = &definition->value.shape;
                 fprintf(source, "      { ViewportUiShapeConfig ui = {"
-                    ".position={%.8ff, %.8ff}, .orientation=%.8ff, "
+                    ".orientation=%.8ff, "
                     ".border_enabled=%s, .border_type=%d, "
                     ".border_thickness=%.8ff, .border_hash_spacing=%.8ff, "
                     ".border_corner_radius=%.8ff, "
@@ -1569,13 +1702,15 @@ static bool editor_workspace_generated_viewports_write(
                     ".click_fill_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                     ".text={.text=%s, .offset={%.8ff, %.8ff}, "
                     ".scale={%.8ff, %.8ff}}};\n",
-                    item->position.x, item->position.y, shape->rotation,
-                    item->border_enabled ? "true" : "false", item->border_type,
-                    item->border_thickness, item->border_hash_spacing,
-                    item->border_corner_radius, item->border_color, item->fill_color,
+                    shape->rotation,
+                    definition->border_enabled ? "true" : "false",
+                    definition->border_type,
+                    definition->border_thickness, definition->border_hash_spacing,
+                    definition->border_corner_radius, definition->border_color,
+                    definition->fill_color,
                     shape->button_enabled ? "true" : "false",
-                    item->hover_border_color, item->hover_fill_color,
-                    item->click_border_color, item->click_fill_color,
+                    definition->hover_border_color, definition->hover_fill_color,
+                    definition->click_border_color, definition->click_fill_color,
                     has_text ? "&resources->texts[resources->text_count - 1]" : "NULL",
                     text->offset.x, text->offset.y,
                     text->width_scale * 2.0f, text->height_scale * 2.0f);
@@ -1585,28 +1720,82 @@ static bool editor_workspace_generated_viewports_write(
                     fprintf(source, "        ui.shape.vertices[%zu] = "
                         "(Position){%.8ff, %.8ff};\n", vertex,
                         shape->vertices[vertex].x, shape->vertices[vertex].y);
-                fprintf(source, "        ViewportItemIdResult added = "
-                    "rohr_viewport_ui_shape_add(resources->viewports["
-                    "resources->viewport_count - 1], ui, (ViewportItemConfig){"
-                    ".layer=%d, .visible=%s});\n"
+                fprintf(source, "        GraphicsUiIdResult created_ui = "
+                    "rohr_graphics_ui_shape_create(ui);\n"
+                    "        if(rohr_error_check(created_ui)) { result = "
+                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
+                    "        resources->ui_elements[resources->ui_element_count++] = "
+                        "created_ui.result.value;\n"
+                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
+                    "resources->viewports[resources->viewport_count - 1], "
+                    "created_ui.result.value, (ViewportItemConfig){"
+                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
+                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
+                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; } }\n",
-                    item->layer, item->visible ? "true" : "false");
-            } else if(has_text) {
-                fprintf(source, "      { ViewportItemIdResult added = "
-                    "rohr_viewport_ui_text_add(resources->viewports["
-                    "resources->viewport_count - 1], (ViewportUiTextConfig){"
-                    ".text=&resources->texts[resources->text_count - 1], "
+                        "rohr_error_result_error(added.result.error); goto fail; }\n",
+                    item->position.x, item->position.y,
+                    item->scale.x, item->scale.y, item->rotation,
+                    item->layer, item->visible ? "true" : "false",
+                    item->clip_enabled ? "true" : "false",
+                    item->clip_rectangle.x, item->clip_rectangle.y,
+                    item->clip_rectangle.width, item->clip_rectangle.height);
+                if(item->graphics_layer != 0)
+                    for(size_t layer_index = 0;
+                            layer_index < project->graphics_layer_count;
+                            layer_index += 1)
+                        if(project->graphics_layers[layer_index].id ==
+                                item->graphics_layer)
+                            fprintf(source,
+                                "        if(rohr_error_check(result = "
+                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
+                                    "resources->layers[%zu]))) goto fail;\n",
+                                layer_index);
+                fprintf(source, "      }\n");
+            } else {
+                fprintf(source, "      { GraphicsUiIdResult created_ui = "
+                    "rohr_graphics_ui_text_create((ViewportUiTextConfig){"
+                    ".text=%s, "
                     ".position={%.8ff, %.8ff}, .offset={%.8ff, %.8ff}, "
-                    ".scale={%.8ff, %.8ff}}, (ViewportItemConfig){"
-                    ".layer=%d, .visible=%s});\n"
+                    ".scale={%.8ff, %.8ff}});\n"
+                    "        if(rohr_error_check(created_ui)) { result = "
+                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
+                    "        resources->ui_elements[resources->ui_element_count++] = "
+                        "created_ui.result.value;\n"
+                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
+                    "resources->viewports[resources->viewport_count - 1], "
+                    "created_ui.result.value, (ViewportItemConfig){"
+                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
+                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
+                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; } }\n",
-                    item->position.x + text->box_width * 0.5f,
-                    item->position.y + text->box_height * 0.5f,
+                        "rohr_error_result_error(added.result.error); goto fail; }\n",
+                    has_text ? "&resources->texts[resources->text_count - 1]" :
+                        "NULL",
+                    text->box_width * 0.5f,
+                    text->box_height * 0.5f,
                     text->offset.x, text->offset.y,
                     text->width_scale * 2.0f, text->height_scale * 2.0f,
-                    item->layer, item->visible ? "true" : "false");
+                    item->position.x, item->position.y,
+                    item->scale.x, item->scale.y, item->rotation,
+                    item->layer, item->visible ? "true" : "false",
+                    item->clip_enabled ? "true" : "false",
+                    item->clip_rectangle.x, item->clip_rectangle.y,
+                    item->clip_rectangle.width, item->clip_rectangle.height);
+                if(item->graphics_layer != 0)
+                    for(size_t layer_index = 0;
+                            layer_index < project->graphics_layer_count;
+                            layer_index += 1)
+                        if(project->graphics_layers[layer_index].id ==
+                                item->graphics_layer)
+                            fprintf(source,
+                                "        if(rohr_error_check(result = "
+                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
+                                    "resources->layers[%zu]))) goto fail;\n",
+                                layer_index);
+                fprintf(source, "      }\n");
             }
             text_count += has_text ? 1 : 0;
         }
@@ -1628,6 +1817,10 @@ static bool editor_workspace_generated_viewports_write(
             "(void)rohr_viewport_destroy(resources->viewports[i - 1]);\n"
         "    for(size_t i = resources->screen_count; i > 0; i -= 1) "
             "(void)rohr_screen_destroy(resources->screens[i - 1]);\n"
+        "    for(size_t i = resources->ui_element_count; i > 0; i -= 1) "
+            "(void)rohr_graphics_ui_destroy(resources->ui_elements[i - 1]);\n"
+        "    for(size_t i = resources->layer_count; i > 0; i -= 1) "
+            "(void)rohr_graphics_layer_destroy(resources->layers[i - 1]);\n"
         "    for(size_t i = resources->text_count; i > 0; i -= 1) "
             "rohr_graphics_text_destroy(&resources->texts[i - 1]);\n"
         "    for(size_t i = resources->font_count; i > 0; i -= 1) "

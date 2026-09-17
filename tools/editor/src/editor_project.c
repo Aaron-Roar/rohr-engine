@@ -168,7 +168,9 @@ void editor_project_init(EditorProject *project) {
         .next_layout_viewport_id = 1,
         .next_viewport_camera_item_id = 1,
         .next_viewport_ui_item_id = 1,
-        .next_ui_font_id = 1
+        .next_ui_font_id = 1,
+        .next_graphics_layer_id = 1,
+        .next_ui_definition_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -738,6 +740,8 @@ void editor_project_destroy(EditorProject *project) {
     free(project->layout_viewports);
     free(project->hierarchy);
     free(project->ui_fonts);
+    free(project->graphics_layers);
+    free(project->ui_definitions);
     *project = (EditorProject){0};
 }
 
@@ -750,6 +754,8 @@ bool editor_project_clone(EditorProject *destination,
     destination->layout_viewports = NULL;
     destination->hierarchy = NULL;
     destination->ui_fonts = NULL;
+    destination->graphics_layers = NULL;
+    destination->ui_definitions = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
     destination->layout_viewport_count = 0;
@@ -760,6 +766,10 @@ bool editor_project_clone(EditorProject *destination,
     destination->hierarchy_capacity = 0;
     destination->ui_font_count = 0;
     destination->ui_font_capacity = 0;
+    destination->graphics_layer_count = 0;
+    destination->graphics_layer_capacity = 0;
+    destination->ui_definition_count = 0;
+    destination->ui_definition_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
@@ -770,10 +780,24 @@ bool editor_project_clone(EditorProject *destination,
             !EDITOR_ARRAY_RESERVE(destination->hierarchy,
                 destination->hierarchy_capacity, source->hierarchy_count) ||
             !EDITOR_ARRAY_RESERVE(destination->ui_fonts,
-                destination->ui_font_capacity, source->ui_font_count)) goto fail;
+                destination->ui_font_capacity, source->ui_font_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->graphics_layers,
+                destination->graphics_layer_capacity,
+                source->graphics_layer_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->ui_definitions,
+                destination->ui_definition_capacity,
+                source->ui_definition_count)) goto fail;
     if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
         source->ui_font_count * sizeof(*source->ui_fonts));
     destination->ui_font_count = source->ui_font_count;
+    if(source->graphics_layer_count > 0)
+        memcpy(destination->graphics_layers, source->graphics_layers,
+            source->graphics_layer_count * sizeof(*source->graphics_layers));
+    destination->graphics_layer_count = source->graphics_layer_count;
+    if(source->ui_definition_count > 0)
+        memcpy(destination->ui_definitions, source->ui_definitions,
+            source->ui_definition_count * sizeof(*source->ui_definitions));
+    destination->ui_definition_count = source->ui_definition_count;
     if(source->collision_mask_count > 0)
         memcpy(destination->collision_masks, source->collision_masks,
             source->collision_mask_count * sizeof(*source->collision_masks));
@@ -1042,47 +1066,192 @@ bool editor_viewport_camera_remove(EditorLayoutViewport *viewport,
 
 EditorViewportUiItem *editor_viewport_ui_add(EditorProject *project,
         EditorLayoutViewport *viewport, EditorViewportUiKind kind) {
+    EditorViewportUiDefinition *definition =
+        editor_project_ui_definition_add(project, kind);
+    if(definition == NULL) return NULL;
+    EditorViewportUiItem *item = editor_viewport_ui_mount(project, viewport,
+        definition->id);
+    if(item == NULL) {
+        (void)editor_project_ui_definition_remove(project, definition->id);
+        return NULL;
+    }
+    return item;
+}
+
+EditorViewportUiDefinition *editor_project_ui_definition_add(
+        EditorProject *project, EditorViewportUiKind kind) {
+    EditorViewportUiDefinition *definition;
+    if(project == NULL || (kind != EDITOR_VIEWPORT_UI_SHAPE &&
+                kind != EDITOR_VIEWPORT_UI_TEXT) ||
+            project->ui_definition_count >= MAX_GRAPHICS_UI_ELEMENTS ||
+            !EDITOR_ARRAY_RESERVE(project->ui_definitions,
+                project->ui_definition_capacity,
+                project->ui_definition_count + 1)) return NULL;
+    definition = &project->ui_definitions[project->ui_definition_count++];
+    *definition = (EditorViewportUiDefinition){
+        .id = project->next_ui_definition_id++, .kind = kind,
+        .border_thickness = 2.0f, .border_hash_spacing = 6.0f,
+        .border_color = 0xFFFFFFFFu, .fill_color = 0x394052FFu,
+        .hover_border_color = 0xD8E6FFFFu,
+        .hover_fill_color = 0x4A5870FFu,
+        .click_border_color = 0xAFC8F0FFu,
+        .click_fill_color = 0x283246FFu};
+    snprintf(definition->name, sizeof(definition->name), "%s_%u",
+        kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text",
+        definition->id);
+    if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
+        definition->border_enabled = true;
+        definition->value.shape.vertex_count = 4;
+        definition->value.shape.vertices[0] = (Position){0.0f, 0.0f};
+        definition->value.shape.vertices[1] = (Position){180.0f, 0.0f};
+        definition->value.shape.vertices[2] = (Position){180.0f, 36.0f};
+        definition->value.shape.vertices[3] = (Position){0.0f, 36.0f};
+        definition->value.shape.outline_color = 0xFFFFFFFFu;
+        definition->value.shape.fill_color = 0x394052FFu;
+        definition->value.shape.text.color = 0xFFFFFFFFu;
+        definition->value.shape.text.box_width = 160.0f;
+        definition->value.shape.text.box_height = 28.0f;
+        definition->value.shape.text.width_scale = 1.0f;
+        definition->value.shape.text.height_scale = 1.0f;
+        snprintf(definition->value.shape.text.text,
+            sizeof(definition->value.shape.text.text), "sample text");
+    } else {
+        snprintf(definition->value.text.text, sizeof(definition->value.text.text),
+            "sample text");
+        definition->value.text.color = 0xFFFFFFFFu;
+        definition->value.text.box_width = 160.0f;
+        definition->value.text.box_height = 28.0f;
+        definition->value.text.width_scale = 1.0f;
+        definition->value.text.height_scale = 1.0f;
+    }
+    return definition;
+}
+
+EditorViewportUiDefinition *editor_project_ui_definition_get(
+        EditorProject *project, EditorViewportUiDefinitionId id) {
+    if(project == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < project->ui_definition_count; i += 1)
+        if(project->ui_definitions[i].id == id) return &project->ui_definitions[i];
+    return NULL;
+}
+
+static void editor_viewport_ui_definition_copy_to_item(
+        const EditorViewportUiDefinition *definition,
+        EditorViewportUiItem *item) {
+    item->kind = definition->kind;
+    item->border_enabled = definition->border_enabled;
+    item->border_type = definition->border_type;
+    item->border_thickness = definition->border_thickness;
+    item->border_hash_spacing = definition->border_hash_spacing;
+    item->border_corner_radius = definition->border_corner_radius;
+    item->border_color = definition->border_color;
+    item->fill_color = definition->fill_color;
+    item->hover_border_color = definition->hover_border_color;
+    item->hover_fill_color = definition->hover_fill_color;
+    item->click_border_color = definition->click_border_color;
+    item->click_fill_color = definition->click_fill_color;
+    memcpy(&item->value, &definition->value, sizeof(item->value));
+}
+
+static void editor_viewport_ui_item_copy_to_definition(
+        const EditorViewportUiItem *item,
+        EditorViewportUiDefinition *definition) {
+    definition->kind = item->kind;
+    definition->border_enabled = item->border_enabled;
+    definition->border_type = item->border_type;
+    definition->border_thickness = item->border_thickness;
+    definition->border_hash_spacing = item->border_hash_spacing;
+    definition->border_corner_radius = item->border_corner_radius;
+    definition->border_color = item->border_color;
+    definition->fill_color = item->fill_color;
+    definition->hover_border_color = item->hover_border_color;
+    definition->hover_fill_color = item->hover_fill_color;
+    definition->click_border_color = item->click_border_color;
+    definition->click_fill_color = item->click_fill_color;
+    memcpy(&definition->value, &item->value, sizeof(definition->value));
+}
+
+bool editor_project_ui_definition_remove(EditorProject *project,
+        EditorViewportUiDefinitionId id) {
+    size_t index;
+    if(project == NULL || id == 0) return false;
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
+                item < project->layout_viewports[viewport].ui_item_count; item += 1)
+            if(project->layout_viewports[viewport].ui_items[item].definition == id)
+                return false;
+    for(index = 0; index < project->ui_definition_count; index += 1)
+        if(project->ui_definitions[index].id == id) break;
+    if(index == project->ui_definition_count) return false;
+    for(size_t i = index + 1; i < project->ui_definition_count; i += 1)
+        project->ui_definitions[i - 1] = project->ui_definitions[i];
+    project->ui_definition_count -= 1;
+    project->ui_definitions[project->ui_definition_count] =
+        (EditorViewportUiDefinition){0};
+    return true;
+}
+
+EditorViewportUiItem *editor_viewport_ui_mount(EditorProject *project,
+        EditorLayoutViewport *viewport,
+        EditorViewportUiDefinitionId definition_id) {
+    EditorViewportUiDefinition *definition =
+        editor_project_ui_definition_get(project, definition_id);
     EditorViewportUiItem *item;
-    if(project == NULL || viewport == NULL || kind != EDITOR_VIEWPORT_UI_SHAPE ||
+    if(definition == NULL || viewport == NULL ||
             viewport->ui_item_count >= EDITOR_LAYOUT_VIEWPORT_UI_MAX ||
             !EDITOR_ARRAY_RESERVE(viewport->ui_items, viewport->ui_item_capacity,
                 viewport->ui_item_count + 1)) return NULL;
     item = &viewport->ui_items[viewport->ui_item_count++];
-    *item = (EditorViewportUiItem){.id = project->next_viewport_ui_item_id++,
-        .kind = kind, .position = {20.0f, 20.0f},
-        .visible = true, .border_thickness = 2.0f,
-        .border_hash_spacing = 6.0f, .border_color = 0xFFFFFFFFu,
-        .fill_color = 0x394052FFu, .hover_border_color = 0xD8E6FFFFu,
-        .hover_fill_color = 0x4A5870FFu, .click_border_color = 0xAFC8F0FFu,
-        .click_fill_color = 0x283246FFu};
-    snprintf(item->name, sizeof(item->name), "%s_%u",
-        "ui_shape", item->id);
-    if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
-        item->border_enabled = true;
-        item->value.shape.vertex_count = 4;
-        item->value.shape.vertices[0] = (Position){0.0f, 0.0f};
-        item->value.shape.vertices[1] = (Position){180.0f, 0.0f};
-        item->value.shape.vertices[2] = (Position){180.0f, 36.0f};
-        item->value.shape.vertices[3] = (Position){0.0f, 36.0f};
-        item->value.shape.outline_color = 0xFFFFFFFFu;
-        item->value.shape.fill_color = 0x394052FFu;
-        item->value.shape.text.color = 0xFFFFFFFFu;
-        item->value.shape.text.box_width = 160.0f;
-        item->value.shape.text.box_height = 28.0f;
-        item->value.shape.text.width_scale = 1.0f;
-        item->value.shape.text.height_scale = 1.0f;
-        snprintf(item->value.shape.text.text,
-            sizeof(item->value.shape.text.text), "sample text");
-    } else {
-        snprintf(item->value.text.text, sizeof(item->value.text.text),
-            "sample text");
-        item->value.text.color = 0xFFFFFFFFu;
-        item->value.text.box_width = 160.0f;
-        item->value.text.box_height = 28.0f;
-        item->value.text.width_scale = 1.0f;
-        item->value.text.height_scale = 1.0f;
-    }
+    *item = (EditorViewportUiItem){
+        .id = project->next_viewport_ui_item_id++,
+        .definition = definition_id,
+        .position = {20.0f, 20.0f},
+        .scale = {1.0f, 1.0f},
+        .visible = true,
+    };
+    editor_viewport_ui_definition_copy_to_item(definition, item);
+    snprintf(item->name, sizeof(item->name), "ui_instance_%u", item->id);
     return item;
+}
+
+bool editor_project_ui_definition_sync_from_item(EditorProject *project,
+        EditorViewportUiItemId item_id) {
+    EditorViewportUiItem *source = NULL;
+    EditorViewportUiDefinition *definition;
+    if(project == NULL || item_id == 0) return false;
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
+                item < project->layout_viewports[viewport].ui_item_count; item += 1)
+            if(project->layout_viewports[viewport].ui_items[item].id == item_id)
+                source = &project->layout_viewports[viewport].ui_items[item];
+    if(source == NULL) return false;
+    definition = editor_project_ui_definition_get(project, source->definition);
+    if(definition == NULL) return false;
+    editor_viewport_ui_item_copy_to_definition(source, definition);
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
+                item < project->layout_viewports[viewport].ui_item_count; item += 1) {
+            EditorViewportUiItem *mounted =
+                &project->layout_viewports[viewport].ui_items[item];
+            if(mounted->definition == definition->id && mounted != source)
+                editor_viewport_ui_definition_copy_to_item(definition, mounted);
+        }
+    return true;
+}
+
+bool editor_project_ui_definitions_refresh(EditorProject *project) {
+    if(project == NULL) return false;
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
+                item < project->layout_viewports[viewport].ui_item_count; item += 1) {
+            EditorViewportUiItem *mounted =
+                &project->layout_viewports[viewport].ui_items[item];
+            EditorViewportUiDefinition *definition =
+                editor_project_ui_definition_get(project, mounted->definition);
+            if(definition == NULL) return false;
+            editor_viewport_ui_definition_copy_to_item(definition, mounted);
+        }
+    return true;
 }
 
 bool editor_viewport_ui_remove(EditorLayoutViewport *viewport,
@@ -1129,6 +1298,71 @@ EditorUiFont *editor_project_ui_font_get(EditorProject *project,
     for(size_t i = 0; i < project->ui_font_count; i += 1)
         if(project->ui_fonts[i].id == id) return &project->ui_fonts[i];
     return NULL;
+}
+
+EditorGraphicsLayer *editor_project_graphics_layer_add(EditorProject *project,
+        const char *name, int value) {
+    EditorGraphicsLayer *layer;
+    size_t length;
+    if(project == NULL || name == NULL || name[0] == '\0' ||
+            (length = strlen(name)) >= GRAPHICS_LAYER_NAME_MAX ||
+            project->graphics_layer_count >= MAX_GRAPHICS_LAYERS) return NULL;
+    for(size_t i = 0; i < project->graphics_layer_count; i += 1)
+        if(strcmp(project->graphics_layers[i].name, name) == 0) return NULL;
+    if(!EDITOR_ARRAY_RESERVE(project->graphics_layers,
+            project->graphics_layer_capacity,
+            project->graphics_layer_count + 1)) return NULL;
+    layer = &project->graphics_layers[project->graphics_layer_count++];
+    *layer = (EditorGraphicsLayer){
+        .id = project->next_graphics_layer_id++, .value = value};
+    memcpy(layer->name, name, length + 1);
+    return layer;
+}
+
+EditorGraphicsLayer *editor_project_graphics_layer_get(EditorProject *project,
+        EditorGraphicsLayerId id) {
+    if(project == NULL || id == 0) return NULL;
+    for(size_t i = 0; i < project->graphics_layer_count; i += 1)
+        if(project->graphics_layers[i].id == id) return &project->graphics_layers[i];
+    return NULL;
+}
+
+bool editor_project_graphics_layer_remove(EditorProject *project,
+        EditorGraphicsLayerId id) {
+    size_t index;
+    if(project == NULL || id == 0) return false;
+    for(index = 0; index < project->graphics_layer_count; index += 1)
+        if(project->graphics_layers[index].id == id) break;
+    if(index == project->graphics_layer_count) return false;
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
+                item < project->layout_viewports[viewport].ui_item_count; item += 1)
+            if(project->layout_viewports[viewport].ui_items[item].graphics_layer == id)
+                project->layout_viewports[viewport].ui_items[item].graphics_layer = 0;
+    for(size_t object = 0; object < project->object_count; object += 1) {
+        EditorObject *value = &project->objects[object];
+        for(size_t i = 0; i < value->rigid_body_count; i += 1)
+            if(value->rigid_bodies[i].graphics_layer.layer == id)
+                value->rigid_bodies[i].graphics_layer.layer = 0;
+        for(size_t i = 0; i < value->joint_count; i += 1)
+            if(value->joint_items[i].graphics_layer.layer == id)
+                value->joint_items[i].graphics_layer.layer = 0;
+        for(size_t i = 0; i < value->soft_body_count; i += 1)
+            if(value->soft_body_items[i].graphics_layer.layer == id)
+                value->soft_body_items[i].graphics_layer.layer = 0;
+        for(size_t i = 0; i < value->sprite_count; i += 1)
+            if(value->sprites[i].graphics_layer.layer == id)
+                value->sprites[i].graphics_layer.layer = 0;
+        for(size_t i = 0; i < value->animated_sprite_count; i += 1)
+            if(value->animated_sprite_items[i].graphics_layer.layer == id)
+                value->animated_sprite_items[i].graphics_layer.layer = 0;
+    }
+    for(size_t i = index + 1; i < project->graphics_layer_count; i += 1)
+        project->graphics_layers[i - 1] = project->graphics_layers[i];
+    project->graphics_layer_count -= 1;
+    project->graphics_layers[project->graphics_layer_count] =
+        (EditorGraphicsLayer){0};
+    return true;
 }
 
 EditorObject *editor_project_selected_get(EditorProject *project) {

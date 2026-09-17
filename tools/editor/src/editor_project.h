@@ -52,7 +52,21 @@ typedef uint32_t EditorCameraId;
 typedef uint32_t EditorLayoutViewportId;
 typedef uint32_t EditorViewportCameraItemId;
 typedef uint32_t EditorViewportUiItemId;
+typedef uint32_t EditorViewportUiDefinitionId;
 typedef uint32_t EditorUiFontId;
+typedef uint32_t EditorGraphicsLayerId;
+
+typedef struct EditorGraphicsLayer {
+    EditorGraphicsLayerId id;
+    char name[GRAPHICS_LAYER_NAME_MAX];
+    int value;
+} EditorGraphicsLayer;
+
+typedef struct EditorGraphicsLayerBinding {
+    int value;
+    /** Zero selects the direct numeric value. */
+    EditorGraphicsLayerId layer;
+} EditorGraphicsLayerBinding;
 
 typedef struct EditorUiFont {
     EditorUiFontId id;
@@ -113,6 +127,7 @@ typedef struct EditorRigidBody {
     EditorRigidBodyId id;
     EditorRigidBodyId parent;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     Position position;
     float rotation;
     float mass_value;
@@ -175,6 +190,7 @@ typedef struct EditorAnchor {
 typedef struct EditorJoint {
     EditorJointId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     EditorJointKind kind;
     EditorAnchorId anchor_a;
     EditorAnchorId anchor_b;
@@ -246,6 +262,7 @@ typedef struct EditorSoftHierarchyItem {
 typedef struct EditorSoftBody {
     EditorSoftBodyId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     Position position;
     float rotation;
     bool visible;
@@ -269,6 +286,7 @@ typedef struct EditorSoftBody {
 typedef struct EditorSprite {
     EditorSpriteId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     char path[EDITOR_ASSET_PATH_MAX];
     Position position;
     Orientation rotation;
@@ -288,6 +306,7 @@ typedef struct EditorAnimationFrame {
 typedef struct EditorAnimatedSprite {
     EditorAnimatedSpriteId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
     Position editor_position;
     Orientation editor_rotation;
     EditorRigidBodyId rigid_body;
@@ -399,13 +418,42 @@ typedef struct EditorViewportUiShape {
     EditorViewportUiText text;
 } EditorViewportUiShape;
 
-typedef struct EditorViewportUiItem {
-    EditorViewportUiItemId id;
+typedef struct EditorViewportUiDefinition {
+    EditorViewportUiDefinitionId id;
     EditorViewportUiKind kind;
     char name[EDITOR_OBJECT_NAME_MAX];
+    bool border_enabled;
+    EditorViewportUiBorderType border_type;
+    float border_thickness;
+    float border_hash_spacing;
+    float border_corner_radius;
+    uint32_t border_color;
+    uint32_t fill_color;
+    uint32_t hover_border_color;
+    uint32_t hover_fill_color;
+    uint32_t click_border_color;
+    uint32_t click_fill_color;
+    union {
+        EditorViewportUiShape shape;
+        EditorViewportUiText text;
+    } value;
+} EditorViewportUiDefinition;
+
+typedef struct EditorViewportUiItem {
+    EditorViewportUiItemId id;
+    EditorViewportUiDefinitionId definition;
+    char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
+    Scale scale;
+    Orientation rotation;
+    ViewportRectangle clip_rectangle;
     int layer;
+    /** Zero selects the direct numeric layer above. */
+    EditorGraphicsLayerId graphics_layer;
     bool visible;
+    bool clip_enabled;
+    /** Non-persisted editing cache of the referenced reusable definition. */
+    EditorViewportUiKind kind;
     bool border_enabled;
     EditorViewportUiBorderType border_type;
     float border_thickness;
@@ -477,6 +525,12 @@ typedef struct EditorProject {
     EditorUiFont *ui_fonts;
     size_t ui_font_count;
     size_t ui_font_capacity;
+    EditorGraphicsLayer *graphics_layers;
+    size_t graphics_layer_count;
+    size_t graphics_layer_capacity;
+    EditorViewportUiDefinition *ui_definitions;
+    size_t ui_definition_count;
+    size_t ui_definition_capacity;
     EditorObjectId next_id;
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
@@ -494,8 +548,28 @@ typedef struct EditorProject {
     EditorViewportCameraItemId next_viewport_camera_item_id;
     EditorViewportUiItemId next_viewport_ui_item_id;
     EditorUiFontId next_ui_font_id;
+    EditorGraphicsLayerId next_graphics_layer_id;
+    EditorViewportUiDefinitionId next_ui_definition_id;
     EditorObjectId selected;
 } EditorProject;
+
+EditorGraphicsLayer *editor_project_graphics_layer_add(EditorProject *project,
+    const char *name, int value);
+EditorGraphicsLayer *editor_project_graphics_layer_get(EditorProject *project,
+    EditorGraphicsLayerId id);
+bool editor_project_graphics_layer_remove(EditorProject *project,
+    EditorGraphicsLayerId id);
+EditorViewportUiDefinition *editor_project_ui_definition_add(
+    EditorProject *project, EditorViewportUiKind kind);
+EditorViewportUiDefinition *editor_project_ui_definition_get(
+    EditorProject *project, EditorViewportUiDefinitionId id);
+bool editor_project_ui_definition_remove(EditorProject *project,
+    EditorViewportUiDefinitionId id);
+EditorViewportUiItem *editor_viewport_ui_mount(EditorProject *project,
+    EditorLayoutViewport *viewport, EditorViewportUiDefinitionId definition);
+bool editor_project_ui_definition_sync_from_item(EditorProject *project,
+    EditorViewportUiItemId item);
+bool editor_project_ui_definitions_refresh(EditorProject *project);
 
 void editor_project_init(EditorProject *project);
 void editor_project_destroy(EditorProject *project);

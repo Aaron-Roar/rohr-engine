@@ -762,9 +762,9 @@ static float editor_panel_content_height_get(const EditorProject *project,
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,
                 state->selected_layout_viewport);
-        if(viewport != NULL) return fmaxf(height, 444.0f +
+        if(viewport != NULL) return fmaxf(height, 484.0f +
             (float)(viewport->camera_item_count + viewport->ui_item_count) *
-                32.0f);
+                32.0f + 84.0f + (float)project->graphics_layer_count * 34.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR)
         return fmaxf(height, 552.0f);
@@ -2657,7 +2657,7 @@ int main(void) {
                     primary == MOUSE_BUTTON_STATE_UP) terminal_resizing = false;
         }
 
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_CONTENT);
         rohr_graphics_background_draw((Color){18, 21, 27, 255});
         (void)rohr_graphics_screen_rect_draw(
             0.0f, 0.0f, EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM,
@@ -3197,7 +3197,7 @@ int main(void) {
         (void)rohr_graphics_screen_rect_draw(0.0f, EDITOR_ACTION_BAR_TOP,
             EDITOR_VIEWPORT_WIDTH, EDITOR_ACTION_BAR_HEIGHT,
             (Color){18, 21, 27, 255});
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_OVERLAY);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_OVERLAY);
         if(color_picker.open) {
             (void)editor_color_picker_draw(&color_picker, &mouse,
                 &color_picker_hex_field, &color_picker_opacity_field,
@@ -3208,7 +3208,7 @@ int main(void) {
         editor_viewport_context_menu_draw(&viewport_context_menu, &mouse,
             EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT, EDITOR_VIEWPORT_BOTTOM,
             EDITOR_WINDOW_HEIGHT);
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
         rohr_ui_surface((UIRect){0.0f, 0.0f, editor_window_width,
             EDITOR_MENU_HEIGHT}, (Color){32, 36, 45, 255});
         {
@@ -3512,7 +3512,7 @@ int main(void) {
             }
             rohr_ui_modal_controls_end();
         }
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_MODAL);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(!notification_panel.report_open && !notification_panel.log_open &&
                 !visual_settings_panel.open)
             editor_build_settings_panel_draw(&build_settings_panel,
@@ -3533,10 +3533,10 @@ int main(void) {
                     "Lua error:\nNo Lua runtime error.");
             }
         }
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_NOTIFICATION);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_NOTIFICATION);
         editor_notification_panel_toast_draw(&notification_panel,
             EDITOR_WINDOW_HEIGHT);
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_MODAL);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         editor_notification_panel_log_draw(&notification_panel,
             build_settings_bounds);
         editor_notification_panel_report_draw(&notification_panel,
@@ -3608,7 +3608,7 @@ int main(void) {
                 close_action = EDITOR_CLOSE_NONE;
             }
         }
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_OVERLAY);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_OVERLAY);
         if(editor_app_state_get(&app_state) ==
                 EDITOR_APP_STATE_PROJECT_LAUNCHER && !file_browser.active) {
             EditorProjectLauncherRequest request =
@@ -3624,7 +3624,7 @@ int main(void) {
                     EDITOR_FILE_BROWSER_DIRECTORY, startup_directory, &font);
             }
         }
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_MODAL);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(file_browser.active) {
             EditorFileBrowserResult browser_result = editor_file_browser_draw(
                 &file_browser, &file_browser_field,
@@ -3850,7 +3850,7 @@ int main(void) {
                 animation_browser_sprite = 0;
             }
         }
-        rohr_graphics_layer_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
         (void)rohr_graphics_screen_rect_draw(0.0f, EDITOR_MENU_HEIGHT - 1.0f,
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
@@ -4026,6 +4026,8 @@ int main(void) {
                 (void)editor_command_execute(&project, &command);
             }
         }
+        (void)editor_project_ui_definition_sync_from_item(&project,
+            viewport_state.selected_viewport_ui_item);
         editor_history_continuous_set(&history, field_editing);
         rohr_ui_frame_end();
         if(!file_browser.active) {

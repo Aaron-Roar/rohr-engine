@@ -49,6 +49,22 @@ static bool file_contains(const char *path, const char *text) {
     return found;
 }
 
+static size_t file_occurrence_count(const char *path, const char *text) {
+    char *contents;
+    char *at;
+    size_t count = 0;
+    if(path == NULL || text == NULL || text[0] == '\0') return 0;
+    contents = SDL_LoadFile(path, NULL);
+    if(contents == NULL) return 0;
+    at = contents;
+    while((at = strstr(at, text)) != NULL) {
+        count += 1;
+        at += strlen(text);
+    }
+    SDL_free(contents);
+    return count;
+}
+
 static bool file_replace(const char *path, const char *text) {
     FILE *file;
     size_t length;
@@ -136,6 +152,29 @@ int main(void) {
             workspace_fixture_remove(fixture);
             return 1;
         }
+        {
+            EditorGraphicsLayer *hud = editor_project_graphics_layer_add(
+                &workspace_project, "hud", 500);
+            if(hud == NULL || workspace_project.layout_viewport_count == 0 ||
+                    workspace_project.layout_viewports[0].ui_item_count == 0) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+            workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
+            workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
+            if(editor_viewport_ui_mount(&workspace_project,
+                    &workspace_project.layout_viewports[0],
+                    workspace_project.layout_viewports[0].ui_items[0].definition) ==
+                    NULL) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+            if(!editor_workspace_save(&workspace, &workspace_project) ||
+                    !editor_workspace_c_generate(&workspace, &workspace_project)) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+        }
         workspace_command = (EditorWorkspaceCommand){
             .type = EDITOR_WORKSPACE_COMMAND_LOAD};
         snprintf(workspace_command.directory, sizeof(workspace_command.directory),
@@ -168,6 +207,17 @@ int main(void) {
                 loaded_project.layout_viewports[0].background_color !=
                     0x000000FFu ||
                 loaded_project.layout_viewports[0].camera_item_count != 1 ||
+                loaded_project.graphics_layer_count != 1 ||
+                strcmp(loaded_project.graphics_layers[0].name, "hud") != 0 ||
+                loaded_project.graphics_layers[0].value != 500 ||
+                loaded_project.layout_viewports[0].ui_item_count != 2 ||
+                loaded_project.ui_definition_count != 1 ||
+                loaded_project.layout_viewports[0].ui_items[0].definition !=
+                    loaded_project.layout_viewports[0].ui_items[1].definition ||
+                loaded_project.layout_viewports[0].ui_items[0].graphics_layer !=
+                    loaded_project.graphics_layers[0].id ||
+                loaded_project.objects[0].rigid_bodies[0].graphics_layer.layer !=
+                    loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].object !=
                     loaded_project.objects[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].camera !=
@@ -204,7 +254,14 @@ int main(void) {
                 !file_contains(path, "rohr_camera_render_callback_set") ||
                 !file_contains(path, "rohr_screen_create") ||
                 !file_contains(path, "rohr_viewport_screen_add") ||
-                !file_contains(path, "rohr_viewport_ui_shape_add") ||
+                !file_contains(path, "rohr_graphics_ui_shape_create") ||
+                file_occurrence_count(path,
+                    "rohr_graphics_ui_shape_create") != 1 ||
+                file_occurrence_count(path, "rohr_viewport_ui_add") != 2 ||
+                !file_contains(path, "rohr_viewport_ui_add") ||
+                !file_contains(path, "rohr_graphics_layer_create(\"hud\", 500)") ||
+                !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
+                !file_contains(path, "rohr_graphics_layer_entity_id_set") ||
                 !file_contains(path, ".background_color=") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
                 !file_contains(path, "sample text") ||

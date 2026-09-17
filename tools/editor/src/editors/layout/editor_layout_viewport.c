@@ -7,6 +7,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 
 static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
         const char *id, float x, float y, float width, float *value) {
@@ -30,9 +31,12 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
     CREATE("Enabled", enabled_label); CREATE("Background", background_color_label);
+    CREATE("Graphics Layers", graphics_layers_label);
+    CREATE("Add Graphics Layer", add_layer_label);
     CREATE("Screens", cameras_label);
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
+    CREATE("Direct value", direct_layer_label);
     CREATE("Visible", visible_label);
     CREATE("Rotation", rotation_label);
     CREATE("[X]", visible_icon); CREATE("[ ]", hidden_icon);
@@ -47,6 +51,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Click Border", click_border_color_label);
     CREATE("Click Fill", click_fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
+    CREATE("Mount Existing UI", mount_ui_label);
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
@@ -83,9 +88,11 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(width_label);
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(background_color_label);
+    DESTROY(graphics_layers_label); DESTROY(add_layer_label);
     DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
-    DESTROY(remove_label); DESTROY(layer_label); DESTROY(visible_label);
+    DESTROY(remove_label); DESTROY(layer_label); DESTROY(direct_layer_label);
+    DESTROY(visible_label);
     DESTROY(rotation_label); DESTROY(rotation_field);
     DESTROY(visible_icon); DESTROY(hidden_icon);
     DESTROY(border_label); DESTROY(border_type_label); DESTROY(border_line_label);
@@ -96,7 +103,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(click_border_color_label); DESTROY(click_fill_color_label);
     DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
     DESTROY(corner_radius_field);
-    DESTROY(add_shape_label); DESTROY(button_label);
+    DESTROY(add_shape_label); DESTROY(mount_ui_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
@@ -118,6 +125,10 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
         rohr_graphics_text_destroy(&editor->ui_names[i]);
     for(size_t i = 0; i < EDITOR_UI_FONT_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->font_names[i]);
+    for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1)
+        rohr_graphics_text_destroy(&editor->layer_names[i]);
+    for(size_t i = 0; i < MAX_GRAPHICS_UI_ELEMENTS; i += 1)
+        rohr_graphics_text_destroy(&editor->definition_names[i]);
     *editor = (EditorLayoutViewportEditor){0};
 }
 
@@ -185,6 +196,34 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 40.0f;
+    if(context->project->ui_definition_count > 0) {
+        const TextAsset *options[MAX_GRAPHICS_UI_ELEMENTS + 1];
+        options[0] = &editor->mount_ui_label;
+        for(size_t i = 0; i < context->project->ui_definition_count; i += 1) {
+            EditorViewportUiDefinition *definition =
+                &context->project->ui_definitions[i];
+            if(!editor_mode_named_text_sync(editor->font, definition->name,
+                    &editor->definition_names[i], editor->definition_cache[i],
+                    EDITOR_OBJECT_NAME_MAX)) return false;
+            options[i + 1] = &editor->definition_names[i];
+        }
+        UIDropdownResult mounted = rohr_ui_dropdown("editor.layout.mount_ui",
+            options, context->project->ui_definition_count + 1, 0,
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f}, NULL);
+        if(mounted.changed && mounted.selected_index > 0) {
+            EditorViewportUiItem *item = editor_viewport_ui_mount(context->project,
+                viewport, context->project->ui_definitions[
+                    mounted.selected_index - 1].id);
+            if(item != NULL) {
+                context->viewport->selected_viewport_ui_item = item->id;
+                context->viewport->selected_viewport_camera_item = 0;
+                context->viewport->selection = item->kind ==
+                    EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
+                    EDITOR_SELECTION_UI_TEXT;
+            }
+        }
+        y += 40.0f;
+    }
     if(rohr_ui_button("editor.layout.add_screen", &editor->add_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
             NULL).clicked) {
@@ -367,6 +406,59 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             item_x.active || item_y.active || item_width.active ||
             item_height.active || item_layer.active;
     }
+    y += 12.0f;
+    rohr_ui_label(&editor->graphics_layers_label,
+        (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f});
+    y += 34.0f;
+    if(rohr_ui_button("editor.layout.graphics_layer.add", &editor->add_layer_label,
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            NULL).clicked) {
+        char layer_name[GRAPHICS_LAYER_NAME_MAX];
+        snprintf(layer_name, sizeof(layer_name), "layer_%u",
+            context->project->next_graphics_layer_id);
+        (void)editor_project_graphics_layer_add(context->project, layer_name, 0);
+    }
+    y += 38.0f;
+    for(size_t i = 0; i < context->project->graphics_layer_count; i += 1) {
+        EditorGraphicsLayer *named = &context->project->graphics_layers[i];
+        char name[GRAPHICS_LAYER_NAME_MAX];
+        char name_id[96];
+        char value_id[96];
+        char remove_id[96];
+        float value = (float)named->value;
+        snprintf(name, sizeof(name), "%s", named->name);
+        snprintf(name_id, sizeof(name_id), "editor.layout.graphics_layer.%u.name",
+            named->id);
+        snprintf(value_id, sizeof(value_id), "editor.layout.graphics_layer.%u.value",
+            named->id);
+        snprintf(remove_id, sizeof(remove_id),
+            "editor.layout.graphics_layer.%u.remove", named->id);
+        UIFieldResult name_changed = rohr_ui_field(name_id,
+            (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
+                .string_capacity = sizeof(name)}, &editor->name_field,
+            (UIRect){context->x + 8.0f, y, context->width * 0.48f, 28.0f}, NULL);
+        UIFieldResult value_changed = rohr_ui_field(value_id,
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
+            &editor->layer_field,
+            (UIRect){context->x + context->width * 0.50f, y,
+                context->width * 0.28f, 28.0f}, NULL);
+        if(name_changed.changed && name[0] != '\0') {
+            bool unique = true;
+            for(size_t other = 0; other < context->project->graphics_layer_count;
+                    other += 1)
+                if(other != i && strcmp(context->project->graphics_layers[other].name,
+                        name) == 0) unique = false;
+            if(unique) snprintf(named->name, sizeof(named->name), "%s", name);
+        }
+        if(value_changed.changed) named->value = (int)value;
+        if(rohr_ui_button(remove_id, &editor->remove_label,
+                (UIRect){context->x + context->width * 0.80f, y,
+                    context->width * 0.19f - 8.0f, 28.0f}, NULL).clicked) {
+            (void)editor_project_graphics_layer_remove(context->project, named->id);
+            break;
+        }
+        y += 34.0f;
+    }
     return name_result.active || x_result.active || y_result.active ||
         width_result.active || height_result.active;
 }
@@ -528,6 +620,8 @@ static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
 static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context, EditorViewportUiItem *item, float *y) {
     float layer = (float)item->layer;
+    const TextAsset *layer_options[MAX_GRAPHICS_LAYERS + 1];
+    size_t selected_layer = 0;
     bool visible = item->visible;
     UIFieldResult x_result = layout_number(&editor->x_label, &editor->x_field,
         "editor.layout.ui.x", context->x, *y, context->width, &item->position.x);
@@ -535,11 +629,33 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     UIFieldResult y_result = layout_number(&editor->y_label, &editor->y_field,
         "editor.layout.ui.y", context->x, *y, context->width, &item->position.y);
     *y += 38.0f;
-    UIFieldResult layer_result = layout_number(&editor->layer_label,
-        &editor->layer_field, "editor.layout.ui.layer", context->x, *y,
-        context->width, &layer);
-    if(layer_result.changed) item->layer = (int)layer;
+    layer_options[0] = &editor->direct_layer_label;
+    for(size_t i = 0; i < context->project->graphics_layer_count; i += 1) {
+        EditorGraphicsLayer *named = &context->project->graphics_layers[i];
+        if(!editor_mode_named_text_sync(editor->font, named->name,
+                &editor->layer_names[i], editor->layer_cache[i],
+                GRAPHICS_LAYER_NAME_MAX)) continue;
+        layer_options[i + 1] = &editor->layer_names[i];
+        if(item->graphics_layer == named->id) selected_layer = i + 1;
+    }
+    rohr_ui_label(&editor->layer_label,
+        (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
+    UIDropdownResult layer_source = rohr_ui_dropdown("editor.layout.ui.layer_source",
+        layer_options, context->project->graphics_layer_count + 1,
+        selected_layer, (UIRect){context->x + 94.0f, *y,
+            context->width - 104.0f, 28.0f}, NULL);
+    if(layer_source.changed) item->graphics_layer = layer_source.selected_index == 0
+        ? 0 : context->project->graphics_layers[
+            layer_source.selected_index - 1].id;
     *y += 38.0f;
+    UIFieldResult layer_result = {0};
+    if(item->graphics_layer == 0) {
+        layer_result = layout_number(&editor->direct_layer_label,
+            &editor->layer_field, "editor.layout.ui.layer", context->x, *y,
+            context->width, &layer);
+        if(layer_result.changed) item->layer = (int)layer;
+        *y += 38.0f;
+    }
     if(rohr_ui_button("editor.layout.ui.visibility", visible ?
             &editor->visible_icon : &editor->hidden_icon,
             (UIRect){context->x + 10.0f, *y, 34.0f, 28.0f}, NULL).clicked)
