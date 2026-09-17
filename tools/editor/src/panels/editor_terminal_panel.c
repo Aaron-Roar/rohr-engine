@@ -76,9 +76,13 @@ bool editor_terminal_panel_project_open(EditorTerminalPanel *panel,
 
 void editor_terminal_panel_project_close(EditorTerminalPanel *panel) {
     if(panel == NULL) return;
+    if(panel->terminal != NULL) (void)editor_terminal_panel_interrupt(panel);
     rohr_terminal_destroy(panel->terminal);
     panel->terminal = NULL;
     panel->focused = false;
+    panel->tracked_pending = false;
+    panel->tracked_completed = false;
+    panel->tracked_scan_line = 0;
 }
 
 void editor_terminal_panel_visible_toggle(EditorTerminalPanel *panel) {
@@ -89,6 +93,21 @@ void editor_terminal_panel_visible_toggle(EditorTerminalPanel *panel) {
 
 bool editor_terminal_panel_focused_check(const EditorTerminalPanel *panel) {
     return panel != NULL && panel->visible && panel->focused;
+}
+
+bool editor_terminal_panel_interrupt(EditorTerminalPanel *panel) {
+    RohrTerminalResult result;
+    if(panel == NULL || panel->terminal == NULL) return false;
+    result = rohr_terminal_interrupt(panel->terminal);
+    if(!result.success) {
+        fprintf(stderr, "Terminal interrupt failed: %s\n",
+            rohr_terminal_error_message_get(&result));
+        return false;
+    }
+    panel->tracked_pending = false;
+    panel->tracked_completed = false;
+    panel->scroll_offset = 0;
+    return true;
 }
 
 static void editor_terminal_input_write(EditorTerminalPanel *panel,
@@ -134,7 +153,7 @@ bool editor_terminal_panel_event_add(EditorTerminalPanel *panel,
         const char *sequence = NULL;
         bool control = (event->key.mod & SDL_KMOD_CTRL) != 0;
         if(control && event->key.key == SDLK_C) {
-            (void)rohr_terminal_interrupt(panel->terminal);
+            (void)editor_terminal_panel_interrupt(panel);
             return true;
         }
         switch(event->key.key) {

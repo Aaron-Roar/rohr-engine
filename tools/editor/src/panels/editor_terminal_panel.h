@@ -31,6 +31,7 @@ bool editor_terminal_panel_project_open(EditorTerminalPanel *panel,
 void editor_terminal_panel_project_close(EditorTerminalPanel *panel);
 void editor_terminal_panel_visible_toggle(EditorTerminalPanel *panel);
 bool editor_terminal_panel_focused_check(const EditorTerminalPanel *panel);
+bool editor_terminal_panel_interrupt(EditorTerminalPanel *panel);
 bool editor_terminal_panel_event_add(EditorTerminalPanel *panel,
     const SDL_Event *event, float viewport_width, float viewport_bottom);
 void editor_terminal_panel_update(EditorTerminalPanel *panel);

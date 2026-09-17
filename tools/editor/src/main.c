@@ -525,6 +525,18 @@ static SDL_Process *editor_cmake_hidden_start(const char *project_directory,
     return process;
 }
 
+static void editor_hidden_build_cancel(SDL_Process **hidden_process,
+        bool *hidden_compile_pending) {
+    if(hidden_process != NULL && *hidden_process != NULL) {
+        int exit_code;
+        (void)SDL_KillProcess(*hidden_process, true);
+        (void)SDL_WaitProcess(*hidden_process, true, &exit_code);
+        SDL_DestroyProcess(*hidden_process);
+        *hidden_process = NULL;
+    }
+    if(hidden_compile_pending != NULL) *hidden_compile_pending = false;
+}
+
 static bool editor_cmake_compile_start(EditorTerminalPanel *terminal,
         SDL_Process **hidden_process, bool *hidden_compile_pending,
         char *hidden_directory, size_t hidden_directory_capacity,
@@ -3393,6 +3405,8 @@ int main(void) {
                 }
             } else if(file_menu.changed && file_menu.selected_index == 3) {
                 if(editor_project_hash_get(&project) == saved_project_hash) {
+                    editor_hidden_build_cancel(&hidden_build_process,
+                        &hidden_compile_pending);
                     editor_workspace_close(&workspace, &project);
                     editor_app_state_transition(&app_state,
                         EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -3600,6 +3614,8 @@ int main(void) {
                     if(close_action == EDITOR_CLOSE_PROGRAM) {
                         running = false;
                     } else {
+                        editor_hidden_build_cancel(&hidden_build_process,
+                            &hidden_compile_pending);
                         editor_workspace_close(&workspace, &project);
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -3623,6 +3639,8 @@ int main(void) {
                 if(close_action == EDITOR_CLOSE_PROGRAM) {
                     running = false;
                 } else {
+                    editor_hidden_build_cancel(&hidden_build_process,
+                        &hidden_compile_pending);
                     editor_workspace_close(&workspace, &project);
                     editor_app_state_transition(&app_state,
                         EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -3830,6 +3848,8 @@ int main(void) {
                     opened = !editor_result_check(load_result);
                 }
                 if(opened) {
+                    editor_hidden_build_cancel(&hidden_build_process,
+                        &hidden_compile_pending);
                     if(workspace_browser_action != EDITOR_WORKSPACE_BROWSER_ADD_SPRITE &&
                             workspace_browser_action !=
                                 EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME &&
@@ -4087,7 +4107,7 @@ int main(void) {
     editor_viewport_assets_destroy();
     editor_history_destroy(&history);
     editor_project_destroy(&project);
-    if(hidden_build_process != NULL) SDL_DestroyProcess(hidden_build_process);
+    editor_hidden_build_cancel(&hidden_build_process, &hidden_compile_pending);
     editor_terminal_panel_destroy(&terminal_panel);
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);
@@ -4181,7 +4201,7 @@ fail:
     editor_viewport_state_destroy(&viewport_state);
     editor_history_destroy(&history);
     editor_project_destroy(&project);
-    if(hidden_build_process != NULL) SDL_DestroyProcess(hidden_build_process);
+    editor_hidden_build_cancel(&hidden_build_process, &hidden_compile_pending);
     editor_terminal_panel_destroy(&terminal_panel);
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);
