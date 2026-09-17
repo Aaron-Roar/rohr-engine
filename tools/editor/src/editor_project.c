@@ -1327,45 +1327,84 @@ EditorGraphicsLayer *editor_project_graphics_layer_get(EditorProject *project,
     return NULL;
 }
 
+bool editor_project_graphics_layer_set(EditorProject *project,
+        EditorGraphicsLayerId id,
+        const char *name,
+        int value) {
+    EditorGraphicsLayer *layer;
+    size_t length;
+    if(project == NULL || id == 0 || name == NULL || name[0] == '\0' ||
+            (length = strlen(name)) >= GRAPHICS_LAYER_NAME_MAX) return false;
+    layer = editor_project_graphics_layer_get(project, id);
+    if(layer == NULL) return false;
+    for(size_t i = 0; i < project->graphics_layer_count; i += 1)
+        if(project->graphics_layers[i].id != id &&
+                strcmp(project->graphics_layers[i].name, name) == 0) return false;
+    memcpy(layer->name, name, length + 1);
+    layer->value = value;
+    return true;
+}
+
 bool editor_project_graphics_layer_remove(EditorProject *project,
         EditorGraphicsLayerId id) {
     size_t index;
+    int removed_value;
     if(project == NULL || id == 0) return false;
     for(index = 0; index < project->graphics_layer_count; index += 1)
         if(project->graphics_layers[index].id == id) break;
     if(index == project->graphics_layer_count) return false;
+    removed_value = project->graphics_layers[index].value;
     for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
         for(size_t item = 0;
                 item < project->layout_viewports[viewport].ui_item_count; item += 1)
-            if(project->layout_viewports[viewport].ui_items[item].graphics_layer == id)
+            if(project->layout_viewports[viewport].ui_items[item].graphics_layer == id) {
                 project->layout_viewports[viewport].ui_items[item].graphics_layer = 0;
+                project->layout_viewports[viewport].ui_items[item].layer = removed_value;
+            }
     for(size_t object = 0; object < project->object_count; object += 1) {
         EditorObject *value = &project->objects[object];
         for(size_t i = 0; i < value->rigid_body_count; i += 1)
-            if(value->rigid_bodies[i].graphics_layer.layer == id)
+            if(value->rigid_bodies[i].graphics_layer.layer == id) {
                 value->rigid_bodies[i].graphics_layer.layer = 0;
+                value->rigid_bodies[i].graphics_layer.value = removed_value;
+            }
         for(size_t i = 0; i < value->joint_count; i += 1)
-            if(value->joint_items[i].graphics_layer.layer == id)
+            if(value->joint_items[i].graphics_layer.layer == id) {
                 value->joint_items[i].graphics_layer.layer = 0;
+                value->joint_items[i].graphics_layer.value = removed_value;
+            }
         for(size_t i = 0; i < value->soft_body_count; i += 1) {
             EditorSoftBody *body = &value->soft_body_items[i];
-            if(body->graphics_layer.layer == id) body->graphics_layer.layer = 0;
+            if(body->graphics_layer.layer == id) {
+                body->graphics_layer.layer = 0;
+                body->graphics_layer.value = removed_value;
+            }
             for(size_t child = 0; child < body->node_count; child += 1)
-                if(body->nodes[child].graphics_layer.layer == id)
+                if(body->nodes[child].graphics_layer.layer == id) {
                     body->nodes[child].graphics_layer.layer = 0;
+                    body->nodes[child].graphics_layer.value = removed_value;
+                }
             for(size_t child = 0; child < body->beam_count; child += 1)
-                if(body->beams[child].graphics_layer.layer == id)
+                if(body->beams[child].graphics_layer.layer == id) {
                     body->beams[child].graphics_layer.layer = 0;
+                    body->beams[child].graphics_layer.value = removed_value;
+                }
             for(size_t child = 0; child < body->area_count; child += 1)
-                if(body->areas[child].graphics_layer.layer == id)
+                if(body->areas[child].graphics_layer.layer == id) {
                     body->areas[child].graphics_layer.layer = 0;
+                    body->areas[child].graphics_layer.value = removed_value;
+                }
         }
         for(size_t i = 0; i < value->sprite_count; i += 1)
-            if(value->sprites[i].graphics_layer.layer == id)
+            if(value->sprites[i].graphics_layer.layer == id) {
                 value->sprites[i].graphics_layer.layer = 0;
+                value->sprites[i].graphics_layer.value = removed_value;
+            }
         for(size_t i = 0; i < value->animated_sprite_count; i += 1)
-            if(value->animated_sprite_items[i].graphics_layer.layer == id)
+            if(value->animated_sprite_items[i].graphics_layer.layer == id) {
                 value->animated_sprite_items[i].graphics_layer.layer = 0;
+                value->animated_sprite_items[i].graphics_layer.value = removed_value;
+            }
     }
     for(size_t i = index + 1; i < project->graphics_layer_count; i += 1)
         project->graphics_layers[i - 1] = project->graphics_layers[i];

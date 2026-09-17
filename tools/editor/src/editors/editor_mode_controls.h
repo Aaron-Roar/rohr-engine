@@ -17,10 +17,19 @@ typedef struct EditorModeLayerControl {
     FontAsset *font;
     TextAsset layer_label;
     TextAsset direct_label;
+    TextAsset add_label;
+    TextAsset edit_label;
+    TextAsset save_label;
+    TextAsset delete_label;
     TextAsset inherit_label;
+    TextAsset name_field;
     TextAsset value_field;
     TextAsset names[MAX_GRAPHICS_LAYERS];
     char name_cache[MAX_GRAPHICS_LAYERS][GRAPHICS_LAYER_NAME_MAX];
+    char edited_name[GRAPHICS_LAYER_NAME_MAX];
+    float edited_value;
+    EditorGraphicsLayerId edited_layer;
+    bool adding;
 } EditorModeLayerControl;
 
 bool editor_mode_text_create(FontAsset *font, const char *value,

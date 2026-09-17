@@ -624,6 +624,7 @@ UIFieldResult rohr_ui_field(const char *id, UIFieldBinding binding, TextAsset *d
 UIFieldResult rohr_ui_multiline_field(const char *id, UIFieldBinding binding, TextAsset *display, UIRect bounds, const UIButtonStyle *style) { return ui_multiline_field(id, binding, display, bounds, style); }
 UIButtonResult rohr_ui_button(const char *id, const TextAsset *label, UIRect bounds, const UIButtonStyle *style) { return ui_button(id, label, bounds, style); }
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, UIRect bounds, const UIButtonStyle *style) { return ui_dropdown(id, options, option_count, selected_index, bounds, style); }
+UIDropdownResult rohr_ui_dropdown_actions(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, const TextAsset *action, size_t first_action_index, UIRect bounds, const UIButtonStyle *style) { return ui_dropdown_actions(id, options, option_count, selected_index, action, first_action_index, bounds, style); }
 UIDropdownResult rohr_ui_menu(const char *id, const TextAsset *label, const TextAsset *const *options, size_t option_count, UIRect bounds, const UIButtonStyle *style) { return ui_menu(id, label, options, option_count, bounds, style); }
 UIScrollRegionResult rohr_ui_scroll_region_begin(const char *id, UIRect bounds, float content_height, float offset, float wheel_step) { return ui_scroll_region_begin(id, bounds, content_height, offset, wheel_step); }
 void rohr_ui_scroll_region_end(void) { ui_scroll_region_end(); }

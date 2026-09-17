@@ -165,8 +165,13 @@ bool editor_mode_layer_control_create(EditorModeLayerControl *control,
     *control = (EditorModeLayerControl){.font = font};
     if(!editor_mode_text_create(font, "Render Layer", &control->layer_label) ||
             !editor_mode_text_create(font, "Direct", &control->direct_label) ||
+            !editor_mode_text_create(font, "Add Layer", &control->add_label) ||
+            !editor_mode_text_create(font, "E", &control->edit_label) ||
+            !editor_mode_text_create(font, "Save", &control->save_label) ||
+            !editor_mode_text_create(font, "Delete", &control->delete_label) ||
             !editor_mode_text_create(font, "Inherit Parent Layer",
                 &control->inherit_label) ||
+            !editor_mode_text_create(font, "", &control->name_field) ||
             !editor_mode_text_create(font, "", &control->value_field)) {
         editor_mode_layer_control_destroy(control);
         return false;
@@ -178,7 +183,12 @@ void editor_mode_layer_control_destroy(EditorModeLayerControl *control) {
     if(control == NULL) return;
     rohr_graphics_text_destroy(&control->layer_label);
     rohr_graphics_text_destroy(&control->direct_label);
+    rohr_graphics_text_destroy(&control->add_label);
+    rohr_graphics_text_destroy(&control->edit_label);
+    rohr_graphics_text_destroy(&control->save_label);
+    rohr_graphics_text_destroy(&control->delete_label);
     rohr_graphics_text_destroy(&control->inherit_label);
+    rohr_graphics_text_destroy(&control->name_field);
     rohr_graphics_text_destroy(&control->value_field);
     for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1)
         rohr_graphics_text_destroy(&control->names[i]);
@@ -189,8 +199,9 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         const char *id_prefix, EditorProject *project,
         EditorGraphicsLayerBinding *binding, bool *inherited,
         float x, float y, float width) {
-    const TextAsset *options[MAX_GRAPHICS_LAYERS + 1];
+    const TextAsset *options[MAX_GRAPHICS_LAYERS + 2];
     char dropdown_id[128], value_id[128], inherit_id[128];
+    char name_id[128], save_id[128], delete_id[128];
     size_t selected = 0;
     bool active = false;
     float value;
@@ -206,20 +217,98 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         if(*inherited) return false;
     }
     options[0] = &control->direct_label;
+    options[1] = &control->add_label;
     for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
         if(!editor_mode_named_text_sync(control->font,
                 project->graphics_layers[i].name, &control->names[i],
                 control->name_cache[i], GRAPHICS_LAYER_NAME_MAX)) return false;
-        options[i + 1] = &control->names[i];
-        if(binding->layer == project->graphics_layers[i].id) selected = i + 1;
+        options[i + 2] = &control->names[i];
+        if(binding->layer == project->graphics_layers[i].id) selected = i + 2;
     }
     rohr_ui_label(&control->layer_label, (UIRect){x + 8.0f, y, 92.0f, 28.0f});
     snprintf(dropdown_id, sizeof(dropdown_id), "%s.layer", id_prefix);
-    UIDropdownResult selected_result = rohr_ui_dropdown(dropdown_id, options,
-        project->graphics_layer_count + 1, selected,
+    UIDropdownResult selected_result = rohr_ui_dropdown_actions(dropdown_id, options,
+        project->graphics_layer_count + 2, selected, &control->edit_label, 2,
         (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, NULL);
-    if(selected_result.changed) binding->layer = selected_result.selected_index == 0
-        ? 0 : project->graphics_layers[selected_result.selected_index - 1].id;
+    if(selected_result.changed && selected_result.selected_index == 0) {
+        binding->layer = 0;
+        control->adding = false;
+        control->edited_layer = 0;
+    } else if(selected_result.changed && selected_result.selected_index == 1) {
+        snprintf(control->edited_name, sizeof(control->edited_name), "layer_%u",
+            project->next_graphics_layer_id);
+        control->edited_value = 0.0f;
+        control->edited_layer = 0;
+        control->adding = true;
+    } else if(selected_result.changed) {
+        binding->layer = project->graphics_layers[
+            selected_result.selected_index - 2].id;
+        control->adding = false;
+        control->edited_layer = 0;
+    }
+    if(selected_result.action_index >= 2) {
+        EditorGraphicsLayer *layer = &project->graphics_layers[
+            (size_t)selected_result.action_index - 2];
+        snprintf(control->edited_name, sizeof(control->edited_name), "%s",
+            layer->name);
+        control->edited_value = (float)layer->value;
+        control->edited_layer = layer->id;
+        control->adding = false;
+    }
+    if(control->adding || control->edited_layer != 0) {
+        float row_width = width - 20.0f;
+        float name_width = row_width * 0.42f;
+        float value_width = row_width * 0.20f;
+        float button_width = row_width * 0.18f;
+        y += 38.0f;
+        snprintf(name_id, sizeof(name_id), "%s.layer_edit_name", id_prefix);
+        snprintf(value_id, sizeof(value_id), "%s.layer_edit_value", id_prefix);
+        snprintf(save_id, sizeof(save_id), "%s.layer_edit_save", id_prefix);
+        snprintf(delete_id, sizeof(delete_id), "%s.layer_edit_delete", id_prefix);
+        UIFieldResult name_result = rohr_ui_field(name_id,
+            (UIFieldBinding){.kind = UI_FIELD_STRING,
+                .string = control->edited_name,
+                .string_capacity = sizeof(control->edited_name)},
+            &control->name_field, (UIRect){x + 10.0f, y, name_width, 28.0f}, NULL);
+        UIFieldResult edit_value = rohr_ui_field(value_id,
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT,
+                .number = &control->edited_value}, &control->value_field,
+            (UIRect){x + 10.0f + name_width, y, value_width, 28.0f}, NULL);
+        if(rohr_ui_button(save_id, &control->save_label,
+                (UIRect){x + 10.0f + name_width + value_width, y,
+                    button_width, 28.0f}, NULL).clicked) {
+            editor_project_property_name_format(control->edited_name,
+                sizeof(control->edited_name), control->edited_name);
+            if(control->edited_name[0] != '\0') {
+                bool saved = false;
+                if(control->adding) {
+                    EditorGraphicsLayer *created = editor_project_graphics_layer_add(
+                        project, control->edited_name, (int)control->edited_value);
+                    if(created != NULL) {
+                        binding->layer = created->id;
+                        saved = true;
+                    }
+                } else {
+                    saved = editor_project_graphics_layer_set(project,
+                        control->edited_layer, control->edited_name,
+                        (int)control->edited_value);
+                }
+                if(saved) {
+                    control->adding = false;
+                    control->edited_layer = 0;
+                }
+            }
+        }
+        if(!control->adding && rohr_ui_button(delete_id, &control->delete_label,
+                (UIRect){x + 10.0f + name_width + value_width + button_width,
+                    y, row_width - name_width - value_width - button_width,
+                    28.0f}, NULL).clicked) {
+            (void)editor_project_graphics_layer_remove(project,
+                control->edited_layer);
+            control->edited_layer = 0;
+        }
+        return name_result.active || edit_value.active;
+    }
     if(binding->layer == 0) {
         value = (float)binding->value;
         y += 38.0f;

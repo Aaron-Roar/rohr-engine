@@ -619,9 +619,6 @@ static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
 
 static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context, EditorViewportUiItem *item, float *y) {
-    float layer = (float)item->layer;
-    const TextAsset *layer_options[MAX_GRAPHICS_LAYERS + 1];
-    size_t selected_layer = 0;
     bool visible = item->visible;
     UIFieldResult x_result = layout_number(&editor->x_label, &editor->x_field,
         "editor.layout.ui.x", context->x, *y, context->width, &item->position.x);
@@ -629,33 +626,15 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     UIFieldResult y_result = layout_number(&editor->y_label, &editor->y_field,
         "editor.layout.ui.y", context->x, *y, context->width, &item->position.y);
     *y += 38.0f;
-    layer_options[0] = &editor->direct_layer_label;
-    for(size_t i = 0; i < context->project->graphics_layer_count; i += 1) {
-        EditorGraphicsLayer *named = &context->project->graphics_layers[i];
-        if(!editor_mode_named_text_sync(editor->font, named->name,
-                &editor->layer_names[i], editor->layer_cache[i],
-                GRAPHICS_LAYER_NAME_MAX)) continue;
-        layer_options[i + 1] = &editor->layer_names[i];
-        if(item->graphics_layer == named->id) selected_layer = i + 1;
-    }
-    rohr_ui_label(&editor->layer_label,
-        (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
-    UIDropdownResult layer_source = rohr_ui_dropdown("editor.layout.ui.layer_source",
-        layer_options, context->project->graphics_layer_count + 1,
-        selected_layer, (UIRect){context->x + 94.0f, *y,
-            context->width - 104.0f, 28.0f}, NULL);
-    if(layer_source.changed) item->graphics_layer = layer_source.selected_index == 0
-        ? 0 : context->project->graphics_layers[
-            layer_source.selected_index - 1].id;
-    *y += 38.0f;
-    UIFieldResult layer_result = {0};
-    if(item->graphics_layer == 0) {
-        layer_result = layout_number(&editor->direct_layer_label,
-            &editor->layer_field, "editor.layout.ui.layer", context->x, *y,
-            context->width, &layer);
-        if(layer_result.changed) item->layer = (int)layer;
-        *y += 38.0f;
-    }
+    EditorGraphicsLayerBinding layer_binding = {
+        .value = item->layer, .layer = item->graphics_layer};
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.layout.ui", context->project, &layer_binding, NULL,
+            context->x, *y, context->width);
+    item->layer = layer_binding.value;
+    item->graphics_layer = layer_binding.layer;
+    *y += 76.0f;
     if(rohr_ui_button("editor.layout.ui.visibility", visible ?
             &editor->visible_icon : &editor->hidden_icon,
             (UIRect){context->x + 10.0f, *y, 34.0f, 28.0f}, NULL).clicked)
@@ -735,10 +714,10 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
                     46.0f, *y, 36.0f, 28.0f}, context);
             *y += 42.0f;
         }
-        return x_result.active || y_result.active || layer_result.active ||
+        return x_result.active || y_result.active || layer_active ||
             thickness.active || spacing.active || radius.active;
     }
-    return x_result.active || y_result.active || layer_result.active;
+    return x_result.active || y_result.active || layer_active;
 }
 
 bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,

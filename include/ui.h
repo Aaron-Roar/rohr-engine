@@ -74,6 +74,8 @@ typedef struct UIDropdownResult {
     bool changed;
     size_t selected_index;
     int hovered_index;
+    /** Option whose auxiliary action was clicked, or -1. */
+    int action_index;
 } UIDropdownResult;
 
 typedef struct UIScrollRegionResult {
@@ -222,6 +224,10 @@ UIButtonResult ui_button(
 /** Draw a caller-owned dropdown. Options and text assets remain caller-owned. */
 UIDropdownResult ui_dropdown(const char *id, const TextAsset *const *options,
     size_t option_count, size_t selected_index, UIRect bounds,
+    const UIButtonStyle *style);
+UIDropdownResult ui_dropdown_actions(const char *id,
+    const TextAsset *const *options, size_t option_count, size_t selected_index,
+    const TextAsset *action, size_t first_action_index, UIRect bounds,
     const UIButtonStyle *style);
 UIDropdownResult ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,

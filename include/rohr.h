@@ -2211,6 +2211,10 @@ UIButtonResult rohr_ui_button(
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options,
     size_t option_count, size_t selected_index, UIRect bounds,
     const UIButtonStyle *style);
+UIDropdownResult rohr_ui_dropdown_actions(const char *id,
+    const TextAsset *const *options, size_t option_count, size_t selected_index,
+    const TextAsset *action, size_t first_action_index, UIRect bounds,
+    const UIButtonStyle *style);
 /** @brief Draws a menu button whose label is not repeated in its action list. */
 UIDropdownResult rohr_ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,

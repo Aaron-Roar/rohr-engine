@@ -563,6 +563,8 @@ EditorGraphicsLayer *editor_project_graphics_layer_add(EditorProject *project,
     const char *name, int value);
 EditorGraphicsLayer *editor_project_graphics_layer_get(EditorProject *project,
     EditorGraphicsLayerId id);
+bool editor_project_graphics_layer_set(EditorProject *project,
+    EditorGraphicsLayerId id, const char *name, int value);
 bool editor_project_graphics_layer_remove(EditorProject *project,
     EditorGraphicsLayerId id);
 EditorViewportUiDefinition *editor_project_ui_definition_add(

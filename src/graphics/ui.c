@@ -54,6 +54,8 @@ typedef struct UIContext {
     uint64_t dropdown_option_ids[UI_DROPDOWN_VISIBLE_MAX];
     size_t dropdown_option_count;
     size_t dropdown_total_option_count;
+    const TextAsset *dropdown_action;
+    size_t dropdown_first_action_index;
     UIRect dropdown_bounds;
     UIButtonStyle dropdown_style;
     size_t dropdown_first_option;
@@ -914,8 +916,10 @@ UIButtonResult ui_button(
 
 static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, size_t selected_index,
-    bool always_changed, UIRect bounds, const UIButtonStyle *style) {
-    UIDropdownResult result = {.selected_index = selected_index, .hovered_index = -1};
+    bool always_changed, const TextAsset *action, size_t first_action_index,
+    UIRect bounds, const UIButtonStyle *style) {
+    UIDropdownResult result = {.selected_index = selected_index,
+        .hovered_index = -1, .action_index = -1};
     uint64_t dropdown_id = ui_hash_id(id);
     UIButtonResult button;
     UIRect resolved_bounds = ui_bounds_resolve(bounds);
@@ -962,6 +966,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
         }
     }
     ui_context.dropdown_render_id = dropdown_id;
+    ui_context.dropdown_action = action;
+    ui_context.dropdown_first_action_index = first_action_index;
     ui_context.dropdown_total_option_count = option_count;
     ui_context.dropdown_option_count = option_count - ui_context.dropdown_first_option;
     if(ui_context.dropdown_option_count > UI_DROPDOWN_VISIBLE_MAX) {
@@ -981,7 +987,24 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
         snprintf(option_id, sizeof(option_id), "%s.option.%zu", id, i);
         ui_context.dropdown_option_ids[slot] = ui_hash_id(option_id);
         ui_context.dropdown_option_interaction = true;
-        option_result = ui_button(option_id, options[i], option_bounds, style);
+        if(action != NULL && i >= first_action_index) {
+            char action_id[176];
+            float action_width = option_bounds.height;
+            snprintf(action_id, sizeof(action_id), "%s.action.%zu", id, i);
+            UIButtonResult action_result = ui_button(action_id, action,
+                (UIRect){option_bounds.x, option_bounds.y, action_width,
+                    option_bounds.height}, style);
+            option_result = ui_button(option_id, options[i],
+                (UIRect){option_bounds.x + action_width, option_bounds.y,
+                    option_bounds.width - action_width, option_bounds.height}, style);
+            if(action_result.clicked) {
+                result.action_index = (int)i;
+                result.open = false;
+                ui_context.dropdown_id = 0;
+            }
+        } else {
+            option_result = ui_button(option_id, options[i], option_bounds, style);
+        }
         ui_context.dropdown_option_interaction = false;
         ui_dropdown_divider_raw(ui_bounds_resolve(option_bounds));
         if(option_result.hovered) {
@@ -1021,13 +1044,24 @@ UIDropdownResult ui_dropdown(const char *id, const TextAsset *const *options,
     const UIButtonStyle *style) {
     if(options == NULL || selected_index >= option_count) return (UIDropdownResult){0};
     return ui_dropdown_draw(id, options[selected_index], options, option_count,
-        selected_index, false, bounds, style);
+        selected_index, false, NULL, 0, bounds, style);
+}
+
+UIDropdownResult ui_dropdown_actions(const char *id,
+    const TextAsset *const *options, size_t option_count, size_t selected_index,
+    const TextAsset *action, size_t first_action_index, UIRect bounds,
+    const UIButtonStyle *style) {
+    if(options == NULL || selected_index >= option_count)
+        return (UIDropdownResult){.action_index = -1, .hovered_index = -1};
+    return ui_dropdown_draw(id, options[selected_index], options, option_count,
+        selected_index, false, action, first_action_index, bounds, style);
 }
 
 UIDropdownResult ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,
     const UIButtonStyle *style) {
-    return ui_dropdown_draw(id, label, options, option_count, 0, true, bounds, style);
+    return ui_dropdown_draw(id, label, options, option_count, 0, true,
+        NULL, 0, bounds, style);
 }
 
 UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
@@ -1344,6 +1378,15 @@ void ui_frame_end(void) {
                     ((hovered || ui_context.navigation_focus_id == option_id) ?
                         ui_context.dropdown_style.hovered :
                         ui_context.dropdown_style.idle));
+            if(ui_context.dropdown_action != NULL &&
+                    i + ui_context.dropdown_first_option >=
+                        ui_context.dropdown_first_action_index) {
+                UIRect action_bounds = {bounds.x, bounds.y, bounds.height,
+                    bounds.height};
+                ui_label_raw(ui_context.dropdown_action, action_bounds);
+                bounds.x += bounds.height;
+                bounds.width -= bounds.height;
+            }
             ui_label_raw(ui_context.dropdown_options[i], bounds);
             ui_dropdown_divider_raw(bounds);
         }

@@ -1302,6 +1302,35 @@ int main(void) {
         (void)remove(hierarchy_path);
     }
 
+    {
+        EditorProject layer_project;
+        EditorObject *layer_object;
+        EditorRigidBody *layer_body;
+        EditorLayoutViewport *layer_viewport;
+        EditorViewportUiItem *layer_ui;
+        EditorGraphicsLayer *layer;
+        editor_project_init(&layer_project);
+        layer_object = editor_project_object_add(&layer_project, (Position){0});
+        layer_body = editor_project_rigid_body_add(&layer_project, layer_object);
+        layer_viewport = editor_project_layout_viewport_add(&layer_project);
+        layer_ui = editor_viewport_ui_add(&layer_project, layer_viewport,
+            EDITOR_VIEWPORT_UI_SHAPE);
+        layer = editor_project_graphics_layer_add(&layer_project, "foreground", 73);
+        if(layer_object == NULL || layer_body == NULL || layer_viewport == NULL ||
+                layer_ui == NULL || layer == NULL) return 1;
+        layer_body->graphics_layer.layer = layer->id;
+        layer_ui->graphics_layer = layer->id;
+        if(!editor_project_graphics_layer_set(&layer_project, layer->id,
+                    "actors", 91) || strcmp(layer->name, "actors") != 0 ||
+                layer_body->graphics_layer.layer != layer->id ||
+                layer_ui->graphics_layer != layer->id ||
+                !editor_project_graphics_layer_remove(&layer_project, layer->id) ||
+                layer_body->graphics_layer.layer != 0 ||
+                layer_body->graphics_layer.value != 91 ||
+                layer_ui->graphics_layer != 0 || layer_ui->layer != 91) return 1;
+        editor_project_destroy(&layer_project);
+    }
+
     editor_project_selection_clear(&project);
     if(editor_project_selected_get(&project) != NULL ||
             !editor_project_object_select(&project, object->id) ||
