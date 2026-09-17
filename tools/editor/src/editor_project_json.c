@@ -725,6 +725,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_uint(document, item, "graphics_layer",
                 ui->graphics_layer);
             yyjson_mut_obj_add_bool(document, item, "visible", ui->visible);
+            yyjson_mut_obj_add_uint(document, item, "drag_mode", ui->drag_mode);
             yyjson_mut_arr_add_val(ui_items, item);
         }
         yyjson_mut_obj_add_val(document, value, "ui_items", ui_items);
@@ -2020,6 +2021,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             EditorViewportUiItem *item = &viewport->ui_items[j];
             yyjson_val *definition_value;
             yyjson_val *graphics_layer_value;
+            yyjson_val *drag_mode_value;
             *item = (EditorViewportUiItem){.scale = {1.0f, 1.0f}};
             if(!yyjson_is_obj(item_value) ||
                     !editor_json_uint(item_value, "id", &item->id) || item->id == 0 ||
@@ -2071,6 +2073,12 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     yyjson_get_uint(graphics_layer_value) > UINT32_MAX)) goto done;
             item->graphics_layer = graphics_layer_value == NULL ? 0 :
                 (EditorGraphicsLayerId)yyjson_get_uint(graphics_layer_value);
+            drag_mode_value = yyjson_obj_get(item_value, "drag_mode");
+            if(drag_mode_value != NULL && (!yyjson_is_uint(drag_mode_value) ||
+                    yyjson_get_uint(drag_mode_value) > VIEWPORT_UI_DRAG_XY))
+                goto done;
+            item->drag_mode = drag_mode_value == NULL ? VIEWPORT_UI_DRAG_NONE :
+                (ViewportUiDragMode)yyjson_get_uint(drag_mode_value);
             if(loaded.next_viewport_ui_item_id <= item->id)
                 loaded.next_viewport_ui_item_id = item->id + 1;
         }

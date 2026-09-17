@@ -735,7 +735,8 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
 
 static float editor_layout_ui_common_height_get(
         const EditorViewportUiItem *item) {
-    float height = 42.0f + 232.0f;
+    float height = 42.0f + 270.0f;
+    if(item != NULL && item->drag_mode != VIEWPORT_UI_DRAG_NONE) height += 38.0f;
     if(item == NULL || !item->border_enabled) return height;
     height += 194.0f;
     if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) height += 38.0f;

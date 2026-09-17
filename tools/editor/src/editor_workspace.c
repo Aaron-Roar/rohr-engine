@@ -258,6 +258,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     if(ui_shape == NULL) return false;
     snprintf(ui_shape->name, sizeof(ui_shape->name), "sample_ui");
     ui_shape->position = (Position){24.0f, 24.0f};
+    ui_shape->drag_mode = VIEWPORT_UI_DRAG_X;
     floor_body = editor_project_rigid_body_add(project, starter);
     if(floor_body == NULL) return false;
     snprintf(floor_body->name, sizeof(floor_body->name), "floor");
@@ -1731,13 +1732,14 @@ static bool editor_workspace_generated_viewports_write(
                     "resources->ui_elements[%zu], (ViewportItemConfig){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
                     ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
                         "rohr_error_result_error(added.result.error); goto fail; }\n",
                     ui_resource_index, item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
                     item->layer, item->visible ? "true" : "false",
+                    (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
@@ -1816,13 +1818,14 @@ static bool editor_workspace_generated_viewports_write(
                     "created_ui.result.value, (ViewportItemConfig){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
                     ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
                         "rohr_error_result_error(added.result.error); goto fail; }\n",
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
                     item->layer, item->visible ? "true" : "false",
+                    (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
@@ -1853,7 +1856,7 @@ static bool editor_workspace_generated_viewports_write(
                     "created_ui.result.value, (ViewportItemConfig){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .clip_enabled=%s, "
+                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
                     ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
                         "rohr_error_result_error(added.result.error); goto fail; }\n",
@@ -1866,6 +1869,7 @@ static bool editor_workspace_generated_viewports_write(
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
                     item->layer, item->visible ? "true" : "false",
+                    (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
