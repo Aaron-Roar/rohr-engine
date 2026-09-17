@@ -5299,9 +5299,9 @@ static void editor_viewport_screen_camera_preview_draw(
     clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
         bounds.width, bounds.height);
     editor_view_camera_preview = true;
-    for(size_t i = 0; i < project->object_count; i += 1)
-        editor_viewport_camera_preview_object_draw(&project->objects[i],
-            &preview_state);
+    /* Editor screens preview an object's authored contents in isolation. The
+     * runtime renderer intentionally remains world-wide. */
+    editor_viewport_camera_preview_object_draw(camera_object, &preview_state);
     editor_view_camera_preview = false;
     if(clip_pushed) rohr_graphics_screen_clip_pop();
     editor_view_origin = saved_origin;
