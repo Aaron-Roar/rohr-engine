@@ -119,23 +119,27 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         &editor->rotation_field, (UIRect){context->x + 82.0f, 232.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->width_label,
-        (UIRect){context->x + 8.0f, 270.0f, 70.0f, 28.0f});
+        (UIRect){context->x + 8.0f, 394.0f, 70.0f, 28.0f});
     width_result = rohr_ui_field("editor.sprite.width",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &width},
-        &editor->width_field, (UIRect){context->x + 82.0f, 270.0f,
+        &editor->width_field, (UIRect){context->x + 82.0f, 394.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->height_label,
-        (UIRect){context->x + 8.0f, 308.0f, 70.0f, 28.0f});
+        (UIRect){context->x + 8.0f, 432.0f, 70.0f, 28.0f});
     height_result = rohr_ui_field("editor.sprite.height",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &height},
-        &editor->height_field, (UIRect){context->x + 82.0f, 308.0f,
+        &editor->height_field, (UIRect){context->x + 82.0f, 432.0f,
             context->width - 92.0f, 28.0f}, NULL);
     visible = sprite->visible; follow = sprite->follow_body_rotation;
     bool follow_changed = editor_mode_checkbox_left("editor.sprite.follow",
-        &editor->follow_label, (UIRect){context->x + 10.0f, 346.0f,
+        &editor->follow_label, (UIRect){context->x + 10.0f, 270.0f,
             context->width - 20.0f, 28.0f}, &follow);
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control, "editor.sprite",
+            context->project, &sprite->graphics_layer, NULL,
+            context->x, 308.0f, context->width);
     bool visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
-        &editor->visible_label, (UIRect){context->x + 10.0f, 384.0f,
+        &editor->visible_label, (UIRect){context->x + 10.0f, 470.0f,
             context->width - 20.0f, 28.0f}, &visible);
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_RENAME,
@@ -194,5 +198,5 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     }
     return name_result.active || path_result.active || x_result.active ||
         y_result.active || rotation_result.active || width_result.active ||
-        height_result.active;
+        height_result.active || layer_active;
 }

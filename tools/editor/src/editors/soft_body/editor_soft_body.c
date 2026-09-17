@@ -85,7 +85,7 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
     const char *name = NULL;
     bool shown = false, selected = false;
     char id[64], visibility_id[72];
-    float y = 476.0f + (float)hierarchy_index * 28.0f;
+    float y = 562.0f + (float)hierarchy_index * 28.0f;
     if(item.kind == EDITOR_SOFT_HIERARCHY_NODE) {
         for(size_t i = 0; i < body->node_count; i += 1)
             if(body->nodes[i].id == item.id) {
@@ -232,28 +232,32 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             .data.soft_body_transform = {object->id, body->id, position, rotation}};
         (void)editor_command_execute(context->project, &command);
     }
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.soft_body", context->project, &body->graphics_layer, NULL,
+            context->x, 226.0f, context->width);
     (void)editor_mode_color_swatch("editor.soft_body.node_color",
-        &body->node_color, false, (UIRect){context->x + 100.0f, 226.0f,
+        &body->node_color, false, (UIRect){context->x + 100.0f, 312.0f,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_NODE_COLOR);
     rohr_ui_label(&editor->node_color_label,
-        (UIRect){context->x + 8.0f, 226.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 312.0f, 90.0f, 26.0f});
     rohr_ui_label(&editor->beam_color_label,
-        (UIRect){context->x + 8.0f, 258.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 344.0f, 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.beam_color",
-        &body->beam_color, false, (UIRect){context->x + 100.0f, 258.0f,
+        &body->beam_color, false, (UIRect){context->x + 100.0f, 344.0f,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_BEAM_COLOR);
     rohr_ui_label(&editor->area_color_label,
-        (UIRect){context->x + 8.0f, 290.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 376.0f, 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.area_color",
-        &body->area_color, false, (UIRect){context->x + 100.0f, 290.0f,
+        &body->area_color, false, (UIRect){context->x + 100.0f, 376.0f,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_AREA_COLOR);
     {
         UIButtonStyle style = selected_style_get();
         UIButtonResult result = rohr_ui_button("editor.soft_body.origin",
-            &editor->origin_label, (UIRect){context->x + 10.0f, 326.0f,
+            &editor->origin_label, (UIRect){context->x + 10.0f, 412.0f,
                 context->width - 20.0f, 28.0f},
             context->viewport->selection == EDITOR_SELECTION_ORIGIN &&
                 context->viewport->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY ?
@@ -265,12 +269,12 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         }
     }
     if(rohr_ui_button("editor.soft_body.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, 360.0f,
+            (UIRect){context->x + 10.0f, 446.0f,
                 context->width - 20.0f, 30.0f}, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(!editor->auto_shape_picker_open) {
         if(rohr_ui_button("editor.soft_body.add_node", &editor->add_node_label,
-                (UIRect){context->x + 10.0f, 396.0f,
+                (UIRect){context->x + 10.0f, 482.0f,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_NODE,
@@ -283,7 +287,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             }
         }
         if(rohr_ui_button("editor.soft_body.add_beam", &editor->add_beam_label,
-                (UIRect){context->x + 10.0f, 432.0f,
+                (UIRect){context->x + 10.0f, 518.0f,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_BEAM,
@@ -303,7 +307,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             context->viewport, object, body);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.soft_body.auto_shape.option",
-            (UIRect){context->x + 10.0f, 394.0f,
+            (UIRect){context->x + 10.0f, 480.0f,
                 context->width - 20.0f, 62.0f}, count > 0 ? count : body->node_count);
         if(shape >= 0) {
             auto_shape->config.kind = (EditorAutoShapeKind)shape;
@@ -329,6 +333,6 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             (void)context->delete_open_item(context->delete_context);
     }
     field_active = name_result.active || x_result.active || y_result.active ||
-        rotation_result.active;
+        rotation_result.active || layer_active;
     return field_active;
 }

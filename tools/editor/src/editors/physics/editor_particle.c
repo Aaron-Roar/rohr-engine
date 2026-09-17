@@ -110,5 +110,9 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
             context->width - 124.0f, 26.0f}, context,
         EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id,
         EDITOR_PROPERTY_PARTICLE_FILL_COLOR);
-    return radius.active || origin_x.active || origin_y.active;
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.particle", context->project, &body->graphics_layer, NULL,
+            context->x, 264.0f, context->width);
+    return radius.active || origin_x.active || origin_y.active || layer_active;
 }

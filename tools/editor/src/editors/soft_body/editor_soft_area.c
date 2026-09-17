@@ -236,5 +236,10 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor,
                     context->viewport);
         }
     }
-    return name_result.active;
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.soft_area", context->project, &area->graphics_layer,
+            &area->graphics_layer_inherited, context->x,
+            y + (float)area->node_count * 34.0f + 8.0f, context->width);
+    return name_result.active || layer_active;
 }

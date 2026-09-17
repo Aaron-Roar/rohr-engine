@@ -839,58 +839,23 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_PARTICLE ||
             state->mode == EDITOR_VIEWPORT_SPRITE)
         return height + 86.0f;
+    if(state->mode == EDITOR_VIEWPORT_SOFT_AREA) {
+        for(size_t body_index = 0; body_index < object->soft_body_count;
+                body_index += 1) {
+            const EditorSoftBody *body = &object->soft_body_items[body_index];
+            if(body->id != state->selected_soft_body) continue;
+            for(size_t area_index = 0; area_index < body->area_count;
+                    area_index += 1)
+                if(body->areas[area_index].id == state->selected_soft_area)
+                    return fmaxf(height, 346.0f +
+                        (float)state->soft_area_candidate_count * 32.0f +
+                        (float)body->areas[area_index].node_count * 34.0f);
+        }
+    }
     if(state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
-            state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
-            state->mode == EDITOR_VIEWPORT_SOFT_AREA)
+            state->mode == EDITOR_VIEWPORT_SOFT_BEAM)
         return height + 124.0f;
     return height;
-}
-
-static EditorGraphicsLayerBinding *editor_selected_layer_binding_get(
-        EditorProject *project, EditorViewportState *state, bool **inherited) {
-    EditorObject *object = editor_project_selected_get(project);
-    if(inherited != NULL) *inherited = NULL;
-    if(object == NULL || state == NULL) return NULL;
-    for(size_t i = 0; i < object->rigid_body_count; i += 1)
-        if(object->rigid_bodies[i].id == state->selected_rigid_body &&
-                (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
-                 state->mode == EDITOR_VIEWPORT_PARTICLE))
-            return &object->rigid_bodies[i].graphics_layer;
-    for(size_t i = 0; i < object->soft_body_count; i += 1) {
-        EditorSoftBody *body = &object->soft_body_items[i];
-        if(body->id != state->selected_soft_body) continue;
-        if(state->mode == EDITOR_VIEWPORT_SOFT_BODY) return &body->graphics_layer;
-        for(size_t child = 0; child < body->node_count; child += 1)
-            if(state->mode == EDITOR_VIEWPORT_SOFT_NODE &&
-                    body->nodes[child].id == state->selected_soft_node) {
-                if(inherited != NULL) *inherited =
-                    &body->nodes[child].graphics_layer_inherited;
-                return &body->nodes[child].graphics_layer;
-            }
-        for(size_t child = 0; child < body->beam_count; child += 1)
-            if(state->mode == EDITOR_VIEWPORT_SOFT_BEAM &&
-                    body->beams[child].id == state->selected_soft_beam) {
-                if(inherited != NULL) *inherited =
-                    &body->beams[child].graphics_layer_inherited;
-                return &body->beams[child].graphics_layer;
-            }
-        for(size_t child = 0; child < body->area_count; child += 1)
-            if(state->mode == EDITOR_VIEWPORT_SOFT_AREA &&
-                    body->areas[child].id == state->selected_soft_area) {
-                if(inherited != NULL) *inherited =
-                    &body->areas[child].graphics_layer_inherited;
-                return &body->areas[child].graphics_layer;
-            }
-    }
-    for(size_t i = 0; i < object->sprite_count; i += 1)
-        if(state->mode == EDITOR_VIEWPORT_SPRITE &&
-                object->sprites[i].id == state->selected_sprite)
-            return &object->sprites[i].graphics_layer;
-    for(size_t i = 0; i < object->animated_sprite_count; i += 1)
-        if(state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
-                object->animated_sprite_items[i].id == state->selected_animated_sprite)
-            return &object->animated_sprite_items[i].graphics_layer;
-    return NULL;
 }
 
 static float editor_panel_delete_y_get(const EditorProject *project,
@@ -2798,6 +2763,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_RIGID_BODY) {
@@ -2821,6 +2787,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -2913,6 +2880,7 @@ int main(void) {
                 &auto_shape_editor, &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -2937,6 +2905,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -2954,6 +2923,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -2967,6 +2937,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .local_color_open = editor_mode_local_color_picker_open,
                     .color_context = &color_context});
@@ -2977,6 +2948,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
@@ -3017,6 +2989,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
@@ -3120,23 +3093,6 @@ int main(void) {
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
-        }
-        {
-            bool *inherited = NULL;
-            EditorGraphicsLayerBinding *binding =
-                editor_selected_layer_binding_get(&project, &viewport_state,
-                    &inherited);
-            if(binding != NULL) {
-                float control_height = inherited != NULL ? 124.0f : 86.0f;
-                char id[64];
-                snprintf(id, sizeof(id), "editor.render_layer.%d",
-                    (int)viewport_state.mode);
-                field_editing = editor_mode_layer_control_draw(&layer_control,
-                    id, &project, binding, inherited, EDITOR_VIEWPORT_WIDTH,
-                    editor_panel_delete_y_get(&project, &viewport_state,
-                        &rigid_body_editor) - control_height,
-                    EDITOR_TOOLS_WIDTH) || field_editing;
-            }
         }
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))

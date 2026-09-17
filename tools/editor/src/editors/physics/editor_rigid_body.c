@@ -208,6 +208,19 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     }
     field_active = name_result.active || x_result.active || y_result.active ||
         rotation_result.active;
+    {
+        const TextAsset *options[] = {&editor->rotation_unlocked_label,
+            &editor->rotation_locked_label};
+        UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.rotation_lock",
+            options, 2, body->rotation_locked ? 1 : 0,
+            (UIRect){x + 10.0f, 176.0f, width - 20.0f, 28.0f}, NULL);
+        if(result.changed) property_bool_set(context->project, object->id, body->id,
+            EDITOR_PROPERTY_ROTATION_LOCKED, result.selected_index == 1);
+    }
+    if(context->layer_control != NULL)
+        field_active = editor_mode_layer_control_draw(context->layer_control,
+            "editor.rigid_body", context->project, &body->graphics_layer, NULL,
+            x, 208.0f, width) || field_active;
 #define FLOAT_FIELD(field_id, label, field, field_y, label_width, property, source, min_value, clamp_max) do { \
     float value = (source); UIFieldResult result; \
     rohr_ui_label(&(label), (UIRect){x + 8.0f, (field_y), (label_width), 26.0f}); \
@@ -220,29 +233,29 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         (property), value); field_active = field_active || result.active; \
 } while(0)
     FLOAT_FIELD("editor.rigid_body.mass", editor->mass_label, editor->mass_field,
-        180.0f, 76.0f,
+        294.0f, 76.0f,
         EDITOR_PROPERTY_MASS, body->mass_value, 0.0f, -1.0f);
     FLOAT_FIELD("editor.rigid_body.friction", editor->friction_label,
-        editor->friction_field, 212.0f, 76.0f,
+        editor->friction_field, 326.0f, 76.0f,
         EDITOR_PROPERTY_FRICTION, body->friction, 0.0f, -1.0f);
     FLOAT_FIELD("editor.rigid_body.restitution", editor->restitution_label,
-        editor->restitution_field, 244.0f, 96.0f,
+        editor->restitution_field, 358.0f, 96.0f,
         EDITOR_PROPERTY_RESTITUTION, body->restitution, 0.0f, 1.0f);
 #undef FLOAT_FIELD
     rohr_ui_label(&editor->border_color_label,
-        (UIRect){x + 8.0f, 276.0f, 104.0f, 26.0f});
+        (UIRect){x + 8.0f, 390.0f, 104.0f, 26.0f});
     if(context->color_open != NULL) editor_mode_color_swatch(
         "editor.rigid_body.border_color", &body->border_color,
         false,
-        (UIRect){x + 114.0f, 276.0f, width - 124.0f, 26.0f}, context,
+        (UIRect){x + 114.0f, 390.0f, width - 124.0f, 26.0f}, context,
         EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id,
         EDITOR_PROPERTY_OUTLINE_COLOR);
     rohr_ui_label(&editor->surface_color_label,
-        (UIRect){x + 8.0f, 308.0f, 104.0f, 26.0f});
+        (UIRect){x + 8.0f, 422.0f, 104.0f, 26.0f});
     if(context->color_open != NULL) editor_mode_color_swatch(
         "editor.rigid_body.surface_color", &body->surface_color,
         false,
-        (UIRect){x + 114.0f, 308.0f, width - 124.0f, 26.0f}, context,
+        (UIRect){x + 114.0f, 422.0f, width - 124.0f, 26.0f}, context,
         EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id,
         EDITOR_PROPERTY_SURFACE_COLOR);
     {
@@ -264,10 +277,10 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             count += 1;
         }
         rohr_ui_label(&editor->parent_label,
-            (UIRect){x + 8.0f, 340.0f, 70.0f, 28.0f});
+            (UIRect){x + 8.0f, 454.0f, 70.0f, 28.0f});
         UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.parent",
             options, count, selected,
-            (UIRect){x + 80.0f, 340.0f, width - 90.0f, 28.0f}, NULL);
+            (UIRect){x + 80.0f, 454.0f, width - 90.0f, 28.0f}, NULL);
         if(result.button_hovered || result.hovered_index >= 0) {
             size_t preview = result.hovered_index >= 0 ?
                 (size_t)result.hovered_index : selected;
@@ -283,7 +296,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     {
         bool value = body->gravity_enabled;
         if(checkbox("editor.rigid_body.gravity", &editor->gravity_label,
-                (UIRect){x + 10.0f, 372.0f, width - 20.0f, 28.0f}, &value,
+                (UIRect){x + 10.0f, 486.0f, width - 20.0f, 28.0f}, &value,
                 false, NULL))
             property_bool_set(context->project, object->id, body->id,
                 EDITOR_PROPERTY_GRAVITY, value);
@@ -292,25 +305,16 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label};
         UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.motion", options,
             2, body->static_body ? 1 : 0,
-            (UIRect){x + 10.0f, 404.0f, width - 20.0f, 28.0f}, NULL);
+            (UIRect){x + 10.0f, 518.0f, width - 20.0f, 28.0f}, NULL);
         if(result.changed) property_bool_set(context->project, object->id, body->id,
             EDITOR_PROPERTY_STATIC, result.selected_index == 1);
     }
     {
-        const TextAsset *options[] = {&editor->rotation_unlocked_label,
-            &editor->rotation_locked_label};
-        UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.rotation_lock",
-            options, 2, body->rotation_locked ? 1 : 0,
-            (UIRect){x + 10.0f, 436.0f, width - 20.0f, 28.0f}, NULL);
-        if(result.changed) property_bool_set(context->project, object->id, body->id,
-            EDITOR_PROPERTY_ROTATION_LOCKED, result.selected_index == 1);
-    }
-    {
         float row_x = x + 10.0f, row_width = width - 20.0f;
-        float bottom = 500.0f;
+        float bottom = 586.0f;
         bool collision = body->collision_enabled;
         if(checkbox("editor.rigid_body.collision", &editor->collision_label,
-                (UIRect){row_x, 468.0f, row_width * 0.52f, 28.0f},
+                (UIRect){row_x, 554.0f, row_width * 0.52f, 28.0f},
                 &collision, false, NULL)) {
             property_bool_set(context->project, object->id, body->id,
                 EDITOR_PROPERTY_COLLISION, collision);
@@ -320,7 +324,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         if(body->collision_enabled) {
             bool particle = body->particle;
             if(checkbox("editor.rigid_body.particle", &editor->particle_label,
-                    (UIRect){row_x + row_width * 0.54f, 468.0f,
+                    (UIRect){row_x + row_width * 0.54f, 554.0f,
                         row_width * 0.46f, 28.0f}, &particle, true, NULL))
                 property_bool_set(context->project, object->id, body->id,
                     EDITOR_PROPERTY_PARTICLE, particle);
@@ -329,13 +333,13 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 context->viewport->selection = EDITOR_SELECTION_RIGID_BODY;
             if(rohr_ui_button("editor.rigid_body.collision_category",
                     &editor->collision_category_label,
-                    (UIRect){row_x, 500.0f, row_width, 28.0f}, NULL).clicked) {
+                    (UIRect){row_x, 586.0f, row_width, 28.0f}, NULL).clicked) {
                 editor->collision_category_open = !editor->collision_category_open;
                 editor->collide_with_open = false;
             }
-            rohr_ui_border((UIRect){row_x, 500.0f, row_width, 28.0f},
+            rohr_ui_border((UIRect){row_x, 586.0f, row_width, 28.0f},
                 2.0f, (Color){0, 0, 0, 255});
-            bottom = 532.0f;
+            bottom = 618.0f;
             if(editor->collision_category_open && collision_menu != NULL) {
                 size_t rows = 0;
                 if(!collision_menu(collision_context,
@@ -367,12 +371,12 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                     context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < 468.0f || pointer.y > bottom)
+                        pointer.y < 554.0f || pointer.y > bottom)
                     editor->collision_category_open = editor->collide_with_open = false;
             }
         }
         {
-            float item_y = body->collision_enabled ? bottom + 6.0f : 500.0f;
+            float item_y = body->collision_enabled ? bottom + 6.0f : 586.0f;
             UIButtonStyle selected_style = selected_style_get();
             UIButtonResult origin = rohr_ui_button("editor.rigid_body.origin",
                 &editor->origin_label, (UIRect){row_x, item_y, row_width, 28.0f},

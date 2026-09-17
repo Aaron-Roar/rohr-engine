@@ -171,39 +171,44 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             .data.soft_node_position = {object->id, body->id, node->id, position}};
         (void)editor_command_execute(context->project, &command);
     }
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.soft_node", context->project, &node->graphics_layer,
+            &node->graphics_layer_inherited, context->x, 194.0f,
+            context->width);
     mass_value = node->node_mass;
     rohr_ui_label(&editor->mass_label,
-        (UIRect){context->x + 8.0f, 194.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 318.0f, 68.0f, 26.0f});
     mass_result = rohr_ui_field("editor.soft_node.mass",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &mass_value},
-        &editor->mass_field, (UIRect){context->x + 78.0f, 194.0f,
+        &editor->mass_field, (UIRect){context->x + 78.0f, 318.0f,
             context->width - 88.0f, 26.0f}, NULL);
     if(mass_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_MASS, fmaxf(0.0f, mass_value));
     radius_value = node->radius;
     rohr_ui_label(&editor->radius_label,
-        (UIRect){context->x + 8.0f, 230.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 354.0f, 68.0f, 26.0f});
     radius_result = rohr_ui_field("editor.soft_node.radius",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
-        &editor->radius_field, (UIRect){context->x + 78.0f, 230.0f,
+        &editor->radius_field, (UIRect){context->x + 78.0f, 354.0f,
             context->width - 88.0f, 26.0f}, NULL);
     if(radius_result.changed)
         node->radius = radius_value <= 0.0f ? 0.1f : radius_value;
     friction_value = node->friction;
     rohr_ui_label(&editor->friction_label,
-        (UIRect){context->x + 8.0f, 266.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 390.0f, 68.0f, 26.0f});
     friction_result = rohr_ui_field("editor.soft_node.friction",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &friction_value},
-        &editor->friction_field, (UIRect){context->x + 78.0f, 266.0f,
+        &editor->friction_field, (UIRect){context->x + 78.0f, 390.0f,
             context->width - 88.0f, 26.0f}, NULL);
     if(friction_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_FRICTION, fmaxf(0.0f, friction_value));
     restitution_value = node->restitution;
     rohr_ui_label(&editor->restitution_label,
-        (UIRect){context->x + 8.0f, 302.0f, 96.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 426.0f, 96.0f, 26.0f});
     restitution_result = rohr_ui_field("editor.soft_node.restitution",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &restitution_value},
-        &editor->restitution_field, (UIRect){context->x + 106.0f, 302.0f,
+        &editor->restitution_field, (UIRect){context->x + 106.0f, 426.0f,
             context->width - 116.0f, 26.0f}, NULL);
     if(restitution_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_RESTITUTION,
@@ -211,20 +216,20 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     {
         bool gravity = node->gravity_enabled;
         if(checkbox("editor.soft_node.gravity", &editor->gravity_label,
-                (UIRect){context->x + 10.0f, 338.0f,
+                (UIRect){context->x + 10.0f, 462.0f,
                     context->width - 20.0f, 28.0f}, &gravity))
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_GRAVITY, gravity);
     }
     field_active = name_result.active || x_result.active || y_result.active ||
         mass_result.active || radius_result.active || friction_result.active ||
-        restitution_result.active;
+        restitution_result.active || layer_active;
     {
         float row_x = context->x + 10.0f, row_width = context->width - 20.0f;
-        float bottom = 406.0f;
+        float bottom = 530.0f;
         bool collision = node->collision_enabled;
         if(checkbox("editor.soft_node.collision", &editor->collision_label,
-                (UIRect){row_x, 374.0f, row_width, 28.0f}, &collision)) {
+                (UIRect){row_x, 498.0f, row_width, 28.0f}, &collision)) {
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_COLLISION, collision);
             if(!collision) editor->collision_category_open =
@@ -271,7 +276,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                     context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < 374.0f || pointer.y > bottom)
+                        pointer.y < 498.0f || pointer.y > bottom)
                     editor->collision_category_open = editor->collide_with_open = false;
             }
         }
@@ -281,16 +286,16 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         float field_width = fmaxf(34.0f, context->width - 196.0f);
         if(inherit) node->color = body->node_color;
         rohr_ui_label(&editor->color_label,
-            (UIRect){context->x + 8.0f, 620.0f, 90.0f, 26.0f});
+            (UIRect){context->x + 8.0f, 744.0f, 90.0f, 26.0f});
         if(editor_mode_checkbox_left("editor.soft_node.color_inherit",
                 &editor->inherit_label,
                 (UIRect){context->x + context->width - 92.0f,
-                    620.0f, 82.0f, 26.0f}, &inherit)) {
+                    744.0f, 82.0f, 26.0f}, &inherit)) {
             node->color_overridden = !inherit;
             node->color = body->node_color;
         }
         (void)editor_mode_color_swatch("editor.soft_node.color", &node->color,
-            inherit, (UIRect){context->x + 100.0f, 620.0f,
+            inherit, (UIRect){context->x + 100.0f, 744.0f,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_NODE,
             object->id, body->id, node->id, EDITOR_PROPERTY_COLOR);
     }

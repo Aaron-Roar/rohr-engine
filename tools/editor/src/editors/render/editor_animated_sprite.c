@@ -134,27 +134,32 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         &editor->rotation_label, &editor->rotation_field, &rotation,
         context->x, 194.0f, context->width, 90.0f);
     sx_result = float_field("editor.animated_sprite.scale_x", &editor->scale_x_label,
-        &editor->scale_x_field, &scale_x, context->x, 232.0f, context->width, 90.0f);
+        &editor->scale_x_field, &scale_x, context->x, 356.0f, context->width, 90.0f);
     sy_result = float_field("editor.animated_sprite.scale_y", &editor->scale_y_label,
-        &editor->scale_y_field, &scale_y, context->x, 270.0f, context->width, 90.0f);
+        &editor->scale_y_field, &scale_y, context->x, 394.0f, context->width, 90.0f);
     ticks_result = float_field("editor.animated_sprite.ticks", &editor->ticks_label,
-        &editor->ticks_field, &ticks, context->x, 308.0f, context->width, 110.0f);
+        &editor->ticks_field, &ticks, context->x, 432.0f, context->width, 110.0f);
     time_result = float_field("editor.animated_sprite.seconds", &editor->time_label,
-        &editor->time_field, &seconds, context->x, 346.0f, context->width, 110.0f);
+        &editor->time_field, &seconds, context->x, 470.0f, context->width, 110.0f);
     start_result = float_field("editor.animated_sprite.start", &editor->starting_label,
-        &editor->starting_field, &starting, context->x, 384.0f, context->width, 110.0f);
+        &editor->starting_field, &starting, context->x, 508.0f, context->width, 110.0f);
     rohr_ui_label(&editor->direction_label,
-        (UIRect){context->x + 8.0f, 422.0f, 90.0f, 28.0f});
+        (UIRect){context->x + 8.0f, 546.0f, 90.0f, 28.0f});
     direction_result = rohr_ui_dropdown("editor.animated_sprite.direction",
         direction_options, 2, sprite->direction == DIRECTION_LEFT ? 0 : 1,
-        (UIRect){context->x + 100.0f, 422.0f,
+        (UIRect){context->x + 100.0f, 546.0f,
             context->width - 110.0f, 28.0f}, NULL);
     follow = sprite->follow_body_rotation; playing = sprite->playing;
     bool follow_changed = editor_mode_checkbox_left("editor.animated_sprite.follow",
-        &editor->follow_label, (UIRect){context->x + 10.0f, 460.0f,
+        &editor->follow_label, (UIRect){context->x + 10.0f, 232.0f,
             context->width - 20.0f, 28.0f}, &follow);
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.animated_sprite", context->project,
+            &sprite->graphics_layer, NULL, context->x, 270.0f,
+            context->width);
     bool playing_changed = editor_mode_checkbox_left("editor.animated_sprite.playing",
-        &editor->playing_label, (UIRect){context->x + 10.0f, 496.0f,
+        &editor->playing_label, (UIRect){context->x + 10.0f, 582.0f,
             context->width - 20.0f, 28.0f}, &playing);
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_RENAME,
@@ -215,7 +220,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     if(rohr_ui_button("editor.animated_sprite.add_frame", &editor->add_frame_label,
-            (UIRect){context->x + 10.0f, 532.0f,
+            (UIRect){context->x + 10.0f, 618.0f,
                 context->width - 20.0f, 28.0f}, NULL).clicked && browser_open != NULL)
         browser_open(browser_context, object->id, sprite->id);
     for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
@@ -226,7 +231,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         UIButtonStyle style = {.idle = {118, 96, 35, 255},
             .hovered = {145, 119, 45, 255}, .pressed = {94, 75, 26, 255},
             .disabled = {60, 52, 30, 255}};
-        UIRect bounds = {context->x + 10.0f, 568.0f + (float)frame * 30.0f,
+        UIRect bounds = {context->x + 10.0f, 654.0f + (float)frame * 30.0f,
             context->width - 20.0f, 26.0f};
         char id[80];
         if(!editor_mode_named_text_sync(editor->font, asset->name,
@@ -268,5 +273,6 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     }
     return name_result.active || x_result.active || y_result.active ||
         rotation_result.active || sx_result.active || sy_result.active ||
-        ticks_result.active || time_result.active || start_result.active;
+        ticks_result.active || time_result.active || start_result.active ||
+        layer_active;
 }

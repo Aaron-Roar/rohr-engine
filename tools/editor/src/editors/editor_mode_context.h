@@ -19,6 +19,7 @@ typedef bool (*EditorModeDeleteFunction)(void *context);
 typedef void (*EditorModeHierarchyRowFunction)(void *context,
     EditorViewportState *viewport, EditorSelectionRef selection,
     UIRect bounds, UIButtonResult interaction, bool last);
+struct EditorModeLayerControl;
 
 typedef struct EditorModeContext {
     EditorProject *project;
@@ -37,6 +38,7 @@ typedef struct EditorModeContext {
     EditorModeHierarchyRowFunction hierarchy_row;
     void *hierarchy_context;
     MouseButtonState primary_button;
+    struct EditorModeLayerControl *layer_control;
 } EditorModeContext;
 
 #endif

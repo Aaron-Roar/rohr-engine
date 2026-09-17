@@ -201,6 +201,11 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_BEAM,
             object->id, body->id, beam->id, EDITOR_PROPERTY_COLOR);
     }
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.soft_beam", context->project, &beam->graphics_layer,
+            &beam->graphics_layer_inherited, context->x, 304.0f,
+            context->width);
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
@@ -210,5 +215,6 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
                     context->width - 20.0f, 34.0f}, &style).clicked)
             (void)context->delete_open_item(context->delete_context);
     }
-    return name_result.active || stiffness_result.active || damping_result.active;
+    return name_result.active || stiffness_result.active || damping_result.active ||
+        layer_active;
 }
