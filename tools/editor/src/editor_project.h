@@ -388,6 +388,8 @@ typedef struct EditorViewportCameraItem {
     EditorObjectId object;
     EditorCameraId camera;
     ViewportItemConfig placement;
+    /** Zero selects placement.layer as a direct numeric layer. */
+    EditorGraphicsLayerId graphics_layer;
     Position content_offset;
     Scale content_scale;
     Orientation content_rotation;

@@ -11,7 +11,6 @@ typedef struct EditorLayoutViewportEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, width_label, height_label;
     TextAsset enabled_label, background_color_label;
-    TextAsset graphics_layers_label, add_layer_label;
     TextAsset cameras_label, add_label, delete_label, remove_label;
     TextAsset layer_label, direct_layer_label, visible_label, rotation_label;
     TextAsset visible_icon, hidden_icon;
@@ -42,8 +41,6 @@ typedef struct EditorLayoutViewportEditor {
     char ui_cache[EDITOR_LAYOUT_VIEWPORT_UI_MAX][EDITOR_OBJECT_NAME_MAX];
     TextAsset font_names[EDITOR_UI_FONT_MAX];
     char font_cache[EDITOR_UI_FONT_MAX][EDITOR_OBJECT_NAME_MAX];
-    TextAsset layer_names[MAX_GRAPHICS_LAYERS];
-    char layer_cache[MAX_GRAPHICS_LAYERS][GRAPHICS_LAYER_NAME_MAX];
     TextAsset definition_names[MAX_GRAPHICS_UI_ELEMENTS];
     char definition_cache[MAX_GRAPHICS_UI_ELEMENTS][EDITOR_OBJECT_NAME_MAX];
 } EditorLayoutViewportEditor;

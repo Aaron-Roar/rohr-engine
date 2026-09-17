@@ -1689,7 +1689,7 @@ static bool editor_workspace_generated_viewports_write(
                     ".content_scale={%.8ff, %.8ff}, .content_orientation=%.8ff, "
                     ".layer=%d, .visible=%s});\n"
                 "        if(rohr_error_check(item)) { result = "
-                    "rohr_error_result_error(item.result.error); goto fail; } }\n",
+                    "rohr_error_result_error(item.result.error); goto fail; }\n",
                 object_name, camera->name, object_name, camera->name,
                 (int)camera->dimensions.x, (int)camera->dimensions.y,
                 item->placement.rectangle.x, item->placement.rectangle.y,
@@ -1699,6 +1699,18 @@ static bool editor_workspace_generated_viewports_write(
                 item->content_scale.x, item->content_scale.y,
                 item->content_rotation, item->placement.layer,
                 item->placement.visible ? "true" : "false");
+            if(item->graphics_layer != 0)
+                for(size_t layer_index = 0;
+                        layer_index < project->graphics_layer_count;
+                        layer_index += 1)
+                    if(project->graphics_layers[layer_index].id ==
+                            item->graphics_layer)
+                        fprintf(source,
+                            "        if(rohr_error_check(result = "
+                                "rohr_graphics_layer_ui_id_set(item.result.value, "
+                                "resources->layers[%zu]))) goto fail;\n",
+                            layer_index);
+            fprintf(source, "      }\n");
         }
         for(size_t item_index = 0; item_index < viewport->ui_item_count;
                 item_index += 1) {

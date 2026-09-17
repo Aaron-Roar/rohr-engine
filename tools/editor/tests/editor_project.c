@@ -161,6 +161,8 @@ int main(void) {
                 return 1;
             }
             workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
+            workspace_project.layout_viewports[0].camera_items[0].graphics_layer =
+                hud->id;
             workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
             if(editor_viewport_ui_mount(&workspace_project,
                     &workspace_project.layout_viewports[0],
@@ -215,6 +217,8 @@ int main(void) {
                 loaded_project.layout_viewports[0].ui_items[0].definition !=
                     loaded_project.layout_viewports[0].ui_items[1].definition ||
                 loaded_project.layout_viewports[0].ui_items[0].graphics_layer !=
+                    loaded_project.graphics_layers[0].id ||
+                loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.objects[0].rigid_bodies[0].graphics_layer.layer !=
                     loaded_project.graphics_layers[0].id ||

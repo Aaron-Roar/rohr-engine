@@ -31,8 +31,6 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
     CREATE("Enabled", enabled_label); CREATE("Background", background_color_label);
-    CREATE("Graphics Layers", graphics_layers_label);
-    CREATE("Add Graphics Layer", add_layer_label);
     CREATE("Screens", cameras_label);
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
@@ -88,7 +86,6 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(width_label);
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(background_color_label);
-    DESTROY(graphics_layers_label); DESTROY(add_layer_label);
     DESTROY(cameras_label);
     DESTROY(add_label); DESTROY(delete_label); DESTROY(name_field);
     DESTROY(remove_label); DESTROY(layer_label); DESTROY(direct_layer_label);
@@ -125,8 +122,6 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
         rohr_graphics_text_destroy(&editor->ui_names[i]);
     for(size_t i = 0; i < EDITOR_UI_FONT_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->font_names[i]);
-    for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1)
-        rohr_graphics_text_destroy(&editor->layer_names[i]);
     for(size_t i = 0; i < MAX_GRAPHICS_UI_ELEMENTS; i += 1)
         rohr_graphics_text_destroy(&editor->definition_names[i]);
     *editor = (EditorLayoutViewportEditor){0};
@@ -406,59 +401,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             item_x.active || item_y.active || item_width.active ||
             item_height.active || item_layer.active;
     }
-    y += 12.0f;
-    rohr_ui_label(&editor->graphics_layers_label,
-        (UIRect){context->x + 8.0f, y, context->width - 16.0f, 28.0f});
-    y += 34.0f;
-    if(rohr_ui_button("editor.layout.graphics_layer.add", &editor->add_layer_label,
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            NULL).clicked) {
-        char layer_name[GRAPHICS_LAYER_NAME_MAX];
-        snprintf(layer_name, sizeof(layer_name), "layer_%u",
-            context->project->next_graphics_layer_id);
-        (void)editor_project_graphics_layer_add(context->project, layer_name, 0);
-    }
-    y += 38.0f;
-    for(size_t i = 0; i < context->project->graphics_layer_count; i += 1) {
-        EditorGraphicsLayer *named = &context->project->graphics_layers[i];
-        char name[GRAPHICS_LAYER_NAME_MAX];
-        char name_id[96];
-        char value_id[96];
-        char remove_id[96];
-        float value = (float)named->value;
-        snprintf(name, sizeof(name), "%s", named->name);
-        snprintf(name_id, sizeof(name_id), "editor.layout.graphics_layer.%u.name",
-            named->id);
-        snprintf(value_id, sizeof(value_id), "editor.layout.graphics_layer.%u.value",
-            named->id);
-        snprintf(remove_id, sizeof(remove_id),
-            "editor.layout.graphics_layer.%u.remove", named->id);
-        UIFieldResult name_changed = rohr_ui_field(name_id,
-            (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
-                .string_capacity = sizeof(name)}, &editor->name_field,
-            (UIRect){context->x + 8.0f, y, context->width * 0.48f, 28.0f}, NULL);
-        UIFieldResult value_changed = rohr_ui_field(value_id,
-            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
-            &editor->layer_field,
-            (UIRect){context->x + context->width * 0.50f, y,
-                context->width * 0.28f, 28.0f}, NULL);
-        if(name_changed.changed && name[0] != '\0') {
-            bool unique = true;
-            for(size_t other = 0; other < context->project->graphics_layer_count;
-                    other += 1)
-                if(other != i && strcmp(context->project->graphics_layers[other].name,
-                        name) == 0) unique = false;
-            if(unique) snprintf(named->name, sizeof(named->name), "%s", name);
-        }
-        if(value_changed.changed) named->value = (int)value;
-        if(rohr_ui_button(remove_id, &editor->remove_label,
-                (UIRect){context->x + context->width * 0.80f, y,
-                    context->width * 0.19f - 8.0f, 28.0f}, NULL).clicked) {
-            (void)editor_project_graphics_layer_remove(context->project, named->id);
-            break;
-        }
-        y += 34.0f;
-    }
     return name_result.active || x_result.active || y_result.active ||
         width_result.active || height_result.active;
 }
@@ -481,7 +423,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorLayoutViewport *viewport;
     EditorViewportCameraItem *item = NULL;
-    UIFieldResult x_result, y_result, width_result, height_result, layer_result,
+    UIFieldResult x_result, y_result, width_result, height_result,
         rotation_result, content_x_result, content_y_result,
         content_width_result, content_height_result, content_rotation_result;
     const TextAsset *camera_options[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
@@ -489,7 +431,6 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     EditorCameraId camera_ids[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
     size_t camera_count = 0;
     size_t selected_camera = 0;
-    float layer;
     float rotation_degrees;
     float source_rotation_degrees;
     if(editor == NULL || context == NULL || context->project == NULL ||
@@ -568,26 +509,29 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         item->placement.orientation = rotation_degrees *
             3.14159265359f / 180.0f;
     }
-    layer = (float)item->placement.layer;
-    layer_result = layout_number(&editor->layer_label, &editor->layer_field,
-        "editor.layout.camera_editor.layer", context->x, 308.0f, context->width,
-        &layer);
-    if(layer_result.changed) item->placement.layer = (int)layer;
+    EditorGraphicsLayerBinding layer_binding = {
+        .value = item->placement.layer, .layer = item->graphics_layer};
+    bool layer_active = context->layer_control != NULL &&
+        editor_mode_layer_control_draw(context->layer_control,
+            "editor.layout.screen", context->project, &layer_binding, NULL,
+            context->x, 308.0f, context->width);
+    item->placement.layer = layer_binding.value;
+    item->graphics_layer = layer_binding.layer;
     content_x_result = layout_number(&editor->content_x_label,
         &editor->content_x_field, "editor.layout.screen.content_x", context->x,
-        346.0f, context->width, &item->content_offset.x);
+        384.0f, context->width, &item->content_offset.x);
     content_y_result = layout_number(&editor->content_y_label,
         &editor->content_y_field, "editor.layout.screen.content_y", context->x,
-        384.0f, context->width, &item->content_offset.y);
+        422.0f, context->width, &item->content_offset.y);
     content_width_result = layout_number(&editor->content_width_scale_label,
         &editor->width_scale_field, "editor.layout.screen.content_width", context->x,
-        422.0f, context->width, &item->content_scale.x);
+        460.0f, context->width, &item->content_scale.x);
     content_height_result = layout_number(&editor->content_height_scale_label,
         &editor->height_scale_field, "editor.layout.screen.content_height", context->x,
-        460.0f, context->width, &item->content_scale.y);
+        498.0f, context->width, &item->content_scale.y);
     content_rotation_result = layout_number(&editor->content_rotation_label,
         &editor->content_rotation_field, "editor.layout.screen.content_rotation",
-        context->x, 498.0f, context->width, &source_rotation_degrees);
+        context->x, 536.0f, context->width, &source_rotation_degrees);
     if(content_rotation_result.changed) {
         source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
         if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
@@ -597,7 +541,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     item->content_scale.x = fmaxf(0.01f, item->content_scale.x);
     item->content_scale.y = fmaxf(0.01f, item->content_scale.y);
     return x_result.active || y_result.active || width_result.active ||
-        height_result.active || rotation_result.active || layer_result.active ||
+        height_result.active || rotation_result.active || layer_active ||
         content_x_result.active || content_y_result.active ||
         content_width_result.active || content_height_result.active ||
         content_rotation_result.active;
@@ -625,6 +569,12 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     *y += 38.0f;
     UIFieldResult y_result = layout_number(&editor->y_label, &editor->y_field,
         "editor.layout.ui.y", context->x, *y, context->width, &item->position.y);
+    *y += 38.0f;
+    float *rotation = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+        &item->value.shape.rotation : &item->rotation;
+    UIFieldResult rotation_result = layout_number(&editor->rotation_label,
+        &editor->rotation_field, "editor.layout.ui.rotation", context->x, *y,
+        context->width, rotation);
     *y += 38.0f;
     EditorGraphicsLayerBinding layer_binding = {
         .value = item->layer, .layer = item->graphics_layer};
@@ -714,10 +664,12 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
                     46.0f, *y, 36.0f, 28.0f}, context);
             *y += 42.0f;
         }
-        return x_result.active || y_result.active || layer_active ||
+        return x_result.active || y_result.active || rotation_result.active ||
+            layer_active ||
             thickness.active || spacing.active || radius.active;
     }
-    return x_result.active || y_result.active || layer_active;
+    return x_result.active || y_result.active || rotation_result.active ||
+        layer_active;
 }
 
 bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
@@ -729,13 +681,6 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     bool active;
     if(editor == NULL || item == NULL) return false;
     active = layout_ui_common_draw(editor, context, item, &y);
-    {
-        UIFieldResult rotation = layout_number(&editor->rotation_label,
-            &editor->rotation_field, "editor.ui_shape.rotation", context->x, y,
-            context->width, &item->value.shape.rotation);
-        active = active || rotation.active;
-        y += 38.0f;
-    }
     button = item->value.shape.button_enabled;
     if(editor_mode_checkbox_left("editor.ui_shape.button", &editor->button_label,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f},

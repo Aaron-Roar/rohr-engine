@@ -1356,6 +1356,16 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
     removed_value = project->graphics_layers[index].value;
     for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
         for(size_t item = 0;
+                item < project->layout_viewports[viewport].camera_item_count;
+                item += 1)
+            if(project->layout_viewports[viewport].camera_items[item].graphics_layer ==
+                    id) {
+                project->layout_viewports[viewport].camera_items[item].graphics_layer = 0;
+                project->layout_viewports[viewport].camera_items[item].placement.layer =
+                    removed_value;
+            }
+    for(size_t viewport = 0; viewport < project->layout_viewport_count; viewport += 1)
+        for(size_t item = 0;
                 item < project->layout_viewports[viewport].ui_item_count; item += 1)
             if(project->layout_viewports[viewport].ui_items[item].graphics_layer == id) {
                 project->layout_viewports[viewport].ui_items[item].graphics_layer = 0;

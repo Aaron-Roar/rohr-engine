@@ -682,6 +682,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_real(document, item, "orientation",
                 camera->placement.orientation);
             yyjson_mut_obj_add_sint(document, item, "layer", camera->placement.layer);
+            yyjson_mut_obj_add_uint(document, item, "graphics_layer",
+                camera->graphics_layer);
             yyjson_mut_obj_add_bool(document, item, "visible",
                 camera->placement.visible);
             yyjson_mut_obj_add_real(document, item, "content_x",
@@ -1453,6 +1455,9 @@ static bool editor_json_references_valid(EditorProject *project) {
             }
             if(object == NULL || editor_project_camera_get(object, item->camera) == NULL)
                 return false;
+            if(item->graphics_layer != 0 &&
+                    editor_project_graphics_layer_get(project,
+                        item->graphics_layer) == NULL) return false;
         }
         for(size_t j = 0; j < viewport->ui_item_count; j += 1) {
             EditorViewportUiItem *item = &viewport->ui_items[j];
@@ -1943,6 +1948,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *content_rotation = yyjson_obj_get(item_value,
                 "content_rotation");
             item->content_scale = (Scale){1.0f, 1.0f};
+            yyjson_val *graphics_layer_value = yyjson_obj_get(item_value,
+                "graphics_layer");
             if(!yyjson_is_obj(item_value) ||
                     !editor_json_uint(item_value, "id", &item->id) || item->id == 0 ||
                     !editor_json_name(item_value, item->name) ||
@@ -1962,6 +1969,11 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(item_value, "visible", &item->placement.visible) ||
                     item->placement.rectangle.width <= 0.0f ||
                     item->placement.rectangle.height <= 0.0f) goto done;
+            if(graphics_layer_value != NULL &&
+                    (!yyjson_is_uint(graphics_layer_value) ||
+                    yyjson_get_uint(graphics_layer_value) > UINT32_MAX)) goto done;
+            item->graphics_layer = graphics_layer_value == NULL ? 0 :
+                (EditorGraphicsLayerId)yyjson_get_uint(graphics_layer_value);
             if((content_x != NULL && !editor_json_real(item_value, "content_x",
                         &item->content_offset.x)) ||
                     (content_y != NULL && !editor_json_real(item_value, "content_y",

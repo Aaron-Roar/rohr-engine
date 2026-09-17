@@ -723,7 +723,7 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
 
 static float editor_layout_ui_common_height_get(
         const EditorViewportUiItem *item) {
-    float height = 42.0f + 194.0f;
+    float height = 42.0f + 232.0f;
     if(item == NULL || !item->border_enabled) return height;
     height += 194.0f;
     if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) height += 38.0f;
@@ -764,14 +764,14 @@ static float editor_panel_content_height_get(const EditorProject *project,
                 state->selected_layout_viewport);
         if(viewport != NULL) return fmaxf(height, 484.0f +
             (float)(viewport->camera_item_count + viewport->ui_item_count) *
-                32.0f + 84.0f + (float)project->graphics_layer_count * 34.0f);
+                32.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR)
-        return fmaxf(height, 552.0f);
+        return fmaxf(height, 590.0f);
     if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
         const EditorViewportUiItem *item =
             editor_panel_layout_ui_item_get(project, state);
-        return fmaxf(height, editor_layout_ui_common_height_get(item) + 126.0f);
+        return fmaxf(height, editor_layout_ui_common_height_get(item) + 88.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
         const EditorViewportUiItem *item =
@@ -3004,7 +3004,8 @@ int main(void) {
             field_editing = editor_layout_camera_editor_draw(&layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
-                    .width = EDITOR_TOOLS_WIDTH});
+                    .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -3015,6 +3016,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .local_color_open = editor_mode_local_color_picker_open,
                     .color_context = &color_context,
                     .font_browser_open = editor_mode_font_browser_open,
@@ -3029,6 +3031,7 @@ int main(void) {
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
                     .local_color_open = editor_mode_local_color_picker_open,
                     .color_context = &color_context,
                     .font_browser_open = editor_mode_font_browser_open,
