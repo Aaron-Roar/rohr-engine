@@ -286,6 +286,7 @@ void editor_file_browser_destroy(EditorFileBrowser *browser) {
     rohr_graphics_text_destroy(&browser->directory_label);
     rohr_graphics_text_destroy(&browser->selected_directory_label);
     rohr_graphics_text_destroy(&browser->parent_label);
+    rohr_graphics_text_destroy(&browser->name_label);
     *browser = (EditorFileBrowser){0};
 }
 
@@ -301,7 +302,9 @@ bool editor_file_browser_open(EditorFileBrowser *browser, EditorFileBrowserMode 
     if(!editor_file_browser_text_create(font, directory, &browser->directory_label) ||
             !editor_file_browser_text_create(font, "",
                 &browser->selected_directory_label) ||
-            !editor_file_browser_text_create(font, "..", &browser->parent_label)) {
+            !editor_file_browser_text_create(font, "..", &browser->parent_label) ||
+            !editor_file_browser_text_create(font, "Project Name",
+                &browser->name_label)) {
         editor_file_browser_destroy(browser);
         return false;
     }
@@ -544,11 +547,14 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
             (UIRect){dialog.x + 14.0f, field_y,
                 dialog.width - 28.0f, 30.0f}, NULL);
     } else if(browser->mode == EDITOR_FILE_BROWSER_CREATE_DIRECTORY) {
+        float name_width = dialog.width * 0.50f;
+        float name_x = dialog.x + dialog.width - 14.0f - name_width;
+        rohr_ui_label(&browser->name_label,
+            (UIRect){name_x - 118.0f, field_y, 110.0f, 34.0f});
         (void)rohr_ui_field("editor.file_browser.directory_name",
             (UIFieldBinding){.kind = UI_FIELD_STRING, .string = browser->filename,
                 .string_capacity = sizeof(browser->filename)}, field_display,
-            (UIRect){dialog.x + 174.0f, field_y,
-                dialog.width - 188.0f, 34.0f}, NULL);
+            (UIRect){name_x, field_y, name_width, 34.0f}, NULL);
     } else if(browser->mode == EDITOR_FILE_BROWSER_OPEN ||
             browser->mode == EDITOR_FILE_BROWSER_OPEN_PNG ||
             browser->mode == EDITOR_FILE_BROWSER_OPEN_PNG_MULTI) {
@@ -566,10 +572,8 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
             browser->mode == EDITOR_FILE_BROWSER_SAVE ? save_label :
                 (browser->mode == EDITOR_FILE_BROWSER_CREATE_DIRECTORY ?
                     create_label : open_label),
-            browser->mode == EDITOR_FILE_BROWSER_CREATE_DIRECTORY ?
-                (UIRect){dialog.x + 14.0f, field_y, 150.0f, 34.0f} :
-                (UIRect){dialog.x + dialog.width - 274.0f, action_y,
-                    120.0f, 34.0f}, NULL).clicked) &&
+            (UIRect){dialog.x + dialog.width - 274.0f, action_y,
+                120.0f, 34.0f}, NULL).clicked) &&
             ((browser->mode == EDITOR_FILE_BROWSER_DIRECTORY &&
                 editor_file_browser_directory_path_get(
                     browser, result.path, sizeof(result.path))) ||

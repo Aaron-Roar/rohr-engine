@@ -3837,10 +3837,17 @@ int main(void) {
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_WORKSPACE);
                         editor_history_reset(&history);
-                        saved_project_hash = editor_project_hash_get(&project);
                         editor_viewport_state_init(&viewport_state);
-                        editor_navigation_state_apply(
-                            &project, &viewport_state, &project.navigation);
+                        if(command.type == EDITOR_WORKSPACE_COMMAND_LOAD) {
+                            editor_project_selection_clear(&project);
+                            project.navigation = (EditorNavigationState){
+                                .mode = EDITOR_VIEWPORT_HIERARCHY,
+                                .selection = EDITOR_SELECTION_NONE};
+                        } else {
+                            editor_navigation_state_apply(
+                                &project, &viewport_state, &project.navigation);
+                        }
+                        saved_project_hash = editor_project_hash_get(&project);
                         panel_scroll_offset = 0.0f;
                         (void)editor_terminal_panel_project_open(
                             &terminal_panel, workspace.directory);

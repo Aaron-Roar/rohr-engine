@@ -40,6 +40,7 @@ typedef struct EditorFileBrowser {
     TextAsset directory_label;
     TextAsset selected_directory_label;
     TextAsset parent_label;
+    TextAsset name_label;
     FontAsset *font;
     size_t entry_count;
     size_t preview_count;
