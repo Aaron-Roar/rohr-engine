@@ -802,7 +802,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
                             break;
                         }
                 }
-                return fmaxf(height, 674.0f + expanded_frames +
+                return fmaxf(height, 760.0f + expanded_frames +
                     (float)(object->rigid_bodies[i].hitbox_count +
                         project->collision_mask_count + 1 +
                         (object->rigid_bodies[i].particle ? 1 : 0)) * 30.0f);
@@ -812,7 +812,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_SOFT_BODY) {
         for(size_t i = 0; i < object->soft_body_count; i += 1) {
             if(object->soft_body_items[i].id == state->selected_soft_body) {
-                return fmaxf(height, 576.0f + (float)(object->soft_body_items[i].node_count +
+                return fmaxf(height, 662.0f + (float)(object->soft_body_items[i].node_count +
                     object->soft_body_items[i].beam_count +
                     object->soft_body_items[i].area_count) * 28.0f);
             }
@@ -821,7 +821,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
         for(size_t i = 0; i < object->animated_sprite_count; i += 1)
             if(object->animated_sprite_items[i].id == state->selected_animated_sprite)
-                return fmaxf(height, 614.0f +
+                return fmaxf(height, 700.0f +
                     (float)object->animated_sprite_items[i].frame_count * 30.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_HITBOX) {
@@ -836,7 +836,61 @@ static float editor_panel_content_height_get(const EditorProject *project,
             }
         }
     }
+    if(state->mode == EDITOR_VIEWPORT_PARTICLE ||
+            state->mode == EDITOR_VIEWPORT_SPRITE)
+        return height + 86.0f;
+    if(state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
+            state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+            state->mode == EDITOR_VIEWPORT_SOFT_AREA)
+        return height + 124.0f;
     return height;
+}
+
+static EditorGraphicsLayerBinding *editor_selected_layer_binding_get(
+        EditorProject *project, EditorViewportState *state, bool **inherited) {
+    EditorObject *object = editor_project_selected_get(project);
+    if(inherited != NULL) *inherited = NULL;
+    if(object == NULL || state == NULL) return NULL;
+    for(size_t i = 0; i < object->rigid_body_count; i += 1)
+        if(object->rigid_bodies[i].id == state->selected_rigid_body &&
+                (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
+                 state->mode == EDITOR_VIEWPORT_PARTICLE))
+            return &object->rigid_bodies[i].graphics_layer;
+    for(size_t i = 0; i < object->soft_body_count; i += 1) {
+        EditorSoftBody *body = &object->soft_body_items[i];
+        if(body->id != state->selected_soft_body) continue;
+        if(state->mode == EDITOR_VIEWPORT_SOFT_BODY) return &body->graphics_layer;
+        for(size_t child = 0; child < body->node_count; child += 1)
+            if(state->mode == EDITOR_VIEWPORT_SOFT_NODE &&
+                    body->nodes[child].id == state->selected_soft_node) {
+                if(inherited != NULL) *inherited =
+                    &body->nodes[child].graphics_layer_inherited;
+                return &body->nodes[child].graphics_layer;
+            }
+        for(size_t child = 0; child < body->beam_count; child += 1)
+            if(state->mode == EDITOR_VIEWPORT_SOFT_BEAM &&
+                    body->beams[child].id == state->selected_soft_beam) {
+                if(inherited != NULL) *inherited =
+                    &body->beams[child].graphics_layer_inherited;
+                return &body->beams[child].graphics_layer;
+            }
+        for(size_t child = 0; child < body->area_count; child += 1)
+            if(state->mode == EDITOR_VIEWPORT_SOFT_AREA &&
+                    body->areas[child].id == state->selected_soft_area) {
+                if(inherited != NULL) *inherited =
+                    &body->areas[child].graphics_layer_inherited;
+                return &body->areas[child].graphics_layer;
+            }
+    }
+    for(size_t i = 0; i < object->sprite_count; i += 1)
+        if(state->mode == EDITOR_VIEWPORT_SPRITE &&
+                object->sprites[i].id == state->selected_sprite)
+            return &object->sprites[i].graphics_layer;
+    for(size_t i = 0; i < object->animated_sprite_count; i += 1)
+        if(state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
+                object->animated_sprite_items[i].id == state->selected_animated_sprite)
+            return &object->animated_sprite_items[i].graphics_layer;
+    return NULL;
 }
 
 static float editor_panel_delete_y_get(const EditorProject *project,
@@ -2170,6 +2224,7 @@ int main(void) {
     EditorSoftNodeEditor soft_node_editor = {0};
     EditorSoftAreaEditor soft_area_editor = {0};
     EditorSoftBodyEditor soft_body_editor = {0};
+    EditorModeLayerControl layer_control = {0};
     EditorCoordinateToggle coordinate_toggle = {0};
     EditorViewportContextMenu viewport_context_menu = {0};
     EditorOriginPanel origin_panel = {0};
@@ -2364,6 +2419,7 @@ int main(void) {
             !editor_soft_node_editor_create(&soft_node_editor, &font) ||
             !editor_soft_area_editor_create(&soft_area_editor, &font) ||
             !editor_soft_body_editor_create(&soft_body_editor, &font) ||
+            !editor_mode_layer_control_create(&layer_control, &font) ||
             !editor_coordinate_toggle_create(&coordinate_toggle, &font) ||
             !editor_viewport_context_menu_create(&viewport_context_menu, &font) ||
             !editor_bulk_panel_create(&bulk_panel, &font) ||
@@ -3064,6 +3120,23 @@ int main(void) {
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
+        }
+        {
+            bool *inherited = NULL;
+            EditorGraphicsLayerBinding *binding =
+                editor_selected_layer_binding_get(&project, &viewport_state,
+                    &inherited);
+            if(binding != NULL) {
+                float control_height = inherited != NULL ? 124.0f : 86.0f;
+                char id[64];
+                snprintf(id, sizeof(id), "editor.render_layer.%d",
+                    (int)viewport_state.mode);
+                field_editing = editor_mode_layer_control_draw(&layer_control,
+                    id, &project, binding, inherited, EDITOR_VIEWPORT_WIDTH,
+                    editor_panel_delete_y_get(&project, &viewport_state,
+                        &rigid_body_editor) - control_height,
+                    EDITOR_TOOLS_WIDTH) || field_editing;
+            }
         }
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))
@@ -4073,6 +4146,7 @@ int main(void) {
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);
     editor_soft_body_editor_destroy(&soft_body_editor);
+    editor_mode_layer_control_destroy(&layer_control);
     editor_coordinate_toggle_destroy(&coordinate_toggle);
     editor_viewport_context_menu_destroy(&viewport_context_menu);
     rohr_graphics_text_destroy(&color_picker_hex_field);
@@ -4166,6 +4240,7 @@ fail:
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);
     editor_soft_body_editor_destroy(&soft_body_editor);
+    editor_mode_layer_control_destroy(&layer_control);
     editor_coordinate_toggle_destroy(&coordinate_toggle);
     editor_viewport_context_menu_destroy(&viewport_context_menu);
     rohr_graphics_text_destroy(&color_picker_hex_field);

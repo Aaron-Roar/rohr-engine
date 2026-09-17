@@ -1347,9 +1347,19 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
         for(size_t i = 0; i < value->joint_count; i += 1)
             if(value->joint_items[i].graphics_layer.layer == id)
                 value->joint_items[i].graphics_layer.layer = 0;
-        for(size_t i = 0; i < value->soft_body_count; i += 1)
-            if(value->soft_body_items[i].graphics_layer.layer == id)
-                value->soft_body_items[i].graphics_layer.layer = 0;
+        for(size_t i = 0; i < value->soft_body_count; i += 1) {
+            EditorSoftBody *body = &value->soft_body_items[i];
+            if(body->graphics_layer.layer == id) body->graphics_layer.layer = 0;
+            for(size_t child = 0; child < body->node_count; child += 1)
+                if(body->nodes[child].graphics_layer.layer == id)
+                    body->nodes[child].graphics_layer.layer = 0;
+            for(size_t child = 0; child < body->beam_count; child += 1)
+                if(body->beams[child].graphics_layer.layer == id)
+                    body->beams[child].graphics_layer.layer = 0;
+            for(size_t child = 0; child < body->area_count; child += 1)
+                if(body->areas[child].graphics_layer.layer == id)
+                    body->areas[child].graphics_layer.layer = 0;
+        }
         for(size_t i = 0; i < value->sprite_count; i += 1)
             if(value->sprites[i].graphics_layer.layer == id)
                 value->sprites[i].graphics_layer.layer = 0;
@@ -2371,6 +2381,7 @@ EditorSoftNode *editor_project_soft_node_add(EditorProject *project, EditorSoftB
     node = &body->nodes[body->node_count++];
     *node = (EditorSoftNode){
         .id = project->next_soft_node_id++,
+        .graphics_layer_inherited = true,
         .position = position,
         .node_mass = 1.0f,
         .radius = 4.0f,
@@ -2514,6 +2525,7 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
     beam = &body->beams[body->beam_count++];
     *beam = (EditorSoftBeam){
         .id = project->next_soft_beam_id++,
+        .graphics_layer_inherited = true,
         .node_a = node_a,
         .node_b = node_b,
         .stiffness = 1.0f,
@@ -2670,6 +2682,7 @@ void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body
                 }
                 if(area.id == 0) {
                     area.id = project->next_soft_area_id++;
+                    area.graphics_layer_inherited = true;
                     area.color = body->area_color;
                     area.visible = true;
                     snprintf(area.name, sizeof(area.name), "area_%u", area.id);

@@ -208,6 +208,8 @@ EditorJoint editor_project_joint_default_get(EditorJointKind kind);
 typedef struct EditorSoftNode {
     EditorSoftNodeId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
+    bool graphics_layer_inherited;
     Position position;
     float node_mass;
     float radius;
@@ -225,6 +227,8 @@ typedef struct EditorSoftNode {
 typedef struct EditorSoftBeam {
     EditorSoftBeamId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
+    bool graphics_layer_inherited;
     EditorSoftNodeId node_a;
     EditorSoftNodeId node_b;
     float stiffness;
@@ -237,6 +241,8 @@ typedef struct EditorSoftBeam {
 typedef struct EditorSoftArea {
     EditorSoftAreaId id;
     char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
+    bool graphics_layer_inherited;
     EditorSoftNodeId *nodes;
     size_t node_count;
     size_t node_capacity;

@@ -412,6 +412,18 @@ EngineResult graphics_layer_entity_name_set(Entity entity, const char *name);
 GraphicsLayerValueResult graphics_layer_entity_get(Entity entity);
 GraphicsLayerIdResult graphics_layer_entity_id_get(Entity entity);
 EngineResult graphics_layer_entity_clear(Entity entity);
+EngineResult graphics_layer_sprite_set(Entity entity, int value);
+EngineResult graphics_layer_sprite_id_set(Entity entity, GraphicsLayerId layer);
+EngineResult graphics_layer_sprite_name_set(Entity entity, const char *name);
+GraphicsLayerValueResult graphics_layer_sprite_get(Entity entity);
+GraphicsLayerIdResult graphics_layer_sprite_id_get(Entity entity);
+EngineResult graphics_layer_sprite_clear(Entity entity);
+EngineResult graphics_layer_animation_set(Entity entity, int value);
+EngineResult graphics_layer_animation_id_set(Entity entity, GraphicsLayerId layer);
+EngineResult graphics_layer_animation_name_set(Entity entity, const char *name);
+GraphicsLayerValueResult graphics_layer_animation_get(Entity entity);
+GraphicsLayerIdResult graphics_layer_animation_id_get(Entity entity);
+EngineResult graphics_layer_animation_clear(Entity entity);
 
 EngineResult graphics_layer_ui_set(ViewportItemId item, int value);
 EngineResult graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer);

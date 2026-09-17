@@ -268,6 +268,10 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_val *item = yyjson_mut_obj(document);
         yyjson_mut_obj_add_uint(document, item, "id", node->id);
         yyjson_mut_obj_add_strcpy(document, item, "name", node->name);
+        editor_json_graphics_layer_binding_write(document, item,
+            node->graphics_layer);
+        yyjson_mut_obj_add_bool(document, item, "graphics_layer_inherited",
+            node->graphics_layer_inherited);
         yyjson_mut_obj_add_val(document, item, "position",
             editor_json_position_write(document, node->position));
         yyjson_mut_obj_add_real(document, item, "mass", node->node_mass);
@@ -288,6 +292,10 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_val *item = yyjson_mut_obj(document);
         yyjson_mut_obj_add_uint(document, item, "id", beam->id);
         yyjson_mut_obj_add_strcpy(document, item, "name", beam->name);
+        editor_json_graphics_layer_binding_write(document, item,
+            beam->graphics_layer);
+        yyjson_mut_obj_add_bool(document, item, "graphics_layer_inherited",
+            beam->graphics_layer_inherited);
         yyjson_mut_obj_add_uint(document, item, "node_a", beam->node_a);
         yyjson_mut_obj_add_uint(document, item, "node_b", beam->node_b);
         yyjson_mut_obj_add_real(document, item, "stiffness", beam->stiffness);
@@ -303,6 +311,10 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_val *area_nodes = yyjson_mut_arr(document);
         yyjson_mut_obj_add_uint(document, item, "id", area->id);
         yyjson_mut_obj_add_strcpy(document, item, "name", area->name);
+        editor_json_graphics_layer_binding_write(document, item,
+            area->graphics_layer);
+        yyjson_mut_obj_add_bool(document, item, "graphics_layer_inherited",
+            area->graphics_layer_inherited);
         for(size_t node_index = 0; node_index < area->node_count; node_index += 1)
             yyjson_mut_arr_add_uint(document, area_nodes, area->nodes[node_index]);
         yyjson_mut_obj_add_val(document, item, "nodes", area_nodes);
@@ -965,6 +977,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         yyjson_val *restitution = yyjson_obj_get(item, "restitution");
         yyjson_val *radius = yyjson_obj_get(item, "radius");
         *node = (EditorSoftNode){
+            .graphics_layer_inherited = true,
             .radius = 4.0f,
             .friction = 0.0f,
             .restitution = 0.25f,
@@ -979,6 +992,11 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                 !editor_json_real(item, "mass", &node->node_mass) ||
                 !editor_json_bool(item, "gravity_enabled", &node->gravity_enabled) ||
                 !editor_json_bool(item, "visible", &node->visible)) return false;
+        if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
+                (!editor_json_bool(item, "graphics_layer_inherited",
+                    &node->graphics_layer_inherited) ||
+                !editor_json_graphics_layer_binding_read(item,
+                    &node->graphics_layer))) return false;
         if((friction != NULL && !editor_json_real(item, "friction", &node->friction)) ||
                 (restitution != NULL && !editor_json_real(
                     item, "restitution", &node->restitution))) return false;
@@ -1000,13 +1018,19 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         yyjson_val *item = yyjson_arr_get(beams, i);
         EditorSoftBeam *beam = &body->beams[i];
         yyjson_val *damping = yyjson_obj_get(item, "damping");
-        *beam = (EditorSoftBeam){.damping = 0.0f, .color = body->beam_color};
+        *beam = (EditorSoftBeam){.graphics_layer_inherited = true,
+            .damping = 0.0f, .color = body->beam_color};
         if(!yyjson_is_obj(item) || !editor_json_uint(item, "id", &beam->id) || beam->id == 0 ||
                 !editor_json_name(item, beam->name) ||
                 !editor_json_uint(item, "node_a", &beam->node_a) ||
                 !editor_json_uint(item, "node_b", &beam->node_b) ||
                 !editor_json_real(item, "stiffness", &beam->stiffness) ||
                 !editor_json_bool(item, "visible", &beam->visible)) return false;
+        if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
+                (!editor_json_bool(item, "graphics_layer_inherited",
+                    &beam->graphics_layer_inherited) ||
+                !editor_json_graphics_layer_binding_read(item,
+                    &beam->graphics_layer))) return false;
         if(damping != NULL && !editor_json_real(item, "damping", &beam->damping)) {
             return false;
         }
@@ -1028,11 +1052,17 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             yyjson_val *item = yyjson_arr_get(areas, i);
             yyjson_val *area_nodes = yyjson_obj_get(item, "nodes");
             EditorSoftArea *area = &body->areas[i];
+            area->graphics_layer_inherited = true;
             if(!yyjson_is_obj(item) || !editor_json_uint(item, "id", &area->id) ||
                     area->id == 0 || !editor_json_name(item, area->name) ||
                     !editor_json_uint(item, "color", &area->color) ||
                     !editor_json_bool(item, "color_overridden", &area->color_overridden) ||
                     !editor_json_bool(item, "visible", &area->visible)) return false;
+            if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
+                    (!editor_json_bool(item, "graphics_layer_inherited",
+                        &area->graphics_layer_inherited) ||
+                    !editor_json_graphics_layer_binding_read(item,
+                        &area->graphics_layer))) return false;
             if(area_nodes != NULL) {
                 if(!yyjson_is_arr(area_nodes) || yyjson_arr_size(area_nodes) < 3)
                     return false;
@@ -1266,11 +1296,28 @@ static bool editor_json_references_valid(EditorProject *project) {
                     editor_project_graphics_layer_get(project,
                         object->joint_items[j].graphics_layer.layer) == NULL)
                 return false;
-        for(size_t j = 0; j < object->soft_body_count; j += 1)
-            if(object->soft_body_items[j].graphics_layer.layer != 0 &&
+        for(size_t j = 0; j < object->soft_body_count; j += 1) {
+            EditorSoftBody *body = &object->soft_body_items[j];
+            if(body->graphics_layer.layer != 0 &&
                     editor_project_graphics_layer_get(project,
-                        object->soft_body_items[j].graphics_layer.layer) == NULL)
+                        body->graphics_layer.layer) == NULL)
                 return false;
+            for(size_t child = 0; child < body->node_count; child += 1)
+                if(body->nodes[child].graphics_layer.layer != 0 &&
+                        editor_project_graphics_layer_get(project,
+                            body->nodes[child].graphics_layer.layer) == NULL)
+                    return false;
+            for(size_t child = 0; child < body->beam_count; child += 1)
+                if(body->beams[child].graphics_layer.layer != 0 &&
+                        editor_project_graphics_layer_get(project,
+                            body->beams[child].graphics_layer.layer) == NULL)
+                    return false;
+            for(size_t child = 0; child < body->area_count; child += 1)
+                if(body->areas[child].graphics_layer.layer != 0 &&
+                        editor_project_graphics_layer_get(project,
+                            body->areas[child].graphics_layer.layer) == NULL)
+                    return false;
+        }
         for(size_t j = 0; j < object->sprite_count; j += 1)
             if(object->sprites[j].graphics_layer.layer != 0 &&
                     editor_project_graphics_layer_get(project,

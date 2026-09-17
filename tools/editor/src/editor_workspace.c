@@ -731,8 +731,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 fprintf(header, "    Entity %s;\n", body->nodes[node_index].name);
             for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1)
                 fprintf(header, "    Entity %s;\n", body->beams[beam_index].name);
-            for(size_t area_index = 0; area_index < body->area_count; area_index += 1)
-                fprintf(header, "    Entity %s;\n", body->areas[area_index].name);
+            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
+                const EditorSoftArea *area = &body->areas[area_index];
+                if(area->node_count >= 3) fprintf(header,
+                    "    Entity %s;\n"
+                    "    Entity %s_triangles[%zu];\n",
+                    area->name, area->name, area->node_count - 2);
+            }
         }
         for(size_t sprite_index = 0; sprite_index < object->sprite_count;
                 sprite_index += 1)
@@ -1110,9 +1115,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                         "created.result.error); goto fail; }\n",
                         body->name, node_a->name, node_b->name, node_c->name);
+                    fprintf(source,
+                        "      object->%s_triangles[%zu] = created.result.value;",
+                        area->name, triangle);
                     if(triangle == 0) fprintf(source,
-                        "      object->%s = created.result.value; }\n", area->name);
-                    else fprintf(source, "    }\n");
+                        " object->%s = created.result.value;", area->name);
+                    fprintf(source, " }\n");
                     if(area->color_overridden) {
                         fprintf(source,
                             "    result = rohr_graphics_soft_body_area_color_set(object->%s, "
@@ -1539,24 +1547,89 @@ static bool editor_workspace_generated_viewports_write(
         "rohr_graphics_layer_entity_set(objects->%s.%s%s, %d))) goto fail;\n", \
         object_variable, Prefix, Name, (Binding).value); \
 } while(0)
+#define WRITE_ENTITY_LAYER_INDEX(Binding, Name, Index) do { \
+    bool found = false; \
+    if((Binding).layer != 0) { \
+        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
+                layer_index += 1) if(project->graphics_layers[layer_index].id == \
+                    (Binding).layer) { \
+            fprintf(source, "    if(rohr_error_check(result = " \
+                "rohr_graphics_layer_entity_id_set(objects->%s.%s_triangles[%zu], " \
+                "resources->layers[%zu]))) goto fail;\n", object_variable, \
+                Name, Index, layer_index); \
+            found = true; \
+            break; \
+        } \
+    } \
+    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+        "rohr_graphics_layer_entity_set(objects->%s.%s_triangles[%zu], %d))) goto fail;\n", \
+        object_variable, Name, Index, (Binding).value); \
+} while(0)
+#define WRITE_COMPONENT_LAYER(Binding, Component, Prefix, Name) do { \
+    bool found = false; \
+    if((Binding).layer != 0) { \
+        for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
+                layer_index += 1) if(project->graphics_layers[layer_index].id == \
+                    (Binding).layer) { \
+            fprintf(source, "    if(rohr_error_check(result = " \
+                "rohr_graphics_layer_%s_id_set(objects->%s.%s%s, " \
+                "resources->layers[%zu]))) goto fail;\n", Component, object_variable, \
+                Prefix, Name, layer_index); \
+            found = true; \
+            break; \
+        } \
+    } \
+    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+        "rohr_graphics_layer_%s_set(objects->%s.%s%s, %d))) goto fail;\n", \
+        Component, object_variable, Prefix, Name, (Binding).value); \
+} while(0)
         for(size_t i = 0; i < object->rigid_body_count; i += 1)
             WRITE_ENTITY_LAYER(object->rigid_bodies[i].graphics_layer, "",
                 object->rigid_bodies[i].name);
         for(size_t i = 0; i < object->joint_count; i += 1)
             WRITE_ENTITY_LAYER(object->joint_items[i].graphics_layer, "joint_",
                 object->joint_items[i].name);
-        for(size_t i = 0; i < object->soft_body_count; i += 1)
-            WRITE_ENTITY_LAYER(object->soft_body_items[i].graphics_layer, "",
-                object->soft_body_items[i].name);
+        for(size_t i = 0; i < object->soft_body_count; i += 1) {
+            const EditorSoftBody *body = &object->soft_body_items[i];
+            WRITE_ENTITY_LAYER(body->graphics_layer, "", body->name);
+            for(size_t child = 0; child < body->node_count; child += 1)
+                if(!body->nodes[child].graphics_layer_inherited)
+                    WRITE_ENTITY_LAYER(body->nodes[child].graphics_layer, "",
+                        body->nodes[child].name);
+            for(size_t child = 0; child < body->beam_count; child += 1)
+                if(!body->beams[child].graphics_layer_inherited)
+                    WRITE_ENTITY_LAYER(body->beams[child].graphics_layer, "",
+                        body->beams[child].name);
+            for(size_t child = 0; child < body->area_count; child += 1) {
+                const EditorSoftArea *area = &body->areas[child];
+                uint32_t (*triangles)[3];
+                size_t triangle_count;
+                if(area->graphics_layer_inherited || area->node_count < 3) continue;
+                triangles = malloc((area->node_count - 2) * sizeof(*triangles));
+                if(triangles == NULL) continue;
+                triangle_count = editor_project_soft_area_triangulate(body, area,
+                    triangles, area->node_count - 2);
+                for(size_t triangle = 0; triangle < triangle_count; triangle += 1)
+                    WRITE_ENTITY_LAYER_INDEX(area->graphics_layer, area->name,
+                        triangle);
+                free(triangles);
+            }
+        }
         for(size_t i = 0; i < object->sprite_count; i += 1)
-            WRITE_ENTITY_LAYER(object->sprites[i].graphics_layer, "sprite_",
+            WRITE_COMPONENT_LAYER(object->sprites[i].graphics_layer, "sprite", "sprite_",
                 object->sprites[i].name);
-        for(size_t i = 0; i < object->animated_sprite_count; i += 1)
-            if(editor_workspace_body_get(object,
-                    object->animated_sprite_items[i].rigid_body) == NULL)
-                WRITE_ENTITY_LAYER(object->animated_sprite_items[i].graphics_layer,
-                    "animation_", object->animated_sprite_items[i].name);
+        for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
+            const EditorAnimatedSprite *animation =
+                &object->animated_sprite_items[i];
+            const EditorRigidBody *body = editor_workspace_body_get(object,
+                animation->rigid_body);
+            WRITE_COMPONENT_LAYER(animation->graphics_layer, "animation",
+                body == NULL ? "animation_" : "",
+                body == NULL ? animation->name : body->name);
+        }
 #undef WRITE_ENTITY_LAYER
+#undef WRITE_ENTITY_LAYER_INDEX
+#undef WRITE_COMPONENT_LAYER
     }
     fprintf(source, "    resources->fonts[resources->font_count++] = "
         "rohr_graphics_font_default_get();\n");

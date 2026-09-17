@@ -322,6 +322,18 @@ EngineResult rohr_graphics_layer_entity_name_set(Entity entity, const char *name
 GraphicsLayerValueResult rohr_graphics_layer_entity_get(Entity entity) { return graphics_layer_entity_get(entity); }
 GraphicsLayerIdResult rohr_graphics_layer_entity_id_get(Entity entity) { return graphics_layer_entity_id_get(entity); }
 EngineResult rohr_graphics_layer_entity_clear(Entity entity) { return graphics_layer_entity_clear(entity); }
+EngineResult rohr_graphics_layer_sprite_set(Entity entity, int value) { return graphics_layer_sprite_set(entity, value); }
+EngineResult rohr_graphics_layer_sprite_id_set(Entity entity, GraphicsLayerId layer) { return graphics_layer_sprite_id_set(entity, layer); }
+EngineResult rohr_graphics_layer_sprite_name_set(Entity entity, const char *name) { return graphics_layer_sprite_name_set(entity, name); }
+GraphicsLayerValueResult rohr_graphics_layer_sprite_get(Entity entity) { return graphics_layer_sprite_get(entity); }
+GraphicsLayerIdResult rohr_graphics_layer_sprite_id_get(Entity entity) { return graphics_layer_sprite_id_get(entity); }
+EngineResult rohr_graphics_layer_sprite_clear(Entity entity) { return graphics_layer_sprite_clear(entity); }
+EngineResult rohr_graphics_layer_animation_set(Entity entity, int value) { return graphics_layer_animation_set(entity, value); }
+EngineResult rohr_graphics_layer_animation_id_set(Entity entity, GraphicsLayerId layer) { return graphics_layer_animation_id_set(entity, layer); }
+EngineResult rohr_graphics_layer_animation_name_set(Entity entity, const char *name) { return graphics_layer_animation_name_set(entity, name); }
+GraphicsLayerValueResult rohr_graphics_layer_animation_get(Entity entity) { return graphics_layer_animation_get(entity); }
+GraphicsLayerIdResult rohr_graphics_layer_animation_id_get(Entity entity) { return graphics_layer_animation_id_get(entity); }
+EngineResult rohr_graphics_layer_animation_clear(Entity entity) { return graphics_layer_animation_clear(entity); }
 EngineResult rohr_graphics_layer_ui_set(ViewportItemId item, int value) { return graphics_layer_ui_set(item, value); }
 EngineResult rohr_graphics_layer_ui_id_set(ViewportItemId item, GraphicsLayerId layer) { return graphics_layer_ui_id_set(item, layer); }
 EngineResult rohr_graphics_layer_ui_name_set(ViewportItemId item, const char *name) { return graphics_layer_ui_name_set(item, name); }

@@ -164,6 +164,20 @@ int main(void) {
                 target_entity_result.result.value).result.value != 125
             || rohr_error_check(rohr_graphics_layer_entity_id_get(
                 target_entity_result.result.value))
+            || rohr_error_check(rohr_graphics_layer_sprite_set(
+                target_entity_result.result.value, 225))
+            || rohr_graphics_layer_sprite_get(
+                target_entity_result.result.value).result.value != 225
+            || rohr_error_check(rohr_graphics_layer_animation_name_set(
+                target_entity_result.result.value, "world"))
+            || rohr_graphics_layer_animation_get(
+                target_entity_result.result.value).result.value != 125
+            || rohr_graphics_layer_entity_get(
+                target_entity_result.result.value).result.value != 125
+            || rohr_error_check(rohr_graphics_layer_sprite_clear(
+                target_entity_result.result.value))
+            || rohr_error_check(rohr_graphics_layer_animation_clear(
+                target_entity_result.result.value))
             || rohr_error_check(rohr_graphics_layer_entity_clear(
                 target_entity_result.result.value))
             || !rohr_error_check(rohr_graphics_layer_entity_get(
@@ -377,8 +391,16 @@ int main(void) {
             rohr_error_check(rohr_viewport_item_remove(
                 second_ui_item_result.result.value)) ||
             rohr_error_check(rohr_graphics_ui_destroy(ui_result.result.value)) ||
+            rohr_error_check(rohr_graphics_layer_sprite_name_set(
+                target_entity_result.result.value, "world")) ||
+            rohr_error_check(rohr_graphics_layer_animation_name_set(
+                target_entity_result.result.value, "world")) ||
             rohr_error_check(rohr_graphics_layer_destroy(
                 world_layer_result.result.value)) ||
+            rohr_graphics_layer_sprite_get(
+                target_entity_result.result.value).result.value != 150 ||
+            rohr_graphics_layer_animation_get(
+                target_entity_result.result.value).result.value != 150 ||
             rohr_error_check(rohr_viewport_destroy(second_viewport_result.result.value)) ||
             rohr_error_check(rohr_viewport_destroy(viewport_result.result.value))) {
         rohr_graphics_end();

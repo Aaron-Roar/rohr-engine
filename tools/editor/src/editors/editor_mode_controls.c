@@ -158,3 +158,80 @@ UIButtonStyle editor_mode_delete_style_get(void) {
     style.disabled = (Color){70, 45, 47, 255};
     return style;
 }
+
+bool editor_mode_layer_control_create(EditorModeLayerControl *control,
+        FontAsset *font) {
+    if(control == NULL || font == NULL) return false;
+    *control = (EditorModeLayerControl){.font = font};
+    if(!editor_mode_text_create(font, "Render Layer", &control->layer_label) ||
+            !editor_mode_text_create(font, "Direct", &control->direct_label) ||
+            !editor_mode_text_create(font, "Inherit Parent Layer",
+                &control->inherit_label) ||
+            !editor_mode_text_create(font, "", &control->value_field)) {
+        editor_mode_layer_control_destroy(control);
+        return false;
+    }
+    return true;
+}
+
+void editor_mode_layer_control_destroy(EditorModeLayerControl *control) {
+    if(control == NULL) return;
+    rohr_graphics_text_destroy(&control->layer_label);
+    rohr_graphics_text_destroy(&control->direct_label);
+    rohr_graphics_text_destroy(&control->inherit_label);
+    rohr_graphics_text_destroy(&control->value_field);
+    for(size_t i = 0; i < MAX_GRAPHICS_LAYERS; i += 1)
+        rohr_graphics_text_destroy(&control->names[i]);
+    *control = (EditorModeLayerControl){0};
+}
+
+bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
+        const char *id_prefix, EditorProject *project,
+        EditorGraphicsLayerBinding *binding, bool *inherited,
+        float x, float y, float width) {
+    const TextAsset *options[MAX_GRAPHICS_LAYERS + 1];
+    char dropdown_id[128], value_id[128], inherit_id[128];
+    size_t selected = 0;
+    bool active = false;
+    float value;
+    if(control == NULL || id_prefix == NULL || project == NULL || binding == NULL)
+        return false;
+    if(inherited != NULL) {
+        bool value_inherited = *inherited;
+        snprintf(inherit_id, sizeof(inherit_id), "%s.inherit_layer", id_prefix);
+        if(editor_mode_checkbox_left(inherit_id, &control->inherit_label,
+                (UIRect){x + 10.0f, y, width - 20.0f, 28.0f},
+                &value_inherited)) *inherited = value_inherited;
+        y += 38.0f;
+        if(*inherited) return false;
+    }
+    options[0] = &control->direct_label;
+    for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
+        if(!editor_mode_named_text_sync(control->font,
+                project->graphics_layers[i].name, &control->names[i],
+                control->name_cache[i], GRAPHICS_LAYER_NAME_MAX)) return false;
+        options[i + 1] = &control->names[i];
+        if(binding->layer == project->graphics_layers[i].id) selected = i + 1;
+    }
+    rohr_ui_label(&control->layer_label, (UIRect){x + 8.0f, y, 92.0f, 28.0f});
+    snprintf(dropdown_id, sizeof(dropdown_id), "%s.layer", id_prefix);
+    UIDropdownResult selected_result = rohr_ui_dropdown(dropdown_id, options,
+        project->graphics_layer_count + 1, selected,
+        (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, NULL);
+    if(selected_result.changed) binding->layer = selected_result.selected_index == 0
+        ? 0 : project->graphics_layers[selected_result.selected_index - 1].id;
+    if(binding->layer == 0) {
+        value = (float)binding->value;
+        y += 38.0f;
+        rohr_ui_label(&control->direct_label,
+            (UIRect){x + 8.0f, y, 92.0f, 28.0f});
+        snprintf(value_id, sizeof(value_id), "%s.layer_value", id_prefix);
+        UIFieldResult result = rohr_ui_field(value_id,
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
+            &control->value_field,
+            (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, NULL);
+        if(result.changed) binding->value = (int)value;
+        active = result.active;
+    }
+    return active;
+}

@@ -122,6 +122,8 @@ typedef struct GraphicsEntityLayerBinding {
 static GraphicsRegisteredLayer graphics_registered_layers[MAX_GRAPHICS_LAYERS] = {0};
 static uint32_t graphics_registered_layer_generations[MAX_GRAPHICS_LAYERS] = {0};
 static GraphicsEntityLayerBinding graphics_entity_layer_bindings[MAX_ENTITIES] = {0};
+static GraphicsEntityLayerBinding graphics_sprite_layer_bindings[MAX_ENTITIES] = {0};
+static GraphicsEntityLayerBinding graphics_animation_layer_bindings[MAX_ENTITIES] = {0};
 
 typedef struct ActiveCameraAttachment {
     CameraAttachment value;
@@ -368,10 +370,17 @@ EngineResult graphics_layer_destroy(GraphicsLayerId layer) {
     if(!graphics_registered_layer_slot(layer, &slot))
         return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
     for(size_t i = 0; i < MAX_ENTITIES; i += 1) {
-        GraphicsLayerBinding *binding = &graphics_entity_layer_bindings[i].binding;
-        if(binding->kind == GRAPHICS_LAYER_BINDING_ID && binding->layer == layer) {
-            binding->kind = GRAPHICS_LAYER_BINDING_VALUE;
-            binding->value = graphics_registered_layers[slot].value;
+        GraphicsEntityLayerBinding *stores[] = {
+            &graphics_entity_layer_bindings[i],
+            &graphics_sprite_layer_bindings[i],
+            &graphics_animation_layer_bindings[i]};
+        for(size_t store = 0; store < sizeof(stores) / sizeof(stores[0]);
+                store += 1) {
+            GraphicsLayerBinding *binding = &stores[store]->binding;
+            if(binding->kind == GRAPHICS_LAYER_BINDING_ID && binding->layer == layer) {
+                binding->kind = GRAPHICS_LAYER_BINDING_VALUE;
+                binding->value = graphics_registered_layers[slot].value;
+            }
         }
     }
     for(size_t viewport = 0; viewport < MAX_VIEWPORTS; viewport += 1)
@@ -601,6 +610,10 @@ EngineResult graphics_tables_init(void) {
         sizeof(graphics_registered_layer_generations));
     memset(graphics_entity_layer_bindings, 0,
         sizeof(graphics_entity_layer_bindings));
+    memset(graphics_sprite_layer_bindings, 0,
+        sizeof(graphics_sprite_layer_bindings));
+    memset(graphics_animation_layer_bindings, 0,
+        sizeof(graphics_animation_layer_bindings));
     memset(screens_used, 0, sizeof(screens_used));
     memset(viewports_used, 0, sizeof(viewports_used));
     graphics_viewport_item_next_id = 1;
@@ -2013,13 +2026,19 @@ bool graphics_viewport_ui_pressed_check(ViewportItemId item_id) {
         viewports[viewport_slot].items[item_slot].pressed;
 }
 
-static GraphicsEntityLayerBinding *graphics_entity_layer_binding_get(Entity entity) {
+static GraphicsEntityLayerBinding *graphics_component_layer_binding_get(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
     EntityIndex index;
     if(!entity_index_get(entity, &index) || index >= MAX_ENTITIES) return NULL;
-    if(graphics_entity_layer_bindings[index].entity != entity)
-        graphics_entity_layer_bindings[index] = (GraphicsEntityLayerBinding){
+    if(bindings[index].entity != entity)
+        bindings[index] = (GraphicsEntityLayerBinding){
             .entity = entity};
-    return &graphics_entity_layer_bindings[index];
+    return &bindings[index];
+}
+
+static GraphicsEntityLayerBinding *graphics_entity_layer_binding_get(Entity entity) {
+    return graphics_component_layer_binding_get(graphics_entity_layer_bindings,
+        entity);
 }
 
 EngineResult graphics_layer_entity_set(Entity entity, int value) {
@@ -2076,6 +2095,95 @@ static int graphics_entity_layer_begin(Entity entity) {
     GraphicsLayerValueResult value = graphics_layer_entity_get(entity);
     if(value.kind == ERROR_RESULT_VALUE)
         graphics_layer_active_set(value.result.value);
+    return previous;
+}
+
+static EngineResult graphics_component_layer_set(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity,
+        int value) {
+    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+        bindings, entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_VALUE, .value = value};
+    return error_result_value(true);
+}
+
+static EngineResult graphics_component_layer_id_set(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity,
+        GraphicsLayerId layer) {
+    GraphicsEntityLayerBinding *entry;
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    entry = graphics_component_layer_binding_get(bindings, entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){
+        .kind = GRAPHICS_LAYER_BINDING_ID, .layer = layer};
+    return error_result_value(true);
+}
+
+static GraphicsLayerValueResult graphics_component_layer_get(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+        bindings, entity);
+    if(entry == NULL || entry->binding.kind == GRAPHICS_LAYER_BINDING_NONE)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return graphics_layer_binding_value_get(entry->binding);
+}
+
+static GraphicsLayerIdResult graphics_component_layer_id_get(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+        bindings, entity);
+    if(entry == NULL || entry->binding.kind != GRAPHICS_LAYER_BINDING_ID)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
+            ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsLayerIdResult, entry->binding.layer);
+}
+
+static EngineResult graphics_component_layer_clear(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
+    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+        bindings, entity);
+    if(entry == NULL) return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    entry->binding = (GraphicsLayerBinding){0};
+    return error_result_value(true);
+}
+
+#define GRAPHICS_COMPONENT_LAYER_API(Name, Bindings) \
+EngineResult graphics_layer_##Name##_set(Entity entity, int value) { \
+    return graphics_component_layer_set(Bindings, entity, value); \
+} \
+EngineResult graphics_layer_##Name##_id_set(Entity entity, GraphicsLayerId layer) { \
+    return graphics_component_layer_id_set(Bindings, entity, layer); \
+} \
+EngineResult graphics_layer_##Name##_name_set(Entity entity, const char *name) { \
+    GraphicsLayerIdResult layer = graphics_layer_name_id_get(name); \
+    if(layer.kind == ERROR_RESULT_ERROR) return error_result_error(layer.result.error); \
+    return graphics_component_layer_id_set(Bindings, entity, layer.result.value); \
+} \
+GraphicsLayerValueResult graphics_layer_##Name##_get(Entity entity) { \
+    return graphics_component_layer_get(Bindings, entity); \
+} \
+GraphicsLayerIdResult graphics_layer_##Name##_id_get(Entity entity) { \
+    return graphics_component_layer_id_get(Bindings, entity); \
+} \
+EngineResult graphics_layer_##Name##_clear(Entity entity) { \
+    return graphics_component_layer_clear(Bindings, entity); \
+}
+
+GRAPHICS_COMPONENT_LAYER_API(sprite, graphics_sprite_layer_bindings)
+GRAPHICS_COMPONENT_LAYER_API(animation, graphics_animation_layer_bindings)
+
+#undef GRAPHICS_COMPONENT_LAYER_API
+
+static int graphics_component_layer_begin(
+        GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
+    int previous = graphics_entity_layer_begin(entity);
+    GraphicsLayerValueResult value = graphics_component_layer_get(bindings, entity);
+    if(value.kind == ERROR_RESULT_VALUE) graphics_layer_active_set(value.result.value);
     return previous;
 }
 
@@ -3871,7 +3979,8 @@ bool graphics_sprite_draw(Entity entity) {
     asset = sprite_components[index].texture;
     asset.size.x *= sprite_components[index].scale.x;
     asset.size.y *= sprite_components[index].scale.y;
-    int previous_layer = graphics_entity_layer_begin(entity);
+    int previous_layer = graphics_component_layer_begin(
+        graphics_sprite_layer_bindings, entity);
     graphics_texture_draw_flipped(asset, graphics_sprite_world_position_get(
             positions[index], orientations[index], sprite_components[index].body_offset),
         sprite_components[index].orientation_offset +
@@ -3997,7 +4106,8 @@ bool graphics_animated_sprite_draw(Entity entity) {
             index >= animated_sprites_pool.capacity ||
             !animated_sprites_pool.used[index] || !animated_sprites[index].visible)
         return false;
-    int previous_layer = graphics_entity_layer_begin(entity);
+    int previous_layer = graphics_component_layer_begin(
+        graphics_animation_layer_bindings, entity);
     graphics_animated_sprite_value_draw(animated_sprites[index],
         graphics_sprite_world_position_get(positions[index], orientations[index],
             animated_sprites[index].body_offset),
@@ -4284,14 +4394,17 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(body.triangles[i]);
         EntityIndex indices[3];
         Shape shape = {.amount_of_vertices = 3};
+        int previous_child_layer;
         if(triangle.kind == ERROR_RESULT_ERROR ||
                 !entity_index_get(triangle.result.value.node_a, &indices[0]) ||
                 !entity_index_get(triangle.result.value.node_b, &indices[1]) ||
                 !entity_index_get(triangle.result.value.node_c, &indices[2])) continue;
         for(uint32_t vertex = 0; vertex < 3; vertex += 1) shape.vertices[vertex] = positions[indices[vertex]];
+        previous_child_layer = graphics_entity_layer_begin(body.triangles[i]);
         (void)graphics_shape_filled_draw(shape,
             triangle.result.value.draw_color_overridden ?
                 triangle.result.value.draw_color : surface_color);
+        graphics_layer_active_set(previous_child_layer);
     }
     for(uint32_t i = 0; i < body.beam_count; i += 1) {
         SoftBodyBeamResult beam = physics_soft_body_beam_get(body.beams[i]);
@@ -4299,6 +4412,7 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         EntityIndex b;
         Position screen_a;
         Position screen_b;
+        int previous_child_layer;
         if(beam.kind == ERROR_RESULT_ERROR || !entity_index_get(beam.result.value.node_a, &a) ||
                 !entity_index_get(beam.result.value.node_b, &b)) continue;
         {
@@ -4309,22 +4423,28 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
             screen_b = graphics_world_to_screen_get(positions[b]);
             points[0] = (SDL_FPoint){screen_a.x, screen_a.y};
             points[1] = (SDL_FPoint){screen_b.x, screen_b.y};
+            previous_child_layer = graphics_entity_layer_begin(body.beams[i]);
             if(!graphics_lines_draw(points, 2, color)) {
+                graphics_layer_active_set(previous_child_layer);
                 graphics_layer_active_set(previous_layer);
                 return false;
             }
+            graphics_layer_active_set(previous_child_layer);
         }
     }
     for(uint32_t i = 0; i < body.node_count; i += 1) {
         SoftBodyNodeResult node = physics_soft_body_node_get(body.nodes[i]);
         EntityIndex index;
         Shape shape;
+        int previous_child_layer;
         if(node.kind == ERROR_RESULT_ERROR || !entity_index_get(body.nodes[i], &index)) continue;
         shape = physics_shape_world_translate(math_circle_create(node.result.value.radius, 12),
             positions[index], 0.0f);
+        previous_child_layer = graphics_entity_layer_begin(body.nodes[i]);
         (void)graphics_shape_filled_draw(shape,
             node.result.value.draw_color_overridden ?
                 node.result.value.draw_color : node_color);
+        graphics_layer_active_set(previous_child_layer);
     }
     graphics_layer_active_set(previous_layer);
     return true;
