@@ -5182,7 +5182,7 @@ static void editor_viewport_screen_camera_preview_draw(
     if(camera_object != NULL)
         camera = editor_project_camera_get((EditorObject *)camera_object,
             screen->camera);
-    if(camera == NULL || !camera->visible || camera->dimensions.x <= 0.0f ||
+    if(camera == NULL || camera->dimensions.x <= 0.0f ||
             camera->dimensions.y <= 0.0f) return;
     camera_world = editor_camera_world_get(camera_object, camera,
         &camera_rotation);
