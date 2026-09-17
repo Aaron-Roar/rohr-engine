@@ -1,5 +1,48 @@
 # Next Steps
 
+## Current Priority Order
+
+This list is the authoritative priority order. The detailed sections below are
+supporting implementation notes and backlog items; when they conflict with this
+order, follow this list.
+
+1. **Audio** — Add sound effects and music through a small, explicit API with
+   reliable loading, playback, looping, mixing, volume control, and unloading.
+2. **Asset and resource ownership** — Define handles, sharing, caching,
+   reference/lifetime rules, failure cleanup, and destruction for textures,
+   sounds, animations, fonts, and other shared resources before expanding
+   asset-heavy features.
+3. **COM, inertia, and origin semantics** — Specify and implement the exact
+   relationship between entity origin, collision geometry, center of mass,
+   moment of inertia, torque, forces, and joint anchors. Preserve automatic
+   defaults while allowing explicit authoring.
+4. **Cross-path feature parity** — Keep direct C APIs, JSON, generated C, CLI,
+   editor tooling, project loading, and runtime behavior equivalent. Treat
+   persistence, generation, loading, and round-trip tests as part of every new
+   feature rather than follow-up work.
+5. **Adversarial testing and hardening** — Add sanitizer configurations,
+   regression tests, malformed-input fixtures, allocation-failure coverage,
+   physics stress cases, and generated-project build/run checks for Linux and
+   Windows.
+6. **Physics robustness** — Improve high-speed motion, tunneling, tiny shapes,
+   extreme mass ratios, unstable contacts, and scaling behavior. Profile and
+   add complexity only for demonstrated failures or measurable bottlenecks.
+7. **Editor implementation scalability** — Reduce the number of manual edit
+   sites required for each component or property. Move incrementally toward
+   shared metadata and generation while preserving the engine's explicit C
+   architecture and existing interaction patterns.
+8. **Global-state assumptions** — Gradually isolate worlds, simulations,
+   graphics state, windows, input, tests, and tools so multiple independent
+   instances can coexist. Avoid a disruptive all-at-once rewrite.
+9. **Python bindings** — Add a thin, ownership-safe binding over the stable C
+   API after lifetime rules and cross-path behavior are clear. Keep C as the
+   canonical API and test creation, mutation, errors, and destruction from
+   Python.
+10. **End-to-end game** — Build and package a small complete game exercising
+    physics, joints, rendering, audio, UI, input, assets, saving/loading, and
+    distribution. Use concrete problems found by the game to prioritize the
+    following engine work.
+
 Rohr Engine is the runtime beneath an optional C authoring tool. Work is
 ordered by dependency and engine workflow value: shared runtime models first,
 physics semantics second, authoring coverage third, and platform expansion
