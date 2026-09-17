@@ -1289,6 +1289,8 @@ int main(void) {
         hierarchy_project.hierarchy[1] = (EditorProjectHierarchyItem){
             EDITOR_PROJECT_HIERARCHY_OBJECT, hierarchy_object->id};
         hierarchy_viewport->background_color = 0x12345678u;
+        hierarchy_viewport->overview_position = (Position){91.0f, -27.0f};
+        hierarchy_object->overview_position = (Position){-42.0f, 63.0f};
         hierarchy_object->visible = false;
         if(!hierarchy_viewport->enabled ||
                 !editor_project_save(&hierarchy_project, hierarchy_path) ||
@@ -1298,7 +1300,11 @@ int main(void) {
                     EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
                 loaded_hierarchy_project.hierarchy[0].id != hierarchy_viewport->id ||
                 loaded_hierarchy_project.objects[0].visible ||
+                !position_equal(loaded_hierarchy_project.objects[0].overview_position,
+                    (Position){-42.0f, 63.0f}) ||
                 !loaded_hierarchy_project.layout_viewports[0].enabled ||
+                !position_equal(loaded_hierarchy_project.layout_viewports[0].
+                    overview_position, (Position){91.0f, -27.0f}) ||
                 loaded_hierarchy_project.layout_viewports[0].background_color !=
                     0x12345678u) return 1;
         editor_project_destroy(&hierarchy_project);

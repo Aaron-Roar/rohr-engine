@@ -355,6 +355,8 @@ typedef struct EditorObject {
     EditorObjectId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
+    /** Editor-only placement in the top-level project overview. */
+    Position overview_position;
     bool visible;
     EditorRigidBody *rigid_bodies;
     size_t rigid_body_count;
@@ -483,6 +485,8 @@ typedef struct EditorLayoutViewport {
     EditorLayoutViewportId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     ViewportConfig config;
+    /** Editor-only placement in the top-level project overview. */
+    Position overview_position;
     uint32_t background_color;
     bool enabled;
     EditorViewportCameraItem *camera_items;

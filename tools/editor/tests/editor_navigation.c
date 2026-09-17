@@ -311,9 +311,26 @@ int main(void) {
         if(!editor_viewport_update(&drag_state, &drag_project, center,
                 MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false) ||
-                drag_state.mode != EDITOR_VIEWPORT_OBJECT ||
-                drag_state.selection != EDITOR_SELECTION_OBJECT) return 1;
-        (void)editor_viewport_update(&drag_state, &drag_project, center,
+                drag_state.mode != EDITOR_VIEWPORT_HIERARCHY ||
+                drag_state.selection != EDITOR_SELECTION_OBJECT ||
+                !drag_state.dragged_project_object) return 1;
+        if(!editor_viewport_update(&drag_state, &drag_project,
+                (Position){center.x + 20.0f, center.y},
+                MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                fabsf(drag_object->overview_position.x - 20.0f) > 0.001f ||
+                fabsf(drag_object->position.x) > 0.001f) return 1;
+        (void)editor_viewport_update(&drag_state, &drag_project,
+            (Position){center.x + 20.0f, center.y},
+            MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false);
+        if(!editor_viewport_update(&drag_state, &drag_project,
+                (Position){center.x + 20.0f, center.y},
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                drag_state.mode != EDITOR_VIEWPORT_OBJECT) return 1;
+        (void)editor_viewport_update(&drag_state, &drag_project,
+            (Position){center.x + 20.0f, center.y},
             MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
             false, 0.0f, false);
         if(!editor_viewport_update(&drag_state, &drag_project, center,
@@ -364,6 +381,48 @@ int main(void) {
                 fabsf(camera->position.y + 10.0f) > 0.001f) return 1;
         editor_viewport_state_destroy(&camera_state);
         editor_project_destroy(&camera_project);
+    }
+    {
+        EditorProject viewport_drag_project;
+        EditorViewportState viewport_drag_state;
+        EditorObject *previous_object;
+        EditorLayoutViewport *dragged_viewport;
+        Position origin = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+
+        editor_project_init(&viewport_drag_project);
+        editor_viewport_state_init(&viewport_drag_state);
+        previous_object = editor_project_object_add(&viewport_drag_project,
+            (Position){-1000.0f, -1000.0f});
+        dragged_viewport = editor_project_layout_viewport_add(
+            &viewport_drag_project);
+        if(previous_object == NULL || dragged_viewport == NULL ||
+                !editor_viewport_selection_set(&viewport_drag_project,
+                    &viewport_drag_state,
+                    (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+                        previous_object->id, 0, 0, previous_object->id},
+                    false)) return 1;
+        viewport_drag_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+        if(!editor_viewport_update(&viewport_drag_state, &viewport_drag_project,
+                (Position){origin.x + 10.0f, origin.y + 10.0f},
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                viewport_drag_state.selection !=
+                    EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                !viewport_drag_state.dragged_project_viewport ||
+                viewport_drag_state.selected_item_count != 0 ||
+                viewport_drag_project.selected != EDITOR_OBJECT_INVALID) return 1;
+        if(!editor_viewport_update(&viewport_drag_state, &viewport_drag_project,
+                (Position){origin.x + 30.0f, origin.y + 40.0f},
+                MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) ||
+                fabsf(dragged_viewport->overview_position.x - 20.0f) > 0.001f ||
+                fabsf(dragged_viewport->overview_position.y + 30.0f) > 0.001f ||
+                dragged_viewport->config.rectangle.x != 0.0f ||
+                dragged_viewport->config.rectangle.y != 0.0f) return 1;
+        editor_viewport_state_destroy(&viewport_drag_state);
+        editor_project_destroy(&viewport_drag_project);
     }
     {
         EditorProject area_project;

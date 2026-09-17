@@ -2856,6 +2856,9 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->rotated_camera_entity = false;
     state->dragged_viewport_item = false;
     state->dragged_viewport_vertex = false;
+    state->dragged_viewport_text = false;
+    state->dragged_project_object = false;
+    state->dragged_project_viewport = false;
     state->dragged_origin = false;
     state->group_dragging = false;
     state->group_rotating = false;
@@ -3458,17 +3461,99 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             return true;
         }
     }
-    if(state->mode == EDITOR_VIEWPORT_HIERARCHY &&
-            primary_button == MOUSE_BUTTON_STATE_PRESSED) {
-        for(size_t object_index = project->object_count; object_index > 0; object_index -= 1) {
-            EditorObject *candidate_object = &project->objects[object_index - 1];
-            if(!editor_object_visual_point_contains(candidate_object, pointer)) continue;
-            (void)editor_project_object_select(project, candidate_object->id);
-            editor_viewport_object_editor_enter(state);
-            state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
-            return true;
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
+        if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
+            state->dragged_project_object = false;
+            state->dragged_project_viewport = false;
+            return false;
         }
-        return false;
+        if(state->dragged_project_object &&
+                primary_button == MOUSE_BUTTON_STATE_DOWN) {
+            EditorObject *dragged = editor_project_selected_get(project);
+            if(dragged != NULL) {
+                dragged->overview_position = (Position){
+                    pointer.x - state->drag_offset.x,
+                    pointer.y - state->drag_offset.y};
+                return true;
+            }
+        }
+        if(state->dragged_project_viewport &&
+                primary_button == MOUSE_BUTTON_STATE_DOWN) {
+            EditorLayoutViewport *dragged = editor_project_layout_viewport_get(
+                project, state->selected_layout_viewport);
+            if(dragged != NULL) {
+                dragged->overview_position = (Position){
+                    pointer.x - state->drag_offset.x,
+                    pointer.y - state->drag_offset.y};
+                return true;
+            }
+        }
+        if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+            Uint64 now = SDL_GetTicks();
+            editor_project_hierarchy_sync(project);
+            for(size_t hierarchy_index = 0;
+                    hierarchy_index < project->hierarchy_count;
+                    hierarchy_index += 1) {
+                EditorProjectHierarchyItem item =
+                    project->hierarchy[hierarchy_index];
+                if(item.kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT) {
+                    EditorLayoutViewport *candidate =
+                        editor_project_layout_viewport_get(project, item.id);
+                    ViewportRectangle bounds;
+                    bool double_clicked;
+                    if(candidate == NULL || !candidate->enabled) continue;
+                    bounds = candidate->config.rectangle;
+                    bounds.x = candidate->overview_position.x;
+                    bounds.y = candidate->overview_position.y;
+                    if(pointer.x < bounds.x || pointer.x > bounds.x + bounds.width ||
+                            pointer.y > bounds.y ||
+                            pointer.y < bounds.y - bounds.height) continue;
+                    double_clicked = state->last_viewport_click_selection ==
+                            EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                        state->last_viewport_click_index == candidate->id &&
+                        now - state->last_viewport_click_at <= 400;
+                    editor_viewport_selection_clear(state);
+                    state->selected_layout_viewport = candidate->id;
+                    state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                    editor_project_selection_clear(project);
+                    state->drag_offset = (Vec2D){
+                        pointer.x - candidate->overview_position.x,
+                        pointer.y - candidate->overview_position.y};
+                    state->dragged_project_viewport = !double_clicked;
+                    state->last_viewport_click_selection = double_clicked ?
+                        EDITOR_SELECTION_NONE : EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                    state->last_viewport_click_index = candidate->id;
+                    state->last_viewport_click_at = now;
+                    if(double_clicked) state->mode = EDITOR_VIEWPORT_LAYOUT;
+                    return true;
+                }
+                EditorObject *candidate = editor_object_query_get(project, item.id);
+                EditorObject overview;
+                bool double_clicked;
+                if(candidate == NULL || !candidate->visible) continue;
+                overview = *candidate;
+                overview.position = candidate->overview_position;
+                if(!editor_object_visual_point_contains(&overview, pointer)) continue;
+                double_clicked = state->last_viewport_click_selection ==
+                        EDITOR_SELECTION_OBJECT &&
+                    state->last_viewport_click_object == candidate->id &&
+                    now - state->last_viewport_click_at <= 400;
+                editor_viewport_selection_clear(state);
+                (void)editor_project_object_select(project, candidate->id);
+                state->selection = EDITOR_SELECTION_OBJECT;
+                state->drag_offset = (Vec2D){
+                    pointer.x - candidate->overview_position.x,
+                    pointer.y - candidate->overview_position.y};
+                state->dragged_project_object = !double_clicked;
+                state->last_viewport_click_selection = double_clicked ?
+                    EDITOR_SELECTION_NONE : EDITOR_SELECTION_OBJECT;
+                state->last_viewport_click_object = candidate->id;
+                state->last_viewport_click_at = now;
+                if(double_clicked) editor_viewport_object_editor_enter(state);
+                return true;
+            }
+            return false;
+        }
     }
     if(object == NULL) return false;
     if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
@@ -5258,9 +5343,18 @@ void editor_viewport_draw(const EditorProject *project,
             Position origin = {center.x + project->viewport_camera_offset.x,
                 center.y + project->viewport_camera_offset.y};
             ViewportRectangle rectangle = viewport->config.rectangle;
-            Color border = {70, 180, 255, 255};
+            if(project_preview) {
+                rectangle.x = viewport->overview_position.x;
+                rectangle.y = viewport->overview_position.y;
+            }
+            bool viewport_selected = project_preview &&
+                state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                state->selected_layout_viewport == viewport->id;
+            Color border = viewport_selected ? (Color){255, 210, 70, 255} :
+                (Color){70, 180, 255, 255};
             rectangle.x = origin.x + rectangle.x * zoom;
-            rectangle.y = origin.y + rectangle.y * zoom;
+            rectangle.y = project_preview ?
+                origin.y - rectangle.y * zoom : origin.y + rectangle.y * zoom;
             rectangle.width *= zoom; rectangle.height *= zoom;
             editor_view_composition_layer_base =
                 EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
@@ -5546,15 +5640,23 @@ void editor_viewport_draw(const EditorProject *project,
             EditorObject *object;
             if(item.kind != EDITOR_PROJECT_HIERARCHY_OBJECT) continue;
             object = editor_object_query_get((EditorProject *)project, item.id);
-            editor_viewport_particle_fills_draw(object);
+            if(object != NULL) {
+                EditorObject overview = *object;
+                overview.position = object->overview_position;
+                editor_viewport_particle_fills_draw(&overview);
+            }
         }
         for(size_t i = project->hierarchy_count; i > 0; i -= 1) {
             EditorProjectHierarchyItem item = project->hierarchy[i - 1];
             EditorObject *object;
             if(item.kind != EDITOR_PROJECT_HIERARCHY_OBJECT) continue;
             object = editor_object_query_get((EditorProject *)project, item.id);
-            editor_viewport_object_draw(object, state,
-                object != NULL && object->id == project->selected);
+            if(object != NULL) {
+                EditorObject overview = *object;
+                overview.position = object->overview_position;
+                editor_viewport_object_draw(&overview, state,
+                    object->id == project->selected);
+            }
         }
     } else {
         editor_viewport_particle_fills_draw(selected);

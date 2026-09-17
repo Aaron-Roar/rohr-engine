@@ -868,6 +868,7 @@ EditorObject *editor_project_object_add(EditorProject *project, Position positio
     *object = (EditorObject){
         .id = project->next_id++,
         .position = position,
+        .overview_position = position,
         .visible = true
     };
     if(!EDITOR_ARRAY_RESERVE(object->rigid_bodies,
@@ -949,6 +950,8 @@ EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project)
         .enabled = true,
     };
     viewport->config.rectangle = (ViewportRectangle){0.0f, 0.0f, 640.0f, 360.0f};
+    viewport->overview_position = (Position){viewport->config.rectangle.x,
+        viewport->config.rectangle.y};
     snprintf(viewport->name, sizeof(viewport->name), "Viewport%u", viewport->id);
     editor_project_hierarchy_sync(project);
     return viewport;

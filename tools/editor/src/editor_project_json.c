@@ -571,6 +571,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_strcpy(document, value, "name", object->name);
         yyjson_mut_obj_add_val(document, value, "position",
             editor_json_position_write(document, object->position));
+        yyjson_mut_obj_add_val(document, value, "overview_position",
+            editor_json_position_write(document, object->overview_position));
         yyjson_mut_obj_add_bool(document, value, "visible", object->visible);
         for(size_t j = 0; j < object->rigid_body_count; j += 1)
             yyjson_mut_arr_add_val(bodies, editor_json_body_write(document,
@@ -655,6 +657,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_val *ui_items = yyjson_mut_arr(document);
         yyjson_mut_obj_add_uint(document, value, "id", viewport->id);
         yyjson_mut_obj_add_strcpy(document, value, "name", viewport->name);
+        yyjson_mut_obj_add_val(document, value, "overview_position",
+            editor_json_position_write(document, viewport->overview_position));
         yyjson_mut_obj_add_real(document, value, "x", viewport->config.rectangle.x);
         yyjson_mut_obj_add_real(document, value, "y", viewport->config.rectangle.y);
         yyjson_mut_obj_add_real(document, value, "width",
@@ -1746,6 +1750,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "animated_sprites");
         yyjson_val *camera_values = yyjson_obj_get(value, "cameras");
         yyjson_val *hierarchy = yyjson_obj_get(value, "hierarchy");
+        yyjson_val *overview_position = yyjson_obj_get(value, "overview_position");
         if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &object->id) ||
                 object->id == 0 || !editor_json_name(value, object->name) ||
                 !editor_json_position_read(yyjson_obj_get(value, "position"), &object->position) ||
@@ -1757,6 +1762,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !yyjson_is_arr(animated_sprite_values)) ||
                 (camera_values != NULL && !yyjson_is_arr(camera_values)) ||
                 (hierarchy != NULL && !yyjson_is_arr(hierarchy))) goto done;
+        object->overview_position = object->position;
+        if(overview_position != NULL && !editor_json_position_read(
+                overview_position, &object->overview_position)) goto done;
         editor_project_object_name_format(object->name, sizeof(object->name), object->name);
         object->rigid_body_count = yyjson_arr_size(bodies);
         object->anchor_count = yyjson_arr_size(anchors);
@@ -1908,6 +1916,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         yyjson_val *camera_items = yyjson_obj_get(value, "screen_items");
         if(camera_items == NULL) camera_items = yyjson_obj_get(value, "camera_items");
         yyjson_val *ui_items = yyjson_obj_get(value, "ui_items");
+        yyjson_val *overview_position = yyjson_obj_get(value, "overview_position");
         EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
         uint32_t fit;
         viewport->config = rohr_viewport_config_default_get();
@@ -1924,6 +1933,13 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !yyjson_is_arr(camera_items) ||
                 viewport->config.rectangle.width <= 0.0f ||
                 viewport->config.rectangle.height <= 0.0f) goto done;
+        /* Runtime viewport rectangles use screen-space Y. The project overview
+         * uses world-space Y so dragging matches objects. Preserve the legacy
+         * on-screen placement while converting coordinate conventions. */
+        viewport->overview_position = (Position){viewport->config.rectangle.x,
+            -viewport->config.rectangle.y};
+        if(overview_position != NULL && !editor_json_position_read(
+                overview_position, &viewport->overview_position)) goto done;
         if(yyjson_obj_get(value, "background_color") != NULL &&
                 !editor_json_uint(value, "background_color",
                     &viewport->background_color)) goto done;

@@ -756,7 +756,8 @@ static float editor_panel_content_height_get(const EditorProject *project,
         if(project->objects[i].id == project->selected) object = &project->objects[i];
     }
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        return fmaxf(height, 80.0f + (float)project->object_count * 34.0f);
+        return fmaxf(height, 210.0f +
+            (float)project->hierarchy_count * 34.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         const EditorLayoutViewport *viewport =
