@@ -1,10 +1,43 @@
 # Next Steps
 
+## Priority 0: Editor Example Authoring Parity
+
+Complete this phase before beginning the ten major priorities below. Every
+example's static scene and configuration must be representable by an editor
+project. Gameplay logic and changes made dynamically at runtime remain
+developer-owned C and do not need to be authored in the editor.
+
+1. **Initial motion properties** — Author initial linear velocity,
+   acceleration, and angular velocity for movable entities, plus initial
+   soft-node velocity where applicable. Generated projects must use the
+   authored values instead of hard-coded zero values.
+2. **Project physics settings** — Author project-wide timestep, substep count,
+   gravity or world acceleration, and the solver settings required by the
+   examples.
+3. **Viewport UI sliders** — Add slider items with value, range, step,
+   orientation, styling, interaction, JSON persistence, generated references,
+   and runtime creation.
+4. **Reusable spawning** — Add editor-authored object templates or prefabs,
+   repeated entity arrays, and generated APIs for spawning those definitions.
+   Spawn timing and gameplay decisions remain in C.
+5. **Standalone particles** — Support reusable particle definitions and
+   particle emitters in addition to particle-enabled rigid bodies.
+6. **Advanced soft-body surfaces** — Support the filled topology and surface
+   authoring needed to reproduce the examples beyond basic nodes, beams, and
+   areas.
+7. **Input and action declarations** — Author action names and default keyboard
+   or controller bindings while keeping gameplay responses in C.
+
+For each item, complete the direct C API where applicable, editor interaction,
+JSON persistence, generated C, project loading, runtime application, and
+round-trip tests. Convert and build each affected example from its editor
+project before marking the item complete.
+
 ## Current Priority Order
 
-This list is the authoritative priority order. The detailed sections below are
-supporting implementation notes and backlog items; when they conflict with this
-order, follow this list.
+After Priority 0 is complete, this list is the authoritative priority order.
+The detailed sections below are supporting implementation notes and backlog
+items; when they conflict with this order, follow this list.
 
 1. **Audio** — Add sound effects and music through a small, explicit API with
    reliable loading, playback, looping, mixing, volume control, and unloading.
