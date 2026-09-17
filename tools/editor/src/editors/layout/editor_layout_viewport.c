@@ -491,21 +491,44 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             context->x, 308.0f, context->width);
     item->placement.layer = layer_binding.value;
     item->graphics_layer = layer_binding.layer;
+    bool draggable = item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE;
+    float content_controls_y = 384.0f;
+    if(editor_mode_checkbox_left("editor.layout.screen.draggable",
+            &editor->draggable_label,
+            (UIRect){context->x + 10.0f, content_controls_y,
+                context->width - 20.0f, 28.0f}, &draggable))
+        item->placement.drag_mode = draggable ? VIEWPORT_ITEM_DRAG_XY :
+            VIEWPORT_ITEM_DRAG_NONE;
+    content_controls_y += 38.0f;
+    if(item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE) {
+        const TextAsset *axes[] = {&editor->drag_x_label, &editor->drag_y_label,
+            &editor->drag_xy_label};
+        rohr_ui_label(&editor->drag_axis_label,
+            (UIRect){context->x + 8.0f, content_controls_y, 82.0f, 28.0f});
+        UIDropdownResult axis = rohr_ui_dropdown(
+            "editor.layout.screen.drag_axis", axes, 3,
+            (size_t)item->placement.drag_mode - 1,
+            (UIRect){context->x + 94.0f, content_controls_y,
+                context->width - 104.0f, 28.0f}, NULL);
+        if(axis.changed) item->placement.drag_mode =
+            (ViewportItemDragMode)(axis.selected_index + 1);
+        content_controls_y += 38.0f;
+    }
     content_x_result = layout_number(&editor->content_x_label,
         &editor->content_x_field, "editor.layout.screen.content_x", context->x,
-        384.0f, context->width, &item->content_offset.x);
+        content_controls_y, context->width, &item->content_offset.x);
     content_y_result = layout_number(&editor->content_y_label,
         &editor->content_y_field, "editor.layout.screen.content_y", context->x,
-        422.0f, context->width, &item->content_offset.y);
+        content_controls_y + 38.0f, context->width, &item->content_offset.y);
     content_width_result = layout_number(&editor->content_width_scale_label,
         &editor->width_scale_field, "editor.layout.screen.content_width", context->x,
-        460.0f, context->width, &item->content_scale.x);
+        content_controls_y + 76.0f, context->width, &item->content_scale.x);
     content_height_result = layout_number(&editor->content_height_scale_label,
         &editor->height_scale_field, "editor.layout.screen.content_height", context->x,
-        498.0f, context->width, &item->content_scale.y);
+        content_controls_y + 114.0f, context->width, &item->content_scale.y);
     content_rotation_result = layout_number(&editor->content_rotation_label,
         &editor->content_rotation_field, "editor.layout.screen.content_rotation",
-        context->x, 536.0f, context->width, &source_rotation_degrees);
+        context->x, content_controls_y + 152.0f, context->width, &source_rotation_degrees);
     if(content_rotation_result.changed) {
         source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
         if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
@@ -566,15 +589,15 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, *y,
         context->width - 60.0f, 28.0f});
     *y += 42.0f;
-    bool draggable = item->drag_mode != VIEWPORT_UI_DRAG_NONE;
+    bool draggable = item->drag_mode != VIEWPORT_ITEM_DRAG_NONE;
     if(editor_mode_checkbox_left("editor.layout.ui.draggable",
             &editor->draggable_label,
             (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
             &draggable))
-        item->drag_mode = draggable ? VIEWPORT_UI_DRAG_XY :
-            VIEWPORT_UI_DRAG_NONE;
+        item->drag_mode = draggable ? VIEWPORT_ITEM_DRAG_XY :
+            VIEWPORT_ITEM_DRAG_NONE;
     *y += 38.0f;
-    if(item->drag_mode != VIEWPORT_UI_DRAG_NONE) {
+    if(item->drag_mode != VIEWPORT_ITEM_DRAG_NONE) {
         const TextAsset *axes[] = {&editor->drag_x_label, &editor->drag_y_label,
             &editor->drag_xy_label};
         rohr_ui_label(&editor->drag_axis_label,
@@ -584,7 +607,7 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             (UIRect){context->x + 94.0f, *y,
                 context->width - 104.0f, 28.0f}, NULL);
         if(axis.changed) item->drag_mode =
-            (ViewportUiDragMode)(axis.selected_index + 1);
+            (ViewportItemDragMode)(axis.selected_index + 1);
         *y += 38.0f;
     }
     bool border_enabled = item->border_enabled;

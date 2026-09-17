@@ -142,14 +142,14 @@ typedef enum ScreenFit {
     SCREEN_FIT_COVER,
 } ScreenFit;
 
-typedef enum ViewportUiDragMode {
-    VIEWPORT_UI_DRAG_NONE,
-    VIEWPORT_UI_DRAG_X,
-    VIEWPORT_UI_DRAG_Y,
-    VIEWPORT_UI_DRAG_XY,
-} ViewportUiDragMode;
+typedef enum ViewportItemDragMode {
+    VIEWPORT_ITEM_DRAG_NONE,
+    VIEWPORT_ITEM_DRAG_X,
+    VIEWPORT_ITEM_DRAG_Y,
+    VIEWPORT_ITEM_DRAG_XY,
+} ViewportItemDragMode;
 
-ERROR_DECLARE_RESULT_TYPE(ViewportUiDragModeResult, ViewportUiDragMode);
+ERROR_DECLARE_RESULT_TYPE(ViewportItemDragModeResult, ViewportItemDragMode);
 
 typedef struct ViewportConfig {
     /** Window-space destination and clipping rectangle. */
@@ -171,7 +171,7 @@ typedef struct ViewportItemConfig {
     int layer;
     bool visible;
     /** Runtime pointer-drag constraint for mounted UI items. */
-    ViewportUiDragMode drag_mode;
+    ViewportItemDragMode drag_mode;
     /** Clip this item to a viewport-local rectangle. */
     bool clip_enabled;
     /** Viewport-local clip rectangle, independent from item placement. */
@@ -686,10 +686,10 @@ ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item);
 bool graphics_viewport_ui_hovered_check(ViewportItemId item);
 /** Return whether this mounted UI instance was pressed during its latest draw. */
 bool graphics_viewport_ui_pressed_check(ViewportItemId item);
-EngineResult graphics_viewport_ui_drag_mode_set(ViewportItemId item,
-    ViewportUiDragMode mode);
-ViewportUiDragModeResult graphics_viewport_ui_drag_mode_get(ViewportItemId item);
-bool graphics_viewport_ui_dragging_check(ViewportItemId item);
+EngineResult graphics_viewport_item_drag_mode_set(ViewportItemId item,
+    ViewportItemDragMode mode);
+ViewportItemDragModeResult graphics_viewport_item_drag_mode_get(ViewportItemId item);
+bool graphics_viewport_item_dragging_check(ViewportItemId item);
 /** Assign a camera without transferring ownership. */
 EngineResult graphics_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult graphics_viewport_camera_clear(ViewportId viewport);

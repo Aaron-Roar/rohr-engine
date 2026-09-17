@@ -219,11 +219,13 @@ int main(void) {
                 loaded_project.layout_viewports[0].ui_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].ui_items[0].drag_mode !=
-                    VIEWPORT_UI_DRAG_X ||
+                    VIEWPORT_ITEM_DRAG_X ||
                 loaded_project.layout_viewports[0].ui_items[1].drag_mode !=
-                    VIEWPORT_UI_DRAG_NONE ||
+                    VIEWPORT_ITEM_DRAG_NONE ||
                 loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
+                loaded_project.layout_viewports[0].camera_items[0].placement.
+                    drag_mode != VIEWPORT_ITEM_DRAG_Y ||
                 loaded_project.objects[0].rigid_bodies[0].graphics_layer.layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].object !=
@@ -271,6 +273,7 @@ int main(void) {
                 !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
                 !file_contains(path, "rohr_graphics_layer_entity_id_set") ||
                 !file_contains(path, ".drag_mode=1") ||
+                !file_contains(path, ".drag_mode=2") ||
                 !file_contains(path, ".background_color=") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
                 !file_contains(path, "sample text") ||

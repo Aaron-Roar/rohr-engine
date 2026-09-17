@@ -487,9 +487,9 @@ ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item) { return gr
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item) { return graphics_viewport_item_viewport_get(item); }
 bool rohr_viewport_ui_hovered_check(ViewportItemId item) { return graphics_viewport_ui_hovered_check(item); }
 bool rohr_viewport_ui_pressed_check(ViewportItemId item) { return graphics_viewport_ui_pressed_check(item); }
-EngineResult rohr_viewport_ui_drag_mode_set(ViewportItemId item, ViewportUiDragMode mode) { return graphics_viewport_ui_drag_mode_set(item, mode); }
-ViewportUiDragModeResult rohr_viewport_ui_drag_mode_get(ViewportItemId item) { return graphics_viewport_ui_drag_mode_get(item); }
-bool rohr_viewport_ui_dragging_check(ViewportItemId item) { return graphics_viewport_ui_dragging_check(item); }
+EngineResult rohr_viewport_item_drag_mode_set(ViewportItemId item, ViewportItemDragMode mode) { return graphics_viewport_item_drag_mode_set(item, mode); }
+ViewportItemDragModeResult rohr_viewport_item_drag_mode_get(ViewportItemId item) { return graphics_viewport_item_drag_mode_get(item); }
+bool rohr_viewport_item_dragging_check(ViewportItemId item) { return graphics_viewport_item_dragging_check(item); }
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera) { return graphics_viewport_camera_set(viewport, camera); }
 EngineResult rohr_viewport_camera_clear(ViewportId viewport) { return graphics_viewport_camera_clear(viewport); }
 EngineResult rohr_viewport_enable_set(ViewportId viewport) { return graphics_viewport_enable_set(viewport); }

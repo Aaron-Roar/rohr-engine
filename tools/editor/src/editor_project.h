@@ -461,7 +461,7 @@ typedef struct EditorViewportUiItem {
     /** Zero selects the direct numeric layer above. */
     EditorGraphicsLayerId graphics_layer;
     bool visible;
-    ViewportUiDragMode drag_mode;
+    ViewportItemDragMode drag_mode;
     bool clip_enabled;
     /** Non-persisted editing cache of the referenced reusable definition. */
     EditorViewportUiKind kind;

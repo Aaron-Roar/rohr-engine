@@ -1915,8 +1915,8 @@ ViewportItemIdResult graphics_viewport_ui_add(ViewportId id, GraphicsUiId ui,
     size_t ui_slot;
     if(!graphics_viewport_slot(id, &viewport_slot) ||
             !graphics_ui_slot(ui, &ui_slot) ||
-            config.drag_mode < VIEWPORT_UI_DRAG_NONE ||
-            config.drag_mode > VIEWPORT_UI_DRAG_XY)
+            config.drag_mode < VIEWPORT_ITEM_DRAG_NONE ||
+            config.drag_mode > VIEWPORT_ITEM_DRAG_XY)
         return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
             ERROR_ENGINE_COMPONENT_MISSING);
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
@@ -1986,8 +1986,8 @@ EngineResult graphics_viewport_item_set(ViewportItemId item_id, ViewportItemConf
     size_t item_slot;
     if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(config.drag_mode < VIEWPORT_UI_DRAG_NONE ||
-            config.drag_mode > VIEWPORT_UI_DRAG_XY)
+    if(config.drag_mode < VIEWPORT_ITEM_DRAG_NONE ||
+            config.drag_mode > VIEWPORT_ITEM_DRAG_XY)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(viewports[viewport_slot].items[item_slot].kind ==
             GRAPHICS_VIEWPORT_ITEM_SCREEN &&
@@ -2039,36 +2039,32 @@ bool graphics_viewport_ui_pressed_check(ViewportItemId item_id) {
         viewports[viewport_slot].items[item_slot].pressed;
 }
 
-EngineResult graphics_viewport_ui_drag_mode_set(ViewportItemId item_id,
-        ViewportUiDragMode mode) {
+EngineResult graphics_viewport_item_drag_mode_set(ViewportItemId item_id,
+        ViewportItemDragMode mode) {
     size_t viewport_slot;
     size_t item_slot;
-    if(mode < VIEWPORT_UI_DRAG_NONE || mode > VIEWPORT_UI_DRAG_XY)
+    if(mode < VIEWPORT_ITEM_DRAG_NONE || mode > VIEWPORT_ITEM_DRAG_XY)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot) ||
-            viewports[viewport_slot].items[item_slot].kind !=
-                GRAPHICS_VIEWPORT_ITEM_UI)
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     viewports[viewport_slot].items[item_slot].config.drag_mode = mode;
-    if(mode == VIEWPORT_UI_DRAG_NONE && graphics_ui_dragging_item == item_id)
+    if(mode == VIEWPORT_ITEM_DRAG_NONE && graphics_ui_dragging_item == item_id)
         graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
     return error_result_value(true);
 }
 
-ViewportUiDragModeResult graphics_viewport_ui_drag_mode_get(
+ViewportItemDragModeResult graphics_viewport_item_drag_mode_get(
         ViewportItemId item_id) {
     size_t viewport_slot;
     size_t item_slot;
-    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot) ||
-            viewports[viewport_slot].items[item_slot].kind !=
-                GRAPHICS_VIEWPORT_ITEM_UI)
-        return ERROR_RESULT_MAKE_ERROR(ViewportUiDragModeResult,
+    if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemDragModeResult,
             ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(ViewportUiDragModeResult,
+    return ERROR_RESULT_MAKE_VALUE(ViewportItemDragModeResult,
         viewports[viewport_slot].items[item_slot].config.drag_mode);
 }
 
-bool graphics_viewport_ui_dragging_check(ViewportItemId item_id) {
+bool graphics_viewport_item_dragging_check(ViewportItemId item_id) {
     return item_id != VIEWPORT_ITEM_INVALID &&
         graphics_ui_dragging_item == item_id;
 }
@@ -3056,6 +3052,32 @@ static bool graphics_viewport_ui_text_point_inside(
         fabsf(local.y) <= asset->size.y * scale.y * 0.5f;
 }
 
+static bool graphics_viewport_screen_point_inside(
+        const GraphicsViewport *viewport, const ViewportItemConfig *item,
+        Position pointer) {
+    Position center;
+    Vec2D relative;
+    Vec2D local;
+    if(viewport == NULL || item == NULL || item->rectangle.width <= 0.0f ||
+            item->rectangle.height <= 0.0f) return false;
+    center = (Position){viewport->rectangle.x + item->rectangle.x +
+            item->rectangle.width * 0.5f,
+        viewport->rectangle.y + item->rectangle.y +
+            item->rectangle.height * 0.5f};
+    relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+    local = math_vector_rotate(relative, -item->orientation);
+    if(fabsf(local.x) > item->rectangle.width * 0.5f ||
+            fabsf(local.y) > item->rectangle.height * 0.5f) return false;
+    if(item->clip_enabled &&
+            (pointer.x < viewport->rectangle.x + item->clip_rectangle.x ||
+             pointer.y < viewport->rectangle.y + item->clip_rectangle.y ||
+             pointer.x > viewport->rectangle.x + item->clip_rectangle.x +
+                item->clip_rectangle.width ||
+             pointer.y > viewport->rectangle.y + item->clip_rectangle.y +
+                item->clip_rectangle.height)) return false;
+    return true;
+}
+
 static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
         const ViewportItemConfig *item, const ViewportUiShapeConfig *shape,
         bool *hovered_result, bool *pressed_result) {
@@ -3074,7 +3096,7 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
         points[i] = graphics_viewport_ui_point_get(viewport, item, shape,
             shape->shape.vertices[i]);
     pointer = graphics_mouse_screen_position_get();
-    hovered = (shape->button_enabled || item->drag_mode != VIEWPORT_UI_DRAG_NONE) &&
+    hovered = (shape->button_enabled || item->drag_mode != VIEWPORT_ITEM_DRAG_NONE) &&
         graphics_viewport_ui_point_inside(pointer, points,
             shape->shape.amount_of_vertices);
     if(hovered && item->clip_enabled &&
@@ -3142,11 +3164,11 @@ static void graphics_viewports_draw(void) {
                 drag_item].config;
             Vec2D delta = {pointer.x - graphics_ui_drag_pointer.x,
                 pointer.y - graphics_ui_drag_pointer.y};
-            if(drag->drag_mode == VIEWPORT_UI_DRAG_X ||
-                    drag->drag_mode == VIEWPORT_UI_DRAG_XY)
+            if(drag->drag_mode == VIEWPORT_ITEM_DRAG_X ||
+                    drag->drag_mode == VIEWPORT_ITEM_DRAG_XY)
                 drag->rectangle.x += delta.x;
-            if(drag->drag_mode == VIEWPORT_UI_DRAG_Y ||
-                    drag->drag_mode == VIEWPORT_UI_DRAG_XY)
+            if(drag->drag_mode == VIEWPORT_ITEM_DRAG_Y ||
+                    drag->drag_mode == VIEWPORT_ITEM_DRAG_XY)
                 drag->rectangle.y += delta.y;
         } else graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
     }
@@ -3246,7 +3268,7 @@ static void graphics_viewports_draw(void) {
                         &graphics_ui_elements[ui_slot].value.text,
                         (Position){0}, 0.0f);
                     viewport->items[item].hovered =
-                        config->drag_mode != VIEWPORT_UI_DRAG_NONE &&
+                        config->drag_mode != VIEWPORT_ITEM_DRAG_NONE &&
                         graphics_viewport_ui_text_point_inside(viewport, config,
                             &graphics_ui_elements[ui_slot].value.text, pointer);
                     if(viewport->items[item].hovered && config->clip_enabled &&
@@ -3265,7 +3287,7 @@ static void graphics_viewports_draw(void) {
                         viewport->items[item].hovered && mouse_down;
                 }
                 if(viewport->items[item].hovered &&
-                        config->drag_mode != VIEWPORT_UI_DRAG_NONE)
+                        config->drag_mode != VIEWPORT_ITEM_DRAG_NONE)
                     drag_candidate = viewport->items[item].id;
                 if(config->clip_enabled)
                     (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
@@ -3275,6 +3297,13 @@ static void graphics_viewports_draw(void) {
                     &screen_slot))
                 continue;
             screen = &screens[screen_slot];
+            viewport->items[item].hovered =
+                config->drag_mode != VIEWPORT_ITEM_DRAG_NONE &&
+                graphics_viewport_screen_point_inside(viewport, config, pointer);
+            viewport->items[item].pressed =
+                viewport->items[item].hovered && mouse_down;
+            if(viewport->items[item].hovered)
+                drag_candidate = viewport->items[item].id;
             destination = (SDL_FRect){
                 viewport->rectangle.x + config->rectangle.x,
                 viewport->rectangle.y + config->rectangle.y,

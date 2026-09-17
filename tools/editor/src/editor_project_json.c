@@ -690,6 +690,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                 camera->graphics_layer);
             yyjson_mut_obj_add_bool(document, item, "visible",
                 camera->placement.visible);
+            yyjson_mut_obj_add_uint(document, item, "drag_mode",
+                camera->placement.drag_mode);
             yyjson_mut_obj_add_real(document, item, "content_x",
                 camera->content_offset.x);
             yyjson_mut_obj_add_real(document, item, "content_y",
@@ -1964,6 +1966,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 "content_height_scale");
             yyjson_val *content_rotation = yyjson_obj_get(item_value,
                 "content_rotation");
+            yyjson_val *drag_mode = yyjson_obj_get(item_value, "drag_mode");
             item->content_scale = (Scale){1.0f, 1.0f};
             yyjson_val *graphics_layer_value = yyjson_obj_get(item_value,
                 "graphics_layer");
@@ -1986,6 +1989,11 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(item_value, "visible", &item->placement.visible) ||
                     item->placement.rectangle.width <= 0.0f ||
                     item->placement.rectangle.height <= 0.0f) goto done;
+            if(drag_mode != NULL && (!yyjson_is_uint(drag_mode) ||
+                    yyjson_get_uint(drag_mode) > VIEWPORT_ITEM_DRAG_XY)) goto done;
+            item->placement.drag_mode = drag_mode == NULL ?
+                VIEWPORT_ITEM_DRAG_NONE :
+                (ViewportItemDragMode)yyjson_get_uint(drag_mode);
             if(graphics_layer_value != NULL &&
                     (!yyjson_is_uint(graphics_layer_value) ||
                     yyjson_get_uint(graphics_layer_value) > UINT32_MAX)) goto done;
@@ -2075,10 +2083,10 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 (EditorGraphicsLayerId)yyjson_get_uint(graphics_layer_value);
             drag_mode_value = yyjson_obj_get(item_value, "drag_mode");
             if(drag_mode_value != NULL && (!yyjson_is_uint(drag_mode_value) ||
-                    yyjson_get_uint(drag_mode_value) > VIEWPORT_UI_DRAG_XY))
+                    yyjson_get_uint(drag_mode_value) > VIEWPORT_ITEM_DRAG_XY))
                 goto done;
-            item->drag_mode = drag_mode_value == NULL ? VIEWPORT_UI_DRAG_NONE :
-                (ViewportUiDragMode)yyjson_get_uint(drag_mode_value);
+            item->drag_mode = drag_mode_value == NULL ? VIEWPORT_ITEM_DRAG_NONE :
+                (ViewportItemDragMode)yyjson_get_uint(drag_mode_value);
             if(loaded.next_viewport_ui_item_id <= item->id)
                 loaded.next_viewport_ui_item_id = item->id + 1;
         }

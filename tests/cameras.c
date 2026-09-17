@@ -307,6 +307,12 @@ int main(void) {
                         .layer = 2,
                         .visible = true,
                     }), rohr_error_check(viewport_item_result))
+            || rohr_error_check(rohr_viewport_item_drag_mode_set(
+                viewport_item_result.result.value, VIEWPORT_ITEM_DRAG_Y))
+            || rohr_error_check(rohr_viewport_item_drag_mode_get(
+                viewport_item_result.result.value))
+            || rohr_viewport_item_drag_mode_get(viewport_item_result.result.value).
+                result.value != VIEWPORT_ITEM_DRAG_Y
             || (rohr_graphics_show(), render_count != 4)
             || rohr_error_check(rohr_viewport_item_set(
                 viewport_item_result.result.value,
@@ -350,13 +356,13 @@ int main(void) {
                 viewport_result.result.value, ui_result.result.value,
                 (ViewportItemConfig){.layer = 1, .visible = true}),
                 rohr_error_check(ui_item_result)) ||
-            rohr_error_check(rohr_viewport_ui_drag_mode_set(
-                ui_item_result.result.value, VIEWPORT_UI_DRAG_X)) ||
-            rohr_error_check(rohr_viewport_ui_drag_mode_get(
+            rohr_error_check(rohr_viewport_item_drag_mode_set(
+                ui_item_result.result.value, VIEWPORT_ITEM_DRAG_X)) ||
+            rohr_error_check(rohr_viewport_item_drag_mode_get(
                 ui_item_result.result.value)) ||
-            rohr_viewport_ui_drag_mode_get(ui_item_result.result.value).
-                result.value != VIEWPORT_UI_DRAG_X ||
-            rohr_viewport_ui_dragging_check(ui_item_result.result.value) ||
+            rohr_viewport_item_drag_mode_get(ui_item_result.result.value).
+                result.value != VIEWPORT_ITEM_DRAG_X ||
+            rohr_viewport_item_dragging_check(ui_item_result.result.value) ||
             (second_ui_item_result = rohr_viewport_ui_add(
                 second_viewport_result.result.value, ui_result.result.value,
                 (ViewportItemConfig){.rectangle = {10.0f, 12.0f, 80.0f, 40.0f},

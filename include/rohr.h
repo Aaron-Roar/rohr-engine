@@ -1671,10 +1671,10 @@ ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item);
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item);
 bool rohr_viewport_ui_hovered_check(ViewportItemId item);
 bool rohr_viewport_ui_pressed_check(ViewportItemId item);
-EngineResult rohr_viewport_ui_drag_mode_set(ViewportItemId item,
-    ViewportUiDragMode mode);
-ViewportUiDragModeResult rohr_viewport_ui_drag_mode_get(ViewportItemId item);
-bool rohr_viewport_ui_dragging_check(ViewportItemId item);
+EngineResult rohr_viewport_item_drag_mode_set(ViewportItemId item,
+    ViewportItemDragMode mode);
+ViewportItemDragModeResult rohr_viewport_item_drag_mode_get(ViewportItemId item);
+bool rohr_viewport_item_dragging_check(ViewportItemId item);
 EngineResult rohr_viewport_camera_set(ViewportId viewport, CameraId camera);
 EngineResult rohr_viewport_camera_clear(ViewportId viewport);
 EngineResult rohr_viewport_enable_set(ViewportId viewport);

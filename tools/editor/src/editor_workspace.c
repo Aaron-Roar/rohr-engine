@@ -221,6 +221,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     EditorAnimatedSprite *animation;
     EditorCamera *camera;
     EditorLayoutViewport *layout_viewport;
+    EditorViewportCameraItem *screen_item;
     EditorViewportUiItem *ui_shape;
     EditorRigidBodyId box_id;
     EditorRigidBodyId chassis_id;
@@ -251,14 +252,16 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
         0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT};
     snprintf(layout_viewport->name, sizeof(layout_viewport->name),
         "initial_viewport");
-    if(editor_viewport_camera_add(project, layout_viewport, starter->id,
-            camera->id) == NULL) return false;
+    screen_item = editor_viewport_camera_add(project, layout_viewport,
+        starter->id, camera->id);
+    if(screen_item == NULL) return false;
+    screen_item->placement.drag_mode = VIEWPORT_ITEM_DRAG_Y;
     ui_shape = editor_viewport_ui_add(project, layout_viewport,
         EDITOR_VIEWPORT_UI_SHAPE);
     if(ui_shape == NULL) return false;
     snprintf(ui_shape->name, sizeof(ui_shape->name), "sample_ui");
     ui_shape->position = (Position){24.0f, 24.0f};
-    ui_shape->drag_mode = VIEWPORT_UI_DRAG_X;
+    ui_shape->drag_mode = VIEWPORT_ITEM_DRAG_X;
     floor_body = editor_project_rigid_body_add(project, starter);
     if(floor_body == NULL) return false;
     snprintf(floor_body->name, sizeof(floor_body->name), "floor");
@@ -1688,7 +1691,7 @@ static bool editor_workspace_generated_viewports_write(
                     ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
                     ".orientation=%.8ff, .content_offset={%.8ff, %.8ff}, "
                     ".content_scale={%.8ff, %.8ff}, .content_orientation=%.8ff, "
-                    ".layer=%d, .visible=%s});\n"
+                    ".layer=%d, .visible=%s, .drag_mode=%d});\n"
                 "        if(rohr_error_check(item)) { result = "
                     "rohr_error_result_error(item.result.error); goto fail; }\n",
                 object_name, camera->name, object_name, camera->name,
@@ -1699,7 +1702,8 @@ static bool editor_workspace_generated_viewports_write(
                 item->content_offset.x, item->content_offset.y,
                 item->content_scale.x, item->content_scale.y,
                 item->content_rotation, item->placement.layer,
-                item->placement.visible ? "true" : "false");
+                item->placement.visible ? "true" : "false",
+                (int)item->placement.drag_mode);
             if(item->graphics_layer != 0)
                 for(size_t layer_index = 0;
                         layer_index < project->graphics_layer_count;

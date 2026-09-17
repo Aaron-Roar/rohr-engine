@@ -736,7 +736,7 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
 static float editor_layout_ui_common_height_get(
         const EditorViewportUiItem *item) {
     float height = 42.0f + 270.0f;
-    if(item != NULL && item->drag_mode != VIEWPORT_UI_DRAG_NONE) height += 38.0f;
+    if(item != NULL && item->drag_mode != VIEWPORT_ITEM_DRAG_NONE) height += 38.0f;
     if(item == NULL || !item->border_enabled) return height;
     height += 194.0f;
     if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) height += 38.0f;
@@ -780,8 +780,19 @@ static float editor_panel_content_height_get(const EditorProject *project,
             (float)(viewport->camera_item_count + viewport->ui_item_count) *
                 32.0f);
     }
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR)
-        return fmaxf(height, 590.0f);
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+        const EditorLayoutViewport *viewport =
+            editor_project_layout_viewport_get((EditorProject *)project,
+                state->selected_layout_viewport);
+        bool draggable = false;
+        if(viewport != NULL)
+            for(size_t i = 0; i < viewport->camera_item_count; i += 1)
+                if(viewport->camera_items[i].id ==
+                        state->selected_viewport_camera_item)
+                    draggable = viewport->camera_items[i].placement.drag_mode !=
+                        VIEWPORT_ITEM_DRAG_NONE;
+        return fmaxf(height, draggable ? 666.0f : 628.0f);
+    }
     if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR) {
         const EditorViewportUiItem *item =
             editor_panel_layout_ui_item_get(project, state);
