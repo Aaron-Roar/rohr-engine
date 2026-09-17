@@ -20,7 +20,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset fill_color_label;
     TextAsset hover_border_color_label, hover_fill_color_label;
     TextAsset click_border_color_label, click_fill_color_label;
-    TextAsset add_shape_label, mount_ui_label, button_label;
+    TextAsset add_shape_label, button_label;
     TextAsset text_label, font_file_label, font_color_label;
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;
@@ -41,8 +41,6 @@ typedef struct EditorLayoutViewportEditor {
     char ui_cache[EDITOR_LAYOUT_VIEWPORT_UI_MAX][EDITOR_OBJECT_NAME_MAX];
     TextAsset font_names[EDITOR_UI_FONT_MAX];
     char font_cache[EDITOR_UI_FONT_MAX][EDITOR_OBJECT_NAME_MAX];
-    TextAsset definition_names[MAX_GRAPHICS_UI_ELEMENTS];
-    char definition_cache[MAX_GRAPHICS_UI_ELEMENTS][EDITOR_OBJECT_NAME_MAX];
 } EditorLayoutViewportEditor;
 
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,

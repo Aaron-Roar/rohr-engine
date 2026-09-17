@@ -762,7 +762,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,
                 state->selected_layout_viewport);
-        if(viewport != NULL) return fmaxf(height, 484.0f +
+        if(viewport != NULL) return fmaxf(height, 444.0f +
             (float)(viewport->camera_item_count + viewport->ui_item_count) *
                 32.0f);
     }

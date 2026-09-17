@@ -49,7 +49,6 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Click Border", click_border_color_label);
     CREATE("Click Fill", click_fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
-    CREATE("Mount Existing UI", mount_ui_label);
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
@@ -100,7 +99,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(click_border_color_label); DESTROY(click_fill_color_label);
     DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
     DESTROY(corner_radius_field);
-    DESTROY(add_shape_label); DESTROY(mount_ui_label); DESTROY(button_label);
+    DESTROY(add_shape_label); DESTROY(button_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
@@ -122,8 +121,6 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
         rohr_graphics_text_destroy(&editor->ui_names[i]);
     for(size_t i = 0; i < EDITOR_UI_FONT_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->font_names[i]);
-    for(size_t i = 0; i < MAX_GRAPHICS_UI_ELEMENTS; i += 1)
-        rohr_graphics_text_destroy(&editor->definition_names[i]);
     *editor = (EditorLayoutViewportEditor){0};
 }
 
@@ -191,34 +188,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 40.0f;
-    if(context->project->ui_definition_count > 0) {
-        const TextAsset *options[MAX_GRAPHICS_UI_ELEMENTS + 1];
-        options[0] = &editor->mount_ui_label;
-        for(size_t i = 0; i < context->project->ui_definition_count; i += 1) {
-            EditorViewportUiDefinition *definition =
-                &context->project->ui_definitions[i];
-            if(!editor_mode_named_text_sync(editor->font, definition->name,
-                    &editor->definition_names[i], editor->definition_cache[i],
-                    EDITOR_OBJECT_NAME_MAX)) return false;
-            options[i + 1] = &editor->definition_names[i];
-        }
-        UIDropdownResult mounted = rohr_ui_dropdown("editor.layout.mount_ui",
-            options, context->project->ui_definition_count + 1, 0,
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f}, NULL);
-        if(mounted.changed && mounted.selected_index > 0) {
-            EditorViewportUiItem *item = editor_viewport_ui_mount(context->project,
-                viewport, context->project->ui_definitions[
-                    mounted.selected_index - 1].id);
-            if(item != NULL) {
-                context->viewport->selected_viewport_ui_item = item->id;
-                context->viewport->selected_viewport_camera_item = 0;
-                context->viewport->selection = item->kind ==
-                    EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
-                    EDITOR_SELECTION_UI_TEXT;
-            }
-        }
-        y += 40.0f;
-    }
     if(rohr_ui_button("editor.layout.add_screen", &editor->add_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
             NULL).clicked) {
