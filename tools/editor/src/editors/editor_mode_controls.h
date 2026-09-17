@@ -20,6 +20,7 @@ typedef struct EditorModeLayerControl {
     TextAsset add_label;
     TextAsset edit_label;
     TextAsset save_label;
+    TextAsset cancel_label;
     TextAsset delete_label;
     TextAsset inherit_label;
     TextAsset name_field;

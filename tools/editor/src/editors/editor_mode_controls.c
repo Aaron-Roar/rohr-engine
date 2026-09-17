@@ -168,6 +168,7 @@ bool editor_mode_layer_control_create(EditorModeLayerControl *control,
             !editor_mode_text_create(font, "Add Layer", &control->add_label) ||
             !editor_mode_text_create(font, "Edit", &control->edit_label) ||
             !editor_mode_text_create(font, "Save", &control->save_label) ||
+            !editor_mode_text_create(font, "Cancel", &control->cancel_label) ||
             !editor_mode_text_create(font, "Delete", &control->delete_label) ||
             !editor_mode_text_create(font, "Inherit Parent Layer",
                 &control->inherit_label) ||
@@ -186,6 +187,7 @@ void editor_mode_layer_control_destroy(EditorModeLayerControl *control) {
     rohr_graphics_text_destroy(&control->add_label);
     rohr_graphics_text_destroy(&control->edit_label);
     rohr_graphics_text_destroy(&control->save_label);
+    rohr_graphics_text_destroy(&control->cancel_label);
     rohr_graphics_text_destroy(&control->delete_label);
     rohr_graphics_text_destroy(&control->inherit_label);
     rohr_graphics_text_destroy(&control->name_field);
@@ -201,7 +203,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         float x, float y, float width) {
     const TextAsset *options[MAX_GRAPHICS_LAYERS + 2];
     char dropdown_id[128], value_id[128], inherit_id[128];
-    char name_id[128], save_id[128], delete_id[128];
+    char name_id[128], save_id[128], cancel_id[128], delete_id[128];
     size_t selected = 0;
     bool active = false;
     float value;
@@ -260,13 +262,14 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
     }
     if(control->adding || control->edited_layer != 0) {
         float row_width = width - 20.0f;
-        float name_width = row_width * 0.42f;
-        float value_width = row_width * 0.20f;
-        float button_width = row_width * 0.18f;
+        float name_width = row_width * 0.38f;
+        float value_width = row_width * 0.18f;
+        float button_width = row_width * 0.14f;
         y += 38.0f;
         snprintf(name_id, sizeof(name_id), "%s.layer_edit_name", id_prefix);
         snprintf(value_id, sizeof(value_id), "%s.layer_edit_value", id_prefix);
         snprintf(save_id, sizeof(save_id), "%s.layer_edit_save", id_prefix);
+        snprintf(cancel_id, sizeof(cancel_id), "%s.layer_edit_cancel", id_prefix);
         snprintf(delete_id, sizeof(delete_id), "%s.layer_edit_delete", id_prefix);
         UIFieldResult name_result = rohr_ui_field(name_id,
             (UIFieldBinding){.kind = UI_FIELD_STRING,
@@ -280,6 +283,12 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         UIButtonResult save_result = rohr_ui_button(save_id, &control->save_label,
                 (UIRect){x + 10.0f + name_width + value_width, y,
                     button_width, 28.0f}, NULL);
+        float cancel_width = control->adding ?
+            row_width - name_width - value_width - button_width : button_width;
+        UIButtonResult cancel_result = rohr_ui_button(cancel_id,
+            &control->cancel_label,
+            (UIRect){x + 10.0f + name_width + value_width + button_width, y,
+                cancel_width, 28.0f}, NULL);
         UIButtonResult delete_result = {0};
         if(save_result.clicked) {
             editor_project_property_name_format(control->edited_name,
@@ -306,20 +315,23 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         }
         if(!control->adding) delete_result = rohr_ui_button(delete_id,
                 &control->delete_label,
-                (UIRect){x + 10.0f + name_width + value_width + button_width,
-                    y, row_width - name_width - value_width - button_width,
+                (UIRect){x + 10.0f + name_width + value_width +
+                        button_width * 2.0f, y,
+                    row_width - name_width - value_width - button_width * 2.0f,
                     28.0f}, NULL);
         if(delete_result.clicked) {
             (void)editor_project_graphics_layer_remove(project,
                 control->edited_layer);
             control->edited_layer = 0;
         }
-        if(rohr_ui_key_pressed_check(SDLK_ESCAPE) ||
+        if(cancel_result.clicked || rohr_ui_key_pressed_check(SDLK_ESCAPE) ||
                 ((control->adding || control->edited_layer != 0) &&
                     rohr_ui_primary_pressed_check())) {
             bool inside = selected_result.button_hovered || name_result.hovered ||
-                edit_value.hovered || save_result.hovered || delete_result.hovered;
-            if(rohr_ui_key_pressed_check(SDLK_ESCAPE) || !inside) {
+                edit_value.hovered || save_result.hovered || cancel_result.hovered ||
+                delete_result.hovered;
+            if(cancel_result.clicked || rohr_ui_key_pressed_check(SDLK_ESCAPE) ||
+                    !inside) {
                 control->adding = false;
                 control->edited_layer = 0;
                 rohr_ui_field_focus_clear();
