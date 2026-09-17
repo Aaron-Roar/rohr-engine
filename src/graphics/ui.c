@@ -52,6 +52,7 @@ typedef struct UIContext {
     uint64_t dropdown_render_id;
     const TextAsset *dropdown_options[UI_DROPDOWN_VISIBLE_MAX];
     uint64_t dropdown_option_ids[UI_DROPDOWN_VISIBLE_MAX];
+    uint64_t dropdown_action_ids[UI_DROPDOWN_VISIBLE_MAX];
     size_t dropdown_option_count;
     size_t dropdown_total_option_count;
     const TextAsset *dropdown_action;
@@ -563,6 +564,16 @@ void ui_field_focus_clear(void) {
     ui_context.field_cursor = 0;
 }
 
+bool ui_key_pressed_check(SDL_Keycode key) {
+    for(size_t i = 0; i < ui_context.field_key_count; i += 1)
+        if(ui_context.field_keys[i] == key) return true;
+    return false;
+}
+
+bool ui_primary_pressed_check(void) {
+    return ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED;
+}
+
 static void ui_field_float_format(float number, char *value, size_t capacity) {
     char *end;
     if(value == NULL || capacity == 0) return;
@@ -989,8 +1000,9 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
         ui_context.dropdown_option_interaction = true;
         if(action != NULL && i >= first_action_index) {
             char action_id[176];
-            float action_width = option_bounds.height;
+            float action_width = 50.0f;
             snprintf(action_id, sizeof(action_id), "%s.action.%zu", id, i);
+            ui_context.dropdown_action_ids[slot] = ui_hash_id(action_id);
             UIButtonResult action_result = ui_button(action_id, action,
                 (UIRect){option_bounds.x, option_bounds.y, action_width,
                     option_bounds.height}, style);
@@ -1003,6 +1015,7 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
                 ui_context.dropdown_id = 0;
             }
         } else {
+            ui_context.dropdown_action_ids[slot] = 0;
             option_result = ui_button(option_id, options[i], option_bounds, style);
         }
         ui_context.dropdown_option_interaction = false;
@@ -1381,11 +1394,20 @@ void ui_frame_end(void) {
             if(ui_context.dropdown_action != NULL &&
                     i + ui_context.dropdown_first_option >=
                         ui_context.dropdown_first_action_index) {
-                UIRect action_bounds = {bounds.x, bounds.y, bounds.height,
-                    bounds.height};
+                UIRect action_bounds = {bounds.x + 3.0f, bounds.y + 3.0f,
+                    44.0f, bounds.height - 6.0f};
+                bool action_hovered = ui_point_in_rect(ui_context.input.pointer,
+                    action_bounds);
+                uint64_t action_id = ui_context.dropdown_action_ids[i];
+                ui_surface_raw(action_bounds,
+                    ui_context.active_id == action_id ?
+                        (Color){86, 98, 118, 255} : action_hovered ?
+                        (Color){104, 118, 142, 255} :
+                        (Color){66, 75, 90, 255});
+                ui_border_raw(action_bounds, 1.0f, (Color){8, 9, 12, 255});
                 ui_label_raw(ui_context.dropdown_action, action_bounds);
-                bounds.x += bounds.height;
-                bounds.width -= bounds.height;
+                bounds.x += 50.0f;
+                bounds.width -= 50.0f;
             }
             ui_label_raw(ui_context.dropdown_options[i], bounds);
             ui_dropdown_divider_raw(bounds);

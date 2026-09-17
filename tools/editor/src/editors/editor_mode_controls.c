@@ -166,7 +166,7 @@ bool editor_mode_layer_control_create(EditorModeLayerControl *control,
     if(!editor_mode_text_create(font, "Render Layer", &control->layer_label) ||
             !editor_mode_text_create(font, "Direct", &control->direct_label) ||
             !editor_mode_text_create(font, "Add Layer", &control->add_label) ||
-            !editor_mode_text_create(font, "E", &control->edit_label) ||
+            !editor_mode_text_create(font, "Edit", &control->edit_label) ||
             !editor_mode_text_create(font, "Save", &control->save_label) ||
             !editor_mode_text_create(font, "Delete", &control->delete_label) ||
             !editor_mode_text_create(font, "Inherit Parent Layer",
@@ -219,9 +219,12 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
     options[0] = &control->direct_label;
     options[1] = &control->add_label;
     for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
-        if(!editor_mode_named_text_sync(control->font,
-                project->graphics_layers[i].name, &control->names[i],
-                control->name_cache[i], GRAPHICS_LAYER_NAME_MAX)) return false;
+        char option_text[GRAPHICS_LAYER_NAME_MAX + 32];
+        snprintf(option_text, sizeof(option_text), "%s : %d",
+            project->graphics_layers[i].name, project->graphics_layers[i].value);
+        if(!editor_mode_named_text_sync(control->font, option_text,
+                &control->names[i], control->name_cache[i],
+                sizeof(control->name_cache[i]))) return false;
         options[i + 2] = &control->names[i];
         if(binding->layer == project->graphics_layers[i].id) selected = i + 2;
     }
@@ -274,9 +277,11 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &control->edited_value}, &control->value_field,
             (UIRect){x + 10.0f + name_width, y, value_width, 28.0f}, NULL);
-        if(rohr_ui_button(save_id, &control->save_label,
+        UIButtonResult save_result = rohr_ui_button(save_id, &control->save_label,
                 (UIRect){x + 10.0f + name_width + value_width, y,
-                    button_width, 28.0f}, NULL).clicked) {
+                    button_width, 28.0f}, NULL);
+        UIButtonResult delete_result = {0};
+        if(save_result.clicked) {
             editor_project_property_name_format(control->edited_name,
                 sizeof(control->edited_name), control->edited_name);
             if(control->edited_name[0] != '\0') {
@@ -299,13 +304,26 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                 }
             }
         }
-        if(!control->adding && rohr_ui_button(delete_id, &control->delete_label,
+        if(!control->adding) delete_result = rohr_ui_button(delete_id,
+                &control->delete_label,
                 (UIRect){x + 10.0f + name_width + value_width + button_width,
                     y, row_width - name_width - value_width - button_width,
-                    28.0f}, NULL).clicked) {
+                    28.0f}, NULL);
+        if(delete_result.clicked) {
             (void)editor_project_graphics_layer_remove(project,
                 control->edited_layer);
             control->edited_layer = 0;
+        }
+        if(rohr_ui_key_pressed_check(SDLK_ESCAPE) ||
+                ((control->adding || control->edited_layer != 0) &&
+                    rohr_ui_primary_pressed_check())) {
+            bool inside = selected_result.button_hovered || name_result.hovered ||
+                edit_value.hovered || save_result.hovered || delete_result.hovered;
+            if(rohr_ui_key_pressed_check(SDLK_ESCAPE) || !inside) {
+                control->adding = false;
+                control->edited_layer = 0;
+                rohr_ui_field_focus_clear();
+            }
         }
         return name_result.active || edit_value.active;
     }

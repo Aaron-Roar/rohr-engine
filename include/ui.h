@@ -258,6 +258,10 @@ bool ui_navigation_move(UINavigationDirection direction);
 bool ui_navigation_activate(void);
 /** Return the focused control's last registered screen bounds. */
 bool ui_navigation_focus_bounds_get(UIRect *bounds);
+/** Check whether a key-down event was queued for the current UI frame. */
+bool ui_key_pressed_check(SDL_Keycode key);
+/** Check whether the primary pointer button was pressed this frame. */
+bool ui_primary_pressed_check(void);
 
 /** Draw reusable text centered inside logical screen-space bounds. */
 void ui_label(const TextAsset *text, UIRect bounds);

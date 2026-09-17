@@ -25,7 +25,7 @@ typedef struct EditorModeLayerControl {
     TextAsset name_field;
     TextAsset value_field;
     TextAsset names[MAX_GRAPHICS_LAYERS];
-    char name_cache[MAX_GRAPHICS_LAYERS][GRAPHICS_LAYER_NAME_MAX];
+    char name_cache[MAX_GRAPHICS_LAYERS][GRAPHICS_LAYER_NAME_MAX + 32];
     char edited_name[GRAPHICS_LAYER_NAME_MAX];
     float edited_value;
     EditorGraphicsLayerId edited_layer;
