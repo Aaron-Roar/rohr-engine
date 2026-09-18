@@ -184,47 +184,71 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             (context->layer_control != NULL &&
                 (context->layer_control->adding ||
                     context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-        float collision_height = 38.0f;
-        if(node->collision_enabled) {
-            collision_height += 64.0f;
-            if(editor->collision_category_open)
-                collision_height +=
-                    (float)(context->project->collision_mask_count + 1) * 30.0f;
-            if(editor->collide_with_open)
-                collision_height +=
-                    (float)(context->project->collision_mask_count + 1) * 30.0f;
-        }
-        const float transform_rows[] = {58.0f + layer_height};
-        const float physics_rows[] = {90.0f};
-        const float material_rows[] = {58.0f};
-        const float collision_rows[] = {collision_height - 12.0f};
+        const EditorModeAccordionLayoutGroup transform_groups[] = {
+            {.row_count = 2, .row_height = 26.0f, .row_gap = 6.0f},
+            {.row_count = 1, .row_height = layer_height,
+                .gap_before = 6.0f}};
+        const float physics_rows[] = {26.0f, 26.0f, 28.0f};
+        const float material_rows[] = {26.0f, 26.0f};
         const float appearance_rows[] = {26.0f};
+        EditorModeAccordionLayoutGroup collision_groups[5] = {
+            {.row_count = 1, .row_height = 28.0f}};
+        size_t collision_group_count = 1;
+        if(node->collision_enabled) {
+            collision_groups[collision_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 28.0f, .gap_before = 4.0f};
+            if(editor->collision_category_open)
+                collision_groups[collision_group_count++] =
+                    (EditorModeAccordionLayoutGroup){
+                        .row_count = context->project->collision_mask_count + 1,
+                        .row_height = 26.0f, .row_gap = 4.0f,
+                        .gap_before = 4.0f};
+            collision_groups[collision_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 28.0f, .gap_before = 4.0f};
+            if(editor->collide_with_open)
+                collision_groups[collision_group_count++] =
+                    (EditorModeAccordionLayoutGroup){
+                        .row_count = context->project->collision_mask_count + 1,
+                        .row_height = 26.0f, .row_gap = 4.0f,
+                        .gap_before = 4.0f};
+        }
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(
                 context->x, context->width, section_y);
-#define SOFT_NODE_SECTION(section, id, rows, open, content) do { \
-    EditorModeAccordionLayoutResult layout = \
-        editor_mode_accordion_layout_section(&accordion, &(section), (id), \
-            (rows), 1, 0.0f); \
-    (open) = layout.expanded; \
-    (content) = layout.content_y; \
-} while(0)
-        SOFT_NODE_SECTION(editor->transform_section,
-            "editor.soft_node.section.transform", transform_rows,
-            transform_open, transform_y);
-        SOFT_NODE_SECTION(editor->physics_section,
-            "editor.soft_node.section.physics", physics_rows,
-            physics_open, physics_y);
-        SOFT_NODE_SECTION(editor->material_section,
-            "editor.soft_node.section.material", material_rows,
-            material_open, material_y);
-        SOFT_NODE_SECTION(editor->collision_section,
-            "editor.soft_node.section.collision", collision_rows,
-            collision_open, collision_y);
-        SOFT_NODE_SECTION(editor->appearance_section,
-            "editor.soft_node.section.appearance", appearance_rows,
-            appearance_open, appearance_y);
-#undef SOFT_NODE_SECTION
+        EditorModeAccordionLayoutResult transform =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->transform_section,
+                "editor.soft_node.section.transform", transform_groups, 2);
+        EditorModeAccordionLayoutResult physics =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->physics_section, "editor.soft_node.section.physics",
+                physics_rows, 3, 6.0f);
+        EditorModeAccordionLayoutResult material =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->material_section, "editor.soft_node.section.material",
+                material_rows, 2, 6.0f);
+        EditorModeAccordionLayoutResult collision =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->collision_section,
+                "editor.soft_node.section.collision", collision_groups,
+                collision_group_count);
+        EditorModeAccordionLayoutResult appearance =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->appearance_section,
+                "editor.soft_node.section.appearance", appearance_rows, 1,
+                0.0f);
+        transform_open = transform.expanded;
+        transform_y = transform.content_y;
+        physics_open = physics.expanded;
+        physics_y = physics.content_y;
+        material_open = material.expanded;
+        material_y = material.content_y;
+        collision_open = collision.expanded;
+        collision_y = collision.content_y;
+        appearance_open = appearance.expanded;
+        appearance_y = appearance.content_y;
     }
     position = node->position;
     if(transform_open) {

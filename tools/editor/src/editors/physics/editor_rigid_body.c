@@ -222,70 +222,113 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             (context->layer_control != NULL &&
                 (context->layer_control->adding ||
                     context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-        float transform_height = 6.0f + 128.0f + layer_height;
-        float physics_height = 6.0f + 96.0f;
-        float material_height = 6.0f + 64.0f;
-        float collision_height = 6.0f + 32.0f;
-        float geometry_height = 6.0f + 76.0f;
-        if(body->collision_enabled) {
-            collision_height += 64.0f;
-            if(editor->collision_category_open)
-                collision_height +=
-                    (float)(context->project->collision_mask_count + 1) * 30.0f;
-            if(editor->collide_with_open)
-                collision_height +=
-                    (float)(context->project->collision_mask_count + 1) * 30.0f;
-        }
-        if(body->particle) geometry_height += 34.0f;
-        if(body->hitbox_count > 0) geometry_height += 62.0f;
-        geometry_height += (float)body->hitbox_count * 30.0f;
+        size_t binding_frame_count = 0;
         if(editor->binding_hitbox_open != 0) {
             for(size_t animation = 0; animation < object->animated_sprite_count;
                     animation += 1) {
                 if(object->animated_sprite_items[animation].rigid_body != body->id)
                     continue;
-                geometry_height += (float)object->animated_sprite_items[
-                    animation].frame_count * 30.0f;
+                binding_frame_count = object->animated_sprite_items[
+                    animation].frame_count < MAX_ANIMATIONS_FRAMES ?
+                    object->animated_sprite_items[animation].frame_count :
+                    MAX_ANIMATIONS_FRAMES;
                 break;
             }
         }
-        const float transform_rows[] = {transform_height - 12.0f};
-        const float physics_rows[] = {physics_height - 12.0f};
-        const float material_rows[] = {material_height - 12.0f};
-        const float collision_rows[] = {collision_height - 12.0f};
+        const EditorModeAccordionLayoutGroup transform_groups[] = {
+            {.row_count = 3, .row_height = 26.0f, .row_gap = 6.0f},
+            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f},
+            {.row_count = 1, .row_height = layer_height, .gap_before = 4.0f}};
+        const float physics_rows[] = {28.0f, 26.0f, 28.0f};
+        const float material_rows[] = {26.0f, 26.0f};
         const float parenting_rows[] = {26.0f};
-        const float appearance_rows[] = {58.0f};
-        const float geometry_rows[] = {geometry_height - 12.0f};
+        const float appearance_rows[] = {26.0f, 26.0f};
+        EditorModeAccordionLayoutGroup collision_groups[5] = {
+            {.row_count = 1, .row_height = 28.0f}};
+        size_t collision_group_count = 1;
+        if(body->collision_enabled) {
+            collision_groups[collision_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 28.0f, .gap_before = 4.0f};
+            if(editor->collision_category_open)
+                collision_groups[collision_group_count++] =
+                    (EditorModeAccordionLayoutGroup){
+                        .row_count = context->project->collision_mask_count + 1,
+                        .row_height = 26.0f, .row_gap = 4.0f,
+                        .gap_before = 4.0f};
+            collision_groups[collision_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 28.0f, .gap_before = 4.0f};
+            if(editor->collide_with_open)
+                collision_groups[collision_group_count++] =
+                    (EditorModeAccordionLayoutGroup){
+                        .row_count = context->project->collision_mask_count + 1,
+                        .row_height = 26.0f, .row_gap = 4.0f,
+                        .gap_before = 4.0f};
+        }
+        EditorModeAccordionLayoutGroup geometry_groups[6] = {
+            {.row_count = 1, .row_height = 28.0f}};
+        size_t geometry_group_count = 1;
+        if(body->particle)
+            geometry_groups[geometry_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 28.0f, .gap_before = 6.0f};
+        if(body->hitbox_count > 0) {
+            geometry_groups[geometry_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 2,
+                    .row_height = 28.0f, .row_gap = 2.0f,
+                    .gap_before = 6.0f};
+        }
+        geometry_groups[geometry_group_count++] =
+            (EditorModeAccordionLayoutGroup){.row_count = 1,
+                .row_height = 32.0f, .gap_before = 6.0f};
+        if(body->hitbox_count + binding_frame_count > 0)
+            geometry_groups[geometry_group_count++] =
+                (EditorModeAccordionLayoutGroup){
+                    .row_count = body->hitbox_count + binding_frame_count,
+                    .row_height = 26.0f, .row_gap = 4.0f,
+                    .gap_before = 10.0f};
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(x, width, section_y);
-#define SECTION_LAYOUT(section, id, rows, open_value, output_y) do { \
+#define SECTION_LAYOUT(section, id, rows, row_count, row_gap, open_value, output_y) do { \
     EditorModeAccordionLayoutResult layout = \
         editor_mode_accordion_layout_section(&accordion, &(section), (id), \
-            (rows), 1, 0.0f); \
+            (rows), (row_count), (row_gap)); \
     (open_value) = layout.expanded; \
     (output_y) = layout.content_y; \
 } while(0)
-        SECTION_LAYOUT(editor->transform_section,
-            "editor.rigid_body.section.transform", transform_rows,
-            transform_open, transform_y);
+        EditorModeAccordionLayoutResult transform_layout =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->transform_section,
+                "editor.rigid_body.section.transform", transform_groups, 3);
+        transform_open = transform_layout.expanded;
+        transform_y = transform_layout.content_y;
         SECTION_LAYOUT(editor->physics_section,
-            "editor.rigid_body.section.physics", physics_rows,
+            "editor.rigid_body.section.physics", physics_rows, 3, 6.0f,
             physics_open, physics_y);
         SECTION_LAYOUT(editor->material_section,
-            "editor.rigid_body.section.material", material_rows,
+            "editor.rigid_body.section.material", material_rows, 2, 6.0f,
             material_open, material_y);
-        SECTION_LAYOUT(editor->collision_section,
-            "editor.rigid_body.section.collision", collision_rows,
-            collision_open, collision_y);
+        EditorModeAccordionLayoutResult collision_layout =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->collision_section,
+                "editor.rigid_body.section.collision", collision_groups,
+                collision_group_count);
+        collision_open = collision_layout.expanded;
+        collision_y = collision_layout.content_y;
         SECTION_LAYOUT(editor->parenting_section,
-            "editor.rigid_body.section.parenting", parenting_rows,
+            "editor.rigid_body.section.parenting", parenting_rows, 1, 0.0f,
             parenting_open, parenting_y);
         SECTION_LAYOUT(editor->appearance_section,
-            "editor.rigid_body.section.appearance", appearance_rows,
+            "editor.rigid_body.section.appearance", appearance_rows, 2, 6.0f,
             appearance_open, appearance_y);
-        SECTION_LAYOUT(editor->geometry_section,
-            "editor.rigid_body.section.geometry", geometry_rows,
-            geometry_open, geometry_y);
+        EditorModeAccordionLayoutResult geometry_layout =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->geometry_section,
+                "editor.rigid_body.section.geometry", geometry_groups,
+                geometry_group_count);
+        geometry_open = geometry_layout.expanded;
+        geometry_y = geometry_layout.content_y;
 #undef SECTION_LAYOUT
     }
     position = body->position; rotation = body->rotation;

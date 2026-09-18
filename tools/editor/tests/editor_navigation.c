@@ -33,12 +33,18 @@ static bool accordion_layout_metrics_check(void) {
         .content_y = expanded.content_y,
         .content_height = expanded.content_height,
         .expanded = true};
+    const EditorModeAccordionLayoutGroup groups[] = {
+        {.row_count = 2, .row_height = 28.0f, .row_gap = 10.0f},
+        {.row_count = 4, .row_height = 26.0f, .row_gap = 4.0f,
+            .gap_before = 8.0f}};
     return fabsf(collapsed.content_y - 136.0f) < 0.001f &&
         fabsf(collapsed.content_height - 136.0f) < 0.001f &&
         fabsf(collapsed.next_y - 136.0f) < 0.001f &&
         fabsf(expanded.next_y - 272.0f) < 0.001f &&
         fabsf(dynamic.content_height - 136.0f) < 0.001f &&
         fabsf(dynamic.next_y - 444.0f) < 0.001f &&
+        fabsf(editor_mode_accordion_layout_groups_height_get(groups, 2) -
+            190.0f) < 0.001f &&
         fabsf(editor_mode_accordion_layout_row_y(
             &section, fixed_rows, 2, 10.0f) - 212.0f) < 0.001f;
 }

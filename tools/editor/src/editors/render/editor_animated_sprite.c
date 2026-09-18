@@ -135,8 +135,10 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         const float attachment_rows[] = {28.0f};
         const float playback_rows[] = {
             28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-        const float frames_rows[] = {
-            36.0f + (float)sprite->frame_count * 30.0f};
+        const EditorModeAccordionLayoutGroup frame_groups[] = {
+            {.row_count = 1, .row_height = 28.0f},
+            {.row_count = sprite->frame_count, .row_height = 26.0f,
+                .row_gap = 4.0f, .gap_before = 8.0f}};
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(
                 context->x, context->width, section_y);
@@ -156,10 +158,10 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 "editor.animated_sprite.section.playback",
                 playback_rows, 5, 10.0f);
         EditorModeAccordionLayoutResult frames =
-            editor_mode_accordion_layout_section(&accordion,
+            editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->frames_section,
                 "editor.animated_sprite.section.frames",
-                frames_rows, 1, 10.0f);
+                frame_groups, 2);
         transform_open = transform.expanded;
         transform_y = transform.content_y;
         attachment_open = attachment.expanded;

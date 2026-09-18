@@ -230,31 +230,50 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             (context->layer_control != NULL &&
                 (context->layer_control->adding ||
                     context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-        float topology_height = editor->auto_shape_picker_open ? 138.0f :
-            154.0f + (float)body->hierarchy_count * 28.0f;
-        const float transform_rows[] = {102.0f + layer_height};
-        const float appearance_rows[] = {90.0f};
-        const float topology_rows[] = {topology_height - 12.0f};
+        const EditorModeAccordionLayoutGroup transform_groups[] = {
+            {.row_count = 3, .row_height = 26.0f, .row_gap = 10.0f},
+            {.row_count = 1, .row_height = layer_height,
+                .gap_before = 10.0f}};
+        const float appearance_rows[] = {26.0f, 26.0f, 26.0f};
+        EditorModeAccordionLayoutGroup topology_groups[3] = {
+            {.row_count = 1, .row_height = 28.0f},
+            {.row_count = 1, .row_height = 30.0f, .gap_before = 6.0f}};
+        size_t topology_group_count = 2;
+        if(editor->auto_shape_picker_open) {
+            topology_groups[topology_group_count++] =
+                (EditorModeAccordionLayoutGroup){.row_count = 1,
+                    .row_height = 62.0f, .gap_before = 6.0f};
+        } else {
+            topology_groups[1].row_count = 3;
+            topology_groups[1].row_gap = 6.0f;
+            topology_groups[topology_group_count++] =
+                (EditorModeAccordionLayoutGroup){
+                    .row_count = body->hierarchy_count,
+                    .row_height = 28.0f, .gap_before = 6.0f};
+        }
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(
                 context->x, context->width, section_y);
-#define SOFT_BODY_SECTION(section, id, rows, open, content) do { \
-    EditorModeAccordionLayoutResult layout = \
-        editor_mode_accordion_layout_section(&accordion, &(section), (id), \
-            (rows), 1, 0.0f); \
-    (open) = layout.expanded; \
-    (content) = layout.content_y; \
-} while(0)
-        SOFT_BODY_SECTION(editor->transform_section,
-            "editor.soft_body.section.transform", transform_rows,
-            transform_open, transform_y);
-        SOFT_BODY_SECTION(editor->appearance_section,
-            "editor.soft_body.section.appearance", appearance_rows,
-            appearance_open, appearance_y);
-        SOFT_BODY_SECTION(editor->topology_section,
-            "editor.soft_body.section.topology", topology_rows,
-            topology_open, topology_y);
-#undef SOFT_BODY_SECTION
+        EditorModeAccordionLayoutResult transform =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->transform_section,
+                "editor.soft_body.section.transform", transform_groups, 2);
+        EditorModeAccordionLayoutResult appearance =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->appearance_section,
+                "editor.soft_body.section.appearance", appearance_rows, 3,
+                6.0f);
+        EditorModeAccordionLayoutResult topology =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->topology_section,
+                "editor.soft_body.section.topology", topology_groups,
+                topology_group_count);
+        transform_open = transform.expanded;
+        transform_y = transform.content_y;
+        appearance_open = appearance.expanded;
+        appearance_y = appearance.content_y;
+        topology_open = topology.expanded;
+        topology_y = topology.content_y;
     }
     position = body->position; rotation = body->rotation;
     bool layer_active = false;
