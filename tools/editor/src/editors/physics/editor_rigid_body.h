@@ -6,6 +6,7 @@
 #define EDITOR_RIGID_BODY_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef bool (*EditorRigidBodyCollisionMenuFunction)(void *context,
     const char *id_prefix, EditorProject *project, uint64_t *active_masks,
@@ -39,6 +40,13 @@ typedef struct EditorRigidBodyEditor {
     bool collision_category_open;
     bool collide_with_open;
     EditorHitboxId binding_hitbox_open;
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection physics_section;
+    EditorModeAccordionSection material_section;
+    EditorModeAccordionSection collision_section;
+    EditorModeAccordionSection parenting_section;
+    EditorModeAccordionSection appearance_section;
+    EditorModeAccordionSection geometry_section;
 } EditorRigidBodyEditor;
 
 bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,

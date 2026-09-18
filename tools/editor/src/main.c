@@ -914,6 +914,43 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_UI_LINE_EDITOR;
 }
 
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_UI_LINE_EDITOR + 1)
+
+static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
+    return mode != EDITOR_VIEWPORT_HIERARCHY &&
+        mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
+        mode != EDITOR_VIEWPORT_RIGID_BODY &&
+        mode != EDITOR_VIEWPORT_SPRITE &&
+        mode != EDITOR_VIEWPORT_CAMERA_ENTITY;
+}
+
+static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
+    switch(mode) {
+        case EDITOR_VIEWPORT_OBJECT: return "Object Properties";
+        case EDITOR_VIEWPORT_RIGID_BODY: return "Rigid Body Properties";
+        case EDITOR_VIEWPORT_PARTICLE: return "Particle Properties";
+        case EDITOR_VIEWPORT_HITBOX: return "Hitbox Properties";
+        case EDITOR_VIEWPORT_JOINT: return "Joint Properties";
+        case EDITOR_VIEWPORT_ANCHOR: return "Anchor Properties";
+        case EDITOR_VIEWPORT_SOFT_BODY: return "Soft Body Properties";
+        case EDITOR_VIEWPORT_SOFT_NODE: return "Node Properties";
+        case EDITOR_VIEWPORT_SOFT_BEAM: return "Beam Properties";
+        case EDITOR_VIEWPORT_SOFT_AREA: return "Area Properties";
+        case EDITOR_VIEWPORT_ORIGIN: return "Origin Properties";
+        case EDITOR_VIEWPORT_LINE: return "Line Properties";
+        case EDITOR_VIEWPORT_VERTEX: return "Vertex Properties";
+        case EDITOR_VIEWPORT_ANIMATED_SPRITE: return "Animation Properties";
+        case EDITOR_VIEWPORT_ANIMATION_FRAME: return "Frame Properties";
+        case EDITOR_VIEWPORT_LAYOUT: return "Viewport Properties";
+        case EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR: return "Screen Properties";
+        case EDITOR_VIEWPORT_UI_SHAPE_EDITOR: return "UI Shape Properties";
+        case EDITOR_VIEWPORT_UI_TEXT_EDITOR: return "UI Text Properties";
+        case EDITOR_VIEWPORT_UI_VERTEX_EDITOR: return "UI Vertex Properties";
+        case EDITOR_VIEWPORT_UI_LINE_EDITOR: return "UI Line Properties";
+        default: return "Properties";
+    }
+}
+
 static bool editor_use_executable_directory(void) {
     const char *base_path = SDL_GetBasePath();
 
@@ -2215,6 +2252,7 @@ int main(void) {
     EditorSoftAreaEditor soft_area_editor = {0};
     EditorSoftBodyEditor soft_body_editor = {0};
     EditorModeLayerControl layer_control = {0};
+    EditorModeAccordionSection mode_accordions[EDITOR_MODE_ACCORDION_COUNT] = {0};
     EditorCoordinateToggle coordinate_toggle = {0};
     EditorViewportContextMenu viewport_context_menu = {0};
     EditorOriginPanel origin_panel = {0};
@@ -2418,6 +2456,12 @@ int main(void) {
             !editor_notification_panel_create(&notification_panel, &font,
                 &notification_font) ||
             !editor_terminal_panel_create(&terminal_panel, &font)) goto fail;
+    for(size_t i = 0; i < EDITOR_MODE_ACCORDION_COUNT; i += 1) {
+        EditorViewportMode mode = (EditorViewportMode)i;
+        if(!editor_mode_properties_accordion_check(mode)) continue;
+        if(!editor_mode_accordion_section_create(&mode_accordions[i], &font,
+                editor_mode_properties_title_get(mode), true)) goto fail;
+    }
     editor_project_launcher_state_init(
         &project_launcher_state, &new_label, &open_label);
     startup_stage = "visual settings initialization";
@@ -2737,13 +2781,22 @@ int main(void) {
         }
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
         float delete_footer_height = delete_footer ? 54.0f : 0.0f;
+        bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
+            viewport_state.mode >= 0 &&
+            (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
+            editor_mode_properties_accordion_check(viewport_state.mode);
+        float panel_content_height = fmaxf(
+            editor_panel_content_height_get(&project, &viewport_state,
+                &rigid_body_editor),
+            editor_bulk_panel_content_height_get(&viewport_state));
+        if(mode_accordion_applies &&
+                !mode_accordions[viewport_state.mode].expanded)
+            panel_content_height = 76.0f;
         panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
             (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
                 EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
                     delete_footer_height},
-            fmaxf(editor_panel_content_height_get(&project, &viewport_state,
-                    &rigid_body_editor),
-                editor_bulk_panel_content_height_get(&viewport_state)),
+            panel_content_height,
             panel_scroll_offset, 42.0f).offset;
         viewport_state.preview_rigid_body = 0;
         viewport_state.preview_soft_body = 0;
@@ -2761,7 +2814,17 @@ int main(void) {
             if(viewport_state.selected_items[i].kind !=
                     EDITOR_SELECTION_ANIMATION_FRAME) frame_multi_selection = false;
         if(!frame_multi_selection) column_frame_multi_edit_open = false;
-        if(viewport_state.selected_item_count > 1 &&
+        bool mode_properties_open = true;
+        if(mode_accordion_applies) {
+            mode_properties_open = editor_mode_accordion_section_draw(
+                &mode_accordions[viewport_state.mode],
+                "editor.mode.properties", (UIRect){EDITOR_VIEWPORT_WIDTH + 6.0f,
+                    4.0f, EDITOR_TOOLS_WIDTH - 12.0f, 30.0f},
+                fmaxf(0.0f, panel_content_height - 34.0f));
+        }
+        if(!mode_properties_open) {
+            field_editing = false;
+        } else if(viewport_state.selected_item_count > 1 &&
                 viewport_state.mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
                 (!frame_multi_selection || column_frame_multi_edit_open)) {
             EditorBulkColorContext bulk_color = {.picker = &color_picker,
@@ -4145,6 +4208,8 @@ int main(void) {
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);
     editor_soft_body_editor_destroy(&soft_body_editor);
+    for(size_t i = 0; i < EDITOR_MODE_ACCORDION_COUNT; i += 1)
+        editor_mode_accordion_section_destroy(&mode_accordions[i]);
     editor_mode_layer_control_destroy(&layer_control);
     editor_coordinate_toggle_destroy(&coordinate_toggle);
     editor_viewport_context_menu_destroy(&viewport_context_menu);
@@ -4239,6 +4304,8 @@ fail:
     editor_soft_node_editor_destroy(&soft_node_editor);
     editor_soft_area_editor_destroy(&soft_area_editor);
     editor_soft_body_editor_destroy(&soft_body_editor);
+    for(size_t i = 0; i < EDITOR_MODE_ACCORDION_COUNT; i += 1)
+        editor_mode_accordion_section_destroy(&mode_accordions[i]);
     editor_mode_layer_control_destroy(&layer_control);
     editor_coordinate_toggle_destroy(&coordinate_toggle);
     editor_viewport_context_menu_destroy(&viewport_context_menu);
