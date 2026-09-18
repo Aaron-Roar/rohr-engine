@@ -467,16 +467,20 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorLayoutViewport *viewport;
     EditorViewportCameraItem *item = NULL;
-    UIFieldResult name_result, x_result, y_result, width_result, height_result,
-        rotation_result, content_x_result, content_y_result,
-        content_width_result, content_height_result, content_rotation_result;
+    UIFieldResult x_result = {0}, y_result = {0}, width_result = {0};
+    UIFieldResult height_result = {0}, rotation_result = {0};
+    UIFieldResult content_x_result = {0}, content_y_result = {0};
+    UIFieldResult content_width_result = {0}, content_height_result = {0};
+    UIFieldResult content_rotation_result = {0};
     const TextAsset *camera_options[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
     EditorObjectId camera_objects[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
     EditorCameraId camera_ids[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
     size_t camera_count = 0;
     size_t selected_camera = 0;
+    float y = 42.0f;
     float rotation_degrees;
     float source_rotation_degrees;
+    bool layer_active = false;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     viewport = editor_project_layout_viewport_get(context->project,
@@ -491,16 +495,19 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     source_rotation_degrees = item->content_rotation *
         180.0f / 3.14159265359f;
     rohr_ui_label(&editor->name_label,
-        (UIRect){context->x + 8.0f, 42.0f, 82.0f, 28.0f});
-    name_result = editor_mode_name_field("editor.layout.camera.name", item->name,
+        (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
+    UIFieldResult name_result = editor_mode_name_field(
+        "editor.layout.camera.name", item->name,
         sizeof(item->name), &editor->name_field,
-        (UIRect){context->x + 94.0f, 42.0f,
+        (UIRect){context->x + 94.0f, y,
             context->width - 104.0f, 28.0f});
+    y += 38.0f;
     bool visible = item->placement.visible;
     if(editor_mode_checkbox_left("editor.layout.camera.visibility",
-            &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
+            &editor->visible_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &visible))
         item->placement.visible = visible;
+    y += 38.0f;
     for(size_t object_index = 0; object_index < context->project->object_count;
             object_index += 1) {
         EditorObject *object = &context->project->objects[object_index];
@@ -519,12 +526,47 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             camera_count += 1;
         }
     }
-    rohr_ui_label(&editor->source_label, (UIRect){context->x + 8.0f, 118.0f,
-        70.0f, 28.0f});
-    if(camera_count > 0) {
+    float layer_height = item->graphics_layer == 0 ||
+        (context->layer_control != NULL &&
+            (context->layer_control->adding ||
+                context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+    const float source_rows[] = {28.0f};
+    const float placement_rows[] = {
+        28.0f, 28.0f, 28.0f, 28.0f, 28.0f, layer_height};
+    const float interaction_rows[] = {28.0f, 28.0f};
+    const float content_rows[] = {
+        28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+    size_t interaction_count = item->placement.drag_mode ==
+        VIEWPORT_ITEM_DRAG_NONE ? 1 : 2;
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    EditorModeAccordionLayoutResult source_section =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->source_section, "editor.layout.screen.section.source",
+            source_rows, 1, 10.0f);
+    EditorModeAccordionLayoutResult placement_section =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->placement_section,
+            "editor.layout.screen.section.placement", placement_rows, 6, 10.0f);
+    EditorModeAccordionLayoutResult interaction_section =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->interaction_section,
+            "editor.layout.screen.section.interaction", interaction_rows,
+            interaction_count, 10.0f);
+    EditorModeAccordionLayoutResult content_section =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->content_section, "editor.layout.screen.section.content",
+            content_rows, 5, 10.0f);
+
+    if(source_section.expanded) {
+        y = source_section.content_y;
+        rohr_ui_label(&editor->source_label,
+            (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
+    }
+    if(source_section.expanded && camera_count > 0) {
         UIDropdownResult source = editor_mode_dropdown("editor.layout.screen.source",
             camera_options, camera_count, selected_camera,
-            (UIRect){context->x + 82.0f, 118.0f, context->width - 92.0f, 28.0f},
+            (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},
             NULL);
         if(source.button_hovered || source.hovered_index >= 0) {
             size_t preview = source.hovered_index >= 0 ?
@@ -537,78 +579,97 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             item->camera = camera_ids[source.selected_index];
         }
     }
-    x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.camera_editor.x", context->x, 156.0f, context->width,
-        &item->placement.rectangle.x);
-    y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.camera_editor.y", context->x, 194.0f, context->width,
-        &item->placement.rectangle.y);
-    width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.camera_editor.width", context->x, 232.0f, context->width,
-        &item->placement.rectangle.width);
-    height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.camera_editor.height", context->x, 270.0f, context->width,
-        &item->placement.rectangle.height);
-    rotation_result = layout_number(&editor->rotation_label, &editor->rotation_field,
-        "editor.layout.screen.rotation", context->x, 308.0f, context->width,
-        &rotation_degrees);
-    if(rotation_result.changed) {
-        rotation_degrees = fmodf(rotation_degrees, 360.0f);
-        if(rotation_degrees < 0.0f) rotation_degrees += 360.0f;
-        item->placement.orientation = rotation_degrees *
-            3.14159265359f / 180.0f;
+    if(placement_section.expanded) {
+        y = placement_section.content_y;
+        x_result = layout_number(&editor->x_label, &editor->x_field,
+            "editor.layout.camera_editor.x", context->x, y, context->width,
+            &item->placement.rectangle.x);
+        y += 38.0f;
+        y_result = layout_number(&editor->y_label, &editor->y_field,
+            "editor.layout.camera_editor.y", context->x, y, context->width,
+            &item->placement.rectangle.y);
+        y += 38.0f;
+        width_result = layout_number(&editor->width_label, &editor->width_field,
+            "editor.layout.camera_editor.width", context->x, y, context->width,
+            &item->placement.rectangle.width);
+        y += 38.0f;
+        height_result = layout_number(&editor->height_label,
+            &editor->height_field, "editor.layout.camera_editor.height",
+            context->x, y, context->width, &item->placement.rectangle.height);
+        y += 38.0f;
+        rotation_result = layout_number(&editor->rotation_label,
+            &editor->rotation_field, "editor.layout.screen.rotation",
+            context->x, y, context->width, &rotation_degrees);
+        if(rotation_result.changed) {
+            rotation_degrees = fmodf(rotation_degrees, 360.0f);
+            if(rotation_degrees < 0.0f) rotation_degrees += 360.0f;
+            item->placement.orientation = rotation_degrees *
+                3.14159265359f / 180.0f;
+        }
+        y += 38.0f;
+        EditorGraphicsLayerBinding layer_binding = {
+            .value = item->placement.layer, .layer = item->graphics_layer};
+        layer_active = context->layer_control != NULL &&
+            editor_mode_layer_control_draw(context->layer_control,
+                "editor.layout.screen", context->project, &layer_binding, NULL,
+                context->x, y, context->width);
+        item->placement.layer = layer_binding.value;
+        item->graphics_layer = layer_binding.layer;
     }
-    EditorGraphicsLayerBinding layer_binding = {
-        .value = item->placement.layer, .layer = item->graphics_layer};
-    bool layer_active = context->layer_control != NULL &&
-        editor_mode_layer_control_draw(context->layer_control,
-            "editor.layout.screen", context->project, &layer_binding, NULL,
-            context->x, 346.0f, context->width);
-    item->placement.layer = layer_binding.value;
-    item->graphics_layer = layer_binding.layer;
-    bool draggable = item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE;
-    float content_controls_y = 422.0f;
-    if(editor_mode_checkbox_left("editor.layout.screen.draggable",
-            &editor->draggable_label,
-            (UIRect){context->x + 10.0f, content_controls_y,
-                context->width - 20.0f, 28.0f}, &draggable))
-        item->placement.drag_mode = draggable ? VIEWPORT_ITEM_DRAG_XY :
-            VIEWPORT_ITEM_DRAG_NONE;
-    content_controls_y += 38.0f;
-    if(item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE) {
+    if(interaction_section.expanded) {
+        y = interaction_section.content_y;
+        bool draggable = item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE;
+        if(editor_mode_checkbox_left("editor.layout.screen.draggable",
+                &editor->draggable_label,
+                (UIRect){context->x + 10.0f, y,
+                    context->width - 20.0f, 28.0f}, &draggable))
+            item->placement.drag_mode = draggable ? VIEWPORT_ITEM_DRAG_XY :
+                VIEWPORT_ITEM_DRAG_NONE;
+        y += 38.0f;
+    }
+    if(interaction_section.expanded &&
+            item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE) {
         const TextAsset *axes[] = {&editor->drag_x_label, &editor->drag_y_label,
             &editor->drag_xy_label};
         rohr_ui_label(&editor->drag_axis_label,
-            (UIRect){context->x + 8.0f, content_controls_y, 82.0f, 28.0f});
+            (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
         UIDropdownResult axis = editor_mode_dropdown(
             "editor.layout.screen.drag_axis", axes, 3,
             (size_t)item->placement.drag_mode - 1,
-            (UIRect){context->x + 94.0f, content_controls_y,
+            (UIRect){context->x + 94.0f, y,
                 context->width - 104.0f, 28.0f}, NULL);
         if(axis.changed) item->placement.drag_mode =
             (ViewportItemDragMode)(axis.selected_index + 1);
-        content_controls_y += 38.0f;
     }
-    content_x_result = layout_number(&editor->content_x_label,
-        &editor->content_x_field, "editor.layout.screen.content_x", context->x,
-        content_controls_y, context->width, &item->content_offset.x);
-    content_y_result = layout_number(&editor->content_y_label,
-        &editor->content_y_field, "editor.layout.screen.content_y", context->x,
-        content_controls_y + 38.0f, context->width, &item->content_offset.y);
-    content_width_result = layout_number(&editor->content_width_scale_label,
-        &editor->width_scale_field, "editor.layout.screen.content_width", context->x,
-        content_controls_y + 76.0f, context->width, &item->content_scale.x);
-    content_height_result = layout_number(&editor->content_height_scale_label,
-        &editor->height_scale_field, "editor.layout.screen.content_height", context->x,
-        content_controls_y + 114.0f, context->width, &item->content_scale.y);
-    content_rotation_result = layout_number(&editor->content_rotation_label,
-        &editor->content_rotation_field, "editor.layout.screen.content_rotation",
-        context->x, content_controls_y + 152.0f, context->width, &source_rotation_degrees);
-    if(content_rotation_result.changed) {
-        source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
-        if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
-        item->content_rotation = source_rotation_degrees *
-            3.14159265359f / 180.0f;
+    if(content_section.expanded) {
+        y = content_section.content_y;
+        content_x_result = layout_number(&editor->content_x_label,
+            &editor->content_x_field, "editor.layout.screen.content_x",
+            context->x, y, context->width, &item->content_offset.x);
+        y += 38.0f;
+        content_y_result = layout_number(&editor->content_y_label,
+            &editor->content_y_field, "editor.layout.screen.content_y",
+            context->x, y, context->width, &item->content_offset.y);
+        y += 38.0f;
+        content_width_result = layout_number(&editor->content_width_scale_label,
+            &editor->width_scale_field, "editor.layout.screen.content_width",
+            context->x, y, context->width, &item->content_scale.x);
+        y += 38.0f;
+        content_height_result = layout_number(
+            &editor->content_height_scale_label, &editor->height_scale_field,
+            "editor.layout.screen.content_height", context->x, y,
+            context->width, &item->content_scale.y);
+        y += 38.0f;
+        content_rotation_result = layout_number(&editor->content_rotation_label,
+            &editor->content_rotation_field,
+            "editor.layout.screen.content_rotation", context->x, y,
+            context->width, &source_rotation_degrees);
+        if(content_rotation_result.changed) {
+            source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
+            if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
+            item->content_rotation = source_rotation_degrees *
+                3.14159265359f / 180.0f;
+        }
     }
     item->content_scale.x = fmaxf(0.01f, item->content_scale.x);
     item->content_scale.y = fmaxf(0.01f, item->content_scale.y);
@@ -636,6 +697,9 @@ static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
 static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context, EditorViewportUiItem *item, float *y) {
     bool visible = item->visible;
+    UIFieldResult x_result = {0}, y_result = {0}, rotation_result = {0};
+    UIFieldResult thickness = {0}, spacing = {0}, radius = {0};
+    bool layer_active = false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
     UIFieldResult name_result = editor_mode_name_field("editor.layout.ui.name",
@@ -648,27 +712,67 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
                 context->width - 20.0f, 28.0f}, &visible))
         item->visible = visible;
     *y += 38.0f;
-    UIFieldResult x_result = layout_number(&editor->x_label, &editor->x_field,
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(
+            context->x, context->width, *y);
+    float layer_height = item->graphics_layer == 0 ||
+        (context->layer_control != NULL &&
+            (context->layer_control->adding ||
+                context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+    const float transform_rows[] = {28.0f, 28.0f, 28.0f, layer_height};
+    float interaction_rows[] = {28.0f, 28.0f};
+    size_t interaction_count = item->drag_mode == VIEWPORT_ITEM_DRAG_NONE ? 1 : 2;
+    float appearance_rows[11];
+    size_t appearance_count = 1;
+    appearance_rows[0] = 28.0f;
+    if(item->border_enabled) {
+        appearance_count = 6 +
+            (item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED ? 1 : 0) +
+            (item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                item->value.shape.button_enabled ? 4 : 0);
+        for(size_t i = 1; i < appearance_count; i += 1)
+            appearance_rows[i] = 28.0f;
+    }
+    EditorModeAccordionLayoutResult transform =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_transform_section, "editor.layout.ui.section.transform",
+            transform_rows, 4, 10.0f);
+    EditorModeAccordionLayoutResult interaction =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_interaction_section,
+            "editor.layout.ui.section.interaction",
+            interaction_rows, interaction_count, 10.0f);
+    EditorModeAccordionLayoutResult appearance =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_appearance_section,
+            "editor.layout.ui.section.appearance",
+            appearance_rows, appearance_count, 10.0f);
+    if(transform.expanded) {
+    *y = transform.content_y;
+    x_result = layout_number(&editor->x_label, &editor->x_field,
         "editor.layout.ui.x", context->x, *y, context->width, &item->position.x);
     *y += 38.0f;
-    UIFieldResult y_result = layout_number(&editor->y_label, &editor->y_field,
+    y_result = layout_number(&editor->y_label, &editor->y_field,
         "editor.layout.ui.y", context->x, *y, context->width, &item->position.y);
     *y += 38.0f;
     float *rotation = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
         &item->value.shape.rotation : &item->rotation;
-    UIFieldResult rotation_result = layout_number(&editor->rotation_label,
+    rotation_result = layout_number(&editor->rotation_label,
         &editor->rotation_field, "editor.layout.ui.rotation", context->x, *y,
         context->width, rotation);
     *y += 38.0f;
     EditorGraphicsLayerBinding layer_binding = {
         .value = item->layer, .layer = item->graphics_layer};
-    bool layer_active = context->layer_control != NULL &&
+    layer_active = context->layer_control != NULL &&
         editor_mode_layer_control_draw(context->layer_control,
             "editor.layout.ui", context->project, &layer_binding, NULL,
             context->x, *y, context->width);
     item->layer = layer_binding.value;
     item->graphics_layer = layer_binding.layer;
-    *y += 76.0f;
+    *y += layer_height;
+    }
+    if(interaction.expanded) {
+    *y = interaction.content_y;
     bool draggable = item->drag_mode != VIEWPORT_ITEM_DRAG_NONE;
     if(editor_mode_checkbox_left("editor.layout.ui.draggable",
             &editor->draggable_label,
@@ -690,6 +794,9 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             (ViewportItemDragMode)(axis.selected_index + 1);
         *y += 38.0f;
     }
+    }
+    if(appearance.expanded) {
+    *y = appearance.content_y;
     bool border_enabled = item->border_enabled;
     if(editor_mode_checkbox_left("editor.layout.ui.border", &editor->border_label,
             (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
@@ -706,12 +813,11 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         if(type.changed) item->border_type =
             (EditorViewportUiBorderType)type.selected_index;
         *y += 38.0f;
-        UIFieldResult thickness = layout_number(&editor->border_thickness_label,
+        thickness = layout_number(&editor->border_thickness_label,
             &editor->border_thickness_field, "editor.layout.ui.border_thickness",
             context->x, *y, context->width, &item->border_thickness);
         item->border_thickness = fmaxf(0.1f, item->border_thickness);
         *y += 38.0f;
-        UIFieldResult spacing = {0};
         if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) {
             spacing = layout_number(&editor->hash_spacing_label,
                 &editor->hash_spacing_field, "editor.layout.ui.hash_spacing",
@@ -719,7 +825,7 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             item->border_hash_spacing = fmaxf(0.1f, item->border_hash_spacing);
             *y += 38.0f;
         }
-        UIFieldResult radius = layout_number(&editor->corner_radius_label,
+        radius = layout_number(&editor->corner_radius_label,
             &editor->corner_radius_field, "editor.layout.ui.corner_radius",
             context->x, *y, context->width, &item->border_corner_radius);
         item->border_corner_radius = fmaxf(0.0f, item->border_corner_radius);
@@ -762,12 +868,12 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
                     46.0f, *y, 36.0f, 28.0f}, context);
             *y += 42.0f;
         }
-        return name_result.active || x_result.active || y_result.active || rotation_result.active ||
-            layer_active ||
-            thickness.active || spacing.active || radius.active;
     }
-    return name_result.active || x_result.active || y_result.active || rotation_result.active ||
-        layer_active;
+    }
+    *y = accordion.y;
+    return name_result.active || x_result.active || y_result.active ||
+        rotation_result.active || layer_active || thickness.active ||
+        spacing.active || radius.active;
 }
 
 bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
@@ -779,11 +885,20 @@ bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     bool active;
     if(editor == NULL || item == NULL) return false;
     active = layout_ui_common_draw(editor, context, item, &y);
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    const float content_rows[] = {28.0f, 30.0f};
+    EditorModeAccordionLayoutResult content =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_content_section, "editor.ui_shape.section.content",
+            content_rows, 2, 10.0f);
+    if(!content.expanded) return active;
+    y = content.content_y;
     button = item->value.shape.button_enabled;
     if(editor_mode_checkbox_left("editor.ui_shape.button", &editor->button_label,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f},
             &button)) item->value.shape.button_enabled = button;
-    y += 42.0f;
+    y += 38.0f;
     if(rohr_ui_button("editor.ui_shape.text_child", &editor->text_label,
             (UIRect){context->x + 10.0f, y, context->width - 20.0f, 30.0f},
             NULL).clicked) {
@@ -821,6 +936,19 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         &item->value.text;
     active = item->kind == EDITOR_VIEWPORT_UI_TEXT ?
         layout_ui_common_draw(editor, context, item, &y) : false;
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f,
+        28.0f, 28.0f, 28.0f, 28.0f};
+    EditorModeAccordionLayoutResult content =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_content_section,
+            item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                "editor.ui_text.section.content" :
+                "editor.ui_text_child.section.content",
+            content_rows, 9, 10.0f);
+    if(!content.expanded) return active;
+    y = content.content_y;
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     text_result = editor_mode_field("editor.ui_text.text",

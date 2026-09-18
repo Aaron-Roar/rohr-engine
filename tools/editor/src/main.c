@@ -928,7 +928,10 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_SPRITE &&
         mode != EDITOR_VIEWPORT_ANIMATED_SPRITE &&
         mode != EDITOR_VIEWPORT_CAMERA_ENTITY &&
-        mode != EDITOR_VIEWPORT_LAYOUT;
+        mode != EDITOR_VIEWPORT_LAYOUT &&
+        mode != EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR &&
+        mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
+        mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR;
 }
 
 static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
