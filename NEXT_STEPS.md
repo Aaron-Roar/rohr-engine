@@ -7,7 +7,7 @@ example's static scene and configuration must be representable by an editor
 project. Gameplay logic and changes made dynamically at runtime remain
 developer-owned C and do not need to be authored in the editor.
 
-1. **Initial motion properties** — Author initial linear velocity,
+1. **Initial motion properties (complete)** — Author initial linear velocity,
    acceleration, and angular velocity for movable entities, plus initial
    soft-node velocity where applicable. Generated projects must use the
    authored values instead of hard-coded zero values.
