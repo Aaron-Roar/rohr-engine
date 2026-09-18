@@ -6,6 +6,7 @@
 #define EDITOR_CAMERA_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef struct EditorCameraEditor {
     FontAsset *font;
@@ -16,6 +17,10 @@ typedef struct EditorCameraEditor {
     TextAsset x_field, y_field, angle_field, width_field, height_field, zoom_field;
     char name_cache[EDITOR_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
     char target_cache[256][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection view_section;
+    EditorModeAccordionSection attachment_section;
+    EditorModeAccordionSection appearance_section;
 } EditorCameraEditor;
 
 bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font);

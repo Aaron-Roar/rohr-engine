@@ -13,6 +13,12 @@ typedef struct EditorModeTextCache {
     size_t capacity;
 } EditorModeTextCache;
 
+typedef struct EditorModeAccordionSection {
+    TextAsset label;
+    char title[EDITOR_OBJECT_NAME_MAX];
+    bool expanded;
+} EditorModeAccordionSection;
+
 typedef struct EditorModeLayerControl {
     FontAsset *font;
     TextAsset layer_label;
@@ -35,6 +41,12 @@ typedef struct EditorModeLayerControl {
 
 bool editor_mode_text_create(FontAsset *font, const char *value,
     TextAsset *output);
+bool editor_mode_accordion_section_create(EditorModeAccordionSection *section,
+    FontAsset *font, const char *title, bool expanded);
+void editor_mode_accordion_section_destroy(EditorModeAccordionSection *section);
+bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
+    const char *id, UIRect bounds, float content_height);
+UIButtonStyle editor_mode_section_field_style_get(void);
 void editor_mode_numeric_disabled_draw(TextAsset *display, float value,
     UIRect bounds);
 bool editor_mode_checkbox_left(const char *id, const TextAsset *label,

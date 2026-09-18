@@ -22,6 +22,14 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
     CREATE("", width_field); CREATE("", height_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+            "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->attachment_section, font,
+                "Attachment", false) ||
+            !editor_mode_accordion_section_create(&editor->asset_section, font,
+                "Asset", false) ||
+            !editor_mode_accordion_section_create(&editor->appearance_section, font,
+                "Appearance", false)) goto fail;
     return true;
 fail:
     editor_sprite_editor_destroy(editor);
@@ -38,6 +46,10 @@ void editor_sprite_editor_destroy(EditorSpriteEditor *editor) {
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
     DESTROY(width_field); DESTROY(height_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->attachment_section);
+    editor_mode_accordion_section_destroy(&editor->asset_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     for(size_t i = 0; i < 64; i += 1)
         rohr_graphics_text_destroy(&editor->name_values[i]);
     for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1)
@@ -53,12 +65,14 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     size_t index, body_selected = 0;
     char name[EDITOR_OBJECT_NAME_MAX], path[EDITOR_ASSET_PATH_MAX];
     Position position;
-    float rotation, width, height;
+    float rotation, width, height, y;
     bool visible, follow;
     const TextAsset *body_options[EDITOR_RIGID_BODY_MAX + 1];
-    UIFieldResult name_result, path_result, x_result, y_result;
-    UIFieldResult rotation_result, width_result, height_result;
-    UIDropdownResult body_result;
+    UIFieldResult name_result, path_result = {0}, x_result = {0}, y_result = {0};
+    UIFieldResult rotation_result = {0}, width_result = {0}, height_result = {0};
+    UIDropdownResult body_result = {0};
+    bool follow_changed = false, visible_changed = false, layer_active = false;
+    UIButtonStyle section_field_style = editor_mode_section_field_style_get();
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -77,12 +91,6 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 82.0f, 42.0f, context->width - 92.0f, 28.0f}, NULL);
-    rohr_ui_label(&editor->path_label,
-        (UIRect){context->x + 8.0f, 80.0f, 70.0f, 28.0f});
-    path_result = rohr_ui_field("editor.sprite.path",
-        (UIFieldBinding){.kind = UI_FIELD_STRING, .string = path,
-            .string_capacity = sizeof(path)}, &editor->path_field,
-        (UIRect){context->x + 82.0f, 80.0f, context->width - 92.0f, 28.0f}, NULL);
     body_options[0] = &editor->none_label;
     for(size_t i = 0; i < object->rigid_body_count &&
             i < EDITOR_RIGID_BODY_MAX; i += 1) {
@@ -92,55 +100,86 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         body_options[i + 1] = &editor->body_names[i];
         if(object->rigid_bodies[i].id == sprite->rigid_body) body_selected = i + 1;
     }
-    rohr_ui_label(&editor->body_label,
-        (UIRect){context->x + 8.0f, 118.0f, 90.0f, 28.0f});
-    body_result = rohr_ui_dropdown("editor.sprite.body", body_options,
-        object->rigid_body_count + 1, body_selected,
-        (UIRect){context->x + 100.0f, 118.0f, context->width - 110.0f, 28.0f}, NULL);
-    if(preview != NULL) preview(preview_context, object, body_result, sprite->rigid_body);
     position = sprite->position; rotation = sprite->rotation;
     width = sprite->size.x; height = sprite->size.y;
-    rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, 156.0f, 70.0f, 28.0f});
-    x_result = rohr_ui_field("editor.sprite.x",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 82.0f, 156.0f,
-            context->width - 92.0f, 28.0f}, NULL);
-    rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 194.0f, 70.0f, 28.0f});
-    y_result = rohr_ui_field("editor.sprite.y",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 82.0f, 194.0f,
-            context->width - 92.0f, 28.0f}, NULL);
-    rohr_ui_label(&editor->rotation_label,
-        (UIRect){context->x + 8.0f, 232.0f, 70.0f, 28.0f});
-    rotation_result = rohr_ui_field("editor.sprite.rotation",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
-        &editor->rotation_field, (UIRect){context->x + 82.0f, 232.0f,
-            context->width - 92.0f, 28.0f}, NULL);
-    rohr_ui_label(&editor->width_label,
-        (UIRect){context->x + 8.0f, 394.0f, 70.0f, 28.0f});
-    width_result = rohr_ui_field("editor.sprite.width",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &width},
-        &editor->width_field, (UIRect){context->x + 82.0f, 394.0f,
-            context->width - 92.0f, 28.0f}, NULL);
-    rohr_ui_label(&editor->height_label,
-        (UIRect){context->x + 8.0f, 432.0f, 70.0f, 28.0f});
-    height_result = rohr_ui_field("editor.sprite.height",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &height},
-        &editor->height_field, (UIRect){context->x + 82.0f, 432.0f,
-            context->width - 92.0f, 28.0f}, NULL);
     visible = sprite->visible; follow = sprite->follow_body_rotation;
-    bool follow_changed = editor_mode_checkbox_left("editor.sprite.follow",
-        &editor->follow_label, (UIRect){context->x + 10.0f, 270.0f,
-            context->width - 20.0f, 28.0f}, &follow);
-    bool layer_active = context->layer_control != NULL &&
-        editor_mode_layer_control_draw(context->layer_control, "editor.sprite",
-            context->project, &sprite->graphics_layer, NULL,
-            context->x, 308.0f, context->width);
-    bool visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
-        &editor->visible_label, (UIRect){context->x + 10.0f, 470.0f,
-            context->width - 20.0f, 28.0f}, &visible);
+    y = 80.0f;
+    float layer_height = sprite->graphics_layer.layer == 0 ||
+        (context->layer_control != NULL &&
+            (context->layer_control->adding ||
+                context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+    if(editor_mode_accordion_section_draw(&editor->transform_section,
+            "editor.sprite.section.transform",
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            234.0f + layer_height)) {
+        y += 36.0f;
+#define SPRITE_FIELD(label, field, id, target, result) do { \
+    rohr_ui_label(&(label), (UIRect){context->x + 8.0f, y, 70.0f, 28.0f}); \
+    (result) = rohr_ui_field((id), \
+        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &(target)}, &(field), \
+        (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f}, \
+        &section_field_style); \
+    y += 38.0f; \
+} while(0)
+        SPRITE_FIELD(editor->x_label, editor->x_field, "editor.sprite.x",
+            position.x, x_result);
+        SPRITE_FIELD(editor->y_label, editor->y_field, "editor.sprite.y",
+            position.y, y_result);
+        SPRITE_FIELD(editor->rotation_label, editor->rotation_field,
+            "editor.sprite.rotation", rotation, rotation_result);
+        follow_changed = editor_mode_checkbox_left("editor.sprite.follow",
+            &editor->follow_label, (UIRect){context->x + 10.0f, y,
+                context->width - 20.0f, 28.0f}, &follow);
+        y += 38.0f;
+        if(context->layer_control != NULL)
+            layer_active = editor_mode_layer_control_draw(context->layer_control,
+                "editor.sprite", context->project, &sprite->graphics_layer, NULL,
+                context->x, y, context->width);
+        y += layer_height;
+        SPRITE_FIELD(editor->width_label, editor->width_field,
+            "editor.sprite.width", width, width_result);
+        SPRITE_FIELD(editor->height_label, editor->height_field,
+            "editor.sprite.height", height, height_result);
+#undef SPRITE_FIELD
+    } else y += 36.0f;
+    if(editor_mode_accordion_section_draw(&editor->attachment_section,
+            "editor.sprite.section.attachment",
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            44.0f)) {
+        y += 36.0f;
+        rohr_ui_label(&editor->body_label,
+            (UIRect){context->x + 8.0f, y, 90.0f, 28.0f});
+        body_result = rohr_ui_dropdown("editor.sprite.body", body_options,
+            object->rigid_body_count + 1, body_selected,
+            (UIRect){context->x + 100.0f, y, context->width - 110.0f, 28.0f},
+            &section_field_style);
+        if(preview != NULL)
+            preview(preview_context, object, body_result, sprite->rigid_body);
+        y += 38.0f;
+    } else y += 36.0f;
+    if(editor_mode_accordion_section_draw(&editor->asset_section,
+            "editor.sprite.section.asset",
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            44.0f)) {
+        y += 36.0f;
+        rohr_ui_label(&editor->path_label,
+            (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
+        path_result = rohr_ui_field("editor.sprite.path",
+            (UIFieldBinding){.kind = UI_FIELD_STRING, .string = path,
+                .string_capacity = sizeof(path)}, &editor->path_field,
+            (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},
+            &section_field_style);
+        y += 38.0f;
+    } else y += 36.0f;
+    if(editor_mode_accordion_section_draw(&editor->appearance_section,
+            "editor.sprite.section.appearance",
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
+            44.0f)) {
+        y += 36.0f;
+        visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
+            &editor->visible_label, (UIRect){context->x + 10.0f, y,
+                context->width - 20.0f, 28.0f}, &visible);
+    }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_RENAME,
             .data.sprite_rename = {object->id, sprite->id}};

@@ -18,6 +18,71 @@ bool editor_mode_text_create(FontAsset *font, const char *value,
     return true;
 }
 
+static bool editor_mode_accordion_label_sync(EditorModeAccordionSection *section) {
+    char value[EDITOR_OBJECT_NAME_MAX + 8];
+    if(section == NULL || section->label.text == NULL) return false;
+    snprintf(value, sizeof(value), "%s  %s",
+        section->expanded ? "[-]" : "[+]", section->title);
+    return rohr_graphics_text_value_set(&section->label, value);
+}
+
+bool editor_mode_accordion_section_create(EditorModeAccordionSection *section,
+        FontAsset *font,
+        const char *title,
+        bool expanded) {
+    char value[EDITOR_OBJECT_NAME_MAX + 8];
+    if(section == NULL || font == NULL || title == NULL || title[0] == '\0')
+        return false;
+    *section = (EditorModeAccordionSection){.expanded = expanded};
+    snprintf(section->title, sizeof(section->title), "%s", title);
+    snprintf(value, sizeof(value), "%s  %s", expanded ? "[-]" : "[+]", title);
+    return editor_mode_text_create(font, value, &section->label);
+}
+
+void editor_mode_accordion_section_destroy(EditorModeAccordionSection *section) {
+    if(section == NULL) return;
+    rohr_graphics_text_destroy(&section->label);
+    *section = (EditorModeAccordionSection){0};
+}
+
+bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
+        const char *id,
+        UIRect bounds,
+        float content_height) {
+    UIButtonStyle style;
+    UIButtonResult result;
+    if(section == NULL || id == NULL || section->label.text == NULL) return false;
+    if(content_height < 0.0f) content_height = 0.0f;
+    if(section->expanded) {
+        UIRect panel = {bounds.x, bounds.y, bounds.width,
+            bounds.height + content_height};
+        rohr_ui_surface(panel, (Color){62, 66, 74, 255});
+        rohr_ui_border(panel, 1.0f, (Color){184, 190, 202, 255});
+    }
+    style = rohr_ui_button_style_default_get();
+    style.idle = section->expanded ? (Color){82, 88, 100, 255} :
+        (Color){42, 47, 57, 255};
+    style.hovered = (Color){96, 103, 117, 255};
+    style.pressed = (Color){64, 69, 79, 255};
+    result = rohr_ui_button(id, &section->label, bounds, &style);
+    rohr_ui_border(bounds, 1.0f, section->expanded ?
+        (Color){184, 190, 202, 255} : (Color){92, 98, 110, 255});
+    if(result.clicked) {
+        section->expanded = !section->expanded;
+        (void)editor_mode_accordion_label_sync(section);
+    }
+    return section->expanded;
+}
+
+UIButtonStyle editor_mode_section_field_style_get(void) {
+    return (UIButtonStyle){
+        .idle = {36, 40, 48, 255},
+        .hovered = {49, 55, 66, 255},
+        .pressed = {28, 32, 39, 255},
+        .disabled = {42, 44, 49, 210}
+    };
+}
+
 void editor_mode_numeric_disabled_draw(TextAsset *display,
         float value,
         UIRect bounds) {
@@ -39,9 +104,9 @@ bool editor_mode_checkbox_left(const char *id,
     if(id == NULL || label == NULL || checked == NULL) return false;
     interaction = rohr_ui_interaction(id, bounds);
     if(interaction.clicked) *checked = !*checked;
-    background = interaction.pressed ? (Color){58, 65, 78, 255} :
-        interaction.hovered || interaction.focused ? (Color){67, 75, 90, 255} :
-        (Color){48, 54, 66, 255};
+    background = interaction.pressed ? (Color){28, 32, 39, 255} :
+        interaction.hovered || interaction.focused ? (Color){49, 55, 66, 255} :
+        (Color){36, 40, 48, 255};
     rohr_ui_surface(bounds, background);
     box = (UIRect){bounds.x + bounds.width - bounds.height + 4.0f,
         bounds.y + 4.0f, bounds.height - 8.0f, bounds.height - 8.0f};
@@ -202,6 +267,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         EditorGraphicsLayerBinding *binding, bool *inherited,
         float x, float y, float width) {
     const TextAsset *options[MAX_GRAPHICS_LAYERS + 2];
+    UIButtonStyle field_style = editor_mode_section_field_style_get();
     char dropdown_id[128], value_id[128], inherit_id[128];
     char name_id[128], save_id[128], cancel_id[128], delete_id[128];
     size_t selected = 0;
@@ -234,7 +300,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
     snprintf(dropdown_id, sizeof(dropdown_id), "%s.layer", id_prefix);
     UIDropdownResult selected_result = rohr_ui_dropdown_actions(dropdown_id, options,
         project->graphics_layer_count + 2, selected, &control->edit_label, 2,
-        (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, NULL);
+        (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);
     if(selected_result.changed && selected_result.selected_index == 0) {
         binding->layer = 0;
         control->adding = false;
@@ -273,22 +339,24 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         snprintf(delete_id, sizeof(delete_id), "%s.layer_edit_delete", id_prefix);
         UIFieldResult name_result = rohr_ui_field(name_id,
             (UIFieldBinding){.kind = UI_FIELD_STRING,
-                .string = control->edited_name,
+            .string = control->edited_name,
                 .string_capacity = sizeof(control->edited_name)},
-            &control->name_field, (UIRect){x + 10.0f, y, name_width, 28.0f}, NULL);
+            &control->name_field, (UIRect){x + 10.0f, y, name_width, 28.0f},
+            &field_style);
         UIFieldResult edit_value = rohr_ui_field(value_id,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &control->edited_value}, &control->value_field,
-            (UIRect){x + 10.0f + name_width, y, value_width, 28.0f}, NULL);
+            (UIRect){x + 10.0f + name_width, y, value_width, 28.0f},
+            &field_style);
         UIButtonResult save_result = rohr_ui_button(save_id, &control->save_label,
                 (UIRect){x + 10.0f + name_width + value_width, y,
-                    button_width, 28.0f}, NULL);
+                    button_width, 28.0f}, &field_style);
         float cancel_width = control->adding ?
             row_width - name_width - value_width - button_width : button_width;
         UIButtonResult cancel_result = rohr_ui_button(cancel_id,
             &control->cancel_label,
             (UIRect){x + 10.0f + name_width + value_width + button_width, y,
-                cancel_width, 28.0f}, NULL);
+                cancel_width, 28.0f}, &field_style);
         UIButtonResult delete_result = {0};
         if(save_result.clicked) {
             editor_project_property_name_format(control->edited_name,
@@ -318,7 +386,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
                 (UIRect){x + 10.0f + name_width + value_width +
                         button_width * 2.0f, y,
                     row_width - name_width - value_width - button_width * 2.0f,
-                    28.0f}, NULL);
+                    28.0f}, &field_style);
         if(delete_result.clicked) {
             (void)editor_project_graphics_layer_remove(project,
                 control->edited_layer);
@@ -348,7 +416,7 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         UIFieldResult result = rohr_ui_field(value_id,
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
             &control->value_field,
-            (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, NULL);
+            (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);
         if(result.changed) binding->value = (int)value;
         active = result.active;
     }

@@ -6,6 +6,7 @@
 #define EDITOR_SPRITE_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef void (*EditorBodyPreviewFunction)(void *context, EditorObject *object,
     UIDropdownResult result, EditorRigidBodyId current);
@@ -19,6 +20,10 @@ typedef struct EditorSpriteEditor {
     TextAsset path_field, x_field, y_field, rotation_field, width_field, height_field;
     char name_cache[64][EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection attachment_section;
+    EditorModeAccordionSection asset_section;
+    EditorModeAccordionSection appearance_section;
 } EditorSpriteEditor;
 
 bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font);
