@@ -48,6 +48,9 @@ typedef struct UIContext {
     float field_scroll_y;
     bool field_select_all;
     uint64_t dropdown_id;
+    uint64_t dropdown_capture_id;
+    UIRect dropdown_capture_bounds;
+    size_t dropdown_capture_option_count;
     bool dropdown_seen;
     uint64_t dropdown_render_id;
     const TextAsset *dropdown_options[UI_DROPDOWN_VISIBLE_MAX];
@@ -108,6 +111,22 @@ static bool ui_point_in_rect(Position point, UIRect rect) {
     }
     return point.x >= rect.x && point.x < rect.x + rect.width &&
         point.y >= rect.y && point.y < rect.y + rect.height;
+}
+
+static bool ui_dropdown_pointer_capture_check(uint64_t interaction_id) {
+    UIRect bounds;
+    bool pointer_inside;
+    bool dismissing;
+
+    if(ui_context.dropdown_capture_id == 0 ||
+            interaction_id == ui_context.dropdown_capture_id ||
+            ui_context.dropdown_option_interaction) return false;
+    bounds = ui_context.dropdown_capture_bounds;
+    bounds.height *= (float)(ui_context.dropdown_capture_option_count + 1);
+    pointer_inside = ui_point_in_rect(ui_context.input.pointer, bounds);
+    dismissing = ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED &&
+        !pointer_inside;
+    return pointer_inside || dismissing;
 }
 
 static UIRect ui_bounds_resolve(UIRect bounds) {
@@ -326,6 +345,10 @@ static UIButtonResult ui_interaction_resolved(const char *id, UIRect bounds) {
     if(ui_context.modal_active && !ui_context.modal_controls)
         return (UIButtonResult){0};
     ui_navigation_item_register(interaction_id, bounds);
+    if(ui_dropdown_pointer_capture_check(interaction_id)) {
+        ui_context.pointer_consumed = true;
+        return (UIButtonResult){0};
+    }
     return ui_interaction_id(interaction_id,
         ui_point_in_rect(ui_context.input.pointer, bounds) &&
             ui_point_in_scroll_clip(ui_context.input.pointer));
@@ -505,11 +528,23 @@ static bool ui_point_in_oriented_square(
 
 void ui_frame_begin(UIInput input) {
     ui_context.input = input;
+    ui_context.dropdown_capture_id = ui_context.dropdown_id;
+    ui_context.dropdown_capture_bounds = ui_context.dropdown_bounds;
+    ui_context.dropdown_capture_option_count = ui_context.dropdown_option_count;
     ui_context.active_seen = false;
     ui_context.field_seen = false;
     ui_context.dropdown_seen = false;
     ui_context.pointer_claimed = false;
     ui_context.pointer_consumed = false;
+    if(ui_context.dropdown_capture_id != 0) {
+        UIRect capture_bounds = ui_context.dropdown_capture_bounds;
+        capture_bounds.height *=
+            (float)(ui_context.dropdown_capture_option_count + 1);
+        if(ui_point_in_rect(input.pointer, capture_bounds) ||
+                input.primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+            ui_context.pointer_consumed = true;
+        }
+    }
     ui_context.translation_y = 0.0f;
     ui_context.scroll_depth = 0;
     ui_context.scroll_record_count = 0;

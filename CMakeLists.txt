@@ -441,6 +441,11 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(ui_field_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME ui_field COMMAND ui_field_test)
 
+    add_executable(ui_dropdown_test tests/ui_dropdown.c)
+    target_link_libraries(ui_dropdown_test PRIVATE rohr_engine)
+    set_target_properties(ui_dropdown_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME ui_dropdown COMMAND ui_dropdown_test)
+
     add_executable(joints_test tests/joints.c)
     target_link_libraries(joints_test PRIVATE rohr_engine)
     set_target_properties(joints_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -599,6 +604,7 @@ if(ROHR_BUILD_TESTS)
         window_presentation
         timing
         ui_field
+        ui_dropdown
         joints
         soft_body
         collision_sensor
@@ -624,6 +630,7 @@ if(ROHR_BUILD_TESTS)
         window_presentation_test
         timing_test
         ui_field_test
+        ui_dropdown_test
         joints_test
         soft_body_test
         collision_sensor_test
