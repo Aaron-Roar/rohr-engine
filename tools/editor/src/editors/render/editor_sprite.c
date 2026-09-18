@@ -110,11 +110,25 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         (context->layer_control != NULL &&
             (context->layer_control->adding ||
                 context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-    if(editor_mode_accordion_section_draw(&editor->transform_section,
-            "editor.sprite.section.transform",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            234.0f + layer_height)) {
-        y += 36.0f;
+    const float transform_rows[] = {
+        28.0f, 28.0f, 28.0f, 28.0f, layer_height, 28.0f, 28.0f};
+    const float single_row[] = {28.0f};
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    EditorModeAccordionLayoutResult transform =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->transform_section, "editor.sprite.section.transform",
+            transform_rows, 7, 10.0f);
+    EditorModeAccordionLayoutResult attachment =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->attachment_section, "editor.sprite.section.attachment",
+            single_row, 1, 10.0f);
+    EditorModeAccordionLayoutResult asset =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->asset_section, "editor.sprite.section.asset",
+            single_row, 1, 10.0f);
+    if(transform.expanded) {
+        y = transform.content_y;
 #define SPRITE_FIELD(label, field, id, target, result) do { \
     rohr_ui_label(&(label), (UIRect){context->x + 8.0f, y, 70.0f, 28.0f}); \
     (result) = editor_mode_field((id), \
@@ -143,13 +157,9 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         SPRITE_FIELD(editor->height_label, editor->height_field,
             "editor.sprite.height", height, height_result);
 #undef SPRITE_FIELD
-        y += 6.0f;
-    } else y += 36.0f;
-    if(editor_mode_accordion_section_draw(&editor->attachment_section,
-            "editor.sprite.section.attachment",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            44.0f)) {
-        y += 36.0f;
+    }
+    if(attachment.expanded) {
+        y = attachment.content_y;
         rohr_ui_label(&editor->body_label,
             (UIRect){context->x + 8.0f, y, 90.0f, 28.0f});
         body_result = editor_mode_dropdown("editor.sprite.body", body_options,
@@ -158,14 +168,9 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
             &section_field_style);
         if(preview != NULL)
             preview(preview_context, object, body_result, sprite->rigid_body);
-        y += 38.0f;
-        y += 6.0f;
-    } else y += 36.0f;
-    if(editor_mode_accordion_section_draw(&editor->asset_section,
-            "editor.sprite.section.asset",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            44.0f)) {
-        y += 36.0f;
+    }
+    if(asset.expanded) {
+        y = asset.content_y;
         rohr_ui_label(&editor->path_label,
             (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
         path_result = editor_mode_field("editor.sprite.path",
@@ -173,9 +178,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
                 .string_capacity = sizeof(path)}, &editor->path_field,
             (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},
             &section_field_style);
-        y += 38.0f;
-        y += 6.0f;
-    } else y += 36.0f;
+    }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_RENAME,
             .data.sprite_rename = {object->id, sprite->id}};

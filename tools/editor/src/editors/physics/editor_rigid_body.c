@@ -249,32 +249,42 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 break;
             }
         }
-#define SECTION_LAYOUT(section, id, height, open_value, content_y) do { \
-    (open_value) = editor_mode_accordion_section_draw(&(section), (id), \
-        (UIRect){x + 8.0f, section_y, width - 16.0f, 30.0f}, (height)); \
-    (content_y) = section_y + 36.0f; \
-    section_y += (open_value) ? 30.0f + (height) + 6.0f : 36.0f; \
+        const float transform_rows[] = {transform_height - 12.0f};
+        const float physics_rows[] = {physics_height - 12.0f};
+        const float material_rows[] = {material_height - 12.0f};
+        const float collision_rows[] = {collision_height - 12.0f};
+        const float parenting_rows[] = {26.0f};
+        const float appearance_rows[] = {58.0f};
+        const float geometry_rows[] = {geometry_height - 12.0f};
+        EditorModeAccordionLayoutCursor accordion =
+            editor_mode_accordion_layout_cursor_get(x, width, section_y);
+#define SECTION_LAYOUT(section, id, rows, open_value, output_y) do { \
+    EditorModeAccordionLayoutResult layout = \
+        editor_mode_accordion_layout_section(&accordion, &(section), (id), \
+            (rows), 1, 0.0f); \
+    (open_value) = layout.expanded; \
+    (output_y) = layout.content_y; \
 } while(0)
         SECTION_LAYOUT(editor->transform_section,
-            "editor.rigid_body.section.transform", transform_height,
+            "editor.rigid_body.section.transform", transform_rows,
             transform_open, transform_y);
         SECTION_LAYOUT(editor->physics_section,
-            "editor.rigid_body.section.physics", physics_height,
+            "editor.rigid_body.section.physics", physics_rows,
             physics_open, physics_y);
         SECTION_LAYOUT(editor->material_section,
-            "editor.rigid_body.section.material", material_height,
+            "editor.rigid_body.section.material", material_rows,
             material_open, material_y);
         SECTION_LAYOUT(editor->collision_section,
-            "editor.rigid_body.section.collision", collision_height,
+            "editor.rigid_body.section.collision", collision_rows,
             collision_open, collision_y);
         SECTION_LAYOUT(editor->parenting_section,
-            "editor.rigid_body.section.parenting", 38.0f,
+            "editor.rigid_body.section.parenting", parenting_rows,
             parenting_open, parenting_y);
         SECTION_LAYOUT(editor->appearance_section,
-            "editor.rigid_body.section.appearance", 70.0f,
+            "editor.rigid_body.section.appearance", appearance_rows,
             appearance_open, appearance_y);
         SECTION_LAYOUT(editor->geometry_section,
-            "editor.rigid_body.section.geometry", geometry_height,
+            "editor.rigid_body.section.geometry", geometry_rows,
             geometry_open, geometry_y);
 #undef SECTION_LAYOUT
     }

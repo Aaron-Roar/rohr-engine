@@ -87,25 +87,46 @@ EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
     return (EditorModeAccordionLayoutCursor){x, width, y, 6.0f, 6.0f};
 }
 
+EditorModeAccordionLayoutMetrics editor_mode_accordion_layout_metrics_get(
+        float header_y, float padding, float section_gap,
+        const float *row_heights, size_t row_count, float row_gap,
+        bool expanded) {
+    EditorModeAccordionLayoutMetrics metrics = {0};
+    float rows_height = 0.0f;
+    if(row_count > 0 && row_heights == NULL) return metrics;
+    if(padding < 0.0f) padding = 0.0f;
+    if(section_gap < 0.0f) section_gap = 0.0f;
+    if(row_gap < 0.0f) row_gap = 0.0f;
+    for(size_t row = 0; row < row_count; row += 1)
+        rows_height += row_heights[row] < 0.0f ? 0.0f : row_heights[row];
+    if(row_count > 1) rows_height += row_gap * (float)(row_count - 1);
+    metrics.content_y = header_y + 30.0f + padding;
+    metrics.content_height = padding * 2.0f + rows_height;
+    metrics.next_y = header_y + 30.0f + section_gap +
+        (expanded ? metrics.content_height : 0.0f);
+    return metrics;
+}
+
 EditorModeAccordionLayoutResult editor_mode_accordion_layout_section(
         EditorModeAccordionLayoutCursor *cursor,
         EditorModeAccordionSection *section, const char *id,
         const float *row_heights, size_t row_count, float row_gap) {
     EditorModeAccordionLayoutResult result = {0};
-    float rows_height = 0.0f;
+    EditorModeAccordionLayoutMetrics metrics;
     if(cursor == NULL || section == NULL || id == NULL ||
             (row_count > 0 && row_heights == NULL)) return result;
-    for(size_t row = 0; row < row_count; row += 1)
-        rows_height += row_heights[row];
-    if(row_count > 1) rows_height += row_gap * (float)(row_count - 1);
-    result.content_height = cursor->padding * 2.0f + rows_height;
-    result.content_y = cursor->y + 30.0f + cursor->padding;
+    metrics = editor_mode_accordion_layout_metrics_get(cursor->y,
+        cursor->padding, cursor->section_gap, row_heights, row_count, row_gap,
+        section->expanded);
+    result.content_height = metrics.content_height;
+    result.content_y = metrics.content_y;
     result.expanded = editor_mode_accordion_section_draw(section, id,
         (UIRect){cursor->x + 8.0f, cursor->y,
             cursor->width - 16.0f, 30.0f}, result.content_height);
-    cursor->y += result.expanded ?
-        30.0f + result.content_height + cursor->section_gap :
-        30.0f + cursor->section_gap;
+    metrics = editor_mode_accordion_layout_metrics_get(cursor->y,
+        cursor->padding, cursor->section_gap, row_heights, row_count, row_gap,
+        result.expanded);
+    cursor->y = metrics.next_y;
     if(cursor->y > editor_mode_accordion_measured_bottom)
         editor_mode_accordion_measured_bottom = cursor->y;
     return result;

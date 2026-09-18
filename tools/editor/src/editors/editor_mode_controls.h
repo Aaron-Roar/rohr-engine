@@ -33,6 +33,12 @@ typedef struct EditorModeAccordionLayoutResult {
     bool expanded;
 } EditorModeAccordionLayoutResult;
 
+typedef struct EditorModeAccordionLayoutMetrics {
+    float content_y;
+    float content_height;
+    float next_y;
+} EditorModeAccordionLayoutMetrics;
+
 typedef struct EditorModeLayerControl {
     FontAsset *font;
     TextAsset layer_label;
@@ -62,6 +68,9 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
     const char *id, UIRect bounds, float content_height);
 EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
     float x, float width, float y);
+EditorModeAccordionLayoutMetrics editor_mode_accordion_layout_metrics_get(
+    float header_y, float padding, float section_gap,
+    const float *row_heights, size_t row_count, float row_gap, bool expanded);
 EditorModeAccordionLayoutResult editor_mode_accordion_layout_section(
     EditorModeAccordionLayoutCursor *cursor,
     EditorModeAccordionSection *section, const char *id,

@@ -232,21 +232,27 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                     context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
         float topology_height = editor->auto_shape_picker_open ? 138.0f :
             154.0f + (float)body->hierarchy_count * 28.0f;
-#define SOFT_BODY_SECTION(section, id, height, open, content) do { \
-    (open) = editor_mode_accordion_section_draw(&(section), (id), \
-        (UIRect){context->x + 8.0f, section_y, context->width - 16.0f, 30.0f}, \
-        (height)); \
-    (content) = section_y + 36.0f; \
-    section_y += (open) ? 30.0f + (height) + 6.0f : 36.0f; \
+        const float transform_rows[] = {102.0f + layer_height};
+        const float appearance_rows[] = {90.0f};
+        const float topology_rows[] = {topology_height - 12.0f};
+        EditorModeAccordionLayoutCursor accordion =
+            editor_mode_accordion_layout_cursor_get(
+                context->x, context->width, section_y);
+#define SOFT_BODY_SECTION(section, id, rows, open, content) do { \
+    EditorModeAccordionLayoutResult layout = \
+        editor_mode_accordion_layout_section(&accordion, &(section), (id), \
+            (rows), 1, 0.0f); \
+    (open) = layout.expanded; \
+    (content) = layout.content_y; \
 } while(0)
         SOFT_BODY_SECTION(editor->transform_section,
-            "editor.soft_body.section.transform", 114.0f + layer_height,
+            "editor.soft_body.section.transform", transform_rows,
             transform_open, transform_y);
         SOFT_BODY_SECTION(editor->appearance_section,
-            "editor.soft_body.section.appearance", 102.0f,
+            "editor.soft_body.section.appearance", appearance_rows,
             appearance_open, appearance_y);
         SOFT_BODY_SECTION(editor->topology_section,
-            "editor.soft_body.section.topology", topology_height,
+            "editor.soft_body.section.topology", topology_rows,
             topology_open, topology_y);
 #undef SOFT_BODY_SECTION
     }

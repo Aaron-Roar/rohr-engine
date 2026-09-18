@@ -130,27 +130,44 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             (context->layer_control != NULL &&
                 (context->layer_control->adding ||
                     context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-#define ANIMATION_SECTION(section, id, height, open, content) do { \
-    (open) = editor_mode_accordion_section_draw(&(section), (id), \
-        (UIRect){context->x + 8.0f, section_y, context->width - 16.0f, 30.0f}, \
-        (height)); \
-    (content) = section_y + 36.0f; \
-    section_y += (open) ? 30.0f + (height) + 6.0f : 36.0f; \
-} while(0)
-        ANIMATION_SECTION(editor->transform_section,
-            "editor.animated_sprite.section.transform",
-            234.0f + layer_height, transform_open, transform_y);
-        ANIMATION_SECTION(editor->attachment_section,
-            "editor.animated_sprite.section.attachment", 44.0f,
-            attachment_open, attachment_y);
-        ANIMATION_SECTION(editor->playback_section,
-            "editor.animated_sprite.section.playback", 186.0f,
-            playback_open, playback_y);
-        ANIMATION_SECTION(editor->frames_section,
-            "editor.animated_sprite.section.frames",
-            48.0f + (float)sprite->frame_count * 30.0f,
-            frames_open, frames_y);
-#undef ANIMATION_SECTION
+        const float transform_rows[] = {
+            28.0f, 28.0f, 28.0f, 28.0f, layer_height, 28.0f, 28.0f};
+        const float attachment_rows[] = {28.0f};
+        const float playback_rows[] = {
+            28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+        const float frames_rows[] = {
+            36.0f + (float)sprite->frame_count * 30.0f};
+        EditorModeAccordionLayoutCursor accordion =
+            editor_mode_accordion_layout_cursor_get(
+                context->x, context->width, section_y);
+        EditorModeAccordionLayoutResult transform =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->transform_section,
+                "editor.animated_sprite.section.transform",
+                transform_rows, 7, 10.0f);
+        EditorModeAccordionLayoutResult attachment =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->attachment_section,
+                "editor.animated_sprite.section.attachment",
+                attachment_rows, 1, 10.0f);
+        EditorModeAccordionLayoutResult playback =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->playback_section,
+                "editor.animated_sprite.section.playback",
+                playback_rows, 5, 10.0f);
+        EditorModeAccordionLayoutResult frames =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->frames_section,
+                "editor.animated_sprite.section.frames",
+                frames_rows, 1, 10.0f);
+        transform_open = transform.expanded;
+        transform_y = transform.content_y;
+        attachment_open = attachment.expanded;
+        attachment_y = attachment.content_y;
+        playback_open = playback.expanded;
+        playback_y = playback.content_y;
+        frames_open = frames.expanded;
+        frames_y = frames.content_y;
     }
     body_options[0] = &editor->none_label;
     for(size_t i = 0; i < object->rigid_body_count &&

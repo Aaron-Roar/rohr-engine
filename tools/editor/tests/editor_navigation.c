@@ -5,6 +5,7 @@
 #include "browser/editor_file_browser.h"
 #include "editor_navigation.h"
 #include "editor_layout.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/multi/editor_bulk_panel.h"
 
 #include <stdio.h>
@@ -15,6 +16,32 @@ float editor_viewport_width = WINDOW_WIDTH * 0.8f;
 float editor_window_width = WINDOW_WIDTH;
 float editor_window_height = WINDOW_HEIGHT;
 float editor_viewport_bottom = WINDOW_HEIGHT;
+
+static bool accordion_layout_metrics_check(void) {
+    const float fixed_rows[] = {28.0f, 28.0f, 48.0f};
+    const float dynamic_rows[] = {28.0f, 86.0f};
+    EditorModeAccordionLayoutMetrics collapsed =
+        editor_mode_accordion_layout_metrics_get(
+            100.0f, 6.0f, 6.0f, fixed_rows, 3, 10.0f, false);
+    EditorModeAccordionLayoutMetrics expanded =
+        editor_mode_accordion_layout_metrics_get(
+            100.0f, 6.0f, 6.0f, fixed_rows, 3, 10.0f, true);
+    EditorModeAccordionLayoutMetrics dynamic =
+        editor_mode_accordion_layout_metrics_get(
+            expanded.next_y, 6.0f, 6.0f, dynamic_rows, 2, 10.0f, true);
+    EditorModeAccordionLayoutResult section = {
+        .content_y = expanded.content_y,
+        .content_height = expanded.content_height,
+        .expanded = true};
+    return fabsf(collapsed.content_y - 136.0f) < 0.001f &&
+        fabsf(collapsed.content_height - 136.0f) < 0.001f &&
+        fabsf(collapsed.next_y - 136.0f) < 0.001f &&
+        fabsf(expanded.next_y - 272.0f) < 0.001f &&
+        fabsf(dynamic.content_height - 136.0f) < 0.001f &&
+        fabsf(dynamic.next_y - 444.0f) < 0.001f &&
+        fabsf(editor_mode_accordion_layout_row_y(
+            &section, fixed_rows, 2, 10.0f) - 212.0f) < 0.001f;
+}
 
 static bool screen_rotation_pointer_check(float width, float height, float zoom) {
     EditorProject project;
@@ -97,6 +124,7 @@ static bool modifier_click_toggle_check(EditorProject *project,
 }
 
 int main(void) {
+    if(!accordion_layout_metrics_check()) return 1;
     static EditorProject project;
     EditorObject *object;
     EditorRigidBody *body;

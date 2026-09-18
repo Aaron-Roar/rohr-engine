@@ -194,27 +194,35 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                 collision_height +=
                     (float)(context->project->collision_mask_count + 1) * 30.0f;
         }
-#define SOFT_NODE_SECTION(section, id, height, open, content) do { \
-    (open) = editor_mode_accordion_section_draw(&(section), (id), \
-        (UIRect){context->x + 8.0f, section_y, context->width - 16.0f, 30.0f}, \
-        (height)); \
-    (content) = section_y + 36.0f; \
-    section_y += (open) ? 30.0f + (height) + 6.0f : 36.0f; \
+        const float transform_rows[] = {58.0f + layer_height};
+        const float physics_rows[] = {90.0f};
+        const float material_rows[] = {58.0f};
+        const float collision_rows[] = {collision_height - 12.0f};
+        const float appearance_rows[] = {26.0f};
+        EditorModeAccordionLayoutCursor accordion =
+            editor_mode_accordion_layout_cursor_get(
+                context->x, context->width, section_y);
+#define SOFT_NODE_SECTION(section, id, rows, open, content) do { \
+    EditorModeAccordionLayoutResult layout = \
+        editor_mode_accordion_layout_section(&accordion, &(section), (id), \
+            (rows), 1, 0.0f); \
+    (open) = layout.expanded; \
+    (content) = layout.content_y; \
 } while(0)
         SOFT_NODE_SECTION(editor->transform_section,
-            "editor.soft_node.section.transform", 70.0f + layer_height,
+            "editor.soft_node.section.transform", transform_rows,
             transform_open, transform_y);
         SOFT_NODE_SECTION(editor->physics_section,
-            "editor.soft_node.section.physics", 102.0f,
+            "editor.soft_node.section.physics", physics_rows,
             physics_open, physics_y);
         SOFT_NODE_SECTION(editor->material_section,
-            "editor.soft_node.section.material", 70.0f,
+            "editor.soft_node.section.material", material_rows,
             material_open, material_y);
         SOFT_NODE_SECTION(editor->collision_section,
-            "editor.soft_node.section.collision", collision_height,
+            "editor.soft_node.section.collision", collision_rows,
             collision_open, collision_y);
         SOFT_NODE_SECTION(editor->appearance_section,
-            "editor.soft_node.section.appearance", 38.0f,
+            "editor.soft_node.section.appearance", appearance_rows,
             appearance_open, appearance_y);
 #undef SOFT_NODE_SECTION
     }

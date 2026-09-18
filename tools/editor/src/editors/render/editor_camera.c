@@ -105,11 +105,26 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     y = 118.0f;
-    if(editor_mode_accordion_section_draw(&editor->transform_section,
-            "editor.camera.section.transform",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            196.0f)) {
-        y += 36.0f;
+    const float transform_rows[] = {
+        28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+    const float view_rows[] = {28.0f};
+    const float attachment_rows[] = {28.0f, 28.0f};
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    EditorModeAccordionLayoutResult transform =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->transform_section, "editor.camera.section.transform",
+            transform_rows, 5, 10.0f);
+    EditorModeAccordionLayoutResult view =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->view_section, "editor.camera.section.view",
+            view_rows, 1, 10.0f);
+    EditorModeAccordionLayoutResult attachment_section =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->attachment_section, "editor.camera.section.attachment",
+            attachment_rows, 2, 10.0f);
+    if(transform.expanded) {
+        y = transform.content_y;
         camera_label_field(&editor->x_label, &editor->x_field, "editor.camera.x",
             context->x, y, context->width, &position.x, &x_result); y += 38.0f;
         camera_label_field(&editor->y_label, &editor->y_field, "editor.camera.y",
@@ -123,18 +138,13 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         camera_label_field(&editor->height_label, &editor->height_field,
             "editor.camera.height", context->x, y, context->width, &height,
             &height_result); y += 38.0f;
-        y += 6.0f;
-    } else y += 36.0f;
-    if(editor_mode_accordion_section_draw(&editor->view_section,
-            "editor.camera.section.view",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            44.0f)) {
-        y += 36.0f;
+    }
+    if(view.expanded) {
+        y = view.content_y;
         camera_label_field(&editor->zoom_label, &editor->zoom_field,
             "editor.camera.zoom", context->x, y, context->width, &zoom,
             &zoom_result); y += 38.0f;
-        y += 6.0f;
-    } else y += 36.0f;
+    }
     options[0] = &editor->none_label;
 #define ADD_TARGET(kind_value, id_value, parent_value, source_name) do { \
     if(option_count < 257 && editor_mode_named_text_sync(editor->font, source_name, \
@@ -160,11 +170,8 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
 #undef ADD_TARGET
     attachment.selected_index = selected;
     inherit = camera->inherit_orientation;
-    if(editor_mode_accordion_section_draw(&editor->attachment_section,
-            "editor.camera.section.attachment",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            82.0f)) {
-        y += 36.0f;
+    if(attachment_section.expanded) {
+        y = attachment_section.content_y;
         rohr_ui_label(&editor->attachment_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
         attachment = editor_mode_dropdown("editor.camera.attachment", options,
@@ -189,9 +196,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         inherit_changed = editor_mode_checkbox_left("editor.camera.inherit",
             &editor->inherit_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &inherit);
-        y += 38.0f;
-        y += 6.0f;
-    } else y += 36.0f;
+    }
     if(name_result.changed) { EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
         .data.item_rename = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
             .item = camera->id}}; snprintf(command.data.item_rename.name,
