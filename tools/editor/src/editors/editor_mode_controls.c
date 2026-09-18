@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static float editor_mode_accordion_measured_bottom;
+
 bool editor_mode_text_create(FontAsset *font, const char *value,
         TextAsset *output) {
     TextAssetResult result;
@@ -71,7 +73,61 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
         section->expanded = !section->expanded;
         (void)editor_mode_accordion_label_sync(section);
     }
+    {
+        float bottom = bounds.y + (section->expanded ?
+            bounds.height + content_height + 6.0f : bounds.height + 6.0f);
+        if(bottom > editor_mode_accordion_measured_bottom)
+            editor_mode_accordion_measured_bottom = bottom;
+    }
     return section->expanded;
+}
+
+EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
+        float x, float width, float y) {
+    return (EditorModeAccordionLayoutCursor){x, width, y, 6.0f, 6.0f};
+}
+
+EditorModeAccordionLayoutResult editor_mode_accordion_layout_section(
+        EditorModeAccordionLayoutCursor *cursor,
+        EditorModeAccordionSection *section, const char *id,
+        const float *row_heights, size_t row_count, float row_gap) {
+    EditorModeAccordionLayoutResult result = {0};
+    float rows_height = 0.0f;
+    if(cursor == NULL || section == NULL || id == NULL ||
+            (row_count > 0 && row_heights == NULL)) return result;
+    for(size_t row = 0; row < row_count; row += 1)
+        rows_height += row_heights[row];
+    if(row_count > 1) rows_height += row_gap * (float)(row_count - 1);
+    result.content_height = cursor->padding * 2.0f + rows_height;
+    result.content_y = cursor->y + 30.0f + cursor->padding;
+    result.expanded = editor_mode_accordion_section_draw(section, id,
+        (UIRect){cursor->x + 8.0f, cursor->y,
+            cursor->width - 16.0f, 30.0f}, result.content_height);
+    cursor->y += result.expanded ?
+        30.0f + result.content_height + cursor->section_gap :
+        30.0f + cursor->section_gap;
+    if(cursor->y > editor_mode_accordion_measured_bottom)
+        editor_mode_accordion_measured_bottom = cursor->y;
+    return result;
+}
+
+float editor_mode_accordion_layout_row_y(
+        const EditorModeAccordionLayoutResult *section,
+        const float *row_heights, size_t row_index, float row_gap) {
+    float y;
+    if(section == NULL || row_heights == NULL) return 0.0f;
+    y = section->content_y;
+    for(size_t row = 0; row < row_index; row += 1)
+        y += row_heights[row] + row_gap;
+    return y;
+}
+
+void editor_mode_accordion_layout_measure_reset(void) {
+    editor_mode_accordion_measured_bottom = 0.0f;
+}
+
+float editor_mode_accordion_layout_measure_get(void) {
+    return editor_mode_accordion_measured_bottom;
 }
 
 UIButtonStyle editor_mode_section_field_style_get(void) {

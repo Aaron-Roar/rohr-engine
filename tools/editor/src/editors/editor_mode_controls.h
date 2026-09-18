@@ -19,6 +19,20 @@ typedef struct EditorModeAccordionSection {
     bool expanded;
 } EditorModeAccordionSection;
 
+typedef struct EditorModeAccordionLayoutCursor {
+    float x;
+    float width;
+    float y;
+    float padding;
+    float section_gap;
+} EditorModeAccordionLayoutCursor;
+
+typedef struct EditorModeAccordionLayoutResult {
+    float content_y;
+    float content_height;
+    bool expanded;
+} EditorModeAccordionLayoutResult;
+
 typedef struct EditorModeLayerControl {
     FontAsset *font;
     TextAsset layer_label;
@@ -46,6 +60,17 @@ bool editor_mode_accordion_section_create(EditorModeAccordionSection *section,
 void editor_mode_accordion_section_destroy(EditorModeAccordionSection *section);
 bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
     const char *id, UIRect bounds, float content_height);
+EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
+    float x, float width, float y);
+EditorModeAccordionLayoutResult editor_mode_accordion_layout_section(
+    EditorModeAccordionLayoutCursor *cursor,
+    EditorModeAccordionSection *section, const char *id,
+    const float *row_heights, size_t row_count, float row_gap);
+float editor_mode_accordion_layout_row_y(
+    const EditorModeAccordionLayoutResult *section,
+    const float *row_heights, size_t row_index, float row_gap);
+void editor_mode_accordion_layout_measure_reset(void);
+float editor_mode_accordion_layout_measure_get(void);
 UIButtonStyle editor_mode_section_field_style_get(void);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);

@@ -87,7 +87,7 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
     UIFieldResult name_result, x_result = {0}, y_result = {0},
         rotation_result = {0};
     bool transform_open, attachment_open;
-    float transform_y, attachment_y, section_y = 118.0f;
+    float transform_y, attachment_y;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -126,17 +126,21 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
-    transform_open = editor_mode_accordion_section_draw(&editor->transform_section,
-        "editor.anchor.section.transform",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f}, 70.0f);
-    transform_y = section_y + 36.0f;
-    section_y += transform_open ? 106.0f : 36.0f;
-    attachment_open = editor_mode_accordion_section_draw(
-        &editor->attachment_section, "editor.anchor.section.attachment",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f}, 140.0f);
-    attachment_y = section_y + 36.0f;
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(
+            context->x, context->width, 118.0f);
+    const float transform_rows[] = {26.0f, 26.0f};
+    const float attachment_rows[] = {30.0f, 26.0f, 28.0f, 28.0f};
+    EditorModeAccordionLayoutResult transform =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->transform_section, "editor.anchor.section.transform",
+            transform_rows, 2, 6.0f);
+    EditorModeAccordionLayoutResult attachment =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->attachment_section, "editor.anchor.section.attachment",
+            attachment_rows, 4, 6.0f);
+    transform_open = transform.expanded; transform_y = transform.content_y;
+    attachment_open = attachment.expanded; attachment_y = attachment.content_y;
     if(transform_open) {
     rohr_ui_label(&editor->x_label,
         (UIRect){context->x + 8.0f, transform_y, 24.0f, 26.0f});

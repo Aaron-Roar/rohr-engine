@@ -148,7 +148,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result;
     bool creation_open, elements_open;
-    float creation_y, elements_y, section_y = 134.0f;
+    float creation_y, elements_y;
+    EditorModeAccordionLayoutCursor accordion;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -183,18 +184,24 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
                 object->id, 0, object->visible);
     }
     editor_project_object_hierarchy_sync(object);
-    creation_open = editor_mode_accordion_section_draw(&editor->creation_section,
-        "editor.object.section.creation",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f}, 234.0f);
-    creation_y = section_y + 36.0f;
-    section_y += creation_open ? 270.0f : 36.0f;
-    elements_open = editor_mode_accordion_section_draw(&editor->elements_section,
-        "editor.object.section.elements",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f},
-        6.0f + (float)object->hierarchy_count * 30.0f);
-    elements_y = section_y + 36.0f;
+    accordion = editor_mode_accordion_layout_cursor_get(
+        context->x, context->width, 134.0f);
+    const float creation_rows[] = {32.0f, 32.0f, 32.0f,
+        32.0f, 32.0f, 32.0f};
+    EditorModeAccordionLayoutResult creation =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->creation_section, "editor.object.section.creation",
+            creation_rows, 6, 6.0f);
+    float element_rows[EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX +
+        EDITOR_SOFT_BODY_MAX + 64 + 32 + EDITOR_CAMERA_MAX];
+    for(size_t i = 0; i < object->hierarchy_count; i += 1)
+        element_rows[i] = 24.0f;
+    EditorModeAccordionLayoutResult elements =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->elements_section, "editor.object.section.elements",
+            element_rows, object->hierarchy_count, 6.0f);
+    creation_open = creation.expanded; creation_y = creation.content_y;
+    elements_open = elements.expanded; elements_y = elements.content_y;
 #define ADD_BUTTON(button_id, button_label, button_y, item_kind, item_option, \
         selection_value, member) \
     if(rohr_ui_button((button_id), &(button_label), \

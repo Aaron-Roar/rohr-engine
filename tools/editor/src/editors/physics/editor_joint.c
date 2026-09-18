@@ -144,7 +144,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     UIFieldResult name_result;
     bool field_active;
     bool configuration_open, connections_open, parameters_open;
-    float configuration_y, connections_y, parameters_y, section_y = 114.0f;
+    float configuration_y, connections_y, parameters_y;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -183,26 +183,33 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
-    configuration_open = editor_mode_accordion_section_draw(
-        &editor->configuration_section, "editor.joint.section.configuration",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f}, 86.0f);
-    configuration_y = section_y + 36.0f;
-    section_y += configuration_open ? 122.0f : 36.0f;
-    connections_open = editor_mode_accordion_section_draw(
-        &editor->connections_section, "editor.joint.section.connections",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f},
-        124.0f + (float)(object->anchor_count < 6 ? object->anchor_count : 6) * 27.0f);
-    connections_y = section_y + 36.0f;
-    section_y += connections_open ? 160.0f +
-        (float)(object->anchor_count < 6 ? object->anchor_count : 6) * 27.0f : 36.0f;
-    parameters_open = editor_mode_accordion_section_draw(
-        &editor->parameters_section, "editor.joint.section.parameters",
-        (UIRect){context->x + 8.0f, section_y,
-            context->width - 16.0f, 30.0f},
-        joint->kind == EDITOR_JOINT_SPRING ? 102.0f : 38.0f);
-    parameters_y = section_y + 36.0f;
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(
+            context->x, context->width, 114.0f);
+    const float configuration_rows[] = {38.0f, 30.0f};
+    size_t shown_anchors = object->anchor_count < 6 ? object->anchor_count : 6;
+    float connection_rows[EDITOR_ANCHOR_MAX + 3] = {30.0f, 32.0f, 32.0f};
+    for(size_t i = 0; i < shown_anchors; i += 1)
+        connection_rows[i + 3] = i + 1 == shown_anchors ? 23.0f : 21.0f;
+    const float revolute_rows[] = {26.0f};
+    const float spring_rows[] = {26.0f, 26.0f, 26.0f};
+    EditorModeAccordionLayoutResult configuration =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->configuration_section,
+            "editor.joint.section.configuration", configuration_rows, 2, 6.0f);
+    EditorModeAccordionLayoutResult connections =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->connections_section, "editor.joint.section.connections",
+            connection_rows, shown_anchors + 3, 6.0f);
+    EditorModeAccordionLayoutResult parameters =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->parameters_section, "editor.joint.section.parameters",
+            joint->kind == EDITOR_JOINT_SPRING ? spring_rows : revolute_rows,
+            joint->kind == EDITOR_JOINT_SPRING ? 3 : 1, 6.0f);
+    configuration_open = configuration.expanded;
+    configuration_y = configuration.content_y;
+    connections_open = connections.expanded; connections_y = connections.content_y;
+    parameters_open = parameters.expanded; parameters_y = parameters.content_y;
     if(configuration_open) {
     rohr_ui_label(&editor->visual_size_label,
         (UIRect){context->x + 10.0f, configuration_y,

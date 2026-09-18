@@ -2260,6 +2260,7 @@ int main(void) {
     EditorSoftBodyEditor soft_body_editor = {0};
     EditorModeLayerControl layer_control = {0};
     EditorModeAccordionSection mode_accordions[EDITOR_MODE_ACCORDION_COUNT] = {0};
+    float mode_measured_heights[EDITOR_MODE_ACCORDION_COUNT] = {0};
     EditorCoordinateToggle coordinate_toggle = {0};
     EditorViewportContextMenu viewport_context_menu = {0};
     EditorOriginPanel origin_panel = {0};
@@ -2796,6 +2797,10 @@ int main(void) {
             editor_panel_content_height_get(&project, &viewport_state,
                 &rigid_body_editor),
             editor_bulk_panel_content_height_get(&viewport_state));
+        if(viewport_state.mode >= 0 &&
+                (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
+                mode_measured_heights[viewport_state.mode] > 0.0f)
+            panel_content_height = mode_measured_heights[viewport_state.mode];
         if(mode_accordion_applies &&
                 !mode_accordions[viewport_state.mode].expanded)
             panel_content_height = 76.0f;
@@ -2811,6 +2816,7 @@ int main(void) {
         viewport_state.preview_soft_node = 0;
         viewport_state.preview_camera = 0;
         field_editing = false;
+        editor_mode_accordion_layout_measure_reset();
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
             mouse.button_states[MOUSE_BUTTON_LEFT];
@@ -3195,6 +3201,12 @@ int main(void) {
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))
             pointer_selection_handled = true;
+        {
+            float measured = editor_mode_accordion_layout_measure_get();
+            if(measured > 0.0f && viewport_state.mode >= 0 &&
+                    (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT)
+                mode_measured_heights[viewport_state.mode] = measured;
+        }
         rohr_ui_scroll_region_end();
         if(delete_footer) {
             const TextAsset *delete_label = NULL;
