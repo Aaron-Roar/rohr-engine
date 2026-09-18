@@ -141,6 +141,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         SPRITE_FIELD(editor->height_label, editor->height_field,
             "editor.sprite.height", height, height_result);
 #undef SPRITE_FIELD
+        y += 6.0f;
     } else y += 36.0f;
     if(editor_mode_accordion_section_draw(&editor->attachment_section,
             "editor.sprite.section.attachment",
@@ -156,6 +157,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         if(preview != NULL)
             preview(preview_context, object, body_result, sprite->rigid_body);
         y += 38.0f;
+        y += 6.0f;
     } else y += 36.0f;
     if(editor_mode_accordion_section_draw(&editor->asset_section,
             "editor.sprite.section.asset",
@@ -170,6 +172,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
             (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},
             &section_field_style);
         y += 38.0f;
+        y += 6.0f;
     } else y += 36.0f;
     if(editor_mode_accordion_section_draw(&editor->appearance_section,
             "editor.sprite.section.appearance",
@@ -179,6 +182,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
             &editor->visible_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &visible);
+        y += 34.0f;
     }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_RENAME,

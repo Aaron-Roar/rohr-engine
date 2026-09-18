@@ -120,6 +120,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         camera_label_field(&editor->height_label, &editor->height_field,
             "editor.camera.height", context->x, y, context->width, &height,
             &height_result); y += 38.0f;
+        y += 6.0f;
     } else y += 36.0f;
     if(editor_mode_accordion_section_draw(&editor->view_section,
             "editor.camera.section.view",
@@ -129,6 +130,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         camera_label_field(&editor->zoom_label, &editor->zoom_field,
             "editor.camera.zoom", context->x, y, context->width, &zoom,
             &zoom_result); y += 38.0f;
+        y += 6.0f;
     } else y += 36.0f;
     options[0] = &editor->none_label;
 #define ADD_TARGET(kind_value, id_value, parent_value, source_name) do { \
@@ -186,6 +188,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             &editor->inherit_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &inherit);
         y += 38.0f;
+        y += 6.0f;
     } else y += 36.0f;
     if(editor_mode_accordion_section_draw(&editor->appearance_section,
             "editor.camera.section.appearance",
@@ -195,6 +198,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         visible_changed = editor_mode_checkbox_left("editor.camera.visible",
             &editor->visible_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &visible);
+        y += 34.0f;
     }
     if(name_result.changed) { EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
         .data.item_rename = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
