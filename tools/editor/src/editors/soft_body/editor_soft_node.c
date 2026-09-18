@@ -72,12 +72,23 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Gravity", gravity_label); CREATE("Collision", collision_label);
     CREATE("Collision Category", collision_category_label);
     CREATE("Collide With", collide_with_label); CREATE("Node Color", color_label);
-    CREATE("Inherit", inherit_label); CREATE("[X]", visible_label);
+    CREATE("Inherit", inherit_label); CREATE("Visibility", visibility_label);
+    CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label); CREATE("Delete Node", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", mass_field);
     CREATE("", radius_field); CREATE("", friction_field);
     CREATE("", restitution_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+            "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->physics_section, font,
+                "Physics", false) ||
+            !editor_mode_accordion_section_create(&editor->material_section, font,
+                "Material", false) ||
+            !editor_mode_accordion_section_create(&editor->collision_section, font,
+                "Collision", false) ||
+            !editor_mode_accordion_section_create(&editor->appearance_section, font,
+                "Appearance", false)) goto fail;
     for(size_t i = 0; i < EDITOR_SOFT_NODE_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "node_%zu", i + 1);
         if(!editor_mode_text_create(font, name, &editor->node_names[i])) goto fail;
@@ -95,11 +106,17 @@ void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
     DESTROY(radius_label); DESTROY(friction_label); DESTROY(restitution_label);
     DESTROY(gravity_label); DESTROY(collision_label);
     DESTROY(collision_category_label); DESTROY(collide_with_label);
-    DESTROY(color_label); DESTROY(inherit_label); DESTROY(visible_label);
+    DESTROY(color_label); DESTROY(inherit_label); DESTROY(visibility_label);
+    DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(x_field);
     DESTROY(y_field); DESTROY(mass_field); DESTROY(radius_field);
     DESTROY(friction_field); DESTROY(restitution_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->physics_section);
+    editor_mode_accordion_section_destroy(&editor->material_section);
+    editor_mode_accordion_section_destroy(&editor->collision_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
     for(size_t i = 0; i < EDITOR_SOFT_NODE_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->node_names[i]);
     *editor = (EditorSoftNodeEditor){0};
@@ -116,9 +133,14 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
     float mass_value, radius_value, friction_value, restitution_value;
-    UIFieldResult name_result, x_result, y_result, mass_result;
-    UIFieldResult radius_result, friction_result, restitution_result;
-    bool field_active;
+    UIFieldResult name_result, x_result = {0}, y_result = {0}, mass_result = {0};
+    UIFieldResult radius_result = {0}, friction_result = {0},
+        restitution_result = {0};
+    bool field_active, layer_active = false;
+    bool transform_open, physics_open, material_open, collision_open,
+        appearance_open;
+    float transform_y, physics_y, material_y, collision_y, appearance_y;
+    float section_y = 118.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -145,97 +167,150 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.soft_node.visibility", node->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 44.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_SOFT_NODE, object->id,
-                body->id, node->id, !node->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = node->visible;
+        if(editor_mode_checkbox_left("editor.soft_node.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 80.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_SOFT_NODE, object->id,
+                    body->id, node->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
+    }
+    {
+        float layer_height = node->graphics_layer.layer == 0 ||
+            (context->layer_control != NULL &&
+                (context->layer_control->adding ||
+                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float collision_height = 38.0f;
+        if(node->collision_enabled) {
+            collision_height += 64.0f;
+            if(editor->collision_category_open)
+                collision_height +=
+                    (float)(context->project->collision_mask_count + 1) * 30.0f;
+            if(editor->collide_with_open)
+                collision_height +=
+                    (float)(context->project->collision_mask_count + 1) * 30.0f;
+        }
+#define SOFT_NODE_SECTION(section, id, height, open, content) do { \
+    (open) = editor_mode_accordion_section_draw(&(section), (id), \
+        (UIRect){context->x + 8.0f, section_y, context->width - 16.0f, 30.0f}, \
+        (height)); \
+    (content) = section_y + 36.0f; \
+    section_y += (open) ? 30.0f + (height) + 6.0f : 36.0f; \
+} while(0)
+        SOFT_NODE_SECTION(editor->transform_section,
+            "editor.soft_node.section.transform", 70.0f + layer_height,
+            transform_open, transform_y);
+        SOFT_NODE_SECTION(editor->physics_section,
+            "editor.soft_node.section.physics", 102.0f,
+            physics_open, physics_y);
+        SOFT_NODE_SECTION(editor->material_section,
+            "editor.soft_node.section.material", 70.0f,
+            material_open, material_y);
+        SOFT_NODE_SECTION(editor->collision_section,
+            "editor.soft_node.section.collision", collision_height,
+            collision_open, collision_y);
+        SOFT_NODE_SECTION(editor->appearance_section,
+            "editor.soft_node.section.appearance", 38.0f,
+            appearance_open, appearance_y);
+#undef SOFT_NODE_SECTION
     }
     position = node->position;
+    if(transform_open) {
+    UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, 122.0f, 50.0f, 26.0f});
+        (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
     x_result = rohr_ui_field("editor.soft_node.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 60.0f, 122.0f,
-            context->width - 70.0f, 26.0f}, NULL);
+        &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
+            context->width - 70.0f, 26.0f}, &field_style);
     rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 158.0f, 50.0f, 26.0f});
+        (UIRect){context->x + 8.0f, transform_y + 32.0f, 50.0f, 26.0f});
     y_result = rohr_ui_field("editor.soft_node.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 60.0f, 158.0f,
-            context->width - 70.0f, 26.0f}, NULL);
+        &editor->y_field, (UIRect){context->x + 60.0f, transform_y + 32.0f,
+            context->width - 70.0f, 26.0f}, &field_style);
     if(x_result.changed || y_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
             .data.soft_node_position = {object->id, body->id, node->id, position}};
         (void)editor_command_execute(context->project, &command);
     }
-    bool layer_active = context->layer_control != NULL &&
-        editor_mode_layer_control_draw(context->layer_control,
+    if(context->layer_control != NULL)
+        layer_active = editor_mode_layer_control_draw(context->layer_control,
             "editor.soft_node", context->project, &node->graphics_layer,
-            &node->graphics_layer_inherited, context->x, 194.0f,
+            &node->graphics_layer_inherited, context->x, transform_y + 64.0f,
             context->width);
+    }
     mass_value = node->node_mass;
+    if(physics_open) {
+    UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->mass_label,
-        (UIRect){context->x + 8.0f, 318.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, physics_y, 68.0f, 26.0f});
     mass_result = rohr_ui_field("editor.soft_node.mass",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &mass_value},
-        &editor->mass_field, (UIRect){context->x + 78.0f, 318.0f,
-            context->width - 88.0f, 26.0f}, NULL);
+        &editor->mass_field, (UIRect){context->x + 78.0f, physics_y,
+            context->width - 88.0f, 26.0f}, &field_style);
     if(mass_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_MASS, fmaxf(0.0f, mass_value));
     radius_value = node->radius;
     rohr_ui_label(&editor->radius_label,
-        (UIRect){context->x + 8.0f, 354.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, physics_y + 32.0f, 68.0f, 26.0f});
     radius_result = rohr_ui_field("editor.soft_node.radius",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
-        &editor->radius_field, (UIRect){context->x + 78.0f, 354.0f,
-            context->width - 88.0f, 26.0f}, NULL);
+        &editor->radius_field, (UIRect){context->x + 78.0f,
+            physics_y + 32.0f, context->width - 88.0f, 26.0f}, &field_style);
     if(radius_result.changed)
         node->radius = radius_value <= 0.0f ? 0.1f : radius_value;
+    {
+        bool gravity = node->gravity_enabled;
+        if(checkbox("editor.soft_node.gravity", &editor->gravity_label,
+                (UIRect){context->x + 10.0f, physics_y + 64.0f,
+                    context->width - 20.0f, 28.0f}, &gravity))
+            bool_set(context->project, object->id, body->id, node->id,
+                EDITOR_PROPERTY_GRAVITY, gravity);
+    }
+    }
     friction_value = node->friction;
+    if(material_open) {
+    UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->friction_label,
-        (UIRect){context->x + 8.0f, 390.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, material_y, 68.0f, 26.0f});
     friction_result = rohr_ui_field("editor.soft_node.friction",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &friction_value},
-        &editor->friction_field, (UIRect){context->x + 78.0f, 390.0f,
-            context->width - 88.0f, 26.0f}, NULL);
+        &editor->friction_field, (UIRect){context->x + 78.0f, material_y,
+            context->width - 88.0f, 26.0f}, &field_style);
     if(friction_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_FRICTION, fmaxf(0.0f, friction_value));
     restitution_value = node->restitution;
     rohr_ui_label(&editor->restitution_label,
-        (UIRect){context->x + 8.0f, 426.0f, 96.0f, 26.0f});
+        (UIRect){context->x + 8.0f, material_y + 32.0f, 96.0f, 26.0f});
     restitution_result = rohr_ui_field("editor.soft_node.restitution",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &restitution_value},
-        &editor->restitution_field, (UIRect){context->x + 106.0f, 426.0f,
-            context->width - 116.0f, 26.0f}, NULL);
+        &editor->restitution_field, (UIRect){context->x + 106.0f,
+            material_y + 32.0f, context->width - 116.0f, 26.0f}, &field_style);
     if(restitution_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_RESTITUTION,
         fminf(1.0f, fmaxf(0.0f, restitution_value)));
-    {
-        bool gravity = node->gravity_enabled;
-        if(checkbox("editor.soft_node.gravity", &editor->gravity_label,
-                (UIRect){context->x + 10.0f, 462.0f,
-                    context->width - 20.0f, 28.0f}, &gravity))
-            bool_set(context->project, object->id, body->id, node->id,
-                EDITOR_PROPERTY_GRAVITY, gravity);
     }
     field_active = name_result.active || x_result.active || y_result.active ||
         mass_result.active || radius_result.active || friction_result.active ||
         restitution_result.active || layer_active;
     {
         float row_x = context->x + 10.0f, row_width = context->width - 20.0f;
-        float bottom = 530.0f;
+        float bottom = collision_y + 32.0f;
         bool collision = node->collision_enabled;
-        if(checkbox("editor.soft_node.collision", &editor->collision_label,
-                (UIRect){row_x, 498.0f, row_width, 28.0f}, &collision)) {
+        if(collision_open && checkbox("editor.soft_node.collision",
+                &editor->collision_label,
+                (UIRect){row_x, collision_y, row_width, 28.0f}, &collision)) {
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_COLLISION, collision);
             if(!collision) editor->collision_category_open =
                 editor->collide_with_open = false;
         }
-        if(node->collision_enabled) {
+        if(collision_open && node->collision_enabled) {
             if(rohr_ui_button("editor.soft_node.collision_category",
                     &editor->collision_category_label,
                     (UIRect){row_x, bottom, row_width, 28.0f}, NULL).clicked) {
@@ -276,26 +351,26 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                     context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < 498.0f || pointer.y > bottom)
+                        pointer.y < collision_y || pointer.y > bottom)
                     editor->collision_category_open = editor->collide_with_open = false;
             }
         }
     }
-    {
+    if(appearance_open) {
         bool inherit = !node->color_overridden;
         float field_width = fmaxf(34.0f, context->width - 196.0f);
         if(inherit) node->color = body->node_color;
         rohr_ui_label(&editor->color_label,
-            (UIRect){context->x + 8.0f, 744.0f, 90.0f, 26.0f});
+            (UIRect){context->x + 8.0f, appearance_y, 90.0f, 26.0f});
         if(editor_mode_checkbox_left("editor.soft_node.color_inherit",
                 &editor->inherit_label,
                 (UIRect){context->x + context->width - 92.0f,
-                    744.0f, 82.0f, 26.0f}, &inherit)) {
+                    appearance_y, 82.0f, 26.0f}, &inherit)) {
             node->color_overridden = !inherit;
             node->color = body->node_color;
         }
         (void)editor_mode_color_swatch("editor.soft_node.color", &node->color,
-            inherit, (UIRect){context->x + 100.0f, 744.0f,
+            inherit, (UIRect){context->x + 100.0f, appearance_y,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_NODE,
             object->id, body->id, node->id, EDITOR_PROPERTY_COLOR);
     }

@@ -43,10 +43,17 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("Beam Color", beam_color_label); CREATE("Area Color", area_color_label);
     CREATE("Origin", origin_label); CREATE("Auto Shape", auto_shape_label);
     CREATE("Add Node", add_node_label); CREATE("Add Beam", add_beam_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("Delete Soft Body", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+            "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->appearance_section, font,
+                "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->topology_section, font,
+                "Topology", false)) goto fail;
     return true;
 fail:
     editor_soft_body_editor_destroy(editor);
@@ -59,10 +66,14 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label);
     DESTROY(rotation_label); DESTROY(node_color_label); DESTROY(beam_color_label);
     DESTROY(area_color_label); DESTROY(origin_label); DESTROY(auto_shape_label);
-    DESTROY(add_node_label); DESTROY(add_beam_label); DESTROY(visible_label);
+    DESTROY(add_node_label); DESTROY(add_beam_label); DESTROY(visibility_label);
+    DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(x_field);
     DESTROY(y_field); DESTROY(rotation_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
+    editor_mode_accordion_section_destroy(&editor->topology_section);
     for(size_t i = 0; i < EDITOR_SOFT_BODY_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->body_names[i]);
     for(size_t i = 0; i < EDITOR_SOFT_NODE_MAX; i += 1)
@@ -77,7 +88,7 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
 static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
         const EditorModeContext *context, EditorObject *object,
         EditorSoftBody *body, EditorSoftHierarchyItem item,
-        size_t hierarchy_index) {
+        size_t hierarchy_index, float base_y) {
     EditorHierarchySelection selection;
     EditorVisibilityKind visibility;
     TextAsset *label = NULL;
@@ -85,7 +96,7 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
     const char *name = NULL;
     bool shown = false, selected = false;
     char id[64], visibility_id[72];
-    float y = 562.0f + (float)hierarchy_index * 28.0f;
+    float y = base_y + (float)hierarchy_index * 28.0f;
     if(item.kind == EDITOR_SOFT_HIERARCHY_NODE) {
         for(size_t i = 0; i < body->node_count; i += 1)
             if(body->nodes[i].id == item.id) {
@@ -174,8 +185,10 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     char name[EDITOR_OBJECT_NAME_MAX];
     Position position;
     float rotation;
-    UIFieldResult name_result, x_result, y_result, rotation_result;
-    bool field_active;
+    UIFieldResult name_result, x_result = {0}, y_result = {0},
+        rotation_result = {0};
+    bool field_active, transform_open, appearance_open, topology_open;
+    float transform_y, appearance_y, topology_y, section_y = 118.0f;
     if(editor == NULL || auto_shape == NULL || context == NULL ||
             context->project == NULL || context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -200,64 +213,102 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.soft_body.visibility", body->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 44.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_SOFT_BODY, object->id,
-                0, body->id, !body->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = body->visible;
+        if(editor_mode_checkbox_left("editor.soft_body.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 80.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_SOFT_BODY, object->id,
+                    0, body->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
+    }
+    {
+        float layer_height = body->graphics_layer.layer == 0 ||
+            (context->layer_control != NULL &&
+                (context->layer_control->adding ||
+                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+        float topology_height = editor->auto_shape_picker_open ? 138.0f :
+            154.0f + (float)body->hierarchy_count * 28.0f;
+#define SOFT_BODY_SECTION(section, id, height, open, content) do { \
+    (open) = editor_mode_accordion_section_draw(&(section), (id), \
+        (UIRect){context->x + 8.0f, section_y, context->width - 16.0f, 30.0f}, \
+        (height)); \
+    (content) = section_y + 36.0f; \
+    section_y += (open) ? 30.0f + (height) + 6.0f : 36.0f; \
+} while(0)
+        SOFT_BODY_SECTION(editor->transform_section,
+            "editor.soft_body.section.transform", 114.0f + layer_height,
+            transform_open, transform_y);
+        SOFT_BODY_SECTION(editor->appearance_section,
+            "editor.soft_body.section.appearance", 102.0f,
+            appearance_open, appearance_y);
+        SOFT_BODY_SECTION(editor->topology_section,
+            "editor.soft_body.section.topology", topology_height,
+            topology_open, topology_y);
+#undef SOFT_BODY_SECTION
     }
     position = body->position; rotation = body->rotation;
-    rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, 118.0f, 50.0f, 26.0f});
-    x_result = rohr_ui_field("editor.soft_body.x",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 60.0f, 118.0f,
-            context->width - 70.0f, 26.0f}, NULL);
-    rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 154.0f, 50.0f, 26.0f});
-    y_result = rohr_ui_field("editor.soft_body.y",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 60.0f, 154.0f,
-            context->width - 70.0f, 26.0f}, NULL);
-    rohr_ui_label(&editor->rotation_label,
-        (UIRect){context->x + 8.0f, 190.0f, 82.0f, 26.0f});
-    rotation_result = rohr_ui_field("editor.soft_body.rotation",
-        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
-        &editor->rotation_field, (UIRect){context->x + 92.0f, 190.0f,
-            context->width - 102.0f, 26.0f}, NULL);
+    bool layer_active = false;
+    if(transform_open) {
+        UIButtonStyle style = editor_mode_section_field_style_get();
+        rohr_ui_label(&editor->x_label,
+            (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
+        x_result = rohr_ui_field("editor.soft_body.x",
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
+            &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
+                context->width - 70.0f, 26.0f}, &style);
+        rohr_ui_label(&editor->y_label,
+            (UIRect){context->x + 8.0f, transform_y + 36.0f, 50.0f, 26.0f});
+        y_result = rohr_ui_field("editor.soft_body.y",
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
+            &editor->y_field, (UIRect){context->x + 60.0f,
+                transform_y + 36.0f, context->width - 70.0f, 26.0f}, &style);
+        rohr_ui_label(&editor->rotation_label,
+            (UIRect){context->x + 8.0f, transform_y + 72.0f, 82.0f, 26.0f});
+        rotation_result = rohr_ui_field("editor.soft_body.rotation",
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
+            &editor->rotation_field, (UIRect){context->x + 92.0f,
+                transform_y + 72.0f, context->width - 102.0f, 26.0f}, &style);
+        if(context->layer_control != NULL)
+            layer_active = editor_mode_layer_control_draw(context->layer_control,
+                "editor.soft_body", context->project, &body->graphics_layer, NULL,
+                context->x, transform_y + 108.0f, context->width);
+    }
     if(x_result.changed || y_result.changed || rotation_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
             .data.soft_body_transform = {object->id, body->id, position, rotation}};
         (void)editor_command_execute(context->project, &command);
     }
-    bool layer_active = context->layer_control != NULL &&
-        editor_mode_layer_control_draw(context->layer_control,
-            "editor.soft_body", context->project, &body->graphics_layer, NULL,
-            context->x, 226.0f, context->width);
+    if(appearance_open) {
     (void)editor_mode_color_swatch("editor.soft_body.node_color",
-        &body->node_color, false, (UIRect){context->x + 100.0f, 312.0f,
+        &body->node_color, false, (UIRect){context->x + 100.0f, appearance_y,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_NODE_COLOR);
     rohr_ui_label(&editor->node_color_label,
-        (UIRect){context->x + 8.0f, 312.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_y, 90.0f, 26.0f});
     rohr_ui_label(&editor->beam_color_label,
-        (UIRect){context->x + 8.0f, 344.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_y + 32.0f, 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.beam_color",
-        &body->beam_color, false, (UIRect){context->x + 100.0f, 344.0f,
+        &body->beam_color, false, (UIRect){context->x + 100.0f,
+            appearance_y + 32.0f,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_BEAM_COLOR);
     rohr_ui_label(&editor->area_color_label,
-        (UIRect){context->x + 8.0f, 376.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_y + 64.0f, 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.area_color",
-        &body->area_color, false, (UIRect){context->x + 100.0f, 376.0f,
+        &body->area_color, false, (UIRect){context->x + 100.0f,
+            appearance_y + 64.0f,
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_AREA_COLOR);
+    }
+    if(topology_open) {
     {
         UIButtonStyle style = selected_style_get();
         UIButtonResult result = rohr_ui_button("editor.soft_body.origin",
-            &editor->origin_label, (UIRect){context->x + 10.0f, 412.0f,
+            &editor->origin_label, (UIRect){context->x + 10.0f, topology_y,
                 context->width - 20.0f, 28.0f},
             context->viewport->selection == EDITOR_SELECTION_ORIGIN &&
                 context->viewport->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY ?
@@ -269,12 +320,12 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         }
     }
     if(rohr_ui_button("editor.soft_body.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, 446.0f,
+            (UIRect){context->x + 10.0f, topology_y + 34.0f,
                 context->width - 20.0f, 30.0f}, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(!editor->auto_shape_picker_open) {
         if(rohr_ui_button("editor.soft_body.add_node", &editor->add_node_label,
-                (UIRect){context->x + 10.0f, 482.0f,
+                (UIRect){context->x + 10.0f, topology_y + 70.0f,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_NODE,
@@ -287,7 +338,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             }
         }
         if(rohr_ui_button("editor.soft_body.add_beam", &editor->add_beam_label,
-                (UIRect){context->x + 10.0f, 518.0f,
+                (UIRect){context->x + 10.0f, topology_y + 106.0f,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_BEAM,
@@ -301,13 +352,13 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         editor_project_soft_body_hierarchy_sync(body);
         for(size_t i = 0; i < body->hierarchy_count; i += 1)
             if(!hierarchy_item_draw(editor, context, object, body,
-                    body->hierarchy[i], i)) return false;
+                    body->hierarchy[i], i, topology_y + 142.0f)) return false;
     } else {
         size_t count = editor_auto_shape_soft_body_points_capture(
             context->viewport, object, body);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.soft_body.auto_shape.option",
-            (UIRect){context->x + 10.0f, 480.0f,
+            (UIRect){context->x + 10.0f, topology_y + 70.0f,
                 context->width - 20.0f, 62.0f}, count > 0 ? count : body->node_count);
         if(shape >= 0) {
             auto_shape->config.kind = (EditorAutoShapeKind)shape;
@@ -321,6 +372,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             auto_shape->third_was_active = false;
             editor->auto_shape_picker_open = false;
         }
+    }
     }
     if(context->delete_open_item != NULL && !context->delete_footer) {
         UIButtonStyle delete_style = delete_style_get();

@@ -86,7 +86,8 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     CREATE("Add Hitbox Variant", add_hitbox_label);
     CREATE("Bind Frames", bind_frames_label);
     CREATE("Delete Rigid Body", delete_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
     CREATE("", mass_field); CREATE("", friction_field);
     CREATE("", restitution_field);
@@ -136,7 +137,7 @@ void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor) {
     DESTROY(collision_category_label); DESTROY(collide_with_label); DESTROY(origin_label);
     DESTROY(active_hitbox_label); DESTROY(add_hitbox_label);
     DESTROY(bind_frames_label);
-    DESTROY(delete_label); DESTROY(visible_label);
+    DESTROY(delete_label); DESTROY(visibility_label); DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(x_field); DESTROY(y_field);
     DESTROY(rotation_field); DESTROY(mass_field); DESTROY(friction_field);
     DESTROY(restitution_field);
@@ -177,7 +178,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     float x, width, delete_y = 650.0f;
     float transform_y = 0.0f, physics_y = 0.0f, material_y = 0.0f;
     float collision_y = 0.0f, parenting_y = 0.0f, appearance_y = 0.0f;
-    float geometry_y = 0.0f, section_y = 80.0f;
+    float geometry_y = 0.0f, section_y = 118.0f;
     bool transform_open, physics_open, material_open, collision_open;
     bool parenting_open, appearance_open, geometry_open;
     if(editor == NULL || context == NULL || context->project == NULL ||
@@ -205,13 +206,16 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.rigid_body.visibility", body->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){x + 8.0f, 44.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_RIGID_BODY, object->id, 0,
-                body->id, !body->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = body->visible;
+        if(editor_mode_checkbox_left("editor.rigid_body.visibility",
+                &editor->visibility_label,
+                (UIRect){x + 10.0f, 80.0f, width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_RIGID_BODY, object->id, 0,
+                    body->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     {
         float layer_height = body->graphics_layer.layer == 0 ||

@@ -15,7 +15,8 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Angle", angle_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
     CREATE("Zoom", zoom_label);
-    CREATE("Follow Orientation", inherit_label); CREATE("Visible", visible_label);
+    CREATE("Follow Orientation", inherit_label);
+    CREATE("Visibility", visibility_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", angle_field);
     CREATE("", width_field); CREATE("", height_field);
@@ -26,9 +27,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
             !editor_mode_accordion_section_create(&editor->view_section, font,
                 "View", false) ||
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
-                "Attachment", false) ||
-            !editor_mode_accordion_section_create(&editor->appearance_section, font,
-                "Editor Appearance", false)) goto fail;
+                "Attachment", false)) goto fail;
     return true;
 fail:
     editor_camera_editor_destroy(editor);
@@ -41,7 +40,8 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(angle_label);
     DESTROY(width_label); DESTROY(height_label); DESTROY(attachment_label);
     DESTROY(zoom_label);
-    DESTROY(inherit_label); DESTROY(visible_label); DESTROY(none_label);
+    DESTROY(inherit_label); DESTROY(visibility_label);
+    DESTROY(none_label);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field); DESTROY(angle_field);
     DESTROY(width_field); DESTROY(height_field);
     DESTROY(zoom_field);
@@ -49,7 +49,6 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->view_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
-    editor_mode_accordion_section_destroy(&editor->appearance_section);
     for(size_t i = 0; i < EDITOR_CAMERA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->name_values[i]);
     for(size_t i = 0; i < 256; i += 1)
@@ -94,6 +93,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             camera->name, &editor->name_values[index], editor->name_cache[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
     snprintf(name, sizeof(name), "%s", camera->name);
+    visible = camera->visible;
     rohr_ui_label(&editor->name_label, (UIRect){context->x + 8, 42, 82, 28});
     name_result = rohr_ui_field("editor.camera.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
@@ -101,7 +101,10 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         (UIRect){context->x + 94, 42, context->width - 104, 28}, NULL);
     position = camera->position; angle = camera->rotation;
     width = camera->dimensions.x; height = camera->dimensions.y; zoom = camera->zoom;
-    y = 80.0f;
+    visible_changed = editor_mode_checkbox_left("editor.camera.visible",
+        &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
+            context->width - 20.0f, 28.0f}, &visible);
+    y = 118.0f;
     if(editor_mode_accordion_section_draw(&editor->transform_section,
             "editor.camera.section.transform",
             (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
@@ -157,7 +160,6 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
 #undef ADD_TARGET
     attachment.selected_index = selected;
     inherit = camera->inherit_orientation;
-    visible = camera->visible;
     if(editor_mode_accordion_section_draw(&editor->attachment_section,
             "editor.camera.section.attachment",
             (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
@@ -190,16 +192,6 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         y += 38.0f;
         y += 6.0f;
     } else y += 36.0f;
-    if(editor_mode_accordion_section_draw(&editor->appearance_section,
-            "editor.camera.section.appearance",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            44.0f)) {
-        y += 36.0f;
-        visible_changed = editor_mode_checkbox_left("editor.camera.visible",
-            &editor->visible_label, (UIRect){context->x + 10.0f, y,
-                context->width - 20.0f, 28.0f}, &visible);
-        y += 34.0f;
-    }
     if(name_result.changed) { EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
         .data.item_rename = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
             .item = camera->id}}; snprintf(command.data.item_rename.name,

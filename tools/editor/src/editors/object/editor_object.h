@@ -14,7 +14,7 @@ typedef struct EditorObjectEditor {
     FontAsset *font;
     TextAsset object_name_label, add_rigid_body_label, add_joint_label;
     TextAsset add_soft_body_label, add_sprite_label, add_animation_label, add_camera_label;
-    TextAsset visible_label, hidden_label, delete_label;
+    TextAsset visibility_label, visible_label, hidden_label, delete_label;
     TextAsset object_names[EDITOR_OBJECT_MAX];
     TextAsset rigid_body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset joint_names[EDITOR_JOINT_MAX];

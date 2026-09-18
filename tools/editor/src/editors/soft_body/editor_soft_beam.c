@@ -51,7 +51,8 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Node B", node_b_label); CREATE("Stiffness", stiffness_label);
     CREATE("Damping", damping_label); CREATE("Beam Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("None", none_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
     CREATE("", damping_field);
 #undef CREATE
@@ -74,7 +75,8 @@ void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(node_a_label); DESTROY(node_b_label);
     DESTROY(stiffness_label); DESTROY(damping_label); DESTROY(color_label);
-    DESTROY(inherit_label); DESTROY(none_label); DESTROY(visible_label);
+    DESTROY(inherit_label); DESTROY(none_label); DESTROY(visibility_label);
+    DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(stiffness_field);
     DESTROY(damping_field);
 #undef DESTROY
@@ -120,13 +122,17 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.soft_beam.visibility", beam->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 44.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_SOFT_BEAM, object->id,
-                body->id, beam->id, !beam->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = beam->visible;
+        if(editor_mode_checkbox_left("editor.soft_beam.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 80.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_SOFT_BEAM, object->id,
+                    body->id, beam->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     {
         const TextAsset *options[EDITOR_SOFT_NODE_MAX + 1];

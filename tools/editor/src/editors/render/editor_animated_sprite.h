@@ -6,6 +6,7 @@
 #define EDITOR_ANIMATED_SPRITE_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/render/editor_sprite.h"
 
 typedef void (*EditorAnimationFrameBrowserOpenFunction)(void *context,
@@ -17,7 +18,7 @@ typedef struct EditorAnimatedSpriteEditor {
     TextAsset scale_x_label, scale_y_label, ticks_label, time_label;
     TextAsset starting_label, direction_label, left_label, right_label;
     TextAsset follow_label, playing_label, add_frame_label;
-    TextAsset visible_label, hidden_label, none_label, delete_label;
+    TextAsset visibility_label, none_label, delete_label;
     TextAsset name_values[32], body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset frame_names[64];
     TextAsset x_field, y_field, rotation_field, scale_x_field, scale_y_field;
@@ -25,6 +26,10 @@ typedef struct EditorAnimatedSpriteEditor {
     char name_cache[32][EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char frame_cache[64][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection attachment_section;
+    EditorModeAccordionSection playback_section;
+    EditorModeAccordionSection frames_section;
 } EditorAnimatedSpriteEditor;
 
 bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,

@@ -26,7 +26,7 @@ typedef struct EditorRigidBodyEditor {
     TextAsset collision_category_label, collide_with_label;
     TextAsset origin_label, active_hitbox_label, add_hitbox_label, delete_label;
     TextAsset bind_frames_label;
-    TextAsset visible_label, hidden_label;
+    TextAsset visibility_label, visible_label, hidden_label;
     TextAsset x_field, y_field, rotation_field;
     TextAsset mass_field, friction_field, restitution_field;
     TextAsset body_names[EDITOR_RIGID_BODY_MAX];

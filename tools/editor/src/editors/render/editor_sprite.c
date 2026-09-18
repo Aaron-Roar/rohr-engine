@@ -16,7 +16,7 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     CREATE("Name", name_label); CREATE("Path", path_label);
     CREATE("Rigid Body", body_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation", rotation_label); CREATE("Width", width_label);
-    CREATE("Height", height_label); CREATE("Visible", visible_label);
+    CREATE("Height", height_label); CREATE("Visibility", visibility_label);
     CREATE("Follow Rotation", follow_label); CREATE("None", none_label);
     CREATE("Delete Sprite", delete_label); CREATE("", path_field);
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
@@ -27,9 +27,7 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
                 "Attachment", false) ||
             !editor_mode_accordion_section_create(&editor->asset_section, font,
-                "Asset", false) ||
-            !editor_mode_accordion_section_create(&editor->appearance_section, font,
-                "Appearance", false)) goto fail;
+                "Asset", false)) goto fail;
     return true;
 fail:
     editor_sprite_editor_destroy(editor);
@@ -41,7 +39,8 @@ void editor_sprite_editor_destroy(EditorSpriteEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(path_label); DESTROY(body_label); DESTROY(x_label);
     DESTROY(y_label); DESTROY(rotation_label); DESTROY(width_label);
-    DESTROY(height_label); DESTROY(visible_label); DESTROY(follow_label);
+    DESTROY(height_label); DESTROY(visibility_label);
+    DESTROY(follow_label);
     DESTROY(none_label); DESTROY(delete_label); DESTROY(path_field);
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
     DESTROY(width_field); DESTROY(height_field);
@@ -49,7 +48,6 @@ void editor_sprite_editor_destroy(EditorSpriteEditor *editor) {
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->attachment_section);
     editor_mode_accordion_section_destroy(&editor->asset_section);
-    editor_mode_accordion_section_destroy(&editor->appearance_section);
     for(size_t i = 0; i < 64; i += 1)
         rohr_graphics_text_destroy(&editor->name_values[i]);
     for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1)
@@ -85,6 +83,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     if(!editor_mode_named_text_sync(editor->font, sprite->name,
             &editor->name_values[index], editor->name_cache[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
+    visible = sprite->visible;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 70.0f, 28.0f});
     name_result = rohr_ui_field("editor.sprite.name",
@@ -102,8 +101,11 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     }
     position = sprite->position; rotation = sprite->rotation;
     width = sprite->size.x; height = sprite->size.y;
-    visible = sprite->visible; follow = sprite->follow_body_rotation;
-    y = 80.0f;
+    visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
+        &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
+            context->width - 20.0f, 28.0f}, &visible);
+    follow = sprite->follow_body_rotation;
+    y = 118.0f;
     float layer_height = sprite->graphics_layer.layer == 0 ||
         (context->layer_control != NULL &&
             (context->layer_control->adding ||
@@ -174,16 +176,6 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         y += 38.0f;
         y += 6.0f;
     } else y += 36.0f;
-    if(editor_mode_accordion_section_draw(&editor->appearance_section,
-            "editor.sprite.section.appearance",
-            (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
-            44.0f)) {
-        y += 36.0f;
-        visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
-            &editor->visible_label, (UIRect){context->x + 10.0f, y,
-                context->width - 20.0f, 28.0f}, &visible);
-        y += 34.0f;
-    }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_RENAME,
             .data.sprite_rename = {object->id, sprite->id}};

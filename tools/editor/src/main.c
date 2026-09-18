@@ -920,7 +920,10 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
         mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
         mode != EDITOR_VIEWPORT_RIGID_BODY &&
+        mode != EDITOR_VIEWPORT_SOFT_BODY &&
+        mode != EDITOR_VIEWPORT_SOFT_NODE &&
         mode != EDITOR_VIEWPORT_SPRITE &&
+        mode != EDITOR_VIEWPORT_ANIMATED_SPRITE &&
         mode != EDITOR_VIEWPORT_CAMERA_ENTITY;
 }
 

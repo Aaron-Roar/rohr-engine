@@ -31,7 +31,7 @@ bool editor_hitbox_editor_create(EditorHitboxEditor *editor, FontAsset *font) {
     CREATE("Auto Shape", auto_shape_label);
     CREATE("Vertices", vertices_label);
     CREATE("Lines", lines_label);
-    CREATE("[X]", visible_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Hitbox Variant", delete_label);
 #undef CREATE
@@ -52,6 +52,7 @@ void editor_hitbox_editor_destroy(EditorHitboxEditor *editor) {
     rohr_graphics_text_destroy(&editor->auto_shape_label);
     rohr_graphics_text_destroy(&editor->vertices_label);
     rohr_graphics_text_destroy(&editor->lines_label);
+    rohr_graphics_text_destroy(&editor->visibility_label);
     rohr_graphics_text_destroy(&editor->visible_label);
     rohr_graphics_text_destroy(&editor->hidden_label);
     rohr_graphics_text_destroy(&editor->delete_label);
@@ -103,16 +104,20 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
             sizeof(command.data.item_rename.name), "%s", edited_name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.hitbox.visibility", hitbox->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 47.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_HITBOX, object->id,
-                body->id, hitbox->id, !hitbox->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = hitbox->visible;
+        if(editor_mode_checkbox_left("editor.hitbox.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 80.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_HITBOX, object->id,
+                    body->id, hitbox->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     if(rohr_ui_button("editor.hitbox.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, 78.0f,
+            (UIRect){context->x + 10.0f, 116.0f,
                 context->width - 20.0f, 28.0f}, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(editor->auto_shape_picker_open) {
@@ -120,7 +125,7 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
             context->viewport, object, body, hitbox);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.hitbox.auto_shape.option",
-            (UIRect){context->x + 10.0f, 110.0f,
+            (UIRect){context->x + 10.0f, 148.0f,
                 context->width - 20.0f, 62.0f},
             selected_count > 0 ? selected_count : hitbox->vertex_count);
         if(shape >= 0) {
@@ -138,7 +143,7 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
         return field_active;
     }
     rohr_ui_label(&editor->vertices_label,
-        (UIRect){context->x + 10.0f, 110.0f, context->width - 20.0f, 24.0f});
+        (UIRect){context->x + 10.0f, 148.0f, context->width - 20.0f, 24.0f});
     for(uint32_t i = 0; i < hitbox->vertex_count &&
             i < EDITOR_HITBOX_VERTEX_MAX; i += 1) {
         char id[64];
@@ -153,7 +158,7 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                 EDITOR_OBJECT_NAME_MAX)) return field_active;
         snprintf(id, sizeof(id), "editor.vertex.%u", hitbox->vertices[i].id);
         result = rohr_ui_button(id, &editor->vertex_names.labels[i],
-            (UIRect){context->x + 18.0f, 138.0f + (float)i * 27.0f,
+            (UIRect){context->x + 18.0f, 176.0f + (float)i * 27.0f,
                 context->width - 26.0f, 23.0f}, selected ? &style : NULL);
         if(result.clicked || result.focus_changed) {
             SDL_Keymod modifiers = SDL_GetModState();
@@ -173,7 +178,7 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
         }
     }
     {
-        float base = 146.0f + (float)hitbox->vertex_count * 27.0f;
+        float base = 184.0f + (float)hitbox->vertex_count * 27.0f;
         rohr_ui_label(&editor->lines_label,
             (UIRect){context->x + 10.0f, base, context->width - 20.0f, 24.0f});
         for(uint32_t i = 0; i < hitbox->vertex_count &&
@@ -204,7 +209,7 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();
-        float delete_y = 209.0f + (float)hitbox->vertex_count * 54.0f;
+        float delete_y = 247.0f + (float)hitbox->vertex_count * 54.0f;
         float panel_delete_y = context->delete_y_get(context->delete_context);
         if(delete_y < panel_delete_y) delete_y = panel_delete_y;
         if(rohr_ui_button("editor.hitbox.delete", &editor->delete_label,

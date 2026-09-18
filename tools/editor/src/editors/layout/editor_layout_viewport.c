@@ -35,7 +35,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Direct value", direct_layer_label);
-    CREATE("Visible", visible_label);
+    CREATE("Visibility", visible_label);
     CREATE("Draggable", draggable_label); CREATE("Drag Axis", drag_axis_label);
     CREATE("Horizontal", drag_x_label); CREATE("Vertical", drag_y_label);
     CREATE("Horizontal + Vertical", drag_xy_label);
@@ -134,7 +134,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     EditorLayoutViewport *viewport;
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result, x_result, y_result, width_result, height_result;
-    bool enabled;
     float y;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -142,27 +141,29 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         context->viewport->selected_layout_viewport);
     if(viewport == NULL) return false;
     snprintf(name, sizeof(name), "%s", viewport->name);
-    rohr_ui_label(&editor->name_label, (UIRect){context->x + 8.0f, 42.0f, 82.0f, 28.0f});
+    rohr_ui_label(&editor->name_label,
+        (UIRect){context->x + 8.0f, 42.0f, 82.0f, 28.0f});
     name_result = rohr_ui_field("editor.layout.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_field,
         (UIRect){context->x + 94.0f, 42.0f, context->width - 104.0f, 28.0f}, NULL);
+    bool enabled = viewport->enabled;
+    if(editor_mode_checkbox_left("editor.layout.visibility",
+            &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
+                context->width - 20.0f, 28.0f}, &enabled))
+        viewport->enabled = enabled;
     x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.x", context->x, 80.0f, context->width,
+        "editor.layout.x", context->x, 118.0f, context->width,
         &viewport->config.rectangle.x);
     y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.y", context->x, 118.0f, context->width,
+        "editor.layout.y", context->x, 156.0f, context->width,
         &viewport->config.rectangle.y);
     width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.width", context->x, 156.0f, context->width,
+        "editor.layout.width", context->x, 194.0f, context->width,
         &viewport->config.rectangle.width);
     height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.height", context->x, 194.0f, context->width,
+        "editor.layout.height", context->x, 232.0f, context->width,
         &viewport->config.rectangle.height);
-    enabled = viewport->enabled;
-    if(editor_mode_checkbox_left("editor.layout.enabled", &editor->enabled_label,
-            (UIRect){context->x + 10.0f, 232.0f, context->width - 20.0f, 28.0f},
-            &enabled)) viewport->enabled = enabled;
     rohr_ui_label(&editor->background_color_label,
         (UIRect){context->x + 8.0f, 270.0f, context->width - 64.0f, 28.0f});
     (void)layout_local_swatch("editor.layout.background_color",
@@ -397,7 +398,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorLayoutViewport *viewport;
     EditorViewportCameraItem *item = NULL;
-    UIFieldResult x_result, y_result, width_result, height_result,
+    UIFieldResult name_result, x_result, y_result, width_result, height_result,
         rotation_result, content_x_result, content_y_result,
         content_width_result, content_height_result, content_rotation_result;
     const TextAsset *camera_options[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
@@ -420,12 +421,17 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         180.0f / 3.14159265359f;
     source_rotation_degrees = item->content_rotation *
         180.0f / 3.14159265359f;
-    if(rohr_ui_button("editor.layout.camera.visibility", item->placement.visible ?
-            &editor->visible_icon : &editor->hidden_icon,
-            (UIRect){context->x + 10.0f, 42.0f, 34.0f, 28.0f}, NULL).clicked)
-        item->placement.visible = !item->placement.visible;
-    rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, 42.0f,
-        context->width - 60.0f, 28.0f});
+    rohr_ui_label(&editor->name_label,
+        (UIRect){context->x + 8.0f, 42.0f, 82.0f, 28.0f});
+    name_result = editor_mode_name_field("editor.layout.camera.name", item->name,
+        sizeof(item->name), &editor->name_field,
+        (UIRect){context->x + 94.0f, 42.0f,
+            context->width - 104.0f, 28.0f});
+    bool visible = item->placement.visible;
+    if(editor_mode_checkbox_left("editor.layout.camera.visibility",
+            &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
+                context->width - 20.0f, 28.0f}, &visible))
+        item->placement.visible = visible;
     for(size_t object_index = 0; object_index < context->project->object_count;
             object_index += 1) {
         EditorObject *object = &context->project->objects[object_index];
@@ -444,12 +450,12 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             camera_count += 1;
         }
     }
-    rohr_ui_label(&editor->source_label, (UIRect){context->x + 8.0f, 80.0f,
+    rohr_ui_label(&editor->source_label, (UIRect){context->x + 8.0f, 118.0f,
         70.0f, 28.0f});
     if(camera_count > 0) {
         UIDropdownResult source = rohr_ui_dropdown("editor.layout.screen.source",
             camera_options, camera_count, selected_camera,
-            (UIRect){context->x + 82.0f, 80.0f, context->width - 92.0f, 28.0f},
+            (UIRect){context->x + 82.0f, 118.0f, context->width - 92.0f, 28.0f},
             NULL);
         if(source.button_hovered || source.hovered_index >= 0) {
             size_t preview = source.hovered_index >= 0 ?
@@ -463,19 +469,19 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.camera_editor.x", context->x, 118.0f, context->width,
+        "editor.layout.camera_editor.x", context->x, 156.0f, context->width,
         &item->placement.rectangle.x);
     y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.camera_editor.y", context->x, 156.0f, context->width,
+        "editor.layout.camera_editor.y", context->x, 194.0f, context->width,
         &item->placement.rectangle.y);
     width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.camera_editor.width", context->x, 194.0f, context->width,
+        "editor.layout.camera_editor.width", context->x, 232.0f, context->width,
         &item->placement.rectangle.width);
     height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.camera_editor.height", context->x, 232.0f, context->width,
+        "editor.layout.camera_editor.height", context->x, 270.0f, context->width,
         &item->placement.rectangle.height);
     rotation_result = layout_number(&editor->rotation_label, &editor->rotation_field,
-        "editor.layout.screen.rotation", context->x, 270.0f, context->width,
+        "editor.layout.screen.rotation", context->x, 308.0f, context->width,
         &rotation_degrees);
     if(rotation_result.changed) {
         rotation_degrees = fmodf(rotation_degrees, 360.0f);
@@ -488,11 +494,11 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     bool layer_active = context->layer_control != NULL &&
         editor_mode_layer_control_draw(context->layer_control,
             "editor.layout.screen", context->project, &layer_binding, NULL,
-            context->x, 308.0f, context->width);
+            context->x, 346.0f, context->width);
     item->placement.layer = layer_binding.value;
     item->graphics_layer = layer_binding.layer;
     bool draggable = item->placement.drag_mode != VIEWPORT_ITEM_DRAG_NONE;
-    float content_controls_y = 384.0f;
+    float content_controls_y = 422.0f;
     if(editor_mode_checkbox_left("editor.layout.screen.draggable",
             &editor->draggable_label,
             (UIRect){context->x + 10.0f, content_controls_y,
@@ -537,7 +543,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     }
     item->content_scale.x = fmaxf(0.01f, item->content_scale.x);
     item->content_scale.y = fmaxf(0.01f, item->content_scale.y);
-    return x_result.active || y_result.active || width_result.active ||
+    return name_result.active || x_result.active || y_result.active || width_result.active ||
         height_result.active || rotation_result.active || layer_active ||
         content_x_result.active || content_y_result.active ||
         content_width_result.active || content_height_result.active ||
@@ -561,6 +567,18 @@ static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
 static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context, EditorViewportUiItem *item, float *y) {
     bool visible = item->visible;
+    rohr_ui_label(&editor->name_label,
+        (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
+    UIFieldResult name_result = editor_mode_name_field("editor.layout.ui.name",
+        item->name, sizeof(item->name), &editor->name_field,
+        (UIRect){context->x + 94.0f, *y,
+            context->width - 104.0f, 28.0f});
+    *y += 38.0f;
+    if(editor_mode_checkbox_left("editor.layout.ui.visibility",
+            &editor->visible_label, (UIRect){context->x + 10.0f, *y,
+                context->width - 20.0f, 28.0f}, &visible))
+        item->visible = visible;
+    *y += 38.0f;
     UIFieldResult x_result = layout_number(&editor->x_label, &editor->x_field,
         "editor.layout.ui.x", context->x, *y, context->width, &item->position.x);
     *y += 38.0f;
@@ -582,13 +600,6 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
     item->layer = layer_binding.value;
     item->graphics_layer = layer_binding.layer;
     *y += 76.0f;
-    if(rohr_ui_button("editor.layout.ui.visibility", visible ?
-            &editor->visible_icon : &editor->hidden_icon,
-            (UIRect){context->x + 10.0f, *y, 34.0f, 28.0f}, NULL).clicked)
-        item->visible = !item->visible;
-    rohr_ui_label(&editor->visible_label, (UIRect){context->x + 50.0f, *y,
-        context->width - 60.0f, 28.0f});
-    *y += 42.0f;
     bool draggable = item->drag_mode != VIEWPORT_ITEM_DRAG_NONE;
     if(editor_mode_checkbox_left("editor.layout.ui.draggable",
             &editor->draggable_label,
@@ -682,11 +693,11 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
                     46.0f, *y, 36.0f, 28.0f}, context);
             *y += 42.0f;
         }
-        return x_result.active || y_result.active || rotation_result.active ||
+        return name_result.active || x_result.active || y_result.active || rotation_result.active ||
             layer_active ||
             thickness.active || spacing.active || radius.active;
     }
-    return x_result.active || y_result.active || rotation_result.active ||
+    return name_result.active || x_result.active || y_result.active || rotation_result.active ||
         layer_active;
 }
 

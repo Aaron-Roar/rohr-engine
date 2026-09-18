@@ -70,7 +70,8 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     CREATE("Anchor B", anchor_b_label); CREATE("None", none_label);
     CREATE("Add Anchor", add_anchor_label); CREATE("Damping", damping_label);
     CREATE("Rest Length", rest_length_label); CREATE("Stiffness", stiffness_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("Delete Joint", delete_label); CREATE("", damping_field);
     CREATE("", rest_length_field); CREATE("", stiffness_field);
 #undef CREATE
@@ -95,7 +96,8 @@ void editor_joint_editor_destroy(EditorJointEditor *editor) {
     DESTROY(weld_label); DESTROY(spring_label); DESTROY(anchor_a_label);
     DESTROY(anchor_b_label); DESTROY(none_label); DESTROY(add_anchor_label);
     DESTROY(damping_label); DESTROY(rest_length_label); DESTROY(stiffness_label);
-    DESTROY(visible_label); DESTROY(hidden_label); DESTROY(delete_label);
+    DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
+    DESTROY(delete_label);
     DESTROY(damping_field); DESTROY(rest_length_field); DESTROY(stiffness_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_JOINT_MAX; i += 1)
@@ -158,20 +160,24 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    rohr_ui_label(&editor->visual_size_label,
-        (UIRect){context->x + 40.0f, 76.0f, context->width - 48.0f, 24.0f});
-    if(rohr_ui_button("editor.joint.visibility", joint->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 10.0f, 94.0f, 24.0f, 24.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_JOINT, object->id, 0,
-                joint->id, !joint->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = joint->visible;
+        if(editor_mode_checkbox_left("editor.joint.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 76.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_JOINT, object->id, 0,
+                    joint->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
+    rohr_ui_label(&editor->visual_size_label,
+        (UIRect){context->x + 40.0f, 114.0f, context->width - 48.0f, 24.0f});
     {
         UISliderConfig slider = rohr_ui_slider_config_default_get();
         slider.center = (Position){context->x +
-            (context->width + 40.0f) * 0.5f, 106.0f};
+            (context->width + 40.0f) * 0.5f, 144.0f};
         slider.length = context->width - 60.0f;
         slider.min_value = 0.25f; slider.max_value = 3.0f;
         UISliderResult result = rohr_ui_slider("editor.joint.visual_size",
@@ -183,7 +189,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
         const TextAsset *options[] = {&editor->revolute_label,
             &editor->weld_label, &editor->spring_label};
         UIDropdownResult result = rohr_ui_dropdown("editor.joint.kind", options,
-            3, (size_t)joint->kind, (UIRect){context->x + 10.0f, 118.0f,
+            3, (size_t)joint->kind, (UIRect){context->x + 10.0f, 156.0f,
                 context->width - 20.0f, 30.0f}, NULL);
         if(result.changed) property_uint_set(context->project, object->id,
             joint->id, EDITOR_PROPERTY_JOINT_KIND,
@@ -202,16 +208,16 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             if(object->anchors[i].id == joint->anchor_b) selected_b = i + 1;
         }
         rohr_ui_label(&editor->anchor_a_label,
-            (UIRect){context->x + 8.0f, 158.0f, 55.0f, 28.0f});
+            (UIRect){context->x + 8.0f, 196.0f, 55.0f, 28.0f});
         rohr_ui_label(&editor->anchor_b_label,
-            (UIRect){context->x + 8.0f, 194.0f, 55.0f, 28.0f});
+            (UIRect){context->x + 8.0f, 232.0f, 55.0f, 28.0f});
         UIDropdownResult a = rohr_ui_dropdown("editor.joint.anchor_a", options,
             object->anchor_count + 1, selected_a,
-            (UIRect){context->x + 63.0f, 158.0f,
+            (UIRect){context->x + 63.0f, 196.0f,
                 context->width - 73.0f, 28.0f}, NULL);
         UIDropdownResult b = rohr_ui_dropdown("editor.joint.anchor_b", options,
             object->anchor_count + 1, selected_b,
-            (UIRect){context->x + 63.0f, 194.0f,
+            (UIRect){context->x + 63.0f, 232.0f,
                 context->width - 73.0f, 28.0f}, NULL);
         if(a.button_hovered || a.hovered_index >= 0)
             anchor_preview_set(context->viewport, object, a.hovered_index > 0 ?
@@ -225,7 +231,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             b.selected_index == 0 ? 0 : object->anchors[b.selected_index - 1].id);
     }
     if(rohr_ui_button("editor.joint.add_anchor", &editor->add_anchor_label,
-            (UIRect){context->x + 10.0f, 232.0f,
+            (UIRect){context->x + 10.0f, 270.0f,
                 context->width - 20.0f, 30.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_ANCHOR, .object = object->id,
@@ -245,7 +251,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             EditorAnchor *anchor = &object->anchors[i];
             UIButtonStyle style = selected_style_get();
             char id[64], visibility_id[72];
-            float y = 270.0f + (float)(i - start) * 27.0f;
+            float y = 308.0f + (float)(i - start) * 27.0f;
             if(!editor_mode_named_text_sync(editor->font, anchor->name,
                     &editor->anchor_names[i], editor->anchor_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
@@ -285,22 +291,22 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     if(joint->kind == EDITOR_JOINT_REVOLUTE)
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.revolute.damping", &editor->damping_label,
-            &editor->damping_field, 442.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
+            &editor->damping_field, 480.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
     else if(joint->kind == EDITOR_JOINT_SPRING) {
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.rest_length", &editor->rest_length_label,
-            &editor->rest_length_field, 442.0f, 96.0f,
+            &editor->rest_length_field, 480.0f, 96.0f,
             EDITOR_PROPERTY_REST_LENGTH,
             joint->rest_length) || field_active;
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.stiffness", &editor->stiffness_label,
-            &editor->stiffness_field, 474.0f, 90.0f,
+            &editor->stiffness_field, 512.0f, 90.0f,
             EDITOR_PROPERTY_STIFFNESS,
             joint->stiffness) || field_active;
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.damping", &editor->damping_label,
-            &editor->damping_field, 506.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
+            &editor->damping_field, 544.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
     }
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&

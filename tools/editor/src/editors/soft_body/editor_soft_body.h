@@ -6,6 +6,7 @@
 #define EDITOR_SOFT_BODY_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
 
 typedef struct EditorSoftBodyEditor {
@@ -13,7 +14,7 @@ typedef struct EditorSoftBodyEditor {
     TextAsset name_label, x_label, y_label, rotation_label;
     TextAsset node_color_label, beam_color_label, area_color_label;
     TextAsset origin_label, auto_shape_label, add_node_label, add_beam_label;
-    TextAsset visible_label, hidden_label, delete_label;
+    TextAsset visibility_label, visible_label, hidden_label, delete_label;
     TextAsset x_field, y_field, rotation_field;
     TextAsset body_names[EDITOR_SOFT_BODY_MAX];
     TextAsset node_names[EDITOR_SOFT_NODE_MAX];
@@ -24,6 +25,9 @@ typedef struct EditorSoftBodyEditor {
     char beam_cache[EDITOR_SOFT_BEAM_MAX][EDITOR_OBJECT_NAME_MAX];
     char area_cache[EDITOR_SOFT_AREA_MAX][EDITOR_OBJECT_NAME_MAX];
     bool auto_shape_picker_open;
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection appearance_section;
+    EditorModeAccordionSection topology_section;
 } EditorSoftBodyEditor;
 
 bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,

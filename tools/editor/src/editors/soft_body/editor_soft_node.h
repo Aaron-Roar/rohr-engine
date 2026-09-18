@@ -6,6 +6,7 @@
 #define EDITOR_SOFT_NODE_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef bool (*EditorSoftNodeCollisionMenuFunction)(void *context,
     const char *id_prefix, EditorProject *project, uint64_t *active_masks,
@@ -18,13 +19,19 @@ typedef struct EditorSoftNodeEditor {
     TextAsset name_label, x_label, y_label, mass_label, radius_label;
     TextAsset friction_label, restitution_label, gravity_label, collision_label;
     TextAsset collision_category_label, collide_with_label;
-    TextAsset color_label, inherit_label, visible_label, hidden_label, delete_label;
+    TextAsset color_label, inherit_label, visibility_label;
+    TextAsset visible_label, hidden_label, delete_label;
     TextAsset x_field, y_field, mass_field, radius_field;
     TextAsset friction_field, restitution_field;
     TextAsset node_names[EDITOR_SOFT_NODE_MAX];
     char node_cache[EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
     bool collision_category_open;
     bool collide_with_open;
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection physics_section;
+    EditorModeAccordionSection material_section;
+    EditorModeAccordionSection collision_section;
+    EditorModeAccordionSection appearance_section;
 } EditorSoftNodeEditor;
 
 bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,

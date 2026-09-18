@@ -19,6 +19,7 @@ typedef struct EditorAnchorEditor {
     TextAsset position_body_label;
     TextAsset rotation_global_label;
     TextAsset rotation_body_label;
+    TextAsset visibility_label;
     TextAsset visible_label;
     TextAsset hidden_label;
     TextAsset delete_label;

@@ -14,6 +14,7 @@ typedef struct EditorHitboxEditor {
     TextAsset auto_shape_label;
     TextAsset vertices_label;
     TextAsset lines_label;
+    TextAsset visibility_label;
     TextAsset visible_label;
     TextAsset hidden_label;
     TextAsset delete_label;

@@ -25,7 +25,8 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
     return true;
@@ -40,7 +41,8 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(object_name_label); DESTROY(add_rigid_body_label); DESTROY(add_joint_label);
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
-    DESTROY(visible_label); DESTROY(hidden_label); DESTROY(delete_label);
+    DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
+    DESTROY(delete_label);
 #undef DESTROY
 #define DESTROY_ARRAY(array, count) \
     for(size_t i = 0; i < (count); i += 1) rohr_graphics_text_destroy(&(array)[i])
@@ -148,13 +150,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     if(!editor_mode_named_text_sync(editor->font, object->name,
             &editor->object_names[object_index], editor->object_cache[object_index],
             EDITOR_OBJECT_NAME_MAX)) return false;
-    if(rohr_ui_button("editor.object.visibility", object->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 56.0f, 26.0f, 26.0f}, NULL).clicked)
-        visibility_toggle(context->project, EDITOR_VISIBILITY_OBJECT,
-            object->id, 0, object->visible);
     rohr_ui_label(&editor->object_name_label,
-        (UIRect){context->x + 40.0f, 52.0f, 90.0f, 34.0f});
+        (UIRect){context->x + 8.0f, 52.0f, 122.0f, 34.0f});
     snprintf(name, sizeof(name), "%s", object->name);
     name_result = rohr_ui_field("editor.object.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
@@ -167,6 +164,15 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         snprintf(command.data.item_rename.name,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
+    }
+    {
+        bool visible = object->visible;
+        if(editor_mode_checkbox_left("editor.object.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 96.0f,
+                    context->width - 20.0f, 28.0f}, &visible))
+            visibility_toggle(context->project, EDITOR_VISIBILITY_OBJECT,
+                object->id, 0, object->visible);
     }
 #define ADD_BUTTON(button_id, button_label, button_y, item_kind, item_option, \
         selection_value, member) \
@@ -182,19 +188,19 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->member = result.result.object; \
         } \
     }
-    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, 128.0f,
+    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, 166.0f,
         EDITOR_ITEM_RIGID_BODY, 0, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
-    ADD_BUTTON("editor.add_joint", editor->add_joint_label, 166.0f,
+    ADD_BUTTON("editor.add_joint", editor->add_joint_label, 204.0f,
         EDITOR_ITEM_JOINT, EDITOR_JOINT_SPRING, EDITOR_SELECTION_JOINT, selected_joint);
-    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, 204.0f,
+    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, 242.0f,
         EDITOR_ITEM_SOFT_BODY, 0, EDITOR_SELECTION_SOFT_BODY, selected_soft_body);
 #undef ADD_BUTTON
     if(rohr_ui_button("editor.add_sprite", &editor->add_sprite_label,
-            (UIRect){context->x + 10.0f, 242.0f,
+            (UIRect){context->x + 10.0f, 280.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked && browser_open != NULL)
         browser_open(browser_context, object->id);
     if(rohr_ui_button("editor.add_animated_sprite", &editor->add_animation_label,
-            (UIRect){context->x + 10.0f, 280.0f,
+            (UIRect){context->x + 10.0f, 318.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_ADD,
             .data.animated_sprite_add = {.object = object->id}};
@@ -208,7 +214,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         }
     }
     if(rohr_ui_button("editor.add_camera", &editor->add_camera_label,
-            (UIRect){context->x + 10.0f, 318.0f,
+            (UIRect){context->x + 10.0f, 356.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_CAMERA, .object = object->id}};
@@ -229,7 +235,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         const char *item_name = NULL;
         bool visible = false;
         char id[64], visibility_id[72];
-        float y = 364.0f + (float)i * 30.0f;
+        float y = 402.0f + (float)i * 30.0f;
         if(!item_info_get(editor, object, item, &item_name, &label, &cache,
                 &visible, &selection, &visibility)) continue;
         if(!editor_mode_named_text_sync(editor->font, item_name, label, cache,

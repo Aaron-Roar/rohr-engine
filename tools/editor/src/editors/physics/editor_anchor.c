@@ -27,7 +27,8 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
     CREATE("Follow Position", position_body_label);
     CREATE("Global Rotation", rotation_global_label);
     CREATE("Follow Rotation", rotation_body_label);
-    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label);
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
 #undef CREATE
@@ -56,7 +57,8 @@ void editor_anchor_editor_destroy(EditorAnchorEditor *editor) {
     DESTROY(attachment_label); DESTROY(rotation_label); DESTROY(none_label);
     DESTROY(position_global_label); DESTROY(position_body_label);
     DESTROY(rotation_global_label); DESTROY(rotation_body_label);
-    DESTROY(visible_label); DESTROY(hidden_label); DESTROY(delete_label);
+    DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
+    DESTROY(delete_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1)
@@ -103,25 +105,29 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             sizeof(command.data.item_rename.name), "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(rohr_ui_button("editor.anchor.visibility", anchor->visible ?
-            &editor->visible_label : &editor->hidden_label,
-            (UIRect){context->x + 8.0f, 44.0f, 26.0f, 26.0f}, NULL).clicked) {
-        EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-            .data.visibility = {EDITOR_VISIBILITY_ANCHOR, object->id, 0,
-                anchor->id, !anchor->visible}};
-        (void)editor_command_execute(context->project, &command);
+    {
+        bool visible = anchor->visible;
+        if(editor_mode_checkbox_left("editor.anchor.visibility",
+                &editor->visibility_label,
+                (UIRect){context->x + 10.0f, 80.0f,
+                    context->width - 20.0f, 28.0f}, &visible)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
+                .data.visibility = {EDITOR_VISIBILITY_ANCHOR, object->id, 0,
+                    anchor->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, 90.0f, 24.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 128.0f, 24.0f, 26.0f});
     x_result = rohr_ui_field("editor.anchor.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 34.0f, 90.0f,
+        &editor->x_field, (UIRect){context->x + 34.0f, 128.0f,
             context->width - 44.0f, 26.0f}, NULL);
     rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 124.0f, 24.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 162.0f, 24.0f, 26.0f});
     y_result = rohr_ui_field("editor.anchor.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 34.0f, 124.0f,
+        &editor->y_field, (UIRect){context->x + 34.0f, 162.0f,
             context->width - 44.0f, 26.0f}, NULL);
     if(x_result.changed || y_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
@@ -129,7 +135,7 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     rohr_ui_label(&editor->attachment_label,
-        (UIRect){context->x + 8.0f, 158.0f, 90.0f, 28.0f});
+        (UIRect){context->x + 8.0f, 196.0f, 90.0f, 28.0f});
     {
         const size_t maximum = EDITOR_RIGID_BODY_MAX +
             EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1;
@@ -176,7 +182,7 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         }
         UIDropdownResult result = rohr_ui_dropdown("editor.anchor.attachment",
             options, count, selected,
-            (UIRect){context->x + 100.0f, 158.0f,
+            (UIRect){context->x + 100.0f, 196.0f,
                 context->width - 110.0f, 28.0f}, NULL);
         if(result.hovered_index >= 0) {
             size_t option = (size_t)result.hovered_index;
@@ -202,10 +208,10 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         }
     }
     rohr_ui_label(&editor->rotation_label,
-        (UIRect){context->x + 8.0f, 192.0f, 76.0f, 26.0f});
+        (UIRect){context->x + 8.0f, 230.0f, 76.0f, 26.0f});
     rotation_result = rohr_ui_field("editor.anchor.rotation",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
-        &editor->rotation_field, (UIRect){context->x + 86.0f, 192.0f,
+        &editor->rotation_field, (UIRect){context->x + 86.0f, 230.0f,
             context->width - 96.0f, 26.0f}, NULL);
     if(rotation_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
@@ -224,13 +230,13 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             "editor.anchor.position_lock", soft_node ? soft_position_options :
                 position_options, soft_node ? 1 : 2,
             soft_node ? 0 : anchor->position_follows_body ? 1 : 0,
-            (UIRect){context->x + 10.0f, 226.0f,
+            (UIRect){context->x + 10.0f, 264.0f,
                 context->width - 20.0f, 28.0f}, NULL);
         UIDropdownResult orientation_result = rohr_ui_dropdown(
             "editor.anchor.rotation_lock", rotation_options,
             soft_node ? 1 : 2, soft_node ? 0 :
                 anchor->rotation_follows_body ? 1 : 0,
-            (UIRect){context->x + 10.0f, 258.0f,
+            (UIRect){context->x + 10.0f, 296.0f,
                 context->width - 20.0f, 28.0f}, NULL);
         if(position_result.changed && !soft_node) boolean_set(context->project, object->id,
             anchor->id, EDITOR_PROPERTY_POSITION_FOLLOWS_BODY,

@@ -12,7 +12,8 @@ typedef struct EditorCameraEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, angle_label, width_label, height_label,
         zoom_label;
-    TextAsset attachment_label, inherit_label, visible_label, none_label, delete_label;
+    TextAsset attachment_label, inherit_label, visibility_label;
+    TextAsset none_label, delete_label;
     TextAsset name_values[EDITOR_CAMERA_MAX], target_names[256];
     TextAsset x_field, y_field, angle_field, width_field, height_field, zoom_field;
     char name_cache[EDITOR_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
@@ -20,7 +21,6 @@ typedef struct EditorCameraEditor {
     EditorModeAccordionSection transform_section;
     EditorModeAccordionSection view_section;
     EditorModeAccordionSection attachment_section;
-    EditorModeAccordionSection appearance_section;
 } EditorCameraEditor;
 
 bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font);

@@ -15,7 +15,7 @@ typedef struct EditorSpriteEditor {
     FontAsset *font;
     TextAsset name_label, path_label, body_label, x_label, y_label;
     TextAsset rotation_label, width_label, height_label;
-    TextAsset visible_label, follow_label, none_label, delete_label;
+    TextAsset visibility_label, follow_label, none_label, delete_label;
     TextAsset name_values[64], body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset path_field, x_field, y_field, rotation_field, width_field, height_field;
     char name_cache[64][EDITOR_OBJECT_NAME_MAX];
@@ -23,7 +23,6 @@ typedef struct EditorSpriteEditor {
     EditorModeAccordionSection transform_section;
     EditorModeAccordionSection attachment_section;
     EditorModeAccordionSection asset_section;
-    EditorModeAccordionSection appearance_section;
 } EditorSpriteEditor;
 
 bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font);
