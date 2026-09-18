@@ -74,6 +74,10 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation", rotation_label); CREATE("Mass", mass_label);
+    CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
+    CREATE("Acceleration X", acceleration_x_label);
+    CREATE("Acceleration Y", acceleration_y_label);
+    CREATE("Angular Velocity", angular_velocity_label);
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
     CREATE("Border Color", border_color_label); CREATE("Surface Color", surface_color_label);
     CREATE("Parent", parent_label); CREATE("None", none_label);
@@ -89,11 +93,16 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
+    CREATE("", velocity_x_field); CREATE("", velocity_y_field);
+    CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
+    CREATE("", angular_velocity_field);
     CREATE("", mass_field); CREATE("", friction_field);
     CREATE("", restitution_field);
 #undef CREATE
     if(!editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
+            !editor_mode_accordion_section_create(
+                &editor->initial_motion_section, font, "Initial Motion", false) ||
             !editor_mode_accordion_section_create(&editor->physics_section, font,
                 "Physics", false) ||
             !editor_mode_accordion_section_create(&editor->material_section, font,
@@ -129,6 +138,9 @@ void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(rotation_label);
+    DESTROY(velocity_x_label); DESTROY(velocity_y_label);
+    DESTROY(acceleration_x_label); DESTROY(acceleration_y_label);
+    DESTROY(angular_velocity_label);
     DESTROY(mass_label); DESTROY(friction_label); DESTROY(restitution_label);
     DESTROY(border_color_label); DESTROY(surface_color_label); DESTROY(gravity_label);
     DESTROY(parent_label); DESTROY(none_label);
@@ -140,9 +152,13 @@ void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor) {
     DESTROY(delete_label); DESTROY(visibility_label); DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(x_field); DESTROY(y_field);
     DESTROY(rotation_field); DESTROY(mass_field); DESTROY(friction_field);
+    DESTROY(velocity_x_field); DESTROY(velocity_y_field);
+    DESTROY(acceleration_x_field); DESTROY(acceleration_y_field);
+    DESTROY(angular_velocity_field);
     DESTROY(restitution_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->initial_motion_section);
     editor_mode_accordion_section_destroy(&editor->physics_section);
     editor_mode_accordion_section_destroy(&editor->material_section);
     editor_mode_accordion_section_destroy(&editor->collision_section);
@@ -187,8 +203,10 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     float geometry_add_y = 0.0f, geometry_list_y = 0.0f;
     float geometry_list_stride = 0.0f;
     float transform_row_y[5] = {0}, physics_row_y[3] = {0};
+    float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0}, appearance_row_y[2] = {0};
-    bool transform_open, physics_open, material_open, collision_open;
+    bool transform_open, initial_motion_open, physics_open, material_open,
+        collision_open;
     bool parenting_open, appearance_open, geometry_open;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -252,6 +270,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             {.row_count = 1, .row_height = 28.0f},
             {.row_count = 1, .row_height = 26.0f, .gap_before = 4.0f},
             {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f}};
+        const float initial_motion_rows[] = {
+            26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         const float material_rows[] = {26.0f, 26.0f};
         const float parenting_rows[] = {26.0f};
         const float appearance_rows[] = {26.0f, 26.0f};
@@ -329,6 +349,15 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 &editor->transform_section,
                 "editor.rigid_body.section.transform", transform_groups, 3);
         transform_open = transform_layout.expanded;
+        EditorModeAccordionLayoutResult initial_motion_layout =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->initial_motion_section,
+                "editor.rigid_body.section.initial_motion",
+                initial_motion_rows, 5, 6.0f);
+        initial_motion_open = initial_motion_layout.expanded;
+        for(size_t row = 0; row < 5; row += 1)
+            initial_motion_row_y[row] = editor_mode_accordion_layout_row_y(
+                &initial_motion_layout, initial_motion_rows, row, 6.0f);
         EditorModeAccordionLayoutResult physics_layout =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->physics_section,
@@ -463,6 +492,40 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             field_active = editor_mode_layer_control_draw(context->layer_control,
                 "editor.rigid_body", context->project, &body->graphics_layer,
                 NULL, x, transform_row_y[4], width) || field_active;
+    }
+    if(initial_motion_open) {
+        TextAsset *labels[] = {&editor->velocity_x_label,
+            &editor->velocity_y_label, &editor->acceleration_x_label,
+            &editor->acceleration_y_label, &editor->angular_velocity_label};
+        TextAsset *fields[] = {&editor->velocity_x_field,
+            &editor->velocity_y_field, &editor->acceleration_x_field,
+            &editor->acceleration_y_field, &editor->angular_velocity_field};
+        const char *ids[] = {"editor.rigid_body.initial_velocity_x",
+            "editor.rigid_body.initial_velocity_y",
+            "editor.rigid_body.initial_acceleration_x",
+            "editor.rigid_body.initial_acceleration_y",
+            "editor.rigid_body.initial_angular_velocity"};
+        EditorPropertyKind properties[] = {EDITOR_PROPERTY_INITIAL_VELOCITY_X,
+            EDITOR_PROPERTY_INITIAL_VELOCITY_Y,
+            EDITOR_PROPERTY_INITIAL_ACCELERATION_X,
+            EDITOR_PROPERTY_INITIAL_ACCELERATION_Y,
+            EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY};
+        float values[] = {body->initial_velocity.x, body->initial_velocity.y,
+            body->initial_acceleration.x, body->initial_acceleration.y,
+            body->initial_angular_velocity};
+        UIButtonStyle style = editor_mode_section_field_style_get();
+        for(size_t i = 0; i < 5; i += 1) {
+            float row = initial_motion_row_y[i];
+            UIFieldResult result;
+            rohr_ui_label(labels[i], (UIRect){x + 8.0f, row, 112.0f, 26.0f});
+            result = editor_mode_field(ids[i],
+                (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &values[i]},
+                fields[i], (UIRect){x + 122.0f, row, width - 132.0f, 26.0f},
+                &style);
+            if(result.changed) property_float_set(context->project, object->id,
+                body->id, properties[i], values[i]);
+            field_active = field_active || result.active;
+        }
     }
 #define FLOAT_FIELD(field_id, label, field, field_y, label_width, property, source, min_value, clamp_max) do { \
     float value = (source); UIFieldResult result; \

@@ -1031,17 +1031,49 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_PARTICLE_FILL_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->particle_fill_color = set->value.integer;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_velocity.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_velocity.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_acceleration.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_acceleration.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_angular_velocity = set->value.number;
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("soft body", set->item);
-                if(set->value_kind != EDITOR_PROPERTY_VALUE_UINT) goto property_invalid;
-                if(set->property == EDITOR_PROPERTY_NODE_COLOR)
+                if(set->property == EDITOR_PROPERTY_NODE_COLOR &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->node_color = set->value.integer;
-                else if(set->property == EDITOR_PROPERTY_BEAM_COLOR)
+                else if(set->property == EDITOR_PROPERTY_BEAM_COLOR &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->beam_color = set->value.integer;
-                else if(set->property == EDITOR_PROPERTY_AREA_COLOR)
+                else if(set->property == EDITOR_PROPERTY_AREA_COLOR &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->area_color = set->value.integer;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_velocity.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_velocity.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_acceleration.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_acceleration.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    body->initial_angular_velocity = set->value.number;
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_VERTEX) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object, set->parent);
@@ -1126,6 +1158,21 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     node->color = set->value.integer;
                     node->color_overridden = true;
                 }
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    node->initial_velocity.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    node->initial_velocity.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    node->initial_acceleration.x = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_ACCELERATION_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    node->initial_acceleration.y = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_INITIAL_MOTION_INHERITED &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                    node->initial_motion_inherited = set->value.boolean;
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_SOFT_BEAM) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
@@ -1825,6 +1872,14 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_FLOAT_PROPERTY("particle-origin-x", EDITOR_PROPERTY_PARTICLE_ORIGIN_X)
     EDITOR_FLOAT_PROPERTY("particle-origin-y", EDITOR_PROPERTY_PARTICLE_ORIGIN_Y)
     EDITOR_FLOAT_PROPERTY("node-radius", EDITOR_PROPERTY_NODE_RADIUS)
+    EDITOR_FLOAT_PROPERTY("initial-velocity-x", EDITOR_PROPERTY_INITIAL_VELOCITY_X)
+    EDITOR_FLOAT_PROPERTY("initial-velocity-y", EDITOR_PROPERTY_INITIAL_VELOCITY_Y)
+    EDITOR_FLOAT_PROPERTY("initial-acceleration-x",
+        EDITOR_PROPERTY_INITIAL_ACCELERATION_X)
+    EDITOR_FLOAT_PROPERTY("initial-acceleration-y",
+        EDITOR_PROPERTY_INITIAL_ACCELERATION_Y)
+    EDITOR_FLOAT_PROPERTY("initial-angular-velocity",
+        EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY)
     EDITOR_BOOL_PROPERTY("gravity", EDITOR_PROPERTY_GRAVITY)
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
     EDITOR_BOOL_PROPERTY("rotation-locked", EDITOR_PROPERTY_ROTATION_LOCKED)
@@ -1841,6 +1896,8 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_BOOL_PROPERTY("position-locked", EDITOR_PROPERTY_POSITION_LOCKED)
     EDITOR_BOOL_PROPERTY("position-follows-body", EDITOR_PROPERTY_POSITION_FOLLOWS_BODY)
     EDITOR_BOOL_PROPERTY("rotation-follows-body", EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY)
+    EDITOR_BOOL_PROPERTY("initial-motion-inherited",
+        EDITOR_PROPERTY_INITIAL_MOTION_INHERITED)
 #define EDITOR_COLOR_PROPERTY(text, value) \
     if(strcmp(name, text) == 0) { *property = value; \
         *value_kind = EDITOR_PROPERTY_VALUE_UINT; return true; }
@@ -1898,6 +1955,16 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_BEAM_COLOR: return "beam-color";
         case EDITOR_PROPERTY_AREA_COLOR: return "area-color";
         case EDITOR_PROPERTY_COLOR: return "color";
+        case EDITOR_PROPERTY_INITIAL_VELOCITY_X: return "initial-velocity-x";
+        case EDITOR_PROPERTY_INITIAL_VELOCITY_Y: return "initial-velocity-y";
+        case EDITOR_PROPERTY_INITIAL_ACCELERATION_X:
+            return "initial-acceleration-x";
+        case EDITOR_PROPERTY_INITIAL_ACCELERATION_Y:
+            return "initial-acceleration-y";
+        case EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY:
+            return "initial-angular-velocity";
+        case EDITOR_PROPERTY_INITIAL_MOTION_INHERITED:
+            return "initial-motion-inherited";
     }
     return NULL;
 }

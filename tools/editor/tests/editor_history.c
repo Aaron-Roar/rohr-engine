@@ -200,6 +200,20 @@ int main(void) {
 
     body = editor_project_rigid_body_add(&project, &project.objects[0]);
     assert(body != NULL);
+    editor_history_reset(&history);
+    command = (EditorCommand){.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {EDITOR_ITEM_RIGID_BODY, project.objects[0].id,
+            0, body->id, 0, EDITOR_PROPERTY_INITIAL_VELOCITY_X,
+            EDITOR_PROPERTY_VALUE_FLOAT, {.number = 42.0f}}};
+    editor_history_command_begin(&history, &project, &command);
+    result = editor_command_execute(&project, &command);
+    editor_history_command_finish(&history, &command, &result);
+    assert(result.kind == ERROR_RESULT_VALUE &&
+        fabsf(body->initial_velocity.x - 42.0f) < 0.001f);
+    assert(editor_history_undo(&history) &&
+        fabsf(body->initial_velocity.x) < 0.001f);
+    assert(editor_history_redo(&history) &&
+        fabsf(body->initial_velocity.x - 42.0f) < 0.001f);
     hitbox = editor_project_hitbox_add(&project, body);
     assert(hitbox != NULL && hitbox->vertex_count > 0);
     {

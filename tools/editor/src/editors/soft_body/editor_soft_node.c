@@ -73,14 +73,22 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Collision Category", collision_category_label);
     CREATE("Collide With", collide_with_label); CREATE("Node Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("Visibility", visibility_label);
+    CREATE("Inherit From Soft Body", motion_inherit_label);
+    CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
+    CREATE("Acceleration X", acceleration_x_label);
+    CREATE("Acceleration Y", acceleration_y_label);
     CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label); CREATE("Delete Node", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", mass_field);
     CREATE("", radius_field); CREATE("", friction_field);
     CREATE("", restitution_field);
+    CREATE("", velocity_x_field); CREATE("", velocity_y_field);
+    CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
 #undef CREATE
     if(!editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
+            !editor_mode_accordion_section_create(
+                &editor->initial_motion_section, font, "Initial Motion", false) ||
             !editor_mode_accordion_section_create(&editor->physics_section, font,
                 "Physics", false) ||
             !editor_mode_accordion_section_create(&editor->material_section, font,
@@ -107,12 +115,18 @@ void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
     DESTROY(gravity_label); DESTROY(collision_label);
     DESTROY(collision_category_label); DESTROY(collide_with_label);
     DESTROY(color_label); DESTROY(inherit_label); DESTROY(visibility_label);
+    DESTROY(motion_inherit_label); DESTROY(velocity_x_label);
+    DESTROY(velocity_y_label); DESTROY(acceleration_x_label);
+    DESTROY(acceleration_y_label);
     DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(x_field);
     DESTROY(y_field); DESTROY(mass_field); DESTROY(radius_field);
     DESTROY(friction_field); DESTROY(restitution_field);
+    DESTROY(velocity_x_field); DESTROY(velocity_y_field);
+    DESTROY(acceleration_x_field); DESTROY(acceleration_y_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->initial_motion_section);
     editor_mode_accordion_section_destroy(&editor->physics_section);
     editor_mode_accordion_section_destroy(&editor->material_section);
     editor_mode_accordion_section_destroy(&editor->collision_section);
@@ -136,11 +150,12 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     UIFieldResult name_result, x_result = {0}, y_result = {0}, mass_result = {0};
     UIFieldResult radius_result = {0}, friction_result = {0},
         restitution_result = {0};
-    bool field_active, layer_active = false;
-    bool transform_open, physics_open, material_open, collision_open,
+    bool field_active = false, layer_active = false;
+    bool transform_open, initial_motion_open, physics_open, material_open, collision_open,
         appearance_open;
     float collision_y, appearance_y;
     float transform_row_y[3] = {0}, physics_row_y[3] = {0};
+    float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0};
     float collision_category_y = 0.0f, collision_category_list_y = 0.0f;
     float collide_with_y = 0.0f, collide_with_list_y = 0.0f;
@@ -194,6 +209,10 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             {.row_count = 1, .row_height = layer_height,
                 .gap_before = 6.0f}};
         const float physics_rows[] = {26.0f, 26.0f, 28.0f};
+        const float initial_motion_rows[] = {
+            28.0f, 26.0f, 26.0f, 26.0f, 26.0f};
+        size_t initial_motion_row_count =
+            node->initial_motion_inherited ? 1 : 5;
         const float material_rows[] = {26.0f, 26.0f};
         const float appearance_rows[] = {26.0f};
         EditorModeAccordionLayoutGroup collision_groups[5] = {
@@ -235,6 +254,15 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                 &editor->transform_section,
                 "editor.soft_node.section.transform", transform_groups, 2);
         EditorModeAccordionLayoutResult physics =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->initial_motion_section,
+                "editor.soft_node.section.initial_motion",
+                initial_motion_rows, initial_motion_row_count, 6.0f);
+        initial_motion_open = physics.expanded;
+        for(size_t row = 0; row < initial_motion_row_count; row += 1)
+            initial_motion_row_y[row] = editor_mode_accordion_layout_row_y(
+                &physics, initial_motion_rows, row, 6.0f);
+        physics =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->physics_section, "editor.soft_node.section.physics",
                 physics_rows, 3, 6.0f);
@@ -318,6 +346,49 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             &node->graphics_layer_inherited, context->x, transform_row_y[2],
             context->width);
     }
+    if(initial_motion_open) {
+        bool inherited = node->initial_motion_inherited;
+        if(editor_mode_checkbox_left("editor.soft_node.initial_motion.inherit",
+                &editor->motion_inherit_label,
+                (UIRect){context->x + 10.0f, initial_motion_row_y[0],
+                    context->width - 20.0f, 28.0f}, &inherited))
+            bool_set(context->project, object->id, body->id, node->id,
+                EDITOR_PROPERTY_INITIAL_MOTION_INHERITED, inherited);
+        if(!node->initial_motion_inherited) {
+            TextAsset *labels[] = {&editor->velocity_x_label,
+                &editor->velocity_y_label, &editor->acceleration_x_label,
+                &editor->acceleration_y_label};
+            TextAsset *fields[] = {&editor->velocity_x_field,
+                &editor->velocity_y_field, &editor->acceleration_x_field,
+                &editor->acceleration_y_field};
+            const char *ids[] = {"editor.soft_node.initial_velocity_x",
+                "editor.soft_node.initial_velocity_y",
+                "editor.soft_node.initial_acceleration_x",
+                "editor.soft_node.initial_acceleration_y"};
+            EditorPropertyKind properties[] = {
+                EDITOR_PROPERTY_INITIAL_VELOCITY_X,
+                EDITOR_PROPERTY_INITIAL_VELOCITY_Y,
+                EDITOR_PROPERTY_INITIAL_ACCELERATION_X,
+                EDITOR_PROPERTY_INITIAL_ACCELERATION_Y};
+            float values[] = {node->initial_velocity.x,
+                node->initial_velocity.y, node->initial_acceleration.x,
+                node->initial_acceleration.y};
+            UIButtonStyle style = editor_mode_section_field_style_get();
+            for(size_t i = 0; i < 4; i += 1) {
+                UIFieldResult result;
+                rohr_ui_label(labels[i], (UIRect){context->x + 8.0f,
+                    initial_motion_row_y[i + 1], 112.0f, 26.0f});
+                result = editor_mode_field(ids[i], (UIFieldBinding){
+                    .kind = UI_FIELD_FLOAT, .number = &values[i]}, fields[i],
+                    (UIRect){context->x + 122.0f,
+                        initial_motion_row_y[i + 1],
+                        context->width - 132.0f, 26.0f}, &style);
+                if(result.changed) float_set(context->project, object->id,
+                    body->id, node->id, properties[i], values[i]);
+                field_active = field_active || result.active;
+            }
+        }
+    }
     mass_value = node->node_mass;
     if(physics_open) {
     UIButtonStyle field_style = editor_mode_section_field_style_get();
@@ -369,7 +440,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         node->id, EDITOR_PROPERTY_RESTITUTION,
         fminf(1.0f, fmaxf(0.0f, restitution_value)));
     }
-    field_active = name_result.active || x_result.active || y_result.active ||
+    field_active = field_active || name_result.active || x_result.active || y_result.active ||
         mass_result.active || radius_result.active || friction_result.active ||
         restitution_result.active || layer_active;
     {

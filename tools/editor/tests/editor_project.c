@@ -365,6 +365,9 @@ int main(void) {
         {
             EditorObject *generated_object = &loaded_project.objects[0];
             EditorRigidBody *generated_body = &generated_object->rigid_bodies[1];
+            generated_body->initial_velocity = (Velocity){11.0f, 12.0f};
+            generated_body->initial_acceleration = (Acceleration){13.0f, 14.0f};
+            generated_body->initial_angular_velocity = 15.0f;
             EditorAnchor *body_anchor = editor_project_anchor_add(&loaded_project,
                 generated_object, (Position){12.0f, 0.0f}, generated_body->id);
             EditorAnchor *world_anchor = editor_project_anchor_add(&loaded_project,
@@ -379,7 +382,13 @@ int main(void) {
                 &loaded_project, generated_object);
             EditorCamera *generated_camera = editor_project_camera_add(
                 &loaded_project, generated_object);
-            if(generated_soft_body != NULL) generated_soft_body->rotation = 0.5f;
+            if(generated_soft_body != NULL) {
+                generated_soft_body->rotation = 0.5f;
+                generated_soft_body->initial_velocity = (Velocity){21.0f, 22.0f};
+                generated_soft_body->initial_acceleration =
+                    (Acceleration){23.0f, 24.0f};
+                generated_soft_body->initial_angular_velocity = 2.0f;
+            }
             if(generated_camera != NULL) {
                 generated_camera->position = (Position){2.5f, -3.25f};
                 generated_camera->rotation = 0.125f;
@@ -413,6 +422,10 @@ int main(void) {
                 generated_node_a->restitution = 0.4f;
                 generated_node_a->graphics_layer_inherited = false;
                 generated_node_a->graphics_layer.value = 41;
+                generated_node_a->initial_motion_inherited = false;
+                generated_node_a->initial_velocity = (Velocity){31.0f, 32.0f};
+                generated_node_a->initial_acceleration =
+                    (Acceleration){33.0f, 34.0f};
             }
             if(generated_sprite != NULL) {
                 generated_sprite->size = (Scale){32.0f, 24.0f};
@@ -498,6 +511,11 @@ int main(void) {
                 !file_contains(path, "rohr_physics_joint_spring_set") ||
                 !file_contains(path, "rohr_physics_soft_body_create") ||
                 !file_contains(path, "rohr_physics_soft_body_node_create") ||
+                !file_contains(path, "(Velocity){11.0000000f, 12.0000000f}") ||
+                !file_contains(path, "(Acceleration){13.0000000f, 14.0000000f}") ||
+                !file_contains(path, "15.0000000f, (Shape)") ||
+                !file_contains(path, "(Velocity){31.0000000f, 32.0000000f}") ||
+                !file_contains(path, "(Acceleration){33.0000000f, 34.0000000f}") ||
                 !file_contains(path, "6.50000000f") ||
                 !file_contains(path, "rohr_physics_friction_set") ||
                 !file_contains(path, "rohr_physics_restitution_set") ||
@@ -558,7 +576,17 @@ int main(void) {
         EditorResult nested_load = editor_workspace_load(
             &loaded_workspace, &loaded_project, path);
         if(editor_result_check(nested_load) ||
-                !loaded_workspace.open || loaded_project.object_count != 1) {
+                !loaded_workspace.open || loaded_project.object_count != 1 ||
+                !position_equal(loaded_project.objects[0].rigid_bodies[1].
+                    initial_velocity, (Position){11.0f, 12.0f}) ||
+                loaded_project.objects[0].soft_body_count == 0 ||
+                !position_equal(loaded_project.objects[0].soft_body_items[1].
+                    initial_acceleration, (Position){23.0f, 24.0f}) ||
+                loaded_project.objects[0].soft_body_items[1].node_count == 0 ||
+                loaded_project.objects[0].soft_body_items[1].nodes[0].
+                    initial_motion_inherited ||
+                !position_equal(loaded_project.objects[0].soft_body_items[1].
+                    nodes[0].initial_velocity, (Position){31.0f, 32.0f})) {
             fprintf(stderr, "nested workspace load failed: %s: %s\n", path,
                 nested_load.result.error.message);
             workspace_fixture_remove(fixture);

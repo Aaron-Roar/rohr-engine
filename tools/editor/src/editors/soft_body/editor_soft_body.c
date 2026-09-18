@@ -32,6 +32,14 @@ static EditorSoftBody *body_get(EditorObject *object, EditorSoftBodyId id) {
     return NULL;
 }
 
+static void initial_motion_set(EditorProject *project, EditorObjectId object,
+        EditorSoftBodyId body, EditorPropertyKind property, float value) {
+    EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {EDITOR_ITEM_SOFT_BODY, object, 0, body, 0,
+            property, EDITOR_PROPERTY_VALUE_FLOAT, {.number = value}}};
+    (void)editor_command_execute(project, &command);
+}
+
 bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
         FontAsset *font) {
     if(editor == NULL || font == NULL) return false;
@@ -40,6 +48,10 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation", rotation_label); CREATE("Node Color", node_color_label);
+    CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
+    CREATE("Acceleration X", acceleration_x_label);
+    CREATE("Acceleration Y", acceleration_y_label);
+    CREATE("Angular Velocity", angular_velocity_label);
     CREATE("Beam Color", beam_color_label); CREATE("Area Color", area_color_label);
     CREATE("Origin", origin_label); CREATE("Auto Shape", auto_shape_label);
     CREATE("Add Node", add_node_label); CREATE("Add Beam", add_beam_label);
@@ -47,9 +59,14 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("[ ]", hidden_label);
     CREATE("Delete Soft Body", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
+    CREATE("", velocity_x_field); CREATE("", velocity_y_field);
+    CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
+    CREATE("", angular_velocity_field);
 #undef CREATE
     if(!editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
+            !editor_mode_accordion_section_create(
+                &editor->initial_motion_section, font, "Initial Motion", false) ||
             !editor_mode_accordion_section_create(&editor->appearance_section, font,
                 "Appearance", false) ||
             !editor_mode_accordion_section_create(&editor->topology_section, font,
@@ -65,13 +82,20 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label);
     DESTROY(rotation_label); DESTROY(node_color_label); DESTROY(beam_color_label);
+    DESTROY(velocity_x_label); DESTROY(velocity_y_label);
+    DESTROY(acceleration_x_label); DESTROY(acceleration_y_label);
+    DESTROY(angular_velocity_label);
     DESTROY(area_color_label); DESTROY(origin_label); DESTROY(auto_shape_label);
     DESTROY(add_node_label); DESTROY(add_beam_label); DESTROY(visibility_label);
     DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(x_field);
     DESTROY(y_field); DESTROY(rotation_field);
+    DESTROY(velocity_x_field); DESTROY(velocity_y_field);
+    DESTROY(acceleration_x_field); DESTROY(acceleration_y_field);
+    DESTROY(angular_velocity_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->initial_motion_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
     editor_mode_accordion_section_destroy(&editor->topology_section);
     for(size_t i = 0; i < EDITOR_SOFT_BODY_MAX; i += 1)
@@ -187,9 +211,11 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     float rotation;
     UIFieldResult name_result, x_result = {0}, y_result = {0},
         rotation_result = {0};
-    bool field_active, transform_open, appearance_open, topology_open;
+    bool field_active = false, transform_open, initial_motion_open, appearance_open,
+        topology_open;
     float section_y = 118.0f;
     float transform_row_y[4] = {0};
+    float initial_motion_row_y[5] = {0};
     float appearance_row_y[3] = {0};
     float topology_origin_y = 0.0f, topology_auto_shape_y = 0.0f;
     float topology_add_node_y = 0.0f, topology_add_beam_y = 0.0f;
@@ -240,6 +266,8 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             {.row_count = 1, .row_height = layer_height,
                 .gap_before = 10.0f}};
         const float appearance_rows[] = {26.0f, 26.0f, 26.0f};
+        const float initial_motion_rows[] = {
+            26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         EditorModeAccordionLayoutGroup topology_groups[3] = {
             {.row_count = 1, .row_height = 28.0f},
             {.row_count = 1, .row_height = 30.0f, .gap_before = 6.0f}};
@@ -264,6 +292,15 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                 &editor->transform_section,
                 "editor.soft_body.section.transform", transform_groups, 2);
         EditorModeAccordionLayoutResult appearance =
+            editor_mode_accordion_layout_section(&accordion,
+                &editor->initial_motion_section,
+                "editor.soft_body.section.initial_motion",
+                initial_motion_rows, 5, 6.0f);
+        initial_motion_open = appearance.expanded;
+        for(size_t row = 0; row < 5; row += 1)
+            initial_motion_row_y[row] = editor_mode_accordion_layout_row_y(
+                &appearance, initial_motion_rows, row, 6.0f);
+        appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->appearance_section,
                 "editor.soft_body.section.appearance", appearance_rows, 3,
@@ -333,6 +370,41 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
             .data.soft_body_transform = {object->id, body->id, position, rotation}};
         (void)editor_command_execute(context->project, &command);
+    }
+    if(initial_motion_open) {
+        TextAsset *labels[] = {&editor->velocity_x_label,
+            &editor->velocity_y_label, &editor->acceleration_x_label,
+            &editor->acceleration_y_label, &editor->angular_velocity_label};
+        TextAsset *fields[] = {&editor->velocity_x_field,
+            &editor->velocity_y_field, &editor->acceleration_x_field,
+            &editor->acceleration_y_field, &editor->angular_velocity_field};
+        const char *ids[] = {"editor.soft_body.initial_velocity_x",
+            "editor.soft_body.initial_velocity_y",
+            "editor.soft_body.initial_acceleration_x",
+            "editor.soft_body.initial_acceleration_y",
+            "editor.soft_body.initial_angular_velocity"};
+        EditorPropertyKind properties[] = {EDITOR_PROPERTY_INITIAL_VELOCITY_X,
+            EDITOR_PROPERTY_INITIAL_VELOCITY_Y,
+            EDITOR_PROPERTY_INITIAL_ACCELERATION_X,
+            EDITOR_PROPERTY_INITIAL_ACCELERATION_Y,
+            EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY};
+        float values[] = {body->initial_velocity.x, body->initial_velocity.y,
+            body->initial_acceleration.x, body->initial_acceleration.y,
+            body->initial_angular_velocity};
+        UIButtonStyle style = editor_mode_section_field_style_get();
+        for(size_t i = 0; i < 5; i += 1) {
+            UIFieldResult result;
+            rohr_ui_label(labels[i], (UIRect){context->x + 8.0f,
+                initial_motion_row_y[i], 112.0f, 26.0f});
+            result = editor_mode_field(ids[i],
+                (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &values[i]},
+                fields[i], (UIRect){context->x + 122.0f,
+                    initial_motion_row_y[i], context->width - 132.0f, 26.0f},
+                &style);
+            if(result.changed) initial_motion_set(context->project, object->id,
+                body->id, properties[i], values[i]);
+            field_active = field_active || result.active;
+        }
     }
     if(appearance_open) {
     (void)editor_mode_color_swatch("editor.soft_body.node_color",
@@ -437,7 +509,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                 context->width - 20.0f, 34.0f}, &delete_style).clicked)
             (void)context->delete_open_item(context->delete_context);
     }
-    field_active = name_result.active || x_result.active || y_result.active ||
+    field_active = field_active || name_result.active || x_result.active || y_result.active ||
         rotation_result.active || layer_active;
     return field_active;
 }

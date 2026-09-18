@@ -130,6 +130,9 @@ typedef struct EditorRigidBody {
     EditorGraphicsLayerBinding graphics_layer;
     Position position;
     float rotation;
+    Velocity initial_velocity;
+    Acceleration initial_acceleration;
+    AngularVelocity initial_angular_velocity;
     float mass_value;
     float friction;
     float restitution;
@@ -211,6 +214,9 @@ typedef struct EditorSoftNode {
     EditorGraphicsLayerBinding graphics_layer;
     bool graphics_layer_inherited;
     Position position;
+    Velocity initial_velocity;
+    Acceleration initial_acceleration;
+    bool initial_motion_inherited;
     float node_mass;
     float radius;
     float friction;
@@ -271,6 +277,9 @@ typedef struct EditorSoftBody {
     EditorGraphicsLayerBinding graphics_layer;
     Position position;
     float rotation;
+    Velocity initial_velocity;
+    Acceleration initial_acceleration;
+    AngularVelocity initial_angular_velocity;
     bool visible;
     uint32_t node_color;
     uint32_t beam_color;

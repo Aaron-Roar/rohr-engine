@@ -2440,6 +2440,7 @@ EditorSoftNode *editor_project_soft_node_add(EditorProject *project, EditorSoftB
         .id = project->next_soft_node_id++,
         .graphics_layer_inherited = true,
         .position = position,
+        .initial_motion_inherited = true,
         .node_mass = 1.0f,
         .radius = 4.0f,
         .friction = 0.0f,

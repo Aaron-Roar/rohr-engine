@@ -17,6 +17,8 @@ typedef bool (*EditorRigidBodyCollisionMenuFunction)(void *context,
 typedef struct EditorRigidBodyEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, rotation_label;
+    TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
+    TextAsset acceleration_y_label, angular_velocity_label;
     TextAsset mass_label, friction_label, restitution_label;
     TextAsset border_color_label, surface_color_label;
     TextAsset parent_label, none_label;
@@ -28,6 +30,8 @@ typedef struct EditorRigidBodyEditor {
     TextAsset bind_frames_label;
     TextAsset visibility_label, visible_label, hidden_label;
     TextAsset x_field, y_field, rotation_field;
+    TextAsset velocity_x_field, velocity_y_field, acceleration_x_field;
+    TextAsset acceleration_y_field, angular_velocity_field;
     TextAsset mass_field, friction_field, restitution_field;
     TextAsset body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset parent_names[EDITOR_RIGID_BODY_MAX];
@@ -41,6 +45,7 @@ typedef struct EditorRigidBodyEditor {
     bool collide_with_open;
     EditorHitboxId binding_hitbox_open;
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection initial_motion_section;
     EditorModeAccordionSection physics_section;
     EditorModeAccordionSection material_section;
     EditorModeAccordionSection collision_section;

@@ -160,6 +160,12 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_val(document, value, "position",
         editor_json_position_write(document, body->position));
     yyjson_mut_obj_add_real(document, value, "rotation", body->rotation);
+    yyjson_mut_obj_add_val(document, value, "initial_velocity",
+        editor_json_position_write(document, body->initial_velocity));
+    yyjson_mut_obj_add_val(document, value, "initial_acceleration",
+        editor_json_position_write(document, body->initial_acceleration));
+    yyjson_mut_obj_add_real(document, value, "initial_angular_velocity",
+        body->initial_angular_velocity);
     yyjson_mut_obj_add_real(document, value, "mass", body->mass_value);
     yyjson_mut_obj_add_real(document, value, "friction", body->friction);
     yyjson_mut_obj_add_real(document, value, "restitution", body->restitution);
@@ -259,6 +265,12 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_val(document, value, "position",
         editor_json_position_write(document, body->position));
     yyjson_mut_obj_add_real(document, value, "rotation", body->rotation);
+    yyjson_mut_obj_add_val(document, value, "initial_velocity",
+        editor_json_position_write(document, body->initial_velocity));
+    yyjson_mut_obj_add_val(document, value, "initial_acceleration",
+        editor_json_position_write(document, body->initial_acceleration));
+    yyjson_mut_obj_add_real(document, value, "initial_angular_velocity",
+        body->initial_angular_velocity);
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
     yyjson_mut_obj_add_uint(document, value, "node_color", body->node_color);
     yyjson_mut_obj_add_uint(document, value, "beam_color", body->beam_color);
@@ -274,6 +286,12 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
             node->graphics_layer_inherited);
         yyjson_mut_obj_add_val(document, item, "position",
             editor_json_position_write(document, node->position));
+        yyjson_mut_obj_add_val(document, item, "initial_velocity",
+            editor_json_position_write(document, node->initial_velocity));
+        yyjson_mut_obj_add_val(document, item, "initial_acceleration",
+            editor_json_position_write(document, node->initial_acceleration));
+        yyjson_mut_obj_add_bool(document, item, "initial_motion_inherited",
+            node->initial_motion_inherited);
         yyjson_mut_obj_add_real(document, item, "mass", node->node_mass);
         yyjson_mut_obj_add_real(document, item, "radius", node->radius);
         yyjson_mut_obj_add_real(document, item, "friction", node->friction);
@@ -833,10 +851,17 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     yyjson_val *active_hitbox_index = yyjson_obj_get(value, "active_hitbox_index");
     yyjson_val *bindings = yyjson_obj_get(value, "hitbox_animation_bindings");
     yyjson_val *parent = yyjson_obj_get(value, "parent");
+    yyjson_val *initial_velocity = yyjson_obj_get(value, "initial_velocity");
     uint32_t count;
     *body = editor_project_rigid_body_default_get();
     if(parent != NULL && !editor_json_uint(value, "parent", &body->parent))
         return false;
+    if(initial_velocity != NULL &&
+            (!editor_json_position_read(initial_velocity, &body->initial_velocity) ||
+            !editor_json_position_read(yyjson_obj_get(value,
+                "initial_acceleration"), &body->initial_acceleration) ||
+            !editor_json_real(value, "initial_angular_velocity",
+                &body->initial_angular_velocity))) return false;
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &body->id) || body->id == 0 ||
             !editor_json_name(value, body->name) || !editor_json_position_read(
                 yyjson_obj_get(value, "position"), &body->position) ||
@@ -971,6 +996,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     yyjson_val *areas = yyjson_obj_get(value, "areas");
     yyjson_val *hierarchy = yyjson_obj_get(value, "hierarchy");
     yyjson_val *rotation = yyjson_obj_get(value, "rotation");
+    yyjson_val *initial_velocity = yyjson_obj_get(value, "initial_velocity");
     *body = (EditorSoftBody){
         .node_color = UINT32_C(0xffaa46ff),
         .beam_color = UINT32_C(0xebf0f5ff),
@@ -990,6 +1016,12 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     if(rotation != NULL && !editor_json_real(value, "rotation", &body->rotation)) {
         return false;
     }
+    if(initial_velocity != NULL &&
+            (!editor_json_position_read(initial_velocity, &body->initial_velocity) ||
+            !editor_json_position_read(yyjson_obj_get(value,
+                "initial_acceleration"), &body->initial_acceleration) ||
+            !editor_json_real(value, "initial_angular_velocity",
+                &body->initial_angular_velocity))) return false;
     editor_project_property_name_format(body->name, sizeof(body->name), body->name);
     body->node_count = yyjson_arr_size(nodes);
     body->beam_count = yyjson_arr_size(beams);
@@ -1005,6 +1037,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         yyjson_val *radius = yyjson_obj_get(item, "radius");
         *node = (EditorSoftNode){
             .graphics_layer_inherited = true,
+            .initial_motion_inherited = true,
             .radius = 4.0f,
             .friction = 0.0f,
             .restitution = 0.25f,
@@ -1019,6 +1052,13 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                 !editor_json_real(item, "mass", &node->node_mass) ||
                 !editor_json_bool(item, "gravity_enabled", &node->gravity_enabled) ||
                 !editor_json_bool(item, "visible", &node->visible)) return false;
+        if(yyjson_obj_get(item, "initial_velocity") != NULL &&
+                (!editor_json_position_read(yyjson_obj_get(item,
+                    "initial_velocity"), &node->initial_velocity) ||
+                !editor_json_position_read(yyjson_obj_get(item,
+                    "initial_acceleration"), &node->initial_acceleration) ||
+                !editor_json_bool(item, "initial_motion_inherited",
+                    &node->initial_motion_inherited))) return false;
         if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
                 (!editor_json_bool(item, "graphics_layer_inherited",
                     &node->graphics_layer_inherited) ||

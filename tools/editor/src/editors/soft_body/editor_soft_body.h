@@ -12,10 +12,14 @@
 typedef struct EditorSoftBodyEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, rotation_label;
+    TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
+    TextAsset acceleration_y_label, angular_velocity_label;
     TextAsset node_color_label, beam_color_label, area_color_label;
     TextAsset origin_label, auto_shape_label, add_node_label, add_beam_label;
     TextAsset visibility_label, visible_label, hidden_label, delete_label;
     TextAsset x_field, y_field, rotation_field;
+    TextAsset velocity_x_field, velocity_y_field, acceleration_x_field;
+    TextAsset acceleration_y_field, angular_velocity_field;
     TextAsset body_names[EDITOR_SOFT_BODY_MAX];
     TextAsset node_names[EDITOR_SOFT_NODE_MAX];
     TextAsset beam_names[EDITOR_SOFT_BEAM_MAX];
@@ -26,6 +30,7 @@ typedef struct EditorSoftBodyEditor {
     char area_cache[EDITOR_SOFT_AREA_MAX][EDITOR_OBJECT_NAME_MAX];
     bool auto_shape_picker_open;
     EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection initial_motion_section;
     EditorModeAccordionSection appearance_section;
     EditorModeAccordionSection topology_section;
 } EditorSoftBodyEditor;

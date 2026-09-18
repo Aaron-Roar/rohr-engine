@@ -601,7 +601,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         " */\n\n"
         "#include \"project_objects.h\"\n\n"
         "static EngineResult generated_body_create(Entity *output, Position position,\n"
-        "    float rotation, Shape hitbox, float mass_value, float friction,\n"
+        "    float rotation, Velocity velocity, Acceleration acceleration,\n"
+        "    AngularVelocity angular_velocity, Shape hitbox, float mass_value, float friction,\n"
         "    float restitution, bool static_body, bool rotation_locked,\n"
         "    bool gravity_enabled, bool collision_enabled, bool particle,\n"
         "    Position particle_origin, float particle_radius,\n"
@@ -632,10 +633,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    if(static_body) GENERATED_APPLY(rohr_physics_static_set(*output));\n"
         "    else {\n"
         "        GENERATED_APPLY(rohr_physics_mass_set(*output, mass_value));\n"
-        "        GENERATED_APPLY(rohr_physics_velocity_set(*output, (Velocity){0}));\n"
-        "        GENERATED_APPLY(rohr_physics_angular_velocity_set(*output, 0.0f));\n"
-        "        GENERATED_APPLY(rohr_physics_acceleration_set(*output, "
-        "(Acceleration){0}));\n"
+        "        GENERATED_APPLY(rohr_physics_velocity_set(*output, velocity));\n"
+        "        GENERATED_APPLY(rohr_physics_angular_velocity_set(*output, angular_velocity));\n"
+        "        GENERATED_APPLY(rohr_physics_acceleration_set(*output, acceleration));\n"
         "        GENERATED_APPLY(rohr_physics_dynamic_set(*output));\n"
         "        if(rotation_locked) GENERATED_APPLY(rohr_physics_angle_lock_set(*output, "
         "rotation, rotation));\n"
@@ -779,8 +779,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             fprintf(source,
                 "    result = generated_body_create(&object->%s, "
                 "(Position){position.x + %#.9gf, position.y + %#.9gf}, %#.9gf, "
+                "(Velocity){%#.9gf, %#.9gf}, (Acceleration){%#.9gf, %#.9gf}, %#.9gf, "
                 "(Shape){.amount_of_vertices = %u, .vertices = {",
                 body->name, body->position.x, body->position.y, body->rotation,
+                body->initial_velocity.x, body->initial_velocity.y,
+                body->initial_acceleration.x, body->initial_acceleration.y,
+                body->initial_angular_velocity,
                 initial_hitbox == NULL ? 0 : initial_hitbox->vertex_count);
             if(initial_hitbox != NULL) {
                 for(uint32_t vertex = 0; vertex < initial_hitbox->vertex_count;
@@ -1041,6 +1045,18 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body->position.x + node->position.x * cosine - node->position.y * sine,
                     body->position.y + node->position.x * sine + node->position.y * cosine
                 };
+                Vec2D rotated_offset = {
+                    node->position.x * cosine - node->position.y * sine,
+                    node->position.x * sine + node->position.y * cosine};
+                Velocity velocity = node->initial_motion_inherited ?
+                    (Velocity){
+                        body->initial_velocity.x -
+                            body->initial_angular_velocity * rotated_offset.y,
+                        body->initial_velocity.y +
+                            body->initial_angular_velocity * rotated_offset.x} :
+                    node->initial_velocity;
+                Acceleration acceleration = node->initial_motion_inherited ?
+                    body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,
                     "    { EntityResult created = rohr_physics_soft_body_node_create("
                     "object->%s, (Position){position.x + %#.9gf, "
@@ -1050,6 +1066,15 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "      object->%s = created.result.value; }\n",
                     body->name, transformed.x, transformed.y,
                     node->node_mass, node->radius, node->name);
+                fprintf(source,
+                    "    result = rohr_physics_velocity_set(object->%s, "
+                    "(Velocity){%#.9gf, %#.9gf});\n"
+                    "    if(rohr_error_check(result)) goto fail;\n"
+                    "    result = rohr_physics_acceleration_set(object->%s, "
+                    "(Acceleration){%#.9gf, %#.9gf});\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",
+                    node->name, velocity.x, velocity.y,
+                    node->name, acceleration.x, acceleration.y);
                 if(node->gravity_enabled) {
                     fprintf(source,
                         "    result = rohr_physics_gravity_enable(object->%s);\n"
