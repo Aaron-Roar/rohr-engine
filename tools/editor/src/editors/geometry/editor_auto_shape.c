@@ -206,7 +206,7 @@ bool editor_auto_shape_editor_draw(EditorAutoShapeEditor *editor,
     if(editor->config.kind == EDITOR_AUTO_SHAPE_CIRCLE) {
         rohr_ui_label(&editor->radius_label,
             (UIRect){context->x + 10.0f, 88.0f, 80.0f, 28.0f});
-        first = rohr_ui_field("editor.auto_shape.radius",
+        first = editor_mode_field("editor.auto_shape.radius",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &editor->config.radius}, &editor->first_field,
             (UIRect){context->x + 94.0f, 88.0f,
@@ -214,7 +214,7 @@ bool editor_auto_shape_editor_draw(EditorAutoShapeEditor *editor,
     } else {
         rohr_ui_label(&editor->width_label,
             (UIRect){context->x + 10.0f, 88.0f, 80.0f, 28.0f});
-        first = rohr_ui_field("editor.auto_shape.width",
+        first = editor_mode_field("editor.auto_shape.width",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &editor->config.width},
             &editor->first_field, (UIRect){context->x + 94.0f, 88.0f,
                 context->width - 104.0f, 28.0f}, NULL);
@@ -227,14 +227,14 @@ bool editor_auto_shape_editor_draw(EditorAutoShapeEditor *editor,
                 editor->config.width * sqrtf(3.0f) * 0.5f,
                 (UIRect){context->x + 94.0f, 124.0f,
                     context->width - 104.0f, 28.0f});
-        } else second = rohr_ui_field("editor.auto_shape.height",
+        } else second = editor_mode_field("editor.auto_shape.height",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &editor->config.height},
             &editor->second_field, (UIRect){context->x + 94.0f, 124.0f,
                 context->width - 104.0f, 28.0f}, NULL);
         if(editor->config.kind == EDITOR_AUTO_SHAPE_TRIANGLE) {
             const TextAsset *options[] = {&editor->equilateral_label,
                 &editor->isosceles_label, &editor->scalene_label};
-            UIDropdownResult result = rohr_ui_dropdown("editor.auto_shape.triangle_kind",
+            UIDropdownResult result = editor_mode_dropdown("editor.auto_shape.triangle_kind",
                 options, 3, (size_t)editor->config.triangle_kind,
                 (UIRect){context->x + 10.0f, 164.0f,
                     context->width - 20.0f, 28.0f}, NULL);
@@ -246,7 +246,7 @@ bool editor_auto_shape_editor_draw(EditorAutoShapeEditor *editor,
             if(editor->config.triangle_kind == EDITOR_AUTO_TRIANGLE_SCALENE) {
                 rohr_ui_label(&editor->apex_offset_label,
                     (UIRect){context->x + 10.0f, 202.0f, 80.0f, 28.0f});
-                third = rohr_ui_field("editor.auto_shape.apex_offset",
+                third = editor_mode_field("editor.auto_shape.apex_offset",
                     (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                         .number = &editor->config.apex_offset}, &editor->third_field,
                     (UIRect){context->x + 94.0f, 202.0f,

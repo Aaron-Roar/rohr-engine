@@ -68,27 +68,27 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
             EDITOR_OBJECT_NAME_MAX)) return false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 70.0f, 28.0f});
-    name_result = rohr_ui_field("editor.animation_frame.name",
+    name_result = editor_mode_field("editor.animation_frame.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_field,
         (UIRect){context->x + 82.0f, 42.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->path_label,
         (UIRect){context->x + 8.0f, 80.0f, 70.0f, 28.0f});
-    path_result = rohr_ui_field("editor.animation_frame.path",
+    path_result = editor_mode_field("editor.animation_frame.path",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = path,
             .string_capacity = sizeof(path)}, &editor->path_field,
         (UIRect){context->x + 82.0f, 80.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->width_label,
         (UIRect){context->x + 8.0f, 118.0f, 70.0f, 28.0f});
-    width_result = rohr_ui_field("editor.animation_frame.width",
+    width_result = editor_mode_field("editor.animation_frame.width",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &width},
         &editor->width_field, (UIRect){context->x + 82.0f, 118.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->height_label,
         (UIRect){context->x + 8.0f, 156.0f, 70.0f, 28.0f});
-    height_result = rohr_ui_field("editor.animation_frame.height",
+    height_result = editor_mode_field("editor.animation_frame.height",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &height},
         &editor->height_field, (UIRect){context->x + 82.0f, 156.0f,
             context->width - 92.0f, 28.0f}, NULL);

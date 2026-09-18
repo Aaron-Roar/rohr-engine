@@ -75,6 +75,12 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     CREATE("Delete Joint", delete_label); CREATE("", damping_field);
     CREATE("", rest_length_field); CREATE("", stiffness_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->configuration_section, font,
+            "Configuration", true) ||
+            !editor_mode_accordion_section_create(&editor->connections_section, font,
+                "Connections", false) ||
+            !editor_mode_accordion_section_create(&editor->parameters_section, font,
+                "Parameters", false)) goto fail;
     for(size_t i = 0; i < EDITOR_JOINT_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "joint_%zu", i + 1);
         if(!editor_mode_text_create(font, name, &editor->joint_names[i])) goto fail;
@@ -100,6 +106,9 @@ void editor_joint_editor_destroy(EditorJointEditor *editor) {
     DESTROY(delete_label);
     DESTROY(damping_field); DESTROY(rest_length_field); DESTROY(stiffness_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->configuration_section);
+    editor_mode_accordion_section_destroy(&editor->connections_section);
+    editor_mode_accordion_section_destroy(&editor->parameters_section);
     for(size_t i = 0; i < EDITOR_JOINT_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->joint_names[i]);
     for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1)
@@ -116,7 +125,7 @@ static bool nonnegative_field(EditorJointEditor *editor,
     UIFieldResult result;
     rohr_ui_label(label,
         (UIRect){context->x + 8.0f, y, label_width, 26.0f});
-    result = rohr_ui_field(id,
+    result = editor_mode_field(id,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &value},
         field,
         (UIRect){context->x + label_width + 10.0f, y,
@@ -134,6 +143,8 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result;
     bool field_active;
+    bool configuration_open, connections_open, parameters_open;
+    float configuration_y, connections_y, parameters_y, section_y = 114.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -172,12 +183,34 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
+    configuration_open = editor_mode_accordion_section_draw(
+        &editor->configuration_section, "editor.joint.section.configuration",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f}, 86.0f);
+    configuration_y = section_y + 36.0f;
+    section_y += configuration_open ? 122.0f : 36.0f;
+    connections_open = editor_mode_accordion_section_draw(
+        &editor->connections_section, "editor.joint.section.connections",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f},
+        124.0f + (float)(object->anchor_count < 6 ? object->anchor_count : 6) * 27.0f);
+    connections_y = section_y + 36.0f;
+    section_y += connections_open ? 160.0f +
+        (float)(object->anchor_count < 6 ? object->anchor_count : 6) * 27.0f : 36.0f;
+    parameters_open = editor_mode_accordion_section_draw(
+        &editor->parameters_section, "editor.joint.section.parameters",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f},
+        joint->kind == EDITOR_JOINT_SPRING ? 102.0f : 38.0f);
+    parameters_y = section_y + 36.0f;
+    if(configuration_open) {
     rohr_ui_label(&editor->visual_size_label,
-        (UIRect){context->x + 40.0f, 114.0f, context->width - 48.0f, 24.0f});
+        (UIRect){context->x + 10.0f, configuration_y,
+            context->width - 20.0f, 24.0f});
     {
         UISliderConfig slider = rohr_ui_slider_config_default_get();
         slider.center = (Position){context->x +
-            (context->width + 40.0f) * 0.5f, 144.0f};
+            (context->width + 40.0f) * 0.5f, configuration_y + 30.0f};
         slider.length = context->width - 60.0f;
         slider.min_value = 0.25f; slider.max_value = 3.0f;
         UISliderResult result = rohr_ui_slider("editor.joint.visual_size",
@@ -188,13 +221,16 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     {
         const TextAsset *options[] = {&editor->revolute_label,
             &editor->weld_label, &editor->spring_label};
-        UIDropdownResult result = rohr_ui_dropdown("editor.joint.kind", options,
-            3, (size_t)joint->kind, (UIRect){context->x + 10.0f, 156.0f,
+        UIDropdownResult result = editor_mode_dropdown("editor.joint.kind", options,
+            3, (size_t)joint->kind, (UIRect){context->x + 10.0f,
+                configuration_y + 44.0f,
                 context->width - 20.0f, 30.0f}, NULL);
         if(result.changed) property_uint_set(context->project, object->id,
             joint->id, EDITOR_PROPERTY_JOINT_KIND,
             (uint32_t)result.selected_index);
     }
+    }
+    if(connections_open) {
     {
         const TextAsset *options[EDITOR_ANCHOR_MAX + 1];
         size_t selected_a = 0, selected_b = 0;
@@ -208,16 +244,16 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             if(object->anchors[i].id == joint->anchor_b) selected_b = i + 1;
         }
         rohr_ui_label(&editor->anchor_a_label,
-            (UIRect){context->x + 8.0f, 196.0f, 55.0f, 28.0f});
+            (UIRect){context->x + 8.0f, connections_y, 55.0f, 28.0f});
         rohr_ui_label(&editor->anchor_b_label,
-            (UIRect){context->x + 8.0f, 232.0f, 55.0f, 28.0f});
-        UIDropdownResult a = rohr_ui_dropdown("editor.joint.anchor_a", options,
+            (UIRect){context->x + 8.0f, connections_y + 36.0f, 55.0f, 28.0f});
+        UIDropdownResult a = editor_mode_dropdown("editor.joint.anchor_a", options,
             object->anchor_count + 1, selected_a,
-            (UIRect){context->x + 63.0f, 196.0f,
+            (UIRect){context->x + 63.0f, connections_y,
                 context->width - 73.0f, 28.0f}, NULL);
-        UIDropdownResult b = rohr_ui_dropdown("editor.joint.anchor_b", options,
+        UIDropdownResult b = editor_mode_dropdown("editor.joint.anchor_b", options,
             object->anchor_count + 1, selected_b,
-            (UIRect){context->x + 63.0f, 232.0f,
+            (UIRect){context->x + 63.0f, connections_y + 36.0f,
                 context->width - 73.0f, 28.0f}, NULL);
         if(a.button_hovered || a.hovered_index >= 0)
             anchor_preview_set(context->viewport, object, a.hovered_index > 0 ?
@@ -231,7 +267,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             b.selected_index == 0 ? 0 : object->anchors[b.selected_index - 1].id);
     }
     if(rohr_ui_button("editor.joint.add_anchor", &editor->add_anchor_label,
-            (UIRect){context->x + 10.0f, 270.0f,
+            (UIRect){context->x + 10.0f, connections_y + 74.0f,
                 context->width - 20.0f, 30.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_ANCHOR, .object = object->id,
@@ -251,7 +287,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             EditorAnchor *anchor = &object->anchors[i];
             UIButtonStyle style = selected_style_get();
             char id[64], visibility_id[72];
-            float y = 308.0f + (float)(i - start) * 27.0f;
+            float y = connections_y + 112.0f + (float)(i - start) * 27.0f;
             if(!editor_mode_named_text_sync(editor->font, anchor->name,
                     &editor->anchor_names[i], editor->anchor_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
@@ -288,26 +324,30 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             }
         }
     }
+    }
+    if(parameters_open) {
     if(joint->kind == EDITOR_JOINT_REVOLUTE)
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.revolute.damping", &editor->damping_label,
-            &editor->damping_field, 480.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
+            &editor->damping_field, parameters_y, 76.0f, EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
     else if(joint->kind == EDITOR_JOINT_SPRING) {
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.rest_length", &editor->rest_length_label,
-            &editor->rest_length_field, 480.0f, 96.0f,
+            &editor->rest_length_field, parameters_y, 96.0f,
             EDITOR_PROPERTY_REST_LENGTH,
             joint->rest_length) || field_active;
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.stiffness", &editor->stiffness_label,
-            &editor->stiffness_field, 512.0f, 90.0f,
+            &editor->stiffness_field, parameters_y + 32.0f, 90.0f,
             EDITOR_PROPERTY_STIFFNESS,
             joint->stiffness) || field_active;
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.spring.damping", &editor->damping_label,
-            &editor->damping_field, 544.0f, 76.0f, EDITOR_PROPERTY_DAMPING,
+            &editor->damping_field, parameters_y + 64.0f, 76.0f,
+            EDITOR_PROPERTY_DAMPING,
             joint->damping) || field_active;
+    }
     }
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {

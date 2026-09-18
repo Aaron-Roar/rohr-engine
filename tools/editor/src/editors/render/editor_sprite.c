@@ -86,7 +86,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     visible = sprite->visible;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 70.0f, 28.0f});
-    name_result = rohr_ui_field("editor.sprite.name",
+    name_result = editor_mode_field("editor.sprite.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 82.0f, 42.0f, context->width - 92.0f, 28.0f}, NULL);
@@ -117,7 +117,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         y += 36.0f;
 #define SPRITE_FIELD(label, field, id, target, result) do { \
     rohr_ui_label(&(label), (UIRect){context->x + 8.0f, y, 70.0f, 28.0f}); \
-    (result) = rohr_ui_field((id), \
+    (result) = editor_mode_field((id), \
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &(target)}, &(field), \
         (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f}, \
         &section_field_style); \
@@ -152,7 +152,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         y += 36.0f;
         rohr_ui_label(&editor->body_label,
             (UIRect){context->x + 8.0f, y, 90.0f, 28.0f});
-        body_result = rohr_ui_dropdown("editor.sprite.body", body_options,
+        body_result = editor_mode_dropdown("editor.sprite.body", body_options,
             object->rigid_body_count + 1, body_selected,
             (UIRect){context->x + 100.0f, y, context->width - 110.0f, 28.0f},
             &section_field_style);
@@ -168,7 +168,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         y += 36.0f;
         rohr_ui_label(&editor->path_label,
             (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
-        path_result = rohr_ui_field("editor.sprite.path",
+        path_result = editor_mode_field("editor.sprite.path",
             (UIFieldBinding){.kind = UI_FIELD_STRING, .string = path,
                 .string_capacity = sizeof(path)}, &editor->path_field,
             (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},

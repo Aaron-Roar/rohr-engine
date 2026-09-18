@@ -6,6 +6,7 @@
 #define EDITOR_JOINT_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef struct EditorJointEditor {
     FontAsset *font;
@@ -19,6 +20,9 @@ typedef struct EditorJointEditor {
     TextAsset anchor_names[EDITOR_ANCHOR_MAX];
     char joint_cache[EDITOR_JOINT_MAX][EDITOR_OBJECT_NAME_MAX];
     char anchor_cache[EDITOR_ANCHOR_MAX][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection configuration_section;
+    EditorModeAccordionSection connections_section;
+    EditorModeAccordionSection parameters_section;
 } EditorJointEditor;
 
 bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font);

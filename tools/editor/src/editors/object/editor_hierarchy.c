@@ -108,14 +108,14 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
         rohr_ui_label(&editor->name_label,
             (UIRect){context->x + 10.0f, 92.0f, 54.0f, 28.0f});
         snprintf(name, sizeof(name), "%s", selected_name);
-        name_result = rohr_ui_field("editor.hierarchy.selected.name",
+        name_result = editor_mode_field("editor.hierarchy.selected.name",
             (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
                 .string_capacity = sizeof(name)}, &editor->name_field,
             (UIRect){context->x + 64.0f, 92.0f,
                 context->width - 74.0f, 28.0f}, NULL);
         rohr_ui_label(&editor->x_label,
             (UIRect){context->x + 10.0f, 126.0f, 24.0f, 28.0f});
-        (void)rohr_ui_field("editor.hierarchy.selected.x",
+        (void)editor_mode_field("editor.hierarchy.selected.x",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &overview_position->x}, &editor->x_field,
             (UIRect){context->x + 34.0f, 126.0f,
@@ -123,7 +123,7 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
         rohr_ui_label(&editor->y_label,
             (UIRect){context->x + 44.0f +
                 (context->width - 54.0f) * 0.5f, 126.0f, 24.0f, 28.0f});
-        (void)rohr_ui_field("editor.hierarchy.selected.y",
+        (void)editor_mode_field("editor.hierarchy.selected.y",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &overview_position->y}, &editor->y_field,
             (UIRect){context->x + 68.0f +

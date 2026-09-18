@@ -284,19 +284,19 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         UIButtonStyle field_style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->x_label,
             (UIRect){x + 8.0f, transform_y, 24.0f, 26.0f});
-        x_result = rohr_ui_field("editor.rigid_body.x",
+        x_result = editor_mode_field("editor.rigid_body.x",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
             &editor->x_field, (UIRect){x + 34.0f, transform_y,
                 width - 44.0f, 26.0f}, &field_style);
         rohr_ui_label(&editor->y_label,
             (UIRect){x + 8.0f, transform_y + 32.0f, 24.0f, 26.0f});
-        y_result = rohr_ui_field("editor.rigid_body.y",
+        y_result = editor_mode_field("editor.rigid_body.y",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
             &editor->y_field, (UIRect){x + 34.0f, transform_y + 32.0f,
                 width - 44.0f, 26.0f}, &field_style);
         rohr_ui_label(&editor->rotation_label,
             (UIRect){x + 8.0f, transform_y + 64.0f, 76.0f, 26.0f});
-        rotation_result = rohr_ui_field("editor.rigid_body.rotation",
+        rotation_result = editor_mode_field("editor.rigid_body.rotation",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
             &editor->rotation_field, (UIRect){x + 86.0f,
                 transform_y + 64.0f, width - 96.0f, 26.0f}, &field_style);
@@ -310,7 +310,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             rotation_result.active;
         const TextAsset *options[] = {&editor->rotation_unlocked_label,
             &editor->rotation_locked_label};
-        UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.rotation_lock",
+        UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.rotation_lock",
             options, 2, body->rotation_locked ? 1 : 0,
             (UIRect){x + 10.0f, transform_y + 96.0f, width - 20.0f, 28.0f},
             &field_style);
@@ -325,7 +325,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     float value = (source); UIFieldResult result; \
     UIButtonStyle field_style = editor_mode_section_field_style_get(); \
     rohr_ui_label(&(label), (UIRect){x + 8.0f, (field_y), (label_width), 26.0f}); \
-    result = rohr_ui_field((field_id), (UIFieldBinding){.kind = UI_FIELD_FLOAT, \
+    result = editor_mode_field((field_id), (UIFieldBinding){.kind = UI_FIELD_FLOAT, \
         .number = &value}, &(field), \
         (UIRect){x + (label_width) + 10.0f, (field_y), \
             width - (label_width) - 20.0f, 26.0f}, &field_style); \
@@ -384,7 +384,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         rohr_ui_label(&editor->parent_label,
             (UIRect){x + 8.0f, parenting_y, 70.0f, 28.0f});
         UIButtonStyle field_style = editor_mode_section_field_style_get();
-        UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.parent",
+        UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.parent",
             options, count, selected,
             (UIRect){x + 80.0f, parenting_y, width - 90.0f, 28.0f},
             &field_style);
@@ -412,7 +412,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     if(physics_open) {
         const TextAsset *options[] = {&editor->dynamic_label, &editor->static_label};
         UIButtonStyle field_style = editor_mode_section_field_style_get();
-        UIDropdownResult result = rohr_ui_dropdown("editor.rigid_body.motion", options,
+        UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.motion", options,
             2, body->static_body ? 1 : 0,
             (UIRect){x + 10.0f, physics_y, width - 20.0f, 28.0f},
             &field_style);
@@ -529,7 +529,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                     options[i] = &editor->hitbox_names[i];
                 }
                 {
-                    UIDropdownResult active = rohr_ui_dropdown(
+                    UIDropdownResult active = editor_mode_dropdown(
                         "editor.rigid_body.active_hitbox", options, option_count,
                         body->active_hitbox_index < option_count ?
                             body->active_hitbox_index : 0,

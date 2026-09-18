@@ -15,7 +15,7 @@ static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
     float field_x = x + width - field_width - 10.0f;
     rohr_ui_label(label, (UIRect){x + 8.0f, y,
         fmaxf(1.0f, field_x - x - 12.0f), 28.0f});
-    return rohr_ui_field(id,
+    return editor_mode_field(id,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = value}, field,
         (UIRect){field_x, y, field_width, 28.0f}, NULL);
 }
@@ -77,6 +77,28 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("", border_thickness_field); CREATE("", hash_spacing_field);
     CREATE("", corner_radius_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+            "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->appearance_section, font,
+                "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->contents_section, font,
+                "Contents", false) ||
+            !editor_mode_accordion_section_create(&editor->source_section, font,
+                "Source", true) ||
+            !editor_mode_accordion_section_create(&editor->placement_section, font,
+                "Placement", false) ||
+            !editor_mode_accordion_section_create(&editor->interaction_section, font,
+                "Interaction", false) ||
+            !editor_mode_accordion_section_create(&editor->content_section, font,
+                "Content Transform", false) ||
+            !editor_mode_accordion_section_create(&editor->ui_transform_section, font,
+                "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->ui_interaction_section, font,
+                "Interaction", false) ||
+            !editor_mode_accordion_section_create(&editor->ui_appearance_section, font,
+                "Appearance", false) ||
+            !editor_mode_accordion_section_create(&editor->ui_content_section, font,
+                "Content", false)) goto fail;
     return true;
 fail:
     editor_layout_viewport_editor_destroy(editor);
@@ -120,6 +142,17 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(content_x_field); DESTROY(content_y_field);
     DESTROY(content_rotation_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->appearance_section);
+    editor_mode_accordion_section_destroy(&editor->contents_section);
+    editor_mode_accordion_section_destroy(&editor->source_section);
+    editor_mode_accordion_section_destroy(&editor->placement_section);
+    editor_mode_accordion_section_destroy(&editor->interaction_section);
+    editor_mode_accordion_section_destroy(&editor->content_section);
+    editor_mode_accordion_section_destroy(&editor->ui_transform_section);
+    editor_mode_accordion_section_destroy(&editor->ui_interaction_section);
+    editor_mode_accordion_section_destroy(&editor->ui_appearance_section);
+    editor_mode_accordion_section_destroy(&editor->ui_content_section);
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->camera_names[i]);
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1)
@@ -134,7 +167,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     EditorLayoutViewport *viewport;
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result, x_result, y_result, width_result, height_result;
-    float y;
+    float y, section_y = 118.0f, transform_y, appearance_y, contents_y;
+    bool transform_open, appearance_open, contents_open;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     viewport = editor_project_layout_viewport_get(context->project,
@@ -143,7 +177,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     snprintf(name, sizeof(name), "%s", viewport->name);
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 82.0f, 28.0f});
-    name_result = rohr_ui_field("editor.layout.name",
+    name_result = editor_mode_field("editor.layout.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_field,
         (UIRect){context->x + 94.0f, 42.0f, context->width - 104.0f, 28.0f}, NULL);
@@ -152,24 +186,47 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
                 context->width - 20.0f, 28.0f}, &enabled))
         viewport->enabled = enabled;
+    transform_open = editor_mode_accordion_section_draw(&editor->transform_section,
+        "editor.layout.section.transform", (UIRect){context->x + 8.0f,
+            section_y, context->width - 16.0f, 30.0f}, 136.0f);
+    transform_y = section_y + 36.0f;
+    section_y += transform_open ? 172.0f : 36.0f;
+    appearance_open = editor_mode_accordion_section_draw(
+        &editor->appearance_section, "editor.layout.section.appearance",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f}, 40.0f);
+    appearance_y = section_y + 36.0f;
+    section_y += appearance_open ? 76.0f : 36.0f;
+    contents_open = editor_mode_accordion_section_draw(&editor->contents_section,
+        "editor.layout.section.contents", (UIRect){context->x + 8.0f,
+            section_y, context->width - 16.0f, 30.0f}, 900.0f);
+    contents_y = section_y + 36.0f;
+    x_result = (UIFieldResult){0}; y_result = (UIFieldResult){0};
+    width_result = (UIFieldResult){0}; height_result = (UIFieldResult){0};
+    if(transform_open) {
     x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.x", context->x, 118.0f, context->width,
+        "editor.layout.x", context->x, transform_y, context->width,
         &viewport->config.rectangle.x);
     y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.y", context->x, 156.0f, context->width,
+        "editor.layout.y", context->x, transform_y + 32.0f, context->width,
         &viewport->config.rectangle.y);
     width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.width", context->x, 194.0f, context->width,
+        "editor.layout.width", context->x, transform_y + 64.0f, context->width,
         &viewport->config.rectangle.width);
     height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.height", context->x, 232.0f, context->width,
+        "editor.layout.height", context->x, transform_y + 96.0f, context->width,
         &viewport->config.rectangle.height);
+    }
+    if(appearance_open) {
     rohr_ui_label(&editor->background_color_label,
-        (UIRect){context->x + 8.0f, 270.0f, context->width - 64.0f, 28.0f});
+        (UIRect){context->x + 8.0f, appearance_y,
+            context->width - 64.0f, 28.0f});
     (void)layout_local_swatch("editor.layout.background_color",
         &viewport->background_color,
-        (UIRect){context->x + context->width - 48.0f, 270.0f, 38.0f, 28.0f},
+        (UIRect){context->x + context->width - 48.0f, appearance_y,
+            38.0f, 28.0f},
         context);
+    }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
@@ -178,9 +235,11 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
+    if(contents_open) {
     rohr_ui_label(&editor->cameras_label,
-        (UIRect){context->x + 8.0f, 314.0f, context->width - 16.0f, 28.0f});
-    y = 348.0f;
+        (UIRect){context->x + 8.0f, contents_y,
+            context->width - 16.0f, 28.0f});
+    y = contents_y + 34.0f;
     if(rohr_ui_button("editor.layout.add_shape", &editor->add_shape_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f,
                 30.0f}, NULL).clicked) {
@@ -334,7 +393,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
         char *text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
             item->value.shape.text.text : item->value.text.text;
-        text_result = rohr_ui_field("editor.layout.ui.text",
+        text_result = editor_mode_field("editor.layout.ui.text",
             (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text,
                 .string_capacity = UI_LABEL_MAX}, &editor->name_field,
             (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
@@ -375,6 +434,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             width_result.active || height_result.active || text_result.active ||
             item_x.active || item_y.active || item_width.active ||
             item_height.active || item_layer.active;
+    }
     }
     return name_result.active || x_result.active || y_result.active ||
         width_result.active || height_result.active;
@@ -453,7 +513,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     rohr_ui_label(&editor->source_label, (UIRect){context->x + 8.0f, 118.0f,
         70.0f, 28.0f});
     if(camera_count > 0) {
-        UIDropdownResult source = rohr_ui_dropdown("editor.layout.screen.source",
+        UIDropdownResult source = editor_mode_dropdown("editor.layout.screen.source",
             camera_options, camera_count, selected_camera,
             (UIRect){context->x + 82.0f, 118.0f, context->width - 92.0f, 28.0f},
             NULL);
@@ -511,7 +571,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             &editor->drag_xy_label};
         rohr_ui_label(&editor->drag_axis_label,
             (UIRect){context->x + 8.0f, content_controls_y, 82.0f, 28.0f});
-        UIDropdownResult axis = rohr_ui_dropdown(
+        UIDropdownResult axis = editor_mode_dropdown(
             "editor.layout.screen.drag_axis", axes, 3,
             (size_t)item->placement.drag_mode - 1,
             (UIRect){context->x + 94.0f, content_controls_y,
@@ -613,7 +673,7 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             &editor->drag_xy_label};
         rohr_ui_label(&editor->drag_axis_label,
             (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
-        UIDropdownResult axis = rohr_ui_dropdown("editor.layout.ui.drag_axis",
+        UIDropdownResult axis = editor_mode_dropdown("editor.layout.ui.drag_axis",
             axes, 3, (size_t)item->drag_mode - 1,
             (UIRect){context->x + 94.0f, *y,
                 context->width - 104.0f, 28.0f}, NULL);
@@ -631,7 +691,7 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             &editor->border_hashed_label};
         rohr_ui_label(&editor->border_type_label,
             (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
-        UIDropdownResult type = rohr_ui_dropdown("editor.layout.ui.border_type",
+        UIDropdownResult type = editor_mode_dropdown("editor.layout.ui.border_type",
             types, 2, item->border_type, (UIRect){context->x + 94.0f, *y,
                 context->width - 104.0f, 28.0f}, NULL);
         if(type.changed) item->border_type =
@@ -754,7 +814,7 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         layout_ui_common_draw(editor, context, item, &y) : false;
     rohr_ui_label(&editor->text_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-    text_result = rohr_ui_field("editor.ui_text.text",
+    text_result = editor_mode_field("editor.ui_text.text",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text->text,
             .string_capacity = sizeof(text->text)}, &editor->text_field,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
@@ -779,7 +839,7 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         font_options[i + 2] = &editor->font_names[i];
         if(text->font == font->id) selected_font = i + 2;
     }
-    UIDropdownResult font_result = rohr_ui_dropdown("editor.ui_text.font",
+    UIDropdownResult font_result = editor_mode_dropdown("editor.ui_text.font",
         font_options, context->project->ui_font_count + 2, selected_font,
         (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
     if(font_result.changed) {

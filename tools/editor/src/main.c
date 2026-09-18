@@ -919,12 +919,16 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
         mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
+        mode != EDITOR_VIEWPORT_OBJECT &&
         mode != EDITOR_VIEWPORT_RIGID_BODY &&
+        mode != EDITOR_VIEWPORT_ANCHOR &&
+        mode != EDITOR_VIEWPORT_JOINT &&
         mode != EDITOR_VIEWPORT_SOFT_BODY &&
         mode != EDITOR_VIEWPORT_SOFT_NODE &&
         mode != EDITOR_VIEWPORT_SPRITE &&
         mode != EDITOR_VIEWPORT_ANIMATED_SPRITE &&
-        mode != EDITOR_VIEWPORT_CAMERA_ENTITY;
+        mode != EDITOR_VIEWPORT_CAMERA_ENTITY &&
+        mode != EDITOR_VIEWPORT_LAYOUT;
 }
 
 static const char *editor_mode_properties_title_get(EditorViewportMode mode) {

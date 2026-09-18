@@ -3,6 +3,8 @@
  */
 
 #include "editor_bulk_panel.h"
+
+#include "editors/editor_mode_controls.h"
 #include "editor_command.h"
 #include "editor_navigation.h"
 
@@ -801,7 +803,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 options = joint;
                 count = 4;
             }
-            result = rohr_ui_dropdown(id, options, count,
+            result = editor_mode_dropdown(id, options, count,
                 panel->dropdown_indices[i], control, NULL);
             if(result.changed && result.selected_index > 0) {
                 const char *value = result.selected_index == 1 ?
@@ -850,7 +852,7 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                     properties[i].property);
             }
         } else {
-            UIFieldResult result = rohr_ui_field(id,
+            UIFieldResult result = editor_mode_field(id,
                 (UIFieldBinding){.kind = UI_FIELD_STRING,
                     .string = panel->values[i],
                     .string_capacity = sizeof(panel->values[i])},

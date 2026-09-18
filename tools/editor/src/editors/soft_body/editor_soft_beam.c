@@ -150,11 +150,11 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
             (UIRect){context->x + 8.0f, 122.0f, 70.0f, 28.0f});
         rohr_ui_label(&editor->node_b_label,
             (UIRect){context->x + 8.0f, 158.0f, 70.0f, 28.0f});
-        UIDropdownResult a = rohr_ui_dropdown("editor.soft_beam.node_a", options,
+        UIDropdownResult a = editor_mode_dropdown("editor.soft_beam.node_a", options,
             body->node_count + 1, selected_a,
             (UIRect){context->x + 80.0f, 122.0f,
                 context->width - 90.0f, 28.0f}, NULL);
-        UIDropdownResult b = rohr_ui_dropdown("editor.soft_beam.node_b", options,
+        UIDropdownResult b = editor_mode_dropdown("editor.soft_beam.node_b", options,
             body->node_count + 1, selected_b,
             (UIRect){context->x + 80.0f, 158.0f,
                 context->width - 90.0f, 28.0f}, NULL);
@@ -174,7 +174,7 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     stiffness = beam->stiffness;
     rohr_ui_label(&editor->stiffness_label,
         (UIRect){context->x + 8.0f, 196.0f, 90.0f, 26.0f});
-    stiffness_result = rohr_ui_field("editor.soft_beam.stiffness",
+    stiffness_result = editor_mode_field("editor.soft_beam.stiffness",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &stiffness},
         &editor->stiffness_field, (UIRect){context->x + 100.0f, 196.0f,
             context->width - 110.0f, 26.0f}, NULL);
@@ -183,7 +183,7 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     damping = beam->damping;
     rohr_ui_label(&editor->damping_label,
         (UIRect){context->x + 8.0f, 232.0f, 90.0f, 26.0f});
-    damping_result = rohr_ui_field("editor.soft_beam.damping",
+    damping_result = editor_mode_field("editor.soft_beam.damping",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &damping},
         &editor->damping_field, (UIRect){context->x + 100.0f, 232.0f,
             context->width - 110.0f, 26.0f}, NULL);

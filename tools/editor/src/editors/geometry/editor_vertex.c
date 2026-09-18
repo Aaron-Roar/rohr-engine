@@ -107,11 +107,11 @@ bool editor_vertex_editor_draw(EditorVertexEditor *editor,
                 context->width - 38.0f, 24.0f});
     } else {
         Position edited = vertex->position;
-        UIFieldResult x_result = rohr_ui_field("editor.vertex.x.field",
+        UIFieldResult x_result = editor_mode_field("editor.vertex.x.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &edited.x},
             &editor->x_field, (UIRect){context->x + 28.0f, 122.0f,
                 context->width - 38.0f, 24.0f}, NULL);
-        UIFieldResult y_result = rohr_ui_field("editor.vertex.y.field",
+        UIFieldResult y_result = editor_mode_field("editor.vertex.y.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &edited.y},
             &editor->y_field, (UIRect){context->x + 28.0f, 158.0f,
                 context->width - 38.0f, 24.0f}, NULL);

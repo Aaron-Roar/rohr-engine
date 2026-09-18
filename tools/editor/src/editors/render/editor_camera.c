@@ -60,7 +60,7 @@ static void camera_label_field(TextAsset *label, TextAsset *field, const char *i
         float x, float y, float width, float *value, UIFieldResult *result) {
     UIButtonStyle style = editor_mode_section_field_style_get();
     rohr_ui_label(label, (UIRect){x + 8.0f, y, 82.0f, 28.0f});
-    *result = rohr_ui_field(id,
+    *result = editor_mode_field(id,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = value}, field,
         (UIRect){x + 94.0f, y, width - 104.0f, 28.0f}, &style);
 }
@@ -95,7 +95,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     snprintf(name, sizeof(name), "%s", camera->name);
     visible = camera->visible;
     rohr_ui_label(&editor->name_label, (UIRect){context->x + 8, 42, 82, 28});
-    name_result = rohr_ui_field("editor.camera.name",
+    name_result = editor_mode_field("editor.camera.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 94, 42, context->width - 104, 28}, NULL);
@@ -167,7 +167,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         y += 36.0f;
         rohr_ui_label(&editor->attachment_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-        attachment = rohr_ui_dropdown("editor.camera.attachment", options,
+        attachment = editor_mode_dropdown("editor.camera.attachment", options,
             option_count, selected,
             (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f},
             &section_field_style);

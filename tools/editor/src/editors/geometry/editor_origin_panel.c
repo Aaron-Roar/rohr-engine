@@ -3,6 +3,8 @@
  */
 
 #include "editor_origin_panel.h"
+
+#include "editors/editor_mode_controls.h"
 #include "editor_command.h"
 
 #include <stdio.h>
@@ -79,13 +81,13 @@ bool editor_origin_panel_draw(EditorOriginPanel *panel,
         (UIRect){context->x + 10.0f, 42.0f, context->width - 20.0f, 30.0f});
     rohr_ui_label(&panel->x_label,
         (UIRect){context->x + 8.0f, 122.0f, 50.0f, 26.0f});
-    x_result = rohr_ui_field("editor.origin.x",
+    x_result = editor_mode_field("editor.origin.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
         &panel->x_field,
         (UIRect){context->x + 60.0f, 122.0f, context->width - 70.0f, 26.0f}, NULL);
     rohr_ui_label(&panel->y_label,
         (UIRect){context->x + 8.0f, 158.0f, 50.0f, 26.0f});
-    y_result = rohr_ui_field("editor.origin.y",
+    y_result = editor_mode_field("editor.origin.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
         &panel->y_field,
         (UIRect){context->x + 60.0f, 158.0f, context->width - 70.0f, 26.0f}, NULL);

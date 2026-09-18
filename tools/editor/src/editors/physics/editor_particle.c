@@ -67,7 +67,7 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
             body->particle_radius, (UIRect){context->x + 62.0f, 84.0f,
                 fmaxf(30.0f, context->width - 166.0f), 26.0f});
     } else {
-        radius = rohr_ui_field("editor.particle.radius",
+        radius = editor_mode_field("editor.particle.radius",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT,
                 .number = &body->particle_radius}, &editor->radius_field,
             (UIRect){context->x + 62.0f, 84.0f,
@@ -82,14 +82,14 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         body->particle_radius = editor_project_particle_auto_radius_get(body);
     rohr_ui_label(&editor->origin_x_label,
         (UIRect){context->x + 8.0f, 120.0f, 72.0f, 26.0f});
-    origin_x = rohr_ui_field("editor.particle.origin_x",
+    origin_x = editor_mode_field("editor.particle.origin_x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT,
             .number = &body->particle_origin.x}, &editor->origin_x_field,
         (UIRect){context->x + 82.0f, 120.0f,
             context->width - 92.0f, 26.0f}, NULL);
     rohr_ui_label(&editor->origin_y_label,
         (UIRect){context->x + 8.0f, 156.0f, 72.0f, 26.0f});
-    origin_y = rohr_ui_field("editor.particle.origin_y",
+    origin_y = editor_mode_field("editor.particle.origin_y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT,
             .number = &body->particle_origin.y}, &editor->origin_y_field,
         (UIRect){context->x + 82.0f, 156.0f,

@@ -83,6 +83,28 @@ UIButtonStyle editor_mode_section_field_style_get(void) {
     };
 }
 
+UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
+        TextAsset *display, UIRect bounds, const UIButtonStyle *style) {
+    UIButtonStyle baseline;
+    if(style == NULL) {
+        baseline = editor_mode_section_field_style_get();
+        style = &baseline;
+    }
+    return rohr_ui_field(id, binding, display, bounds, style);
+}
+
+UIDropdownResult editor_mode_dropdown(const char *id,
+        const TextAsset *const *options, size_t option_count,
+        size_t selected_index, UIRect bounds, const UIButtonStyle *style) {
+    UIButtonStyle baseline;
+    if(style == NULL) {
+        baseline = editor_mode_section_field_style_get();
+        style = &baseline;
+    }
+    return rohr_ui_dropdown(id, options, option_count, selected_index,
+        bounds, style);
+}
+
 void editor_mode_numeric_disabled_draw(TextAsset *display,
         float value,
         UIRect bounds) {
@@ -208,7 +230,7 @@ UIFieldResult editor_mode_name_field(const char *id,
         size_t capacity,
         TextAsset *display,
         UIRect bounds) {
-    UIFieldResult result = rohr_ui_field(id,
+    UIFieldResult result = editor_mode_field(id,
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = capacity}, display, bounds, NULL);
     if(result.changed) editor_project_property_name_format(name, capacity, name);

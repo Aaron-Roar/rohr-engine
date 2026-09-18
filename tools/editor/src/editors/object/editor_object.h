@@ -6,6 +6,7 @@
 #define EDITOR_OBJECT_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef void (*EditorSpriteBrowserOpenFunction)(void *context,
     EditorObjectId object);
@@ -28,6 +29,8 @@ typedef struct EditorObjectEditor {
     char sprite_cache[64][EDITOR_OBJECT_NAME_MAX];
     char animation_cache[32][EDITOR_OBJECT_NAME_MAX];
     char camera_cache[EDITOR_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection creation_section;
+    EditorModeAccordionSection elements_section;
 } EditorObjectEditor;
 
 bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font);

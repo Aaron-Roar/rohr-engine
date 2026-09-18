@@ -256,19 +256,19 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         UIButtonStyle style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->x_label,
             (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
-        x_result = rohr_ui_field("editor.soft_body.x",
+        x_result = editor_mode_field("editor.soft_body.x",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
             &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
                 context->width - 70.0f, 26.0f}, &style);
         rohr_ui_label(&editor->y_label,
             (UIRect){context->x + 8.0f, transform_y + 36.0f, 50.0f, 26.0f});
-        y_result = rohr_ui_field("editor.soft_body.y",
+        y_result = editor_mode_field("editor.soft_body.y",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
             &editor->y_field, (UIRect){context->x + 60.0f,
                 transform_y + 36.0f, context->width - 70.0f, 26.0f}, &style);
         rohr_ui_label(&editor->rotation_label,
             (UIRect){context->x + 8.0f, transform_y + 72.0f, 82.0f, 26.0f});
-        rotation_result = rohr_ui_field("editor.soft_body.rotation",
+        rotation_result = editor_mode_field("editor.soft_body.rotation",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
             &editor->rotation_field, (UIRect){context->x + 92.0f,
                 transform_y + 72.0f, context->width - 102.0f, 26.0f}, &style);

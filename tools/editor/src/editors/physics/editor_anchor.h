@@ -6,6 +6,7 @@
 #define EDITOR_ANCHOR_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_mode_controls.h"
 
 typedef struct EditorAnchorEditor {
     FontAsset *font;
@@ -32,6 +33,8 @@ typedef struct EditorAnchorEditor {
     char anchor_cache[EDITOR_ANCHOR_MAX][EDITOR_OBJECT_NAME_MAX];
     char body_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char node_cache[EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
+    EditorModeAccordionSection transform_section;
+    EditorModeAccordionSection attachment_section;
 } EditorAnchorEditor;
 
 bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font);

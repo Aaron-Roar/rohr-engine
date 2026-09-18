@@ -223,13 +223,13 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->x_label,
         (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
-    x_result = rohr_ui_field("editor.soft_node.x",
+    x_result = editor_mode_field("editor.soft_node.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
         &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
             context->width - 70.0f, 26.0f}, &field_style);
     rohr_ui_label(&editor->y_label,
         (UIRect){context->x + 8.0f, transform_y + 32.0f, 50.0f, 26.0f});
-    y_result = rohr_ui_field("editor.soft_node.y",
+    y_result = editor_mode_field("editor.soft_node.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
         &editor->y_field, (UIRect){context->x + 60.0f, transform_y + 32.0f,
             context->width - 70.0f, 26.0f}, &field_style);
@@ -249,7 +249,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->mass_label,
         (UIRect){context->x + 8.0f, physics_y, 68.0f, 26.0f});
-    mass_result = rohr_ui_field("editor.soft_node.mass",
+    mass_result = editor_mode_field("editor.soft_node.mass",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &mass_value},
         &editor->mass_field, (UIRect){context->x + 78.0f, physics_y,
             context->width - 88.0f, 26.0f}, &field_style);
@@ -258,7 +258,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     radius_value = node->radius;
     rohr_ui_label(&editor->radius_label,
         (UIRect){context->x + 8.0f, physics_y + 32.0f, 68.0f, 26.0f});
-    radius_result = rohr_ui_field("editor.soft_node.radius",
+    radius_result = editor_mode_field("editor.soft_node.radius",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
         &editor->radius_field, (UIRect){context->x + 78.0f,
             physics_y + 32.0f, context->width - 88.0f, 26.0f}, &field_style);
@@ -278,7 +278,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->friction_label,
         (UIRect){context->x + 8.0f, material_y, 68.0f, 26.0f});
-    friction_result = rohr_ui_field("editor.soft_node.friction",
+    friction_result = editor_mode_field("editor.soft_node.friction",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &friction_value},
         &editor->friction_field, (UIRect){context->x + 78.0f, material_y,
             context->width - 88.0f, 26.0f}, &field_style);
@@ -287,7 +287,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     restitution_value = node->restitution;
     rohr_ui_label(&editor->restitution_label,
         (UIRect){context->x + 8.0f, material_y + 32.0f, 96.0f, 26.0f});
-    restitution_result = rohr_ui_field("editor.soft_node.restitution",
+    restitution_result = editor_mode_field("editor.soft_node.restitution",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &restitution_value},
         &editor->restitution_field, (UIRect){context->x + 106.0f,
             material_y + 32.0f, context->width - 116.0f, 26.0f}, &field_style);

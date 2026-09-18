@@ -32,6 +32,10 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+            "Transform", true) ||
+            !editor_mode_accordion_section_create(&editor->attachment_section, font,
+                "Attachment", false)) goto fail;
     for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "anchor_%zu", i + 1);
         if(!editor_mode_text_create(font, name, &editor->anchor_names[i])) goto fail;
@@ -61,6 +65,8 @@ void editor_anchor_editor_destroy(EditorAnchorEditor *editor) {
     DESTROY(delete_label);
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->transform_section);
+    editor_mode_accordion_section_destroy(&editor->attachment_section);
     for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->anchor_names[i]);
     for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1)
@@ -78,7 +84,10 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
     Position position;
     float rotation;
     char name[EDITOR_OBJECT_NAME_MAX];
-    UIFieldResult name_result, x_result, y_result, rotation_result;
+    UIFieldResult name_result, x_result = {0}, y_result = {0},
+        rotation_result = {0};
+    bool transform_open, attachment_open;
+    float transform_y, attachment_y, section_y = 118.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -117,25 +126,39 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
+    transform_open = editor_mode_accordion_section_draw(&editor->transform_section,
+        "editor.anchor.section.transform",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f}, 70.0f);
+    transform_y = section_y + 36.0f;
+    section_y += transform_open ? 106.0f : 36.0f;
+    attachment_open = editor_mode_accordion_section_draw(
+        &editor->attachment_section, "editor.anchor.section.attachment",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f}, 140.0f);
+    attachment_y = section_y + 36.0f;
+    if(transform_open) {
     rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, 128.0f, 24.0f, 26.0f});
-    x_result = rohr_ui_field("editor.anchor.x",
+        (UIRect){context->x + 8.0f, transform_y, 24.0f, 26.0f});
+    x_result = editor_mode_field("editor.anchor.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 34.0f, 128.0f,
+        &editor->x_field, (UIRect){context->x + 34.0f, transform_y,
             context->width - 44.0f, 26.0f}, NULL);
     rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, 162.0f, 24.0f, 26.0f});
-    y_result = rohr_ui_field("editor.anchor.y",
+        (UIRect){context->x + 8.0f, transform_y + 32.0f, 24.0f, 26.0f});
+    y_result = editor_mode_field("editor.anchor.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 34.0f, 162.0f,
+        &editor->y_field, (UIRect){context->x + 34.0f, transform_y + 32.0f,
             context->width - 44.0f, 26.0f}, NULL);
     if(x_result.changed || y_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
             .data.anchor_transform = {object->id, anchor->id, position, rotation}};
         (void)editor_command_execute(context->project, &command);
     }
+    }
+    if(attachment_open) {
     rohr_ui_label(&editor->attachment_label,
-        (UIRect){context->x + 8.0f, 196.0f, 90.0f, 28.0f});
+        (UIRect){context->x + 8.0f, attachment_y, 90.0f, 28.0f});
     {
         const size_t maximum = EDITOR_RIGID_BODY_MAX +
             EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1;
@@ -180,9 +203,9 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
                 count += 1;
             }
         }
-        UIDropdownResult result = rohr_ui_dropdown("editor.anchor.attachment",
+        UIDropdownResult result = editor_mode_dropdown("editor.anchor.attachment",
             options, count, selected,
-            (UIRect){context->x + 100.0f, 196.0f,
+            (UIRect){context->x + 100.0f, attachment_y,
                 context->width - 110.0f, 28.0f}, NULL);
         if(result.hovered_index >= 0) {
             size_t option = (size_t)result.hovered_index;
@@ -208,10 +231,11 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         }
     }
     rohr_ui_label(&editor->rotation_label,
-        (UIRect){context->x + 8.0f, 230.0f, 76.0f, 26.0f});
-    rotation_result = rohr_ui_field("editor.anchor.rotation",
+        (UIRect){context->x + 8.0f, attachment_y + 36.0f, 76.0f, 26.0f});
+    rotation_result = editor_mode_field("editor.anchor.rotation",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
-        &editor->rotation_field, (UIRect){context->x + 86.0f, 230.0f,
+        &editor->rotation_field, (UIRect){context->x + 86.0f,
+            attachment_y + 36.0f,
             context->width - 96.0f, 26.0f}, NULL);
     if(rotation_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANCHOR_TRANSFORM,
@@ -226,17 +250,17 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             &editor->rotation_body_label};
         bool soft_node = anchor->attachment_kind ==
             EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE;
-        UIDropdownResult position_result = rohr_ui_dropdown(
+        UIDropdownResult position_result = editor_mode_dropdown(
             "editor.anchor.position_lock", soft_node ? soft_position_options :
                 position_options, soft_node ? 1 : 2,
             soft_node ? 0 : anchor->position_follows_body ? 1 : 0,
-            (UIRect){context->x + 10.0f, 264.0f,
+            (UIRect){context->x + 10.0f, attachment_y + 68.0f,
                 context->width - 20.0f, 28.0f}, NULL);
-        UIDropdownResult orientation_result = rohr_ui_dropdown(
+        UIDropdownResult orientation_result = editor_mode_dropdown(
             "editor.anchor.rotation_lock", rotation_options,
             soft_node ? 1 : 2, soft_node ? 0 :
                 anchor->rotation_follows_body ? 1 : 0,
-            (UIRect){context->x + 10.0f, 296.0f,
+            (UIRect){context->x + 10.0f, attachment_y + 100.0f,
                 context->width - 20.0f, 28.0f}, NULL);
         if(position_result.changed && !soft_node) boolean_set(context->project, object->id,
             anchor->id, EDITOR_PROPERTY_POSITION_FOLLOWS_BODY,
@@ -244,6 +268,7 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
         if(orientation_result.changed && !soft_node) boolean_set(context->project, object->id,
             anchor->id, EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY,
             orientation_result.selected_index == 1);
+    }
     }
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {

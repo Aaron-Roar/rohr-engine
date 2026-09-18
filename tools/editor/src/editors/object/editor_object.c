@@ -29,6 +29,10 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->creation_section, font,
+            "Creation", true) ||
+            !editor_mode_accordion_section_create(&editor->elements_section, font,
+                "Elements", false)) goto fail;
     return true;
 fail:
     editor_object_editor_destroy(editor);
@@ -44,6 +48,8 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(delete_label);
 #undef DESTROY
+    editor_mode_accordion_section_destroy(&editor->creation_section);
+    editor_mode_accordion_section_destroy(&editor->elements_section);
 #define DESTROY_ARRAY(array, count) \
     for(size_t i = 0; i < (count); i += 1) rohr_graphics_text_destroy(&(array)[i])
     DESTROY_ARRAY(editor->object_names, EDITOR_OBJECT_MAX);
@@ -141,6 +147,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     size_t object_index;
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result;
+    bool creation_open, elements_open;
+    float creation_y, elements_y, section_y = 134.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -153,7 +161,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     rohr_ui_label(&editor->object_name_label,
         (UIRect){context->x + 8.0f, 52.0f, 122.0f, 34.0f});
     snprintf(name, sizeof(name), "%s", object->name);
-    name_result = rohr_ui_field("editor.object.name",
+    name_result = editor_mode_field("editor.object.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->object_names[object_index],
         (UIRect){context->x + 130.0f, 52.0f,
@@ -174,6 +182,19 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             visibility_toggle(context->project, EDITOR_VISIBILITY_OBJECT,
                 object->id, 0, object->visible);
     }
+    editor_project_object_hierarchy_sync(object);
+    creation_open = editor_mode_accordion_section_draw(&editor->creation_section,
+        "editor.object.section.creation",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f}, 234.0f);
+    creation_y = section_y + 36.0f;
+    section_y += creation_open ? 270.0f : 36.0f;
+    elements_open = editor_mode_accordion_section_draw(&editor->elements_section,
+        "editor.object.section.elements",
+        (UIRect){context->x + 8.0f, section_y,
+            context->width - 16.0f, 30.0f},
+        6.0f + (float)object->hierarchy_count * 30.0f);
+    elements_y = section_y + 36.0f;
 #define ADD_BUTTON(button_id, button_label, button_y, item_kind, item_option, \
         selection_value, member) \
     if(rohr_ui_button((button_id), &(button_label), \
@@ -188,19 +209,20 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->member = result.result.object; \
         } \
     }
-    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, 166.0f,
+    if(creation_open) {
+    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, creation_y,
         EDITOR_ITEM_RIGID_BODY, 0, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
-    ADD_BUTTON("editor.add_joint", editor->add_joint_label, 204.0f,
+    ADD_BUTTON("editor.add_joint", editor->add_joint_label, creation_y + 38.0f,
         EDITOR_ITEM_JOINT, EDITOR_JOINT_SPRING, EDITOR_SELECTION_JOINT, selected_joint);
-    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, 242.0f,
+    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, creation_y + 76.0f,
         EDITOR_ITEM_SOFT_BODY, 0, EDITOR_SELECTION_SOFT_BODY, selected_soft_body);
 #undef ADD_BUTTON
     if(rohr_ui_button("editor.add_sprite", &editor->add_sprite_label,
-            (UIRect){context->x + 10.0f, 280.0f,
+            (UIRect){context->x + 10.0f, creation_y + 114.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked && browser_open != NULL)
         browser_open(browser_context, object->id);
     if(rohr_ui_button("editor.add_animated_sprite", &editor->add_animation_label,
-            (UIRect){context->x + 10.0f, 318.0f,
+            (UIRect){context->x + 10.0f, creation_y + 152.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_ADD,
             .data.animated_sprite_add = {.object = object->id}};
@@ -214,7 +236,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         }
     }
     if(rohr_ui_button("editor.add_camera", &editor->add_camera_label,
-            (UIRect){context->x + 10.0f, 356.0f,
+            (UIRect){context->x + 10.0f, creation_y + 190.0f,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_CAMERA, .object = object->id}};
@@ -225,7 +247,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
         }
     }
-    editor_project_object_hierarchy_sync(object);
+    }
+    if(elements_open)
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];
         EditorHierarchySelection selection;
@@ -235,7 +258,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         const char *item_name = NULL;
         bool visible = false;
         char id[64], visibility_id[72];
-        float y = 402.0f + (float)i * 30.0f;
+        float y = elements_y + (float)i * 30.0f;
         if(!item_info_get(editor, object, item, &item_name, &label, &cache,
                 &visible, &selection, &visibility)) continue;
         if(!editor_mode_named_text_sync(editor->font, item_name, label, cache,

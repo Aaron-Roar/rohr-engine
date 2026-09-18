@@ -73,7 +73,7 @@ static UIFieldResult float_field(const char *id, const TextAsset *label,
         float label_width) {
     rohr_ui_label(label, (UIRect){x + 8.0f, y, label_width, 28.0f});
     UIButtonStyle style = editor_mode_section_field_style_get();
-    return rohr_ui_field(id,
+    return editor_mode_field(id,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = value}, field,
         (UIRect){x + label_width + 10.0f, y,
             width - label_width - 20.0f, 28.0f}, &style);
@@ -117,7 +117,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     bool visible_changed = false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 74.0f, 28.0f});
-    name_result = rohr_ui_field("editor.animated_sprite.name",
+    name_result = editor_mode_field("editor.animated_sprite.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 88.0f, 42.0f, context->width - 96.0f, 28.0f}, NULL);
@@ -166,7 +166,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         UIButtonStyle style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->body_label,
             (UIRect){context->x + 8.0f, attachment_y, 90.0f, 28.0f});
-        body_result = rohr_ui_dropdown("editor.animated_sprite.body", body_options,
+        body_result = editor_mode_dropdown("editor.animated_sprite.body", body_options,
             object->rigid_body_count + 1, body_selected,
             (UIRect){context->x + 100.0f, attachment_y,
                 context->width - 110.0f, 28.0f}, &style);
@@ -222,7 +222,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             context->x, playback_y + 76.0f, context->width, 110.0f);
         rohr_ui_label(&editor->direction_label,
             (UIRect){context->x + 8.0f, playback_y + 114.0f, 90.0f, 28.0f});
-        direction_result = rohr_ui_dropdown("editor.animated_sprite.direction",
+        direction_result = editor_mode_dropdown("editor.animated_sprite.direction",
             direction_options, 2, sprite->direction == DIRECTION_LEFT ? 0 : 1,
             (UIRect){context->x + 100.0f, playback_y + 114.0f,
                 context->width - 110.0f, 28.0f}, &style);

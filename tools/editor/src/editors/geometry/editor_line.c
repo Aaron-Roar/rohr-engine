@@ -123,7 +123,7 @@ bool editor_line_editor_draw(EditorLineEditor *editor,
             (UIRect){context->x + 5.0f, 190.0f,
                 context->width - 10.0f, 38.0f});
     } else {
-        UIFieldResult result = rohr_ui_field("editor.line.length.field",
+        UIFieldResult result = editor_mode_field("editor.line.length.field",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &length},
             &editor->length_field, (UIRect){context->x + 60.0f, 150.0f,
                 context->width - 70.0f, 26.0f}, NULL);
