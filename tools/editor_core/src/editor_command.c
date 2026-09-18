@@ -490,6 +490,39 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         case EDITOR_COMMAND_VIEWPORT_COORDINATES:
             project->viewport_local_view = command->data.viewport_coordinates.local;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
+            if(!isfinite((double)command->data.project_physics_settings_set.
+                        engine_time_per_tick) ||
+                    command->data.project_physics_settings_set.
+                        engine_time_per_tick <= 0.0 ||
+                    !isfinite((double)command->data.project_physics_settings_set.
+                        physics_dt_per_tick) ||
+                    command->data.project_physics_settings_set.
+                        physics_dt_per_tick <= 0.0 ||
+                    command->data.project_physics_settings_set.physics_substeps == 0 ||
+                    !isfinite(command->data.project_physics_settings_set.
+                        physics_gravity.x) ||
+                    !isfinite(command->data.project_physics_settings_set.
+                        physics_gravity.y) ||
+                    command->data.project_physics_settings_set.
+                        physics_solver_iterations == 0)
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "project physics settings must be finite and positive where required")
+                    .result.error);
+            project->engine_time_per_tick = command->data.
+                project_physics_settings_set.engine_time_per_tick;
+            project->physics_timestep_override = command->data.
+                project_physics_settings_set.physics_timestep_override;
+            project->physics_dt_per_tick = command->data.
+                project_physics_settings_set.physics_dt_per_tick;
+            project->physics_substeps = command->data.
+                project_physics_settings_set.physics_substeps;
+            project->physics_gravity = command->data.
+                project_physics_settings_set.physics_gravity;
+            project->physics_solver_iterations = command->data.
+                project_physics_settings_set.physics_solver_iterations;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_VISIBILITY: {
             EditorObject *object = editor_object_query_get(project,
                 command->data.visibility.object);

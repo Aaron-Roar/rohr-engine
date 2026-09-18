@@ -27,6 +27,7 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_SOFT_BODY_ORIGIN,
     EDITOR_COMMAND_VIEWPORT_CAMERA,
     EDITOR_COMMAND_VIEWPORT_COORDINATES,
+    EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET,
     EDITOR_COMMAND_VISIBILITY,
     EDITOR_COMMAND_NAVIGATION_SET,
     EDITOR_COMMAND_ITEM_ADD,
@@ -293,6 +294,14 @@ typedef struct EditorCommand {
         struct {
             bool local;
         } viewport_coordinates;
+        struct {
+            Time engine_time_per_tick;
+            bool physics_timestep_override;
+            Time physics_dt_per_tick;
+            uint32_t physics_substeps;
+            Acceleration physics_gravity;
+            uint32_t physics_solver_iterations;
+        } project_physics_settings_set;
         struct {
             EditorVisibilityKind kind;
             EditorObjectId object;

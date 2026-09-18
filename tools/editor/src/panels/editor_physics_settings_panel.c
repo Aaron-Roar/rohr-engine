@@ -101,7 +101,6 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
             &panel->engine_timestep_label, &panel->engine_timestep_field,
             &engine_dt, bounds.x + 18.0f, row, bounds.width - 36.0f);
         if(result.changed) {
-            project->engine_time_per_tick = fmaxf(engine_dt, 0.000001f);
             changed = true;
         }
         row += 38.0f;
@@ -109,7 +108,6 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
                 &panel->override_label,
                 (UIRect){bounds.x + 28.0f, row,
                     bounds.width - 56.0f, 28.0f}, &override)) {
-            project->physics_timestep_override = override;
             changed = true;
         }
         row += 38.0f;
@@ -118,7 +116,6 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
                 &panel->physics_timestep_label, &panel->physics_timestep_field,
                 &physics_dt, bounds.x + 18.0f, row, bounds.width - 36.0f);
             if(result.changed) {
-                project->physics_dt_per_tick = fmaxf(physics_dt, 0.000001f);
                 changed = true;
             }
             row += 38.0f;
@@ -127,7 +124,6 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
             &panel->substeps_label, &panel->substeps_field, &substeps,
             bounds.x + 18.0f, row, bounds.width - 36.0f);
         if(result.changed) {
-            project->physics_substeps = (uint32_t)fmaxf(1.0f, roundf(substeps));
             changed = true;
         }
     }
@@ -139,7 +135,6 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
             &panel->gravity_y_label, &panel->gravity_y_field, &gravity_y,
             bounds.x + 18.0f, world.content_y + 38.0f, bounds.width - 36.0f);
         if(x_result.changed || y_result.changed) {
-            project->physics_gravity = (Acceleration){gravity_x, gravity_y};
             changed = true;
         }
     }
@@ -150,12 +145,22 @@ void editor_physics_settings_panel_draw(EditorPhysicsSettingsPanel *panel,
             &iterations, bounds.x + 18.0f, solver.content_y,
             bounds.width - 36.0f);
         if(result.changed) {
-            project->physics_solver_iterations =
-                (uint32_t)fmaxf(1.0f, roundf(iterations));
             changed = true;
         }
     }
-    if(changed) editor_physics_settings_apply(project);
+    if(changed) {
+        EditorCommand command = {
+            .type = EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET,
+            .data.project_physics_settings_set = {
+                .engine_time_per_tick = fmaxf(engine_dt, 0.000001f),
+                .physics_timestep_override = override,
+                .physics_dt_per_tick = fmaxf(physics_dt, 0.000001f),
+                .physics_substeps = (uint32_t)fmaxf(1.0f, roundf(substeps)),
+                .physics_gravity = {gravity_x, gravity_y},
+                .physics_solver_iterations =
+                    (uint32_t)fmaxf(1.0f, roundf(iterations))}};
+        (void)editor_command_execute(project, &command);
+    }
     if(rohr_ui_button("editor.settings.physics.close", &panel->close_label,
             (UIRect){bounds.x + bounds.width - 124.0f,
                 bounds.y + bounds.height - 48.0f, 100.0f, 32.0f}, NULL).clicked)

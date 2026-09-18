@@ -11,9 +11,11 @@ developer-owned C and do not need to be authored in the editor.
    acceleration, and angular velocity for movable entities, plus initial
    soft-node velocity where applicable. Generated projects must use the
    authored values instead of hard-coded zero values.
-2. **Project physics settings** — Author project-wide timestep, substep count,
-   gravity or world acceleration, and the solver settings required by the
-   examples.
+2. **Project physics settings (complete)** — Author project-wide timestep,
+   substep count, gravity or world acceleration, and the solver settings
+   required by the examples. Includes editor undo/redo, malformed-input
+   coverage, generated runtime application, and Linux/Windows generated-project
+   compilation.
 3. **Viewport UI sliders** — Add slider items with value, range, step,
    orientation, styling, interaction, JSON persistence, generated references,
    and runtime creation.

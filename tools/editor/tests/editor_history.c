@@ -132,6 +132,32 @@ int main(void) {
     assert(strcmp(project.objects[0].name, "Car") == 0);
 
     editor_history_reset(&history);
+    command = (EditorCommand){
+        .type = EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET,
+        .data.project_physics_settings_set = {
+            .engine_time_per_tick = 1.0 / 120.0,
+            .physics_timestep_override = true,
+            .physics_dt_per_tick = 1.0 / 240.0,
+            .physics_substeps = 4,
+            .physics_gravity = {2.0f, -18.0f},
+            .physics_solver_iterations = 12}};
+    editor_history_command_begin(&history, &project, &command);
+    result = editor_command_execute(&project, &command);
+    editor_history_command_finish(&history, &command, &result);
+    assert(result.kind == ERROR_RESULT_VALUE &&
+        fabs(project.engine_time_per_tick - 1.0 / 120.0) < 0.000001 &&
+        project.physics_timestep_override && project.physics_substeps == 4 &&
+        project.physics_solver_iterations == 12);
+    assert(editor_history_undo(&history) &&
+        fabs(project.engine_time_per_tick - 1.0 / 60.0) < 0.000001 &&
+        !project.physics_timestep_override && project.physics_substeps == 1 &&
+        project.physics_solver_iterations == PHYSICS_SOLVER_ITERATIONS_DEFAULT);
+    assert(editor_history_redo(&history) &&
+        fabs(project.physics_dt_per_tick - 1.0 / 240.0) < 0.000001 &&
+        fabsf(project.physics_gravity.x - 2.0f) < 0.0001f &&
+        fabsf(project.physics_gravity.y + 18.0f) < 0.0001f);
+
+    editor_history_reset(&history);
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_MASK_ADD};
     snprintf(command.data.collision_mask_add.name,
         sizeof(command.data.collision_mask_add.name), "vehicle");

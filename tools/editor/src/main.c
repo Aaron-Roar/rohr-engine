@@ -597,6 +597,9 @@ static void editor_operation_command_finished(const EditorCommand *command,
         const EditorCommandResult *result, void *context) {
     EditorNotificationPanel *notifications = context;
     editor_history_command_finish(editor_operation_history, command, result);
+    if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
+            command->type == EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET)
+        editor_physics_settings_apply(editor_operation_project);
     if(notifications != NULL && result != NULL &&
             result->kind == ERROR_RESULT_ERROR) {
         EditorResult error = {.kind = ERROR_RESULT_ERROR,

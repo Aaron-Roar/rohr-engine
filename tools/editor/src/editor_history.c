@@ -955,6 +955,20 @@ static bool editor_history_inverse_get(EditorProject *project,
         case EDITOR_COMMAND_VIEWPORT_COORDINATES:
             inverse->data.viewport_coordinates.local = project->viewport_local_view;
             return true;
+        case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
+            inverse->data.project_physics_settings_set.engine_time_per_tick =
+                project->engine_time_per_tick;
+            inverse->data.project_physics_settings_set.physics_timestep_override =
+                project->physics_timestep_override;
+            inverse->data.project_physics_settings_set.physics_dt_per_tick =
+                project->physics_dt_per_tick;
+            inverse->data.project_physics_settings_set.physics_substeps =
+                project->physics_substeps;
+            inverse->data.project_physics_settings_set.physics_gravity =
+                project->physics_gravity;
+            inverse->data.project_physics_settings_set.physics_solver_iterations =
+                project->physics_solver_iterations;
+            return true;
         default: return false;
     }
 }

@@ -78,6 +78,35 @@ static bool file_replace(const char *path, const char *text) {
     return fclose(file) == 0 && written;
 }
 
+static bool file_json_number_replace(const char *path, const char *key,
+        const char *value) {
+    char needle[128];
+    char *contents, *at, *end, *replacement;
+    size_t size, prefix_length, suffix_length, value_length;
+    bool replaced;
+    if(snprintf(needle, sizeof(needle), "\"%s\":", key) < 0) return false;
+    contents = SDL_LoadFile(path, &size);
+    if(contents == NULL) return false;
+    at = strstr(contents, needle);
+    if(at == NULL) { SDL_free(contents); return false; }
+    at += strlen(needle);
+    end = at;
+    while(*end != '\0' && *end != ',' && *end != '}') end += 1;
+    prefix_length = (size_t)(at - contents);
+    suffix_length = size - (size_t)(end - contents);
+    value_length = strlen(value);
+    replacement = SDL_malloc(prefix_length + value_length + suffix_length + 1);
+    if(replacement == NULL) { SDL_free(contents); return false; }
+    memcpy(replacement, contents, prefix_length);
+    memcpy(replacement + prefix_length, value, value_length);
+    memcpy(replacement + prefix_length + value_length, end, suffix_length);
+    replacement[prefix_length + value_length + suffix_length] = '\0';
+    replaced = file_replace(path, replacement);
+    SDL_free(replacement);
+    SDL_free(contents);
+    return replaced;
+}
+
 static bool file_property_line_remove_after(const char *path,
         const char *section, const char *property) {
     char *contents;
@@ -1063,6 +1092,34 @@ int main(void) {
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "missing integer format_version") == NULL)
             return 1;
+    }
+
+    {
+        static EditorProject malformed_project;
+        static EditorProject loaded_project;
+        static const struct { const char *key; const char *value; } cases[] = {
+            {"engine_time_per_tick", "0"},
+            {"engine_time_per_tick", "-0.01"},
+            {"dt_per_tick", "0"},
+            {"dt_per_tick", "-0.01"},
+            {"substeps", "0"},
+            {"substeps", "-1"},
+            {"solver_iterations", "0"},
+            {"solver_iterations", "-1"}
+        };
+        const char *path = "editor_project_invalid_physics.json";
+        editor_project_init(&malformed_project);
+        for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i += 1) {
+            EditorResult result;
+            if(!editor_project_save(&malformed_project, path) ||
+                    !file_json_number_replace(path, cases[i].key, cases[i].value))
+                return 1;
+            result = editor_project_load(&loaded_project, path);
+            if(!editor_result_check(result)) return 1;
+        }
+        (void)remove(path);
+        editor_project_destroy(&loaded_project);
+        editor_project_destroy(&malformed_project);
     }
 
     {
