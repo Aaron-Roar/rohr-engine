@@ -148,6 +148,24 @@ float editor_mode_accordion_layout_groups_height_get(
     return height;
 }
 
+float editor_mode_accordion_layout_group_row_y(
+        const EditorModeAccordionLayoutResult *section,
+        const EditorModeAccordionLayoutGroup *groups, size_t group_count,
+        size_t group_index, size_t row_index) {
+    float y;
+    if(section == NULL || groups == NULL || group_index >= group_count ||
+            row_index >= groups[group_index].row_count) return 0.0f;
+    y = section->content_y;
+    for(size_t group = 0; group < group_index; group += 1)
+        y += editor_mode_accordion_layout_groups_height_get(
+            &groups[group], 1);
+    y += groups[group_index].gap_before > 0.0f ?
+        groups[group_index].gap_before : 0.0f;
+    y += (groups[group_index].row_height + groups[group_index].row_gap) *
+        (float)row_index;
+    return y;
+}
+
 EditorModeAccordionLayoutResult editor_mode_accordion_layout_nested_section(
         EditorModeAccordionLayoutCursor *cursor,
         EditorModeAccordionSection *section, const char *id,

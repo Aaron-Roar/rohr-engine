@@ -139,7 +139,12 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     bool field_active, layer_active = false;
     bool transform_open, physics_open, material_open, collision_open,
         appearance_open;
-    float transform_y, physics_y, material_y, collision_y, appearance_y;
+    float collision_y, appearance_y;
+    float transform_row_y[3] = {0}, physics_row_y[3] = {0};
+    float material_row_y[2] = {0};
+    float collision_category_y = 0.0f, collision_category_list_y = 0.0f;
+    float collide_with_y = 0.0f, collide_with_list_y = 0.0f;
+    float collision_bottom = 0.0f;
     float section_y = 118.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -194,25 +199,33 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         EditorModeAccordionLayoutGroup collision_groups[5] = {
             {.row_count = 1, .row_height = 28.0f}};
         size_t collision_group_count = 1;
+        size_t category_group = SIZE_MAX, category_list_group = SIZE_MAX;
+        size_t collide_group = SIZE_MAX, collide_list_group = SIZE_MAX;
         if(node->collision_enabled) {
+            category_group = collision_group_count;
             collision_groups[collision_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 1,
                     .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collision_category_open)
+            if(editor->collision_category_open) {
+                category_list_group = collision_group_count;
                 collision_groups[collision_group_count++] =
                     (EditorModeAccordionLayoutGroup){
                         .row_count = context->project->collision_mask_count + 1,
                         .row_height = 26.0f, .row_gap = 4.0f,
                         .gap_before = 4.0f};
+            }
+            collide_group = collision_group_count;
             collision_groups[collision_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 1,
                     .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collide_with_open)
+            if(editor->collide_with_open) {
+                collide_list_group = collision_group_count;
                 collision_groups[collision_group_count++] =
                     (EditorModeAccordionLayoutGroup){
                         .row_count = context->project->collision_mask_count + 1,
                         .row_height = 26.0f, .row_gap = 4.0f,
                         .gap_before = 4.0f};
+            }
         }
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(
@@ -240,30 +253,59 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                 "editor.soft_node.section.appearance", appearance_rows, 1,
                 0.0f);
         transform_open = transform.expanded;
-        transform_y = transform.content_y;
         physics_open = physics.expanded;
-        physics_y = physics.content_y;
         material_open = material.expanded;
-        material_y = material.content_y;
         collision_open = collision.expanded;
         collision_y = collision.content_y;
+        if(category_group != SIZE_MAX)
+            collision_category_y = editor_mode_accordion_layout_group_row_y(
+                &collision, collision_groups, collision_group_count,
+                category_group, 0);
+        if(category_list_group != SIZE_MAX)
+            collision_category_list_y =
+                editor_mode_accordion_layout_group_row_y(&collision,
+                    collision_groups, collision_group_count,
+                    category_list_group, 0);
+        if(collide_group != SIZE_MAX)
+            collide_with_y = editor_mode_accordion_layout_group_row_y(
+                &collision, collision_groups, collision_group_count,
+                collide_group, 0);
+        if(collide_list_group != SIZE_MAX)
+            collide_with_list_y = editor_mode_accordion_layout_group_row_y(
+                &collision, collision_groups, collision_group_count,
+                collide_list_group, 0);
+        collision_bottom = collision.content_y +
+            editor_mode_accordion_layout_groups_height_get(
+                collision_groups, collision_group_count);
         appearance_open = appearance.expanded;
         appearance_y = appearance.content_y;
+        transform_row_y[0] = editor_mode_accordion_layout_group_row_y(
+            &transform, transform_groups, 2, 0, 0);
+        transform_row_y[1] = editor_mode_accordion_layout_group_row_y(
+            &transform, transform_groups, 2, 0, 1);
+        transform_row_y[2] = editor_mode_accordion_layout_group_row_y(
+            &transform, transform_groups, 2, 1, 0);
+        for(size_t row = 0; row < 3; row += 1)
+            physics_row_y[row] = editor_mode_accordion_layout_row_y(
+                &physics, physics_rows, row, 6.0f);
+        for(size_t row = 0; row < 2; row += 1)
+            material_row_y[row] = editor_mode_accordion_layout_row_y(
+                &material, material_rows, row, 6.0f);
     }
     position = node->position;
     if(transform_open) {
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->x_label,
-        (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
+        (UIRect){context->x + 8.0f, transform_row_y[0], 50.0f, 26.0f});
     x_result = editor_mode_field("editor.soft_node.x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-        &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
+        &editor->x_field, (UIRect){context->x + 60.0f, transform_row_y[0],
             context->width - 70.0f, 26.0f}, &field_style);
     rohr_ui_label(&editor->y_label,
-        (UIRect){context->x + 8.0f, transform_y + 32.0f, 50.0f, 26.0f});
+        (UIRect){context->x + 8.0f, transform_row_y[1], 50.0f, 26.0f});
     y_result = editor_mode_field("editor.soft_node.y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-        &editor->y_field, (UIRect){context->x + 60.0f, transform_y + 32.0f,
+        &editor->y_field, (UIRect){context->x + 60.0f, transform_row_y[1],
             context->width - 70.0f, 26.0f}, &field_style);
     if(x_result.changed || y_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_NODE_POSITION,
@@ -273,33 +315,33 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     if(context->layer_control != NULL)
         layer_active = editor_mode_layer_control_draw(context->layer_control,
             "editor.soft_node", context->project, &node->graphics_layer,
-            &node->graphics_layer_inherited, context->x, transform_y + 64.0f,
+            &node->graphics_layer_inherited, context->x, transform_row_y[2],
             context->width);
     }
     mass_value = node->node_mass;
     if(physics_open) {
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->mass_label,
-        (UIRect){context->x + 8.0f, physics_y, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, physics_row_y[0], 68.0f, 26.0f});
     mass_result = editor_mode_field("editor.soft_node.mass",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &mass_value},
-        &editor->mass_field, (UIRect){context->x + 78.0f, physics_y,
+        &editor->mass_field, (UIRect){context->x + 78.0f, physics_row_y[0],
             context->width - 88.0f, 26.0f}, &field_style);
     if(mass_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_MASS, fmaxf(0.0f, mass_value));
     radius_value = node->radius;
     rohr_ui_label(&editor->radius_label,
-        (UIRect){context->x + 8.0f, physics_y + 32.0f, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, physics_row_y[1], 68.0f, 26.0f});
     radius_result = editor_mode_field("editor.soft_node.radius",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
         &editor->radius_field, (UIRect){context->x + 78.0f,
-            physics_y + 32.0f, context->width - 88.0f, 26.0f}, &field_style);
+            physics_row_y[1], context->width - 88.0f, 26.0f}, &field_style);
     if(radius_result.changed)
         node->radius = radius_value <= 0.0f ? 0.1f : radius_value;
     {
         bool gravity = node->gravity_enabled;
         if(checkbox("editor.soft_node.gravity", &editor->gravity_label,
-                (UIRect){context->x + 10.0f, physics_y + 64.0f,
+                (UIRect){context->x + 10.0f, physics_row_y[2],
                     context->width - 20.0f, 28.0f}, &gravity))
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_GRAVITY, gravity);
@@ -309,20 +351,20 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     if(material_open) {
     UIButtonStyle field_style = editor_mode_section_field_style_get();
     rohr_ui_label(&editor->friction_label,
-        (UIRect){context->x + 8.0f, material_y, 68.0f, 26.0f});
+        (UIRect){context->x + 8.0f, material_row_y[0], 68.0f, 26.0f});
     friction_result = editor_mode_field("editor.soft_node.friction",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &friction_value},
-        &editor->friction_field, (UIRect){context->x + 78.0f, material_y,
+        &editor->friction_field, (UIRect){context->x + 78.0f, material_row_y[0],
             context->width - 88.0f, 26.0f}, &field_style);
     if(friction_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_FRICTION, fmaxf(0.0f, friction_value));
     restitution_value = node->restitution;
     rohr_ui_label(&editor->restitution_label,
-        (UIRect){context->x + 8.0f, material_y + 32.0f, 96.0f, 26.0f});
+        (UIRect){context->x + 8.0f, material_row_y[1], 96.0f, 26.0f});
     restitution_result = editor_mode_field("editor.soft_node.restitution",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &restitution_value},
         &editor->restitution_field, (UIRect){context->x + 106.0f,
-            material_y + 32.0f, context->width - 116.0f, 26.0f}, &field_style);
+            material_row_y[1], context->width - 116.0f, 26.0f}, &field_style);
     if(restitution_result.changed) float_set(context->project, object->id, body->id,
         node->id, EDITOR_PROPERTY_RESTITUTION,
         fminf(1.0f, fmaxf(0.0f, restitution_value)));
@@ -332,7 +374,6 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         restitution_result.active || layer_active;
     {
         float row_x = context->x + 10.0f, row_width = context->width - 20.0f;
-        float bottom = collision_y + 32.0f;
         bool collision = node->collision_enabled;
         if(collision_open && checkbox("editor.soft_node.collision",
                 &editor->collision_label,
@@ -345,45 +386,48 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         if(collision_open && node->collision_enabled) {
             if(rohr_ui_button("editor.soft_node.collision_category",
                     &editor->collision_category_label,
-                    (UIRect){row_x, bottom, row_width, 28.0f}, NULL).clicked) {
+                    (UIRect){row_x, collision_category_y,
+                        row_width, 28.0f}, NULL).clicked) {
                 editor->collision_category_open = !editor->collision_category_open;
                 editor->collide_with_open = false;
             }
-            rohr_ui_border((UIRect){row_x, bottom, row_width, 28.0f},
+            rohr_ui_border((UIRect){row_x, collision_category_y,
+                    row_width, 28.0f},
                 2.0f, (Color){0, 0, 0, 255});
-            bottom += 32.0f;
             if(editor->collision_category_open && collision_menu != NULL) {
                 size_t rows = 0;
                 if(!collision_menu(collision_context,
                         "editor.soft_node.collision_category.mask", context->project,
                         &node->collision_category, object->id, body->id, node->id,
-                        EDITOR_COLLISION_FILTER_CATEGORY, row_x, bottom, row_width,
+                        EDITOR_COLLISION_FILTER_CATEGORY, row_x,
+                        collision_category_list_y, row_width,
                         &field_active, &rows)) return field_active;
-                bottom += (float)rows * 30.0f;
             }
             if(rohr_ui_button("editor.soft_node.collide_with",
                     &editor->collide_with_label,
-                    (UIRect){row_x, bottom, row_width, 28.0f}, NULL).clicked) {
+                    (UIRect){row_x, collide_with_y,
+                        row_width, 28.0f}, NULL).clicked) {
                 editor->collide_with_open = !editor->collide_with_open;
                 editor->collision_category_open = false;
             }
-            rohr_ui_border((UIRect){row_x, bottom, row_width, 28.0f},
+            rohr_ui_border((UIRect){row_x, collide_with_y,
+                    row_width, 28.0f},
                 2.0f, (Color){0, 0, 0, 255});
-            bottom += 32.0f;
             if(editor->collide_with_open && collision_menu != NULL) {
                 size_t rows = 0;
                 if(!collision_menu(collision_context,
                         "editor.soft_node.collide_with.mask", context->project,
                         &node->collision_with, object->id, body->id, node->id,
-                        EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x, bottom, row_width,
+                        EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x,
+                        collide_with_list_y, row_width,
                         &field_active, &rows)) return field_active;
-                bottom += (float)rows * 30.0f;
             }
             if((editor->collision_category_open || editor->collide_with_open) &&
                     context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < collision_y || pointer.y > bottom)
+                        pointer.y < collision_y ||
+                        pointer.y > collision_bottom)
                     editor->collision_category_open = editor->collide_with_open = false;
             }
         }

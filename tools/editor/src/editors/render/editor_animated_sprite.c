@@ -99,7 +99,9 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     UIDropdownResult body_result = {0}, direction_result = {0};
     bool follow_changed = false, playing_changed = false, layer_active = false;
     bool transform_open, attachment_open, playback_open, frames_open;
-    float transform_y, attachment_y, playback_y, frames_y;
+    float attachment_y;
+    float transform_row_y[7] = {0}, playback_row_y[5] = {0};
+    float add_frame_y = 0.0f, frame_list_y = 0.0f, frame_row_stride = 0.0f;
     float section_y = 80.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -163,13 +165,23 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 "editor.animated_sprite.section.frames",
                 frame_groups, 2);
         transform_open = transform.expanded;
-        transform_y = transform.content_y;
         attachment_open = attachment.expanded;
         attachment_y = attachment.content_y;
         playback_open = playback.expanded;
-        playback_y = playback.content_y;
         frames_open = frames.expanded;
-        frames_y = frames.content_y;
+        for(size_t row = 0; row < 7; row += 1)
+            transform_row_y[row] = editor_mode_accordion_layout_row_y(
+                &transform, transform_rows, row, 10.0f);
+        for(size_t row = 0; row < 5; row += 1)
+            playback_row_y[row] = editor_mode_accordion_layout_row_y(
+                &playback, playback_rows, row, 10.0f);
+        add_frame_y = editor_mode_accordion_layout_group_row_y(
+            &frames, frame_groups, 2, 0, 0);
+        if(sprite->frame_count > 0)
+            frame_list_y = editor_mode_accordion_layout_group_row_y(
+                &frames, frame_groups, 2, 1, 0);
+        frame_row_stride = frame_groups[1].row_height +
+            frame_groups[1].row_gap;
     }
     body_options[0] = &editor->none_label;
     for(size_t i = 0; i < object->rigid_body_count &&
@@ -199,55 +211,51 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     follow = sprite->follow_body_rotation; playing = sprite->playing;
     if(transform_open) {
         x_result = float_field("editor.animated_sprite.x", &editor->x_label,
-            &editor->x_field, &position.x, context->x, transform_y,
+            &editor->x_field, &position.x, context->x, transform_row_y[0],
             context->width, 90.0f);
         y_result = float_field("editor.animated_sprite.y", &editor->y_label,
-            &editor->y_field, &position.y, context->x, transform_y + 38.0f,
+            &editor->y_field, &position.y, context->x, transform_row_y[1],
             context->width, 90.0f);
         rotation_result = float_field("editor.animated_sprite.rotation",
             &editor->rotation_label, &editor->rotation_field, &rotation,
-            context->x, transform_y + 76.0f, context->width, 90.0f);
+            context->x, transform_row_y[2], context->width, 90.0f);
         follow_changed = editor_mode_checkbox_left("editor.animated_sprite.follow",
             &editor->follow_label, (UIRect){context->x + 10.0f,
-                transform_y + 114.0f, context->width - 20.0f, 28.0f}, &follow);
+                transform_row_y[3], context->width - 20.0f, 28.0f}, &follow);
         if(context->layer_control != NULL)
             layer_active = editor_mode_layer_control_draw(context->layer_control,
                 "editor.animated_sprite", context->project,
                 &sprite->graphics_layer, NULL, context->x,
-                transform_y + 152.0f, context->width);
-        float layer_height = sprite->graphics_layer.layer == 0 ||
-            (context->layer_control != NULL &&
-                (context->layer_control->adding ||
-                    context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
+                transform_row_y[4], context->width);
         sx_result = float_field("editor.animated_sprite.scale_x",
             &editor->scale_x_label, &editor->scale_x_field, &scale_x,
-            context->x, transform_y + 152.0f + layer_height,
+            context->x, transform_row_y[5],
             context->width, 90.0f);
         sy_result = float_field("editor.animated_sprite.scale_y",
             &editor->scale_y_label, &editor->scale_y_field, &scale_y,
-            context->x, transform_y + 190.0f + layer_height,
+            context->x, transform_row_y[6],
             context->width, 90.0f);
     }
     if(playback_open) {
         UIButtonStyle style = editor_mode_section_field_style_get();
         ticks_result = float_field("editor.animated_sprite.ticks",
             &editor->ticks_label, &editor->ticks_field, &ticks, context->x,
-            playback_y, context->width, 110.0f);
+            playback_row_y[0], context->width, 110.0f);
         time_result = float_field("editor.animated_sprite.seconds",
             &editor->time_label, &editor->time_field, &seconds, context->x,
-            playback_y + 38.0f, context->width, 110.0f);
+            playback_row_y[1], context->width, 110.0f);
         start_result = float_field("editor.animated_sprite.start",
             &editor->starting_label, &editor->starting_field, &starting,
-            context->x, playback_y + 76.0f, context->width, 110.0f);
+            context->x, playback_row_y[2], context->width, 110.0f);
         rohr_ui_label(&editor->direction_label,
-            (UIRect){context->x + 8.0f, playback_y + 114.0f, 90.0f, 28.0f});
+            (UIRect){context->x + 8.0f, playback_row_y[3], 90.0f, 28.0f});
         direction_result = editor_mode_dropdown("editor.animated_sprite.direction",
             direction_options, 2, sprite->direction == DIRECTION_LEFT ? 0 : 1,
-            (UIRect){context->x + 100.0f, playback_y + 114.0f,
+            (UIRect){context->x + 100.0f, playback_row_y[3],
                 context->width - 110.0f, 28.0f}, &style);
         playing_changed = editor_mode_checkbox_left(
             "editor.animated_sprite.playing", &editor->playing_label,
-            (UIRect){context->x + 10.0f, playback_y + 152.0f,
+            (UIRect){context->x + 10.0f, playback_row_y[4],
                 context->width - 20.0f, 28.0f}, &playing);
     }
     if(name_result.changed) {
@@ -309,7 +317,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     if(frames_open && rohr_ui_button("editor.animated_sprite.add_frame",
-            &editor->add_frame_label, (UIRect){context->x + 10.0f, frames_y,
+            &editor->add_frame_label, (UIRect){context->x + 10.0f, add_frame_y,
                 context->width - 20.0f, 28.0f}, NULL).clicked && browser_open != NULL)
         browser_open(browser_context, object->id, sprite->id);
     if(frames_open) for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
@@ -321,7 +329,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
             .hovered = {145, 119, 45, 255}, .pressed = {94, 75, 26, 255},
             .disabled = {60, 52, 30, 255}};
         UIRect bounds = {context->x + 10.0f,
-            frames_y + 36.0f + (float)frame * 30.0f,
+            frame_list_y + (float)frame * frame_row_stride,
             context->width - 20.0f, 26.0f};
         char id[80];
         if(!editor_mode_named_text_sync(editor->font, asset->name,

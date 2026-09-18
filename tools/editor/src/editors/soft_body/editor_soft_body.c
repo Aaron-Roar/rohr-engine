@@ -188,7 +188,12 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     UIFieldResult name_result, x_result = {0}, y_result = {0},
         rotation_result = {0};
     bool field_active, transform_open, appearance_open, topology_open;
-    float transform_y, appearance_y, topology_y, section_y = 118.0f;
+    float section_y = 118.0f;
+    float transform_row_y[4] = {0};
+    float appearance_row_y[3] = {0};
+    float topology_origin_y = 0.0f, topology_auto_shape_y = 0.0f;
+    float topology_add_node_y = 0.0f, topology_add_beam_y = 0.0f;
+    float topology_list_y = 0.0f, topology_picker_y = 0.0f;
     if(editor == NULL || auto_shape == NULL || context == NULL ||
             context->project == NULL || context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -269,38 +274,60 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                 "editor.soft_body.section.topology", topology_groups,
                 topology_group_count);
         transform_open = transform.expanded;
-        transform_y = transform.content_y;
+        for(size_t row = 0; row < 3; row += 1)
+            transform_row_y[row] =
+                editor_mode_accordion_layout_group_row_y(&transform,
+                    transform_groups, 2, 0, row);
+        transform_row_y[3] = editor_mode_accordion_layout_group_row_y(
+            &transform, transform_groups, 2, 1, 0);
         appearance_open = appearance.expanded;
-        appearance_y = appearance.content_y;
+        for(size_t row = 0; row < 3; row += 1)
+            appearance_row_y[row] = editor_mode_accordion_layout_row_y(
+                &appearance, appearance_rows, row, 6.0f);
         topology_open = topology.expanded;
-        topology_y = topology.content_y;
+        topology_origin_y = editor_mode_accordion_layout_group_row_y(
+            &topology, topology_groups, topology_group_count, 0, 0);
+        topology_auto_shape_y = editor_mode_accordion_layout_group_row_y(
+            &topology, topology_groups, topology_group_count, 1, 0);
+        if(editor->auto_shape_picker_open) {
+            topology_picker_y = editor_mode_accordion_layout_group_row_y(
+                &topology, topology_groups, topology_group_count, 2, 0);
+        } else {
+            topology_add_node_y = editor_mode_accordion_layout_group_row_y(
+                &topology, topology_groups, topology_group_count, 1, 1);
+            topology_add_beam_y = editor_mode_accordion_layout_group_row_y(
+                &topology, topology_groups, topology_group_count, 1, 2);
+            if(body->hierarchy_count > 0)
+                topology_list_y = editor_mode_accordion_layout_group_row_y(
+                    &topology, topology_groups, topology_group_count, 2, 0);
+        }
     }
     position = body->position; rotation = body->rotation;
     bool layer_active = false;
     if(transform_open) {
         UIButtonStyle style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->x_label,
-            (UIRect){context->x + 8.0f, transform_y, 50.0f, 26.0f});
+            (UIRect){context->x + 8.0f, transform_row_y[0], 50.0f, 26.0f});
         x_result = editor_mode_field("editor.soft_body.x",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-            &editor->x_field, (UIRect){context->x + 60.0f, transform_y,
+            &editor->x_field, (UIRect){context->x + 60.0f, transform_row_y[0],
                 context->width - 70.0f, 26.0f}, &style);
         rohr_ui_label(&editor->y_label,
-            (UIRect){context->x + 8.0f, transform_y + 36.0f, 50.0f, 26.0f});
+            (UIRect){context->x + 8.0f, transform_row_y[1], 50.0f, 26.0f});
         y_result = editor_mode_field("editor.soft_body.y",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
             &editor->y_field, (UIRect){context->x + 60.0f,
-                transform_y + 36.0f, context->width - 70.0f, 26.0f}, &style);
+                transform_row_y[1], context->width - 70.0f, 26.0f}, &style);
         rohr_ui_label(&editor->rotation_label,
-            (UIRect){context->x + 8.0f, transform_y + 72.0f, 82.0f, 26.0f});
+            (UIRect){context->x + 8.0f, transform_row_y[2], 82.0f, 26.0f});
         rotation_result = editor_mode_field("editor.soft_body.rotation",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
             &editor->rotation_field, (UIRect){context->x + 92.0f,
-                transform_y + 72.0f, context->width - 102.0f, 26.0f}, &style);
+                transform_row_y[2], context->width - 102.0f, 26.0f}, &style);
         if(context->layer_control != NULL)
             layer_active = editor_mode_layer_control_draw(context->layer_control,
                 "editor.soft_body", context->project, &body->graphics_layer, NULL,
-                context->x, transform_y + 108.0f, context->width);
+                context->x, transform_row_y[3], context->width);
     }
     if(x_result.changed || y_result.changed || rotation_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SOFT_BODY_TRANSFORM,
@@ -309,23 +336,24 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     }
     if(appearance_open) {
     (void)editor_mode_color_swatch("editor.soft_body.node_color",
-        &body->node_color, false, (UIRect){context->x + 100.0f, appearance_y,
+        &body->node_color, false, (UIRect){context->x + 100.0f,
+            appearance_row_y[0],
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_NODE_COLOR);
     rohr_ui_label(&editor->node_color_label,
-        (UIRect){context->x + 8.0f, appearance_y, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_row_y[0], 90.0f, 26.0f});
     rohr_ui_label(&editor->beam_color_label,
-        (UIRect){context->x + 8.0f, appearance_y + 32.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_row_y[1], 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.beam_color",
         &body->beam_color, false, (UIRect){context->x + 100.0f,
-            appearance_y + 32.0f,
+            appearance_row_y[1],
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_BEAM_COLOR);
     rohr_ui_label(&editor->area_color_label,
-        (UIRect){context->x + 8.0f, appearance_y + 64.0f, 90.0f, 26.0f});
+        (UIRect){context->x + 8.0f, appearance_row_y[2], 90.0f, 26.0f});
     (void)editor_mode_color_swatch("editor.soft_body.area_color",
         &body->area_color, false, (UIRect){context->x + 100.0f,
-            appearance_y + 64.0f,
+            appearance_row_y[2],
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_AREA_COLOR);
     }
@@ -333,7 +361,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     {
         UIButtonStyle style = selected_style_get();
         UIButtonResult result = rohr_ui_button("editor.soft_body.origin",
-            &editor->origin_label, (UIRect){context->x + 10.0f, topology_y,
+            &editor->origin_label, (UIRect){context->x + 10.0f, topology_origin_y,
                 context->width - 20.0f, 28.0f},
             context->viewport->selection == EDITOR_SELECTION_ORIGIN &&
                 context->viewport->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY ?
@@ -345,12 +373,12 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         }
     }
     if(rohr_ui_button("editor.soft_body.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, topology_y + 34.0f,
+            (UIRect){context->x + 10.0f, topology_auto_shape_y,
                 context->width - 20.0f, 30.0f}, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(!editor->auto_shape_picker_open) {
         if(rohr_ui_button("editor.soft_body.add_node", &editor->add_node_label,
-                (UIRect){context->x + 10.0f, topology_y + 70.0f,
+                (UIRect){context->x + 10.0f, topology_add_node_y,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_NODE,
@@ -363,7 +391,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             }
         }
         if(rohr_ui_button("editor.soft_body.add_beam", &editor->add_beam_label,
-                (UIRect){context->x + 10.0f, topology_y + 106.0f,
+                (UIRect){context->x + 10.0f, topology_add_beam_y,
                     context->width - 20.0f, 30.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                 .data.item_add = {.kind = EDITOR_ITEM_SOFT_BEAM,
@@ -377,13 +405,13 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         editor_project_soft_body_hierarchy_sync(body);
         for(size_t i = 0; i < body->hierarchy_count; i += 1)
             if(!hierarchy_item_draw(editor, context, object, body,
-                    body->hierarchy[i], i, topology_y + 142.0f)) return false;
+                    body->hierarchy[i], i, topology_list_y)) return false;
     } else {
         size_t count = editor_auto_shape_soft_body_points_capture(
             context->viewport, object, body);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.soft_body.auto_shape.option",
-            (UIRect){context->x + 10.0f, topology_y + 70.0f,
+            (UIRect){context->x + 10.0f, topology_picker_y,
                 context->width - 20.0f, 62.0f}, count > 0 ? count : body->node_count);
         if(shape >= 0) {
             auto_shape->config.kind = (EditorAutoShapeKind)shape;

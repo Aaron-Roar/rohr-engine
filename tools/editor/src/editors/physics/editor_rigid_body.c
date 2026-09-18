@@ -176,9 +176,18 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     bool binding_pointer_inside = false;
     bool binding_click_handled = false;
     float x, width, delete_y = 650.0f;
-    float transform_y = 0.0f, physics_y = 0.0f, material_y = 0.0f;
+    float material_y = 0.0f;
     float collision_y = 0.0f, parenting_y = 0.0f, appearance_y = 0.0f;
-    float geometry_y = 0.0f, section_y = 118.0f;
+    float section_y = 118.0f;
+    float collision_category_y = 0.0f, collision_category_list_y = 0.0f;
+    float collide_with_y = 0.0f, collide_with_list_y = 0.0f;
+    float collision_bottom = 0.0f;
+    float geometry_origin_y = 0.0f, geometry_particle_y = 0.0f;
+    float geometry_active_label_y = 0.0f, geometry_active_field_y = 0.0f;
+    float geometry_add_y = 0.0f, geometry_list_y = 0.0f;
+    float geometry_list_stride = 0.0f;
+    float transform_row_y[5] = {0}, physics_row_y[3] = {0};
+    float material_row_y[2] = {0}, appearance_row_y[2] = {0};
     bool transform_open, physics_open, material_open, collision_open;
     bool parenting_open, appearance_open, geometry_open;
     if(editor == NULL || context == NULL || context->project == NULL ||
@@ -239,55 +248,73 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             {.row_count = 3, .row_height = 26.0f, .row_gap = 6.0f},
             {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f},
             {.row_count = 1, .row_height = layer_height, .gap_before = 4.0f}};
-        const float physics_rows[] = {28.0f, 26.0f, 28.0f};
+        const EditorModeAccordionLayoutGroup physics_groups[] = {
+            {.row_count = 1, .row_height = 28.0f},
+            {.row_count = 1, .row_height = 26.0f, .gap_before = 4.0f},
+            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f}};
         const float material_rows[] = {26.0f, 26.0f};
         const float parenting_rows[] = {26.0f};
         const float appearance_rows[] = {26.0f, 26.0f};
         EditorModeAccordionLayoutGroup collision_groups[5] = {
             {.row_count = 1, .row_height = 28.0f}};
         size_t collision_group_count = 1;
+        size_t category_group = SIZE_MAX, category_list_group = SIZE_MAX;
+        size_t collide_group = SIZE_MAX, collide_list_group = SIZE_MAX;
         if(body->collision_enabled) {
+            category_group = collision_group_count;
             collision_groups[collision_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 1,
                     .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collision_category_open)
+            if(editor->collision_category_open) {
+                category_list_group = collision_group_count;
                 collision_groups[collision_group_count++] =
                     (EditorModeAccordionLayoutGroup){
                         .row_count = context->project->collision_mask_count + 1,
                         .row_height = 26.0f, .row_gap = 4.0f,
                         .gap_before = 4.0f};
+            }
+            collide_group = collision_group_count;
             collision_groups[collision_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 1,
                     .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collide_with_open)
+            if(editor->collide_with_open) {
+                collide_list_group = collision_group_count;
                 collision_groups[collision_group_count++] =
                     (EditorModeAccordionLayoutGroup){
                         .row_count = context->project->collision_mask_count + 1,
                         .row_height = 26.0f, .row_gap = 4.0f,
                         .gap_before = 4.0f};
+            }
         }
         EditorModeAccordionLayoutGroup geometry_groups[6] = {
             {.row_count = 1, .row_height = 28.0f}};
         size_t geometry_group_count = 1;
+        size_t particle_group = SIZE_MAX, active_group = SIZE_MAX;
+        size_t add_group, list_group = SIZE_MAX;
         if(body->particle)
+            particle_group = geometry_group_count,
             geometry_groups[geometry_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 1,
                     .row_height = 28.0f, .gap_before = 6.0f};
         if(body->hitbox_count > 0) {
+            active_group = geometry_group_count;
             geometry_groups[geometry_group_count++] =
                 (EditorModeAccordionLayoutGroup){.row_count = 2,
                     .row_height = 28.0f, .row_gap = 2.0f,
                     .gap_before = 6.0f};
         }
+        add_group = geometry_group_count;
         geometry_groups[geometry_group_count++] =
             (EditorModeAccordionLayoutGroup){.row_count = 1,
                 .row_height = 32.0f, .gap_before = 6.0f};
-        if(body->hitbox_count + binding_frame_count > 0)
+        if(body->hitbox_count + binding_frame_count > 0) {
+            list_group = geometry_group_count;
             geometry_groups[geometry_group_count++] =
                 (EditorModeAccordionLayoutGroup){
                     .row_count = body->hitbox_count + binding_frame_count,
                     .row_height = 26.0f, .row_gap = 4.0f,
                     .gap_before = 10.0f};
+        }
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(x, width, section_y);
 #define SECTION_LAYOUT(section, id, rows, row_count, row_gap, open_value, output_y) do { \
@@ -302,10 +329,11 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 &editor->transform_section,
                 "editor.rigid_body.section.transform", transform_groups, 3);
         transform_open = transform_layout.expanded;
-        transform_y = transform_layout.content_y;
-        SECTION_LAYOUT(editor->physics_section,
-            "editor.rigid_body.section.physics", physics_rows, 3, 6.0f,
-            physics_open, physics_y);
+        EditorModeAccordionLayoutResult physics_layout =
+            editor_mode_accordion_layout_nested_section(&accordion,
+                &editor->physics_section,
+                "editor.rigid_body.section.physics", physics_groups, 3);
+        physics_open = physics_layout.expanded;
         SECTION_LAYOUT(editor->material_section,
             "editor.rigid_body.section.material", material_rows, 2, 6.0f,
             material_open, material_y);
@@ -316,6 +344,26 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 collision_group_count);
         collision_open = collision_layout.expanded;
         collision_y = collision_layout.content_y;
+        if(category_group != SIZE_MAX)
+            collision_category_y = editor_mode_accordion_layout_group_row_y(
+                &collision_layout, collision_groups, collision_group_count,
+                category_group, 0);
+        if(category_list_group != SIZE_MAX)
+            collision_category_list_y =
+                editor_mode_accordion_layout_group_row_y(&collision_layout,
+                    collision_groups, collision_group_count,
+                    category_list_group, 0);
+        if(collide_group != SIZE_MAX)
+            collide_with_y = editor_mode_accordion_layout_group_row_y(
+                &collision_layout, collision_groups, collision_group_count,
+                collide_group, 0);
+        if(collide_list_group != SIZE_MAX)
+            collide_with_list_y = editor_mode_accordion_layout_group_row_y(
+                &collision_layout, collision_groups, collision_group_count,
+                collide_list_group, 0);
+        collision_bottom = collision_layout.content_y +
+            editor_mode_accordion_layout_groups_height_get(
+                collision_groups, collision_group_count);
         SECTION_LAYOUT(editor->parenting_section,
             "editor.rigid_body.section.parenting", parenting_rows, 1, 0.0f,
             parenting_open, parenting_y);
@@ -328,7 +376,49 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 "editor.rigid_body.section.geometry", geometry_groups,
                 geometry_group_count);
         geometry_open = geometry_layout.expanded;
-        geometry_y = geometry_layout.content_y;
+        for(size_t row = 0; row < 3; row += 1)
+            transform_row_y[row] =
+                editor_mode_accordion_layout_group_row_y(&transform_layout,
+                    transform_groups, 3, 0, row);
+        transform_row_y[3] = editor_mode_accordion_layout_group_row_y(
+            &transform_layout, transform_groups, 3, 1, 0);
+        transform_row_y[4] = editor_mode_accordion_layout_group_row_y(
+            &transform_layout, transform_groups, 3, 2, 0);
+        for(size_t row = 0; row < 3; row += 1)
+            physics_row_y[row] = editor_mode_accordion_layout_group_row_y(
+                &physics_layout, physics_groups, 3, row, 0);
+        for(size_t row = 0; row < 2; row += 1) {
+            material_row_y[row] = editor_mode_accordion_layout_row_y(
+                &(EditorModeAccordionLayoutResult){
+                    .content_y = material_y}, material_rows, row, 6.0f);
+            appearance_row_y[row] = editor_mode_accordion_layout_row_y(
+                &(EditorModeAccordionLayoutResult){
+                    .content_y = appearance_y}, appearance_rows, row, 6.0f);
+        }
+        geometry_origin_y = editor_mode_accordion_layout_group_row_y(
+            &geometry_layout, geometry_groups, geometry_group_count, 0, 0);
+        if(particle_group != SIZE_MAX)
+            geometry_particle_y = editor_mode_accordion_layout_group_row_y(
+                &geometry_layout, geometry_groups, geometry_group_count,
+                particle_group, 0);
+        if(active_group != SIZE_MAX) {
+            geometry_active_label_y = editor_mode_accordion_layout_group_row_y(
+                &geometry_layout, geometry_groups, geometry_group_count,
+                active_group, 0);
+            geometry_active_field_y = editor_mode_accordion_layout_group_row_y(
+                &geometry_layout, geometry_groups, geometry_group_count,
+                active_group, 1);
+        }
+        geometry_add_y = editor_mode_accordion_layout_group_row_y(
+            &geometry_layout, geometry_groups, geometry_group_count,
+            add_group, 0);
+        if(list_group != SIZE_MAX) {
+            geometry_list_y = editor_mode_accordion_layout_group_row_y(
+                &geometry_layout, geometry_groups, geometry_group_count,
+                list_group, 0);
+            geometry_list_stride = geometry_groups[list_group].row_height +
+                geometry_groups[list_group].row_gap;
+        }
 #undef SECTION_LAYOUT
     }
     position = body->position; rotation = body->rotation;
@@ -336,23 +426,23 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     if(transform_open) {
         UIButtonStyle field_style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->x_label,
-            (UIRect){x + 8.0f, transform_y, 24.0f, 26.0f});
+            (UIRect){x + 8.0f, transform_row_y[0], 24.0f, 26.0f});
         x_result = editor_mode_field("editor.rigid_body.x",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.x},
-            &editor->x_field, (UIRect){x + 34.0f, transform_y,
+            &editor->x_field, (UIRect){x + 34.0f, transform_row_y[0],
                 width - 44.0f, 26.0f}, &field_style);
         rohr_ui_label(&editor->y_label,
-            (UIRect){x + 8.0f, transform_y + 32.0f, 24.0f, 26.0f});
+            (UIRect){x + 8.0f, transform_row_y[1], 24.0f, 26.0f});
         y_result = editor_mode_field("editor.rigid_body.y",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &position.y},
-            &editor->y_field, (UIRect){x + 34.0f, transform_y + 32.0f,
+            &editor->y_field, (UIRect){x + 34.0f, transform_row_y[1],
                 width - 44.0f, 26.0f}, &field_style);
         rohr_ui_label(&editor->rotation_label,
-            (UIRect){x + 8.0f, transform_y + 64.0f, 76.0f, 26.0f});
+            (UIRect){x + 8.0f, transform_row_y[2], 76.0f, 26.0f});
         rotation_result = editor_mode_field("editor.rigid_body.rotation",
             (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &rotation},
             &editor->rotation_field, (UIRect){x + 86.0f,
-                transform_y + 64.0f, width - 96.0f, 26.0f}, &field_style);
+                transform_row_y[2], width - 96.0f, 26.0f}, &field_style);
         if(x_result.changed || y_result.changed || rotation_result.changed) {
             EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
                 .data.rigid_body_transform = {
@@ -365,14 +455,14 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             &editor->rotation_locked_label};
         UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.rotation_lock",
             options, 2, body->rotation_locked ? 1 : 0,
-            (UIRect){x + 10.0f, transform_y + 96.0f, width - 20.0f, 28.0f},
+            (UIRect){x + 10.0f, transform_row_y[3], width - 20.0f, 28.0f},
             &field_style);
         if(result.changed) property_bool_set(context->project, object->id, body->id,
             EDITOR_PROPERTY_ROTATION_LOCKED, result.selected_index == 1);
         if(context->layer_control != NULL)
             field_active = editor_mode_layer_control_draw(context->layer_control,
                 "editor.rigid_body", context->project, &body->graphics_layer,
-                NULL, x, transform_y + 128.0f, width) || field_active;
+                NULL, x, transform_row_y[4], width) || field_active;
     }
 #define FLOAT_FIELD(field_id, label, field, field_y, label_width, property, source, min_value, clamp_max) do { \
     float value = (source); UIFieldResult result; \
@@ -389,30 +479,30 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
 } while(0)
     if(physics_open)
         FLOAT_FIELD("editor.rigid_body.mass", editor->mass_label,
-            editor->mass_field, physics_y + 32.0f, 76.0f,
+            editor->mass_field, physics_row_y[1], 76.0f,
             EDITOR_PROPERTY_MASS, body->mass_value, 0.0f, -1.0f);
     if(material_open) {
         FLOAT_FIELD("editor.rigid_body.friction", editor->friction_label,
-            editor->friction_field, material_y, 76.0f,
+            editor->friction_field, material_row_y[0], 76.0f,
             EDITOR_PROPERTY_FRICTION, body->friction, 0.0f, -1.0f);
         FLOAT_FIELD("editor.rigid_body.restitution", editor->restitution_label,
-            editor->restitution_field, material_y + 32.0f, 96.0f,
+            editor->restitution_field, material_row_y[1], 96.0f,
             EDITOR_PROPERTY_RESTITUTION, body->restitution, 0.0f, 1.0f);
     }
 #undef FLOAT_FIELD
     if(appearance_open) {
         rohr_ui_label(&editor->border_color_label,
-            (UIRect){x + 8.0f, appearance_y, 104.0f, 26.0f});
+            (UIRect){x + 8.0f, appearance_row_y[0], 104.0f, 26.0f});
         if(context->color_open != NULL) editor_mode_color_swatch(
             "editor.rigid_body.border_color", &body->border_color, false,
-            (UIRect){x + 114.0f, appearance_y, width - 124.0f, 26.0f},
+            (UIRect){x + 114.0f, appearance_row_y[0], width - 124.0f, 26.0f},
             context, EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id,
             EDITOR_PROPERTY_OUTLINE_COLOR);
         rohr_ui_label(&editor->surface_color_label,
-            (UIRect){x + 8.0f, appearance_y + 32.0f, 104.0f, 26.0f});
+            (UIRect){x + 8.0f, appearance_row_y[1], 104.0f, 26.0f});
         if(context->color_open != NULL) editor_mode_color_swatch(
             "editor.rigid_body.surface_color", &body->surface_color, false,
-            (UIRect){x + 114.0f, appearance_y + 32.0f,
+            (UIRect){x + 114.0f, appearance_row_y[1],
                 width - 124.0f, 26.0f}, context, EDITOR_ITEM_RIGID_BODY,
             object->id, 0, body->id, EDITOR_PROPERTY_SURFACE_COLOR);
     }
@@ -456,7 +546,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     if(physics_open) {
         bool value = body->gravity_enabled;
         if(checkbox("editor.rigid_body.gravity", &editor->gravity_label,
-                (UIRect){x + 10.0f, physics_y + 64.0f,
+                (UIRect){x + 10.0f, physics_row_y[2],
                     width - 20.0f, 28.0f}, &value,
                 false, NULL))
             property_bool_set(context->project, object->id, body->id,
@@ -467,14 +557,13 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         UIButtonStyle field_style = editor_mode_section_field_style_get();
         UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.motion", options,
             2, body->static_body ? 1 : 0,
-            (UIRect){x + 10.0f, physics_y, width - 20.0f, 28.0f},
+            (UIRect){x + 10.0f, physics_row_y[0], width - 20.0f, 28.0f},
             &field_style);
         if(result.changed) property_bool_set(context->project, object->id, body->id,
             EDITOR_PROPERTY_STATIC, result.selected_index == 1);
     }
     {
         float row_x = x + 10.0f, row_width = width - 20.0f;
-        float bottom = collision_y + 32.0f;
         bool collision = body->collision_enabled;
         if(collision_open && checkbox("editor.rigid_body.collision",
                 &editor->collision_label,
@@ -497,55 +586,56 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 context->viewport->selection = EDITOR_SELECTION_RIGID_BODY;
             if(rohr_ui_button("editor.rigid_body.collision_category",
                     &editor->collision_category_label,
-                    (UIRect){row_x, collision_y + 32.0f,
+                    (UIRect){row_x, collision_category_y,
                         row_width, 28.0f}, NULL).clicked) {
                 editor->collision_category_open = !editor->collision_category_open;
                 editor->collide_with_open = false;
             }
-            rohr_ui_border((UIRect){row_x, collision_y + 32.0f,
+            rohr_ui_border((UIRect){row_x, collision_category_y,
                     row_width, 28.0f},
                 2.0f, (Color){0, 0, 0, 255});
-            bottom = collision_y + 64.0f;
             if(editor->collision_category_open && collision_menu != NULL) {
                 size_t rows = 0;
                 if(!collision_menu(collision_context,
                         "editor.rigid_body.collision_category.mask", context->project,
                         &body->collision_category, object->id, body->id,
-                        EDITOR_COLLISION_FILTER_CATEGORY, row_x, bottom, row_width,
+                        EDITOR_COLLISION_FILTER_CATEGORY, row_x,
+                        collision_category_list_y, row_width,
                         &field_active, &rows)) return field_active;
-                bottom += (float)rows * 30.0f;
             }
             if(rohr_ui_button("editor.rigid_body.collide_with",
                     &editor->collide_with_label,
-                    (UIRect){row_x, bottom, row_width, 28.0f}, NULL).clicked) {
+                    (UIRect){row_x, collide_with_y,
+                        row_width, 28.0f}, NULL).clicked) {
                 editor->collide_with_open = !editor->collide_with_open;
                 editor->collision_category_open = false;
             }
-            rohr_ui_border((UIRect){row_x, bottom, row_width, 28.0f},
+            rohr_ui_border((UIRect){row_x, collide_with_y,
+                    row_width, 28.0f},
                 2.0f, (Color){0, 0, 0, 255});
-            bottom += 32.0f;
             if(editor->collide_with_open && collision_menu != NULL) {
                 size_t rows = 0;
                 if(!collision_menu(collision_context,
                         "editor.rigid_body.collide_with.mask", context->project,
                         &body->collision_with, object->id, body->id,
-                        EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x, bottom, row_width,
+                        EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x,
+                        collide_with_list_y, row_width,
                         &field_active, &rows)) return field_active;
-                bottom += (float)rows * 30.0f;
             }
             if((editor->collision_category_open || editor->collide_with_open) &&
                     context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < collision_y || pointer.y > bottom)
+                        pointer.y < collision_y ||
+                        pointer.y > collision_bottom)
                     editor->collision_category_open = editor->collide_with_open = false;
             }
         }
         if(geometry_open) {
-            float item_y = geometry_y;
             UIButtonStyle selected_style = selected_style_get();
             UIButtonResult origin = rohr_ui_button("editor.rigid_body.origin",
-                &editor->origin_label, (UIRect){row_x, item_y, row_width, 28.0f},
+                &editor->origin_label,
+                (UIRect){row_x, geometry_origin_y, row_width, 28.0f},
                 context->viewport->selection == EDITOR_SELECTION_ORIGIN &&
                     context->viewport->selected_origin_kind ==
                         EDITOR_ORIGIN_RIGID_BODY ? &selected_style : NULL);
@@ -554,10 +644,10 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 context->viewport->selected_origin_kind = EDITOR_ORIGIN_RIGID_BODY;
                 if(origin.double_clicked) context->viewport->mode = EDITOR_VIEWPORT_ORIGIN;
             }
-            item_y += 34.0f;
             if(body->particle) {
                 UIButtonResult particle = rohr_ui_button("editor.rigid_body.particle_item",
-                    &editor->particle_label, (UIRect){row_x, item_y, row_width, 28.0f},
+                    &editor->particle_label,
+                    (UIRect){row_x, geometry_particle_y, row_width, 28.0f},
                     context->viewport->selection == EDITOR_SELECTION_PARTICLE ?
                         &selected_style : NULL);
                 if(particle.clicked || particle.focus_changed) {
@@ -565,15 +655,14 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                     if(particle.double_clicked)
                         context->viewport->mode = EDITOR_VIEWPORT_PARTICLE;
                 }
-                item_y += 34.0f;
             }
             if(body->hitbox_count > 0) {
                 const TextAsset *options[EDITOR_BODY_HITBOX_MAX];
                 size_t option_count = body->hitbox_count < EDITOR_BODY_HITBOX_MAX ?
                     body->hitbox_count : EDITOR_BODY_HITBOX_MAX;
                 rohr_ui_label(&editor->active_hitbox_label,
-                    (UIRect){row_x, item_y, row_width, 26.0f});
-                item_y += 28.0f;
+                    (UIRect){row_x, geometry_active_label_y,
+                        row_width, 26.0f});
                 for(size_t i = 0; i < option_count; i += 1) {
                     if(!editor_mode_named_text_sync(editor->font,
                             body->hitboxes[i].name, &editor->hitbox_names[i],
@@ -586,15 +675,16 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                         "editor.rigid_body.active_hitbox", options, option_count,
                         body->active_hitbox_index < option_count ?
                             body->active_hitbox_index : 0,
-                        (UIRect){row_x, item_y, row_width, 28.0f}, NULL);
+                        (UIRect){row_x, geometry_active_field_y,
+                            row_width, 28.0f}, NULL);
                     if(active.changed) property_uint_set(context->project,
                         object->id, body->id, EDITOR_PROPERTY_ACTIVE_HITBOX,
                         (uint32_t)active.selected_index);
                 }
-                item_y += 34.0f;
             }
             if(rohr_ui_button("editor.rigid_body.add_hitbox", &editor->add_hitbox_label,
-                    (UIRect){row_x, item_y, row_width, 32.0f}, NULL).clicked) {
+                    (UIRect){row_x, geometry_add_y,
+                        row_width, 32.0f}, NULL).clicked) {
                 EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
                     .data.item_add = {.kind = EDITOR_ITEM_HITBOX,
                         .object = object->id, .parent = body->id}};
@@ -605,7 +695,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 }
             }
             {
-            float hitbox_y = item_y + 42.0f;
+            float hitbox_y = geometry_list_y;
             EditorAnimatedSprite *animation = NULL;
             for(size_t animation_index = 0;
                     animation_index < object->animated_sprite_count;
@@ -679,7 +769,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                             editor->binding_hitbox_open == hitbox->id ? 0 : hitbox->id;
                     }
                 }
-                hitbox_y += 30.0f;
+                hitbox_y += geometry_list_stride;
                 if(editor->binding_hitbox_open == hitbox->id && animation != NULL) {
                     size_t frame_count = animation->frame_count < MAX_ANIMATIONS_FRAMES ?
                         animation->frame_count : MAX_ANIMATIONS_FRAMES;
@@ -720,7 +810,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                         }
                         binding_pointer_inside = binding_pointer_inside ||
                             frame_hovered;
-                        hitbox_y += 30.0f;
+                        hitbox_y += geometry_list_stride;
                     }
                 }
             }

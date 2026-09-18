@@ -45,6 +45,10 @@ static bool accordion_layout_metrics_check(void) {
         fabsf(dynamic.next_y - 444.0f) < 0.001f &&
         fabsf(editor_mode_accordion_layout_groups_height_get(groups, 2) -
             190.0f) < 0.001f &&
+        fabsf(editor_mode_accordion_layout_group_row_y(
+            &section, groups, 2, 0, 1) - 174.0f) < 0.001f &&
+        fabsf(editor_mode_accordion_layout_group_row_y(
+            &section, groups, 2, 1, 3) - 300.0f) < 0.001f &&
         fabsf(editor_mode_accordion_layout_row_y(
             &section, fixed_rows, 2, 10.0f) - 212.0f) < 0.001f;
 }

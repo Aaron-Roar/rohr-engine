@@ -88,6 +88,10 @@ EditorModeAccordionLayoutResult editor_mode_accordion_layout_nested_section(
     const EditorModeAccordionLayoutGroup *groups, size_t group_count);
 float editor_mode_accordion_layout_groups_height_get(
     const EditorModeAccordionLayoutGroup *groups, size_t group_count);
+float editor_mode_accordion_layout_group_row_y(
+    const EditorModeAccordionLayoutResult *section,
+    const EditorModeAccordionLayoutGroup *groups, size_t group_count,
+    size_t group_index, size_t row_index);
 float editor_mode_accordion_layout_row_y(
     const EditorModeAccordionLayoutResult *section,
     const float *row_heights, size_t row_index, float row_gap);
