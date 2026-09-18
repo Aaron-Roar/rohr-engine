@@ -151,6 +151,11 @@ static void editor_hitbox_regular_set(EditorProject *project, EditorHitbox *hitb
 void editor_project_init(EditorProject *project) {
     if(project == NULL) return;
     *project = (EditorProject){
+        .engine_time_per_tick = 1.0 / 60.0,
+        .physics_dt_per_tick = 1.0 / 60.0,
+        .physics_substeps = PHYSICS_SUBSTEPS_DEFAULT,
+        .physics_gravity = ROHR_PHYSICS_GRAVITY_DEFAULT,
+        .physics_solver_iterations = PHYSICS_SOLVER_ITERATIONS_DEFAULT,
         .viewport_camera_zoom = 1.0f,
         .next_id = 1,
         .next_vertex_id = 1,

@@ -1372,6 +1372,25 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    if(objects == NULL) return rohr_error_result_error("
             "ERROR_MEMORY_POOL_NULL_POINTER);\n"
         "    *objects = (ProjectObjects){0};\n");
+    fprintf(source,
+        "    result = rohr_engine_time_per_tick_set(%.17g);\n"
+        "    if(rohr_error_check(result)) goto fail;\n"
+        "    result = rohr_physics_substeps_set(%u);\n"
+        "    if(rohr_error_check(result)) goto fail;\n"
+        "    result = rohr_physics_gravity_set((Acceleration){%.9ff, %.9ff});\n"
+        "    if(rohr_error_check(result)) goto fail;\n"
+        "    result = rohr_physics_solver_iterations_set(%u);\n"
+        "    if(rohr_error_check(result)) goto fail;\n",
+        project->engine_time_per_tick, project->physics_substeps,
+        project->physics_gravity.x, project->physics_gravity.y,
+        project->physics_solver_iterations);
+    if(project->physics_timestep_override)
+        fprintf(source,
+            "    result = rohr_physics_dt_per_tick_set(%.17g);\n"
+            "    if(rohr_error_check(result)) goto fail;\n",
+            project->physics_dt_per_tick);
+    else
+        fprintf(source, "    rohr_physics_engine_time_per_tick_use();\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
         const EditorObject *object = &project->objects[object_index];
         char variable[EDITOR_OBJECT_NAME_MAX];
@@ -1960,9 +1979,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "    ProjectObjects objects = {0};\n"
         "    ProjectViewports viewports = {0};\n");
     fprintf(file,
-        "    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start()) ||\n"
-        "            !ok(rohr_physics_gravity_set((Acceleration){0.0f, -900.0f}))) goto fail;\n"
-        );
+        "    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start())) goto fail;\n");
     fprintf(file, "    if(!ok(project_objects_create_all(&objects)) ||\n"
         "            !ok(project_viewports_create(&viewports, &objects))) goto fail;\n");
     fprintf(file,

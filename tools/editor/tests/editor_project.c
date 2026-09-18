@@ -155,6 +155,12 @@ int main(void) {
         {
             EditorGraphicsLayer *hud = editor_project_graphics_layer_add(
                 &workspace_project, "hud", 500);
+            workspace_project.engine_time_per_tick = 1.0 / 120.0;
+            workspace_project.physics_timestep_override = true;
+            workspace_project.physics_dt_per_tick = 1.0 / 240.0;
+            workspace_project.physics_substeps = 4;
+            workspace_project.physics_gravity = (Acceleration){12.0f, 345.0f};
+            workspace_project.physics_solver_iterations = 16;
             if(hud == NULL || workspace_project.layout_viewport_count == 0 ||
                     workspace_project.layout_viewports[0].ui_item_count == 0) {
                 workspace_fixture_remove(fixture);
@@ -194,6 +200,13 @@ int main(void) {
                 !loaded_workspace.open || strcmp(loaded_workspace.config.name,
                     "RohrEditorWorkspaceTest") != 0 ||
                 loaded_project.object_count != 1 ||
+                fabs(loaded_project.engine_time_per_tick - 1.0 / 120.0) > 0.000001 ||
+                !loaded_project.physics_timestep_override ||
+                fabs(loaded_project.physics_dt_per_tick - 1.0 / 240.0) > 0.000001 ||
+                loaded_project.physics_substeps != 4 ||
+                fabsf(loaded_project.physics_gravity.x - 12.0f) > 0.001f ||
+                fabsf(loaded_project.physics_gravity.y - 345.0f) > 0.001f ||
+                loaded_project.physics_solver_iterations != 16 ||
                 strcmp(loaded_project.objects[0].name, "Starter") != 0 ||
                 !position_equal(loaded_project.objects[0].position,
                     (Position){0.0f, 0.0f}) ||
@@ -249,12 +262,20 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/src/main.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
-                !file_contains(path,
-                    "rohr_physics_gravity_set((Acceleration){0.0f, -900.0f})") ||
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||
                 !file_contains(path, "project_objects_destroy_all(&objects")) {
+            workspace_fixture_remove(fixture);
+            return 1;
+        }
+        snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
+        if(!file_contains(path, "rohr_engine_time_per_tick_set(") ||
+                !file_contains(path, "rohr_physics_dt_per_tick_set(") ||
+                !file_contains(path, "rohr_physics_substeps_set(4)") ||
+                !file_contains(path,
+                    "rohr_physics_gravity_set((Acceleration){12.000000000f, 345.000000000f})") ||
+                !file_contains(path, "rohr_physics_solver_iterations_set(16)")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -457,13 +478,6 @@ int main(void) {
                 !file_contains(path, "rohr_physics_soft_body_triangle_create") ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_soft_body_area_color_set") ||
-                !file_contains(path,
-                    "rohr_graphics_layer_entity_set(objects->starter.node_") ||
-                !file_contains(path,
-                    "rohr_graphics_layer_entity_set(objects->starter.beam_") ||
-                !file_contains(path, "[0], 43)") ||
-                !file_contains(path, "rohr_graphics_layer_sprite_set") ||
-                !file_contains(path, "rohr_graphics_layer_animation_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path,
                     "rohr_physics_hitbox_animation_binding_set") ||
@@ -481,6 +495,17 @@ int main(void) {
                 !file_contains(path, "rohr_graphics_sprites_draw();") ||
                 !file_contains(path, "rohr_graphics_animated_sprites_draw();") ||
                 !file_contains(path, "void project_objects_destroy_all")) {
+            workspace_fixture_remove(fixture);
+            return 1;
+        }
+        snprintf(path, sizeof(path), "%s/src/generated/project_viewports.c", fixture);
+        if(!file_contains(path,
+                    "rohr_graphics_layer_entity_set(objects->starter.node_") ||
+                !file_contains(path,
+                    "rohr_graphics_layer_entity_set(objects->starter.beam_") ||
+                !file_contains(path, "[0], 43)") ||
+                !file_contains(path, "rohr_graphics_layer_sprite_set") ||
+                !file_contains(path, "rohr_graphics_layer_animation_set")) {
             workspace_fixture_remove(fixture);
             return 1;
         }

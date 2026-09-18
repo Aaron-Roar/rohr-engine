@@ -519,6 +519,12 @@ typedef struct EditorNavigationState {
 } EditorNavigationState;
 
 typedef struct EditorProject {
+    Time engine_time_per_tick;
+    bool physics_timestep_override;
+    Time physics_dt_per_tick;
+    uint32_t physics_substeps;
+    Acceleration physics_gravity;
+    uint32_t physics_solver_iterations;
     Vec2D viewport_camera_offset;
     float viewport_camera_zoom;
     bool viewport_local_view;

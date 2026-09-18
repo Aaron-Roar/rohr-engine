@@ -469,6 +469,24 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     ui_definitions = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
+    {
+        yyjson_mut_val *physics = yyjson_mut_obj(document);
+        yyjson_mut_obj_add_real(document, physics, "engine_time_per_tick",
+            project->engine_time_per_tick);
+        yyjson_mut_obj_add_bool(document, physics, "timestep_override",
+            project->physics_timestep_override);
+        yyjson_mut_obj_add_real(document, physics, "dt_per_tick",
+            project->physics_dt_per_tick);
+        yyjson_mut_obj_add_uint(document, physics, "substeps",
+            project->physics_substeps);
+        yyjson_mut_obj_add_real(document, physics, "gravity_x",
+            project->physics_gravity.x);
+        yyjson_mut_obj_add_real(document, physics, "gravity_y",
+            project->physics_gravity.y);
+        yyjson_mut_obj_add_uint(document, physics, "solver_iterations",
+            project->physics_solver_iterations);
+        yyjson_mut_obj_add_val(document, root, "physics_settings", physics);
+    }
     yyjson_mut_obj_add_val(document, root, "viewport_camera_offset",
         editor_json_position_write(document,
             (Position){project->viewport_camera_offset.x,
@@ -1543,6 +1561,31 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
+    }
+    {
+        yyjson_val *physics = yyjson_obj_get(root, "physics_settings");
+        if(physics != NULL) {
+            float engine_dt, physics_dt, gravity_x, gravity_y;
+            bool override;
+            uint32_t substeps, iterations;
+            if(!yyjson_is_obj(physics) ||
+                    !editor_json_real(physics, "engine_time_per_tick", &engine_dt) ||
+                    !editor_json_bool(physics, "timestep_override", &override) ||
+                    !editor_json_real(physics, "dt_per_tick", &physics_dt) ||
+                    !editor_json_uint(physics, "substeps", &substeps) ||
+                    !editor_json_real(physics, "gravity_x", &gravity_x) ||
+                    !editor_json_real(physics, "gravity_y", &gravity_y) ||
+                    !editor_json_uint(physics, "solver_iterations", &iterations) ||
+                    engine_dt <= 0.0 || physics_dt <= 0.0 || substeps == 0 ||
+                    iterations == 0) goto done;
+            loaded.engine_time_per_tick = engine_dt;
+            loaded.physics_timestep_override = override;
+            loaded.physics_dt_per_tick = physics_dt;
+            loaded.physics_substeps = substeps;
+            loaded.physics_gravity = (Acceleration){
+                (float)gravity_x, (float)gravity_y};
+            loaded.physics_solver_iterations = iterations;
+        }
     }
     {
         yyjson_val *camera_offset = yyjson_obj_get(root, "viewport_camera_offset");
