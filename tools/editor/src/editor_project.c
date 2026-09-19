@@ -1090,7 +1090,8 @@ EditorViewportUiDefinition *editor_project_ui_definition_add(
         EditorProject *project, EditorViewportUiKind kind) {
     EditorViewportUiDefinition *definition;
     if(project == NULL || (kind != EDITOR_VIEWPORT_UI_SHAPE &&
-                kind != EDITOR_VIEWPORT_UI_TEXT) ||
+                kind != EDITOR_VIEWPORT_UI_TEXT &&
+                kind != EDITOR_VIEWPORT_UI_SLIDER) ||
             project->ui_definition_count >= MAX_GRAPHICS_UI_ELEMENTS ||
             !EDITOR_ARRAY_RESERVE(project->ui_definitions,
                 project->ui_definition_capacity,
@@ -1105,7 +1106,8 @@ EditorViewportUiDefinition *editor_project_ui_definition_add(
         .click_border_color = 0xAFC8F0FFu,
         .click_fill_color = 0x283246FFu};
     snprintf(definition->name, sizeof(definition->name), "%s_%u",
-        kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" : "ui_text",
+        kind == EDITOR_VIEWPORT_UI_SHAPE ? "ui_shape" :
+            kind == EDITOR_VIEWPORT_UI_TEXT ? "ui_text" : "ui_slider",
         definition->id);
     if(kind == EDITOR_VIEWPORT_UI_SHAPE) {
         definition->border_enabled = true;
@@ -1123,7 +1125,7 @@ EditorViewportUiDefinition *editor_project_ui_definition_add(
         definition->value.shape.text.height_scale = 1.0f;
         snprintf(definition->value.shape.text.text,
             sizeof(definition->value.shape.text.text), "sample text");
-    } else {
+    } else if(kind == EDITOR_VIEWPORT_UI_TEXT) {
         snprintf(definition->value.text.text, sizeof(definition->value.text.text),
             "sample text");
         definition->value.text.color = 0xFFFFFFFFu;
@@ -1131,6 +1133,14 @@ EditorViewportUiDefinition *editor_project_ui_definition_add(
         definition->value.text.box_height = 28.0f;
         definition->value.text.width_scale = 1.0f;
         definition->value.text.height_scale = 1.0f;
+    } else {
+        definition->value.slider = (EditorViewportUiSlider){
+            .minimum = 0.0f, .maximum = 1.0f, .value = 0.5f, .step = 0.1f,
+            .length = 180.0f, .track_thickness = 6.0f, .thumb_size = 18.0f,
+            .orientation = VIEWPORT_UI_SLIDER_HORIZONTAL,
+            .track_color = 0x394052FFu, .filled_track_color = 0x6E9ED6FFu,
+            .thumb_color = 0xD8E6FFFFu, .hover_thumb_color = 0xFFFFFFFFu,
+            .pressed_thumb_color = 0xAFC8F0FFu, .enabled = true};
     }
     return definition;
 }

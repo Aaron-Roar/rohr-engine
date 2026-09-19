@@ -52,11 +52,20 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Click Border", click_border_color_label);
     CREATE("Click Fill", click_fill_color_label);
     CREATE("Add UI Shape", add_shape_label);
+    CREATE("Add Slider", add_slider_label);
     CREATE("Button", button_label);
     CREATE("Text", text_label); CREATE("Font File", font_file_label);
     CREATE("Default", default_font_label); CREATE("Load Font", load_font_label);
     CREATE("Add Vertex", add_vertex_label); CREATE("Length", length_label);
     CREATE("Font Color", font_color_label);
+    CREATE("Minimum", minimum_label); CREATE("Maximum", maximum_label);
+    CREATE("Value", value_label); CREATE("Step", step_label);
+    CREATE("Orientation", orientation_label); CREATE("Horizontal", horizontal_label);
+    CREATE("Vertical", vertical_label); CREATE("Track Thickness", track_thickness_label);
+    CREATE("Thumb Size", thumb_size_label);
+    CREATE("Track Color", track_color_label); CREATE("Filled Track", filled_track_color_label);
+    CREATE("Thumb Color", thumb_color_label); CREATE("Hover Thumb", hover_thumb_color_label);
+    CREATE("Pressed Thumb", pressed_thumb_color_label);
     CREATE("Text Width Scale", width_scale_label);
     CREATE("Text Height Scale", height_scale_label);
     CREATE("Text Offset X", text_offset_x_label);
@@ -72,6 +81,8 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("", text_field); CREATE("", font_file_field);
     CREATE("", width_scale_field); CREATE("", height_scale_field);
     CREATE("", length_field);
+    CREATE("", minimum_field); CREATE("", maximum_field); CREATE("", value_field);
+    CREATE("", step_field); CREATE("", track_thickness_field); CREATE("", thumb_size_field);
     CREATE("", content_x_field); CREATE("", content_y_field);
     CREATE("", content_rotation_field);
     CREATE("", border_thickness_field); CREATE("", hash_spacing_field);
@@ -126,7 +137,13 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(click_border_color_label); DESTROY(click_fill_color_label);
     DESTROY(border_thickness_field); DESTROY(hash_spacing_field);
     DESTROY(corner_radius_field);
-    DESTROY(add_shape_label); DESTROY(button_label);
+    DESTROY(add_shape_label); DESTROY(add_slider_label); DESTROY(button_label);
+    DESTROY(minimum_label); DESTROY(maximum_label); DESTROY(value_label);
+    DESTROY(step_label); DESTROY(orientation_label); DESTROY(horizontal_label);
+    DESTROY(vertical_label); DESTROY(track_thickness_label); DESTROY(thumb_size_label);
+    DESTROY(track_color_label); DESTROY(filled_track_color_label);
+    DESTROY(thumb_color_label); DESTROY(hover_thumb_color_label);
+    DESTROY(pressed_thumb_color_label);
     DESTROY(text_label); DESTROY(font_file_label); DESTROY(font_color_label);
     DESTROY(default_font_label); DESTROY(load_font_label);
     DESTROY(add_vertex_label); DESTROY(length_label); DESTROY(length_field);
@@ -141,6 +158,8 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(height_scale_field);
     DESTROY(content_x_field); DESTROY(content_y_field);
     DESTROY(content_rotation_field);
+    DESTROY(minimum_field); DESTROY(maximum_field); DESTROY(value_field);
+    DESTROY(step_field); DESTROY(track_thickness_field); DESTROY(thumb_size_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
@@ -193,8 +212,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     const float appearance_rows[] = {28.0f};
     size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
     float content_rows[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX +
-        EDITOR_LAYOUT_VIEWPORT_UI_MAX + 3] = {28.0f, 30.0f, 30.0f};
-    for(size_t i = 0; i < content_items; i += 1) content_rows[i + 3] = 28.0f;
+        EDITOR_LAYOUT_VIEWPORT_UI_MAX + 4] = {28.0f, 30.0f, 30.0f, 30.0f};
+    for(size_t i = 0; i < content_items; i += 1) content_rows[i + 4] = 28.0f;
     EditorModeAccordionLayoutResult transform =
         editor_mode_accordion_layout_section(&accordion,
             &editor->transform_section, "editor.layout.section.transform",
@@ -206,7 +225,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutResult contents =
         editor_mode_accordion_layout_section(&accordion,
             &editor->contents_section, "editor.layout.section.contents",
-            content_rows, content_items + 3, 6.0f);
+            content_rows, content_items + 4, 6.0f);
     transform_open = transform.expanded; transform_y = transform.content_y;
     appearance_open = appearance.expanded; appearance_y = appearance.content_y;
     contents_open = contents.expanded; contents_y = contents.content_y;
@@ -259,6 +278,19 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
             context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
+        }
+    }
+    y += 36.0f;
+    if(rohr_ui_button("editor.layout.add_slider", &editor->add_slider_label,
+            (UIRect){context->x + 8.0f, y, context->width - 16.0f,
+                30.0f}, NULL).clicked) {
+        EditorViewportUiItem *item = editor_viewport_ui_add(context->project,
+            viewport, EDITOR_VIEWPORT_UI_SLIDER);
+        if(item != NULL) {
+            context->viewport->selected_viewport_ui_item = item->id;
+            context->viewport->selected_viewport_camera_item = 0;
+            context->viewport->mode = EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
+            context->viewport->selection = EDITOR_SELECTION_UI_SLIDER;
         }
     }
     y += 36.0f;
@@ -334,13 +366,17 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(ui_result.clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
-            context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
+            context->viewport->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                EDITOR_SELECTION_UI_SHAPE : item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                    EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER;
         }
         if(ui_result.double_clicked) {
             context->viewport->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-                EDITOR_VIEWPORT_UI_SHAPE_EDITOR : EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+                EDITOR_VIEWPORT_UI_SHAPE_EDITOR : item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                    EDITOR_VIEWPORT_UI_TEXT_EDITOR : EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
             context->viewport->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-                EDITOR_SELECTION_UI_SHAPE : EDITOR_SELECTION_UI_TEXT;
+                EDITOR_SELECTION_UI_SHAPE : item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                    EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER;
         }
         y += 34.0f;
     }
@@ -400,13 +436,16 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         y += 8.0f;
         rohr_ui_label(&editor->name_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-        char *text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-            item->value.shape.text.text : item->value.text.text;
-        text_result = editor_mode_field("editor.layout.ui.text",
-            (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text,
-                .string_capacity = UI_LABEL_MAX}, &editor->name_field,
-            (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
-        y += 38.0f;
+        text_result = (UIFieldResult){0};
+        if(item->kind != EDITOR_VIEWPORT_UI_SLIDER) {
+            char *text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                item->value.shape.text.text : item->value.text.text;
+            text_result = editor_mode_field("editor.layout.ui.text",
+                (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text,
+                    .string_capacity = UI_LABEL_MAX}, &editor->name_field,
+                (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
+            y += 38.0f;
+        }
         item_x = layout_number(&editor->x_label, &editor->x_field,
             "editor.layout.ui.x", context->x, y, context->width,
             &item->position.x); y += 38.0f;
@@ -1017,6 +1056,98 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         box_width_result.active || box_height_result.active ||
         width_result.active || height_result.active || offset_x_result.active ||
         offset_y_result.active;
+}
+
+bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
+        const EditorModeContext *context) {
+    EditorViewportUiItem *item = layout_ui_item_get(context,
+        EDITOR_VIEWPORT_UI_SLIDER);
+    EditorViewportUiSlider *slider;
+    UIFieldResult minimum, maximum, value, step, length, track, thumb;
+    float y = 42.0f;
+    bool active;
+    if(editor == NULL || item == NULL) return false;
+    slider = &item->value.slider;
+    active = layout_ui_common_draw(editor, context, item, &y);
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+    const float appearance_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f,
+        28.0f, 28.0f, 28.0f};
+    EditorModeAccordionLayoutResult content =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->ui_content_section, "editor.ui_slider.section.content",
+            content_rows, 6, 10.0f);
+    EditorModeAccordionLayoutResult appearance =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->appearance_section, "editor.ui_slider.section.appearance",
+            appearance_rows, 8, 10.0f);
+    minimum = maximum = value = step = length = track = thumb =
+        (UIFieldResult){0};
+    if(content.expanded) {
+        const TextAsset *orientation_options[] = {&editor->horizontal_label,
+            &editor->vertical_label};
+        y = content.content_y;
+        minimum = layout_number(&editor->minimum_label, &editor->minimum_field,
+            "editor.ui_slider.minimum", context->x, y, context->width,
+            &slider->minimum); y += 38.0f;
+        maximum = layout_number(&editor->maximum_label, &editor->maximum_field,
+            "editor.ui_slider.maximum", context->x, y, context->width,
+            &slider->maximum); y += 38.0f;
+        value = layout_number(&editor->value_label, &editor->value_field,
+            "editor.ui_slider.value", context->x, y, context->width,
+            &slider->value); y += 38.0f;
+        step = layout_number(&editor->step_label, &editor->step_field,
+            "editor.ui_slider.step", context->x, y, context->width,
+            &slider->step); y += 38.0f;
+        rohr_ui_label(&editor->orientation_label,
+            (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
+        UIDropdownResult orientation = editor_mode_dropdown(
+            "editor.ui_slider.orientation", orientation_options, 2,
+            (size_t)slider->orientation, (UIRect){context->x + 94.0f, y,
+                context->width - 104.0f, 28.0f}, NULL);
+        if(orientation.changed) slider->orientation =
+            (ViewportUiSliderOrientation)orientation.selected_index;
+        y += 38.0f;
+        (void)editor_mode_checkbox_left("editor.ui_slider.enabled",
+            &editor->enabled_label, (UIRect){context->x + 10.0f, y,
+                context->width - 20.0f, 28.0f}, &slider->enabled);
+        if(slider->maximum <= slider->minimum) slider->maximum = slider->minimum + 1.0f;
+        slider->value = fminf(slider->maximum, fmaxf(slider->minimum, slider->value));
+        slider->step = fmaxf(0.0f, slider->step);
+    }
+    if(appearance.expanded) {
+        y = appearance.content_y;
+        length = layout_number(&editor->length_label, &editor->length_field,
+            "editor.ui_slider.length", context->x, y, context->width,
+            &slider->length); y += 38.0f;
+        track = layout_number(&editor->track_thickness_label,
+            &editor->track_thickness_field, "editor.ui_slider.track_thickness",
+            context->x, y, context->width, &slider->track_thickness); y += 38.0f;
+        thumb = layout_number(&editor->thumb_size_label, &editor->thumb_size_field,
+            "editor.ui_slider.thumb_size", context->x, y, context->width,
+            &slider->thumb_size); y += 38.0f;
+#define SLIDER_SWATCH(id, label, member) \
+        rohr_ui_label(&(label), (UIRect){context->x + 8.0f, y, 120.0f, 28.0f}); \
+        (void)layout_local_swatch((id), &(member), (UIRect){context->x + \
+            context->width - 46.0f, y, 36.0f, 28.0f}, context); y += 38.0f
+        SLIDER_SWATCH("editor.ui_slider.track_color", editor->track_color_label,
+            slider->track_color);
+        SLIDER_SWATCH("editor.ui_slider.filled_track_color",
+            editor->filled_track_color_label, slider->filled_track_color);
+        SLIDER_SWATCH("editor.ui_slider.thumb_color", editor->thumb_color_label,
+            slider->thumb_color);
+        SLIDER_SWATCH("editor.ui_slider.hover_thumb_color",
+            editor->hover_thumb_color_label, slider->hover_thumb_color);
+        SLIDER_SWATCH("editor.ui_slider.pressed_thumb_color",
+            editor->pressed_thumb_color_label, slider->pressed_thumb_color);
+#undef SLIDER_SWATCH
+        slider->length = fmaxf(1.0f, slider->length);
+        slider->track_thickness = fmaxf(1.0f, slider->track_thickness);
+        slider->thumb_size = fmaxf(1.0f, slider->thumb_size);
+    }
+    return active || minimum.active || maximum.active || value.active ||
+        step.active || length.active || track.active || thumb.active;
 }
 
 bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,

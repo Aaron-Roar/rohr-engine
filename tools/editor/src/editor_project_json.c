@@ -445,7 +445,7 @@ static yyjson_mut_val *editor_json_ui_definition_write(yyjson_mut_doc *document,
             ui->value.shape.text.width_scale);
         yyjson_mut_obj_add_real(document, item, "height_scale",
             ui->value.shape.text.height_scale);
-    } else {
+    } else if(ui->kind == EDITOR_VIEWPORT_UI_TEXT) {
         yyjson_mut_obj_add_strcpy(document, item, "text", ui->value.text.text);
         yyjson_mut_obj_add_uint(document, item, "font", ui->value.text.font);
         yyjson_mut_obj_add_real(document, item, "text_offset_x",
@@ -459,6 +459,26 @@ static yyjson_mut_val *editor_json_ui_definition_write(yyjson_mut_doc *document,
             ui->value.text.width_scale);
         yyjson_mut_obj_add_real(document, item, "height_scale",
             ui->value.text.height_scale);
+    } else {
+        const EditorViewportUiSlider *slider = &ui->value.slider;
+        yyjson_mut_obj_add_real(document, item, "minimum", slider->minimum);
+        yyjson_mut_obj_add_real(document, item, "maximum", slider->maximum);
+        yyjson_mut_obj_add_real(document, item, "value", slider->value);
+        yyjson_mut_obj_add_real(document, item, "step", slider->step);
+        yyjson_mut_obj_add_real(document, item, "length", slider->length);
+        yyjson_mut_obj_add_real(document, item, "track_thickness",
+            slider->track_thickness);
+        yyjson_mut_obj_add_real(document, item, "thumb_size", slider->thumb_size);
+        yyjson_mut_obj_add_uint(document, item, "orientation", slider->orientation);
+        yyjson_mut_obj_add_uint(document, item, "track_color", slider->track_color);
+        yyjson_mut_obj_add_uint(document, item, "filled_track_color",
+            slider->filled_track_color);
+        yyjson_mut_obj_add_uint(document, item, "thumb_color", slider->thumb_color);
+        yyjson_mut_obj_add_uint(document, item, "hover_thumb_color",
+            slider->hover_thumb_color);
+        yyjson_mut_obj_add_uint(document, item, "pressed_thumb_color",
+            slider->pressed_thumb_color);
+        yyjson_mut_obj_add_bool(document, item, "enabled", slider->enabled);
     }
     return item;
 }
@@ -1266,7 +1286,7 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
     };
     if(!editor_json_uint(value, "id", &ui->id) || ui->id == 0 ||
             !editor_json_uint(value, "kind", &kind) ||
-            kind > EDITOR_VIEWPORT_UI_TEXT ||
+            kind > EDITOR_VIEWPORT_UI_SLIDER ||
             !editor_json_name(value, ui->name)) return false;
     ui->kind = (EditorViewportUiKind)kind;
 #define OPTIONAL_BOOL(Key, Target) do { yyjson_val *v = yyjson_obj_get(value, Key); \
@@ -1291,7 +1311,9 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
     if(ui->border_thickness <= 0.0f || ui->border_hash_spacing <= 0.0f ||
             ui->border_corner_radius < 0.0f) return false;
     text = yyjson_obj_get(value, "text");
-    if(!yyjson_is_str(text) || yyjson_get_len(text) >= UI_LABEL_MAX) return false;
+    if(ui->kind != EDITOR_VIEWPORT_UI_SLIDER &&
+            (!yyjson_is_str(text) || yyjson_get_len(text) >= UI_LABEL_MAX))
+        return false;
     if(ui->kind == EDITOR_VIEWPORT_UI_SHAPE) {
         EditorViewportUiShape *shape = &ui->value.shape;
         vertices = yyjson_obj_get(value, "vertices");
@@ -1322,7 +1344,7 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
         if(shape->text.box_width <= 0.0f || shape->text.box_height <= 0.0f ||
                 shape->text.width_scale <= 0.0f ||
                 shape->text.height_scale <= 0.0f) return false;
-    } else {
+    } else if(ui->kind == EDITOR_VIEWPORT_UI_TEXT) {
         EditorViewportUiText *text_value = &ui->value.text;
         memcpy(text_value->text, yyjson_get_str(text), yyjson_get_len(text) + 1);
         text_value->color = 0xFFFFFFFFu;
@@ -1341,6 +1363,35 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
         if(text_value->box_width <= 0.0f || text_value->box_height <= 0.0f ||
                 text_value->width_scale <= 0.0f ||
                 text_value->height_scale <= 0.0f) return false;
+    } else {
+        EditorViewportUiSlider *slider = &ui->value.slider;
+        uint32_t orientation = VIEWPORT_UI_SLIDER_HORIZONTAL;
+        *slider = (EditorViewportUiSlider){
+            .track_color = 0x394052FFu, .filled_track_color = 0x6E9ED6FFu,
+            .thumb_color = 0xD8E6FFFFu, .hover_thumb_color = 0xFFFFFFFFu,
+            .pressed_thumb_color = 0xAFC8F0FFu, .enabled = true};
+        if(!editor_json_real(value, "minimum", &slider->minimum) ||
+                !editor_json_real(value, "maximum", &slider->maximum) ||
+                !editor_json_real(value, "value", &slider->value) ||
+                !editor_json_real(value, "step", &slider->step) ||
+                !editor_json_real(value, "length", &slider->length) ||
+                !editor_json_real(value, "track_thickness",
+                    &slider->track_thickness) ||
+                !editor_json_real(value, "thumb_size", &slider->thumb_size))
+            return false;
+        OPTIONAL_UINT("orientation", &orientation);
+        OPTIONAL_UINT("track_color", &slider->track_color);
+        OPTIONAL_UINT("filled_track_color", &slider->filled_track_color);
+        OPTIONAL_UINT("thumb_color", &slider->thumb_color);
+        OPTIONAL_UINT("hover_thumb_color", &slider->hover_thumb_color);
+        OPTIONAL_UINT("pressed_thumb_color", &slider->pressed_thumb_color);
+        OPTIONAL_BOOL("enabled", &slider->enabled);
+        if(orientation > VIEWPORT_UI_SLIDER_VERTICAL ||
+                slider->maximum <= slider->minimum || slider->step < 0.0f ||
+                slider->value < slider->minimum || slider->value > slider->maximum ||
+                slider->length <= 0.0f || slider->track_thickness <= 0.0f ||
+                slider->thumb_size <= 0.0f) return false;
+        slider->orientation = (ViewportUiSliderOrientation)orientation;
     }
 #undef OPTIONAL_BOOL
 #undef OPTIONAL_UINT

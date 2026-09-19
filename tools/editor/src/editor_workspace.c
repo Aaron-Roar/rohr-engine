@@ -1807,10 +1807,11 @@ static bool editor_workspace_generated_viewports_write(
             }
             const EditorViewportUiText *text = definition->kind ==
                     EDITOR_VIEWPORT_UI_SHAPE ? &definition->value.shape.text :
-                &definition->value.text;
-            size_t font_index = editor_workspace_ui_font_index_get(project,
-                text->font);
-            bool has_text = text->text[0] != '\0';
+                definition->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                    &definition->value.text : NULL;
+            size_t font_index = text == NULL ? 0 :
+                editor_workspace_ui_font_index_get(project, text->font);
+            bool has_text = text != NULL && text->text[0] != '\0';
             if(has_text) {
                 fprintf(source, "      { TextAssetResult text = "
                     "rohr_graphics_text_create(&resources->fonts[%zu], ", font_index);
@@ -1889,7 +1890,7 @@ static bool editor_workspace_generated_viewports_write(
                                     "resources->layers[%zu]))) goto fail;\n",
                                 layer_index);
                 fprintf(source, "      }\n");
-            } else {
+            } else if(definition->kind == EDITOR_VIEWPORT_UI_TEXT) {
                 fprintf(source, "      { GraphicsUiIdResult created_ui = "
                     "rohr_graphics_ui_text_create((ViewportUiTextConfig){"
                     ".text=%s, "
@@ -1914,6 +1915,58 @@ static bool editor_workspace_generated_viewports_write(
                     text->box_height * 0.5f,
                     text->offset.x, text->offset.y,
                     text->width_scale * 2.0f, text->height_scale * 2.0f,
+                    item->position.x, item->position.y,
+                    item->scale.x, item->scale.y, item->rotation,
+                    item->layer, item->visible ? "true" : "false",
+                    (int)item->drag_mode,
+                    item->clip_enabled ? "true" : "false",
+                    item->clip_rectangle.x, item->clip_rectangle.y,
+                    item->clip_rectangle.width, item->clip_rectangle.height);
+                if(item->graphics_layer != 0)
+                    for(size_t layer_index = 0;
+                            layer_index < project->graphics_layer_count;
+                            layer_index += 1)
+                        if(project->graphics_layers[layer_index].id ==
+                                item->graphics_layer)
+                            fprintf(source,
+                                "        if(rohr_error_check(result = "
+                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
+                                    "resources->layers[%zu]))) goto fail;\n",
+                                layer_index);
+                fprintf(source, "      }\n");
+            } else {
+                const EditorViewportUiSlider *slider = &definition->value.slider;
+                fprintf(source,
+                    "      { GraphicsUiIdResult created_ui = "
+                    "rohr_graphics_ui_slider_create((ViewportUiSliderConfig){"
+                    ".minimum=%.8ff, .maximum=%.8ff, .value=%.8ff, .step=%.8ff, "
+                    ".length=%.8ff, .track_thickness=%.8ff, .thumb_size=%.8ff, "
+                    ".orientation=%d, "
+                    ".track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
+                    ".filled_track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
+                    ".thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
+                    ".hover_thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
+                    ".pressed_thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
+                    ".enabled=%s});\n"
+                    "        if(rohr_error_check(created_ui)) { result = "
+                        "rohr_error_result_error(created_ui.result.error); goto fail; }\n"
+                    "        resources->ui_elements[resources->ui_element_count++] = "
+                        "created_ui.result.value;\n"
+                    "        ViewportItemIdResult added = rohr_viewport_ui_add("
+                    "resources->viewports[resources->viewport_count - 1], "
+                    "created_ui.result.value, (ViewportItemConfig){"
+                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
+                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
+                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
+                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
+                    "        if(rohr_error_check(added)) { result = "
+                        "rohr_error_result_error(added.result.error); goto fail; }\n",
+                    slider->minimum, slider->maximum, slider->value, slider->step,
+                    slider->length, slider->track_thickness, slider->thumb_size,
+                    (int)slider->orientation, slider->track_color,
+                    slider->filled_track_color, slider->thumb_color,
+                    slider->hover_thumb_color, slider->pressed_thumb_color,
+                    slider->enabled ? "true" : "false",
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
                     item->layer, item->visible ? "true" : "false",

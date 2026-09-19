@@ -408,7 +408,8 @@ typedef struct EditorViewportCameraItem {
 
 typedef enum EditorViewportUiKind {
     EDITOR_VIEWPORT_UI_SHAPE,
-    EDITOR_VIEWPORT_UI_TEXT
+    EDITOR_VIEWPORT_UI_TEXT,
+    EDITOR_VIEWPORT_UI_SLIDER
 } EditorViewportUiKind;
 
 typedef enum EditorViewportUiBorderType {
@@ -437,6 +438,23 @@ typedef struct EditorViewportUiShape {
     EditorViewportUiText text;
 } EditorViewportUiShape;
 
+typedef struct EditorViewportUiSlider {
+    float minimum;
+    float maximum;
+    float value;
+    float step;
+    float length;
+    float track_thickness;
+    float thumb_size;
+    ViewportUiSliderOrientation orientation;
+    uint32_t track_color;
+    uint32_t filled_track_color;
+    uint32_t thumb_color;
+    uint32_t hover_thumb_color;
+    uint32_t pressed_thumb_color;
+    bool enabled;
+} EditorViewportUiSlider;
+
 typedef struct EditorViewportUiDefinition {
     EditorViewportUiDefinitionId id;
     EditorViewportUiKind kind;
@@ -455,6 +473,7 @@ typedef struct EditorViewportUiDefinition {
     union {
         EditorViewportUiShape shape;
         EditorViewportUiText text;
+        EditorViewportUiSlider slider;
     } value;
 } EditorViewportUiDefinition;
 
@@ -488,6 +507,7 @@ typedef struct EditorViewportUiItem {
     union {
         EditorViewportUiShape shape;
         EditorViewportUiText text;
+        EditorViewportUiSlider slider;
     } value;
 } EditorViewportUiItem;
 

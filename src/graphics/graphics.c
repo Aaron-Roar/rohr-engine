@@ -176,6 +176,7 @@ typedef enum GraphicsViewportItemKind {
 typedef enum GraphicsUiKind {
     GRAPHICS_UI_SHAPE,
     GRAPHICS_UI_TEXT,
+    GRAPHICS_UI_SLIDER,
 } GraphicsUiKind;
 
 typedef struct GraphicsUiElement {
@@ -183,6 +184,7 @@ typedef struct GraphicsUiElement {
     union {
         ViewportUiShapeConfig shape;
         ViewportUiTextConfig text;
+        ViewportUiSliderConfig slider;
     } value;
     uint32_t generation;
     size_t mount_count;
@@ -205,6 +207,7 @@ typedef struct GraphicsViewport {
         bool owns_ui;
         bool hovered;
         bool pressed;
+        bool changed;
         bool used;
     } items[MAX_VIEWPORT_ITEMS];
     bool enabled;
@@ -217,6 +220,7 @@ static uint32_t viewport_generations[MAX_VIEWPORTS] = {0};
 static bool screens_used[MAX_SCREENS] = {0};
 static bool viewports_used[MAX_VIEWPORTS] = {0};
 static ViewportItemId graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+static ViewportItemId graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
 static Position graphics_ui_drag_pointer = {0};
 static bool graphics_ui_drag_mouse_down = false;
 static GraphicsUiElement graphics_ui_elements[MAX_GRAPHICS_UI_ELEMENTS] = {0};
@@ -1741,6 +1745,8 @@ static void graphics_viewport_item_release(GraphicsViewport *viewport,
             !viewport->items[item_slot].used) return;
     if(viewport->items[item_slot].id == graphics_ui_dragging_item)
         graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+    if(viewport->items[item_slot].id == graphics_ui_slider_dragging_item)
+        graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
     if(viewport->items[item_slot].kind != GRAPHICS_VIEWPORT_ITEM_UI) {
         viewport->items[item_slot].used = false;
         return;
@@ -1852,6 +1858,47 @@ GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
+static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
+    if(slider == NULL || !isfinite(slider->minimum) ||
+            !isfinite(slider->maximum) || !isfinite(slider->value) ||
+            !isfinite(slider->step) || slider->maximum <= slider->minimum ||
+            slider->step < 0.0f || slider->orientation <
+                VIEWPORT_UI_SLIDER_HORIZONTAL ||
+            slider->orientation > VIEWPORT_UI_SLIDER_VERTICAL) return false;
+    if(slider->length <= 0.0f) slider->length = 180.0f;
+    if(slider->track_thickness <= 0.0f) slider->track_thickness = 6.0f;
+    if(slider->thumb_size <= 0.0f) slider->thumb_size = 18.0f;
+    slider->value = fmaxf(slider->minimum,
+        fminf(slider->maximum, slider->value));
+    if(slider->step > 0.0f) {
+        slider->value = slider->minimum + roundf(
+            (slider->value - slider->minimum) / slider->step) * slider->step;
+        slider->value = fmaxf(slider->minimum,
+            fminf(slider->maximum, slider->value));
+    }
+    return true;
+}
+
+GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider) {
+    if(!graphics_ui_slider_prepare(&slider))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1) {
+        if(graphics_ui_elements[slot].used) continue;
+        graphics_ui_generations[slot] += 1;
+        if(graphics_ui_generations[slot] == 0) graphics_ui_generations[slot] = 1;
+        graphics_ui_elements[slot] = (GraphicsUiElement){
+            .kind = GRAPHICS_UI_SLIDER,
+            .value.slider = slider,
+            .generation = graphics_ui_generations[slot],
+            .used = true,
+        };
+        return ERROR_RESULT_MAKE_VALUE(GraphicsUiIdResult,
+            graphics_resource_id(graphics_ui_generations[slot], slot));
+    }
+    return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
 EngineResult graphics_ui_shape_set(GraphicsUiId id, ViewportUiShapeConfig shape) {
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
@@ -1897,6 +1944,52 @@ GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId id) {
             ERROR_ENGINE_COMPONENT_MISSING);
     return ERROR_RESULT_MAKE_VALUE(GraphicsUiTextResult,
         graphics_ui_elements[slot].value.text);
+}
+
+EngineResult graphics_ui_slider_set(GraphicsUiId id,
+        ViewportUiSliderConfig slider) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(!graphics_ui_slider_prepare(&slider))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    graphics_ui_elements[slot].value.slider = slider;
+    return error_result_value(true);
+}
+
+GraphicsUiSliderResult graphics_ui_slider_get(GraphicsUiId id) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiSliderResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsUiSliderResult,
+        graphics_ui_elements[slot].value.slider);
+}
+
+EngineResult graphics_ui_slider_value_set(GraphicsUiId id, float value) {
+    size_t slot;
+    ViewportUiSliderConfig slider;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    slider = graphics_ui_elements[slot].value.slider;
+    slider.value = value;
+    if(!graphics_ui_slider_prepare(&slider))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    graphics_ui_elements[slot].value.slider = slider;
+    return error_result_value(true);
+}
+
+GraphicsUiSliderValueResult graphics_ui_slider_value_get(GraphicsUiId id) {
+    size_t slot;
+    if(!graphics_ui_slot(id, &slot) ||
+            graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiSliderValueResult,
+            ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(GraphicsUiSliderValueResult,
+        graphics_ui_elements[slot].value.slider.value);
 }
 
 EngineResult graphics_ui_destroy(GraphicsUiId id) {
@@ -1957,6 +2050,24 @@ ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId id,
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId id,
         ViewportUiTextConfig text, ViewportItemConfig config) {
     GraphicsUiIdResult created = graphics_ui_text_create(text);
+    ViewportItemIdResult mounted;
+    size_t viewport_slot;
+    size_t item_slot;
+    if(created.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, created.result.error);
+    mounted = graphics_viewport_ui_add(id, created.result.value, config);
+    if(mounted.kind == ERROR_RESULT_ERROR) {
+        (void)graphics_ui_destroy(created.result.value);
+        return mounted;
+    }
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
+        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    return mounted;
+}
+
+ViewportItemIdResult graphics_viewport_ui_slider_add(ViewportId id,
+        ViewportUiSliderConfig slider, ViewportItemConfig config) {
+    GraphicsUiIdResult created = graphics_ui_slider_create(slider);
     ViewportItemIdResult mounted;
     size_t viewport_slot;
     size_t item_slot;
@@ -2037,6 +2148,18 @@ bool graphics_viewport_ui_pressed_check(ViewportItemId item_id) {
         viewports[viewport_slot].items[item_slot].kind ==
             GRAPHICS_VIEWPORT_ITEM_UI &&
         viewports[viewport_slot].items[item_slot].pressed;
+}
+
+bool graphics_viewport_ui_slider_changed_check(ViewportItemId item_id) {
+    size_t viewport_slot;
+    size_t item_slot;
+    size_t ui_slot;
+    return graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot) &&
+        viewports[viewport_slot].items[item_slot].kind ==
+            GRAPHICS_VIEWPORT_ITEM_UI &&
+        graphics_ui_slot(viewports[viewport_slot].items[item_slot].value.ui,
+            &ui_slot) && graphics_ui_elements[ui_slot].kind == GRAPHICS_UI_SLIDER &&
+        viewports[viewport_slot].items[item_slot].changed;
 }
 
 EngineResult graphics_viewport_item_drag_mode_set(ViewportItemId item_id,
@@ -3146,6 +3269,99 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
     }
 }
 
+static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
+        const ViewportItemConfig *item, ViewportUiSliderConfig *slider,
+        ViewportItemId item_id, bool mouse_down, bool mouse_pressed,
+        bool *hovered_result, bool *pressed_result, bool *changed_result) {
+    float half_length;
+    float amount;
+    float along;
+    float across;
+    float hit_half;
+    Position center;
+    Position start_local;
+    Position end_local;
+    Position thumb_local;
+    Position start;
+    Position end;
+    Position thumb;
+    Position thumb_a;
+    Position thumb_b;
+    Position pointer = graphics_mouse_screen_position_get();
+    Vec2D relative;
+    Vec2D local;
+    Orientation orientation;
+    bool hovered;
+    bool active;
+
+    if(viewport == NULL || item == NULL || slider == NULL) return;
+    half_length = slider->length * 0.5f;
+    start_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        (Position){-half_length, 0.0f} : (Position){0.0f, -half_length};
+    end_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        (Position){half_length, 0.0f} : (Position){0.0f, half_length};
+    center = graphics_viewport_ui_local_point_get(viewport, item, (Position){0});
+    orientation = item->orientation + item->content_orientation;
+    relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+    local = math_vector_rotate(relative, -orientation);
+    if(item->content_scale.x > 0.0f) local.x /= item->content_scale.x;
+    if(item->content_scale.y > 0.0f) local.y /= item->content_scale.y;
+    along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.x : local.y;
+    across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.y : local.x;
+    hit_half = fmaxf(slider->track_thickness, slider->thumb_size) * 0.5f;
+    hovered = fabsf(along) <= half_length + slider->thumb_size * 0.5f &&
+        fabsf(across) <= hit_half;
+    if(hovered && item->clip_enabled &&
+            (pointer.x < viewport->rectangle.x + item->clip_rectangle.x ||
+             pointer.y < viewport->rectangle.y + item->clip_rectangle.y ||
+             pointer.x > viewport->rectangle.x + item->clip_rectangle.x +
+                item->clip_rectangle.width ||
+             pointer.y > viewport->rectangle.y + item->clip_rectangle.y +
+                item->clip_rectangle.height)) hovered = false;
+    if(slider->enabled && item->drag_mode == VIEWPORT_ITEM_DRAG_NONE &&
+            mouse_pressed && hovered)
+        graphics_ui_slider_dragging_item = item_id;
+    active = graphics_ui_slider_dragging_item == item_id;
+    if(active && mouse_down && slider->enabled) {
+        float previous = slider->value;
+        float unit = fmaxf(0.0f, fminf(1.0f,
+            (along + half_length) / slider->length));
+        slider->value = slider->minimum +
+            (slider->maximum - slider->minimum) * unit;
+        (void)graphics_ui_slider_prepare(slider);
+        if(changed_result != NULL)
+            *changed_result = fabsf(slider->value - previous) > 0.000001f;
+    }
+    amount = (slider->value - slider->minimum) /
+        (slider->maximum - slider->minimum);
+    thumb_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        (Position){-half_length + slider->length * amount, 0.0f} :
+        (Position){0.0f, -half_length + slider->length * amount};
+    start = graphics_viewport_ui_local_point_get(viewport, item, start_local);
+    end = graphics_viewport_ui_local_point_get(viewport, item, end_local);
+    thumb = graphics_viewport_ui_local_point_get(viewport, item, thumb_local);
+    graphics_viewport_ui_line_draw(start, end, slider->track_thickness,
+        slider->track_color);
+    graphics_viewport_ui_line_draw(start, thumb, slider->track_thickness,
+        slider->filled_track_color);
+    if(slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL) {
+        thumb_a = graphics_viewport_ui_local_point_get(viewport, item,
+            (Position){thumb_local.x, -slider->thumb_size * 0.5f});
+        thumb_b = graphics_viewport_ui_local_point_get(viewport, item,
+            (Position){thumb_local.x, slider->thumb_size * 0.5f});
+    } else {
+        thumb_a = graphics_viewport_ui_local_point_get(viewport, item,
+            (Position){-slider->thumb_size * 0.5f, thumb_local.y});
+        thumb_b = graphics_viewport_ui_local_point_get(viewport, item,
+            (Position){slider->thumb_size * 0.5f, thumb_local.y});
+    }
+    graphics_viewport_ui_line_draw(thumb_a, thumb_b, slider->thumb_size,
+        active ? slider->pressed_thumb_color : hovered ?
+            slider->hover_thumb_color : slider->thumb_color);
+    if(hovered_result != NULL) *hovered_result = hovered;
+    if(pressed_result != NULL) *pressed_result = active && mouse_down;
+}
+
 static void graphics_viewports_draw(void) {
     size_t viewport_slot;
     bool has_viewport = false;
@@ -3154,7 +3370,10 @@ static void graphics_viewports_draw(void) {
     bool mouse_down = (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0;
     bool mouse_pressed = mouse_down && !graphics_ui_drag_mouse_down;
     ViewportItemId drag_candidate = VIEWPORT_ITEM_INVALID;
-    if(!mouse_down) graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+    if(!mouse_down) {
+        graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+        graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
+    }
     if(mouse_down && graphics_ui_dragging_item != VIEWPORT_ITEM_INVALID) {
         size_t drag_viewport;
         size_t drag_item;
@@ -3224,6 +3443,7 @@ static void graphics_viewports_draw(void) {
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             viewport->items[item].hovered = false;
             viewport->items[item].pressed = false;
+            viewport->items[item].changed = false;
         }
         for(;;) {
             size_t item = graphics_viewport_next_item_get(viewport, drawn);
@@ -3263,7 +3483,7 @@ static void graphics_viewports_draw(void) {
                         &graphics_ui_elements[ui_slot].value.shape,
                         &viewport->items[item].hovered,
                         &viewport->items[item].pressed);
-                else {
+                else if(graphics_ui_elements[ui_slot].kind == GRAPHICS_UI_TEXT) {
                     graphics_viewport_ui_text_draw(viewport, config,
                         &graphics_ui_elements[ui_slot].value.text,
                         (Position){0}, 0.0f);
@@ -3283,8 +3503,15 @@ static void graphics_viewports_draw(void) {
                                     config->clip_rectangle.y +
                                     config->clip_rectangle.height))
                         viewport->items[item].hovered = false;
-                    viewport->items[item].pressed =
-                        viewport->items[item].hovered && mouse_down;
+                        viewport->items[item].pressed =
+                            viewport->items[item].hovered && mouse_down;
+                } else {
+                    graphics_viewport_ui_slider_draw(viewport, config,
+                        &graphics_ui_elements[ui_slot].value.slider,
+                        viewport->items[item].id, mouse_down, mouse_pressed,
+                        &viewport->items[item].hovered,
+                        &viewport->items[item].pressed,
+                        &viewport->items[item].changed);
                 }
                 if(viewport->items[item].hovered &&
                         config->drag_mode != VIEWPORT_ITEM_DRAG_NONE)

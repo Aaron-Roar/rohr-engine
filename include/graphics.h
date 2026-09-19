@@ -210,12 +210,38 @@ typedef struct ViewportUiShapeConfig {
     ViewportUiTextConfig text;
 } ViewportUiShapeConfig;
 
+typedef enum ViewportUiSliderOrientation {
+    VIEWPORT_UI_SLIDER_HORIZONTAL,
+    VIEWPORT_UI_SLIDER_VERTICAL,
+} ViewportUiSliderOrientation;
+
+/** Reusable viewport slider definition. Placement and rotation belong to its item. */
+typedef struct ViewportUiSliderConfig {
+    float minimum;
+    float maximum;
+    float value;
+    /** Zero disables value snapping. */
+    float step;
+    float length;
+    float track_thickness;
+    float thumb_size;
+    ViewportUiSliderOrientation orientation;
+    Color track_color;
+    Color filled_track_color;
+    Color thumb_color;
+    Color hover_thumb_color;
+    Color pressed_thumb_color;
+    bool enabled;
+} ViewportUiSliderConfig;
+
 ERROR_DECLARE_RESULT_TYPE(ViewportIdResult, ViewportId);
 ERROR_DECLARE_RESULT_TYPE(ViewportItemIdResult, ViewportItemId);
 ERROR_DECLARE_RESULT_TYPE(ViewportItemConfigResult, ViewportItemConfig);
 ERROR_DECLARE_RESULT_TYPE(GraphicsUiIdResult, GraphicsUiId);
 ERROR_DECLARE_RESULT_TYPE(GraphicsUiShapeResult, ViewportUiShapeConfig);
 ERROR_DECLARE_RESULT_TYPE(GraphicsUiTextResult, ViewportUiTextConfig);
+ERROR_DECLARE_RESULT_TYPE(GraphicsUiSliderResult, ViewportUiSliderConfig);
+ERROR_DECLARE_RESULT_TYPE(GraphicsUiSliderValueResult, float);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerIdResult, GraphicsLayerId);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerValueResult, int);
 
@@ -665,10 +691,15 @@ ViewportItemIdResult graphics_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
 GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape);
 GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text);
+GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider);
 EngineResult graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
 GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId ui);
 EngineResult graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
 GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId ui);
+EngineResult graphics_ui_slider_set(GraphicsUiId ui, ViewportUiSliderConfig slider);
+GraphicsUiSliderResult graphics_ui_slider_get(GraphicsUiId ui);
+EngineResult graphics_ui_slider_value_set(GraphicsUiId ui, float value);
+GraphicsUiSliderValueResult graphics_ui_slider_value_get(GraphicsUiId ui);
 EngineResult graphics_ui_destroy(GraphicsUiId ui);
 ViewportItemIdResult graphics_viewport_ui_add(ViewportId viewport,
     GraphicsUiId ui, ViewportItemConfig config);
@@ -677,6 +708,8 @@ ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId viewport,
     ViewportUiShapeConfig shape, ViewportItemConfig config);
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId viewport,
     ViewportUiTextConfig text, ViewportItemConfig config);
+ViewportItemIdResult graphics_viewport_ui_slider_add(ViewportId viewport,
+    ViewportUiSliderConfig slider, ViewportItemConfig config);
 EngineResult graphics_viewport_item_remove(ViewportItemId item);
 EngineResult graphics_viewport_item_set(ViewportItemId item,
     ViewportItemConfig config);
@@ -686,6 +719,8 @@ ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item);
 bool graphics_viewport_ui_hovered_check(ViewportItemId item);
 /** Return whether this mounted UI instance was pressed during its latest draw. */
 bool graphics_viewport_ui_pressed_check(ViewportItemId item);
+/** Return whether this slider's value changed during its latest draw. */
+bool graphics_viewport_ui_slider_changed_check(ViewportItemId item);
 EngineResult graphics_viewport_item_drag_mode_set(ViewportItemId item,
     ViewportItemDragMode mode);
 ViewportItemDragModeResult graphics_viewport_item_drag_mode_get(ViewportItemId item);

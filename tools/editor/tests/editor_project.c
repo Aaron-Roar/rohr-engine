@@ -198,6 +198,22 @@ int main(void) {
             workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
             workspace_project.layout_viewports[0].camera_items[0].graphics_layer =
                 hud->id;
+            EditorViewportUiItem *slider = editor_viewport_ui_add(
+                &workspace_project, &workspace_project.layout_viewports[0],
+                EDITOR_VIEWPORT_UI_SLIDER);
+            if(slider == NULL) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+            slider->position = (Position){320.0f, 240.0f};
+            slider->rotation = 0.15f;
+            slider->layer = 7;
+            slider->value.slider.minimum = -10.0f;
+            slider->value.slider.maximum = 30.0f;
+            slider->value.slider.value = 12.5f;
+            slider->value.slider.step = 0.5f;
+            slider->value.slider.length = 240.0f;
+            slider->value.slider.orientation = VIEWPORT_UI_SLIDER_VERTICAL;
             workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
             if(editor_viewport_ui_mount(&workspace_project,
                     &workspace_project.layout_viewports[0],
@@ -254,8 +270,8 @@ int main(void) {
                 loaded_project.graphics_layer_count != 1 ||
                 strcmp(loaded_project.graphics_layers[0].name, "hud") != 0 ||
                 loaded_project.graphics_layers[0].value != 500 ||
-                loaded_project.layout_viewports[0].ui_item_count != 2 ||
-                loaded_project.ui_definition_count != 1 ||
+                loaded_project.layout_viewports[0].ui_item_count != 3 ||
+                loaded_project.ui_definition_count != 2 ||
                 loaded_project.layout_viewports[0].ui_items[0].definition !=
                     loaded_project.layout_viewports[0].ui_items[1].definition ||
                 loaded_project.layout_viewports[0].ui_items[0].graphics_layer !=
@@ -264,6 +280,12 @@ int main(void) {
                     VIEWPORT_ITEM_DRAG_X ||
                 loaded_project.layout_viewports[0].ui_items[1].drag_mode !=
                     VIEWPORT_ITEM_DRAG_NONE ||
+                loaded_project.layout_viewports[0].ui_items[2].kind !=
+                    EDITOR_VIEWPORT_UI_SLIDER ||
+                fabsf(loaded_project.layout_viewports[0].ui_items[2].
+                    value.slider.value - 12.5f) > 0.001f ||
+                loaded_project.layout_viewports[0].ui_items[2].value.slider.orientation !=
+                    VIEWPORT_UI_SLIDER_VERTICAL ||
                 loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].placement.
@@ -317,8 +339,11 @@ int main(void) {
                 !file_contains(path, "rohr_graphics_ui_shape_create") ||
                 file_occurrence_count(path,
                     "rohr_graphics_ui_shape_create") != 1 ||
-                file_occurrence_count(path, "rohr_viewport_ui_add") != 2 ||
+                file_occurrence_count(path, "rohr_viewport_ui_add") != 3 ||
                 !file_contains(path, "rohr_viewport_ui_add") ||
+                !file_contains(path, "rohr_graphics_ui_slider_create") ||
+                !file_contains(path, ".minimum=-10.000000000f") ||
+                !file_contains(path, ".orientation=1") ||
                 !file_contains(path, "rohr_graphics_layer_create(\"hud\", 500)") ||
                 !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
                 !file_contains(path, "rohr_graphics_layer_entity_id_set") ||

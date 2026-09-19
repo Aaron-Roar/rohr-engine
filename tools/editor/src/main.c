@@ -634,6 +634,7 @@ static EditorNavigationState editor_navigation_state_get(
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR)
         return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
@@ -809,6 +810,11 @@ static float editor_panel_content_height_get(const EditorProject *project,
             editor_layout_ui_common_height_get(item);
         return fmaxf(height, common + 362.0f);
     }
+    if(state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR) {
+        const EditorViewportUiItem *item =
+            editor_panel_layout_ui_item_get(project, state);
+        return fmaxf(height, editor_layout_ui_common_height_get(item) + 570.0f);
+    }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {
         return fmaxf(height, 400.0f + (float)(object->rigid_body_count +
@@ -914,6 +920,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+        mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_LINE_EDITOR;
 }
@@ -935,7 +942,8 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_LAYOUT &&
         mode != EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR &&
         mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
-        mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+        mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
+        mode != EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
 }
 
 static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
@@ -959,6 +967,7 @@ static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR: return "Screen Properties";
         case EDITOR_VIEWPORT_UI_SHAPE_EDITOR: return "UI Shape Properties";
         case EDITOR_VIEWPORT_UI_TEXT_EDITOR: return "UI Text Properties";
+        case EDITOR_VIEWPORT_UI_SLIDER_EDITOR: return "UI Slider Properties";
         case EDITOR_VIEWPORT_UI_VERTEX_EDITOR: return "UI Vertex Properties";
         case EDITOR_VIEWPORT_UI_LINE_EDITOR: return "UI Line Properties";
         default: return "Properties";
@@ -1601,6 +1610,7 @@ static bool editor_single_selected_delete(
     }
     if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
             viewport_state->selection == EDITOR_SELECTION_UI_TEXT ||
+            viewport_state->selection == EDITOR_SELECTION_UI_SLIDER ||
             viewport_state->selection == EDITOR_SELECTION_UI_VERTEX ||
             viewport_state->selection == EDITOR_SELECTION_UI_LINE) {
         EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
@@ -1621,7 +1631,8 @@ static bool editor_single_selected_delete(
             return true;
         }
         if(viewport_state->selection == EDITOR_SELECTION_UI_SHAPE ||
-                viewport_state->selection == EDITOR_SELECTION_UI_TEXT) {
+                viewport_state->selection == EDITOR_SELECTION_UI_TEXT ||
+                viewport_state->selection == EDITOR_SELECTION_UI_SLIDER) {
             if(!editor_viewport_ui_remove(layout, item->id)) return false;
             viewport_state->selected_viewport_ui_item = 0;
             viewport_state->mode = EDITOR_VIEWPORT_LAYOUT;
@@ -2636,6 +2647,7 @@ int main(void) {
                     viewport_state.mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+                    viewport_state.mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
                     viewport_state.mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
                 editor_viewport_back(&viewport_state);
@@ -3153,6 +3165,16 @@ int main(void) {
                     .color_context = &color_context,
                     .font_browser_open = editor_mode_font_browser_open,
                     .font_browser_context = &font_browser_context});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR) {
+            EditorModeColorContext color_context = {
+                .picker = &color_picker, .project = &project};
+            field_editing = editor_ui_slider_editor_draw(&layout_viewport_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control,
+                    .local_color_open = editor_mode_local_color_picker_open,
+                    .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR) {
             field_editing = editor_ui_vertex_editor_draw(&layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
@@ -3313,6 +3335,7 @@ int main(void) {
                     break;
                 case EDITOR_VIEWPORT_UI_SHAPE_EDITOR:
                 case EDITOR_VIEWPORT_UI_TEXT_EDITOR:
+                case EDITOR_VIEWPORT_UI_SLIDER_EDITOR:
                     delete_label = &layout_viewport_editor.remove_label;
                     delete_id = "editor.layout.ui.delete";
                     break;

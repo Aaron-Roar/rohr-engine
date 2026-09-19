@@ -16,9 +16,11 @@ developer-owned C and do not need to be authored in the editor.
    required by the examples. Includes editor undo/redo, malformed-input
    coverage, generated runtime application, and Linux/Windows generated-project
    compilation.
-3. **Viewport UI sliders** — Add slider items with value, range, step,
+3. **Viewport UI sliders (complete)** — Add slider items with value, range, step,
    orientation, styling, interaction, JSON persistence, generated references,
-   and runtime creation.
+   and runtime creation. Includes editor selection and accordion authoring,
+   runtime value/change APIs, round-trip coverage, generated-project checks,
+   and Linux/Windows compilation.
 4. **Reusable spawning** — Add editor-authored object templates or prefabs,
    repeated entity arrays, and generated APIs for spawning those definitions.
    Spawn timing and gameplay decisions remain in C.

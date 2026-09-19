@@ -25,6 +25,8 @@ int main(void) {
     ViewportItemIdResult ui_item_result;
     ViewportItemIdResult second_ui_item_result;
     GraphicsUiIdResult ui_result;
+    GraphicsUiIdResult slider_result;
+    ViewportItemIdResult slider_item_result;
     GraphicsLayerIdResult world_layer_result;
     ViewportUiShapeConfig ui_shape = {
         .shape = {.amount_of_vertices = 4, .vertices = {
@@ -352,6 +354,24 @@ int main(void) {
                 "Built-In Font") ||
             (ui_result = rohr_graphics_ui_shape_create(ui_shape),
                 rohr_error_check(ui_result)) ||
+            (slider_result = rohr_graphics_ui_slider_create(
+                (ViewportUiSliderConfig){.minimum = -1.0f, .maximum = 1.0f,
+                    .value = 0.26f, .step = 0.25f, .length = 200.0f,
+                    .track_thickness = 6.0f, .thumb_size = 18.0f,
+                    .orientation = VIEWPORT_UI_SLIDER_HORIZONTAL, .enabled = true}),
+                rohr_error_check(slider_result)) ||
+            rohr_error_check(rohr_graphics_ui_slider_get(slider_result.result.value)) ||
+            fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
+                result.value.value - 0.25f) > 0.001f ||
+            rohr_error_check(rohr_graphics_ui_slider_value_set(
+                slider_result.result.value, 0.74f)) ||
+            fabsf(rohr_graphics_ui_slider_value_get(slider_result.result.value).
+                result.value - 0.75f) > 0.001f ||
+            (slider_item_result = rohr_viewport_ui_add(
+                viewport_result.result.value, slider_result.result.value,
+                (ViewportItemConfig){.rectangle = {200.0f, 100.0f, 0.0f, 0.0f},
+                    .content_scale = {1.0f, 1.0f}, .visible = true}),
+                rohr_error_check(slider_item_result)) ||
             (ui_item_result = rohr_viewport_ui_add(
                 viewport_result.result.value, ui_result.result.value,
                 (ViewportItemConfig){.layer = 1, .visible = true}),
@@ -403,6 +423,9 @@ int main(void) {
                 ui_item_result.result.value)) ||
             rohr_error_check(rohr_viewport_item_remove(
                 second_ui_item_result.result.value)) ||
+            rohr_error_check(rohr_viewport_item_remove(
+                slider_item_result.result.value)) ||
+            rohr_error_check(rohr_graphics_ui_destroy(slider_result.result.value)) ||
             rohr_error_check(rohr_graphics_ui_destroy(ui_result.result.value)) ||
             rohr_error_check(rohr_graphics_layer_sprite_name_set(
                 target_entity_result.result.value, "world")) ||

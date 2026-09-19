@@ -473,20 +473,27 @@ ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId came
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemConfig config) { return graphics_viewport_screen_add(viewport, screen, config); }
 GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape) { return graphics_ui_shape_create(shape); }
 GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text) { return graphics_ui_text_create(text); }
+GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderConfig slider) { return graphics_ui_slider_create(slider); }
 EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape) { return graphics_ui_shape_set(ui, shape); }
 GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui) { return graphics_ui_shape_get(ui); }
 EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text) { return graphics_ui_text_set(ui, text); }
 GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui) { return graphics_ui_text_get(ui); }
+EngineResult rohr_graphics_ui_slider_set(GraphicsUiId ui, ViewportUiSliderConfig slider) { return graphics_ui_slider_set(ui, slider); }
+GraphicsUiSliderResult rohr_graphics_ui_slider_get(GraphicsUiId ui) { return graphics_ui_slider_get(ui); }
+EngineResult rohr_graphics_ui_slider_value_set(GraphicsUiId ui, float value) { return graphics_ui_slider_value_set(ui, value); }
+GraphicsUiSliderValueResult rohr_graphics_ui_slider_value_get(GraphicsUiId ui) { return graphics_ui_slider_value_get(ui); }
 EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui) { return graphics_ui_destroy(ui); }
 ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport, GraphicsUiId ui, ViewportItemConfig config) { return graphics_viewport_ui_add(viewport, ui, config); }
 ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport, ViewportUiShapeConfig shape, ViewportItemConfig config) { return graphics_viewport_ui_shape_add(viewport, shape, config); }
 ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport, ViewportUiTextConfig text, ViewportItemConfig config) { return graphics_viewport_ui_text_add(viewport, text, config); }
+ViewportItemIdResult rohr_viewport_ui_slider_add(ViewportId viewport, ViewportUiSliderConfig slider, ViewportItemConfig config) { return graphics_viewport_ui_slider_add(viewport, slider, config); }
 EngineResult rohr_viewport_item_remove(ViewportItemId item) { return graphics_viewport_item_remove(item); }
 EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(item, config); }
 ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item) { return graphics_viewport_item_get(item); }
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item) { return graphics_viewport_item_viewport_get(item); }
 bool rohr_viewport_ui_hovered_check(ViewportItemId item) { return graphics_viewport_ui_hovered_check(item); }
 bool rohr_viewport_ui_pressed_check(ViewportItemId item) { return graphics_viewport_ui_pressed_check(item); }
+bool rohr_viewport_ui_slider_changed_check(ViewportItemId item) { return graphics_viewport_ui_slider_changed_check(item); }
 EngineResult rohr_viewport_item_drag_mode_set(ViewportItemId item, ViewportItemDragMode mode) { return graphics_viewport_item_drag_mode_set(item, mode); }
 ViewportItemDragModeResult rohr_viewport_item_drag_mode_get(ViewportItemId item) { return graphics_viewport_item_drag_mode_get(item); }
 bool rohr_viewport_item_dragging_check(ViewportItemId item) { return graphics_viewport_item_dragging_check(item); }

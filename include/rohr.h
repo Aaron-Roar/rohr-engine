@@ -1654,10 +1654,16 @@ ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport,
     ScreenId screen, ViewportItemConfig config);
 GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape);
 GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text);
+GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderConfig slider);
 EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
 GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui);
 EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
 GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_slider_set(GraphicsUiId ui,
+    ViewportUiSliderConfig slider);
+GraphicsUiSliderResult rohr_graphics_ui_slider_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_slider_value_set(GraphicsUiId ui, float value);
+GraphicsUiSliderValueResult rohr_graphics_ui_slider_value_get(GraphicsUiId ui);
 EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui);
 ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport,
     GraphicsUiId ui, ViewportItemConfig config);
@@ -1665,12 +1671,15 @@ ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport,
     ViewportUiShapeConfig shape, ViewportItemConfig config);
 ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport,
     ViewportUiTextConfig text, ViewportItemConfig config);
+ViewportItemIdResult rohr_viewport_ui_slider_add(ViewportId viewport,
+    ViewportUiSliderConfig slider, ViewportItemConfig config);
 EngineResult rohr_viewport_item_remove(ViewportItemId item);
 EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config);
 ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item);
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item);
 bool rohr_viewport_ui_hovered_check(ViewportItemId item);
 bool rohr_viewport_ui_pressed_check(ViewportItemId item);
+bool rohr_viewport_ui_slider_changed_check(ViewportItemId item);
 EngineResult rohr_viewport_item_drag_mode_set(ViewportItemId item,
     ViewportItemDragMode mode);
 ViewportItemDragModeResult rohr_viewport_item_drag_mode_get(ViewportItemId item);

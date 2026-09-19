@@ -895,6 +895,7 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
             return selection->item != 0;
         case EDITOR_SELECTION_UI_SHAPE:
         case EDITOR_SELECTION_UI_TEXT:
+        case EDITOR_SELECTION_UI_SLIDER:
             selection->object = state->selected_layout_viewport;
             selection->item = state->selected_viewport_ui_item;
             return selection->object != 0 && selection->item != 0;
@@ -916,13 +917,15 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
     if(project == NULL || state == NULL) return false;
     if(selection.kind == EDITOR_SELECTION_UI_SHAPE ||
             selection.kind == EDITOR_SELECTION_UI_TEXT ||
+            selection.kind == EDITOR_SELECTION_UI_SLIDER ||
             selection.kind == EDITOR_SELECTION_UI_VERTEX ||
             selection.kind == EDITOR_SELECTION_UI_LINE) {
         EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
             selection.object);
         EditorViewportUiItemId ui_item =
             selection.kind == EDITOR_SELECTION_UI_SHAPE ||
-            selection.kind == EDITOR_SELECTION_UI_TEXT ? selection.item :
+            selection.kind == EDITOR_SELECTION_UI_TEXT ||
+            selection.kind == EDITOR_SELECTION_UI_SLIDER ? selection.item :
                 selection.parent;
         EditorViewportUiItem *item = NULL;
         if(layout != NULL) for(size_t i = 0; i < layout->ui_item_count; i += 1)
@@ -942,7 +945,9 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
             state->selected_line = selection.item - 1;
             state->mode = EDITOR_VIEWPORT_UI_LINE_EDITOR;
         } else state->mode = selection.kind == EDITOR_SELECTION_UI_SHAPE ?
-            EDITOR_VIEWPORT_UI_SHAPE_EDITOR : EDITOR_VIEWPORT_UI_TEXT_EDITOR;
+            EDITOR_VIEWPORT_UI_SHAPE_EDITOR :
+            selection.kind == EDITOR_SELECTION_UI_TEXT ?
+                EDITOR_VIEWPORT_UI_TEXT_EDITOR : EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
         return true;
     }
     if(selection.object == 0 ||
@@ -1364,6 +1369,7 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
         project, state, &return_selection);
     if(starting_mode == EDITOR_VIEWPORT_LAYOUT ||
             starting_mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            starting_mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
             starting_mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             starting_mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
@@ -1662,7 +1668,8 @@ void editor_viewport_back(EditorViewportState *state) {
         state->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
         state->selected_viewport_camera_item = 0;
     } else if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR) {
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR) {
         if(state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
                 state->selected_viewport_ui_text_child) {
             state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
@@ -2024,6 +2031,17 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
     if(item->kind == EDITOR_VIEWPORT_UI_TEXT)
         return (ViewportRectangle){item->position.x, item->position.y,
             item->value.text.box_width, item->value.text.box_height};
+    if(item->kind == EDITOR_VIEWPORT_UI_SLIDER) {
+        float thickness = fmaxf(item->value.slider.track_thickness,
+            item->value.slider.thumb_size);
+        return item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+            (ViewportRectangle){item->position.x - item->value.slider.length * 0.5f,
+                item->position.y - thickness * 0.5f,
+                item->value.slider.length, thickness} :
+            (ViewportRectangle){item->position.x - thickness * 0.5f,
+                item->position.y - item->value.slider.length * 0.5f,
+                thickness, item->value.slider.length};
+    }
     if(item->value.shape.vertex_count == 0)
         return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
     rectangle = (ViewportRectangle){item->value.shape.vertices[0].x,
@@ -2891,6 +2909,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
@@ -3147,7 +3166,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     if((state->mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
                             !child_double_clicked) ||
                             item->id != state->selected_viewport_ui_item ||
-                            !item->visible) continue;
+                            !item->visible ||
+                            item->kind == EDITOR_VIEWPORT_UI_SLIDER) continue;
                     text = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                         &item->value.shape.text : &item->value.text;
                     if(text->text[0] == '\0') continue;
@@ -3253,26 +3273,37 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             hit.x > rectangle.x + rectangle.width ||
                             hit.y > rectangle.y + rectangle.height) continue;
                     now = SDL_GetTicks();
+                    EditorHierarchySelection item_selection =
+                        item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                            EDITOR_SELECTION_UI_SHAPE :
+                        item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                            EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER;
                     double_clicked = state->last_viewport_click_selection ==
-                            EDITOR_SELECTION_UI_SHAPE &&
+                            item_selection &&
                         state->last_viewport_click_index == item->id &&
                         now - state->last_viewport_click_at <= 400;
                     state->selected_viewport_ui_item = item->id;
                     state->selected_viewport_camera_item = 0;
-                    state->selection = EDITOR_SELECTION_UI_SHAPE;
+                    state->selection = item_selection;
                     state->selected_viewport_ui_text_child = false;
                     if(double_clicked) {
-                        state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
+                        state->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                            EDITOR_VIEWPORT_UI_SHAPE_EDITOR :
+                            item->kind == EDITOR_VIEWPORT_UI_TEXT ?
+                                EDITOR_VIEWPORT_UI_TEXT_EDITOR :
+                                EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
                         state->dragged_viewport_item = false;
                         state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                     } else {
-                        if(state->mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR)
+                        if(state->mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
+                                state->mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
+                                state->mode != EDITOR_VIEWPORT_UI_SLIDER_EDITOR)
                             state->mode = EDITOR_VIEWPORT_LAYOUT;
                         state->drag_offset = (Vec2D){local.x - item->position.x,
                             local.y - item->position.y};
                         state->dragged_viewport_item = true;
                         state->last_viewport_click_selection =
-                            EDITOR_SELECTION_UI_SHAPE;
+                            item_selection;
                         state->last_viewport_click_index = item->id;
                         state->last_viewport_click_at = now;
                     }
@@ -3305,6 +3336,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+                        state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
                         state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
                     if((state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
@@ -5320,6 +5352,7 @@ void editor_viewport_draw(const EditorProject *project,
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         bool project_preview = state->mode == EDITOR_VIEWPORT_HIERARCHY;
@@ -5432,7 +5465,8 @@ void editor_viewport_draw(const EditorProject *project,
                 editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 bool whole_selected = item->id == state->selected_viewport_ui_item &&
-                    state->selection == EDITOR_SELECTION_UI_SHAPE;
+                    (state->selection == EDITOR_SELECTION_UI_SHAPE ||
+                        state->selection == EDITOR_SELECTION_UI_SLIDER);
                 bool text_selected = item->id == state->selected_viewport_ui_item &&
                     state->selection == EDITOR_SELECTION_UI_TEXT;
                 uint32_t displayed_border = item->border_color;
@@ -5455,6 +5489,48 @@ void editor_viewport_draw(const EditorProject *project,
                 }
                 Color color = whole_selected ? (Color){255, 210, 70, 255} :
                     rohr_graphics_color_hex_create(displayed_border);
+                if(item->kind == EDITOR_VIEWPORT_UI_SLIDER) {
+                    const EditorViewportUiSlider *slider = &item->value.slider;
+                    float amount = (slider->value - slider->minimum) /
+                        (slider->maximum - slider->minimum);
+                    float half = slider->length * 0.5f;
+                    Position local_start = slider->orientation ==
+                            VIEWPORT_UI_SLIDER_HORIZONTAL ?
+                        (Position){-half, 0.0f} : (Position){0.0f, -half};
+                    Position local_end = slider->orientation ==
+                            VIEWPORT_UI_SLIDER_HORIZONTAL ?
+                        (Position){half, 0.0f} : (Position){0.0f, half};
+                    Position local_thumb = {
+                        local_start.x + (local_end.x - local_start.x) * amount,
+                        local_start.y + (local_end.y - local_start.y) * amount};
+                    Vec2D start_delta = math_vector_rotate(
+                        (Vec2D){local_start.x, local_start.y}, item->rotation);
+                    Vec2D end_delta = math_vector_rotate(
+                        (Vec2D){local_end.x, local_end.y}, item->rotation);
+                    Vec2D thumb_delta = math_vector_rotate(
+                        (Vec2D){local_thumb.x, local_thumb.y}, item->rotation);
+                    Position start = {rectangle.x +
+                            (item->position.x + start_delta.x) * zoom,
+                        rectangle.y + (item->position.y + start_delta.y) * zoom};
+                    Position end = {rectangle.x +
+                            (item->position.x + end_delta.x) * zoom,
+                        rectangle.y + (item->position.y + end_delta.y) * zoom};
+                    Position thumb = {rectangle.x +
+                            (item->position.x + thumb_delta.x) * zoom,
+                        rectangle.y + (item->position.y + thumb_delta.y) * zoom};
+                    editor_viewport_screen_dotted_line_draw(start, end,
+                        rohr_graphics_color_hex_create(slider->track_color),
+                        1.0f, slider->track_thickness * zoom);
+                    editor_viewport_screen_dotted_line_draw(start, thumb,
+                        rohr_graphics_color_hex_create(slider->filled_track_color),
+                        1.0f, slider->track_thickness * zoom);
+                    editor_viewport_screen_circle_draw(thumb,
+                        slider->thumb_size * zoom * 0.5f,
+                        whole_selected ? (Color){255, 210, 70, 255} :
+                            rohr_graphics_color_hex_create(slider->thumb_color));
+                    editor_view_composition_layer_base = 0;
+                    continue;
+                }
                 if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
                         item->value.shape.vertex_count >= 2) {
                     if(item->border_enabled &&

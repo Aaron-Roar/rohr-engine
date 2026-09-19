@@ -23,7 +23,12 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset fill_color_label;
     TextAsset hover_border_color_label, hover_fill_color_label;
     TextAsset click_border_color_label, click_fill_color_label;
-    TextAsset add_shape_label, button_label;
+    TextAsset add_shape_label, add_slider_label, button_label;
+    TextAsset minimum_label, maximum_label, value_label, step_label;
+    TextAsset orientation_label, horizontal_label, vertical_label;
+    TextAsset track_thickness_label, thumb_size_label;
+    TextAsset track_color_label, filled_track_color_label, thumb_color_label;
+    TextAsset hover_thumb_color_label, pressed_thumb_color_label;
     TextAsset text_label, font_file_label, font_color_label;
     TextAsset default_font_label, load_font_label;
     TextAsset add_vertex_label, length_label;
@@ -36,6 +41,8 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset rotation_field;
     TextAsset text_field, font_file_field, width_scale_field, height_scale_field;
     TextAsset length_field;
+    TextAsset minimum_field, maximum_field, value_field, step_field;
+    TextAsset track_thickness_field, thumb_size_field;
     TextAsset content_x_field, content_y_field, content_rotation_field;
     TextAsset border_thickness_field, hash_spacing_field, corner_radius_field;
     TextAsset camera_names[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
@@ -62,6 +69,8 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
 bool editor_ui_shape_editor_draw(EditorLayoutViewportEditor *editor,
     const EditorModeContext *context);
 bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
+    const EditorModeContext *context);
+bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     const EditorModeContext *context);
 bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,
     const EditorModeContext *context);
