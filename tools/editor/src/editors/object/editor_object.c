@@ -25,13 +25,12 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
+    CREATE("Add Anchor", add_anchor_label);
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->creation_section, font,
-            "Creation", true) ||
-            !editor_mode_accordion_section_create(&editor->elements_section, font,
+    if(!editor_mode_accordion_section_create(&editor->elements_section, font,
                 "Elements", false)) goto fail;
     return true;
 fail:
@@ -45,10 +44,10 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(object_name_label); DESTROY(add_rigid_body_label); DESTROY(add_joint_label);
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
+    DESTROY(add_anchor_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(delete_label);
 #undef DESTROY
-    editor_mode_accordion_section_destroy(&editor->creation_section);
     editor_mode_accordion_section_destroy(&editor->elements_section);
 #define DESTROY_ARRAY(array, count) \
     for(size_t i = 0; i < (count); i += 1) rohr_graphics_text_destroy(&(array)[i])
@@ -59,6 +58,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY_ARRAY(editor->sprite_names, 64);
     DESTROY_ARRAY(editor->animation_names, 32);
     DESTROY_ARRAY(editor->camera_names, EDITOR_CAMERA_MAX);
+    DESTROY_ARRAY(editor->anchor_names, EDITOR_ANCHOR_MAX);
 #undef DESTROY_ARRAY
     *editor = (EditorObjectEditor){0};
 }
@@ -111,7 +111,7 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             }
         *selection = EDITOR_SELECTION_ANIMATED_SPRITE;
         *visibility = EDITOR_VISIBILITY_OBJECT;
-    } else {
+    } else if(item.kind == EDITOR_HIERARCHY_CAMERA) {
         for(size_t i = 0; i < object->camera_count && i < EDITOR_CAMERA_MAX; i += 1)
             if(object->cameras[i].id == item.id) {
                 *name = object->cameras[i].name; *visible = object->cameras[i].visible;
@@ -119,6 +119,14 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             }
         *selection = EDITOR_SELECTION_CAMERA;
         *visibility = EDITOR_VISIBILITY_CAMERA;
+    } else {
+        for(size_t i = 0; i < object->anchor_count && i < EDITOR_ANCHOR_MAX; i += 1)
+            if(object->anchors[i].id == item.id) {
+                *name = object->anchors[i].name; *visible = object->anchors[i].visible;
+                *label = &editor->anchor_names[i]; *cache = editor->anchor_cache[i];
+            }
+        *selection = EDITOR_SELECTION_ANCHOR;
+        *visibility = EDITOR_VISIBILITY_ANCHOR;
     }
     return *name != NULL && *label != NULL && *cache != NULL;
 }
@@ -147,8 +155,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     size_t object_index;
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result;
-    bool creation_open, elements_open;
-    float creation_y, elements_y;
+    bool elements_open;
+    float elements_y, y;
     EditorModeAccordionLayoutCursor accordion;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -184,24 +192,11 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
                 object->id, 0, object->visible);
     }
     editor_project_object_hierarchy_sync(object);
-    accordion = editor_mode_accordion_layout_cursor_get(
-        context->x, context->width, 134.0f);
-    const float creation_rows[] = {32.0f, 32.0f, 32.0f,
-        32.0f, 32.0f, 32.0f};
-    EditorModeAccordionLayoutResult creation =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->creation_section, "editor.object.section.creation",
-            creation_rows, 6, 6.0f);
+    y = 134.0f;
     float element_rows[EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX +
-        EDITOR_SOFT_BODY_MAX + 64 + 32 + EDITOR_CAMERA_MAX];
+        EDITOR_SOFT_BODY_MAX + 64 + 32 + EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX];
     for(size_t i = 0; i < object->hierarchy_count; i += 1)
         element_rows[i] = 24.0f;
-    EditorModeAccordionLayoutResult elements =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->elements_section, "editor.object.section.elements",
-            element_rows, object->hierarchy_count, 6.0f);
-    creation_open = creation.expanded; creation_y = creation.content_y;
-    elements_open = elements.expanded; elements_y = elements.content_y;
 #define ADD_BUTTON(button_id, button_label, button_y, item_kind, item_option, \
         selection_value, member) \
     if(rohr_ui_button((button_id), &(button_label), \
@@ -216,20 +211,26 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->member = result.result.object; \
         } \
     }
-    if(creation_open) {
-    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, creation_y,
+    ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, y,
         EDITOR_ITEM_RIGID_BODY, 0, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
-    ADD_BUTTON("editor.add_joint", editor->add_joint_label, creation_y + 38.0f,
+    y += 38.0f;
+    ADD_BUTTON("editor.add_anchor", editor->add_anchor_label, y,
+        EDITOR_ITEM_ANCHOR, 0, EDITOR_SELECTION_ANCHOR, selected_anchor);
+    y += 38.0f;
+    ADD_BUTTON("editor.add_joint", editor->add_joint_label, y,
         EDITOR_ITEM_JOINT, EDITOR_JOINT_SPRING, EDITOR_SELECTION_JOINT, selected_joint);
-    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, creation_y + 76.0f,
+    y += 38.0f;
+    ADD_BUTTON("editor.add_soft_body", editor->add_soft_body_label, y,
         EDITOR_ITEM_SOFT_BODY, 0, EDITOR_SELECTION_SOFT_BODY, selected_soft_body);
 #undef ADD_BUTTON
+    y += 38.0f;
     if(rohr_ui_button("editor.add_sprite", &editor->add_sprite_label,
-            (UIRect){context->x + 10.0f, creation_y + 114.0f,
+            (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 32.0f}, NULL).clicked && browser_open != NULL)
         browser_open(browser_context, object->id);
+    y += 38.0f;
     if(rohr_ui_button("editor.add_animated_sprite", &editor->add_animation_label,
-            (UIRect){context->x + 10.0f, creation_y + 152.0f,
+            (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_ADD,
             .data.animated_sprite_add = {.object = object->id}};
@@ -242,8 +243,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->selected_animated_sprite = result.result.object;
         }
     }
+    y += 38.0f;
     if(rohr_ui_button("editor.add_camera", &editor->add_camera_label,
-            (UIRect){context->x + 10.0f, creation_y + 190.0f,
+            (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 32.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_CAMERA, .object = object->id}};
@@ -254,7 +256,14 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
         }
     }
-    }
+    y += 38.0f;
+    accordion = editor_mode_accordion_layout_cursor_get(
+        context->x, context->width, y);
+    EditorModeAccordionLayoutResult elements =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->elements_section, "editor.object.section.elements",
+            element_rows, object->hierarchy_count, 6.0f);
+    elements_open = elements.expanded; elements_y = elements.content_y;
     if(elements_open)
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];

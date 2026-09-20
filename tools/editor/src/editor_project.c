@@ -1510,6 +1510,9 @@ static bool editor_project_hierarchy_item_exists(const EditorObject *object,
     } else if(item.kind == EDITOR_HIERARCHY_CAMERA) {
         for(size_t i = 0; i < object->camera_count; i += 1)
             if(object->cameras[i].id == item.id) return true;
+    } else if(item.kind == EDITOR_HIERARCHY_ANCHOR) {
+        for(size_t i = 0; i < object->anchor_count; i += 1)
+            if(object->anchors[i].id == item.id) return true;
     }
     return false;
 }
@@ -1580,6 +1583,15 @@ void editor_project_object_hierarchy_sync(EditorObject *object) {
     }
     for(size_t i = 0; i < object->camera_count; i += 1) {
         EditorHierarchyItem item = {EDITOR_HIERARCHY_CAMERA, object->cameras[i].id};
+        bool found = false;
+        for(size_t j = 0; j < object->hierarchy_count; j += 1)
+            if(object->hierarchy[j].kind == item.kind &&
+                    object->hierarchy[j].id == item.id) found = true;
+        if(!found) editor_project_hierarchy_item_add(object, item.kind, item.id);
+    }
+    for(size_t i = 0; i < object->anchor_count; i += 1) {
+        EditorHierarchyItem item = {EDITOR_HIERARCHY_ANCHOR,
+            object->anchors[i].id};
         bool found = false;
         for(size_t j = 0; j < object->hierarchy_count; j += 1)
             if(object->hierarchy[j].kind == item.kind &&
@@ -1797,6 +1809,7 @@ EditorAnchor *editor_project_anchor_add(EditorProject *project, EditorObject *ob
         .position_follows_body = rigid_body != 0,
         .rotation_follows_body = rigid_body != 0, .visible = true};
     snprintf(anchor->name, sizeof(anchor->name), "anchor_%u", anchor->id);
+    editor_project_hierarchy_item_add(object, EDITOR_HIERARCHY_ANCHOR, anchor->id);
     return anchor;
 }
 
@@ -1920,6 +1933,7 @@ bool editor_project_anchor_remove(EditorObject *object, EditorAnchorId id) {
         }
         object->anchor_count -= 1;
         object->anchors[object->anchor_count] = (EditorAnchor){0};
+        editor_project_object_hierarchy_sync(object);
         return true;
     }
     return false;

@@ -2024,7 +2024,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *item = yyjson_arr_get(hierarchy, j);
                 uint32_t kind;
                 if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                        kind > EDITOR_HIERARCHY_CAMERA ||
+                        kind > EDITOR_HIERARCHY_ANCHOR ||
                         !editor_json_uint(item, "id", &object->hierarchy[j].id) ||
                         object->hierarchy[j].id == 0) goto done;
                 object->hierarchy[j].kind = (EditorHierarchyItemKind)kind;
@@ -2034,10 +2034,12 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             size_t serialized_count = object->hierarchy_count;
             size_t expected_count = object->rigid_body_count + object->joint_count +
                 object->soft_body_count + object->sprite_count +
-                object->animated_sprite_count + object->camera_count;
+                object->animated_sprite_count + object->camera_count +
+                object->anchor_count;
             editor_project_object_hierarchy_sync(object);
-            if(hierarchy != NULL && (object->hierarchy_count != serialized_count ||
-                    object->hierarchy_count != expected_count)) goto done;
+            if(hierarchy != NULL && (object->hierarchy_count != expected_count ||
+                    (serialized_count != expected_count && serialized_count !=
+                        expected_count - object->anchor_count))) goto done;
         }
         if(loaded.next_id <= object->id) loaded.next_id = object->id + 1;
     }

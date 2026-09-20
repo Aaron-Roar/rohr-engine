@@ -163,7 +163,9 @@ int main(void) {
     anchor = editor_project_anchor_add(&project, object, (Position){0}, body->id);
     joint = editor_project_joint_add(&project, object, EDITOR_JOINT_SPRING);
     soft_body = editor_project_soft_body_add(&project, object);
-    if(anchor == NULL || joint == NULL || soft_body == NULL) return 1;
+    if(anchor == NULL || joint == NULL || soft_body == NULL ||
+            editor_project_object_hierarchy_index_get(object,
+                EDITOR_HIERARCHY_ANCHOR, anchor->id) == SIZE_MAX) return 1;
     node_a = editor_project_soft_node_add(&project, soft_body, (Position){0});
     node_b = editor_project_soft_node_add(&project, soft_body, (Position){30.0f, 0.0f});
     if(node_a == NULL || node_b == NULL) return 1;
@@ -584,6 +586,7 @@ int main(void) {
         EditorRigidBodyId body_id = body->id;
         EditorRigidBodyId body_b_id = body_b->id;
         EditorRigidBodyId body_c_id;
+        size_t body_c_original_index;
         EditorSelectionRef first = {EDITOR_SELECTION_RIGID_BODY,
             object->id, 0, 0, body_id};
         EditorSelectionRef second = {EDITOR_SELECTION_RIGID_BODY,
@@ -591,6 +594,8 @@ int main(void) {
         EditorSelectionRef third;
         if(body_c == NULL) return 1;
         body_c_id = body_c->id;
+        body_c_original_index = editor_project_object_hierarchy_index_get(object,
+            EDITOR_HIERARCHY_RIGID_BODY, body_c_id);
         third = (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
             object->id, 0, 0, body_c_id};
         editor_history_reset(&history);
@@ -619,7 +624,8 @@ int main(void) {
                 object->hierarchy[0].id != body_id ||
                 object->hierarchy[1].id != body_b_id ||
                 editor_project_object_hierarchy_index_get(object,
-                    EDITOR_HIERARCHY_RIGID_BODY, body_c_id) != 4) return 1;
+                    EDITOR_HIERARCHY_RIGID_BODY, body_c_id) !=
+                        body_c_original_index) return 1;
         editor_history_reset(&history);
         editor_viewport_selection_clear(&state);
         if(!editor_viewport_selection_set(&project, &state, second, false) ||

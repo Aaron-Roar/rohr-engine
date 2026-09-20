@@ -20,11 +20,17 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
         EditorSelectionRef second) {
     bool object_children = (first.kind == EDITOR_SELECTION_RIGID_BODY ||
             first.kind == EDITOR_SELECTION_JOINT ||
+            first.kind == EDITOR_SELECTION_ANCHOR ||
             first.kind == EDITOR_SELECTION_SOFT_BODY ||
+            first.kind == EDITOR_SELECTION_SPRITE ||
+            first.kind == EDITOR_SELECTION_CAMERA ||
             first.kind == EDITOR_SELECTION_ANIMATED_SPRITE) &&
         (second.kind == EDITOR_SELECTION_RIGID_BODY ||
             second.kind == EDITOR_SELECTION_JOINT ||
+            second.kind == EDITOR_SELECTION_ANCHOR ||
             second.kind == EDITOR_SELECTION_SOFT_BODY ||
+            second.kind == EDITOR_SELECTION_SPRITE ||
+            second.kind == EDITOR_SELECTION_CAMERA ||
             second.kind == EDITOR_SELECTION_ANIMATED_SPRITE);
     bool soft_children = (first.kind == EDITOR_SELECTION_SOFT_NODE ||
             first.kind == EDITOR_SELECTION_SOFT_BEAM ||
@@ -127,6 +133,7 @@ static EditorHierarchyItemKind editor_hierarchy_kind_get(
     if(kind == EDITOR_SELECTION_ANIMATED_SPRITE)
         return EDITOR_HIERARCHY_ANIMATED_SPRITE;
     if(kind == EDITOR_SELECTION_CAMERA) return EDITOR_HIERARCHY_CAMERA;
+    if(kind == EDITOR_SELECTION_ANCHOR) return EDITOR_HIERARCHY_ANCHOR;
     return EDITOR_HIERARCHY_RIGID_BODY;
 }
 
@@ -139,6 +146,7 @@ static EditorSelectionRef editor_hierarchy_selection_get(EditorObjectId object,
     else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE)
         kind = EDITOR_SELECTION_ANIMATED_SPRITE;
     else if(item.kind == EDITOR_HIERARCHY_CAMERA) kind = EDITOR_SELECTION_CAMERA;
+    else if(item.kind == EDITOR_HIERARCHY_ANCHOR) kind = EDITOR_SELECTION_ANCHOR;
     return (EditorSelectionRef){kind, object, 0, 0, item.id};
 }
 
@@ -335,11 +343,17 @@ bool editor_navigation_selection_reorder(EditorProject *project,
     if(!editor_selection_sibling_check(source, target)) return false;
     if((source.kind == EDITOR_SELECTION_RIGID_BODY ||
                 source.kind == EDITOR_SELECTION_JOINT ||
+                source.kind == EDITOR_SELECTION_ANCHOR ||
                 source.kind == EDITOR_SELECTION_SOFT_BODY ||
+                source.kind == EDITOR_SELECTION_SPRITE ||
+                source.kind == EDITOR_SELECTION_CAMERA ||
                 source.kind == EDITOR_SELECTION_ANIMATED_SPRITE) &&
                 (target.kind == EDITOR_SELECTION_RIGID_BODY ||
                     target.kind == EDITOR_SELECTION_JOINT ||
+                    target.kind == EDITOR_SELECTION_ANCHOR ||
                     target.kind == EDITOR_SELECTION_SOFT_BODY ||
+                    target.kind == EDITOR_SELECTION_SPRITE ||
+                    target.kind == EDITOR_SELECTION_CAMERA ||
                     target.kind == EDITOR_SELECTION_ANIMATED_SPRITE) &&
                 source.object == target.object && source.parent == 0)
         return editor_object_hierarchy_reorder(project, state, source,

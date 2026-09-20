@@ -817,9 +817,10 @@ static float editor_panel_content_height_get(const EditorProject *project,
     }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {
-        return fmaxf(height, 400.0f + (float)(object->rigid_body_count +
-            object->joint_count + object->soft_body_count + object->sprite_count +
-            object->animated_sprite_count + object->camera_count) * 30.0f);
+        return fmaxf(height, 444.0f + (float)(object->rigid_body_count +
+            object->joint_count + object->anchor_count + object->soft_body_count +
+            object->sprite_count + object->animated_sprite_count +
+            object->camera_count) * 30.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_RIGID_BODY) {
         for(size_t i = 0; i < object->rigid_body_count; i += 1) {
@@ -2844,7 +2845,6 @@ int main(void) {
         viewport_state.preview_soft_node = 0;
         viewport_state.preview_camera = 0;
         field_editing = false;
-        editor_mode_accordion_layout_measure_reset();
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
             mouse.button_states[MOUSE_BUTTON_LEFT];
@@ -2863,6 +2863,7 @@ int main(void) {
                     4.0f, EDITOR_TOOLS_WIDTH - 12.0f, 30.0f},
                 fmaxf(0.0f, panel_content_height - 34.0f));
         }
+        editor_mode_accordion_layout_measure_reset();
         if(!mode_properties_open) {
             field_editing = false;
         } else if(viewport_state.selected_item_count > 1 &&
