@@ -191,6 +191,11 @@ void editor_mode_accordion_layout_measure_reset(void) {
     editor_mode_accordion_measured_bottom = 0.0f;
 }
 
+void editor_mode_accordion_layout_measure_include(float bottom) {
+    if(bottom > editor_mode_accordion_measured_bottom)
+        editor_mode_accordion_measured_bottom = bottom;
+}
+
 float editor_mode_accordion_layout_measure_get(void) {
     return editor_mode_accordion_measured_bottom;
 }

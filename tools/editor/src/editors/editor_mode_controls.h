@@ -96,6 +96,7 @@ float editor_mode_accordion_layout_row_y(
     const EditorModeAccordionLayoutResult *section,
     const float *row_heights, size_t row_index, float row_gap);
 void editor_mode_accordion_layout_measure_reset(void);
+void editor_mode_accordion_layout_measure_include(float bottom);
 float editor_mode_accordion_layout_measure_get(void);
 UIButtonStyle editor_mode_section_field_style_get(void);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,

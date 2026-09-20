@@ -251,10 +251,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     }
     y += 36.0f;
     size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
-    contents_y = y;
     EditorModeAccordionLayoutCursor accordion =
-        editor_mode_accordion_layout_cursor_get(context->x, context->width,
-            y + 34.0f + (float)content_items * 34.0f);
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     const float transform_rows[] = {26.0f, 26.0f, 26.0f, 28.0f};
     const float appearance_rows[] = {28.0f};
     EditorModeAccordionLayoutResult transform =
@@ -265,6 +263,9 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->appearance_section, "editor.layout.section.appearance",
             appearance_rows, 1, 6.0f);
+    contents_y = accordion.y;
+    editor_mode_accordion_layout_measure_include(
+        contents_y + 34.0f + (float)content_items * 34.0f);
     transform_open = transform.expanded; transform_y = transform.content_y;
     appearance_open = appearance.expanded; appearance_y = appearance.content_y;
     x_result = (UIFieldResult){0}; y_result = (UIFieldResult){0};
