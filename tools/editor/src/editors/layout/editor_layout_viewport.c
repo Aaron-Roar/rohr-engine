@@ -778,8 +778,9 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
             &editor->ui_interaction_section,
             "editor.layout.ui.section.interaction",
             interaction_rows, interaction_count, 10.0f);
-    EditorModeAccordionLayoutResult appearance =
-        editor_mode_accordion_layout_section(&accordion,
+    EditorModeAccordionLayoutResult appearance = {0};
+    if(item->kind != EDITOR_VIEWPORT_UI_SLIDER)
+        appearance = editor_mode_accordion_layout_section(&accordion,
             &editor->ui_appearance_section,
             "editor.layout.ui.section.appearance",
             appearance_rows, appearance_count, 10.0f);
@@ -1055,6 +1056,56 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         offset_y_result.active;
 }
 
+static bool layout_slider_border_appearance_draw(
+        EditorLayoutViewportEditor *editor, const EditorModeContext *context,
+        EditorViewportUiItem *item, float *y) {
+    UIFieldResult thickness = {0}, spacing = {0}, radius = {0};
+    bool border_enabled = item->border_enabled;
+    if(editor_mode_checkbox_left("editor.layout.ui.border", &editor->border_label,
+            (UIRect){context->x + 10.0f, *y, context->width - 20.0f, 28.0f},
+            &border_enabled)) item->border_enabled = border_enabled;
+    *y += 38.0f;
+    if(!item->border_enabled) return false;
+    const TextAsset *types[] = {&editor->border_line_label,
+        &editor->border_hashed_label};
+    rohr_ui_label(&editor->border_type_label,
+        (UIRect){context->x + 8.0f, *y, 82.0f, 28.0f});
+    UIDropdownResult type = editor_mode_dropdown("editor.layout.ui.border_type",
+        types, 2, item->border_type, (UIRect){context->x + 94.0f, *y,
+            context->width - 104.0f, 28.0f}, NULL);
+    if(type.changed) item->border_type =
+        (EditorViewportUiBorderType)type.selected_index;
+    *y += 38.0f;
+    thickness = layout_number(&editor->border_thickness_label,
+        &editor->border_thickness_field, "editor.layout.ui.border_thickness",
+        context->x, *y, context->width, &item->border_thickness);
+    item->border_thickness = fmaxf(0.1f, item->border_thickness);
+    *y += 38.0f;
+    if(item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED) {
+        spacing = layout_number(&editor->hash_spacing_label,
+            &editor->hash_spacing_field, "editor.layout.ui.hash_spacing",
+            context->x, *y, context->width, &item->border_hash_spacing);
+        item->border_hash_spacing = fmaxf(0.1f, item->border_hash_spacing);
+        *y += 38.0f;
+    }
+    radius = layout_number(&editor->corner_radius_label,
+        &editor->corner_radius_field, "editor.layout.ui.corner_radius",
+        context->x, *y, context->width, &item->border_corner_radius);
+    item->border_corner_radius = fmaxf(0.0f, item->border_corner_radius);
+    *y += 38.0f;
+    rohr_ui_label(&editor->border_color_label,
+        (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+    (void)layout_local_swatch("editor.layout.ui.border_color", &item->border_color,
+        (UIRect){context->x + context->width - 46.0f, *y, 36.0f, 28.0f}, context);
+    *y += 38.0f;
+    rohr_ui_label(&editor->fill_color_label,
+        (UIRect){context->x + 8.0f, *y, 120.0f, 28.0f});
+    (void)layout_local_swatch("editor.layout.ui.fill_color", &item->fill_color,
+        (UIRect){context->x + context->width - 46.0f, *y, 36.0f, 28.0f}, context);
+    *y += 42.0f;
+    return thickness.active || spacing.active || radius.active;
+}
+
 bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context) {
     EditorViewportUiItem *item = layout_ui_item_get(context,
@@ -1063,16 +1114,19 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     UIFieldResult minimum, maximum, value, step, length, track;
     UIFieldResult thumb_width, thumb_height, thumb_radius;
     float y = 42.0f;
-    bool active;
+    bool active, border_active = false;
     if(editor == NULL || item == NULL) return false;
     slider = &item->value.slider;
     active = layout_ui_common_draw(editor, context, item, &y);
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-    float appearance_rows[10];
-    size_t appearance_count = slider->thumb_shape ==
+    float appearance_rows[17];
+    size_t slider_appearance_count = slider->thumb_shape ==
         VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 9 : 10;
+    size_t border_appearance_count = item->border_enabled ?
+        6 + (item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED ? 1 : 0) : 1;
+    size_t appearance_count = slider_appearance_count + border_appearance_count;
     for(size_t row = 0; row < appearance_count; row += 1)
         appearance_rows[row] = 28.0f;
     EditorModeAccordionLayoutResult content =
@@ -1081,7 +1135,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
             content_rows, 6, 10.0f);
     EditorModeAccordionLayoutResult appearance =
         editor_mode_accordion_layout_section(&accordion,
-            &editor->appearance_section, "editor.ui_slider.section.appearance",
+            &editor->ui_appearance_section, "editor.ui_slider.section.appearance",
             appearance_rows, appearance_count, 10.0f);
     minimum = maximum = value = step = length = track = thumb_width =
         thumb_height = thumb_radius =
@@ -1120,6 +1174,8 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     }
     if(appearance.expanded) {
         y = appearance.content_y;
+        border_active = layout_slider_border_appearance_draw(
+            editor, context, item, &y);
         length = layout_number(&editor->length_label, &editor->length_field,
             "editor.ui_slider.length", context->x, y, context->width,
             &slider->length); y += 38.0f;
@@ -1172,7 +1228,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     }
     return active || minimum.active || maximum.active || value.active ||
         step.active || length.active || track.active || thumb_width.active ||
-        thumb_height.active || thumb_radius.active;
+        thumb_height.active || thumb_radius.active || border_active;
 }
 
 bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,
