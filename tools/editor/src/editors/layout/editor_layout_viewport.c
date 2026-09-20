@@ -205,69 +205,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
                 context->width - 20.0f, 28.0f}, &enabled))
         viewport->enabled = enabled;
-    EditorModeAccordionLayoutCursor accordion =
-        editor_mode_accordion_layout_cursor_get(
-            context->x, context->width, 118.0f);
-    const float transform_rows[] = {26.0f, 26.0f, 26.0f, 28.0f};
-    const float appearance_rows[] = {28.0f};
-    size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
-    float content_rows[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX +
-        EDITOR_LAYOUT_VIEWPORT_UI_MAX + 4] = {28.0f, 30.0f, 30.0f, 30.0f};
-    for(size_t i = 0; i < content_items; i += 1) content_rows[i + 4] = 28.0f;
-    EditorModeAccordionLayoutResult transform =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->transform_section, "editor.layout.section.transform",
-            transform_rows, 4, 6.0f);
-    EditorModeAccordionLayoutResult appearance =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->appearance_section, "editor.layout.section.appearance",
-            appearance_rows, 1, 6.0f);
-    EditorModeAccordionLayoutResult contents =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->contents_section, "editor.layout.section.contents",
-            content_rows, content_items + 4, 6.0f);
-    transform_open = transform.expanded; transform_y = transform.content_y;
-    appearance_open = appearance.expanded; appearance_y = appearance.content_y;
-    contents_open = contents.expanded; contents_y = contents.content_y;
-    x_result = (UIFieldResult){0}; y_result = (UIFieldResult){0};
-    width_result = (UIFieldResult){0}; height_result = (UIFieldResult){0};
-    if(transform_open) {
-    x_result = layout_number(&editor->x_label, &editor->x_field,
-        "editor.layout.x", context->x, transform_y, context->width,
-        &viewport->config.rectangle.x);
-    y_result = layout_number(&editor->y_label, &editor->y_field,
-        "editor.layout.y", context->x, transform_y + 32.0f, context->width,
-        &viewport->config.rectangle.y);
-    width_result = layout_number(&editor->width_label, &editor->width_field,
-        "editor.layout.width", context->x, transform_y + 64.0f, context->width,
-        &viewport->config.rectangle.width);
-    height_result = layout_number(&editor->height_label, &editor->height_field,
-        "editor.layout.height", context->x, transform_y + 96.0f, context->width,
-        &viewport->config.rectangle.height);
-    }
-    if(appearance_open) {
-    rohr_ui_label(&editor->background_color_label,
-        (UIRect){context->x + 8.0f, appearance_y,
-            context->width - 64.0f, 28.0f});
-    (void)layout_local_swatch("editor.layout.background_color",
-        &viewport->background_color,
-        (UIRect){context->x + context->width - 48.0f, appearance_y,
-            38.0f, 28.0f},
-        context);
-    }
-    if(name_result.changed) {
-        EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
-            .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
-                .item = viewport->id}};
-        snprintf(command.data.item_rename.name, sizeof(command.data.item_rename.name),
-            "%s", name);
-        (void)editor_command_execute(context->project, &command);
-    }
-    if(contents_open) {
-    rohr_ui_label(&editor->cameras_label,
-        (UIRect){context->x + 8.0f, contents_y,
-            context->width - 16.0f, 28.0f});
-    y = contents_y + 34.0f;
+    y = 118.0f;
     if(rohr_ui_button("editor.layout.add_shape", &editor->add_shape_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f,
                 30.0f}, NULL).clicked) {
@@ -315,6 +253,68 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 36.0f;
+    EditorModeAccordionLayoutCursor accordion =
+        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+    const float transform_rows[] = {26.0f, 26.0f, 26.0f, 28.0f};
+    const float appearance_rows[] = {28.0f};
+    size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
+    float content_rows[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX +
+        EDITOR_LAYOUT_VIEWPORT_UI_MAX + 1] = {28.0f};
+    for(size_t i = 0; i < content_items; i += 1) content_rows[i + 1] = 28.0f;
+    EditorModeAccordionLayoutResult transform =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->transform_section, "editor.layout.section.transform",
+            transform_rows, 4, 6.0f);
+    EditorModeAccordionLayoutResult appearance =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->appearance_section, "editor.layout.section.appearance",
+            appearance_rows, 1, 6.0f);
+    EditorModeAccordionLayoutResult contents =
+        editor_mode_accordion_layout_section(&accordion,
+            &editor->contents_section, "editor.layout.section.contents",
+            content_rows, content_items + 1, 6.0f);
+    transform_open = transform.expanded; transform_y = transform.content_y;
+    appearance_open = appearance.expanded; appearance_y = appearance.content_y;
+    contents_open = contents.expanded; contents_y = contents.content_y;
+    x_result = (UIFieldResult){0}; y_result = (UIFieldResult){0};
+    width_result = (UIFieldResult){0}; height_result = (UIFieldResult){0};
+    if(transform_open) {
+    x_result = layout_number(&editor->x_label, &editor->x_field,
+        "editor.layout.x", context->x, transform_y, context->width,
+        &viewport->config.rectangle.x);
+    y_result = layout_number(&editor->y_label, &editor->y_field,
+        "editor.layout.y", context->x, transform_y + 32.0f, context->width,
+        &viewport->config.rectangle.y);
+    width_result = layout_number(&editor->width_label, &editor->width_field,
+        "editor.layout.width", context->x, transform_y + 64.0f, context->width,
+        &viewport->config.rectangle.width);
+    height_result = layout_number(&editor->height_label, &editor->height_field,
+        "editor.layout.height", context->x, transform_y + 96.0f, context->width,
+        &viewport->config.rectangle.height);
+    }
+    if(appearance_open) {
+    rohr_ui_label(&editor->background_color_label,
+        (UIRect){context->x + 8.0f, appearance_y,
+            context->width - 64.0f, 28.0f});
+    (void)layout_local_swatch("editor.layout.background_color",
+        &viewport->background_color,
+        (UIRect){context->x + context->width - 48.0f, appearance_y,
+            38.0f, 28.0f},
+        context);
+    }
+    if(name_result.changed) {
+        EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
+            .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
+                .item = viewport->id}};
+        snprintf(command.data.item_rename.name, sizeof(command.data.item_rename.name),
+            "%s", name);
+        (void)editor_command_execute(context->project, &command);
+    }
+    if(contents_open) {
+    rohr_ui_label(&editor->cameras_label,
+        (UIRect){context->x + 8.0f, contents_y,
+            context->width - 16.0f, 28.0f});
+    y = contents_y + 34.0f;
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
         EditorViewportCameraItem *item = &viewport->camera_items[i];
         char id[80];
