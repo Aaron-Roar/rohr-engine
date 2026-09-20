@@ -65,6 +65,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Thumb Shape", thumb_shape_label); CREATE("Rectangle", rectangle_label);
     CREATE("Circle", circle_label); CREATE("Thumb Width", thumb_width_label);
     CREATE("Thumb Height", thumb_height_label); CREATE("Thumb Radius", thumb_radius_label);
+    CREATE("Thumb Offset", thumb_offset_label);
     CREATE("Track Color", track_color_label); CREATE("Filled Track", filled_track_color_label);
     CREATE("Thumb Color", thumb_color_label); CREATE("Hover Thumb", hover_thumb_color_label);
     CREATE("Pressed Thumb", pressed_thumb_color_label);
@@ -87,6 +88,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("", step_field); CREATE("", track_thickness_field);
     CREATE("", thumb_width_field); CREATE("", thumb_height_field);
     CREATE("", thumb_radius_field);
+    CREATE("", thumb_offset_field);
     CREATE("", content_x_field); CREATE("", content_y_field);
     CREATE("", content_rotation_field);
     CREATE("", border_thickness_field); CREATE("", hash_spacing_field);
@@ -145,6 +147,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(vertical_label); DESTROY(track_thickness_label); DESTROY(thumb_shape_label);
     DESTROY(rectangle_label); DESTROY(circle_label); DESTROY(thumb_width_label);
     DESTROY(thumb_height_label); DESTROY(thumb_radius_label);
+    DESTROY(thumb_offset_label);
     DESTROY(track_color_label); DESTROY(filled_track_color_label);
     DESTROY(thumb_color_label); DESTROY(hover_thumb_color_label);
     DESTROY(pressed_thumb_color_label);
@@ -165,6 +168,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(minimum_field); DESTROY(maximum_field); DESTROY(value_field);
     DESTROY(step_field); DESTROY(track_thickness_field);
     DESTROY(thumb_width_field); DESTROY(thumb_height_field); DESTROY(thumb_radius_field);
+    DESTROY(thumb_offset_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
@@ -1112,7 +1116,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
         EDITOR_VIEWPORT_UI_SLIDER);
     EditorViewportUiSlider *slider;
     UIFieldResult minimum, maximum, value, step, length, track;
-    UIFieldResult thumb_width, thumb_height, thumb_radius;
+    UIFieldResult thumb_width, thumb_height, thumb_radius, thumb_offset;
     float y = 42.0f;
     bool active, border_active = false;
     if(editor == NULL || item == NULL) return false;
@@ -1121,9 +1125,9 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-    float appearance_rows[17];
+    float appearance_rows[18];
     size_t slider_appearance_count = slider->thumb_shape ==
-        VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 9 : 10;
+        VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 10 : 11;
     size_t border_appearance_count = item->border_enabled ?
         6 + (item->border_type == EDITOR_VIEWPORT_UI_BORDER_HASHED ? 1 : 0) : 1;
     size_t appearance_count = slider_appearance_count + border_appearance_count;
@@ -1138,7 +1142,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
             &editor->ui_appearance_section, "editor.ui_slider.section.appearance",
             appearance_rows, appearance_count, 10.0f);
     minimum = maximum = value = step = length = track = thumb_width =
-        thumb_height = thumb_radius =
+        thumb_height = thumb_radius = thumb_offset =
         (UIFieldResult){0};
     if(content.expanded) {
         const TextAsset *orientation_options[] = {&editor->horizontal_label,
@@ -1205,6 +1209,9 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
                 &editor->thumb_radius_field, "editor.ui_slider.thumb_radius",
                 context->x, y, context->width, &slider->thumb_radius); y += 38.0f;
         }
+        thumb_offset = layout_number(&editor->thumb_offset_label,
+            &editor->thumb_offset_field, "editor.ui_slider.thumb_offset",
+            context->x, y, context->width, &slider->thumb_offset); y += 38.0f;
 #define SLIDER_SWATCH(id, label, member) \
         rohr_ui_label(&(label), (UIRect){context->x + 8.0f, y, 120.0f, 28.0f}); \
         (void)layout_local_swatch((id), &(member), (UIRect){context->x + \
@@ -1228,7 +1235,8 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     }
     return active || minimum.active || maximum.active || value.active ||
         step.active || length.active || track.active || thumb_width.active ||
-        thumb_height.active || thumb_radius.active || border_active;
+        thumb_height.active || thumb_radius.active || thumb_offset.active ||
+        border_active;
 }
 
 bool editor_ui_vertex_editor_draw(EditorLayoutViewportEditor *editor,

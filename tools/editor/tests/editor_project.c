@@ -216,6 +216,7 @@ int main(void) {
             slider->value.slider.orientation = VIEWPORT_UI_SLIDER_VERTICAL;
             slider->value.slider.thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE;
             slider->value.slider.thumb_radius = 14.0f;
+            slider->value.slider.thumb_offset = -18.0f;
             workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
             if(editor_viewport_ui_mount(&workspace_project,
                     &workspace_project.layout_viewports[0],
@@ -292,6 +293,8 @@ int main(void) {
                     VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
                 fabsf(loaded_project.layout_viewports[0].ui_items[2].
                     value.slider.thumb_radius - 14.0f) > 0.001f ||
+                fabsf(loaded_project.layout_viewports[0].ui_items[2].
+                    value.slider.thumb_offset + 18.0f) > 0.001f ||
                 loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].placement.
@@ -352,6 +355,7 @@ int main(void) {
                 !file_contains(path, ".orientation=1") ||
                 !file_contains(path, ".thumb_shape=1") ||
                 !file_contains(path, ".thumb_radius=14.00000000f") ||
+                !file_contains(path, ".thumb_offset=-18.00000000f") ||
                 !file_contains(path, "rohr_graphics_layer_create(\"hud\", 500)") ||
                 !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
                 !file_contains(path, "rohr_graphics_layer_entity_id_set") ||

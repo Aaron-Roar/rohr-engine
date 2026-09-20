@@ -1861,7 +1861,8 @@ GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
 static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
     if(slider == NULL || !isfinite(slider->minimum) ||
             !isfinite(slider->maximum) || !isfinite(slider->value) ||
-            !isfinite(slider->step) || slider->maximum <= slider->minimum ||
+            !isfinite(slider->step) || !isfinite(slider->thumb_offset) ||
+            slider->maximum <= slider->minimum ||
             slider->step < 0.0f || slider->orientation <
                 VIEWPORT_UI_SLIDER_HORIZONTAL ||
             slider->orientation > VIEWPORT_UI_SLIDER_VERTICAL) return false;
@@ -3362,8 +3363,11 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
             VIEWPORT_UI_SLIDER_HORIZONTAL ? slider->thumb_height :
                 slider->thumb_width;
     hit_half = fmaxf(slider->track_thickness, thumb_across) * 0.5f;
-    hovered = fabsf(along) <= half_length + thumb_along * 0.5f &&
-        fabsf(across) <= hit_half;
+    float hover_min = fminf(-half_length,
+        -half_length + slider->thumb_offset - thumb_along * 0.5f);
+    float hover_max = fmaxf(half_length,
+        half_length + slider->thumb_offset + thumb_along * 0.5f);
+    hovered = along >= hover_min && along <= hover_max && fabsf(across) <= hit_half;
     if(hovered && item->clip_enabled &&
             (pointer.x < viewport->rectangle.x + item->clip_rectangle.x ||
              pointer.y < viewport->rectangle.y + item->clip_rectangle.y ||
@@ -3378,7 +3382,7 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     if(active && mouse_down && slider->enabled) {
         float previous = slider->value;
         float unit = fmaxf(0.0f, fminf(1.0f,
-            (along + half_length) / slider->length));
+            (along - slider->thumb_offset + half_length) / slider->length));
         slider->value = slider->minimum +
             (slider->maximum - slider->minimum) * unit;
         (void)graphics_ui_slider_prepare(slider);
@@ -3388,8 +3392,10 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     amount = (slider->value - slider->minimum) /
         (slider->maximum - slider->minimum);
     thumb_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        (Position){-half_length + slider->length * amount, 0.0f} :
-        (Position){0.0f, -half_length + slider->length * amount};
+        (Position){-half_length + slider->length * amount +
+            slider->thumb_offset, 0.0f} :
+        (Position){0.0f, -half_length + slider->length * amount +
+            slider->thumb_offset};
     start = graphics_viewport_ui_local_point_get(viewport, item, start_local);
     end = graphics_viewport_ui_local_point_get(viewport, item, end_local);
     thumb = graphics_viewport_ui_local_point_get(viewport, item, thumb_local);

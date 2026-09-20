@@ -2045,14 +2045,17 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
                 thumb_height : thumb_width);
         float along = item->value.slider.orientation ==
             VIEWPORT_UI_SLIDER_HORIZONTAL ? thumb_width : thumb_height;
+        float offset_before = fminf(0.0f, item->value.slider.thumb_offset);
+        float offset_size = fabsf(item->value.slider.thumb_offset);
         return item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
             (ViewportRectangle){item->position.x -
-                    (item->value.slider.length + along) * 0.5f,
+                    (item->value.slider.length + along) * 0.5f + offset_before,
                 item->position.y - thickness * 0.5f,
-                item->value.slider.length + along, thickness} :
+                item->value.slider.length + along + offset_size, thickness} :
             (ViewportRectangle){item->position.x - thickness * 0.5f,
-                item->position.y - (item->value.slider.length + along) * 0.5f,
-                thickness, item->value.slider.length + along};
+                item->position.y - (item->value.slider.length + along) * 0.5f +
+                    offset_before,
+                thickness, item->value.slider.length + along + offset_size};
     }
     if(item->value.shape.vertex_count == 0)
         return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
@@ -2098,7 +2101,8 @@ static bool editor_viewport_ui_slider_hit_check(
             fabsf(across) <= track_hit_half) return true;
     amount = (slider->value - slider->minimum) /
         (slider->maximum - slider->minimum);
-    along -= -slider->length * 0.5f + slider->length * amount;
+    along -= -slider->length * 0.5f + slider->length * amount +
+        slider->thumb_offset;
     if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE)
         return along * along + across * across <=
             slider->thumb_radius * slider->thumb_radius;
@@ -5580,8 +5584,12 @@ void editor_viewport_draw(const EditorProject *project,
                             VIEWPORT_UI_SLIDER_HORIZONTAL ?
                         (Position){half, 0.0f} : (Position){0.0f, half};
                     Position local_thumb = {
-                        local_start.x + (local_end.x - local_start.x) * amount,
-                        local_start.y + (local_end.y - local_start.y) * amount};
+                        local_start.x + (local_end.x - local_start.x) * amount +
+                            (slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+                                slider->thumb_offset : 0.0f),
+                        local_start.y + (local_end.y - local_start.y) * amount +
+                            (slider->orientation == VIEWPORT_UI_SLIDER_VERTICAL ?
+                                slider->thumb_offset : 0.0f)};
                     Vec2D start_delta = math_vector_rotate(
                         (Vec2D){local_start.x, local_start.y}, item->rotation);
                     Vec2D end_delta = math_vector_rotate(

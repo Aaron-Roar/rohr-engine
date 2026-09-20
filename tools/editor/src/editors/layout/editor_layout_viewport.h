@@ -29,6 +29,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset track_thickness_label, thumb_shape_label;
     TextAsset rectangle_label, circle_label;
     TextAsset thumb_width_label, thumb_height_label, thumb_radius_label;
+    TextAsset thumb_offset_label;
     TextAsset track_color_label, filled_track_color_label, thumb_color_label;
     TextAsset hover_thumb_color_label, pressed_thumb_color_label;
     TextAsset text_label, font_file_label, font_color_label;
@@ -46,6 +47,7 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset minimum_field, maximum_field, value_field, step_field;
     TextAsset track_thickness_field;
     TextAsset thumb_width_field, thumb_height_field, thumb_radius_field;
+    TextAsset thumb_offset_field;
     TextAsset content_x_field, content_y_field, content_rotation_field;
     TextAsset border_thickness_field, hash_spacing_field, corner_radius_field;
     TextAsset camera_names[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];

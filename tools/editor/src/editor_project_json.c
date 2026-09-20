@@ -472,6 +472,7 @@ static yyjson_mut_val *editor_json_ui_definition_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_real(document, item, "thumb_width", slider->thumb_width);
         yyjson_mut_obj_add_real(document, item, "thumb_height", slider->thumb_height);
         yyjson_mut_obj_add_real(document, item, "thumb_radius", slider->thumb_radius);
+        yyjson_mut_obj_add_real(document, item, "thumb_offset", slider->thumb_offset);
         yyjson_mut_obj_add_uint(document, item, "orientation", slider->orientation);
         yyjson_mut_obj_add_uint(document, item, "track_color", slider->track_color);
         yyjson_mut_obj_add_uint(document, item, "filled_track_color",
@@ -1397,6 +1398,7 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
         }
         OPTIONAL_UINT("orientation", &orientation);
         OPTIONAL_UINT("thumb_shape", &thumb_shape);
+        OPTIONAL_REAL("thumb_offset", &slider->thumb_offset);
         OPTIONAL_UINT("track_color", &slider->track_color);
         OPTIONAL_UINT("filled_track_color", &slider->filled_track_color);
         OPTIONAL_UINT("thumb_color", &slider->thumb_color);

@@ -232,6 +232,7 @@ typedef struct ViewportUiSliderConfig {
     float thumb_width;
     float thumb_height;
     float thumb_radius;
+    float thumb_offset;
     ViewportUiSliderOrientation orientation;
     ViewportUiSliderThumbShape thumb_shape;
     Color track_color;
