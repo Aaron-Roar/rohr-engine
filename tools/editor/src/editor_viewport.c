@@ -2225,6 +2225,30 @@ static void editor_viewport_screen_circle_draw(Position center, float radius,
     }
 }
 
+static void editor_viewport_slider_thumb_outline_draw(Position center,
+        const EditorViewportUiSlider *slider, float rotation, float zoom,
+        float expansion, Color color) {
+    if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE) {
+        editor_viewport_screen_circle_draw(center,
+            slider->thumb_radius * zoom + expansion, color);
+        return;
+    }
+    Position corners[4];
+    const float signs[4][2] = {
+        {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    for(size_t corner = 0; corner < 4; corner += 1) {
+        Vec2D delta = math_vector_rotate((Vec2D){
+            signs[corner][0] *
+                (slider->thumb_width * zoom * 0.5f + expansion),
+            signs[corner][1] *
+                (slider->thumb_height * zoom * 0.5f + expansion)}, rotation);
+        corners[corner] = (Position){center.x + delta.x, center.y + delta.y};
+    }
+    for(size_t corner = 0; corner < 4; corner += 1)
+        editor_viewport_screen_line_draw(corners[corner],
+            corners[(corner + 1) % 4], color);
+}
+
 static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
         EditorUiFontId id) {
     char resolved[EDITOR_ASSET_PATH_MAX * 2];
@@ -5573,40 +5597,30 @@ void editor_viewport_draw(const EditorProject *project,
                     Position thumb = {rectangle.x +
                             (item->position.x + thumb_delta.x) * zoom,
                         rectangle.y + (item->position.y + thumb_delta.y) * zoom};
-                    Color track_color = whole_selected ?
-                        (Color){255, 210, 70, 255} :
+                    Color selection_color = {255, 210, 70, 255};
+                    Color track_color =
                         rohr_graphics_color_hex_create(slider->track_color);
-                    Color filled_track_color = whole_selected ?
-                        (Color){255, 210, 70, 255} :
-                        rohr_graphics_color_hex_create(
-                            slider->filled_track_color);
+                    Color filled_track_color = rohr_graphics_color_hex_create(
+                        slider->filled_track_color);
+                    if(whole_selected) {
+                        editor_viewport_screen_dotted_line_draw(start, end,
+                            selection_color, 1.0f,
+                            slider->track_thickness * zoom + 4.0f);
+                        editor_viewport_screen_dotted_line_draw(start, thumb,
+                            selection_color, 1.0f,
+                            slider->track_thickness * zoom + 4.0f);
+                    }
                     editor_viewport_screen_dotted_line_draw(start, end,
                         track_color, 1.0f, slider->track_thickness * zoom);
                     editor_viewport_screen_dotted_line_draw(start, thumb,
                         filled_track_color, 1.0f,
                         slider->track_thickness * zoom);
-                    Color thumb_color = whole_selected ?
-                        (Color){255, 210, 70, 255} :
-                        rohr_graphics_color_hex_create(slider->thumb_color);
-                    if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE) {
-                        editor_viewport_screen_circle_draw(thumb,
-                            slider->thumb_radius * zoom, thumb_color);
-                    } else {
-                        Position corners[4];
-                        const float signs[4][2] = {{-1.0f, -1.0f},
-                            {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
-                        for(size_t corner = 0; corner < 4; corner += 1) {
-                            Vec2D delta = math_vector_rotate((Vec2D){
-                                signs[corner][0] * slider->thumb_width * zoom * 0.5f,
-                                signs[corner][1] * slider->thumb_height * zoom * 0.5f},
-                                item->rotation);
-                            corners[corner] = (Position){thumb.x + delta.x,
-                                thumb.y + delta.y};
-                        }
-                        for(size_t corner = 0; corner < 4; corner += 1)
-                            editor_viewport_screen_line_draw(corners[corner],
-                                corners[(corner + 1) % 4], thumb_color);
-                    }
+                    if(whole_selected)
+                        editor_viewport_slider_thumb_outline_draw(thumb, slider,
+                            item->rotation, zoom, 2.0f, selection_color);
+                    editor_viewport_slider_thumb_outline_draw(thumb, slider,
+                        item->rotation, zoom, 0.0f,
+                        rohr_graphics_color_hex_create(slider->thumb_color));
                     editor_view_composition_layer_base = 0;
                     continue;
                 }
