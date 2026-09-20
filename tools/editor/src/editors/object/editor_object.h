@@ -16,7 +16,7 @@ typedef struct EditorObjectEditor {
     TextAsset object_name_label, add_rigid_body_label, add_joint_label;
     TextAsset add_soft_body_label, add_sprite_label, add_animation_label, add_camera_label;
     TextAsset add_anchor_label;
-    TextAsset visibility_label, visible_label, hidden_label, delete_label;
+    TextAsset elements_label, visibility_label, visible_label, hidden_label, delete_label;
     TextAsset object_names[EDITOR_OBJECT_MAX];
     TextAsset rigid_body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset joint_names[EDITOR_JOINT_MAX];
@@ -32,7 +32,6 @@ typedef struct EditorObjectEditor {
     char animation_cache[32][EDITOR_OBJECT_NAME_MAX];
     char camera_cache[EDITOR_CAMERA_MAX][EDITOR_OBJECT_NAME_MAX];
     char anchor_cache[EDITOR_ANCHOR_MAX][EDITOR_OBJECT_NAME_MAX];
-    EditorModeAccordionSection elements_section;
 } EditorObjectEditor;
 
 bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font);

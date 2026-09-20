@@ -52,7 +52,6 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset font_names[EDITOR_UI_FONT_MAX];
     char font_cache[EDITOR_UI_FONT_MAX][EDITOR_OBJECT_NAME_MAX];
     EditorModeAccordionSection transform_section, appearance_section;
-    EditorModeAccordionSection contents_section;
     EditorModeAccordionSection source_section, placement_section;
     EditorModeAccordionSection interaction_section, content_section;
     EditorModeAccordionSection ui_transform_section, ui_interaction_section;

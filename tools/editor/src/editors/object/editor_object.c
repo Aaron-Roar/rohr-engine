@@ -26,12 +26,11 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
     CREATE("Add Anchor", add_anchor_label);
+    CREATE("Elements", elements_label);
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->elements_section, font,
-                "Elements", false)) goto fail;
     return true;
 fail:
     editor_object_editor_destroy(editor);
@@ -45,10 +44,10 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
     DESTROY(add_anchor_label);
+    DESTROY(elements_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(delete_label);
 #undef DESTROY
-    editor_mode_accordion_section_destroy(&editor->elements_section);
 #define DESTROY_ARRAY(array, count) \
     for(size_t i = 0; i < (count); i += 1) rohr_graphics_text_destroy(&(array)[i])
     DESTROY_ARRAY(editor->object_names, EDITOR_OBJECT_MAX);
@@ -155,9 +154,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     size_t object_index;
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result;
-    bool elements_open;
     float elements_y, y;
-    EditorModeAccordionLayoutCursor accordion;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -193,10 +190,6 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     }
     editor_project_object_hierarchy_sync(object);
     y = 134.0f;
-    float element_rows[EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX +
-        EDITOR_SOFT_BODY_MAX + 64 + 32 + EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX];
-    for(size_t i = 0; i < object->hierarchy_count; i += 1)
-        element_rows[i] = 24.0f;
 #define ADD_BUTTON(button_id, button_label, button_y, item_kind, item_option, \
         selection_value, member) \
     if(rohr_ui_button((button_id), &(button_label), \
@@ -257,14 +250,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         }
     }
     y += 38.0f;
-    accordion = editor_mode_accordion_layout_cursor_get(
-        context->x, context->width, y);
-    EditorModeAccordionLayoutResult elements =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->elements_section, "editor.object.section.elements",
-            element_rows, object->hierarchy_count, 6.0f);
-    elements_open = elements.expanded; elements_y = elements.content_y;
-    if(elements_open)
+    rohr_ui_label(&editor->elements_label,
+        (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f});
+    elements_y = y + 34.0f;
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];
         EditorHierarchySelection selection;

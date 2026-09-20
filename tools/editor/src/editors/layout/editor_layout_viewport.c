@@ -31,7 +31,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
     CREATE("Enabled", enabled_label); CREATE("Background", background_color_label);
-    CREATE("Screens", cameras_label);
+    CREATE("Elements", cameras_label);
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Direct value", direct_layer_label);
@@ -92,8 +92,6 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->appearance_section, font,
                 "Appearance", false) ||
-            !editor_mode_accordion_section_create(&editor->contents_section, font,
-                "Contents", false) ||
             !editor_mode_accordion_section_create(&editor->source_section, font,
                 "Source", true) ||
             !editor_mode_accordion_section_create(&editor->placement_section, font,
@@ -163,7 +161,6 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
-    editor_mode_accordion_section_destroy(&editor->contents_section);
     editor_mode_accordion_section_destroy(&editor->source_section);
     editor_mode_accordion_section_destroy(&editor->placement_section);
     editor_mode_accordion_section_destroy(&editor->interaction_section);
@@ -187,7 +184,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
     char name[EDITOR_OBJECT_NAME_MAX];
     UIFieldResult name_result, x_result, y_result, width_result, height_result;
     float y, transform_y, appearance_y, contents_y;
-    bool transform_open, appearance_open, contents_open;
+    bool transform_open, appearance_open;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     viewport = editor_project_layout_viewport_get(context->project,
@@ -253,14 +250,13 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 36.0f;
+    size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
+    contents_y = y;
     EditorModeAccordionLayoutCursor accordion =
-        editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
+        editor_mode_accordion_layout_cursor_get(context->x, context->width,
+            y + 34.0f + (float)content_items * 34.0f);
     const float transform_rows[] = {26.0f, 26.0f, 26.0f, 28.0f};
     const float appearance_rows[] = {28.0f};
-    size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
-    float content_rows[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX +
-        EDITOR_LAYOUT_VIEWPORT_UI_MAX + 1] = {28.0f};
-    for(size_t i = 0; i < content_items; i += 1) content_rows[i + 1] = 28.0f;
     EditorModeAccordionLayoutResult transform =
         editor_mode_accordion_layout_section(&accordion,
             &editor->transform_section, "editor.layout.section.transform",
@@ -269,13 +265,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         editor_mode_accordion_layout_section(&accordion,
             &editor->appearance_section, "editor.layout.section.appearance",
             appearance_rows, 1, 6.0f);
-    EditorModeAccordionLayoutResult contents =
-        editor_mode_accordion_layout_section(&accordion,
-            &editor->contents_section, "editor.layout.section.contents",
-            content_rows, content_items + 1, 6.0f);
     transform_open = transform.expanded; transform_y = transform.content_y;
     appearance_open = appearance.expanded; appearance_y = appearance.content_y;
-    contents_open = contents.expanded; contents_y = contents.content_y;
     x_result = (UIFieldResult){0}; y_result = (UIFieldResult){0};
     width_result = (UIFieldResult){0}; height_result = (UIFieldResult){0};
     if(transform_open) {
@@ -310,7 +301,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             "%s", name);
         (void)editor_command_execute(context->project, &command);
     }
-    if(contents_open) {
     rohr_ui_label(&editor->cameras_label,
         (UIRect){context->x + 8.0f, contents_y,
             context->width - 16.0f, 28.0f});
@@ -482,7 +472,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             width_result.active || height_result.active || text_result.active ||
             item_x.active || item_y.active || item_width.active ||
             item_height.active || item_layer.active;
-    }
     }
     return name_result.active || x_result.active || y_result.active ||
         width_result.active || height_result.active;
