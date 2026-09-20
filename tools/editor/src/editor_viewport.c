@@ -2072,6 +2072,44 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
     return rectangle;
 }
 
+static bool editor_viewport_ui_slider_hit_check(
+        const EditorViewportUiItem *item, Position pointer, float zoom) {
+    const EditorViewportUiSlider *slider;
+    Vec2D relative;
+    Vec2D local;
+    float along;
+    float across;
+    float amount;
+    float thumb_along;
+    float thumb_across;
+    float track_hit_half;
+    if(item == NULL || item->kind != EDITOR_VIEWPORT_UI_SLIDER) return false;
+    slider = &item->value.slider;
+    relative = (Vec2D){pointer.x - item->position.x,
+        pointer.y - item->position.y};
+    local = math_vector_rotate(relative, -item->rotation);
+    along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        local.x : local.y;
+    across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        local.y : local.x;
+    track_hit_half = fmaxf(slider->track_thickness * 0.5f,
+        4.0f / fmaxf(zoom, 0.001f));
+    if(fabsf(along) <= slider->length * 0.5f &&
+            fabsf(across) <= track_hit_half) return true;
+    amount = (slider->value - slider->minimum) /
+        (slider->maximum - slider->minimum);
+    along -= -slider->length * 0.5f + slider->length * amount;
+    if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE)
+        return along * along + across * across <=
+            slider->thumb_radius * slider->thumb_radius;
+    thumb_along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        slider->thumb_width : slider->thumb_height;
+    thumb_across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+        slider->thumb_height : slider->thumb_width;
+    return fabsf(along) <= thumb_along * 0.5f &&
+        fabsf(across) <= thumb_across * 0.5f;
+}
+
 static Position editor_viewport_ui_shape_centroid_get(
         const EditorViewportUiItem *item) {
     Shape shape = {0};
@@ -3272,6 +3310,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     Uint64 now;
                     bool double_clicked;
                     Position hit = local;
+                    bool item_hit;
                     if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                         Position centroid = editor_viewport_ui_shape_centroid_get(item);
                         Vec2D relative = {local.x - item->position.x - centroid.x,
@@ -3281,9 +3320,13 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         hit = (Position){item->position.x + centroid.x + unrotated.x,
                             item->position.y + centroid.y + unrotated.y};
                     }
-                    if(!item->visible || hit.x < rectangle.x || hit.y < rectangle.y ||
-                            hit.x > rectangle.x + rectangle.width ||
-                            hit.y > rectangle.y + rectangle.height) continue;
+                    item_hit = item->kind == EDITOR_VIEWPORT_UI_SLIDER ?
+                        editor_viewport_ui_slider_hit_check(item, local,
+                            project->viewport_camera_zoom) :
+                        hit.x >= rectangle.x && hit.y >= rectangle.y &&
+                            hit.x <= rectangle.x + rectangle.width &&
+                            hit.y <= rectangle.y + rectangle.height;
+                    if(!item->visible || !item_hit) continue;
                     now = SDL_GetTicks();
                     EditorHierarchySelection item_selection =
                         item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
@@ -5530,12 +5573,18 @@ void editor_viewport_draw(const EditorProject *project,
                     Position thumb = {rectangle.x +
                             (item->position.x + thumb_delta.x) * zoom,
                         rectangle.y + (item->position.y + thumb_delta.y) * zoom};
+                    Color track_color = whole_selected ?
+                        (Color){255, 210, 70, 255} :
+                        rohr_graphics_color_hex_create(slider->track_color);
+                    Color filled_track_color = whole_selected ?
+                        (Color){255, 210, 70, 255} :
+                        rohr_graphics_color_hex_create(
+                            slider->filled_track_color);
                     editor_viewport_screen_dotted_line_draw(start, end,
-                        rohr_graphics_color_hex_create(slider->track_color),
-                        1.0f, slider->track_thickness * zoom);
+                        track_color, 1.0f, slider->track_thickness * zoom);
                     editor_viewport_screen_dotted_line_draw(start, thumb,
-                        rohr_graphics_color_hex_create(slider->filled_track_color),
-                        1.0f, slider->track_thickness * zoom);
+                        filled_track_color, 1.0f,
+                        slider->track_thickness * zoom);
                     Color thumb_color = whole_selected ?
                         (Color){255, 210, 70, 255} :
                         rohr_graphics_color_hex_create(slider->thumb_color);
