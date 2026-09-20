@@ -357,12 +357,18 @@ int main(void) {
             (slider_result = rohr_graphics_ui_slider_create(
                 (ViewportUiSliderConfig){.minimum = -1.0f, .maximum = 1.0f,
                     .value = 0.26f, .step = 0.25f, .length = 200.0f,
-                    .track_thickness = 6.0f, .thumb_size = 18.0f,
+                    .track_thickness = 6.0f, .thumb_width = 12.0f,
+                    .thumb_height = 24.0f, .thumb_radius = 9.0f,
+                    .thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE,
                     .orientation = VIEWPORT_UI_SLIDER_HORIZONTAL, .enabled = true}),
                 rohr_error_check(slider_result)) ||
             rohr_error_check(rohr_graphics_ui_slider_get(slider_result.result.value)) ||
             fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
                 result.value.value - 0.25f) > 0.001f ||
+            rohr_graphics_ui_slider_get(slider_result.result.value).
+                result.value.thumb_shape != VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
+            fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
+                result.value.thumb_radius - 9.0f) > 0.001f ||
             rohr_error_check(rohr_graphics_ui_slider_value_set(
                 slider_result.result.value, 0.74f)) ||
             fabsf(rohr_graphics_ui_slider_value_get(slider_result.result.value).

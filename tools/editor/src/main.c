@@ -813,7 +813,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR) {
         const EditorViewportUiItem *item =
             editor_panel_layout_ui_item_get(project, state);
-        return fmaxf(height, editor_layout_ui_common_height_get(item) + 570.0f);
+        return fmaxf(height, editor_layout_ui_common_height_get(item) + 646.0f);
     }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {

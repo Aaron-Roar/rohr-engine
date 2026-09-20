@@ -468,7 +468,10 @@ static yyjson_mut_val *editor_json_ui_definition_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_real(document, item, "length", slider->length);
         yyjson_mut_obj_add_real(document, item, "track_thickness",
             slider->track_thickness);
-        yyjson_mut_obj_add_real(document, item, "thumb_size", slider->thumb_size);
+        yyjson_mut_obj_add_uint(document, item, "thumb_shape", slider->thumb_shape);
+        yyjson_mut_obj_add_real(document, item, "thumb_width", slider->thumb_width);
+        yyjson_mut_obj_add_real(document, item, "thumb_height", slider->thumb_height);
+        yyjson_mut_obj_add_real(document, item, "thumb_radius", slider->thumb_radius);
         yyjson_mut_obj_add_uint(document, item, "orientation", slider->orientation);
         yyjson_mut_obj_add_uint(document, item, "track_color", slider->track_color);
         yyjson_mut_obj_add_uint(document, item, "filled_track_color",
@@ -1366,20 +1369,34 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
     } else {
         EditorViewportUiSlider *slider = &ui->value.slider;
         uint32_t orientation = VIEWPORT_UI_SLIDER_HORIZONTAL;
+        uint32_t thumb_shape = VIEWPORT_UI_SLIDER_THUMB_RECTANGLE;
+        float legacy_thumb_size = 0.0f;
         *slider = (EditorViewportUiSlider){
             .track_color = 0x394052FFu, .filled_track_color = 0x6E9ED6FFu,
             .thumb_color = 0xD8E6FFFFu, .hover_thumb_color = 0xFFFFFFFFu,
-            .pressed_thumb_color = 0xAFC8F0FFu, .enabled = true};
+            .pressed_thumb_color = 0xAFC8F0FFu, .thumb_width = 12.0f,
+            .thumb_height = 24.0f, .thumb_radius = 9.0f, .enabled = true};
         if(!editor_json_real(value, "minimum", &slider->minimum) ||
                 !editor_json_real(value, "maximum", &slider->maximum) ||
                 !editor_json_real(value, "value", &slider->value) ||
                 !editor_json_real(value, "step", &slider->step) ||
                 !editor_json_real(value, "length", &slider->length) ||
                 !editor_json_real(value, "track_thickness",
-                    &slider->track_thickness) ||
-                !editor_json_real(value, "thumb_size", &slider->thumb_size))
+                    &slider->track_thickness))
             return false;
+        if(yyjson_obj_get(value, "thumb_width") != NULL) {
+            if(!editor_json_real(value, "thumb_width", &slider->thumb_width) ||
+                    !editor_json_real(value, "thumb_height", &slider->thumb_height) ||
+                    !editor_json_real(value, "thumb_radius", &slider->thumb_radius))
+                return false;
+        } else {
+            if(!editor_json_real(value, "thumb_size", &legacy_thumb_size)) return false;
+            slider->thumb_width = legacy_thumb_size;
+            slider->thumb_height = legacy_thumb_size;
+            slider->thumb_radius = legacy_thumb_size * 0.5f;
+        }
         OPTIONAL_UINT("orientation", &orientation);
+        OPTIONAL_UINT("thumb_shape", &thumb_shape);
         OPTIONAL_UINT("track_color", &slider->track_color);
         OPTIONAL_UINT("filled_track_color", &slider->filled_track_color);
         OPTIONAL_UINT("thumb_color", &slider->thumb_color);
@@ -1387,11 +1404,14 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
         OPTIONAL_UINT("pressed_thumb_color", &slider->pressed_thumb_color);
         OPTIONAL_BOOL("enabled", &slider->enabled);
         if(orientation > VIEWPORT_UI_SLIDER_VERTICAL ||
+                thumb_shape > VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
                 slider->maximum <= slider->minimum || slider->step < 0.0f ||
                 slider->value < slider->minimum || slider->value > slider->maximum ||
                 slider->length <= 0.0f || slider->track_thickness <= 0.0f ||
-                slider->thumb_size <= 0.0f) return false;
+                slider->thumb_width <= 0.0f || slider->thumb_height <= 0.0f ||
+                slider->thumb_radius <= 0.0f) return false;
         slider->orientation = (ViewportUiSliderOrientation)orientation;
+        slider->thumb_shape = (ViewportUiSliderThumbShape)thumb_shape;
     }
 #undef OPTIONAL_BOOL
 #undef OPTIONAL_UINT

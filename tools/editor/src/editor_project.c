@@ -1136,8 +1136,10 @@ EditorViewportUiDefinition *editor_project_ui_definition_add(
     } else {
         definition->value.slider = (EditorViewportUiSlider){
             .minimum = 0.0f, .maximum = 1.0f, .value = 0.5f, .step = 0.1f,
-            .length = 180.0f, .track_thickness = 6.0f, .thumb_size = 18.0f,
+            .length = 180.0f, .track_thickness = 6.0f,
+            .thumb_width = 12.0f, .thumb_height = 24.0f, .thumb_radius = 9.0f,
             .orientation = VIEWPORT_UI_SLIDER_HORIZONTAL,
+            .thumb_shape = VIEWPORT_UI_SLIDER_THUMB_RECTANGLE,
             .track_color = 0x394052FFu, .filled_track_color = 0x6E9ED6FFu,
             .thumb_color = 0xD8E6FFFFu, .hover_thumb_color = 0xFFFFFFFFu,
             .pressed_thumb_color = 0xAFC8F0FFu, .enabled = true};

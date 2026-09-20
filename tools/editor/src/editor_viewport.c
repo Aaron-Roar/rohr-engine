@@ -2032,15 +2032,27 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
         return (ViewportRectangle){item->position.x, item->position.y,
             item->value.text.box_width, item->value.text.box_height};
     if(item->kind == EDITOR_VIEWPORT_UI_SLIDER) {
+        float thumb_width = item->value.slider.thumb_shape ==
+            VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
+                item->value.slider.thumb_radius * 2.0f :
+                item->value.slider.thumb_width;
+        float thumb_height = item->value.slider.thumb_shape ==
+            VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
+                item->value.slider.thumb_radius * 2.0f :
+                item->value.slider.thumb_height;
         float thickness = fmaxf(item->value.slider.track_thickness,
-            item->value.slider.thumb_size);
+            item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
+                thumb_height : thumb_width);
+        float along = item->value.slider.orientation ==
+            VIEWPORT_UI_SLIDER_HORIZONTAL ? thumb_width : thumb_height;
         return item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-            (ViewportRectangle){item->position.x - item->value.slider.length * 0.5f,
+            (ViewportRectangle){item->position.x -
+                    (item->value.slider.length + along) * 0.5f,
                 item->position.y - thickness * 0.5f,
-                item->value.slider.length, thickness} :
+                item->value.slider.length + along, thickness} :
             (ViewportRectangle){item->position.x - thickness * 0.5f,
-                item->position.y - item->value.slider.length * 0.5f,
-                thickness, item->value.slider.length};
+                item->position.y - (item->value.slider.length + along) * 0.5f,
+                thickness, item->value.slider.length + along};
     }
     if(item->value.shape.vertex_count == 0)
         return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
@@ -5524,10 +5536,28 @@ void editor_viewport_draw(const EditorProject *project,
                     editor_viewport_screen_dotted_line_draw(start, thumb,
                         rohr_graphics_color_hex_create(slider->filled_track_color),
                         1.0f, slider->track_thickness * zoom);
-                    editor_viewport_screen_circle_draw(thumb,
-                        slider->thumb_size * zoom * 0.5f,
-                        whole_selected ? (Color){255, 210, 70, 255} :
-                            rohr_graphics_color_hex_create(slider->thumb_color));
+                    Color thumb_color = whole_selected ?
+                        (Color){255, 210, 70, 255} :
+                        rohr_graphics_color_hex_create(slider->thumb_color);
+                    if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE) {
+                        editor_viewport_screen_circle_draw(thumb,
+                            slider->thumb_radius * zoom, thumb_color);
+                    } else {
+                        Position corners[4];
+                        const float signs[4][2] = {{-1.0f, -1.0f},
+                            {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+                        for(size_t corner = 0; corner < 4; corner += 1) {
+                            Vec2D delta = math_vector_rotate((Vec2D){
+                                signs[corner][0] * slider->thumb_width * zoom * 0.5f,
+                                signs[corner][1] * slider->thumb_height * zoom * 0.5f},
+                                item->rotation);
+                            corners[corner] = (Position){thumb.x + delta.x,
+                                thumb.y + delta.y};
+                        }
+                        for(size_t corner = 0; corner < 4; corner += 1)
+                            editor_viewport_screen_line_draw(corners[corner],
+                                corners[(corner + 1) % 4], thumb_color);
+                    }
                     editor_view_composition_layer_base = 0;
                     continue;
                 }

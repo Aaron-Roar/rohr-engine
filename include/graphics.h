@@ -215,6 +215,11 @@ typedef enum ViewportUiSliderOrientation {
     VIEWPORT_UI_SLIDER_VERTICAL,
 } ViewportUiSliderOrientation;
 
+typedef enum ViewportUiSliderThumbShape {
+    VIEWPORT_UI_SLIDER_THUMB_RECTANGLE,
+    VIEWPORT_UI_SLIDER_THUMB_CIRCLE,
+} ViewportUiSliderThumbShape;
+
 /** Reusable viewport slider definition. Placement and rotation belong to its item. */
 typedef struct ViewportUiSliderConfig {
     float minimum;
@@ -224,8 +229,11 @@ typedef struct ViewportUiSliderConfig {
     float step;
     float length;
     float track_thickness;
-    float thumb_size;
+    float thumb_width;
+    float thumb_height;
+    float thumb_radius;
     ViewportUiSliderOrientation orientation;
+    ViewportUiSliderThumbShape thumb_shape;
     Color track_color;
     Color filled_track_color;
     Color thumb_color;

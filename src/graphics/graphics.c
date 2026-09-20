@@ -1867,7 +1867,11 @@ static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
             slider->orientation > VIEWPORT_UI_SLIDER_VERTICAL) return false;
     if(slider->length <= 0.0f) slider->length = 180.0f;
     if(slider->track_thickness <= 0.0f) slider->track_thickness = 6.0f;
-    if(slider->thumb_size <= 0.0f) slider->thumb_size = 18.0f;
+    if(slider->thumb_width <= 0.0f) slider->thumb_width = 12.0f;
+    if(slider->thumb_height <= 0.0f) slider->thumb_height = 24.0f;
+    if(slider->thumb_radius <= 0.0f) slider->thumb_radius = 9.0f;
+    if(slider->thumb_shape < VIEWPORT_UI_SLIDER_THUMB_RECTANGLE ||
+            slider->thumb_shape > VIEWPORT_UI_SLIDER_THUMB_CIRCLE) return false;
     slider->value = fmaxf(slider->minimum,
         fminf(slider->maximum, slider->value));
     if(slider->step > 0.0f) {
@@ -3036,6 +3040,49 @@ static void graphics_viewport_ui_line_draw(Position start, Position end,
     (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6);
 }
 
+static void graphics_viewport_ui_slider_thumb_draw(
+        const GraphicsViewport *viewport, const ViewportItemConfig *item,
+        const ViewportUiSliderConfig *slider, Position center, Color color) {
+    SDL_Vertex vertices[17] = {0};
+    int indices[48] = {0};
+    size_t point_count = slider->thumb_shape ==
+        VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 16 : 4;
+    for(size_t i = 0; i < point_count; i += 1) {
+        Position local;
+        if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE) {
+            float angle = 6.28318530718f * (float)i / (float)point_count;
+            local = (Position){center.x + cosf(angle) * slider->thumb_radius,
+                center.y + sinf(angle) * slider->thumb_radius};
+        } else {
+            static const float signs[4][2] = {
+                {-1.0f, -1.0f}, {1.0f, -1.0f},
+                {1.0f, 1.0f}, {-1.0f, 1.0f}};
+            local = (Position){center.x + signs[i][0] * slider->thumb_width * 0.5f,
+                center.y + signs[i][1] * slider->thumb_height * 0.5f};
+        }
+        Position point = graphics_viewport_ui_local_point_get(viewport, item, local);
+        vertices[i] = (SDL_Vertex){.position = {point.x, point.y},
+            .color = {color.red / 255.0f, color.green / 255.0f,
+                color.blue / 255.0f, color.alpha / 255.0f}};
+    }
+    if(point_count == 4) {
+        const int rectangle_indices[6] = {0, 1, 2, 0, 2, 3};
+        memcpy(indices, rectangle_indices, sizeof(rectangle_indices));
+        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6);
+    } else {
+        Position point = graphics_viewport_ui_local_point_get(viewport, item, center);
+        vertices[16] = (SDL_Vertex){.position = {point.x, point.y},
+            .color = {color.red / 255.0f, color.green / 255.0f,
+                color.blue / 255.0f, color.alpha / 255.0f}};
+        for(int i = 0; i < 16; i += 1) {
+            indices[i * 3] = 16;
+            indices[i * 3 + 1] = i;
+            indices[i * 3 + 2] = (i + 1) % 16;
+        }
+        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 17, indices, 48);
+    }
+}
+
 static void graphics_viewport_ui_border_segment_draw(Position start, Position end,
         const ViewportUiShapeConfig *shape, Color color) {
     Vec2D edge = {end.x - start.x, end.y - start.y};
@@ -3285,8 +3332,6 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     Position start;
     Position end;
     Position thumb;
-    Position thumb_a;
-    Position thumb_b;
     Position pointer = graphics_mouse_screen_position_get();
     Vec2D relative;
     Vec2D local;
@@ -3308,8 +3353,16 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     if(item->content_scale.y > 0.0f) local.y /= item->content_scale.y;
     along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.x : local.y;
     across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.y : local.x;
-    hit_half = fmaxf(slider->track_thickness, slider->thumb_size) * 0.5f;
-    hovered = fabsf(along) <= half_length + slider->thumb_size * 0.5f &&
+    float thumb_along = slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
+        slider->thumb_radius * 2.0f : slider->orientation ==
+            VIEWPORT_UI_SLIDER_HORIZONTAL ? slider->thumb_width :
+                slider->thumb_height;
+    float thumb_across = slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
+        slider->thumb_radius * 2.0f : slider->orientation ==
+            VIEWPORT_UI_SLIDER_HORIZONTAL ? slider->thumb_height :
+                slider->thumb_width;
+    hit_half = fmaxf(slider->track_thickness, thumb_across) * 0.5f;
+    hovered = fabsf(along) <= half_length + thumb_along * 0.5f &&
         fabsf(across) <= hit_half;
     if(hovered && item->clip_enabled &&
             (pointer.x < viewport->rectangle.x + item->clip_rectangle.x ||
@@ -3344,18 +3397,7 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
         slider->track_color);
     graphics_viewport_ui_line_draw(start, thumb, slider->track_thickness,
         slider->filled_track_color);
-    if(slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL) {
-        thumb_a = graphics_viewport_ui_local_point_get(viewport, item,
-            (Position){thumb_local.x, -slider->thumb_size * 0.5f});
-        thumb_b = graphics_viewport_ui_local_point_get(viewport, item,
-            (Position){thumb_local.x, slider->thumb_size * 0.5f});
-    } else {
-        thumb_a = graphics_viewport_ui_local_point_get(viewport, item,
-            (Position){-slider->thumb_size * 0.5f, thumb_local.y});
-        thumb_b = graphics_viewport_ui_local_point_get(viewport, item,
-            (Position){slider->thumb_size * 0.5f, thumb_local.y});
-    }
-    graphics_viewport_ui_line_draw(thumb_a, thumb_b, slider->thumb_size,
+    graphics_viewport_ui_slider_thumb_draw(viewport, item, slider, thumb_local,
         active ? slider->pressed_thumb_color : hovered ?
             slider->hover_thumb_color : slider->thumb_color);
     if(hovered_result != NULL) *hovered_result = hovered;
