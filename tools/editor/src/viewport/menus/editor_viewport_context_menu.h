@@ -31,6 +31,7 @@ typedef struct EditorViewportContextMenu {
     bool target_valid;
     bool from_column;
     Position position;
+    UIRect bounds;
     EditorSelectionRef target;
     float scroll_offset;
     char rename_value[EDITOR_OBJECT_NAME_MAX];
@@ -51,5 +52,7 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
 void editor_viewport_context_menu_close(EditorViewportContextMenu *menu);
 bool editor_viewport_context_menu_open_check(
     const EditorViewportContextMenu *menu);
+bool editor_viewport_context_menu_point_contains(
+    const EditorViewportContextMenu *menu, Position point);
 
 #endif

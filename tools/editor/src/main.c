@@ -2124,6 +2124,15 @@ static void editor_hierarchy_drag_row(EditorHierarchyDragState *drag,
     }
 }
 
+static void editor_context_menu_cancel(EditorViewportContextMenu *menu) {
+    if(menu == NULL) return;
+    snprintf(menu->rename_value, sizeof(menu->rename_value), "%s",
+        menu->rename_original);
+    menu->renaming = false;
+    editor_viewport_context_menu_close(menu);
+    rohr_ui_field_focus_clear();
+}
+
 static void editor_mode_hierarchy_row(void *opaque,
         EditorViewportState *viewport, EditorSelectionRef selection,
         UIRect bounds, UIButtonResult interaction, bool last) {
@@ -2163,9 +2172,11 @@ static void editor_mode_hierarchy_row(void *opaque,
         }
         return;
     }
-    if(editor_viewport_context_menu_open_check(context->context_menu)) return;
     if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
-            editor_point_in_rect(context->pointer, bounds)) {
+            editor_point_in_rect(context->pointer, bounds) &&
+            !editor_viewport_context_menu_point_contains(context->context_menu,
+                context->pointer)) {
+        editor_context_menu_cancel(context->context_menu);
         if(context->project != NULL) {
             EditorViewportMode mode = viewport->mode;
             (void)editor_viewport_selection_set(context->project, viewport,
@@ -2174,7 +2185,9 @@ static void editor_mode_hierarchy_row(void *opaque,
         }
         editor_viewport_context_menu_open(context->context_menu,
             context->pointer, &selection, true);
+        return;
     }
+    if(editor_viewport_context_menu_open_check(context->context_menu)) return;
     if(interaction.clicked && context->project != NULL &&
             context->additive_selection)
         (void)editor_viewport_selection_set(context->project, viewport,
@@ -2700,12 +2713,7 @@ int main(void) {
         } else if((editor_viewport_context_menu_open_check(
                     &viewport_context_menu) || viewport_context_menu.renaming) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
-            snprintf(viewport_context_menu.rename_value,
-                sizeof(viewport_context_menu.rename_value), "%s",
-                viewport_context_menu.rename_original);
-            viewport_context_menu.renaming = false;
-            editor_viewport_context_menu_close(&viewport_context_menu);
-            rohr_ui_field_focus_clear();
+            editor_context_menu_cancel(&viewport_context_menu);
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
@@ -3467,6 +3475,25 @@ int main(void) {
                 }
             }
         }
+        {
+            Position pointer = rohr_graphics_mouse_screen_position_get();
+            bool opened_here = editor_viewport_context_menu_open_check(
+                    &viewport_context_menu) &&
+                fabsf(viewport_context_menu.position.x - pointer.x) < 0.001f &&
+                fabsf(viewport_context_menu.position.y - pointer.y) < 0.001f;
+            if(workspace.open && pointer.x >= EDITOR_VIEWPORT_WIDTH &&
+                    pointer.x < editor_window_width &&
+                    pointer.y >= EDITOR_MENU_HEIGHT &&
+                    pointer.y < EDITOR_WINDOW_HEIGHT &&
+                    mouse.button_states[MOUSE_BUTTON_RIGHT] ==
+                        MOUSE_BUTTON_STATE_PRESSED && !opened_here &&
+                    !editor_viewport_context_menu_point_contains(
+                        &viewport_context_menu, pointer)) {
+                editor_context_menu_cancel(&viewport_context_menu);
+                editor_viewport_context_menu_open(&viewport_context_menu,
+                    pointer, NULL, true);
+            }
+        }
         rohr_graphics_screen_clip_clear();
         (void)rohr_graphics_screen_clip_set(
             0.0f, EDITOR_MENU_HEIGHT, EDITOR_VIEWPORT_WIDTH,
@@ -4211,13 +4238,16 @@ int main(void) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if(!context_menu_modal && workspace.open && pointer.x >= 0.0f &&
+            if(workspace.open && pointer.x >= 0.0f &&
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
                     pointer.y >= EDITOR_MENU_HEIGHT &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
                     mouse.button_states[MOUSE_BUTTON_RIGHT] ==
-                        MOUSE_BUTTON_STATE_PRESSED) {
+                        MOUSE_BUTTON_STATE_PRESSED &&
+                    !editor_viewport_context_menu_point_contains(
+                        &viewport_context_menu, pointer)) {
                 EditorSelectionRef context_target;
+                editor_context_menu_cancel(&viewport_context_menu);
                 bool target_found = editor_viewport_selection_at_get(&project,
                     &viewport_state, pointer, &context_target);
                 if(target_found) {

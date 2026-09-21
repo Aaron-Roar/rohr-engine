@@ -98,6 +98,7 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
     menu->position.y = fmaxf(menu_height, fminf(menu->position.y,
         fminf(viewport_bottom, window_height) - height));
     bounds = (UIRect){menu->position.x, menu->position.y, 176.0f, height};
+    menu->bounds = bounds;
     rohr_ui_surface(bounds, (Color){24, 27, 34, 255});
     rohr_ui_border(bounds, 2.0f, (Color){0, 0, 0, 255});
     scroll_active = !menu->renaming;
@@ -198,4 +199,13 @@ void editor_viewport_context_menu_close(EditorViewportContextMenu *menu) {
 bool editor_viewport_context_menu_open_check(
         const EditorViewportContextMenu *menu) {
     return menu != NULL && menu->open;
+}
+
+bool editor_viewport_context_menu_point_contains(
+        const EditorViewportContextMenu *menu, Position point) {
+    UIRect bounds;
+    if(menu == NULL || !menu->open) return false;
+    bounds = menu->bounds;
+    return point.x >= bounds.x && point.x <= bounds.x + bounds.width &&
+        point.y >= bounds.y && point.y <= bounds.y + bounds.height;
 }
