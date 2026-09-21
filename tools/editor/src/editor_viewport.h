@@ -168,6 +168,9 @@ void editor_viewport_multi_selection_dismiss(EditorProject *project,
     EditorViewportState *state);
 bool editor_viewport_selection_ref_get(const EditorProject *project,
     const EditorViewportState *state, EditorSelectionRef *selection);
+bool editor_viewport_selection_at_get(EditorProject *project,
+    const EditorViewportState *state, Position pointer,
+    EditorSelectionRef *selection);
 bool editor_viewport_selection_contains(const EditorViewportState *state,
     EditorSelectionRef selection);
 bool editor_viewport_selection_homogeneous_check(const EditorViewportState *state);

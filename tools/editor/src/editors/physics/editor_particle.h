@@ -9,6 +9,7 @@
 
 typedef struct EditorParticleEditor {
     TextAsset title;
+    TextAsset visibility_label;
     TextAsset delete_label;
     TextAsset radius_label;
     TextAsset rigid_vertices_label;

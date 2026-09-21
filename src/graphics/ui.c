@@ -592,11 +592,28 @@ void ui_field_event_add(const SDL_Event *event) {
     ui_event_add(event);
 }
 
+static void ui_field_binding_display_set(UIFieldBinding binding,
+    TextAsset *display);
+
 void ui_field_focus_clear(void) {
     ui_context.field_id = 0;
     ui_context.field_select_all = false;
     ui_context.field_edit[0] = '\0';
     ui_context.field_cursor = 0;
+}
+
+void ui_field_focus_set(const char *id, UIFieldBinding binding,
+        TextAsset *display, bool select_all) {
+    uint64_t field_id = ui_hash_id(id);
+    if(field_id == 0) return;
+    ui_context.field_id = field_id;
+    ui_context.field_select_all = select_all;
+    ui_field_binding_display_set(binding, display);
+    ui_context.field_cursor = binding.kind == UI_FIELD_STRING && binding.string != NULL ?
+        strlen(binding.string) : 0;
+    ui_context.field_scroll_y = 0.0f;
+    if(SDL_GetKeyboardFocus() != NULL)
+        (void)SDL_StartTextInput(SDL_GetKeyboardFocus());
 }
 
 bool ui_key_pressed_check(SDL_Keycode key) {

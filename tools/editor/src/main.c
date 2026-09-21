@@ -192,8 +192,10 @@ typedef struct EditorHierarchyDragState EditorHierarchyDragState;
 typedef struct EditorModeHierarchyContext {
     EditorProject *project;
     EditorHierarchyDragState *drag;
+    EditorViewportContextMenu *context_menu;
     Position pointer;
     MouseButtonState primary;
+    MouseButtonState secondary;
     float scroll_offset;
     bool additive_selection;
 } EditorModeHierarchyContext;
@@ -2127,6 +2129,48 @@ static void editor_mode_hierarchy_row(void *opaque,
         UIRect bounds, UIButtonResult interaction, bool last) {
     EditorModeHierarchyContext *context = opaque;
     if(context == NULL) return;
+    if(context->context_menu != NULL && context->context_menu->renaming &&
+            context->context_menu->from_column &&
+            context->context_menu->target.kind == selection.kind &&
+            context->context_menu->target.object == selection.object &&
+            context->context_menu->target.parent == selection.parent &&
+            context->context_menu->target.container == selection.container &&
+            context->context_menu->target.item == selection.item) {
+        UIFieldBinding binding = {.kind = UI_FIELD_STRING,
+            .string = context->context_menu->rename_value,
+            .string_capacity = sizeof(context->context_menu->rename_value)};
+        UIFieldResult result;
+        if(context->context_menu->rename_focus_pending) {
+            ui_field_focus_set("editor.context.column.rename", binding,
+                &context->context_menu->rename_field, true);
+            context->context_menu->rename_focus_pending = false;
+        }
+        result = rohr_ui_field("editor.context.column.rename", binding,
+            &context->context_menu->rename_field, bounds, NULL);
+        if(result.changed)
+            (void)rohr_graphics_text_value_set(
+                &context->context_menu->rename_field,
+                context->context_menu->rename_value);
+        if(result.submitted || (context->primary == MOUSE_BUTTON_STATE_PRESSED &&
+                !editor_point_in_rect(context->pointer, bounds))) {
+            (void)editor_navigation_selection_name_set(context->project,
+                selection, context->context_menu->rename_value);
+            context->context_menu->renaming = false;
+            ui_field_focus_clear();
+        } else if(rohr_ui_key_pressed_check(SDLK_ESCAPE)) {
+            context->context_menu->renaming = false;
+            ui_field_focus_clear();
+        }
+        return;
+    }
+    if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
+            editor_point_in_rect(context->pointer, bounds)) {
+        if(context->project != NULL)
+            (void)editor_viewport_selection_set(context->project, viewport,
+                selection, false);
+        editor_viewport_context_menu_open(context->context_menu,
+            context->pointer, &selection, true);
+    }
     if(interaction.clicked && context->project != NULL &&
             context->additive_selection)
         (void)editor_viewport_selection_set(context->project, viewport,
@@ -2649,6 +2693,11 @@ int main(void) {
         } else if(column_frame_multi_edit_open &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             column_frame_multi_edit_open = false;
+        } else if(viewport_context_menu.renaming &&
+                viewport_context_menu.from_column &&
+                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+            viewport_context_menu.renaming = false;
+            rohr_ui_field_focus_clear();
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
@@ -2675,6 +2724,7 @@ int main(void) {
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
                 !field_editing &&
+                !viewport_context_menu.renaming &&
                 !color_picker.open &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 !file_browser.active &&
@@ -2920,7 +2970,9 @@ int main(void) {
                 .project = &project, .viewport = &viewport_state,
                 .rigid_body_editor = &rigid_body_editor};
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -2987,7 +3039,9 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3019,7 +3073,9 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3121,7 +3177,9 @@ int main(void) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3206,18 +3264,30 @@ int main(void) {
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
+            EditorModeHierarchyContext hierarchy_context = {
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .primary = hierarchy_primary,
+                .scroll_offset = panel_scroll_offset,
+                .additive_selection = hierarchy_additive_selection};
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .local_color_open = editor_mode_local_color_picker_open,
-                    .color_context = &color_context});
+                    .color_context = &color_context,
+                    .hierarchy_row = editor_mode_hierarchy_row,
+                    .hierarchy_context = &hierarchy_context,
+                    .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_OBJECT) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3242,7 +3312,9 @@ int main(void) {
                 additive_selection);
         } else {
             EditorModeHierarchyContext hierarchy_context = {
-                .project = &project, .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3405,9 +3477,38 @@ int main(void) {
         }
         editor_coordinate_toggle_draw(&coordinate_toggle, &project,
             &viewport_state, EDITOR_MENU_HEIGHT);
-        editor_viewport_context_menu_draw(&viewport_context_menu, &mouse,
-            EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT, EDITOR_VIEWPORT_BOTTOM,
-            EDITOR_WINDOW_HEIGHT);
+        {
+            bool context_visible = true;
+            char context_name[EDITOR_OBJECT_NAME_MAX] = {0};
+            if(viewport_context_menu.target_valid)
+                (void)editor_navigation_selection_visibility_get(&project,
+                    viewport_context_menu.target, &context_visible);
+            if(viewport_context_menu.target_valid)
+                (void)editor_navigation_selection_name_get(&project,
+                    viewport_context_menu.target, context_name,
+                    sizeof(context_name));
+            EditorContextMenuAction context_action =
+                editor_viewport_context_menu_draw(&viewport_context_menu, &mouse,
+                    context_visible, context_name, editor_window_width,
+                    EDITOR_MENU_HEIGHT,
+                    EDITOR_VIEWPORT_BOTTOM, EDITOR_WINDOW_HEIGHT);
+            if(context_action != EDITOR_CONTEXT_MENU_NONE &&
+                    viewport_context_menu.target_valid) {
+                (void)editor_viewport_selection_set(&project, &viewport_state,
+                    viewport_context_menu.target, false);
+                if(context_action == EDITOR_CONTEXT_MENU_OPEN)
+                    (void)editor_navigation_selected_open(&project, &viewport_state);
+                else if(context_action == EDITOR_CONTEXT_MENU_VISIBILITY)
+                    (void)editor_navigation_selection_visibility_set(&project,
+                        viewport_context_menu.target, !context_visible);
+                else if(context_action == EDITOR_CONTEXT_MENU_RENAME)
+                    (void)editor_navigation_selection_name_set(&project,
+                        viewport_context_menu.target,
+                        viewport_context_menu.rename_value);
+                else if(context_action == EDITOR_CONTEXT_MENU_DELETE)
+                    (void)editor_single_selected_delete(&project, &viewport_state);
+            }
+        }
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
         rohr_ui_surface((UIRect){0.0f, 0.0f, editor_window_width,
             EDITOR_MENU_HEIGHT}, (Color){32, 36, 45, 255});
@@ -4081,6 +4182,21 @@ int main(void) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
+            if(workspace.open && pointer.x >= 0.0f &&
+                    pointer.x < EDITOR_VIEWPORT_WIDTH &&
+                    pointer.y >= EDITOR_MENU_HEIGHT &&
+                    pointer.y < EDITOR_VIEWPORT_BOTTOM &&
+                    mouse.button_states[MOUSE_BUTTON_RIGHT] ==
+                        MOUSE_BUTTON_STATE_PRESSED) {
+                EditorSelectionRef context_target;
+                bool target_found = editor_viewport_selection_at_get(&project,
+                    &viewport_state, pointer, &context_target);
+                if(target_found)
+                    (void)editor_viewport_selection_set(&project, &viewport_state,
+                        context_target, false);
+                editor_viewport_context_menu_open(&viewport_context_menu, pointer,
+                    target_found ? &context_target : NULL, false);
+            }
             if((soft_body_editor.auto_shape_picker_open ||
                     hitbox_editor.auto_shape_picker_open) &&
                     mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {

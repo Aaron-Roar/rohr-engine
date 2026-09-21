@@ -363,6 +363,18 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         UIButtonResult ui_result = rohr_ui_button(id, &editor->ui_names[i],
                 (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
                 NULL);
+        if(context->hierarchy_row != NULL) {
+            EditorSelectionRef ref = {
+                item->kind == EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
+                item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
+                    EDITOR_SELECTION_UI_SLIDER,
+                viewport->id, 0, 0, item->id};
+            context->hierarchy_row(context->hierarchy_context,
+                context->viewport, ref,
+                (UIRect){context->x + 46.0f, y,
+                    context->width - 54.0f, 28.0f}, ui_result,
+                i + 1 == viewport->ui_item_count);
+        }
         if(ui_result.clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;

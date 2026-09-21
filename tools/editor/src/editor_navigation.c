@@ -4,6 +4,8 @@
 
 #include "editor_navigation.h"
 
+#include <stdio.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -606,6 +608,253 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
     if(state->mode != EDITOR_VIEWPORT_HIERARCHY)
         state->mode = EDITOR_VIEWPORT_OBJECT;
     return true;
+}
+
+bool editor_navigation_selection_visibility_get(EditorProject *project,
+        EditorSelectionRef ref, bool *visible) {
+    EditorObject *object;
+    if(project == NULL || visible == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.item);
+        if(viewport == NULL) return false;
+        *visible = viewport->enabled;
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_UI_SHAPE ||
+            ref.kind == EDITOR_SELECTION_UI_TEXT ||
+            ref.kind == EDITOR_SELECTION_UI_SLIDER) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->ui_item_count; i += 1)
+            if(viewport->ui_items[i].id == ref.item) {
+                *visible = viewport->ui_items[i].visible;
+                return true;
+            }
+        return false;
+    }
+    object = editor_object_query_get(project, ref.object);
+    if(object == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_OBJECT) { *visible = object->visible; return true; }
+    if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE) {
+        EditorRigidBody *item = editor_project_rigid_body_get(object, ref.item);
+        if(item == NULL) return false; *visible = item->visible; return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_HITBOX) {
+        EditorRigidBody *body = editor_project_rigid_body_get(object, ref.parent);
+        EditorHitbox *item = editor_project_hitbox_get(body, ref.item);
+        if(item == NULL) return false; *visible = item->visible; return true;
+    }
+#define EDITOR_VISIBILITY_FIND(items, count) do { \
+    for(size_t i = 0; i < (count); i += 1) if((items)[i].id == ref.item) { \
+        *visible = (items)[i].visible; return true; } \
+} while(0)
+    if(ref.kind == EDITOR_SELECTION_JOINT)
+        EDITOR_VISIBILITY_FIND(object->joint_items, object->joint_count);
+    if(ref.kind == EDITOR_SELECTION_ANCHOR)
+        EDITOR_VISIBILITY_FIND(object->anchors, object->anchor_count);
+    if(ref.kind == EDITOR_SELECTION_SOFT_BODY)
+        EDITOR_VISIBILITY_FIND(object->soft_body_items, object->soft_body_count);
+    if(ref.kind == EDITOR_SELECTION_SPRITE)
+        EDITOR_VISIBILITY_FIND(object->sprites, object->sprite_count);
+    if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE)
+        EDITOR_VISIBILITY_FIND(object->animated_sprite_items,
+            object->animated_sprite_count);
+    if(ref.kind == EDITOR_SELECTION_CAMERA)
+        EDITOR_VISIBILITY_FIND(object->cameras, object->camera_count);
+    for(size_t i = 0; i < object->soft_body_count; i += 1) {
+        EditorSoftBody *body = &object->soft_body_items[i];
+        if(body->id != ref.parent) continue;
+        if(ref.kind == EDITOR_SELECTION_SOFT_NODE)
+            EDITOR_VISIBILITY_FIND(body->nodes, body->node_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
+            EDITOR_VISIBILITY_FIND(body->beams, body->beam_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
+            EDITOR_VISIBILITY_FIND(body->areas, body->area_count);
+    }
+#undef EDITOR_VISIBILITY_FIND
+    return false;
+}
+
+bool editor_navigation_selection_visibility_set(EditorProject *project,
+        EditorSelectionRef ref, bool visible) {
+    EditorCommand command;
+    EditorVisibilityKind kind;
+    if(project == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.item);
+        if(viewport == NULL) return false;
+        viewport->enabled = visible;
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_UI_SHAPE ||
+            ref.kind == EDITOR_SELECTION_UI_TEXT ||
+            ref.kind == EDITOR_SELECTION_UI_SLIDER) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->ui_item_count; i += 1)
+            if(viewport->ui_items[i].id == ref.item) {
+                viewport->ui_items[i].visible = visible;
+                return true;
+            }
+        return false;
+    }
+    if(ref.kind == EDITOR_SELECTION_SPRITE) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_VISIBILITY_SET,
+            .data.sprite_visibility_set = {ref.object, ref.item, visible}};
+    } else if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATED_SPRITE_VISIBILITY_SET,
+            .data.animated_sprite_boolean_set = {ref.object, ref.item, visible}};
+    } else {
+        switch(ref.kind) {
+            case EDITOR_SELECTION_OBJECT: kind = EDITOR_VISIBILITY_OBJECT; break;
+            case EDITOR_SELECTION_RIGID_BODY:
+            case EDITOR_SELECTION_PARTICLE: kind = EDITOR_VISIBILITY_RIGID_BODY; break;
+            case EDITOR_SELECTION_HITBOX: kind = EDITOR_VISIBILITY_HITBOX; break;
+            case EDITOR_SELECTION_JOINT: kind = EDITOR_VISIBILITY_JOINT; break;
+            case EDITOR_SELECTION_ANCHOR: kind = EDITOR_VISIBILITY_ANCHOR; break;
+            case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
+            case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
+            case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_VISIBILITY_SOFT_BEAM; break;
+            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_VISIBILITY_SOFT_AREA; break;
+            case EDITOR_SELECTION_CAMERA: kind = EDITOR_VISIBILITY_CAMERA; break;
+            default: return false;
+        }
+        command = (EditorCommand){.type = EDITOR_COMMAND_VISIBILITY,
+            .data.visibility = {kind, ref.object, ref.parent, ref.item, visible}};
+    }
+    return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+}
+
+bool editor_navigation_selection_name_get(EditorProject *project,
+        EditorSelectionRef ref, char *name, size_t capacity) {
+    EditorObject *object;
+    const char *value = NULL;
+    if(project == NULL || name == NULL || capacity == 0) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.item);
+        if(viewport == NULL) return false;
+        snprintf(name, capacity, "%s", viewport->name);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_UI_SHAPE ||
+            ref.kind == EDITOR_SELECTION_UI_TEXT ||
+            ref.kind == EDITOR_SELECTION_UI_SLIDER) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->ui_item_count; i += 1)
+            if(viewport->ui_items[i].id == ref.item) {
+                snprintf(name, capacity, "%s", viewport->ui_items[i].name);
+                return true;
+            }
+        return false;
+    }
+    object = editor_object_query_get(project, ref.object);
+    if(object == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_OBJECT) value = object->name;
+#define EDITOR_NAME_FIND(items, count) do { \
+    for(size_t i = 0; value == NULL && i < (count); i += 1) \
+        if((items)[i].id == ref.item) value = (items)[i].name; \
+} while(0)
+    if(ref.kind == EDITOR_SELECTION_RIGID_BODY || ref.kind == EDITOR_SELECTION_PARTICLE)
+        EDITOR_NAME_FIND(object->rigid_bodies, object->rigid_body_count);
+    if(ref.kind == EDITOR_SELECTION_JOINT)
+        EDITOR_NAME_FIND(object->joint_items, object->joint_count);
+    if(ref.kind == EDITOR_SELECTION_ANCHOR)
+        EDITOR_NAME_FIND(object->anchors, object->anchor_count);
+    if(ref.kind == EDITOR_SELECTION_SOFT_BODY)
+        EDITOR_NAME_FIND(object->soft_body_items, object->soft_body_count);
+    if(ref.kind == EDITOR_SELECTION_SPRITE)
+        EDITOR_NAME_FIND(object->sprites, object->sprite_count);
+    if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE)
+        EDITOR_NAME_FIND(object->animated_sprite_items, object->animated_sprite_count);
+    if(ref.kind == EDITOR_SELECTION_CAMERA)
+        EDITOR_NAME_FIND(object->cameras, object->camera_count);
+    if(ref.kind == EDITOR_SELECTION_HITBOX) {
+        EditorRigidBody *body = editor_project_rigid_body_get(object, ref.parent);
+        if(body != NULL) EDITOR_NAME_FIND(body->hitboxes, body->hitbox_count);
+    }
+    for(size_t i = 0; i < object->soft_body_count; i += 1) {
+        EditorSoftBody *body = &object->soft_body_items[i];
+        if(body->id != ref.parent) continue;
+        if(ref.kind == EDITOR_SELECTION_SOFT_NODE)
+            EDITOR_NAME_FIND(body->nodes, body->node_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
+            EDITOR_NAME_FIND(body->beams, body->beam_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
+            EDITOR_NAME_FIND(body->areas, body->area_count);
+    }
+#undef EDITOR_NAME_FIND
+    if(value == NULL) return false;
+    snprintf(name, capacity, "%s", value);
+    return true;
+}
+
+bool editor_navigation_selection_name_set(EditorProject *project,
+        EditorSelectionRef ref, const char *name) {
+    EditorItemKind kind;
+    EditorCommand command;
+    if(project == NULL || name == NULL || name[0] == '\0') return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
+            .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
+                .item = ref.item}};
+        snprintf(command.data.item_rename.name,
+            sizeof(command.data.item_rename.name), "%s", name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
+    if(ref.kind == EDITOR_SELECTION_UI_SHAPE ||
+            ref.kind == EDITOR_SELECTION_UI_TEXT ||
+            ref.kind == EDITOR_SELECTION_UI_SLIDER) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->ui_item_count; i += 1)
+            if(viewport->ui_items[i].id == ref.item) {
+                editor_project_property_name_format(viewport->ui_items[i].name,
+                    sizeof(viewport->ui_items[i].name), name);
+                return viewport->ui_items[i].name[0] != '\0';
+            }
+        return false;
+    }
+    if(ref.kind == EDITOR_SELECTION_SPRITE) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_RENAME,
+            .data.sprite_rename = {.object = ref.object, .sprite = ref.item}};
+        snprintf(command.data.sprite_rename.name,
+            sizeof(command.data.sprite_rename.name), "%s", name);
+    } else if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATED_SPRITE_RENAME,
+            .data.animated_sprite_rename = {.object = ref.object,
+                .sprite = ref.item}};
+        snprintf(command.data.animated_sprite_rename.name,
+            sizeof(command.data.animated_sprite_rename.name), "%s", name);
+    } else {
+        switch(ref.kind) {
+            case EDITOR_SELECTION_OBJECT: kind = EDITOR_ITEM_OBJECT; break;
+            case EDITOR_SELECTION_RIGID_BODY:
+            case EDITOR_SELECTION_PARTICLE: kind = EDITOR_ITEM_RIGID_BODY; break;
+            case EDITOR_SELECTION_HITBOX: kind = EDITOR_ITEM_HITBOX; break;
+            case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
+            case EDITOR_SELECTION_ANCHOR: kind = EDITOR_ITEM_ANCHOR; break;
+            case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
+            case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
+            case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
+            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
+            case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
+            default: return false;
+        }
+        command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
+            .data.item_rename = {.kind = kind, .object = ref.object,
+                .parent = ref.parent, .item = ref.item}};
+        snprintf(command.data.item_rename.name,
+            sizeof(command.data.item_rename.name), "%s", name);
+    }
+    return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
 }
 
 static EditorRigidBody *editor_navigation_rigid_body_get(EditorObject *object,

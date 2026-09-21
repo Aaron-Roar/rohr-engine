@@ -5,19 +5,48 @@
 #ifndef EDITOR_VIEWPORT_CONTEXT_MENU_H
 #define EDITOR_VIEWPORT_CONTEXT_MENU_H
 
-#include "rohr.h"
+#include "editor_viewport.h"
+
+typedef enum EditorContextMenuAction {
+    EDITOR_CONTEXT_MENU_NONE,
+    EDITOR_CONTEXT_MENU_OPEN,
+    EDITOR_CONTEXT_MENU_VISIBILITY,
+    EDITOR_CONTEXT_MENU_RENAME,
+    EDITOR_CONTEXT_MENU_DELETE
+} EditorContextMenuAction;
 
 typedef struct EditorViewportContextMenu {
-    TextAsset action_labels[3];
+    TextAsset open_label;
+    TextAsset hide_label;
+    TextAsset show_label;
+    TextAsset rename_label;
+    TextAsset copy_label;
+    TextAsset duplicate_label;
+    TextAsset delete_label;
+    TextAsset accept_label;
+    TextAsset cancel_label;
+    TextAsset rename_field;
+    TextAsset background_labels[5];
     bool open;
+    bool target_valid;
+    bool from_column;
     Position position;
+    EditorSelectionRef target;
+    float scroll_offset;
+    char rename_value[EDITOR_OBJECT_NAME_MAX];
+    char rename_original[EDITOR_OBJECT_NAME_MAX];
+    bool renaming;
+    bool rename_focus_pending;
 } EditorViewportContextMenu;
 
 bool editor_viewport_context_menu_create(EditorViewportContextMenu *menu,
     FontAsset *font);
 void editor_viewport_context_menu_destroy(EditorViewportContextMenu *menu);
-void editor_viewport_context_menu_draw(EditorViewportContextMenu *menu,
-    const MouseState *mouse, float viewport_width, float menu_height,
+void editor_viewport_context_menu_open(EditorViewportContextMenu *menu,
+    Position position, const EditorSelectionRef *target, bool from_column);
+EditorContextMenuAction editor_viewport_context_menu_draw(
+    EditorViewportContextMenu *menu, const MouseState *mouse,
+    bool target_visible, const char *target_name, float window_width, float menu_height,
     float viewport_bottom, float window_height);
 void editor_viewport_context_menu_close(EditorViewportContextMenu *menu);
 bool editor_viewport_context_menu_open_check(

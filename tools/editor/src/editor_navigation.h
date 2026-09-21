@@ -20,5 +20,13 @@ bool editor_navigation_selection_reorder(EditorProject *project,
     EditorSelectionRef target, bool after, EditorHistory *history);
 bool editor_navigation_viewport_transform_history_update(EditorProject *project,
     EditorViewportState *state, EditorHistory *history, bool was_active);
+bool editor_navigation_selection_visibility_get(EditorProject *project,
+    EditorSelectionRef selection, bool *visible);
+bool editor_navigation_selection_visibility_set(EditorProject *project,
+    EditorSelectionRef selection, bool visible);
+bool editor_navigation_selection_name_get(EditorProject *project,
+    EditorSelectionRef selection, char *name, size_t capacity);
+bool editor_navigation_selection_name_set(EditorProject *project,
+    EditorSelectionRef selection, const char *name);
 
 #endif

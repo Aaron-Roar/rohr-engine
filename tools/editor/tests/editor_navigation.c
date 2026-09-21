@@ -1029,6 +1029,54 @@ int main(void) {
         for(size_t i = 0; i < selection_count; i += 1)
             if(!modifier_click_toggle_check(&click_project, &click_state,
                     fallback, selections[i])) return 1;
+        {
+            bool visible = false;
+            char name[EDITOR_OBJECT_NAME_MAX] = {0};
+            EditorSelectionRef object_ref = selections[0];
+            clicked_object = editor_object_query_get(&click_project,
+                object_ref.object);
+            if(clicked_object == NULL) return 1;
+            clicked_object->visible = true;
+            if(!editor_navigation_selection_visibility_get(&click_project,
+                    object_ref, &visible) || !visible) {
+                fprintf(stderr, "context visibility get failed\n"); return 1;
+            }
+            if(!editor_navigation_selection_visibility_set(&click_project,
+                    object_ref, false) || clicked_object->visible) {
+                fprintf(stderr, "context visibility set failed\n"); return 1;
+            }
+            if(!editor_navigation_selection_name_get(&click_project,
+                    object_ref, name, sizeof(name)) || name[0] == '\0') {
+                fprintf(stderr, "context name get failed\n"); return 1;
+            }
+            if(!editor_navigation_selection_name_set(&click_project,
+                    object_ref, "Context Renamed") ||
+                    strcmp(clicked_object->name, "ContextRenamed") != 0) {
+                fprintf(stderr, "context selection actions failed\n");
+                return 1;
+            }
+            {
+                EditorLayoutViewport *layout =
+                    editor_project_layout_viewport_add(&click_project);
+                EditorViewportUiItem *ui = layout == NULL ? NULL :
+                    editor_viewport_ui_add(&click_project, layout,
+                        EDITOR_VIEWPORT_UI_SHAPE);
+                EditorSelectionRef ui_ref;
+                if(ui == NULL) return 1;
+                ui_ref = (EditorSelectionRef){EDITOR_SELECTION_UI_SHAPE,
+                    layout->id, 0, 0, ui->id};
+                ui->visible = true;
+                if(!editor_navigation_selection_visibility_get(&click_project,
+                        ui_ref, &visible) || !visible ||
+                        !editor_navigation_selection_visibility_set(&click_project,
+                            ui_ref, false) || ui->visible ||
+                        !editor_navigation_selection_visibility_set(&click_project,
+                            ui_ref, true) || !ui->visible) {
+                    fprintf(stderr, "context UI visibility synchronization failed\n");
+                    return 1;
+                }
+            }
+        }
         editor_viewport_state_destroy(&click_state);
         editor_project_destroy(&click_project);
     }

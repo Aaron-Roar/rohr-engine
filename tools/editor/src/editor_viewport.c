@@ -3102,6 +3102,185 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->group_rotating = false;
 }
 
+bool editor_viewport_selection_at_get(EditorProject *project,
+        const EditorViewportState *state, Position pointer,
+        EditorSelectionRef *selection) {
+    EditorObject *object;
+    Position world_pointer;
+    if(project == NULL || state == NULL || selection == NULL) return false;
+    *selection = (EditorSelectionRef){0};
+    world_pointer = editor_view_screen_to_world(pointer);
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
+        for(size_t i = project->object_count; i > 0; i -= 1) {
+            EditorObject *candidate = &project->objects[i - 1];
+            EditorObject overview = *candidate;
+            overview.position = candidate->overview_position;
+            if(candidate->visible && editor_object_visual_point_contains(
+                    &overview, world_pointer)) {
+                *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+                    candidate->id, 0, 0, candidate->id};
+                return true;
+            }
+        }
+        return false;
+    }
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            state->selected_layout_viewport);
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        Position origin = {center.x + project->viewport_camera_offset.x,
+            center.y + project->viewport_camera_offset.y};
+        Position local;
+        if(viewport == NULL) return false;
+        local = (Position){(pointer.x - origin.x) / project->viewport_camera_zoom -
+                viewport->config.rectangle.x,
+            (pointer.y - origin.y) / project->viewport_camera_zoom -
+                viewport->config.rectangle.y};
+        for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
+            EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+            ViewportRectangle rectangle = editor_viewport_ui_rectangle_get(item);
+            Position hit = local;
+            bool item_hit;
+            if(!item->visible) continue;
+            if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                Position centroid = editor_viewport_ui_shape_centroid_get(item);
+                Vec2D relative = {local.x - item->position.x - centroid.x,
+                    local.y - item->position.y - centroid.y};
+                Vec2D unrotated = math_vector_rotate(relative,
+                    -item->value.shape.rotation);
+                hit = (Position){item->position.x + centroid.x + unrotated.x,
+                    item->position.y + centroid.y + unrotated.y};
+            } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
+                Vec2D relative = {local.x - item->position.x,
+                    local.y - item->position.y};
+                Vec2D unrotated = math_vector_rotate(relative, -item->rotation);
+                hit = (Position){item->position.x + unrotated.x,
+                    item->position.y + unrotated.y};
+            }
+            item_hit = item->kind == EDITOR_VIEWPORT_UI_SLIDER ?
+                editor_viewport_ui_slider_hit_check(item, local,
+                    project->viewport_camera_zoom) :
+                hit.x >= rectangle.x && hit.y >= rectangle.y &&
+                hit.x <= rectangle.x + rectangle.width &&
+                hit.y <= rectangle.y + rectangle.height;
+            if(!item_hit) continue;
+            *selection = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                    EDITOR_SELECTION_UI_SHAPE :
+                item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
+                    EDITOR_SELECTION_UI_SLIDER,
+                viewport->id, 0, 0, item->id};
+            return true;
+        }
+        return false;
+    }
+    pointer = world_pointer;
+    object = editor_project_selected_get(project);
+    if(object == NULL || !object->visible) return false;
+    {
+        EditorSelectionRef current;
+        if(editor_viewport_selection_ref_get(project, state, &current)) {
+            EditorViewportState one = *state;
+            one.selected_items = &current;
+            one.selected_item_count = 1;
+            if(editor_group_point_hit(project, &one, pointer)) {
+                *selection = current;
+                return true;
+            }
+        }
+    }
+    for(size_t i = object->camera_count; i > 0; i -= 1) {
+        EditorCamera *camera = &object->cameras[i - 1];
+        Orientation rotation;
+        Position center;
+        if(!camera->visible) continue;
+        center = editor_camera_world_get(object, camera, &rotation);
+        if(!editor_sprite_point_contains(center,
+                (Scale){camera->dimensions.x /
+                    (camera->zoom > 0.0f ? camera->zoom : 1.0f),
+                    camera->dimensions.y /
+                    (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
+                rotation, pointer)) continue;
+        *selection = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
+            object->id, 0, 0, camera->id};
+        return true;
+    }
+    for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
+        EditorAnimatedSprite *sprite = &object->animated_sprite_items[i - 1];
+        size_t frame_index;
+        EditorAnimationFrame *frame;
+        Position center;
+        Orientation rotation;
+        if(!sprite->visible || sprite->frame_count == 0) continue;
+        frame_index = editor_animation_preview_frame_get(object, sprite);
+        frame = &sprite->frames[frame_index];
+        center = editor_animated_sprite_world_get(object, sprite, &rotation);
+        if(!editor_sprite_point_contains(center,
+                (Scale){frame->size.x * sprite->scale.x,
+                    frame->size.y * sprite->scale.y}, rotation, pointer)) continue;
+        *selection = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
+            object->id, 0, 0, sprite->id};
+        return true;
+    }
+    for(size_t i = object->sprite_count; i > 0; i -= 1) {
+        EditorSprite *sprite = &object->sprites[i - 1];
+        if(!sprite->visible || !editor_sprite_point_contains(
+                editor_sprite_world_get(object, sprite), sprite->size,
+                editor_sprite_world_rotation_get(object, sprite), pointer)) continue;
+        *selection = (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
+            object->id, 0, 0, sprite->id};
+        return true;
+    }
+    for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
+        EditorRigidBody *body = &object->rigid_bodies[i - 1];
+        if(!body->visible) continue;
+        if(body->standalone_particle) {
+            Position center = editor_particle_center_world_get(object, body);
+            if(hypotf(pointer.x - center.x, pointer.y - center.y) <=
+                    body->particle_radius) {
+                *selection = (EditorSelectionRef){EDITOR_SELECTION_PARTICLE,
+                    object->id, 0, 0, body->id};
+                return true;
+            }
+            continue;
+        }
+        for(size_t box = body->hitbox_count; box > 0; box -= 1) {
+            EditorHitbox *hitbox = &body->hitboxes[box - 1];
+            if(!hitbox->visible || !editor_hitbox_point_contains(
+                    object, body, hitbox, pointer)) continue;
+            if(state->mode == EDITOR_VIEWPORT_RIGID_BODY &&
+                    state->selected_rigid_body == body->id)
+                *selection = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
+                    object->id, body->id, 0, hitbox->id};
+            else *selection = (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, body->id};
+            return true;
+        }
+    }
+    for(size_t i = object->anchor_count; i > 0; i -= 1) {
+        EditorAnchor *anchor = &object->anchors[i - 1];
+        Position world = editor_anchor_world_get(object, anchor);
+        if(anchor->visible && hypotf(pointer.x - world.x, pointer.y - world.y) <= 10.0f) {
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
+                object->id, 0, 0, anchor->id};
+            return true;
+        }
+    }
+    if(editor_object_visual_point_contains(object, pointer)) {
+        *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+            object->id, 0, 0, object->id};
+        return true;
+    }
+    return false;
+}
+
 bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     Position pointer, MouseButtonState primary_button,
     MouseButtonState pan_button, bool pan_modifier, float wheel_y,
