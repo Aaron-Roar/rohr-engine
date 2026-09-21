@@ -614,6 +614,17 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
         EditorSelectionRef ref, bool *visible) {
     EditorObject *object;
     if(project == NULL || visible == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->camera_item_count; i += 1)
+            if(viewport->camera_items[i].id == ref.item) {
+                *visible = viewport->camera_items[i].placement.visible;
+                return true;
+            }
+        return false;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.item);
@@ -682,6 +693,17 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
     EditorCommand command;
     EditorVisibilityKind kind;
     if(project == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->camera_item_count; i += 1)
+            if(viewport->camera_items[i].id == ref.item) {
+                viewport->camera_items[i].placement.visible = visible;
+                return true;
+            }
+        return false;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.item);
@@ -734,6 +756,17 @@ bool editor_navigation_selection_name_get(EditorProject *project,
     EditorObject *object;
     const char *value = NULL;
     if(project == NULL || name == NULL || capacity == 0) return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            ref.object);
+        if(viewport == NULL) return false;
+        for(size_t i = 0; i < viewport->camera_item_count; i += 1)
+            if(viewport->camera_items[i].id == ref.item) {
+                snprintf(name, capacity, "%s", viewport->camera_items[i].name);
+                return true;
+            }
+        return false;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.item);
@@ -800,6 +833,14 @@ bool editor_navigation_selection_name_set(EditorProject *project,
     EditorItemKind kind;
     EditorCommand command;
     if(project == NULL || name == NULL || name[0] == '\0') return false;
+    if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
+        command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
+            .data.item_rename = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
+                .parent = ref.object, .item = ref.item}};
+        snprintf(command.data.item_rename.name,
+            sizeof(command.data.item_rename.name), "%s", name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = EDITOR_ITEM_LAYOUT_VIEWPORT,
@@ -875,6 +916,22 @@ bool editor_navigation_selected_open(EditorProject *project,
     EditorHitbox *hitbox;
 
     if(project == NULL || state == NULL) return false;
+    if(state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        if(editor_project_layout_viewport_get(project,
+                state->selected_layout_viewport) == NULL) return false;
+        state->mode = state->selected_viewport_camera_item != 0 ?
+            EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR : EDITOR_VIEWPORT_LAYOUT;
+        return true;
+    }
+    if(state->selection == EDITOR_SELECTION_UI_SHAPE ||
+            state->selection == EDITOR_SELECTION_UI_TEXT ||
+            state->selection == EDITOR_SELECTION_UI_SLIDER) {
+        state->mode = state->selection == EDITOR_SELECTION_UI_SHAPE ?
+            EDITOR_VIEWPORT_UI_SHAPE_EDITOR :
+            state->selection == EDITOR_SELECTION_UI_TEXT ?
+                EDITOR_VIEWPORT_UI_TEXT_EDITOR : EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
+        return true;
+    }
     if(state->selection == EDITOR_SELECTION_SPRITE) {
         if(editor_project_sprite_get(editor_project_selected_get(project),
                 state->selected_sprite) == NULL)

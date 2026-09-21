@@ -3179,6 +3179,21 @@ bool editor_viewport_selection_at_get(EditorProject *project,
                 viewport->id, 0, 0, item->id};
             return true;
         }
+        for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
+            EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
+            ViewportRectangle rectangle = item->placement.rectangle;
+            Position center = {rectangle.x + rectangle.width * 0.5f,
+                rectangle.y + rectangle.height * 0.5f};
+            Vec2D relative = {local.x - center.x, local.y - center.y};
+            Vec2D unrotated;
+            if(!item->placement.visible) continue;
+            unrotated = math_vector_rotate(relative, -item->placement.orientation);
+            if(fabsf(unrotated.x) > fabsf(rectangle.width) * 0.5f ||
+                    fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+                viewport->id, viewport->id, 0, item->id};
+            return true;
+        }
         return false;
     }
     pointer = world_pointer;

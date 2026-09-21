@@ -2166,9 +2166,12 @@ static void editor_mode_hierarchy_row(void *opaque,
     if(editor_viewport_context_menu_open_check(context->context_menu)) return;
     if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
             editor_point_in_rect(context->pointer, bounds)) {
-        if(context->project != NULL)
+        if(context->project != NULL) {
+            EditorViewportMode mode = viewport->mode;
             (void)editor_viewport_selection_set(context->project, viewport,
                 selection, false);
+            viewport->mode = mode;
+        }
         editor_viewport_context_menu_open(context->context_menu,
             context->pointer, &selection, true);
     }
@@ -3507,8 +3510,21 @@ int main(void) {
             rohr_ui_modal_controls_end();
             if(context_action != EDITOR_CONTEXT_MENU_NONE &&
                     viewport_context_menu.target_valid) {
-                (void)editor_viewport_selection_set(&project, &viewport_state,
-                    viewport_context_menu.target, false);
+                {
+                    EditorViewportMode mode = viewport_state.mode;
+                    EditorSelectionRef target = viewport_context_menu.target;
+                    if(target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                            target.parent != 0) {
+                        viewport_state.selected_layout_viewport = target.object;
+                        viewport_state.selected_viewport_camera_item = target.item;
+                        viewport_state.selected_viewport_ui_item = 0;
+                        viewport_state.selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                    } else {
+                        (void)editor_viewport_selection_set(&project,
+                            &viewport_state, target, false);
+                    }
+                    viewport_state.mode = mode;
+                }
                 if(context_action == EDITOR_CONTEXT_MENU_OPEN)
                     (void)editor_navigation_selected_open(&project, &viewport_state);
                 else if(context_action == EDITOR_CONTEXT_MENU_VISIBILITY)
@@ -4204,9 +4220,22 @@ int main(void) {
                 EditorSelectionRef context_target;
                 bool target_found = editor_viewport_selection_at_get(&project,
                     &viewport_state, pointer, &context_target);
-                if(target_found)
-                    (void)editor_viewport_selection_set(&project, &viewport_state,
-                        context_target, false);
+                if(target_found) {
+                    EditorViewportMode mode = viewport_state.mode;
+                    if(context_target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                            context_target.parent != 0) {
+                        viewport_state.selected_layout_viewport =
+                            context_target.object;
+                        viewport_state.selected_viewport_camera_item =
+                            context_target.item;
+                        viewport_state.selected_viewport_ui_item = 0;
+                        viewport_state.selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                    } else {
+                        (void)editor_viewport_selection_set(&project,
+                            &viewport_state, context_target, false);
+                    }
+                    viewport_state.mode = mode;
+                }
                 editor_viewport_context_menu_open(&viewport_context_menu, pointer,
                     target_found ? &context_target : NULL, false);
             }
