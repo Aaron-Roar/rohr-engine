@@ -361,7 +361,7 @@ int main(void) {
                     .thumb_height = 24.0f, .thumb_radius = 9.0f,
                     .thumb_offset = 5.0f,
                     .thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE,
-                    .orientation = VIEWPORT_UI_SLIDER_HORIZONTAL, .enabled = true}),
+                    .enabled = true}),
                 rohr_error_check(slider_result)) ||
             rohr_error_check(rohr_graphics_ui_slider_get(slider_result.result.value)) ||
             fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).

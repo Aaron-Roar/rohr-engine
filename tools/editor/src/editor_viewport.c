@@ -2040,22 +2040,14 @@ static ViewportRectangle editor_viewport_ui_rectangle_get(
             VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
                 item->value.slider.thumb_radius * 2.0f :
                 item->value.slider.thumb_height;
-        float thickness = fmaxf(item->value.slider.track_thickness,
-            item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-                thumb_height : thumb_width);
-        float along = item->value.slider.orientation ==
-            VIEWPORT_UI_SLIDER_HORIZONTAL ? thumb_width : thumb_height;
+        float thickness = fmaxf(item->value.slider.track_thickness, thumb_height);
+        float along = thumb_width;
         float offset_before = fminf(0.0f, item->value.slider.thumb_offset);
         float offset_size = fabsf(item->value.slider.thumb_offset);
-        return item->value.slider.orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-            (ViewportRectangle){item->position.x -
+        return (ViewportRectangle){item->position.x -
                     (item->value.slider.length + along) * 0.5f + offset_before,
                 item->position.y - thickness * 0.5f,
-                item->value.slider.length + along + offset_size, thickness} :
-            (ViewportRectangle){item->position.x - thickness * 0.5f,
-                item->position.y - (item->value.slider.length + along) * 0.5f +
-                    offset_before,
-                thickness, item->value.slider.length + along + offset_size};
+                item->value.slider.length + along + offset_size, thickness};
     }
     if(item->value.shape.vertex_count == 0)
         return (ViewportRectangle){item->position.x, item->position.y, 0.0f, 0.0f};
@@ -2091,10 +2083,8 @@ static bool editor_viewport_ui_slider_hit_check(
     relative = (Vec2D){pointer.x - item->position.x,
         pointer.y - item->position.y};
     local = math_vector_rotate(relative, -item->rotation);
-    along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        local.x : local.y;
-    across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        local.y : local.x;
+    along = local.x;
+    across = local.y;
     track_hit_half = fmaxf(slider->track_thickness * 0.5f,
         4.0f / fmaxf(zoom, 0.001f));
     if(fabsf(along) <= slider->length * 0.5f &&
@@ -2106,12 +2096,57 @@ static bool editor_viewport_ui_slider_hit_check(
     if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE)
         return along * along + across * across <=
             slider->thumb_radius * slider->thumb_radius;
-    thumb_along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        slider->thumb_width : slider->thumb_height;
-    thumb_across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        slider->thumb_height : slider->thumb_width;
+    thumb_along = slider->thumb_width;
+    thumb_across = slider->thumb_height;
     return fabsf(along) <= thumb_along * 0.5f &&
         fabsf(across) <= thumb_across * 0.5f;
+}
+
+static bool editor_viewport_ui_slider_thumb_hit_check(
+        const EditorViewportUiItem *item, Position pointer) {
+    const EditorViewportUiSlider *slider;
+    Vec2D relative;
+    Vec2D local;
+    float amount;
+    float along;
+    if(item == NULL || item->kind != EDITOR_VIEWPORT_UI_SLIDER) return false;
+    slider = &item->value.slider;
+    relative = (Vec2D){pointer.x - item->position.x,
+        pointer.y - item->position.y};
+    local = math_vector_rotate(relative, -item->rotation);
+    amount = (slider->value - slider->minimum) /
+        (slider->maximum - slider->minimum);
+    along = -slider->length * 0.5f + slider->length * amount +
+        slider->thumb_offset;
+    local.x -= along;
+    if(slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE)
+        return local.x * local.x + local.y * local.y <=
+            slider->thumb_radius * slider->thumb_radius;
+    return fabsf(local.x) <= slider->thumb_width * 0.5f &&
+        fabsf(local.y) <= slider->thumb_height * 0.5f;
+}
+
+static void editor_viewport_ui_slider_value_from_pointer_set(
+        EditorViewportUiItem *item, Position pointer) {
+    EditorViewportUiSlider *slider;
+    Vec2D relative;
+    Vec2D local;
+    float amount;
+    if(item == NULL || item->kind != EDITOR_VIEWPORT_UI_SLIDER) return;
+    slider = &item->value.slider;
+    relative = (Vec2D){pointer.x - item->position.x,
+        pointer.y - item->position.y};
+    local = math_vector_rotate(relative, -item->rotation);
+    amount = (local.x - slider->thumb_offset + slider->length * 0.5f) /
+        slider->length;
+    amount = fminf(1.0f, fmaxf(0.0f, amount));
+    slider->value = slider->minimum +
+        (slider->maximum - slider->minimum) * amount;
+    if(slider->step > 0.0f)
+        slider->value = slider->minimum + roundf(
+            (slider->value - slider->minimum) / slider->step) * slider->step;
+    slider->value = fminf(slider->maximum,
+        fmaxf(slider->minimum, slider->value));
 }
 
 static Position editor_viewport_ui_shape_centroid_get(
@@ -2346,11 +2381,16 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
         offset = item->value.text.offset;
     }
     {
-        anchor = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-            editor_viewport_ui_shape_point_get(item,
-                (Position){centroid.x + offset.x, centroid.y + offset.y}) :
-            (Position){item->position.x + centroid.x + offset.x,
-                item->position.y + centroid.y + offset.y};
+        if(item->kind == EDITOR_VIEWPORT_UI_SHAPE)
+            anchor = editor_viewport_ui_shape_point_get(item,
+                (Position){centroid.x + offset.x, centroid.y + offset.y});
+        else {
+            Vec2D rotated = math_vector_rotate(
+                (Vec2D){centroid.x + offset.x, centroid.y + offset.y},
+                item->rotation);
+            anchor = (Position){item->position.x + rotated.x,
+                item->position.y + rotated.y};
+        }
         position = (Position){viewport.x + anchor.x * zoom -
                 editor_viewport_ui_text_assets[slot].size.x * text_scale.x * 0.5f,
             viewport.y + anchor.y * zoom -
@@ -2362,8 +2402,9 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
         (void)rohr_graphics_screen_text_scaled_rotated_draw(
             &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
             -item->value.shape.rotation);
-    else (void)rohr_graphics_text_scaled_draw(
-        &editor_viewport_ui_text_assets[slot], position, text_scale);
+    else (void)rohr_graphics_screen_text_scaled_rotated_draw(
+        &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
+        -item->rotation);
     if(selected) {
         float width = editor_viewport_ui_text_assets[slot].size.x * text_scale.x;
         float height = editor_viewport_ui_text_assets[slot].size.y * text_scale.y;
@@ -2379,6 +2420,13 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
                 corners[corner] = (Position){screen_anchor.x + rotated.x,
                     screen_anchor.y + rotated.y};
             }
+        else for(size_t corner = 0; corner < 4; corner += 1) {
+            Vec2D relative = {corners[corner].x - screen_anchor.x,
+                corners[corner].y - screen_anchor.y};
+            Vec2D rotated = math_vector_rotate(relative, item->rotation);
+            corners[corner] = (Position){screen_anchor.x + rotated.x,
+                screen_anchor.y + rotated.y};
+        }
         for(size_t edge = 0; edge < 4; edge += 1)
             editor_viewport_screen_dotted_line_draw(corners[edge],
                 corners[(edge + 1) % 4], (Color){255, 210, 70, 255}, 2.0f, 2.0f);
@@ -3040,6 +3088,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             local.y -= viewport->config.rectangle.y;
             if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
                 state->dragged_viewport_item = false;
+                state->dragged_viewport_slider_thumb = false;
                 state->dragged_viewport_vertex = false;
                 state->dragged_viewport_text = false;
                 state->rotated_viewport_item = false;
@@ -3064,15 +3113,20 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
-                    Position centroid;
-                    Position shape_center;
                     if(item->id != state->selected_viewport_ui_item ||
-                            item->kind != EDITOR_VIEWPORT_UI_SHAPE) continue;
-                    centroid = editor_viewport_ui_shape_centroid_get(item);
-                    shape_center = (Position){item->position.x + centroid.x,
-                        item->position.y + centroid.y};
-                    item->value.shape.rotation = atan2f(local.y - shape_center.y,
-                        local.x - shape_center.x) + state->rotation_pointer_offset;
+                            item->kind == EDITOR_VIEWPORT_UI_SHAPE) continue;
+                    item->rotation = atan2f(local.y - item->position.y,
+                        local.x - item->position.x) + state->rotation_pointer_offset;
+                    return true;
+                }
+            }
+            if(state->dragged_viewport_slider_thumb &&
+                    primary_button == MOUSE_BUTTON_STATE_DOWN) {
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(item->id != state->selected_viewport_ui_item ||
+                            item->kind != EDITOR_VIEWPORT_UI_SLIDER) continue;
+                    editor_viewport_ui_slider_value_from_pointer_set(item, local);
                     return true;
                 }
             }
@@ -3225,6 +3279,25 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             local.x - shape_center.x);
                     return true;
                 }
+                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+                    EditorViewportUiItem *item = &viewport->ui_items[i];
+                    Position handle;
+                    if(item->id != state->selected_viewport_ui_item ||
+                            item->kind == EDITOR_VIEWPORT_UI_SHAPE ||
+                            (state->selection != EDITOR_SELECTION_UI_TEXT &&
+                                state->selection != EDITOR_SELECTION_UI_SLIDER))
+                        continue;
+                    handle = editor_rotation_control_position_get(item->position,
+                        item->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH /
+                            project->viewport_camera_zoom);
+                    if(!editor_rotation_control_hit_check(local, handle,
+                            10.0f / project->viewport_camera_zoom)) continue;
+                    state->rotated_viewport_item = true;
+                    state->rotation_pointer_offset = item->rotation -
+                        atan2f(local.y - item->position.y,
+                            local.x - item->position.x);
+                    return true;
+                }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
                     if(item->id != state->selected_viewport_ui_item ||
@@ -3347,6 +3420,13 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                             -item->value.shape.rotation);
                         hit = (Position){item->position.x + centroid.x + unrotated.x,
                             item->position.y + centroid.y + unrotated.y};
+                    } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
+                        Vec2D relative = {local.x - item->position.x,
+                            local.y - item->position.y};
+                        Vec2D unrotated = math_vector_rotate(relative,
+                            -item->rotation);
+                        hit = (Position){item->position.x + unrotated.x,
+                            item->position.y + unrotated.y};
                     }
                     item_hit = item->kind == EDITOR_VIEWPORT_UI_SLIDER ?
                         editor_viewport_ui_slider_hit_check(item, local,
@@ -3369,6 +3449,13 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->selected_viewport_camera_item = 0;
                     state->selection = item_selection;
                     state->selected_viewport_ui_text_child = false;
+                    if(item->kind == EDITOR_VIEWPORT_UI_SLIDER &&
+                            editor_viewport_ui_slider_thumb_hit_check(item, local)) {
+                        state->dragged_viewport_slider_thumb = true;
+                        state->dragged_viewport_item = false;
+                        editor_viewport_ui_slider_value_from_pointer_set(item, local);
+                        return true;
+                    }
                     if(double_clicked) {
                         state->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                             EDITOR_VIEWPORT_UI_SHAPE_EDITOR :
@@ -5577,19 +5664,12 @@ void editor_viewport_draw(const EditorProject *project,
                     float amount = (slider->value - slider->minimum) /
                         (slider->maximum - slider->minimum);
                     float half = slider->length * 0.5f;
-                    Position local_start = slider->orientation ==
-                            VIEWPORT_UI_SLIDER_HORIZONTAL ?
-                        (Position){-half, 0.0f} : (Position){0.0f, -half};
-                    Position local_end = slider->orientation ==
-                            VIEWPORT_UI_SLIDER_HORIZONTAL ?
-                        (Position){half, 0.0f} : (Position){0.0f, half};
+                    Position local_start = (Position){-half, 0.0f};
+                    Position local_end = (Position){half, 0.0f};
                     Position local_thumb = {
                         local_start.x + (local_end.x - local_start.x) * amount +
-                            (slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-                                slider->thumb_offset : 0.0f),
-                        local_start.y + (local_end.y - local_start.y) * amount +
-                            (slider->orientation == VIEWPORT_UI_SLIDER_VERTICAL ?
-                                slider->thumb_offset : 0.0f)};
+                            slider->thumb_offset,
+                        local_start.y + (local_end.y - local_start.y) * amount};
                     Vec2D start_delta = math_vector_rotate(
                         (Vec2D){local_start.x, local_start.y}, item->rotation);
                     Vec2D end_delta = math_vector_rotate(
@@ -5629,6 +5709,17 @@ void editor_viewport_draw(const EditorProject *project,
                     editor_viewport_slider_thumb_outline_draw(thumb, slider,
                         item->rotation, zoom, 0.0f,
                         rohr_graphics_color_hex_create(slider->thumb_color));
+                    if(whole_selected) {
+                        Position center = {rectangle.x + item->position.x * zoom,
+                            rectangle.y + item->position.y * zoom};
+                        Position handle = editor_rotation_control_position_get(
+                            center, item->rotation,
+                            EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                        editor_viewport_screen_line_draw(center, handle,
+                            selection_color);
+                        editor_viewport_screen_circle_draw(handle, 10.0f,
+                            selection_color);
+                    }
                     editor_view_composition_layer_base = 0;
                     continue;
                 }
@@ -5799,6 +5890,16 @@ void editor_viewport_draw(const EditorProject *project,
                     for(size_t edge = 0; edge < 4; edge += 1)
                         editor_viewport_screen_dotted_line_draw(corners[edge],
                             corners[(edge + 1) % 4], color, spacing, thickness);
+                }
+                if(item->kind == EDITOR_VIEWPORT_UI_TEXT && text_selected) {
+                    Position center = {rectangle.x + item->position.x * zoom,
+                        rectangle.y + item->position.y * zoom};
+                    Position handle = editor_rotation_control_position_get(center,
+                        item->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                    editor_viewport_screen_line_draw(center, handle,
+                        (Color){255, 210, 70, 255});
+                    editor_viewport_screen_circle_draw(handle, 10.0f,
+                        (Color){255, 210, 70, 255});
                 }
                 editor_view_composition_layer_base = 0;
             }

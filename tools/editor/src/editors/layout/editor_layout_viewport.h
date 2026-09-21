@@ -25,7 +25,6 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset click_border_color_label, click_fill_color_label;
     TextAsset add_shape_label, add_slider_label, button_label;
     TextAsset minimum_label, maximum_label, value_label, step_label;
-    TextAsset orientation_label, horizontal_label, vertical_label;
     TextAsset track_thickness_label, thumb_shape_label;
     TextAsset rectangle_label, circle_label;
     TextAsset thumb_width_label, thumb_height_label, thumb_radius_label;

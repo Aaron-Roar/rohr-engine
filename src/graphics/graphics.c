@@ -1862,10 +1862,8 @@ static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
     if(slider == NULL || !isfinite(slider->minimum) ||
             !isfinite(slider->maximum) || !isfinite(slider->value) ||
             !isfinite(slider->step) || !isfinite(slider->thumb_offset) ||
-            slider->maximum <= slider->minimum ||
-            slider->step < 0.0f || slider->orientation <
-                VIEWPORT_UI_SLIDER_HORIZONTAL ||
-            slider->orientation > VIEWPORT_UI_SLIDER_VERTICAL) return false;
+            slider->maximum <= slider->minimum || slider->step < 0.0f)
+        return false;
     if(slider->length <= 0.0f) slider->length = 180.0f;
     if(slider->track_thickness <= 0.0f) slider->track_thickness = 6.0f;
     if(slider->thumb_width <= 0.0f) slider->thumb_width = 12.0f;
@@ -3342,26 +3340,20 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
 
     if(viewport == NULL || item == NULL || slider == NULL) return;
     half_length = slider->length * 0.5f;
-    start_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        (Position){-half_length, 0.0f} : (Position){0.0f, -half_length};
-    end_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        (Position){half_length, 0.0f} : (Position){0.0f, half_length};
+    start_local = (Position){-half_length, 0.0f};
+    end_local = (Position){half_length, 0.0f};
     center = graphics_viewport_ui_local_point_get(viewport, item, (Position){0});
     orientation = item->orientation + item->content_orientation;
     relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
     local = math_vector_rotate(relative, -orientation);
     if(item->content_scale.x > 0.0f) local.x /= item->content_scale.x;
     if(item->content_scale.y > 0.0f) local.y /= item->content_scale.y;
-    along = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.x : local.y;
-    across = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ? local.y : local.x;
+    along = local.x;
+    across = local.y;
     float thumb_along = slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
-        slider->thumb_radius * 2.0f : slider->orientation ==
-            VIEWPORT_UI_SLIDER_HORIZONTAL ? slider->thumb_width :
-                slider->thumb_height;
+        slider->thumb_radius * 2.0f : slider->thumb_width;
     float thumb_across = slider->thumb_shape == VIEWPORT_UI_SLIDER_THUMB_CIRCLE ?
-        slider->thumb_radius * 2.0f : slider->orientation ==
-            VIEWPORT_UI_SLIDER_HORIZONTAL ? slider->thumb_height :
-                slider->thumb_width;
+        slider->thumb_radius * 2.0f : slider->thumb_height;
     hit_half = fmaxf(slider->track_thickness, thumb_across) * 0.5f;
     float hover_min = fminf(-half_length,
         -half_length + slider->thumb_offset - thumb_along * 0.5f);
@@ -3391,11 +3383,8 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     }
     amount = (slider->value - slider->minimum) /
         (slider->maximum - slider->minimum);
-    thumb_local = slider->orientation == VIEWPORT_UI_SLIDER_HORIZONTAL ?
-        (Position){-half_length + slider->length * amount +
-            slider->thumb_offset, 0.0f} :
-        (Position){0.0f, -half_length + slider->length * amount +
-            slider->thumb_offset};
+    thumb_local = (Position){-half_length + slider->length * amount +
+        slider->thumb_offset, 0.0f};
     start = graphics_viewport_ui_local_point_get(viewport, item, start_local);
     end = graphics_viewport_ui_local_point_get(viewport, item, end_local);
     thumb = graphics_viewport_ui_local_point_get(viewport, item, thumb_local);

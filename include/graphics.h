@@ -210,11 +210,6 @@ typedef struct ViewportUiShapeConfig {
     ViewportUiTextConfig text;
 } ViewportUiShapeConfig;
 
-typedef enum ViewportUiSliderOrientation {
-    VIEWPORT_UI_SLIDER_HORIZONTAL,
-    VIEWPORT_UI_SLIDER_VERTICAL,
-} ViewportUiSliderOrientation;
-
 typedef enum ViewportUiSliderThumbShape {
     VIEWPORT_UI_SLIDER_THUMB_RECTANGLE,
     VIEWPORT_UI_SLIDER_THUMB_CIRCLE,
@@ -233,7 +228,6 @@ typedef struct ViewportUiSliderConfig {
     float thumb_height;
     float thumb_radius;
     float thumb_offset;
-    ViewportUiSliderOrientation orientation;
     ViewportUiSliderThumbShape thumb_shape;
     Color track_color;
     Color filled_track_color;

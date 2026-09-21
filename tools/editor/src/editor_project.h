@@ -450,7 +450,7 @@ typedef struct EditorViewportUiSlider {
     float thumb_height;
     float thumb_radius;
     float thumb_offset;
-    ViewportUiSliderOrientation orientation;
+    bool legacy_vertical;
     ViewportUiSliderThumbShape thumb_shape;
     uint32_t track_color;
     uint32_t filled_track_color;

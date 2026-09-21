@@ -1943,7 +1943,7 @@ static bool editor_workspace_generated_viewports_write(
                     ".length=%.8ff, .track_thickness=%.8ff, "
                     ".thumb_width=%.8ff, .thumb_height=%.8ff, "
                     ".thumb_radius=%.8ff, .thumb_offset=%.8ff, "
-                    ".orientation=%d, .thumb_shape=%d, "
+                    ".thumb_shape=%d, "
                     ".track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                     ".filled_track_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                     ".thumb_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
@@ -1967,7 +1967,7 @@ static bool editor_workspace_generated_viewports_write(
                     slider->length, slider->track_thickness,
                     slider->thumb_width, slider->thumb_height, slider->thumb_radius,
                     slider->thumb_offset,
-                    (int)slider->orientation, (int)slider->thumb_shape,
+                    (int)slider->thumb_shape,
                     slider->track_color,
                     slider->filled_track_color, slider->thumb_color,
                     slider->hover_thumb_color, slider->pressed_thumb_color,

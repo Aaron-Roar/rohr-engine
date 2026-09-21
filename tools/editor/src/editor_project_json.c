@@ -473,7 +473,6 @@ static yyjson_mut_val *editor_json_ui_definition_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_real(document, item, "thumb_height", slider->thumb_height);
         yyjson_mut_obj_add_real(document, item, "thumb_radius", slider->thumb_radius);
         yyjson_mut_obj_add_real(document, item, "thumb_offset", slider->thumb_offset);
-        yyjson_mut_obj_add_uint(document, item, "orientation", slider->orientation);
         yyjson_mut_obj_add_uint(document, item, "track_color", slider->track_color);
         yyjson_mut_obj_add_uint(document, item, "filled_track_color",
             slider->filled_track_color);
@@ -1369,7 +1368,7 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
                 text_value->height_scale <= 0.0f) return false;
     } else {
         EditorViewportUiSlider *slider = &ui->value.slider;
-        uint32_t orientation = VIEWPORT_UI_SLIDER_HORIZONTAL;
+        uint32_t legacy_orientation = 0;
         uint32_t thumb_shape = VIEWPORT_UI_SLIDER_THUMB_RECTANGLE;
         float legacy_thumb_size = 0.0f;
         *slider = (EditorViewportUiSlider){
@@ -1396,7 +1395,7 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
             slider->thumb_height = legacy_thumb_size;
             slider->thumb_radius = legacy_thumb_size * 0.5f;
         }
-        OPTIONAL_UINT("orientation", &orientation);
+        OPTIONAL_UINT("orientation", &legacy_orientation);
         OPTIONAL_UINT("thumb_shape", &thumb_shape);
         OPTIONAL_REAL("thumb_offset", &slider->thumb_offset);
         OPTIONAL_UINT("track_color", &slider->track_color);
@@ -1405,14 +1404,14 @@ static bool editor_json_ui_definition_read(yyjson_val *value,
         OPTIONAL_UINT("hover_thumb_color", &slider->hover_thumb_color);
         OPTIONAL_UINT("pressed_thumb_color", &slider->pressed_thumb_color);
         OPTIONAL_BOOL("enabled", &slider->enabled);
-        if(orientation > VIEWPORT_UI_SLIDER_VERTICAL ||
+        if(legacy_orientation > 1 ||
                 thumb_shape > VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
                 slider->maximum <= slider->minimum || slider->step < 0.0f ||
                 slider->value < slider->minimum || slider->value > slider->maximum ||
                 slider->length <= 0.0f || slider->track_thickness <= 0.0f ||
                 slider->thumb_width <= 0.0f || slider->thumb_height <= 0.0f ||
                 slider->thumb_radius <= 0.0f) return false;
-        slider->orientation = (ViewportUiSliderOrientation)orientation;
+        slider->legacy_vertical = legacy_orientation == 1;
         slider->thumb_shape = (ViewportUiSliderThumbShape)thumb_shape;
     }
 #undef OPTIONAL_BOOL
@@ -2228,6 +2227,14 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         &item->clip_rectangle.width, 0.0f) ||
                     !editor_json_optional_real(item_value, "clip_height",
                         &item->clip_rectangle.height, 0.0f)) goto done;
+            {
+                EditorViewportUiDefinition *definition =
+                    editor_project_ui_definition_get(&loaded, item->definition);
+                if(definition != NULL &&
+                        definition->kind == EDITOR_VIEWPORT_UI_SLIDER &&
+                        definition->value.slider.legacy_vertical)
+                    item->rotation += 1.57079632679f;
+            }
             {
                 yyjson_val *clip_enabled = yyjson_obj_get(item_value, "clip_enabled");
                 if(clip_enabled != NULL && !editor_json_bool(item_value,

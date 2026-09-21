@@ -213,7 +213,6 @@ int main(void) {
             slider->value.slider.value = 12.5f;
             slider->value.slider.step = 0.5f;
             slider->value.slider.length = 240.0f;
-            slider->value.slider.orientation = VIEWPORT_UI_SLIDER_VERTICAL;
             slider->value.slider.thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE;
             slider->value.slider.thumb_radius = 14.0f;
             slider->value.slider.thumb_offset = -18.0f;
@@ -287,8 +286,6 @@ int main(void) {
                     EDITOR_VIEWPORT_UI_SLIDER ||
                 fabsf(loaded_project.layout_viewports[0].ui_items[2].
                     value.slider.value - 12.5f) > 0.001f ||
-                loaded_project.layout_viewports[0].ui_items[2].value.slider.orientation !=
-                    VIEWPORT_UI_SLIDER_VERTICAL ||
                 loaded_project.layout_viewports[0].ui_items[2].value.slider.thumb_shape !=
                     VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
                 fabsf(loaded_project.layout_viewports[0].ui_items[2].
@@ -352,7 +349,6 @@ int main(void) {
                 !file_contains(path, "rohr_viewport_ui_add") ||
                 !file_contains(path, "rohr_graphics_ui_slider_create") ||
                 !file_contains(path, ".minimum=-10.000000000f") ||
-                !file_contains(path, ".orientation=1") ||
                 !file_contains(path, ".thumb_shape=1") ||
                 !file_contains(path, ".thumb_radius=14.00000000f") ||
                 !file_contains(path, ".thumb_offset=-18.00000000f") ||

@@ -60,8 +60,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Font Color", font_color_label);
     CREATE("Minimum", minimum_label); CREATE("Maximum", maximum_label);
     CREATE("Value", value_label); CREATE("Step", step_label);
-    CREATE("Orientation", orientation_label); CREATE("Horizontal", horizontal_label);
-    CREATE("Vertical", vertical_label); CREATE("Track Thickness", track_thickness_label);
+    CREATE("Track Thickness", track_thickness_label);
     CREATE("Thumb Shape", thumb_shape_label); CREATE("Rectangle", rectangle_label);
     CREATE("Circle", circle_label); CREATE("Thumb Width", thumb_width_label);
     CREATE("Thumb Height", thumb_height_label); CREATE("Thumb Radius", thumb_radius_label);
@@ -143,8 +142,7 @@ void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     DESTROY(corner_radius_field);
     DESTROY(add_shape_label); DESTROY(add_slider_label); DESTROY(button_label);
     DESTROY(minimum_label); DESTROY(maximum_label); DESTROY(value_label);
-    DESTROY(step_label); DESTROY(orientation_label); DESTROY(horizontal_label);
-    DESTROY(vertical_label); DESTROY(track_thickness_label); DESTROY(thumb_shape_label);
+    DESTROY(step_label); DESTROY(track_thickness_label); DESTROY(thumb_shape_label);
     DESTROY(rectangle_label); DESTROY(circle_label); DESTROY(thumb_width_label);
     DESTROY(thumb_height_label); DESTROY(thumb_radius_label);
     DESTROY(thumb_offset_label);
@@ -1124,7 +1122,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     active = layout_ui_common_draw(editor, context, item, &y);
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
-    const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
+    const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
     float appearance_rows[18];
     size_t slider_appearance_count = slider->thumb_shape ==
         VIEWPORT_UI_SLIDER_THUMB_CIRCLE ? 10 : 11;
@@ -1136,7 +1134,7 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutResult content =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_content_section, "editor.ui_slider.section.content",
-            content_rows, 6, 10.0f);
+            content_rows, 5, 10.0f);
     EditorModeAccordionLayoutResult appearance =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_appearance_section, "editor.ui_slider.section.appearance",
@@ -1145,8 +1143,6 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
         thumb_height = thumb_radius = thumb_offset =
         (UIFieldResult){0};
     if(content.expanded) {
-        const TextAsset *orientation_options[] = {&editor->horizontal_label,
-            &editor->vertical_label};
         y = content.content_y;
         minimum = layout_number(&editor->minimum_label, &editor->minimum_field,
             "editor.ui_slider.minimum", context->x, y, context->width,
@@ -1160,15 +1156,6 @@ bool editor_ui_slider_editor_draw(EditorLayoutViewportEditor *editor,
         step = layout_number(&editor->step_label, &editor->step_field,
             "editor.ui_slider.step", context->x, y, context->width,
             &slider->step); y += 38.0f;
-        rohr_ui_label(&editor->orientation_label,
-            (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-        UIDropdownResult orientation = editor_mode_dropdown(
-            "editor.ui_slider.orientation", orientation_options, 2,
-            (size_t)slider->orientation, (UIRect){context->x + 94.0f, y,
-                context->width - 104.0f, 28.0f}, NULL);
-        if(orientation.changed) slider->orientation =
-            (ViewportUiSliderOrientation)orientation.selected_index;
-        y += 38.0f;
         (void)editor_mode_checkbox_left("editor.ui_slider.enabled",
             &editor->enabled_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &slider->enabled);
