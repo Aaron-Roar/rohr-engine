@@ -13,3 +13,4 @@ a.out
 *.mp4
 !docs/assets/*.mp4
 AGENTS.md
+docs/agent_instructions/
