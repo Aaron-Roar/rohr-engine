@@ -2737,6 +2737,7 @@ int main(void) {
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
                 !field_editing &&
+                !viewport_context_menu.renaming &&
                 !color_picker.open &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 !file_browser.active &&
