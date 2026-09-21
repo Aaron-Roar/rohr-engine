@@ -2163,6 +2163,7 @@ static void editor_mode_hierarchy_row(void *opaque,
         }
         return;
     }
+    if(editor_viewport_context_menu_open_check(context->context_menu)) return;
     if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
             editor_point_in_rect(context->pointer, bounds)) {
         if(context->project != NULL)
@@ -2860,13 +2861,18 @@ int main(void) {
             .pointer = rohr_graphics_mouse_screen_position_get(),
             .primary_button = mouse.button_states[MOUSE_BUTTON_LEFT]
         });
+        bool context_menu_modal =
+            editor_viewport_context_menu_open_check(&viewport_context_menu);
         UIRect build_settings_bounds = {
             fmaxf(30.0f, EDITOR_VIEWPORT_WIDTH * 0.08f),
             EDITOR_MENU_HEIGHT + 34.0f,
             fmaxf(560.0f, EDITOR_VIEWPORT_WIDTH * 0.84f),
             fminf(500.0f, EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT - 68.0f)
         };
-        if(build_settings_panel.open || visual_settings_panel.open ||
+        if(context_menu_modal)
+            rohr_ui_modal_set((UIRect){0.0f, 0.0f,
+                editor_window_width, EDITOR_WINDOW_HEIGHT});
+        else if(build_settings_panel.open || visual_settings_panel.open ||
                 physics_settings_panel.open ||
                 notification_panel.report_open ||
                 notification_panel.log_open)
@@ -3487,11 +3493,13 @@ int main(void) {
                 (void)editor_navigation_selection_name_get(&project,
                     viewport_context_menu.target, context_name,
                     sizeof(context_name));
-            EditorContextMenuAction context_action =
-                editor_viewport_context_menu_draw(&viewport_context_menu, &mouse,
-                    context_visible, context_name, editor_window_width,
-                    EDITOR_MENU_HEIGHT,
-                    EDITOR_VIEWPORT_BOTTOM, EDITOR_WINDOW_HEIGHT);
+            EditorContextMenuAction context_action;
+            rohr_ui_modal_controls_begin();
+            context_action = editor_viewport_context_menu_draw(
+                &viewport_context_menu, &mouse, context_visible, context_name,
+                editor_window_width, EDITOR_MENU_HEIGHT,
+                EDITOR_VIEWPORT_BOTTOM, EDITOR_WINDOW_HEIGHT);
+            rohr_ui_modal_controls_end();
             if(context_action != EDITOR_CONTEXT_MENU_NONE &&
                     viewport_context_menu.target_valid) {
                 (void)editor_viewport_selection_set(&project, &viewport_state,
@@ -4182,7 +4190,7 @@ int main(void) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if(workspace.open && pointer.x >= 0.0f &&
+            if(!context_menu_modal && workspace.open && pointer.x >= 0.0f &&
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
                     pointer.y >= EDITOR_MENU_HEIGHT &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
@@ -4218,6 +4226,7 @@ int main(void) {
             }
             bool ui_consumed = !workspace.open || file_browser.active ||
                 close_action != EDITOR_CLOSE_NONE ||
+                context_menu_modal ||
                 editor_viewport_context_menu_open_check(&viewport_context_menu) ||
                 color_picker.open ||
                 rohr_ui_pointer_consumed_get() ||
