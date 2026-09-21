@@ -2126,10 +2126,7 @@ static void editor_hierarchy_drag_row(EditorHierarchyDragState *drag,
 
 static void editor_context_menu_cancel(EditorViewportContextMenu *menu) {
     if(menu == NULL) return;
-    snprintf(menu->rename_value, sizeof(menu->rename_value), "%s",
-        menu->rename_original);
-    menu->renaming = false;
-    editor_viewport_context_menu_close(menu);
+    editor_viewport_context_menu_cancel(menu);
     rohr_ui_field_focus_clear();
 }
 

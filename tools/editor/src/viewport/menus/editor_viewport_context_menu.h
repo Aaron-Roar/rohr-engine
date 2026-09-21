@@ -45,11 +45,14 @@ bool editor_viewport_context_menu_create(EditorViewportContextMenu *menu,
 void editor_viewport_context_menu_destroy(EditorViewportContextMenu *menu);
 void editor_viewport_context_menu_open(EditorViewportContextMenu *menu,
     Position position, const EditorSelectionRef *target, bool from_column);
+void editor_viewport_context_menu_replace(EditorViewportContextMenu *menu,
+    Position position, const EditorSelectionRef *target, bool from_column);
 EditorContextMenuAction editor_viewport_context_menu_draw(
     EditorViewportContextMenu *menu, const MouseState *mouse,
     bool target_visible, const char *target_name, float window_width, float menu_height,
     float viewport_bottom, float window_height);
 void editor_viewport_context_menu_close(EditorViewportContextMenu *menu);
+void editor_viewport_context_menu_cancel(EditorViewportContextMenu *menu);
 bool editor_viewport_context_menu_open_check(
     const EditorViewportContextMenu *menu);
 bool editor_viewport_context_menu_point_contains(

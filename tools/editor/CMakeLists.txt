@@ -107,6 +107,20 @@ if(ROHR_BUILD_TESTS)
     )
     add_test(NAME editor_navigation COMMAND editor_navigation_test)
 
+    add_executable(editor_viewport_context_menu_test
+        tests/editor_viewport_context_menu.c
+        src/viewport/menus/editor_viewport_context_menu.c
+    )
+    target_include_directories(editor_viewport_context_menu_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib)
+    target_link_libraries(editor_viewport_context_menu_test PRIVATE
+        rohr_engine rohr_editor_core)
+    set_target_properties(editor_viewport_context_menu_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
+    )
+    add_test(NAME editor_viewport_context_menu
+        COMMAND editor_viewport_context_menu_test)
+
     add_executable(editor_history_test
         tests/editor_history.c
         src/editor_history.c

@@ -69,6 +69,13 @@ void editor_viewport_context_menu_open(EditorViewportContextMenu *menu,
     menu->renaming = false;
 }
 
+void editor_viewport_context_menu_replace(EditorViewportContextMenu *menu,
+        Position position, const EditorSelectionRef *target, bool from_column) {
+    if(menu == NULL) return;
+    editor_viewport_context_menu_cancel(menu);
+    editor_viewport_context_menu_open(menu, position, target, from_column);
+}
+
 static bool action_button(const char *id, const TextAsset *label, UIRect bounds,
         bool enabled) {
     if(!enabled) {
@@ -194,6 +201,15 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
 
 void editor_viewport_context_menu_close(EditorViewportContextMenu *menu) {
     if(menu != NULL) menu->open = false;
+}
+
+void editor_viewport_context_menu_cancel(EditorViewportContextMenu *menu) {
+    if(menu == NULL) return;
+    snprintf(menu->rename_value, sizeof(menu->rename_value), "%s",
+        menu->rename_original);
+    menu->renaming = false;
+    menu->rename_focus_pending = false;
+    menu->open = false;
 }
 
 bool editor_viewport_context_menu_open_check(
