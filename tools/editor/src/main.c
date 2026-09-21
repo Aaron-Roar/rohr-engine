@@ -872,6 +872,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
             }
         }
     }
+    if(state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) return height;
     if(state->mode == EDITOR_VIEWPORT_PARTICLE ||
             state->mode == EDITOR_VIEWPORT_SPRITE)
         return height + (state->mode == EDITOR_VIEWPORT_PARTICLE ? 122.0f : 86.0f);
@@ -952,6 +953,7 @@ static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_OBJECT: return "Object Properties";
         case EDITOR_VIEWPORT_RIGID_BODY: return "Rigid Body Properties";
         case EDITOR_VIEWPORT_PARTICLE: return "Particle Properties";
+        case EDITOR_VIEWPORT_PARTICLE_RADIUS: return "Particle Radius";
         case EDITOR_VIEWPORT_HITBOX: return "Hitbox Properties";
         case EDITOR_VIEWPORT_JOINT: return "Joint Properties";
         case EDITOR_VIEWPORT_ANCHOR: return "Anchor Properties";
@@ -1762,7 +1764,8 @@ static bool editor_single_selected_delete(
         }
         return true;
     }
-    if(viewport_state->selection == EDITOR_SELECTION_RIGID_BODY) {
+    if(viewport_state->selection == EDITOR_SELECTION_RIGID_BODY ||
+            viewport_state->selection == EDITOR_SELECTION_PARTICLE) {
         EditorRigidBody *body = editor_selected_body_get(selected, viewport_state);
         size_t index;
         if(body == NULL) return false;
@@ -1776,7 +1779,8 @@ static bool editor_single_selected_delete(
         }
         viewport_state->mode = EDITOR_VIEWPORT_OBJECT;
         if(index < selected->rigid_body_count) {
-            viewport_state->selection = EDITOR_SELECTION_RIGID_BODY;
+            viewport_state->selection = selected->rigid_bodies[index].particle ?
+                EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY;
             viewport_state->selected_rigid_body = selected->rigid_bodies[index].id;
         } else if(selected->joint_count > 0) {
             viewport_state->selection = EDITOR_SELECTION_JOINT;
@@ -2056,8 +2060,8 @@ static bool editor_hierarchy_ref_equal(EditorSelectionRef first,
 }
 
 static bool editor_hierarchy_object_child_check(EditorHierarchySelection kind) {
-    return kind == EDITOR_SELECTION_RIGID_BODY || kind == EDITOR_SELECTION_JOINT ||
-        kind == EDITOR_SELECTION_SOFT_BODY;
+    return kind == EDITOR_SELECTION_RIGID_BODY || kind == EDITOR_SELECTION_PARTICLE ||
+        kind == EDITOR_SELECTION_JOINT || kind == EDITOR_SELECTION_SOFT_BODY;
 }
 
 static bool editor_hierarchy_soft_child_check(EditorHierarchySelection kind) {
@@ -2904,6 +2908,11 @@ int main(void) {
                     .layer_control = &layer_control,
                     .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
+            field_editing = editor_particle_radius_editor_draw(&particle_editor,
+                &(EditorModeContext){.project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_RIGID_BODY) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -3280,6 +3289,10 @@ int main(void) {
                 case EDITOR_VIEWPORT_RIGID_BODY:
                     delete_label = &rigid_body_editor.delete_label;
                     delete_id = "editor.rigid_body.delete";
+                    break;
+                case EDITOR_VIEWPORT_PARTICLE:
+                    delete_label = &particle_editor.delete_label;
+                    delete_id = "editor.particle.delete";
                     break;
                 case EDITOR_VIEWPORT_HITBOX:
                     delete_label = &hitbox_editor.delete_label;

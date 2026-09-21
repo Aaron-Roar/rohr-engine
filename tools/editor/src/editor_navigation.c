@@ -19,6 +19,7 @@ static bool editor_selection_equal(EditorSelectionRef first,
 static bool editor_selection_sibling_check(EditorSelectionRef first,
         EditorSelectionRef second) {
     bool object_children = (first.kind == EDITOR_SELECTION_RIGID_BODY ||
+            first.kind == EDITOR_SELECTION_PARTICLE ||
             first.kind == EDITOR_SELECTION_JOINT ||
             first.kind == EDITOR_SELECTION_ANCHOR ||
             first.kind == EDITOR_SELECTION_SOFT_BODY ||
@@ -26,6 +27,7 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
             first.kind == EDITOR_SELECTION_CAMERA ||
             first.kind == EDITOR_SELECTION_ANIMATED_SPRITE) &&
         (second.kind == EDITOR_SELECTION_RIGID_BODY ||
+            second.kind == EDITOR_SELECTION_PARTICLE ||
             second.kind == EDITOR_SELECTION_JOINT ||
             second.kind == EDITOR_SELECTION_ANCHOR ||
             second.kind == EDITOR_SELECTION_SOFT_BODY ||
@@ -650,11 +652,22 @@ bool editor_navigation_selected_open(EditorProject *project,
             editor_viewport_object_editor_enter(state);
             return true;
         case EDITOR_SELECTION_RIGID_BODY:
-            if(editor_navigation_rigid_body_get(selected, state) == NULL) return false;
-            state->mode = EDITOR_VIEWPORT_RIGID_BODY;
+        case EDITOR_SELECTION_PARTICLE: {
+            EditorRigidBody *body = editor_navigation_rigid_body_get(selected, state);
+            if(body == NULL) return false;
+            state->selection = body->standalone_particle ? EDITOR_SELECTION_PARTICLE :
+                EDITOR_SELECTION_RIGID_BODY;
+            state->mode = body->standalone_particle ? EDITOR_VIEWPORT_PARTICLE :
+                EDITOR_VIEWPORT_RIGID_BODY;
             return true;
+        }
         case EDITOR_SELECTION_HITBOX:
             if(hitbox == NULL) return false;
+            if(editor_navigation_rigid_body_get(selected, state)->standalone_particle) {
+                state->selection = EDITOR_SELECTION_PARTICLE;
+                state->mode = EDITOR_VIEWPORT_PARTICLE;
+                return true;
+            }
             editor_viewport_hitbox_editor_enter(state);
             return true;
         case EDITOR_SELECTION_JOINT:
@@ -687,11 +700,21 @@ bool editor_navigation_selected_open(EditorProject *project,
         case EDITOR_SELECTION_VERTEX:
             if(hitbox == NULL || state->selected_vertex >= hitbox->vertex_count)
                 return false;
+            if(editor_navigation_rigid_body_get(selected, state)->standalone_particle) {
+                state->selection = EDITOR_SELECTION_PARTICLE;
+                state->mode = EDITOR_VIEWPORT_PARTICLE;
+                return true;
+            }
             editor_viewport_vertex_editor_enter(state, state->selected_vertex);
             return true;
         case EDITOR_SELECTION_LINE:
             if(hitbox == NULL || state->selected_line >= hitbox->vertex_count)
                 return false;
+            if(editor_navigation_rigid_body_get(selected, state)->standalone_particle) {
+                state->selection = EDITOR_SELECTION_PARTICLE;
+                state->mode = EDITOR_VIEWPORT_PARTICLE;
+                return true;
+            }
             editor_viewport_line_editor_enter(state, state->selected_line);
             return true;
         default:
@@ -707,6 +730,12 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_RIGID_BODY:
             state->selection = EDITOR_SELECTION_RIGID_BODY;
+            return true;
+        case EDITOR_VIEWPORT_PARTICLE:
+            state->selection = EDITOR_SELECTION_PARTICLE;
+            return true;
+        case EDITOR_VIEWPORT_PARTICLE_RADIUS:
+            state->selection = EDITOR_SELECTION_PARTICLE;
             return true;
         case EDITOR_VIEWPORT_HITBOX:
             state->selection = EDITOR_SELECTION_HITBOX;

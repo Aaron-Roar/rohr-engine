@@ -1213,7 +1213,9 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
         if(body->visible && editor_marquee_bounds_overlap(marquee,
                 editor_marquee_rigid_body_bounds_get(object, body)))
             (void)editor_marquee_selection_add(state,
-                (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
+                (EditorSelectionRef){body->standalone_particle ?
+                    EDITOR_SELECTION_PARTICLE :
+                    EDITOR_SELECTION_RIGID_BODY,
                     object->id, 0, 0, body->id});
     }
     for(size_t i = 0; i < object->soft_body_count; i += 1) {
@@ -1531,8 +1533,10 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
         if(starting_mode == EDITOR_VIEWPORT_OBJECT) {
             switch(primary.kind) {
                 case EDITOR_SELECTION_RIGID_BODY:
-                case EDITOR_SELECTION_PARTICLE:
                     state->mode = EDITOR_VIEWPORT_RIGID_BODY;
+                    break;
+                case EDITOR_SELECTION_PARTICLE:
+                    state->mode = EDITOR_VIEWPORT_PARTICLE;
                     break;
                 case EDITOR_SELECTION_JOINT:
                     state->mode = EDITOR_VIEWPORT_JOINT;
@@ -1627,10 +1631,15 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_LINE || state->mode == EDITOR_VIEWPORT_VERTEX) {
         state->mode = EDITOR_VIEWPORT_HITBOX;
         state->selection = EDITOR_SELECTION_HITBOX;
-    } else if(state->mode == EDITOR_VIEWPORT_HITBOX ||
-            state->mode == EDITOR_VIEWPORT_PARTICLE) {
+    } else if(state->mode == EDITOR_VIEWPORT_HITBOX) {
         state->mode = EDITOR_VIEWPORT_RIGID_BODY;
         state->selection = EDITOR_SELECTION_RIGID_BODY;
+    } else if(state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
+        state->mode = EDITOR_VIEWPORT_PARTICLE;
+        state->selection = EDITOR_SELECTION_PARTICLE;
+    } else if(state->mode == EDITOR_VIEWPORT_PARTICLE) {
+        state->mode = EDITOR_VIEWPORT_OBJECT;
+        state->selection = EDITOR_SELECTION_OBJECT;
     } else if(state->mode == EDITOR_VIEWPORT_ANCHOR) {
         state->mode = EDITOR_VIEWPORT_OBJECT;
         state->selection = EDITOR_SELECTION_NONE;
@@ -3759,11 +3768,24 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
     if(object == NULL) return false;
+    body = editor_selected_body_get(object, state);
+    if(body != NULL && body->standalone_particle &&
+            (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
+                state->mode == EDITOR_VIEWPORT_HITBOX ||
+                state->mode == EDITOR_VIEWPORT_LINE ||
+                state->mode == EDITOR_VIEWPORT_VERTEX ||
+                state->mode == EDITOR_VIEWPORT_ORIGIN)) {
+        state->mode = EDITOR_VIEWPORT_PARTICLE;
+        state->selection = EDITOR_SELECTION_PARTICLE;
+        state->selected_hitbox = 0;
+        state->selected_line = 0;
+        state->selected_vertex = 0;
+        state->selected_origin_kind = EDITOR_ORIGIN_NONE;
+    }
     if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
         editor_viewport_transform_cancel(state);
         return false;
     }
-    body = editor_selected_body_get(object, state);
     hitbox = editor_selected_hitbox_get(object, state);
     if(state->dragged_camera_entity && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
@@ -4384,10 +4406,12 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position center = editor_particle_center_world_get(object, particle_body);
             float distance = hypotf(pointer.x - center.x, pointer.y - center.y);
             float tolerance = 7.0f / editor_view_scale;
+            bool radius_handle = fabsf(distance - particle_body->particle_radius) <=
+                tolerance;
             Uint64 now;
             bool double_clicked;
-            if(!particle_body->visible || !particle_body->particle ||
-                    fabsf(distance - particle_body->particle_radius) > tolerance) continue;
+            if(!particle_body->visible || !particle_body->standalone_particle ||
+                    distance > particle_body->particle_radius + tolerance) continue;
             if(state->mode == EDITOR_VIEWPORT_HITBOX &&
                     state->selected_rigid_body == particle_body->id) {
                 continue;
@@ -4407,17 +4431,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 now - state->last_viewport_click_at <= 400;
             state->selected_rigid_body = particle_body->id;
             state->selection = EDITOR_SELECTION_PARTICLE;
-            if(state->mode == EDITOR_VIEWPORT_PARTICLE) {
+            if(state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS && radius_handle) {
                 state->dragged_particle_radius = true;
                 state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
                 return true;
             }
             if(double_clicked) {
-                state->mode = EDITOR_VIEWPORT_PARTICLE;
+                state->mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
                 state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
             } else {
-                if(state->mode != EDITOR_VIEWPORT_PARTICLE)
-                    state->mode = EDITOR_VIEWPORT_RIGID_BODY;
+                state->mode = EDITOR_VIEWPORT_PARTICLE;
                 state->dragged_body = true;
                 state->drag_offset = (Vec2D){
                     pointer.x - object->position.x - particle_body->position.x,
@@ -4434,7 +4457,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
 
     if(body != NULL && body->visible &&
             (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
-                state->mode == EDITOR_VIEWPORT_PARTICLE)) {
+                (state->mode == EDITOR_VIEWPORT_PARTICLE &&
+                    !body->standalone_particle))) {
         Position handle = editor_body_rotation_handle_get(object, body);
         if(!body->particle &&
                 (pointer.x - handle.x) * (pointer.x - handle.x) +
@@ -4718,6 +4742,39 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(!candidate->visible ||
                     !editor_hitbox_point_contains(object, candidate_body, candidate, pointer)) {
                 continue;
+            }
+            if(candidate_body->standalone_particle) {
+                Uint64 now = SDL_GetTicks();
+                bool double_clicked = state->last_viewport_click_selection ==
+                        EDITOR_SELECTION_PARTICLE &&
+                    state->last_viewport_click_object == object->id &&
+                    state->last_viewport_click_index == candidate_body->id &&
+                    now - state->last_viewport_click_at <= 400;
+                if(state->selection_modifier) {
+                    (void)editor_viewport_selection_set(project, state,
+                        (EditorSelectionRef){EDITOR_SELECTION_PARTICLE,
+                            object->id, 0, 0, candidate_body->id}, true);
+                    state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+                    return true;
+                }
+                state->selection = EDITOR_SELECTION_PARTICLE;
+                state->selected_rigid_body = candidate_body->id;
+                if(double_clicked) {
+                    state->mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
+                    state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+                } else {
+                    state->mode = EDITOR_VIEWPORT_PARTICLE;
+                    state->dragged_body = true;
+                    state->drag_offset = (Vec2D){
+                        pointer.x - object->position.x - candidate_body->position.x,
+                        pointer.y - object->position.y - candidate_body->position.y
+                    };
+                    state->last_viewport_click_selection = EDITOR_SELECTION_PARTICLE;
+                    state->last_viewport_click_object = object->id;
+                    state->last_viewport_click_index = candidate_body->id;
+                    state->last_viewport_click_at = now;
+                }
+                return true;
             }
             if(state->selection_modifier) {
                 (void)editor_viewport_selection_set(project, state,
@@ -5175,6 +5232,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                     state->mode == EDITOR_VIEWPORT_LINE ||
                     state->mode == EDITOR_VIEWPORT_VERTEX ||
                     state->mode == EDITOR_VIEWPORT_PARTICLE ||
+                    state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS ||
                     (state->mode == EDITOR_VIEWPORT_AUTO_SHAPE &&
                         state->auto_shape_parent_mode == EDITOR_VIEWPORT_HITBOX) ||
                     (state->mode == EDITOR_VIEWPORT_ORIGIN &&
@@ -5191,6 +5249,19 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 Position handle = editor_body_rotation_handle_get(object, selected);
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});
                 editor_circle_draw(handle, 10.0f, (Color){255, 215, 70, 255});
+            }
+            if(selected->particle && state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
+                Position particle_center = editor_particle_center_world_get(object,
+                    selected);
+                Position handle = {particle_center.x + selected->particle_radius,
+                    particle_center.y};
+                Color color = {255, 215, 70, 255};
+                editor_line_draw(particle_center, handle, color);
+                editor_line_draw(handle, (Position){handle.x - 12.0f,
+                    handle.y - 7.0f}, color);
+                editor_line_draw(handle, (Position){handle.x - 12.0f,
+                    handle.y + 7.0f}, color);
+                editor_circle_draw(handle, 10.0f, color);
             }
         }
     }

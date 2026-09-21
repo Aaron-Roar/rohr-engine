@@ -689,6 +689,7 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 if(value != NULL) {
                     if(command->data.item_add.option == 1) {
                         value->particle = true;
+                        value->standalone_particle = true;
                         value->particle_auto_fit = false;
                         value->rotation_locked = true;
                         value->rotation = 0.0f;
@@ -992,11 +993,16 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_COLLISION &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     body->collision_enabled = set->value.boolean;
-                    if(!body->collision_enabled) body->particle = false;
+                    if(!body->collision_enabled) {
+                        body->particle = false;
+                        body->standalone_particle = false;
+                    }
                 } else if(set->property == EDITOR_PROPERTY_PARTICLE &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL &&
-                        (!set->value.boolean || body->collision_enabled))
+                        (!set->value.boolean || body->collision_enabled)) {
                     body->particle = set->value.boolean;
+                    if(!body->particle) body->standalone_particle = false;
+                }
                 else if(set->property == EDITOR_PROPERTY_PARTICLE_RADIUS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number > 0.0f) {

@@ -174,6 +174,8 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_bool(document, value, "gravity_enabled", body->gravity_enabled);
     yyjson_mut_obj_add_bool(document, value, "collision_enabled", body->collision_enabled);
     yyjson_mut_obj_add_bool(document, value, "particle", body->particle);
+    yyjson_mut_obj_add_bool(document, value, "standalone_particle",
+        body->standalone_particle);
     yyjson_mut_obj_add_bool(document, value, "particle_auto_fit",
         body->particle_auto_fit);
     yyjson_mut_obj_add_real(document, value, "particle_radius", particle_radius);
@@ -866,6 +868,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     yyjson_val *collision_category = yyjson_obj_get(value, "collision_category");
     yyjson_val *collision_with = yyjson_obj_get(value, "collision_with");
     yyjson_val *particle = yyjson_obj_get(value, "particle");
+    yyjson_val *standalone_particle = yyjson_obj_get(value, "standalone_particle");
     yyjson_val *particle_auto_fit = yyjson_obj_get(value, "particle_auto_fit");
     yyjson_val *particle_radius = yyjson_obj_get(value, "particle_radius");
     yyjson_val *particle_rigid_vertices = yyjson_obj_get(value,
@@ -907,6 +910,8 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
             !editor_json_uint64(value, "collision_category", &body->collision_category) ||
             !editor_json_uint64(value, "collision_with", &body->collision_with))) return false;
     if(particle != NULL && !editor_json_bool(value, "particle", &body->particle)) return false;
+    if(standalone_particle != NULL && !editor_json_bool(value,
+            "standalone_particle", &body->standalone_particle)) return false;
     if(particle_auto_fit != NULL && !editor_json_bool(
             value, "particle_auto_fit", &body->particle_auto_fit)) return false;
     if((particle_radius != NULL && !editor_json_real(
@@ -926,6 +931,7 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
             (surface_color != NULL && !editor_json_uint(
                 value, "surface_color", &body->surface_color))) return false;
     if(!body->collision_enabled) body->particle = false;
+    if(!body->particle) body->standalone_particle = false;
     if(collision_enabled == NULL &&
             (collision_category != NULL || collision_with != NULL)) return false;
     editor_project_property_name_format(body->name, sizeof(body->name), body->name);

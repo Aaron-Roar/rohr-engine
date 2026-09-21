@@ -693,6 +693,7 @@ int main(void) {
     }
     chassis->collision_category |= UINT64_C(1) << 1;
     chassis->particle = true;
+    chassis->standalone_particle = true;
     editor_project_particle_auto_fit_update(&project);
     if(fabsf(chassis->particle_radius -
             editor_project_particle_auto_radius_get(chassis)) > 0.001f ||
@@ -940,6 +941,7 @@ int main(void) {
                 loaded_object->rigid_bodies[0].collision_category !=
                     (UINT64_C(1) | (UINT64_C(1) << 1)) ||
                 !loaded_object->rigid_bodies[0].particle ||
+                !loaded_object->rigid_bodies[0].standalone_particle ||
                 loaded_object->rigid_bodies[0].particle_auto_fit ||
                 fabsf(loaded_object->rigid_bodies[0].particle_radius - 42.0f) > 0.001f ||
                 loaded_object->rigid_bodies[0].particle_rigid_vertices != 20 ||

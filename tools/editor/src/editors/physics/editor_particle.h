@@ -9,6 +9,7 @@
 
 typedef struct EditorParticleEditor {
     TextAsset title;
+    TextAsset delete_label;
     TextAsset radius_label;
     TextAsset rigid_vertices_label;
     TextAsset origin_x_label;
@@ -26,6 +27,8 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
     FontAsset *font);
 void editor_particle_editor_destroy(EditorParticleEditor *editor);
 bool editor_particle_editor_draw(EditorParticleEditor *editor,
+    const EditorModeContext *context);
+bool editor_particle_radius_editor_draw(EditorParticleEditor *editor,
     const EditorModeContext *context);
 
 #endif

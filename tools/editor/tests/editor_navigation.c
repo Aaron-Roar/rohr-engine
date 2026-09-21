@@ -241,6 +241,69 @@ int main(void) {
     state.selected_rigid_body = body->id;
     if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_RIGID_BODY,
                 EDITOR_VIEWPORT_RIGID_BODY)) return 1;
+    body_b->particle = true;
+    state.selected_rigid_body = body_b->id;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_RIGID_BODY,
+                EDITOR_VIEWPORT_RIGID_BODY) ||
+            state.selection != EDITOR_SELECTION_RIGID_BODY) return 1;
+    body_b->standalone_particle = true;
+    body_b->position = (Position){200.0f, 0.0f};
+    {
+        Position particle_center = {EDITOR_VIEWPORT_WIDTH * 0.5f + 200.0f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        state.mode = EDITOR_VIEWPORT_PARTICLE;
+        state.selection = EDITOR_SELECTION_PARTICLE;
+        state.selected_rigid_body = body_b->id;
+        if(!editor_viewport_update(&state, &project, particle_center,
+                    MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                    false, 0.0f, false) ||
+                state.mode == EDITOR_VIEWPORT_HITBOX) return 1;
+        (void)editor_viewport_update(&state, &project, particle_center,
+            MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false);
+        if(!editor_viewport_update(&state, &project, particle_center,
+                    MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                    false, 0.0f, false) ||
+                state.mode != EDITOR_VIEWPORT_PARTICLE_RADIUS ||
+                state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    }
+    body_b->position = (Position){0};
+    state.last_viewport_click_selection = EDITOR_SELECTION_NONE;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_RIGID_BODY,
+                EDITOR_VIEWPORT_PARTICLE) ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    editor_viewport_back(&state);
+    if(state.mode != EDITOR_VIEWPORT_OBJECT ||
+            state.selection != EDITOR_SELECTION_OBJECT) return 1;
+    state.selected_rigid_body = body_b->id;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_PARTICLE,
+                EDITOR_VIEWPORT_PARTICLE)) return 1;
+    state.selected_hitbox = body_b->hitboxes[0].id;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_HITBOX,
+                EDITOR_VIEWPORT_PARTICLE) ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    state.selected_vertex = 0;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_VERTEX,
+                EDITOR_VIEWPORT_PARTICLE) ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    state.selected_line = 0;
+    if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_LINE,
+                EDITOR_VIEWPORT_PARTICLE) ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    state.mode = EDITOR_VIEWPORT_HITBOX;
+    state.selection = EDITOR_SELECTION_HITBOX;
+    (void)editor_viewport_update(&state, &project, (Position){0},
+        MOUSE_BUTTON_STATE_UP, MOUSE_BUTTON_STATE_UP, false, 0.0f, false);
+    if(state.mode != EDITOR_VIEWPORT_PARTICLE ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    state.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
+    editor_viewport_back(&state);
+    if(state.mode != EDITOR_VIEWPORT_PARTICLE ||
+            state.selection != EDITOR_SELECTION_PARTICLE) return 1;
+    body_b->particle = false;
+    body_b->standalone_particle = false;
+    state.selected_rigid_body = body->id;
     state.selected_hitbox = hitbox->id;
     if(!navigation_mode_open_check(&project, &state, EDITOR_SELECTION_HITBOX,
                 EDITOR_VIEWPORT_HITBOX)) return 1;

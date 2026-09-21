@@ -142,6 +142,7 @@ typedef struct EditorRigidBody {
     bool gravity_enabled;
     bool collision_enabled;
     bool particle;
+    bool standalone_particle;
     bool particle_auto_fit;
     bool visible;
     float particle_radius;

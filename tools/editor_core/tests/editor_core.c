@@ -650,7 +650,8 @@ static int item_commands_test(void) {
     particle_id = result.result.object;
     {
         EditorRigidBody *particle = editor_project_rigid_body_get(object, particle_id);
-        if(particle == NULL || !particle->particle || particle->particle_auto_fit ||
+        if(particle == NULL || !particle->particle ||
+                !particle->standalone_particle || particle->particle_auto_fit ||
                 !particle->rotation_locked || particle->particle_rigid_vertices != 16 ||
                 particle->hitbox_count != 1 ||
                 particle->hitboxes[0].vertex_count != 16 ||

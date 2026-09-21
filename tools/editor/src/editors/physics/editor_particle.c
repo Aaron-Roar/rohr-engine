@@ -13,6 +13,7 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
     if(editor == NULL || font == NULL) return false;
     *editor = (EditorParticleEditor){0};
     if(!editor_mode_text_create(font, "Particle", &editor->title) ||
+            !editor_mode_text_create(font, "Delete Particle", &editor->delete_label) ||
             !editor_mode_text_create(font, "Radius", &editor->radius_label) ||
             !editor_mode_text_create(font, "Rigid Vertices",
                 &editor->rigid_vertices_label) ||
@@ -36,6 +37,7 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
 void editor_particle_editor_destroy(EditorParticleEditor *editor) {
     if(editor == NULL) return;
     rohr_graphics_text_destroy(&editor->title);
+    rohr_graphics_text_destroy(&editor->delete_label);
     rohr_graphics_text_destroy(&editor->radius_label);
     rohr_graphics_text_destroy(&editor->rigid_vertices_label);
     rohr_graphics_text_destroy(&editor->origin_x_label);
@@ -170,4 +172,37 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
             context->x, 300.0f, context->width);
     return radius.active || rigid_vertices.active || origin_x.active ||
         origin_y.active || layer_active;
+}
+
+bool editor_particle_radius_editor_draw(EditorParticleEditor *editor,
+        const EditorModeContext *context) {
+    EditorObject *object;
+    EditorRigidBody *body;
+    UIFieldResult radius;
+    float radius_value;
+    if(editor == NULL || context == NULL || context->project == NULL ||
+            context->viewport == NULL) return false;
+    object = editor_project_selected_get(context->project);
+    body = object == NULL ? NULL : editor_project_rigid_body_get(object,
+        context->viewport->selected_rigid_body);
+    if(body == NULL || !body->particle) return false;
+    rohr_ui_label(&editor->title,
+        (UIRect){context->x + 10.0f, 42.0f, context->width - 20.0f, 30.0f});
+    rohr_ui_label(&editor->radius_label,
+        (UIRect){context->x + 8.0f, 84.0f, 72.0f, 26.0f});
+    radius_value = body->particle_radius;
+    radius = editor_mode_field("editor.particle.resize.radius",
+        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
+        &editor->radius_field, (UIRect){context->x + 82.0f, 84.0f,
+            context->width - 92.0f, 26.0f}, NULL);
+    if(radius.changed && radius_value > 0.0f) {
+        EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+            .data.property_set = {.kind = EDITOR_ITEM_RIGID_BODY,
+                .object = object->id, .item = body->id,
+                .property = EDITOR_PROPERTY_PARTICLE_RADIUS,
+                .value_kind = EDITOR_PROPERTY_VALUE_FLOAT,
+                .value.number = radius_value}};
+        (void)editor_command_execute(context->project, &command);
+    }
+    return radius.active;
 }

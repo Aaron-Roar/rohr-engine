@@ -80,8 +80,10 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             if(object->rigid_bodies[i].id == item.id) {
                 *name = object->rigid_bodies[i].name; *visible = object->rigid_bodies[i].visible;
                 *label = &editor->rigid_body_names[i]; *cache = editor->rigid_body_cache[i];
+                *selection = object->rigid_bodies[i].standalone_particle ?
+                    EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY;
             }
-        *selection = EDITOR_SELECTION_RIGID_BODY; *visibility = EDITOR_VISIBILITY_RIGID_BODY;
+        *visibility = EDITOR_VISIBILITY_RIGID_BODY;
     } else if(item.kind == EDITOR_HIERARCHY_JOINT) {
         for(size_t i = 0; i < object->joint_count; i += 1)
             if(object->joint_items[i].id == item.id) {
@@ -204,13 +206,15 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         if(result.kind == ERROR_RESULT_VALUE) { \
             context->viewport->selection = (selection_value); \
             context->viewport->member = result.result.object; \
+            if((selection_value) == EDITOR_SELECTION_PARTICLE) \
+                context->viewport->mode = EDITOR_VIEWPORT_PARTICLE; \
         } \
     }
     ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, y,
         EDITOR_ITEM_RIGID_BODY, 0, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
     y += 38.0f;
     ADD_BUTTON("editor.add_particle", editor->add_particle_label, y,
-        EDITOR_ITEM_RIGID_BODY, 1, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
+        EDITOR_ITEM_RIGID_BODY, 1, EDITOR_SELECTION_PARTICLE, selected_rigid_body);
     y += 38.0f;
     ADD_BUTTON("editor.add_anchor", editor->add_anchor_label, y,
         EDITOR_ITEM_ANCHOR, 0, EDITOR_SELECTION_ANCHOR, selected_anchor);

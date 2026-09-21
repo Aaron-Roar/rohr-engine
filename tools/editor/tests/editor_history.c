@@ -370,8 +370,9 @@ int main(void) {
             body->position.x,
             body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         body->particle = true;
+        body->standalone_particle = true;
         editor_viewport_state_init(&viewport);
-        viewport.mode = EDITOR_VIEWPORT_PARTICLE;
+        viewport.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
         viewport.selection = EDITOR_SELECTION_PARTICLE;
         viewport.selected_rigid_body = body->id;
         assert(editor_viewport_update(&viewport, &project, rotation_handle,
@@ -379,6 +380,7 @@ int main(void) {
             false, 0.0f, false));
         assert(!viewport.rotated_body);
         editor_viewport_transform_cancel(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
         body->particle_auto_fit = false;
         body->particle_radius = 30.0f;
         EditorRigidBodyId particle_body_id = body->id;
@@ -406,6 +408,7 @@ int main(void) {
         body = editor_project_rigid_body_get(&project.objects[0], particle_body_id);
         assert(body != NULL && fabsf(body->particle_radius - 45.0f) < 0.001f);
         body->particle = false;
+        body->standalone_particle = false;
     }
     hitbox = editor_project_hitbox_get(body, radius_test_hitbox_id);
     assert(hitbox != NULL);
