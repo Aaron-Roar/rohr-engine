@@ -30,6 +30,7 @@ typedef struct EditorHistory {
     bool transaction_commands_suppressed;
     bool pending_command_valid;
     bool restoring;
+    bool last_restore_ui;
     EditorCommand pending_forward;
     EditorCommand pending_inverse;
     EditorHistoryObjectChange *pending_object;
@@ -62,6 +63,7 @@ bool editor_history_undo(EditorHistory *history);
 bool editor_history_redo(EditorHistory *history);
 bool editor_history_undo_check(const EditorHistory *history);
 bool editor_history_redo_check(const EditorHistory *history);
+bool editor_history_last_restore_ui_check(const EditorHistory *history);
 size_t editor_history_memory_get(const EditorHistory *history);
 
 #endif

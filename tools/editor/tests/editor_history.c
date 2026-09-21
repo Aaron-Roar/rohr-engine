@@ -152,10 +152,12 @@ int main(void) {
         editor_history_command_finish(&history, &command, &result);
         assert(history.undo_count == 2);
         assert(editor_history_undo(&history));
+        assert(!editor_history_last_restore_ui_check(&history));
         assert(project.objects[0].position.x == original.x &&
             project.objects[0].position.y == original.y &&
             project.layout_viewports[0].ui_item_count == 1);
         assert(editor_history_undo(&history));
+        assert(editor_history_last_restore_ui_check(&history));
         assert(project.layout_viewports[0].ui_item_count == 0);
         assert(editor_history_redo(&history));
         assert(project.layout_viewports[0].ui_item_count == 1);

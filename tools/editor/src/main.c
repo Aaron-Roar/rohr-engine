@@ -2531,8 +2531,9 @@ int main(void) {
                 if(shortcut.restored) {
                     rohr_ui_field_focus_clear();
                     field_editing = false;
-                    editor_navigation_state_apply(
-                        &project, &viewport_state, &project.navigation);
+                    if(!editor_history_last_restore_ui_check(&history))
+                        editor_navigation_state_apply(
+                            &project, &viewport_state, &project.navigation);
                 }
                 continue;
             }

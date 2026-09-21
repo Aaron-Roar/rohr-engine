@@ -1759,6 +1759,13 @@ static bool editor_history_restore(EditorHistory *history,
     *from_count -= 1;
     entry = from[*from_count];
     from[*from_count] = NULL;
+    history->last_restore_ui = false;
+    for(size_t i = 0; i < entry->command_count; i += 1)
+        if(entry->commands[i].forward.kind == EDITOR_HISTORY_ACTION_UI ||
+                entry->commands[i].inverse.kind == EDITOR_HISTORY_ACTION_UI) {
+            history->last_restore_ui = true;
+            break;
+        }
     editor_history_entry_apply(history->project, entry, forward, history);
     if(!editor_history_stack_push(to, to_count, entry)) {
         editor_history_entry_destroy(entry);
@@ -1790,6 +1797,10 @@ bool editor_history_undo_check(const EditorHistory *history) {
 
 bool editor_history_redo_check(const EditorHistory *history) {
     return history != NULL && history->redo_count > 0;
+}
+
+bool editor_history_last_restore_ui_check(const EditorHistory *history) {
+    return history != NULL && history->last_restore_ui;
 }
 
 size_t editor_history_memory_get(const EditorHistory *history) {
