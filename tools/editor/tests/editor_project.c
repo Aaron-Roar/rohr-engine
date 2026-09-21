@@ -167,15 +167,19 @@ int main(void) {
         SDL_PathInfo info;
         char path[2048];
         char cli_command[4096];
+        EditorResult command_result;
+        EditorResult create_cli_result;
 
         workspace_fixture_remove(fixture);
         workspace_command.type = EDITOR_WORKSPACE_COMMAND_CREATE;
         snprintf(workspace_command.directory, sizeof(workspace_command.directory),
             "%s", fixture);
-        if(editor_result_check(editor_workspace_command_execute(
-                    &workspace, &workspace_project, &workspace_command)) ||
-                editor_result_check(editor_workspace_command_cli_write(
-                    &workspace_command, cli_command, sizeof(cli_command))) ||
+        command_result = editor_workspace_command_execute(
+            &workspace, &workspace_project, &workspace_command);
+        create_cli_result = editor_workspace_command_cli_write(
+            &workspace_command, cli_command, sizeof(cli_command));
+        if(editor_result_check(command_result) ||
+                editor_result_check(create_cli_result) ||
                 strstr(cli_command, "rohr-cli --project ") != cli_command ||
                 strstr(cli_command, " create") == NULL) {
             workspace_fixture_remove(fixture);
@@ -201,6 +205,9 @@ int main(void) {
             EditorViewportUiItem *slider = editor_viewport_ui_add(
                 &workspace_project, &workspace_project.layout_viewports[0],
                 EDITOR_VIEWPORT_UI_SLIDER);
+            EditorViewportUiItem *text;
+            EditorViewportUiDefinitionId slider_definition;
+            EditorViewportUiDefinitionId text_definition;
             if(slider == NULL) {
                 workspace_fixture_remove(fixture);
                 return 1;
@@ -221,11 +228,31 @@ int main(void) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
+            slider_definition = slider->definition;
+            text = editor_viewport_ui_add(&workspace_project,
+                &workspace_project.layout_viewports[0], EDITOR_VIEWPORT_UI_TEXT);
+            if(text == NULL) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
+            snprintf(text->name, sizeof(text->name), "instance_text");
+            text->position = (Position){80.0f, 420.0f};
+            snprintf(text->value.text.text, sizeof(text->value.text.text),
+                "independent text");
+            text_definition = text->definition;
+            if(!editor_project_ui_definition_sync_from_item(
+                    &workspace_project, text->id)) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
             workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
             if(editor_viewport_ui_mount(&workspace_project,
                     &workspace_project.layout_viewports[0],
                     workspace_project.layout_viewports[0].ui_items[0].definition) ==
-                    NULL) {
+                    NULL || editor_viewport_ui_mount(&workspace_project,
+                    &workspace_project.layout_viewports[0], slider_definition) == NULL ||
+                    editor_viewport_ui_mount(&workspace_project,
+                    &workspace_project.layout_viewports[0], text_definition) == NULL) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
@@ -282,15 +309,15 @@ int main(void) {
                 loaded_project.graphics_layer_count != 1 ||
                 strcmp(loaded_project.graphics_layers[0].name, "hud") != 0 ||
                 loaded_project.graphics_layers[0].value != 500 ||
-                loaded_project.layout_viewports[0].ui_item_count != 3 ||
-                loaded_project.ui_definition_count != 2 ||
+                loaded_project.layout_viewports[0].ui_item_count != 6 ||
+                loaded_project.ui_definition_count != 3 ||
                 loaded_project.layout_viewports[0].ui_items[0].definition !=
-                    loaded_project.layout_viewports[0].ui_items[1].definition ||
+                    loaded_project.layout_viewports[0].ui_items[3].definition ||
                 loaded_project.layout_viewports[0].ui_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].ui_items[0].drag_mode !=
                     VIEWPORT_ITEM_DRAG_X ||
-                loaded_project.layout_viewports[0].ui_items[1].drag_mode !=
+                loaded_project.layout_viewports[0].ui_items[3].drag_mode !=
                     VIEWPORT_ITEM_DRAG_NONE ||
                 loaded_slider == NULL ||
                 fabsf(loaded_slider->value.slider.value - 12.5f) > 0.001f ||
@@ -350,11 +377,13 @@ int main(void) {
                 !file_contains(path, "rohr_viewport_screen_add") ||
                 !file_contains(path, "rohr_graphics_ui_shape_create") ||
                 file_occurrence_count(path,
-                    "rohr_graphics_ui_shape_create") != 1 ||
-                file_occurrence_count(path, "rohr_viewport_ui_add") != 3 ||
+                    "rohr_graphics_ui_shape_create") != 2 ||
+                file_occurrence_count(path, "rohr_graphics_ui_text_create") != 2 ||
+                file_occurrence_count(path, "rohr_graphics_ui_slider_create") != 2 ||
+                file_occurrence_count(path, "rohr_viewport_ui_add") != 6 ||
                 !file_contains(path, "rohr_viewport_ui_add") ||
                 !file_contains(path, "rohr_graphics_ui_slider_create") ||
-                !file_contains(path, ".minimum=-10.000000000f") ||
+                !file_contains(path, ".minimum=-10.00000000f") ||
                 !file_contains(path, ".thumb_shape=1") ||
                 !file_contains(path, ".thumb_radius=14.00000000f") ||
                 !file_contains(path, ".thumb_offset=-18.00000000f") ||
@@ -366,6 +395,9 @@ int main(void) {
                 !file_contains(path, ".background_color=") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
                 !file_contains(path, "sample text") ||
+                !file_contains(path, "independent text") ||
+                file_occurrence_count(path,
+                    "resources->ui_items[resources->ui_item_count++]") != 6 ||
                 !file_contains(path, "rohr_viewport_enable_set")) {
             workspace_fixture_remove(fixture);
             return 1;

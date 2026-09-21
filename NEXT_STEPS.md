@@ -21,9 +21,12 @@ developer-owned C and do not need to be authored in the editor.
    and runtime creation. Includes editor selection and accordion authoring,
    runtime value/change APIs, round-trip coverage, generated-project checks,
    and Linux/Windows compilation.
-4. **Reusable spawning** — Add editor-authored object templates or prefabs,
-   repeated entity arrays, and generated APIs for spawning those definitions.
-   Spawn timing and gameplay decisions remain in C.
+4. **Reusable spawning (complete)** — Editor-authored objects generate reusable
+   create, draw, and destroy functions. Game code can call a generated create
+   function repeatedly or in a loop; each call rebuilds independent entities
+   and internal references. Repeated UI mounts likewise receive independent
+   mutable runtime resources and placement handles. Spawn timing and gameplay
+   decisions remain in C.
 5. **Standalone particles** — Support reusable particle definitions and
    particle emitters in addition to particle-enabled rigid bodies.
 6. **Advanced soft-body surfaces** — Support the filled topology and surface

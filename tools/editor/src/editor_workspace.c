@@ -1469,42 +1469,6 @@ static size_t editor_workspace_ui_font_index_get(const EditorProject *project,
     return 0;
 }
 
-static bool editor_workspace_ui_definition_seen_before(
-        const EditorProject *project, size_t viewport_limit, size_t item_limit,
-        EditorViewportUiDefinitionId definition, size_t *resource_index) {
-    size_t unique_count = 0;
-    if(project == NULL || resource_index == NULL) return false;
-    for(size_t viewport = 0; viewport <= viewport_limit; viewport += 1) {
-        size_t count = viewport == viewport_limit ? item_limit :
-            project->layout_viewports[viewport].ui_item_count;
-        for(size_t item = 0; item < count; item += 1) {
-            EditorViewportUiDefinitionId candidate =
-                project->layout_viewports[viewport].ui_items[item].definition;
-            bool counted = false;
-            for(size_t earlier_viewport = 0;
-                    earlier_viewport <= viewport && !counted; earlier_viewport += 1) {
-                size_t earlier_count = earlier_viewport == viewport ? item :
-                    project->layout_viewports[earlier_viewport].ui_item_count;
-                for(size_t earlier_item = 0; earlier_item < earlier_count;
-                        earlier_item += 1)
-                    if(project->layout_viewports[earlier_viewport]
-                            .ui_items[earlier_item].definition == candidate) {
-                        counted = true;
-                        break;
-                    }
-            }
-            if(counted) continue;
-            if(candidate == definition) {
-                *resource_index = unique_count;
-                return true;
-            }
-            unique_count += 1;
-        }
-    }
-    *resource_index = unique_count;
-    return false;
-}
-
 static bool editor_workspace_generated_viewports_write(
         const EditorWorkspace *workspace, const EditorProject *project) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -1532,12 +1496,14 @@ static bool editor_workspace_generated_viewports_write(
         "    FontAsset fonts[MAX_VIEWPORT_ITEMS + 1];\n"
         "    TextAsset texts[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
         "    GraphicsUiId ui_elements[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
+        "    ViewportItemId ui_items[MAX_VIEWPORTS * MAX_VIEWPORT_ITEMS];\n"
         "    GraphicsLayerId layers[MAX_GRAPHICS_LAYERS];\n"
         "    size_t viewport_count;\n"
         "    size_t screen_count;\n"
         "    size_t font_count;\n"
         "    size_t text_count;\n"
         "    size_t ui_element_count;\n"
+        "    size_t ui_item_count;\n"
         "    size_t layer_count;\n"
         "} ProjectViewports;\n\n"
         "EngineResult project_viewports_create(ProjectViewports *resources, "
@@ -1767,44 +1733,7 @@ static bool editor_workspace_generated_viewports_write(
             const EditorViewportUiDefinition *definition =
                 editor_project_ui_definition_get((EditorProject *)project,
                     item->definition);
-            size_t ui_resource_index;
-            bool definition_already_created =
-                editor_workspace_ui_definition_seen_before(project,
-                    viewport_index, item_index, item->definition,
-                    &ui_resource_index);
             if(definition == NULL) goto write_fail;
-            if(definition_already_created) {
-                fprintf(source,
-                    "      { ViewportItemIdResult added = rohr_viewport_ui_add("
-                    "resources->viewports[resources->viewport_count - 1], "
-                    "resources->ui_elements[%zu], (ViewportItemConfig){"
-                    ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
-                    ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
-                    ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
-                    ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
-                    "        if(rohr_error_check(added)) { result = "
-                        "rohr_error_result_error(added.result.error); goto fail; }\n",
-                    ui_resource_index, item->position.x, item->position.y,
-                    item->scale.x, item->scale.y, item->rotation,
-                    item->layer, item->visible ? "true" : "false",
-                    (int)item->drag_mode,
-                    item->clip_enabled ? "true" : "false",
-                    item->clip_rectangle.x, item->clip_rectangle.y,
-                    item->clip_rectangle.width, item->clip_rectangle.height);
-                if(item->graphics_layer != 0)
-                    for(size_t layer_index = 0;
-                            layer_index < project->graphics_layer_count;
-                            layer_index += 1)
-                        if(project->graphics_layers[layer_index].id ==
-                                item->graphics_layer)
-                            fprintf(source,
-                                "        if(rohr_error_check(result = "
-                                    "rohr_graphics_layer_ui_id_set(added.result.value, "
-                                    "resources->layers[%zu]))) goto fail;\n",
-                                layer_index);
-                fprintf(source, "      }\n");
-                continue;
-            }
             const EditorViewportUiText *text = definition->kind ==
                     EDITOR_VIEWPORT_UI_SHAPE ? &definition->value.shape.text :
                 definition->kind == EDITOR_VIEWPORT_UI_TEXT ?
@@ -1878,6 +1807,8 @@ static bool editor_workspace_generated_viewports_write(
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
+                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
+                    "added.result.value;\n");
                 if(item->graphics_layer != 0)
                     for(size_t layer_index = 0;
                             layer_index < project->graphics_layer_count;
@@ -1922,6 +1853,8 @@ static bool editor_workspace_generated_viewports_write(
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
+                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
+                    "added.result.value;\n");
                 if(item->graphics_layer != 0)
                     for(size_t layer_index = 0;
                             layer_index < project->graphics_layer_count;
@@ -1979,6 +1912,8 @@ static bool editor_workspace_generated_viewports_write(
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
                     item->clip_rectangle.width, item->clip_rectangle.height);
+                fprintf(source, "        resources->ui_items[resources->ui_item_count++] = "
+                    "added.result.value;\n");
                 if(item->graphics_layer != 0)
                     for(size_t layer_index = 0;
                             layer_index < project->graphics_layer_count;

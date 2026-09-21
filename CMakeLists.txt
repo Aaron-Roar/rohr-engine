@@ -416,6 +416,12 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME cameras COMMAND cameras_test)
 
+    add_executable(ui_instance_isolation_test tests/ui_instance_isolation.c)
+    target_link_libraries(ui_instance_isolation_test PRIVATE rohr_engine)
+    set_target_properties(ui_instance_isolation_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME ui_instance_isolation COMMAND ui_instance_isolation_test)
+
     add_executable(graphics_layer_order_test
         tests/graphics_layer_order.c
         src/graphics/graphics_layer_order.c)
@@ -600,6 +606,7 @@ if(ROHR_BUILD_TESTS)
         engine_lifecycle
         controller_mappings
         cameras
+        ui_instance_isolation
         graphics_layer_order
         window_presentation
         timing
@@ -626,6 +633,7 @@ if(ROHR_BUILD_TESTS)
         engine_lifecycle_test
         controller_mappings_test
         cameras_test
+        ui_instance_isolation_test
         graphics_layer_order_test
         window_presentation_test
         timing_test
