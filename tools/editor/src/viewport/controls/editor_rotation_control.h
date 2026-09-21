@@ -11,5 +11,9 @@ Position editor_rotation_control_position_get(Position center,
     Orientation orientation, float arm_length);
 bool editor_rotation_control_hit_check(Position pointer, Position control,
     float radius);
+bool editor_rotation_control_begin(Position center, Orientation orientation,
+    float arm_length, Position pointer, float radius, float *pointer_offset);
+Orientation editor_rotation_control_orientation_get(Position center,
+    Position pointer, float pointer_offset);
 
 #endif

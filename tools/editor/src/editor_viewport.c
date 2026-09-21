@@ -2149,6 +2149,90 @@ static void editor_viewport_ui_slider_value_from_pointer_set(
         fmaxf(slider->minimum, slider->value));
 }
 
+typedef enum EditorLayoutRotationKind {
+    EDITOR_LAYOUT_ROTATION_NONE,
+    EDITOR_LAYOUT_ROTATION_SCREEN,
+    EDITOR_LAYOUT_ROTATION_UI_SHAPE,
+    EDITOR_LAYOUT_ROTATION_UI_ITEM
+} EditorLayoutRotationKind;
+
+static Position editor_viewport_ui_shape_centroid_get(
+    const EditorViewportUiItem *item);
+
+typedef struct EditorLayoutRotationTarget {
+    EditorLayoutRotationKind kind;
+    Position center;
+    Orientation orientation;
+    float arm_length;
+    EditorViewportCameraItem *screen;
+    EditorViewportUiItem *ui;
+} EditorLayoutRotationTarget;
+
+static bool editor_layout_rotation_target_get(EditorLayoutViewport *viewport,
+        const EditorViewportState *state, float zoom,
+        EditorLayoutRotationTarget *target) {
+    if(viewport == NULL || state == NULL || target == NULL || zoom <= 0.0f)
+        return false;
+    *target = (EditorLayoutRotationTarget){0};
+    for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
+        EditorViewportCameraItem *item = &viewport->camera_items[i];
+        if(item->id != state->selected_viewport_camera_item ||
+                !item->placement.visible) continue;
+        target->kind = EDITOR_LAYOUT_ROTATION_SCREEN;
+        target->center = (Position){item->placement.rectangle.x +
+                item->placement.rectangle.width * 0.5f,
+            item->placement.rectangle.y +
+                item->placement.rectangle.height * 0.5f};
+        target->orientation = item->placement.orientation;
+        target->arm_length = item->placement.rectangle.height * 0.5f +
+            30.0f / zoom;
+        target->screen = item;
+        return true;
+    }
+    for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
+        EditorViewportUiItem *item = &viewport->ui_items[i];
+        if(item->id != state->selected_viewport_ui_item || !item->visible)
+            continue;
+        target->ui = item;
+        target->arm_length = EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / zoom;
+        if(item->kind == EDITOR_VIEWPORT_UI_SHAPE &&
+                state->selection == EDITOR_SELECTION_UI_SHAPE) {
+            Position centroid = editor_viewport_ui_shape_centroid_get(item);
+            target->kind = EDITOR_LAYOUT_ROTATION_UI_SHAPE;
+            target->center = (Position){item->position.x + centroid.x,
+                item->position.y + centroid.y};
+            target->orientation = item->value.shape.rotation;
+            return true;
+        }
+        if((item->kind == EDITOR_VIEWPORT_UI_TEXT &&
+                    state->selection == EDITOR_SELECTION_UI_TEXT) ||
+                (item->kind == EDITOR_VIEWPORT_UI_SLIDER &&
+                    state->selection == EDITOR_SELECTION_UI_SLIDER)) {
+            target->kind = EDITOR_LAYOUT_ROTATION_UI_ITEM;
+            target->center = item->position;
+            target->orientation = item->rotation;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool editor_layout_rotation_apply(EditorLayoutRotationTarget *target,
+        Position pointer, float pointer_offset) {
+    Orientation orientation;
+    if(target == NULL || target->kind == EDITOR_LAYOUT_ROTATION_NONE) return false;
+    orientation = editor_rotation_control_orientation_get(target->center,
+        pointer, pointer_offset);
+    if(target->kind == EDITOR_LAYOUT_ROTATION_SCREEN) {
+        target->screen->placement.orientation = fmodf(orientation, 6.28318530718f);
+        if(target->screen->placement.orientation < 0.0f)
+            target->screen->placement.orientation += 6.28318530718f;
+    } else if(target->kind == EDITOR_LAYOUT_ROTATION_UI_SHAPE)
+        target->ui->value.shape.rotation = orientation;
+    else target->ui->rotation = orientation;
+    return true;
+}
+
 static Position editor_viewport_ui_shape_centroid_get(
         const EditorViewportUiItem *item) {
     Shape shape = {0};
@@ -3095,30 +3179,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             }
             if(state->rotated_viewport_item &&
                     primary_button == MOUSE_BUTTON_STATE_DOWN) {
-                for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
-                    EditorViewportCameraItem *item = &viewport->camera_items[i];
-                    Position screen_center;
-                    if(item->id != state->selected_viewport_camera_item) continue;
-                    screen_center = (Position){item->placement.rectangle.x +
-                            item->placement.rectangle.width * 0.5f,
-                        item->placement.rectangle.y +
-                            item->placement.rectangle.height * 0.5f};
-                    item->placement.orientation = atan2f(local.y - screen_center.y,
-                        local.x - screen_center.x) + state->rotation_pointer_offset;
-                    item->placement.orientation = fmodf(
-                        item->placement.orientation, 6.28318530718f);
-                    if(item->placement.orientation < 0.0f)
-                        item->placement.orientation += 6.28318530718f;
-                    return true;
-                }
-                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
-                    EditorViewportUiItem *item = &viewport->ui_items[i];
-                    if(item->id != state->selected_viewport_ui_item ||
-                            item->kind == EDITOR_VIEWPORT_UI_SHAPE) continue;
-                    item->rotation = atan2f(local.y - item->position.y,
-                        local.x - item->position.x) + state->rotation_pointer_offset;
-                    return true;
-                }
+                EditorLayoutRotationTarget target;
+                if(editor_layout_rotation_target_get(viewport, state,
+                        project->viewport_camera_zoom, &target) &&
+                        editor_layout_rotation_apply(&target, local,
+                            state->rotation_pointer_offset)) return true;
             }
             if(state->dragged_viewport_slider_thumb &&
                     primary_button == MOUSE_BUTTON_STATE_DOWN) {
@@ -3230,72 +3295,15 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     state->last_viewport_click_index ==
                         state->selected_viewport_ui_item &&
                     click_now - state->last_viewport_click_at <= 400;
-                for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
-                    EditorViewportCameraItem *item = &viewport->camera_items[i];
-                    Position screen_center;
-                    Position handle;
-                    if(item->id != state->selected_viewport_camera_item ||
-                            !item->placement.visible) continue;
-                    screen_center = (Position){item->placement.rectangle.x +
-                            item->placement.rectangle.width * 0.5f,
-                        item->placement.rectangle.y +
-                            item->placement.rectangle.height * 0.5f};
-                    handle = editor_rotation_control_position_get(screen_center,
-                        item->placement.orientation,
-                        item->placement.rectangle.height * 0.5f +
-                            30.0f / project->viewport_camera_zoom);
-                    if(!editor_rotation_control_hit_check(local, handle,
-                            10.0f / project->viewport_camera_zoom)) continue;
+                EditorLayoutRotationTarget rotation_target;
+                if(editor_layout_rotation_target_get(viewport, state,
+                        project->viewport_camera_zoom, &rotation_target) &&
+                        editor_rotation_control_begin(rotation_target.center,
+                            rotation_target.orientation,
+                            rotation_target.arm_length, local,
+                            10.0f / project->viewport_camera_zoom,
+                            &state->rotation_pointer_offset)) {
                     state->rotated_viewport_item = true;
-                    state->rotation_pointer_offset = item->placement.orientation -
-                        atan2f(local.y - screen_center.y,
-                            local.x - screen_center.x);
-                    return true;
-                }
-                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
-                    EditorViewportUiItem *item = &viewport->ui_items[i];
-                    Position centroid;
-                    Position shape_center;
-                    Position handle;
-                    Vec2D distance;
-                    if(item->id != state->selected_viewport_ui_item ||
-                            item->kind != EDITOR_VIEWPORT_UI_SHAPE ||
-                            state->selection != EDITOR_SELECTION_UI_SHAPE)
-                        continue;
-                    centroid = editor_viewport_ui_shape_centroid_get(item);
-                    shape_center = (Position){item->position.x + centroid.x,
-                        item->position.y + centroid.y};
-                    handle = editor_rotation_control_position_get(shape_center,
-                        item->value.shape.rotation,
-                        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH /
-                            project->viewport_camera_zoom);
-                    distance = (Vec2D){local.x - handle.x, local.y - handle.y};
-                    if(distance.x * distance.x + distance.y * distance.y >
-                            100.0f / (project->viewport_camera_zoom *
-                                project->viewport_camera_zoom)) continue;
-                    state->rotated_viewport_item = true;
-                    state->rotation_pointer_offset = item->value.shape.rotation -
-                        atan2f(local.y - shape_center.y,
-                            local.x - shape_center.x);
-                    return true;
-                }
-                for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
-                    EditorViewportUiItem *item = &viewport->ui_items[i];
-                    Position handle;
-                    if(item->id != state->selected_viewport_ui_item ||
-                            item->kind == EDITOR_VIEWPORT_UI_SHAPE ||
-                            (state->selection != EDITOR_SELECTION_UI_TEXT &&
-                                state->selection != EDITOR_SELECTION_UI_SLIDER))
-                        continue;
-                    handle = editor_rotation_control_position_get(item->position,
-                        item->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH /
-                            project->viewport_camera_zoom);
-                    if(!editor_rotation_control_hit_check(local, handle,
-                            10.0f / project->viewport_camera_zoom)) continue;
-                    state->rotated_viewport_item = true;
-                    state->rotation_pointer_offset = item->rotation -
-                        atan2f(local.y - item->position.y,
-                            local.x - item->position.x);
                     return true;
                 }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
@@ -3626,35 +3634,27 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             float rotation;
             if(selected_object == NULL || !editor_group_rotation_control_get(
                     project, ref, &center, &handle, &rotation)) continue;
+            if(!editor_rotation_control_begin(center, rotation,
+                    hypotf(handle.x - center.x, handle.y - center.y), pointer,
+                    12.0f / editor_view_scale,
+                    &state->rotation_pointer_offset)) continue;
             if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
                     ref.kind == EDITOR_SELECTION_PARTICLE) {
-                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
-                        12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_body = true;
             } else if(ref.kind == EDITOR_SELECTION_SOFT_BODY) {
-                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
-                        12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_soft_body = true;
             } else if(ref.kind == EDITOR_SELECTION_SPRITE) {
-                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
-                        12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_sprite = true;
             } else if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
-                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
-                        12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_animated_sprite = true;
             } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
-                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) >
-                        12.0f / editor_view_scale) continue;
                 (void)editor_viewport_selection_primary_set(project, state, ref);
                 state->rotated_camera_entity = true;
             } else continue;
-            state->rotation_pointer_offset = rotation -
-                atan2f(pointer.y - center.y, pointer.x - center.x);
             return true;
         }
         if(editor_group_point_hit(project, state, pointer)) {
@@ -3790,8 +3790,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->selected_camera_entity);
         if(camera != NULL) {
             Position center = editor_camera_world_get(object, camera, NULL);
-            Orientation rotation = atan2f(pointer.y - center.y,
-                pointer.x - center.x) + state->rotation_pointer_offset;
+            Orientation rotation = editor_rotation_control_orientation_get(center,
+                pointer, state->rotation_pointer_offset);
             if(state->selected_item_count >= 2) {
                 float delta = rotation - camera->rotation;
                 while(delta > 3.14159265359f) delta -= 6.28318530718f;
@@ -3840,8 +3840,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position center = editor_sprite_world_get(object, sprite);
             EditorRigidBody *attached = editor_project_rigid_body_get(object,
                 sprite->rigid_body);
-            Orientation world_rotation = atan2f(pointer.y - center.y,
-                pointer.x - center.x) + state->rotation_pointer_offset;
+            Orientation world_rotation = editor_rotation_control_orientation_get(
+                center, pointer, state->rotation_pointer_offset);
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
@@ -3898,8 +3898,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 NULL);
             EditorRigidBody *attached = editor_project_rigid_body_get(object,
                 sprite->rigid_body);
-            Orientation world_rotation = atan2f(pointer.y - center.y,
-                pointer.x - center.x) + state->rotation_pointer_offset;
+            Orientation world_rotation = editor_rotation_control_orientation_get(
+                center, pointer, state->rotation_pointer_offset);
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
@@ -4033,8 +4033,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(soft_body->id != state->selected_soft_body) continue;
             center = (Position){object->position.x + soft_body->position.x,
                 object->position.y + soft_body->position.y};
-            rotation = atan2f(pointer.y - center.y, pointer.x - center.x) +
-                state->rotation_pointer_offset;
+            rotation = editor_rotation_control_orientation_get(center, pointer,
+                state->rotation_pointer_offset);
             if(state->selected_item_count >= 2) {
                 float delta = rotation - soft_body->rotation;
                 while(delta > 3.14159265359f) delta -= 6.28318530718f;
@@ -4065,8 +4065,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
         Position center = {object->position.x + body->position.x,
             object->position.y + body->position.y};
-        float rotation = atan2f(pointer.y - center.y, pointer.x - center.x) +
-            state->rotation_pointer_offset;
+        float rotation = editor_rotation_control_orientation_get(center, pointer,
+            state->rotation_pointer_offset);
         if(state->selected_item_count >= 2) {
             float delta = rotation - body->rotation;
             while(delta > 3.14159265359f) delta -= 6.28318530718f;

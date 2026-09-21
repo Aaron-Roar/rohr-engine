@@ -3,6 +3,7 @@
  */
 
 #include "editor_history.h"
+#include "viewport/controls/editor_rotation_control.h"
 #include "editor_layout.h"
 #include "editor_navigation.h"
 #include "editor_shortcuts.h"
@@ -36,6 +37,19 @@ static Position test_world_to_screen(Position world) {
     return (Position){editor_viewport_width * 0.5f + world.x,
         EDITOR_MENU_HEIGHT +
             (editor_viewport_bottom - EDITOR_MENU_HEIGHT) * 0.5f - world.y};
+}
+
+static Position test_layout_to_screen(const EditorProject *project,
+        const EditorLayoutViewport *viewport, Position local) {
+    Position center = {editor_viewport_width * 0.5f,
+        EDITOR_MENU_HEIGHT +
+            (editor_viewport_bottom - EDITOR_MENU_HEIGHT) * 0.5f};
+    return (Position){center.x + project->viewport_camera_offset.x +
+            (viewport->config.rectangle.x + local.x) *
+                project->viewport_camera_zoom,
+        center.y + project->viewport_camera_offset.y +
+            (viewport->config.rectangle.y + local.y) *
+                project->viewport_camera_zoom};
 }
 
 static bool viewport_pointer_update(EditorHistory *history,
@@ -193,6 +207,76 @@ int main(void) {
         assert(editor_history_redo(&history));
         assert(project.layout_viewports[0].ui_items[0].position.x ==
             drag_start.x + 50.0f);
+
+        {
+            EditorViewportUiItem *items[3];
+            EditorViewportUiItemId shape_id;
+            EditorViewportUiItemId text_id;
+            EditorHierarchySelection selections[3] = {
+                EDITOR_SELECTION_UI_SHAPE,
+                EDITOR_SELECTION_UI_TEXT,
+                EDITOR_SELECTION_UI_SLIDER};
+            EditorViewportMode modes[3] = {
+                EDITOR_VIEWPORT_UI_SHAPE_EDITOR,
+                EDITOR_VIEWPORT_UI_TEXT_EDITOR,
+                EDITOR_VIEWPORT_UI_SLIDER_EDITOR};
+            items[0] = editor_viewport_ui_add(&project,
+                &project.layout_viewports[0], EDITOR_VIEWPORT_UI_SHAPE);
+            assert(items[0] != NULL);
+            shape_id = items[0]->id;
+            items[1] = editor_viewport_ui_add(&project,
+                &project.layout_viewports[0], EDITOR_VIEWPORT_UI_TEXT);
+            assert(items[1] != NULL);
+            text_id = items[1]->id;
+            items[0] = items[1] = items[2] = NULL;
+            for(size_t i = 0; i < project.layout_viewports[0].ui_item_count; i++) {
+                EditorViewportUiItem *candidate =
+                    &project.layout_viewports[0].ui_items[i];
+                if(candidate->id == shape_id) items[0] = candidate;
+                if(candidate->id == text_id) items[1] = candidate;
+                if(candidate->kind == EDITOR_VIEWPORT_UI_SLIDER) items[2] = candidate;
+            }
+            assert(items[0] != NULL && items[1] != NULL && items[2] != NULL);
+            for(size_t rotation_index = 0; rotation_index < 3;
+                    rotation_index += 1) {
+                EditorViewportUiItem *item = items[rotation_index];
+                Position pivot = item->position;
+                Orientation *orientation = &item->rotation;
+                if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                    pivot.x += 90.0f;
+                    pivot.y += 18.0f;
+                    orientation = &item->value.shape.rotation;
+                }
+                *orientation = 0.0f;
+                editor_viewport_state_init(&viewport);
+                viewport.mode = modes[rotation_index];
+                viewport.selection = selections[rotation_index];
+                viewport.selected_layout_viewport =
+                    project.layout_viewports[0].id;
+                viewport.selected_viewport_ui_item = item->id;
+                Position handle = editor_rotation_control_position_get(pivot,
+                    *orientation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                assert(editor_viewport_update(&viewport, &project,
+                    test_layout_to_screen(&project,
+                        &project.layout_viewports[0], handle),
+                    MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                    false, 0.0f, false));
+                assert(viewport.rotated_viewport_item);
+                Position rotated_pointer = {pivot.x +
+                    EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, pivot.y};
+                assert(editor_viewport_update(&viewport, &project,
+                    test_layout_to_screen(&project,
+                        &project.layout_viewports[0], rotated_pointer),
+                    MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
+                    false, 0.0f, false));
+                assert(fabsf(*orientation - 1.57079632679f) < 0.001f);
+                (void)editor_viewport_update(&viewport, &project,
+                    test_layout_to_screen(&project,
+                        &project.layout_viewports[0], rotated_pointer),
+                    MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+                    false, 0.0f, false);
+            }
+        }
     }
 
     editor_history_reset(&history);
