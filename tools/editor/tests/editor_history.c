@@ -131,6 +131,68 @@ int main(void) {
     assert(project.object_count == 1);
     assert(strcmp(project.objects[0].name, "Car") == 0);
 
+    {
+        EditorLayoutViewport *layout = editor_project_layout_viewport_add(&project);
+        EditorViewportUiItem *slider;
+        Position original = project.objects[0].position;
+        assert(layout != NULL);
+        editor_history_reset(&history);
+        assert(editor_history_ui_change_begin(&history));
+        slider = editor_viewport_ui_add(&project, layout,
+            EDITOR_VIEWPORT_UI_SLIDER);
+        assert(slider != NULL);
+        slider->position = (Position){80.0f, 90.0f};
+        assert(editor_history_ui_change_finish(&history));
+        assert(history.undo_count == 1 && layout->ui_item_count == 1);
+        command = (EditorCommand){.type = EDITOR_COMMAND_OBJECT_POSITION,
+            .data.object_position = {.object = project.objects[0].id,
+                .position = {12.0f, 34.0f}}};
+        editor_history_command_begin(&history, &project, &command);
+        result = editor_command_execute(&project, &command);
+        editor_history_command_finish(&history, &command, &result);
+        assert(history.undo_count == 2);
+        assert(editor_history_undo(&history));
+        assert(project.objects[0].position.x == original.x &&
+            project.objects[0].position.y == original.y &&
+            project.layout_viewports[0].ui_item_count == 1);
+        assert(editor_history_undo(&history));
+        assert(project.layout_viewports[0].ui_item_count == 0);
+        assert(editor_history_redo(&history));
+        assert(project.layout_viewports[0].ui_item_count == 1);
+        assert(editor_history_redo(&history));
+        assert(project.objects[0].position.x == 12.0f &&
+            project.objects[0].position.y == 34.0f);
+        assert(editor_history_undo(&history));
+        assert(editor_history_undo(&history));
+
+        editor_history_reset(&history);
+        slider = editor_viewport_ui_add(&project,
+            &project.layout_viewports[0], EDITOR_VIEWPORT_UI_SLIDER);
+        assert(slider != NULL);
+        Position drag_start = slider->position;
+        editor_history_continuous_set(&history, true);
+        assert(editor_history_ui_change_begin(&history));
+        assert(editor_history_ui_change_finish(&history));
+        assert(editor_history_ui_change_begin(&history));
+        slider->position.x += 10.0f;
+        assert(editor_history_ui_change_finish(&history));
+        editor_history_continuous_set(&history, true);
+        assert(editor_history_ui_change_begin(&history));
+        slider->position.x += 15.0f;
+        assert(editor_history_ui_change_finish(&history));
+        editor_history_continuous_set(&history, true);
+        assert(editor_history_ui_change_begin(&history));
+        slider->position.x += 25.0f;
+        assert(editor_history_ui_change_finish(&history));
+        editor_history_continuous_set(&history, false);
+        assert(history.undo_count == 1);
+        assert(editor_history_undo(&history));
+        assert(project.layout_viewports[0].ui_items[0].position.x == drag_start.x);
+        assert(editor_history_redo(&history));
+        assert(project.layout_viewports[0].ui_items[0].position.x ==
+            drag_start.x + 50.0f);
+    }
+
     editor_history_reset(&history);
     command = (EditorCommand){
         .type = EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET,

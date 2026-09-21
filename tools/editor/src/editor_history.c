@@ -16,7 +16,8 @@ typedef enum EditorHistoryActionKind {
     EDITOR_HISTORY_ACTION_AGGREGATE,
     EDITOR_HISTORY_ACTION_COLLISION,
     EDITOR_HISTORY_ACTION_SPRITES,
-    EDITOR_HISTORY_ACTION_OBJECT_ORDER
+    EDITOR_HISTORY_ACTION_OBJECT_ORDER,
+    EDITOR_HISTORY_ACTION_UI
 } EditorHistoryActionKind;
 
 typedef enum EditorHistoryAggregateKind {
@@ -46,6 +47,20 @@ struct EditorHistorySpriteChange {
     EditorSpriteId next_id;
 };
 
+struct EditorHistoryUiChange {
+    EditorLayoutViewport *viewports;
+    size_t viewport_count;
+    EditorViewportUiDefinition *definitions;
+    size_t definition_count;
+    EditorUiFont *fonts;
+    size_t font_count;
+    EditorLayoutViewportId next_viewport_id;
+    EditorViewportCameraItemId next_camera_item_id;
+    EditorViewportUiItemId next_ui_item_id;
+    EditorViewportUiDefinitionId next_definition_id;
+    EditorUiFontId next_font_id;
+};
+
 typedef struct EditorHistoryObjectOrderChange {
     EditorObjectId *ids;
     size_t count;
@@ -58,6 +73,120 @@ struct EditorHistoryObjectChange {
     EditorObject *value;
     EditorObjectId selected;
 };
+
+static void editor_history_ui_destroy(EditorHistoryUiChange *change) {
+    if(change == NULL) return;
+    for(size_t i = 0; i < change->viewport_count; i += 1) {
+        free(change->viewports[i].camera_items);
+        free(change->viewports[i].ui_items);
+    }
+    free(change->viewports);
+    free(change->definitions);
+    free(change->fonts);
+    free(change);
+}
+
+static EditorHistoryUiChange *editor_history_ui_capture(
+        const EditorProject *project) {
+    EditorHistoryUiChange *change;
+    if(project == NULL) return NULL;
+    change = calloc(1, sizeof(*change));
+    if(change == NULL) return NULL;
+    change->viewport_count = project->layout_viewport_count;
+    change->definition_count = project->ui_definition_count;
+    change->font_count = project->ui_font_count;
+    change->next_viewport_id = project->next_layout_viewport_id;
+    change->next_camera_item_id = project->next_viewport_camera_item_id;
+    change->next_ui_item_id = project->next_viewport_ui_item_id;
+    change->next_definition_id = project->next_ui_definition_id;
+    change->next_font_id = project->next_ui_font_id;
+    if(change->viewport_count > 0) {
+        change->viewports = calloc(change->viewport_count,
+            sizeof(*change->viewports));
+        if(change->viewports == NULL) goto fail;
+    }
+    for(size_t i = 0; i < change->viewport_count; i += 1) {
+        const EditorLayoutViewport *source = &project->layout_viewports[i];
+        EditorLayoutViewport *destination = &change->viewports[i];
+        *destination = *source;
+        destination->camera_items = NULL;
+        destination->ui_items = NULL;
+        destination->camera_item_capacity = source->camera_item_count;
+        destination->ui_item_capacity = source->ui_item_count;
+        if(source->camera_item_count > 0) {
+            destination->camera_items = malloc(source->camera_item_count *
+                sizeof(*destination->camera_items));
+            if(destination->camera_items == NULL) goto fail;
+            memcpy(destination->camera_items, source->camera_items,
+                source->camera_item_count * sizeof(*destination->camera_items));
+        }
+        if(source->ui_item_count > 0) {
+            destination->ui_items = malloc(source->ui_item_count *
+                sizeof(*destination->ui_items));
+            if(destination->ui_items == NULL) goto fail;
+            memcpy(destination->ui_items, source->ui_items,
+                source->ui_item_count * sizeof(*destination->ui_items));
+        }
+    }
+    if(change->definition_count > 0) {
+        change->definitions = malloc(change->definition_count *
+            sizeof(*change->definitions));
+        if(change->definitions == NULL) goto fail;
+        memcpy(change->definitions, project->ui_definitions,
+            change->definition_count * sizeof(*change->definitions));
+    }
+    if(change->font_count > 0) {
+        change->fonts = malloc(change->font_count * sizeof(*change->fonts));
+        if(change->fonts == NULL) goto fail;
+        memcpy(change->fonts, project->ui_fonts,
+            change->font_count * sizeof(*change->fonts));
+    }
+    return change;
+fail:
+    editor_history_ui_destroy(change);
+    return NULL;
+}
+
+static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
+        const EditorHistoryUiChange *second) {
+    if(first == NULL || second == NULL ||
+            first->viewport_count != second->viewport_count ||
+            first->definition_count != second->definition_count ||
+            first->font_count != second->font_count ||
+            first->next_viewport_id != second->next_viewport_id ||
+            first->next_camera_item_id != second->next_camera_item_id ||
+            first->next_ui_item_id != second->next_ui_item_id ||
+            first->next_definition_id != second->next_definition_id ||
+            first->next_font_id != second->next_font_id) return false;
+    if(first->definition_count > 0 && memcmp(first->definitions,
+            second->definitions, first->definition_count *
+                sizeof(*first->definitions)) != 0) return false;
+    if(first->font_count > 0 && memcmp(first->fonts, second->fonts,
+            first->font_count * sizeof(*first->fonts)) != 0) return false;
+    for(size_t i = 0; i < first->viewport_count; i += 1) {
+        EditorLayoutViewport first_value = first->viewports[i];
+        EditorLayoutViewport second_value = second->viewports[i];
+        if(first_value.camera_item_count != second_value.camera_item_count ||
+                first_value.ui_item_count != second_value.ui_item_count)
+            return false;
+        first_value.camera_items = NULL; second_value.camera_items = NULL;
+        first_value.ui_items = NULL; second_value.ui_items = NULL;
+        first_value.camera_item_capacity = second_value.camera_item_capacity = 0;
+        first_value.ui_item_capacity = second_value.ui_item_capacity = 0;
+        if(memcmp(&first_value, &second_value, sizeof(first_value)) != 0)
+            return false;
+        if(first->viewports[i].camera_item_count > 0 && memcmp(
+                first->viewports[i].camera_items,
+                second->viewports[i].camera_items,
+                first->viewports[i].camera_item_count *
+                    sizeof(*first->viewports[i].camera_items)) != 0) return false;
+        if(first->viewports[i].ui_item_count > 0 && memcmp(
+                first->viewports[i].ui_items, second->viewports[i].ui_items,
+                first->viewports[i].ui_item_count *
+                    sizeof(*first->viewports[i].ui_items)) != 0) return false;
+    }
+    return true;
+}
 
 static void editor_history_object_change_destroy(EditorHistoryObjectChange *change) {
     if(change == NULL) return;
@@ -96,6 +225,7 @@ typedef struct EditorHistoryAction {
         EditorHistoryCollisionChange *collision;
         EditorHistorySpriteChange *sprites;
         EditorHistoryObjectOrderChange *order;
+        EditorHistoryUiChange *ui;
     } data;
 } EditorHistoryAction;
 
@@ -459,6 +589,10 @@ static void editor_history_entry_destroy(EditorHistoryEntry *entry) {
                 free(entry->commands[i].inverse.data.order->ids);
                 free(entry->commands[i].inverse.data.order);
             }
+            if(entry->commands[i].forward.kind == EDITOR_HISTORY_ACTION_UI)
+                editor_history_ui_destroy(entry->commands[i].forward.data.ui);
+            if(entry->commands[i].inverse.kind == EDITOR_HISTORY_ACTION_UI)
+                editor_history_ui_destroy(entry->commands[i].inverse.data.ui);
     }
     free(entry->commands);
     free(entry);
@@ -492,6 +626,81 @@ static void editor_history_action_apply(EditorProject *project,
     if(project == NULL || action == NULL) return;
     if(action->kind == EDITOR_HISTORY_ACTION_COMMAND) {
         (void)editor_command_execute(project, &action->data.command);
+        return;
+    }
+    if(action->kind == EDITOR_HISTORY_ACTION_UI) {
+        const EditorHistoryUiChange *change = action->data.ui;
+        EditorLayoutViewport *viewports = NULL;
+        EditorViewportUiDefinition *definitions = NULL;
+        EditorUiFont *fonts = NULL;
+        if(change == NULL) return;
+        if(change->viewport_count > 0) {
+            viewports = calloc(change->viewport_count, sizeof(*viewports));
+            if(viewports == NULL) return;
+        }
+        for(size_t i = 0; i < change->viewport_count; i += 1) {
+            viewports[i] = change->viewports[i];
+            viewports[i].camera_items = NULL;
+            viewports[i].ui_items = NULL;
+            if(change->viewports[i].camera_item_count > 0) {
+                viewports[i].camera_items = malloc(
+                    change->viewports[i].camera_item_count *
+                        sizeof(*viewports[i].camera_items));
+                if(viewports[i].camera_items == NULL) goto ui_fail;
+                memcpy(viewports[i].camera_items,
+                    change->viewports[i].camera_items,
+                    change->viewports[i].camera_item_count *
+                        sizeof(*viewports[i].camera_items));
+            }
+            if(change->viewports[i].ui_item_count > 0) {
+                viewports[i].ui_items = malloc(
+                    change->viewports[i].ui_item_count *
+                        sizeof(*viewports[i].ui_items));
+                if(viewports[i].ui_items == NULL) goto ui_fail;
+                memcpy(viewports[i].ui_items, change->viewports[i].ui_items,
+                    change->viewports[i].ui_item_count *
+                        sizeof(*viewports[i].ui_items));
+            }
+        }
+        if(change->definition_count > 0) {
+            definitions = malloc(change->definition_count * sizeof(*definitions));
+            if(definitions == NULL) goto ui_fail;
+            memcpy(definitions, change->definitions,
+                change->definition_count * sizeof(*definitions));
+        }
+        if(change->font_count > 0) {
+            fonts = malloc(change->font_count * sizeof(*fonts));
+            if(fonts == NULL) goto ui_fail;
+            memcpy(fonts, change->fonts, change->font_count * sizeof(*fonts));
+        }
+        for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+            free(project->layout_viewports[i].camera_items);
+            free(project->layout_viewports[i].ui_items);
+        }
+        free(project->layout_viewports);
+        free(project->ui_definitions);
+        free(project->ui_fonts);
+        project->layout_viewports = viewports;
+        project->layout_viewport_count = change->viewport_count;
+        project->layout_viewport_capacity = change->viewport_count;
+        project->ui_definitions = definitions;
+        project->ui_definition_count = change->definition_count;
+        project->ui_definition_capacity = change->definition_count;
+        project->ui_fonts = fonts;
+        project->ui_font_count = change->font_count;
+        project->ui_font_capacity = change->font_count;
+        project->next_layout_viewport_id = change->next_viewport_id;
+        project->next_viewport_camera_item_id = change->next_camera_item_id;
+        project->next_viewport_ui_item_id = change->next_ui_item_id;
+        project->next_ui_definition_id = change->next_definition_id;
+        project->next_ui_font_id = change->next_font_id;
+        return;
+ui_fail:
+        if(viewports != NULL) for(size_t i = 0; i < change->viewport_count; i += 1) {
+            free(viewports[i].camera_items);
+            free(viewports[i].ui_items);
+        }
+        free(viewports); free(definitions); free(fonts);
         return;
     }
     if(action->kind == EDITOR_HISTORY_ACTION_AGGREGATE) {
@@ -995,6 +1204,7 @@ void editor_history_destroy(EditorHistory *history) {
     editor_history_aggregate_destroy(history->pending_aggregate);
     editor_history_collision_destroy(history->pending_collision);
     editor_history_sprites_destroy(history->pending_sprites);
+    editor_history_ui_destroy(history->pending_ui);
     editor_history_entry_destroy(history->transaction_commands);
     memset(history, 0, sizeof(*history));
 }
@@ -1011,6 +1221,8 @@ void editor_history_reset(EditorHistory *history) {
     history->pending_collision = NULL;
     editor_history_sprites_destroy(history->pending_sprites);
     history->pending_sprites = NULL;
+    editor_history_ui_destroy(history->pending_ui);
+    history->pending_ui = NULL;
     history->pending_command_valid = false;
     editor_history_entry_destroy(history->transaction_commands);
     history->transaction_commands = NULL;
@@ -1282,6 +1494,79 @@ void editor_history_continuous_set(EditorHistory *history, bool continuous) {
     if(history->continuous && !continuous) history->continuous_recorded = false;
     history->continuous = continuous;
     history->recorded_since_continuous_update = false;
+}
+
+bool editor_history_ui_change_begin(EditorHistory *history) {
+    if(history == NULL || history->project == NULL || history->restoring ||
+            history->pending_ui != NULL) return false;
+    history->pending_ui = editor_history_ui_capture(history->project);
+    history->pending_ui_undo_count = history->undo_count;
+    return history->pending_ui != NULL;
+}
+
+bool editor_history_ui_change_finish(EditorHistory *history) {
+    EditorHistoryUiChange *after;
+    EditorHistoryEntry *entry;
+    if(history == NULL || history->project == NULL || history->pending_ui == NULL)
+        return false;
+    after = editor_history_ui_capture(history->project);
+    if(after == NULL) {
+        editor_history_ui_destroy(history->pending_ui);
+        history->pending_ui = NULL;
+        return false;
+    }
+    if(history->undo_count != history->pending_ui_undo_count) {
+        editor_history_ui_destroy(history->pending_ui);
+        editor_history_ui_destroy(after);
+        history->pending_ui = NULL;
+        return true;
+    }
+    if(editor_history_ui_equal(history->pending_ui, after)) {
+        editor_history_ui_destroy(history->pending_ui);
+        editor_history_ui_destroy(after);
+        history->pending_ui = NULL;
+        return true;
+    }
+    if(history->continuous && history->continuous_recorded &&
+            history->undo_count > 0) {
+        EditorHistoryEntry *last = history->undo[history->undo_count - 1];
+        if(last->command_count == 1 && last->commands[0].forward.kind ==
+                EDITOR_HISTORY_ACTION_UI) {
+            editor_history_ui_destroy(last->commands[0].forward.data.ui);
+            last->commands[0].forward.data.ui = after;
+            editor_history_ui_destroy(history->pending_ui);
+            history->pending_ui = NULL;
+            history->recorded_since_continuous_update = true;
+            return true;
+        }
+    }
+    entry = calloc(1, sizeof(*entry));
+    if(entry == NULL) goto fail;
+    entry->commands = malloc(sizeof(*entry->commands));
+    if(entry->commands == NULL) {
+        free(entry);
+        goto fail;
+    }
+    entry->commands[0] = (EditorHistoryCommandPair){
+        .forward = {.kind = EDITOR_HISTORY_ACTION_UI, .data.ui = after},
+        .inverse = {.kind = EDITOR_HISTORY_ACTION_UI,
+            .data.ui = history->pending_ui}};
+    entry->command_count = 1;
+    entry->memory = sizeof(*entry) + sizeof(*entry->commands);
+    history->pending_ui = NULL;
+    if(!editor_history_stack_push(history->undo, &history->undo_count, entry)) {
+        editor_history_entry_destroy(entry);
+        return false;
+    }
+    editor_history_stack_clear(history->redo, &history->redo_count);
+    history->recorded_since_continuous_update = true;
+    if(history->continuous) history->continuous_recorded = true;
+    return true;
+fail:
+    editor_history_ui_destroy(history->pending_ui);
+    editor_history_ui_destroy(after);
+    history->pending_ui = NULL;
+    return false;
 }
 
 bool editor_history_transaction_begin(EditorHistory *history) {

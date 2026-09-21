@@ -14,6 +14,7 @@ typedef struct EditorHistoryObjectChange EditorHistoryObjectChange;
 typedef struct EditorHistoryAggregateChange EditorHistoryAggregateChange;
 typedef struct EditorHistoryCollisionChange EditorHistoryCollisionChange;
 typedef struct EditorHistorySpriteChange EditorHistorySpriteChange;
+typedef struct EditorHistoryUiChange EditorHistoryUiChange;
 
 typedef struct EditorHistory {
     EditorProject *project;
@@ -35,6 +36,8 @@ typedef struct EditorHistory {
     EditorHistoryAggregateChange *pending_aggregate;
     EditorHistoryCollisionChange *pending_collision;
     EditorHistorySpriteChange *pending_sprites;
+    EditorHistoryUiChange *pending_ui;
+    size_t pending_ui_undo_count;
 } EditorHistory;
 
 bool editor_history_init(EditorHistory *history, EditorProject *project);
@@ -45,6 +48,8 @@ void editor_history_command_begin(EditorHistory *history,
 void editor_history_command_finish(EditorHistory *history,
     const EditorCommand *command, const EditorCommandResult *result);
 void editor_history_continuous_set(EditorHistory *history, bool continuous);
+bool editor_history_ui_change_begin(EditorHistory *history);
+bool editor_history_ui_change_finish(EditorHistory *history);
 bool editor_history_transaction_begin(EditorHistory *history);
 bool editor_history_transaction_object_track(EditorHistory *history,
     EditorObjectId object);

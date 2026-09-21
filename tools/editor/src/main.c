@@ -2596,7 +2596,12 @@ int main(void) {
                 }
             }
         }
-        editor_history_continuous_set(&history, field_editing);
+        editor_history_continuous_set(&history, field_editing ||
+            viewport_state.dragged_viewport_item ||
+            viewport_state.dragged_viewport_slider_thumb ||
+            viewport_state.dragged_viewport_vertex ||
+            viewport_state.dragged_viewport_text ||
+            viewport_state.rotated_viewport_item);
         if(notification_panel.report_open &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             notification_panel.report_open = false;
@@ -2794,6 +2799,8 @@ int main(void) {
 
         (void)rohr_graphics_screen_clip_set(
             EDITOR_VIEWPORT_WIDTH, 0.0f, EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT);
+        bool ui_history_capturing = workspace.open &&
+            editor_history_ui_change_begin(&history);
         rohr_ui_frame_begin((UIInput){
             .pointer = rohr_graphics_mouse_screen_position_get(),
             .primary_button = mouse.button_states[MOUSE_BUTTON_LEFT]
@@ -4233,7 +4240,14 @@ int main(void) {
         }
         (void)editor_project_ui_definition_sync_from_item(&project,
             viewport_state.selected_viewport_ui_item);
-        editor_history_continuous_set(&history, field_editing);
+        if(ui_history_capturing)
+            (void)editor_history_ui_change_finish(&history);
+        editor_history_continuous_set(&history, field_editing ||
+            viewport_state.dragged_viewport_item ||
+            viewport_state.dragged_viewport_slider_thumb ||
+            viewport_state.dragged_viewport_vertex ||
+            viewport_state.dragged_viewport_text ||
+            viewport_state.rotated_viewport_item);
         rohr_ui_frame_end();
         if(!file_browser.active) {
             (void)rohr_graphics_screen_rect_draw(
