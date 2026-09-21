@@ -686,7 +686,19 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 command->data.item_add.object);
             if(kind == EDITOR_ITEM_RIGID_BODY) {
                 EditorRigidBody *value = editor_project_rigid_body_add(project, object);
-                if(value != NULL) { created = value->id; created_name = value->name; }
+                if(value != NULL) {
+                    if(command->data.item_add.option == 1) {
+                        value->particle = true;
+                        value->particle_auto_fit = false;
+                        value->rotation_locked = true;
+                        value->rotation = 0.0f;
+                        value->initial_angular_velocity = 0.0f;
+                        snprintf(value->name, sizeof(value->name), "particle_%u",
+                            value->id);
+                        (void)editor_project_particle_hitbox_sync(project, value);
+                    }
+                    created = value->id; created_name = value->name;
+                }
             } else if(kind == EDITOR_ITEM_HITBOX) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     command->data.item_add.parent);
@@ -987,14 +999,28 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     body->particle = set->value.boolean;
                 else if(set->property == EDITOR_PROPERTY_PARTICLE_RADIUS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
-                        set->value.number > 0.0f)
+                        set->value.number > 0.0f) {
                     body->particle_radius = set->value.number;
-                else if(set->property == EDITOR_PROPERTY_PARTICLE_ORIGIN_X &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    if(body->particle)
+                        (void)editor_project_particle_hitbox_sync(project, body);
+                } else if(set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
+                        set->value.integer >= 3 &&
+                        set->value.integer <= EDITOR_HITBOX_VERTEX_MAX) {
+                    body->particle_rigid_vertices = set->value.integer;
+                    if(body->particle)
+                        (void)editor_project_particle_hitbox_sync(project, body);
+                } else if(set->property == EDITOR_PROPERTY_PARTICLE_ORIGIN_X &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
                     body->particle_origin.x = set->value.number;
-                else if(set->property == EDITOR_PROPERTY_PARTICLE_ORIGIN_Y &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+                    if(body->particle)
+                        (void)editor_project_particle_hitbox_sync(project, body);
+                } else if(set->property == EDITOR_PROPERTY_PARTICLE_ORIGIN_Y &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
                     body->particle_origin.y = set->value.number;
+                    if(body->particle)
+                        (void)editor_project_particle_hitbox_sync(project, body);
+                }
                 else if(set->property == EDITOR_PROPERTY_PARTICLE_AUTO_FIT &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
                     body->particle_auto_fit = set->value.boolean;
@@ -1447,15 +1473,19 @@ property_invalid:
                     object_local.y -= new_body->position.y;
                     object_local = editor_command_position_rotate(object_local,
                         -new_body->rotation);
-                    if(sprite->follow_body_rotation) world_rotation -= new_body->rotation;
+                    if(sprite->follow_body_rotation && !new_body->particle)
+                        world_rotation -= new_body->rotation;
                 }
                 sprite->position = object_local;
                 sprite->rotation = world_rotation;
                 sprite->rigid_body = command->data.sprite_body_set.body;
+                if(new_body != NULL && new_body->particle)
+                    sprite->follow_body_rotation = false;
             } else if(command->type == EDITOR_COMMAND_SPRITE_FOLLOW_ROTATION_SET) {
                 bool enabled = command->data.sprite_boolean_set.enabled;
                 EditorRigidBody *body = editor_project_rigid_body_get(
                     editor_object_query_get(project, object_id), sprite->rigid_body);
+                if(body != NULL && body->particle) enabled = false;
                 if(body != NULL && enabled != sprite->follow_body_rotation) {
                     sprite->rotation += enabled ? -body->rotation : body->rotation;
                 }
@@ -1574,11 +1604,14 @@ property_invalid:
                     object_local.y -= new_body->position.y;
                     object_local = editor_command_position_rotate(object_local,
                         -new_body->rotation);
-                    if(sprite->follow_body_rotation) world_rotation -= new_body->rotation;
+                    if(sprite->follow_body_rotation && !new_body->particle)
+                        world_rotation -= new_body->rotation;
                 }
                 sprite->editor_position = object_local;
                 sprite->editor_rotation = world_rotation;
                 sprite->rigid_body = body;
+                if(new_body != NULL && new_body->particle)
+                    sprite->follow_body_rotation = false;
             } else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_POSITION_SET) {
                 sprite->editor_position =
                     command->data.animated_sprite_position_set.position;
@@ -1608,6 +1641,7 @@ property_invalid:
                 bool enabled = command->data.animated_sprite_boolean_set.enabled;
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     sprite->rigid_body);
+                if(body != NULL && body->particle) enabled = false;
                 if(body != NULL && enabled != sprite->follow_body_rotation) {
                     sprite->editor_rotation += enabled ?
                         -body->rotation : body->rotation;
@@ -1860,6 +1894,9 @@ static bool editor_command_property_parse(const char *name,
 #define EDITOR_BOOL_PROPERTY(text, value) \
     if(strcmp(name, text) == 0) { *property = value; \
         *value_kind = EDITOR_PROPERTY_VALUE_BOOL; return true; }
+#define EDITOR_UINT_PROPERTY(text, value) \
+    if(strcmp(name, text) == 0) { *property = value; \
+        *value_kind = EDITOR_PROPERTY_VALUE_UINT; return true; }
     EDITOR_FLOAT_PROPERTY("mass", EDITOR_PROPERTY_MASS)
     EDITOR_FLOAT_PROPERTY("friction", EDITOR_PROPERTY_FRICTION)
     EDITOR_FLOAT_PROPERTY("restitution", EDITOR_PROPERTY_RESTITUTION)
@@ -1869,6 +1906,8 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_FLOAT_PROPERTY("damping", EDITOR_PROPERTY_DAMPING)
     EDITOR_FLOAT_PROPERTY("length", EDITOR_PROPERTY_LINE_LENGTH)
     EDITOR_FLOAT_PROPERTY("particle-radius", EDITOR_PROPERTY_PARTICLE_RADIUS)
+    EDITOR_UINT_PROPERTY("particle-rigid-vertices",
+        EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES)
     EDITOR_FLOAT_PROPERTY("particle-origin-x", EDITOR_PROPERTY_PARTICLE_ORIGIN_X)
     EDITOR_FLOAT_PROPERTY("particle-origin-y", EDITOR_PROPERTY_PARTICLE_ORIGIN_Y)
     EDITOR_FLOAT_PROPERTY("node-radius", EDITOR_PROPERTY_NODE_RADIUS)
@@ -1912,6 +1951,7 @@ static bool editor_command_property_parse(const char *name,
 #undef EDITOR_COLOR_PROPERTY
 #undef EDITOR_FLOAT_PROPERTY
 #undef EDITOR_BOOL_PROPERTY
+#undef EDITOR_UINT_PROPERTY
     if(strcmp(name, "kind") == 0) {
         *property = EDITOR_PROPERTY_JOINT_KIND;
         *value_kind = EDITOR_PROPERTY_VALUE_UINT;
@@ -1931,6 +1971,8 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_COLLISION: return "collision";
         case EDITOR_PROPERTY_PARTICLE: return "particle";
         case EDITOR_PROPERTY_PARTICLE_RADIUS: return "particle-radius";
+        case EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES:
+            return "particle-rigid-vertices";
         case EDITOR_PROPERTY_PARTICLE_ORIGIN_X: return "particle-origin-x";
         case EDITOR_PROPERTY_PARTICLE_ORIGIN_Y: return "particle-origin-y";
         case EDITOR_PROPERTY_PARTICLE_AUTO_FIT: return "particle-auto-fit";
@@ -2440,7 +2482,8 @@ collision_filter_invalid:
             if(editor_command_property_color_check(set->property)) {
                 if(!editor_command_color_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
-            } else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX) {
+            } else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+                    set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES) {
                 if(!editor_command_uint_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
             } else {
@@ -3520,7 +3563,8 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             } else {
                 if(editor_command_property_color_check(set->property))
                     snprintf(value, sizeof(value), "#%08X", set->value.integer);
-                else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX)
+                else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+                        set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES)
                     snprintf(value, sizeof(value), "%u", set->value.integer);
                 else {
                     const char *kinds[] = {"revolute", "weld", "spring"};

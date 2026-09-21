@@ -2598,8 +2598,7 @@ static bool editor_group_point_get(EditorProject *project,
         *point = editor_camera_world_get(object, camera, NULL);
         return true;
     }
-    if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
-            ref.kind == EDITOR_SELECTION_PARTICLE) {
+    if(ref.kind == EDITOR_SELECTION_RIGID_BODY) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
         if(body == NULL) return false;
         *point = (Position){object->position.x + body->position.x,
@@ -3057,6 +3056,7 @@ static bool editor_group_transform_apply(EditorProject *project,
 bool editor_viewport_transform_active_check(const EditorViewportState *state) {
     if(state == NULL) return false;
     return state->dragged_vertex >= 0 || state->dragged_body ||
+        state->dragged_particle_radius ||
         state->rotated_body || state->dragged_anchor ||
         state->dragged_soft_node || state->dragged_soft_body ||
         state->dragged_sprite || state->dragged_animated_sprite ||
@@ -3070,6 +3070,7 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     if(state == NULL) return;
     state->dragged_vertex = -1;
     state->dragged_body = false;
+    state->dragged_particle_radius = false;
     state->rotated_body = false;
     state->rotated_viewport_item = false;
     state->dragged_anchor = false;
@@ -4051,6 +4052,22 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             return true;
         }
     }
+    if(body != NULL && body->particle && state->dragged_particle_radius &&
+            (primary_button == MOUSE_BUTTON_STATE_DOWN ||
+                primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
+        Position center = editor_particle_center_world_get(object, body);
+        float radius = hypotf(pointer.x - center.x, pointer.y - center.y);
+        if(radius > 0.0f) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                .data.property_set = {.kind = EDITOR_ITEM_RIGID_BODY,
+                    .object = object->id, .item = body->id,
+                    .property = EDITOR_PROPERTY_PARTICLE_RADIUS,
+                    .value_kind = EDITOR_PROPERTY_VALUE_FLOAT,
+                    .value.number = radius}};
+            (void)editor_command_execute(project, &command);
+        }
+        return true;
+    }
     if(body != NULL && state->dragged_body && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
         EditorCommand command = {.type = EDITOR_COMMAND_RIGID_BODY_TRANSFORM,
@@ -4390,6 +4407,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 now - state->last_viewport_click_at <= 400;
             state->selected_rigid_body = particle_body->id;
             state->selection = EDITOR_SELECTION_PARTICLE;
+            if(state->mode == EDITOR_VIEWPORT_PARTICLE) {
+                state->dragged_particle_radius = true;
+                state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+                return true;
+            }
             if(double_clicked) {
                 state->mode = EDITOR_VIEWPORT_PARTICLE;
                 state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
@@ -4414,7 +4436,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
                 state->mode == EDITOR_VIEWPORT_PARTICLE)) {
         Position handle = editor_body_rotation_handle_get(object, body);
-        if((pointer.x - handle.x) * (pointer.x - handle.x) +
+        if(!body->particle &&
+                (pointer.x - handle.x) * (pointer.x - handle.x) +
                 (pointer.y - handle.y) * (pointer.y - handle.y) <= 144.0f) {
             Position center = {object->position.x + body->position.x,
                 object->position.y + body->position.y};
@@ -5163,8 +5186,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             if(state->selection == EDITOR_SELECTION_ORIGIN &&
                     state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY)
                 editor_circle_draw(center, 7.0f, (Color){255, 215, 70, 255});
-            if((state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
-                    state->mode == EDITOR_VIEWPORT_PARTICLE) &&
+            if(!selected->particle && state->mode == EDITOR_VIEWPORT_RIGID_BODY &&
                     state->selected_item_count <= 1) {
                 Position handle = editor_body_rotation_handle_get(object, selected);
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});

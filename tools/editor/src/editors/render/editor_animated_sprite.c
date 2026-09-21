@@ -208,7 +208,13 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     scale_x = sprite->scale.x; scale_y = sprite->scale.y;
     ticks = (float)sprite->ticks_per_frame; seconds = (float)sprite->time_per_frame;
     starting = (float)sprite->starting_frame;
-    follow = sprite->follow_body_rotation; playing = sprite->playing;
+    {
+        EditorRigidBody *attached = editor_project_rigid_body_get(object,
+            sprite->rigid_body);
+        follow = sprite->follow_body_rotation &&
+            (attached == NULL || !attached->particle);
+    }
+    playing = sprite->playing;
     if(transform_open) {
         x_result = float_field("editor.animated_sprite.x", &editor->x_label,
             &editor->x_field, &position.x, context->x, transform_row_y[0],

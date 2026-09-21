@@ -616,6 +616,7 @@ static int item_commands_test(void) {
     EditorRigidBody *rigid_body;
     EditorSoftBody *soft_body;
     uint32_t rigid_body_id;
+    uint32_t particle_id;
     uint32_t hitbox_id;
     uint32_t anchor_id;
     uint32_t joint_id;
@@ -641,6 +642,21 @@ static int item_commands_test(void) {
     ITEM_ADD(((EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
         .data.item_add = {.kind = EDITOR_ITEM_RIGID_BODY, .object = object->id}}));
     rigid_body_id = result.result.object;
+    rigid_body = editor_project_rigid_body_get(object, rigid_body_id);
+    if(rigid_body == NULL) return 1;
+    ITEM_ADD(((EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_RIGID_BODY, .object = object->id,
+            .option = 1}}));
+    particle_id = result.result.object;
+    {
+        EditorRigidBody *particle = editor_project_rigid_body_get(object, particle_id);
+        if(particle == NULL || !particle->particle || particle->particle_auto_fit ||
+                !particle->rotation_locked || particle->particle_rigid_vertices != 16 ||
+                particle->hitbox_count != 1 ||
+                particle->hitboxes[0].vertex_count != 16 ||
+                particle->collision_category != UINT64_C(1) ||
+                particle->collision_with != UINT64_C(1)) return 1;
+    }
     rigid_body = editor_project_rigid_body_get(object, rigid_body_id);
     if(rigid_body == NULL) return 1;
     ITEM_ADD(((EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
@@ -694,6 +710,7 @@ static int item_commands_test(void) {
             {EDITOR_ITEM_JOINT, object->id, 0, joint_id, 0},
             {EDITOR_ITEM_ANCHOR, object->id, 0, anchor_id, 0},
             {EDITOR_ITEM_HITBOX, object->id, rigid_body_id, hitbox_id, 0},
+            {EDITOR_ITEM_RIGID_BODY, object->id, 0, particle_id, 0},
             {EDITOR_ITEM_RIGID_BODY, object->id, 0, rigid_body_id, 0}
         };
         for(size_t i = 0; i < sizeof(removals) / sizeof(removals[0]); i += 1) {
@@ -768,6 +785,19 @@ static int property_commands_test(void) {
         EDITOR_PROPERTY_PARTICLE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT,
         number, 14.0f);
     PROPERTY_SET(EDITOR_ITEM_RIGID_BODY, 0, rigid_body->id, 0,
+        EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES, EDITOR_PROPERTY_VALUE_UINT,
+        integer, 12);
+    PROPERTY_SET(EDITOR_ITEM_RIGID_BODY, 0, rigid_body->id, 0,
+        EDITOR_PROPERTY_PARTICLE_ORIGIN_X, EDITOR_PROPERTY_VALUE_FLOAT,
+        number, 2.0f);
+    PROPERTY_SET(EDITOR_ITEM_RIGID_BODY, 0, rigid_body->id, 0,
+        EDITOR_PROPERTY_PARTICLE_ORIGIN_Y, EDITOR_PROPERTY_VALUE_FLOAT,
+        number, -3.0f);
+    if(rigid_body->hitboxes[0].vertex_count != 12 ||
+            fabsf(hypotf(rigid_body->hitboxes[0].vertices[0].position.x - 2.0f,
+                rigid_body->hitboxes[0].vertices[0].position.y + 3.0f) - 14.0f) >
+                0.001f) return 1;
+    PROPERTY_SET(EDITOR_ITEM_RIGID_BODY, 0, rigid_body->id, 0,
         EDITOR_PROPERTY_PARTICLE_AUTO_FIT, EDITOR_PROPERTY_VALUE_BOOL,
         boolean, false);
     PROPERTY_SET(EDITOR_ITEM_RIGID_BODY, 0, rigid_body->id, 0,
@@ -795,6 +825,10 @@ static int property_commands_test(void) {
 #undef PROPERTY_SET
     if(rigid_body->mass_value != 5.0f || !rigid_body->particle ||
             rigid_body->particle_radius != 14.0f || rigid_body->particle_auto_fit ||
+            rigid_body->particle_rigid_vertices != 12 ||
+            rigid_body->hitboxes[0].vertex_count != 12 ||
+            rigid_body->particle_origin.x != 2.0f ||
+            rigid_body->particle_origin.y != -3.0f ||
             rigid_body->border_color != UINT32_C(0x11223344) ||
             !hitbox->vertices[0].position_locked || joint->kind != EDITOR_JOINT_WELD ||
             joint->stiffness != 12.0f || anchor->position_follows_body ||
@@ -988,6 +1022,7 @@ static int sprite_commands_test(void) {
         "assets/wheel image.png");
     animated = editor_project_animated_sprite_add(&project, object);
     if(object == NULL || body == NULL || asset == NULL || animated == NULL) return 1;
+    body->particle = true;
     asset->size = (Scale){32.0f, 24.0f};
     snprintf(animated->name, sizeof(animated->name), "%s", "rolling");
 
@@ -1059,6 +1094,12 @@ static int sprite_commands_test(void) {
     if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE) return 1;
     if(editor_project_animated_sprite_get(object, animated->id)->rigid_body != body->id)
         return 1;
+    if(animated->follow_body_rotation) return 1;
+    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATED_SPRITE_FOLLOW_ROTATION_SET,
+        .data.animated_sprite_boolean_set = {.object = object->id,
+            .sprite = animated->id, .enabled = true}};
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
+            animated->follow_body_rotation) return 1;
 
     command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_POSITION_SET,
         .data.sprite_position_set = {.object = object->id, .sprite = asset->id,
@@ -1107,6 +1148,7 @@ static int sprite_commands_test(void) {
             .body = body->id}};
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE || asset->rigid_body != body->id) return 1;
+    if(asset->follow_body_rotation) return 1;
     result = editor_command_cli_standard_write(&project, &command, &executed,
         "project.rohr.json", text, sizeof(text));
     if(editor_result_check(result) || strstr(text, "--property body") == NULL) return 1;
@@ -1121,6 +1163,9 @@ static int sprite_commands_test(void) {
     command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_FOLLOW_ROTATION_SET,
         .data.sprite_boolean_set = {.object = object->id, .sprite = asset->id,
             .enabled = false}};
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE || asset->follow_body_rotation) return 1;
+    command.data.sprite_boolean_set.enabled = true;
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE || asset->follow_body_rotation) return 1;
 

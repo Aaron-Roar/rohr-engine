@@ -1482,6 +1482,7 @@ EditorRigidBody editor_project_rigid_body_default_get(void) {
         .collision_with = UINT64_C(1),
         .particle_auto_fit = true,
         .particle_radius = 30.0f,
+        .particle_rigid_vertices = 16,
         .particle_ring_color = UINT32_C(0x4a90e2ff),
         .particle_fill_color = UINT32_C(0x4a90e240),
         .border_color = UINT32_C(0xffffffff),
@@ -1716,6 +1717,37 @@ EditorRigidBody *editor_project_rigid_body_get(EditorObject *object,
         if(object->rigid_bodies[i].id == id) return &object->rigid_bodies[i];
     }
     return NULL;
+}
+
+bool editor_project_particle_hitbox_sync(EditorProject *project,
+        EditorRigidBody *body) {
+    EditorHitbox *hitbox;
+    uint32_t count;
+    if(project == NULL || body == NULL || body->hitbox_count == 0 ||
+            body->particle_radius <= 0.0f) return false;
+    hitbox = &body->hitboxes[body->active_hitbox_index < body->hitbox_count ?
+        body->active_hitbox_index : 0];
+    count = body->particle_rigid_vertices;
+    if(count < 3) count = 3;
+    if(count > EDITOR_HITBOX_VERTEX_MAX) count = EDITOR_HITBOX_VERTEX_MAX;
+    body->particle_rigid_vertices = count;
+    for(uint32_t i = 0; i < count; i += 1) {
+        float angle = -1.57079632679f + 6.28318530718f *
+            (float)i / (float)count;
+        if(i >= hitbox->vertex_count) {
+            hitbox->vertices[i].id = project->next_vertex_id++;
+            snprintf(hitbox->vertices[i].name,
+                sizeof(hitbox->vertices[i].name), "vertex_%u",
+                hitbox->vertices[i].id);
+        }
+        hitbox->vertices[i].position = (Position){
+            body->particle_origin.x + cosf(angle) * body->particle_radius,
+            body->particle_origin.y + sinf(angle) * body->particle_radius};
+    }
+    for(uint32_t i = count; i < hitbox->vertex_count; i += 1)
+        hitbox->vertices[i] = (EditorVertex){0};
+    hitbox->vertex_count = count;
+    return true;
 }
 
 bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id) {

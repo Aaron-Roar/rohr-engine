@@ -104,7 +104,12 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
         &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
-    follow = sprite->follow_body_rotation;
+    {
+        EditorRigidBody *attached = editor_project_rigid_body_get(object,
+            sprite->rigid_body);
+        follow = sprite->follow_body_rotation &&
+            (attached == NULL || !attached->particle);
+    }
     y = 118.0f;
     float layer_height = sprite->graphics_layer.layer == 0 ||
         (context->layer_control != NULL &&

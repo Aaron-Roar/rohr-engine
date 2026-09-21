@@ -83,6 +83,7 @@ typedef struct EditorSelectionRef {
 typedef struct EditorViewportState {
     int dragged_vertex;
     bool dragged_body;
+    bool dragged_particle_radius;
     bool rotated_body;
     bool dragged_anchor;
     bool dragged_soft_node;

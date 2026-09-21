@@ -817,7 +817,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {
-        return fmaxf(height, 444.0f + (float)(object->rigid_body_count +
+        return fmaxf(height, 482.0f + (float)(object->rigid_body_count +
             object->joint_count + object->anchor_count + object->soft_body_count +
             object->sprite_count + object->animated_sprite_count +
             object->camera_count) * 30.0f);
@@ -874,7 +874,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     }
     if(state->mode == EDITOR_VIEWPORT_PARTICLE ||
             state->mode == EDITOR_VIEWPORT_SPRITE)
-        return height + 86.0f;
+        return height + (state->mode == EDITOR_VIEWPORT_PARTICLE ? 122.0f : 86.0f);
     if(state->mode == EDITOR_VIEWPORT_SOFT_AREA) {
         for(size_t body_index = 0; body_index < object->soft_body_count;
                 body_index += 1) {

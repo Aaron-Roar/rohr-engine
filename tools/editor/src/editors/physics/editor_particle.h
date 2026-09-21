@@ -10,12 +10,14 @@
 typedef struct EditorParticleEditor {
     TextAsset title;
     TextAsset radius_label;
+    TextAsset rigid_vertices_label;
     TextAsset origin_x_label;
     TextAsset origin_y_label;
     TextAsset auto_fit_label;
     TextAsset ring_color_label;
     TextAsset fill_color_label;
     TextAsset radius_field;
+    TextAsset rigid_vertices_field;
     TextAsset origin_x_field;
     TextAsset origin_y_field;
 } EditorParticleEditor;

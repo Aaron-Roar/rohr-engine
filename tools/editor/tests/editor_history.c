@@ -364,6 +364,7 @@ int main(void) {
         fabsf(body->initial_velocity.x - 42.0f) < 0.001f);
     hitbox = editor_project_hitbox_add(&project, body);
     assert(hitbox != NULL && hitbox->vertex_count > 0);
+    EditorHitboxId radius_test_hitbox_id = hitbox->id;
     {
         Position rotation_handle = test_world_to_screen((Position){
             body->position.x,
@@ -376,10 +377,38 @@ int main(void) {
         assert(editor_viewport_update(&viewport, &project, rotation_handle,
             MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
             false, 0.0f, false));
-        assert(viewport.rotated_body);
+        assert(!viewport.rotated_body);
         editor_viewport_transform_cancel(&viewport);
+        body->particle_auto_fit = false;
+        body->particle_radius = 30.0f;
+        EditorRigidBodyId particle_body_id = body->id;
+        assert(editor_project_particle_hitbox_sync(&project, body));
+        editor_history_reset(&history);
+        Position particle_center = {project.objects[0].position.x + body->position.x +
+            body->particle_origin.x, project.objects[0].position.y + body->position.y +
+            body->particle_origin.y};
+        Position radius_start = test_world_to_screen((Position){
+            particle_center.x + 30.0f, particle_center.y});
+        Position radius_end = test_world_to_screen((Position){
+            particle_center.x + 45.0f, particle_center.y});
+        assert(viewport_pointer_update(&history, &viewport, &project,
+            radius_start, MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.dragged_particle_radius);
+        assert(viewport_pointer_update(&history, &viewport, &project,
+            radius_end, MOUSE_BUTTON_STATE_DOWN));
+        (void)viewport_pointer_update(&history, &viewport, &project,
+            radius_end, MOUSE_BUTTON_STATE_RELEASED);
+        assert(fabsf(body->particle_radius - 45.0f) < 0.001f);
+        assert(editor_history_undo(&history));
+        body = editor_project_rigid_body_get(&project.objects[0], particle_body_id);
+        assert(body != NULL && fabsf(body->particle_radius - 30.0f) < 0.001f);
+        assert(editor_history_redo(&history));
+        body = editor_project_rigid_body_get(&project.objects[0], particle_body_id);
+        assert(body != NULL && fabsf(body->particle_radius - 45.0f) < 0.001f);
         body->particle = false;
     }
+    hitbox = editor_project_hitbox_get(body, radius_test_hitbox_id);
+    assert(hitbox != NULL);
     original_vertex = hitbox->vertices[0].position;
     editor_history_reset(&history);
     command = (EditorCommand){.type = EDITOR_COMMAND_VERTEX_POSITION,

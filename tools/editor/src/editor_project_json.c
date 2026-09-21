@@ -177,6 +177,8 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_bool(document, value, "particle_auto_fit",
         body->particle_auto_fit);
     yyjson_mut_obj_add_real(document, value, "particle_radius", particle_radius);
+    yyjson_mut_obj_add_uint(document, value, "particle_rigid_vertices",
+        body->particle_rigid_vertices);
     yyjson_mut_obj_add_val(document, value, "particle_origin",
         editor_json_position_write(document, body->particle_origin));
     yyjson_mut_obj_add_uint(document, value, "particle_ring_color",
@@ -866,6 +868,8 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
     yyjson_val *particle = yyjson_obj_get(value, "particle");
     yyjson_val *particle_auto_fit = yyjson_obj_get(value, "particle_auto_fit");
     yyjson_val *particle_radius = yyjson_obj_get(value, "particle_radius");
+    yyjson_val *particle_rigid_vertices = yyjson_obj_get(value,
+        "particle_rigid_vertices");
     yyjson_val *particle_origin = yyjson_obj_get(value, "particle_origin");
     yyjson_val *particle_ring_color = yyjson_obj_get(value, "particle_ring_color");
     yyjson_val *particle_fill_color = yyjson_obj_get(value, "particle_fill_color");
@@ -911,9 +915,13 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
                 particle_origin, &body->particle_origin)) ||
             (particle_ring_color != NULL && !editor_json_uint(
                 value, "particle_ring_color", &body->particle_ring_color)) ||
+            (particle_rigid_vertices != NULL && !editor_json_uint(value,
+                "particle_rigid_vertices", &body->particle_rigid_vertices)) ||
             (particle_fill_color != NULL && !editor_json_uint(
                 value, "particle_fill_color", &body->particle_fill_color))) return false;
     body->particle_radius = fmaxf(0.0f, body->particle_radius);
+    if(body->particle_rigid_vertices != 0 && (body->particle_rigid_vertices < 3 ||
+            body->particle_rigid_vertices > EDITOR_HITBOX_VERTEX_MAX)) return false;
     if((border_color != NULL && !editor_json_uint(value, "border_color", &body->border_color)) ||
             (surface_color != NULL && !editor_json_uint(
                 value, "surface_color", &body->surface_color))) return false;
@@ -935,6 +943,12 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
         if(!editor_json_uint(value, "active_hitbox_index", &active) ||
                 (count == 0 ? active != 0 : active >= count)) return false;
         body->active_hitbox_index = active;
+    }
+    if(body->particle_rigid_vertices == 0) {
+        const EditorHitbox *active = count == 0 ? NULL :
+            &body->hitboxes[body->active_hitbox_index];
+        body->particle_rigid_vertices = active != NULL &&
+            active->vertex_count >= 3 ? active->vertex_count : 16;
     }
     if(bindings != NULL) {
         if(!yyjson_is_arr(bindings) ||

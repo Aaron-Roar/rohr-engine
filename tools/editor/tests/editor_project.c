@@ -216,6 +216,11 @@ int main(void) {
             slider->value.slider.thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE;
             slider->value.slider.thumb_radius = 14.0f;
             slider->value.slider.thumb_offset = -18.0f;
+            if(!editor_project_ui_definition_sync_from_item(
+                    &workspace_project, slider->id)) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
             workspace_project.objects[0].rigid_bodies[0].graphics_layer.layer = hud->id;
             if(editor_viewport_ui_mount(&workspace_project,
                     &workspace_project.layout_viewports[0],
@@ -239,6 +244,11 @@ int main(void) {
             workspace_fixture_remove(fixture);
             return 1;
         }
+        EditorViewportUiItem *loaded_slider = NULL;
+        for(size_t i = 0; i < loaded_project.layout_viewports[0].ui_item_count; i += 1)
+            if(loaded_project.layout_viewports[0].ui_items[i].kind ==
+                    EDITOR_VIEWPORT_UI_SLIDER)
+                loaded_slider = &loaded_project.layout_viewports[0].ui_items[i];
         if(defaults.format_version != EDITOR_WORKSPACE_FORMAT_VERSION ||
                 strcmp(defaults.source_directory, "src") != 0 ||
                 strcmp(defaults.generated_directory, "src/generated") != 0 ||
@@ -282,16 +292,12 @@ int main(void) {
                     VIEWPORT_ITEM_DRAG_X ||
                 loaded_project.layout_viewports[0].ui_items[1].drag_mode !=
                     VIEWPORT_ITEM_DRAG_NONE ||
-                loaded_project.layout_viewports[0].ui_items[2].kind !=
-                    EDITOR_VIEWPORT_UI_SLIDER ||
-                fabsf(loaded_project.layout_viewports[0].ui_items[2].
-                    value.slider.value - 12.5f) > 0.001f ||
-                loaded_project.layout_viewports[0].ui_items[2].value.slider.thumb_shape !=
+                loaded_slider == NULL ||
+                fabsf(loaded_slider->value.slider.value - 12.5f) > 0.001f ||
+                loaded_slider->value.slider.thumb_shape !=
                     VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
-                fabsf(loaded_project.layout_viewports[0].ui_items[2].
-                    value.slider.thumb_radius - 14.0f) > 0.001f ||
-                fabsf(loaded_project.layout_viewports[0].ui_items[2].
-                    value.slider.thumb_offset + 18.0f) > 0.001f ||
+                fabsf(loaded_slider->value.slider.thumb_radius - 14.0f) > 0.001f ||
+                fabsf(loaded_slider->value.slider.thumb_offset + 18.0f) > 0.001f ||
                 loaded_project.layout_viewports[0].camera_items[0].graphics_layer !=
                     loaded_project.graphics_layers[0].id ||
                 loaded_project.layout_viewports[0].camera_items[0].placement.
@@ -693,6 +699,7 @@ int main(void) {
             chassis->particle_radius <= 0.0f) return 1;
     chassis->particle_auto_fit = false;
     chassis->particle_radius = 42.0f;
+    chassis->particle_rigid_vertices = 20;
     chassis->particle_origin = (Position){3.0f, -4.0f};
     chassis->particle_ring_color = UINT32_C(0xff8800ff);
     chassis->particle_fill_color = UINT32_C(0x22446680);
@@ -935,6 +942,7 @@ int main(void) {
                 !loaded_object->rigid_bodies[0].particle ||
                 loaded_object->rigid_bodies[0].particle_auto_fit ||
                 fabsf(loaded_object->rigid_bodies[0].particle_radius - 42.0f) > 0.001f ||
+                loaded_object->rigid_bodies[0].particle_rigid_vertices != 20 ||
                 !position_equal(loaded_object->rigid_bodies[0].particle_origin,
                     (Position){3.0f, -4.0f}) ||
                 loaded_object->rigid_bodies[0].particle_ring_color !=

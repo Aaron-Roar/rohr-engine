@@ -22,6 +22,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Object Name", object_name_label); CREATE("Add Rigid Body", add_rigid_body_label);
+    CREATE("Add Particle", add_particle_label);
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
@@ -40,7 +41,8 @@ fail:
 void editor_object_editor_destroy(EditorObjectEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
-    DESTROY(object_name_label); DESTROY(add_rigid_body_label); DESTROY(add_joint_label);
+    DESTROY(object_name_label); DESTROY(add_rigid_body_label);
+    DESTROY(add_particle_label); DESTROY(add_joint_label);
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
     DESTROY(add_anchor_label);
@@ -206,6 +208,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     }
     ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, y,
         EDITOR_ITEM_RIGID_BODY, 0, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
+    y += 38.0f;
+    ADD_BUTTON("editor.add_particle", editor->add_particle_label, y,
+        EDITOR_ITEM_RIGID_BODY, 1, EDITOR_SELECTION_RIGID_BODY, selected_rigid_body);
     y += 38.0f;
     ADD_BUTTON("editor.add_anchor", editor->add_anchor_label, y,
         EDITOR_ITEM_ANCHOR, 0, EDITOR_SELECTION_ANCHOR, selected_anchor);

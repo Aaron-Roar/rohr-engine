@@ -145,6 +145,7 @@ typedef struct EditorRigidBody {
     bool particle_auto_fit;
     bool visible;
     float particle_radius;
+    uint32_t particle_rigid_vertices;
     Position particle_origin;
     uint32_t particle_ring_color;
     uint32_t particle_fill_color;
@@ -690,6 +691,8 @@ bool editor_project_rigid_body_origin_set(EditorObject *object, EditorRigidBody 
     Position position);
 Position editor_project_particle_center_get(const EditorRigidBody *body);
 float editor_project_particle_auto_radius_get(const EditorRigidBody *body);
+bool editor_project_particle_hitbox_sync(EditorProject *project,
+    EditorRigidBody *body);
 void editor_project_particle_auto_fit_update(EditorProject *project);
 EditorHitbox *editor_project_hitbox_add(EditorProject *project, EditorRigidBody *body);
 EditorHitbox *editor_project_hitbox_get(EditorRigidBody *body, EditorHitboxId id);
