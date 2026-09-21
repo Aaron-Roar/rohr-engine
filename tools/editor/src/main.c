@@ -2694,10 +2694,14 @@ int main(void) {
         } else if(column_frame_multi_edit_open &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
             column_frame_multi_edit_open = false;
-        } else if(viewport_context_menu.renaming &&
-                viewport_context_menu.from_column &&
+        } else if((editor_viewport_context_menu_open_check(
+                    &viewport_context_menu) || viewport_context_menu.renaming) &&
                 rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+            snprintf(viewport_context_menu.rename_value,
+                sizeof(viewport_context_menu.rename_value), "%s",
+                viewport_context_menu.rename_original);
             viewport_context_menu.renaming = false;
+            editor_viewport_context_menu_close(&viewport_context_menu);
             rohr_ui_field_focus_clear();
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
