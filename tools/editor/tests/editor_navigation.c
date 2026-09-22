@@ -7,6 +7,7 @@
 #include "editor_layout.h"
 #include "editors/editor_mode_controls.h"
 #include "editors/multi/editor_bulk_panel.h"
+#include "panels/editor_input_settings_panel.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -69,7 +70,8 @@ static bool created_name_focus_mapping_check(void) {
         EDITOR_VIEWPORT_LAYOUT, EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR,
         EDITOR_VIEWPORT_UI_SHAPE_EDITOR, EDITOR_VIEWPORT_UI_TEXT_EDITOR,
         EDITOR_VIEWPORT_UI_SLIDER_EDITOR,
-        EDITOR_VIEWPORT_INPUT_CONTROLLER, EDITOR_VIEWPORT_INPUT_ACTION};
+        EDITOR_VIEWPORT_INPUT_CONTROLLER, EDITOR_VIEWPORT_INPUT_ACTION,
+        EDITOR_VIEWPORT_INPUT_BINDING};
     EditorViewportState state = {0};
     for(size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i += 1)
         if(editor_mode_name_field_id_get(modes[i]) == NULL) return false;
@@ -96,8 +98,8 @@ static bool created_name_focus_replacement_check(void) {
     if(!editor_mode_field("editor.input.action.name", binding, NULL,
             bounds, NULL).active) return false;
     rohr_ui_frame_end();
-    typed.type = SDL_EVENT_KEY_DOWN;
-    typed.key.key = 'j';
+    typed.type = SDL_EVENT_TEXT_INPUT;
+    typed.text.text = "j";
     rohr_ui_field_event_add(&typed);
     rohr_ui_frame_begin((UIInput){0});
     if(!editor_mode_field("editor.input.action.name", binding, NULL,
@@ -107,9 +109,32 @@ static bool created_name_focus_replacement_check(void) {
     return true;
 }
 
+static bool input_key_capture_check(void) {
+    InputBinding binding = {0};
+    SDL_Scancode pending = SDL_SCANCODE_UNKNOWN;
+    if(editor_input_key_capture_apply(SDL_SCANCODE_LCTRL,
+            SDL_SCANCODE_UNKNOWN, SDL_KMOD_LCTRL, &pending, &binding) ||
+            pending != SDL_SCANCODE_LCTRL) return false;
+    if(!editor_input_key_capture_apply(SDL_SCANCODE_A,
+            SDL_SCANCODE_UNKNOWN, SDL_KMOD_LCTRL, &pending, &binding) ||
+            binding.source != INPUT_BINDING_KEY ||
+            binding.input.key != SDL_SCANCODE_A ||
+            binding.modifiers != SDL_KMOD_LCTRL ||
+            pending != SDL_SCANCODE_UNKNOWN) return false;
+    if(editor_input_key_capture_apply(SDL_SCANCODE_LSHIFT,
+            SDL_SCANCODE_UNKNOWN, SDL_KMOD_LSHIFT, &pending, &binding) ||
+            !editor_input_key_capture_apply(SDL_SCANCODE_UNKNOWN,
+                SDL_SCANCODE_LSHIFT, SDL_KMOD_NONE, &pending, &binding) ||
+            binding.input.key != SDL_SCANCODE_LSHIFT ||
+            binding.modifiers != SDL_KMOD_NONE) return false;
+    return editor_input_key_capture_apply(SDL_SCANCODE_7,
+        SDL_SCANCODE_UNKNOWN, SDL_KMOD_NONE, &pending, &binding) &&
+        binding.input.key == SDL_SCANCODE_7;
+}
+
 static bool screen_rotation_pointer_check(float width, float height, float zoom) {
     EditorProject project;
-    EditorViewportState state;
+    EditorViewportState state = {0};
     EditorObject *object;
     EditorCamera *camera;
     EditorLayoutViewport *viewport;
@@ -190,7 +215,8 @@ static bool modifier_click_toggle_check(EditorProject *project,
 int main(void) {
     if(!accordion_layout_metrics_check() ||
             !created_name_focus_mapping_check() ||
-            !created_name_focus_replacement_check()) return 1;
+            !created_name_focus_replacement_check() ||
+            !input_key_capture_check()) return 1;
     static EditorProject project;
     EditorObject *object;
     EditorRigidBody *body;
@@ -453,7 +479,7 @@ int main(void) {
             strcmp(path, "/projects/game/assets") != 0) return 1;
     {
         EditorProject drag_project;
-        EditorViewportState drag_state;
+        EditorViewportState drag_state = {0};
         EditorObject *drag_object;
         EditorRigidBody *drag_body;
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
@@ -505,8 +531,52 @@ int main(void) {
         editor_project_destroy(&drag_project);
     }
     {
+        EditorProject camera_overview_project;
+        EditorViewportState camera_overview_state = {0};
+        EditorObject *camera_overview_object;
+        EditorCamera *overview_camera;
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        Position grab = {center.x + 80.0f, center.y};
+
+        editor_project_init(&camera_overview_project);
+        editor_viewport_state_init(&camera_overview_state);
+        camera_overview_object = editor_project_object_add(
+            &camera_overview_project, (Position){0});
+        overview_camera = editor_project_camera_add(&camera_overview_project,
+            camera_overview_object);
+        if(camera_overview_object == NULL || overview_camera == NULL) return 1;
+        overview_camera->position = (Position){80.0f, 0.0f};
+        overview_camera->dimensions = (Scale){20.0f, 20.0f};
+        camera_overview_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+        if(!editor_viewport_update(&camera_overview_state,
+                &camera_overview_project, grab, MOUSE_BUTTON_STATE_PRESSED,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                camera_overview_state.selection != EDITOR_SELECTION_OBJECT ||
+                !camera_overview_state.dragged_project_object) return 1;
+        if(!editor_viewport_update(&camera_overview_state,
+                &camera_overview_project,
+                (Position){grab.x + 20.0f, grab.y}, MOUSE_BUTTON_STATE_DOWN,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                fabsf(camera_overview_object->overview_position.x - 20.0f) >
+                    0.001f ||
+                fabsf(overview_camera->position.x - 80.0f) > 0.001f) return 1;
+        (void)editor_viewport_update(&camera_overview_state,
+            &camera_overview_project, (Position){grab.x + 20.0f, grab.y},
+            MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false);
+        if(!editor_viewport_update(&camera_overview_state,
+                &camera_overview_project,
+                (Position){grab.x + 20.0f, grab.y}, MOUSE_BUTTON_STATE_PRESSED,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                camera_overview_state.mode != EDITOR_VIEWPORT_OBJECT) return 1;
+        editor_viewport_state_destroy(&camera_overview_state);
+        editor_project_destroy(&camera_overview_project);
+    }
+    {
         EditorProject camera_project;
-        EditorViewportState camera_state;
+        EditorViewportState camera_state = {0};
         EditorObject *camera_object;
         EditorRigidBody *camera_body;
         EditorCamera *camera;
@@ -543,7 +613,7 @@ int main(void) {
     }
     {
         EditorProject viewport_drag_project;
-        EditorViewportState viewport_drag_state;
+        EditorViewportState viewport_drag_state = {0};
         EditorObject *previous_object;
         EditorLayoutViewport *dragged_viewport;
         Position origin = {EDITOR_VIEWPORT_WIDTH * 0.5f,
@@ -585,7 +655,7 @@ int main(void) {
     }
     {
         EditorProject area_project;
-        EditorViewportState area_state;
+        EditorViewportState area_state = {0};
         EditorObject *area_object;
         EditorSoftBody *area_body;
         EditorSoftNode *area_a;
@@ -867,6 +937,70 @@ int main(void) {
                     controller_id)->actions[1].id != action_id)
             return 1;
         editor_history_reset(&history);
+        {
+            EditorInputAction *binding_action = editor_project_input_action_get(
+                &project, controller_id, action_id);
+            EditorInputBindingId first_binding;
+            EditorInputBindingId second_binding;
+            EditorSelectionRef first_binding_ref;
+            EditorSelectionRef second_binding_ref;
+            if(binding_action == NULL || !editor_project_input_binding_add(
+                    &project, controller_id, action_id,
+                    (InputBinding){.source = INPUT_BINDING_KEY,
+                        .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                    !editor_project_input_binding_add(&project, controller_id,
+                        action_id,
+                        (InputBinding){.source = INPUT_BINDING_KEY,
+                            .input.key = SDL_SCANCODE_RETURN, .scale = 1.0f}))
+                return 1;
+            binding_action = editor_project_input_action_get(&project,
+                controller_id, action_id);
+            first_binding = binding_action->binding_ids[0];
+            second_binding = binding_action->binding_ids[1];
+            first_binding_ref = (EditorSelectionRef){
+                EDITOR_SELECTION_INPUT_BINDING, 0, controller_id, action_id,
+                first_binding};
+            second_binding_ref = (EditorSelectionRef){
+                EDITOR_SELECTION_INPUT_BINDING, 0, controller_id, action_id,
+                second_binding};
+            if(!editor_viewport_selection_set(&project, &state,
+                    first_binding_ref, false) ||
+                    state.selected_input_binding != first_binding ||
+                    !editor_navigation_selected_open(&project, &state) ||
+                    state.mode != EDITOR_VIEWPORT_INPUT_BINDING ||
+                    !editor_navigation_selection_name_set(&project,
+                        first_binding_ref, "keyboard_jump") ||
+                    !editor_navigation_selection_name_get(&project,
+                        first_binding_ref, name, sizeof(name)) ||
+                    strcmp(name, "keyboard_jump") != 0) return 1;
+            editor_viewport_back(&state);
+            if(state.mode != EDITOR_VIEWPORT_INPUT_ACTION ||
+                    state.selection != EDITOR_SELECTION_INPUT_ACTION) return 1;
+            editor_history_reset(&history);
+            if(!editor_navigation_selection_reorder(&project, &state,
+                    first_binding_ref, second_binding_ref, true, &history))
+                return 1;
+            binding_action = editor_project_input_action_get(&project,
+                controller_id, action_id);
+            if(binding_action->binding_ids[0] != second_binding ||
+                    binding_action->binding_ids[1] != first_binding ||
+                    strcmp(binding_action->binding_names[1],
+                        "keyboard_jump") != 0 ||
+                    binding_action->bindings[1].input.key !=
+                        SDL_SCANCODE_SPACE ||
+                    history.undo_count != 1 || !editor_history_undo(&history))
+                return 1;
+            binding_action = editor_project_input_action_get(&project,
+                controller_id, action_id);
+            if(binding_action->binding_ids[0] != first_binding ||
+                    strcmp(binding_action->binding_names[0],
+                        "keyboard_jump") != 0 ||
+                    !editor_history_redo(&history)) return 1;
+            binding_action = editor_project_input_action_get(&project,
+                controller_id, action_id);
+            if(binding_action->binding_ids[1] != first_binding) return 1;
+            editor_history_reset(&history);
+        }
         if(!editor_viewport_selection_set(&project, &state, action_ref, false) ||
                 !editor_viewport_selection_set(&project, &state,
                     second_action_ref, true))
@@ -1059,7 +1193,7 @@ int main(void) {
     }
     {
         EditorProject click_project;
-        EditorViewportState click_state;
+        EditorViewportState click_state = {0};
         EditorObject *clicked_object;
         EditorObject *fallback_object;
         EditorRigidBody *clicked_body;

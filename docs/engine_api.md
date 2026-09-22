@@ -3673,6 +3673,22 @@ bool rohr_input_binding_valid_check(InputActionType type, const InputBinding *bi
 
  Return whether a tagged physical binding is valid for an action type.
 
+### `rohr_input_binding_key_create`
+
+```c
+InputBinding rohr_input_binding_key_create(SDL_Keycode key);
+```
+
+ Create a key binding from an SDL keycode, including required Shift state.
+
+### `rohr_input_binding_scancode_create`
+
+```c
+InputBinding rohr_input_binding_scancode_create(SDL_Scancode key);
+```
+
+ Create a physical-layout key binding directly from an SDL scancode.
+
 ### `rohr_input_controller_create`
 
 ```c

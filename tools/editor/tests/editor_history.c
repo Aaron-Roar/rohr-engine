@@ -1361,11 +1361,17 @@ int main(void) {
                     .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
-            project.input_controllers[0].actions[0].binding_count == 1);
+            result.result.object != EDITOR_INPUT_BINDING_INVALID &&
+            project.input_controllers[0].actions[0].binding_count == 1 &&
+            project.input_controllers[0].actions[0].binding_ids[0] ==
+                result.result.object &&
+            project.input_controllers[0].actions[0].binding_names[0][0] != '\0');
+        EditorInputBindingId binding_id = result.result.object;
         assert(editor_history_undo(&history) &&
             project.input_controllers[0].actions[0].binding_count == 0);
         assert(editor_history_redo(&history) &&
             project.input_controllers[0].actions[0].binding_count == 1 &&
+            project.input_controllers[0].actions[0].binding_ids[0] == binding_id &&
             project.input_controllers[0].actions[0].bindings[0].input.key ==
                 SDL_SCANCODE_SPACE);
         command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,

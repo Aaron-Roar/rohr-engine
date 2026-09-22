@@ -897,6 +897,13 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
             selection->parent = state->selected_input_controller;
             selection->item = state->selected_input_action;
             return selection->parent != 0 && selection->item != 0;
+        case EDITOR_SELECTION_INPUT_BINDING:
+            selection->object = 0;
+            selection->parent = state->selected_input_controller;
+            selection->container = state->selected_input_action;
+            selection->item = state->selected_input_binding;
+            return selection->parent != 0 && selection->container != 0 &&
+                selection->item != 0;
         case EDITOR_SELECTION_ORIGIN:
             selection->parent = state->selected_origin_kind;
             selection->item = state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY ?
@@ -939,6 +946,19 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
         state->selected_input_controller = selection.parent;
         state->selected_input_action = selection.item;
         state->selection = EDITOR_SELECTION_INPUT_ACTION;
+        return true;
+    }
+    if(selection.kind == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            selection.parent, selection.container);
+        size_t index;
+        if(!editor_project_input_binding_index_get(action, selection.item, &index))
+            return false;
+        editor_project_selection_clear(project);
+        state->selected_input_controller = selection.parent;
+        state->selected_input_action = selection.container;
+        state->selected_input_binding = selection.item;
+        state->selection = EDITOR_SELECTION_INPUT_BINDING;
         return true;
     }
     if(selection.kind == EDITOR_SELECTION_UI_SHAPE ||
@@ -1694,6 +1714,10 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_OBJECT) {
         state->mode = EDITOR_VIEWPORT_HIERARCHY;
         state->selection = EDITOR_SELECTION_OBJECT;
+    } else if(state->mode == EDITOR_VIEWPORT_INPUT_BINDING) {
+        state->mode = EDITOR_VIEWPORT_INPUT_ACTION;
+        state->selection = EDITOR_SELECTION_INPUT_ACTION;
+        state->selected_input_binding = 0;
     } else if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION) {
         state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
         state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
@@ -1856,6 +1880,18 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
             sprite->frames[0].size.y * sprite->scale.y};
         if(fabsf(point.x - center.x) <= size.x * 0.5f &&
                 fabsf(point.y - center.y) <= size.y * 0.5f) return true;
+    }
+    for(size_t i = 0; i < object->camera_count; i += 1) {
+        const EditorCamera *camera = &object->cameras[i];
+        Position center;
+        Orientation rotation;
+        float zoom;
+        if(!camera->visible) continue;
+        center = editor_camera_world_get(object, camera, &rotation);
+        zoom = camera->zoom > 0.0f ? camera->zoom : 1.0f;
+        if(editor_sprite_point_contains(center,
+                (Scale){camera->dimensions.x / zoom,
+                    camera->dimensions.y / zoom}, rotation, point)) return true;
     }
     return false;
 }

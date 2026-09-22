@@ -11,9 +11,10 @@
 
 typedef struct EditorInputSettingsPanel {
     bool open;
-    size_t selected_binding;
+    bool key_capture_active;
+    SDL_Scancode pending_modifier;
     FontAsset *font;
-    TextAsset menu_label, controller_title, action_title, close_label;
+    TextAsset menu_label, controller_title, action_title, binding_title, close_label;
     TextAsset add_action_label, add_binding_label, delete_binding_label;
     TextAsset delete_action_label;
     TextAsset binding_label, name_label, enabled_label;
@@ -24,10 +25,11 @@ typedef struct EditorInputSettingsPanel {
     TextAsset direction_x_field, direction_y_field;
     TextAsset action_names[ROHR_INPUT_ACTION_LIMIT];
     char action_cache[ROHR_INPUT_ACTION_LIMIT][ROHR_INPUT_NAME_MAX];
+    TextAsset binding_names[ROHR_INPUT_BINDING_LIMIT];
+    char binding_cache[ROHR_INPUT_BINDING_LIMIT][ROHR_INPUT_NAME_MAX];
     TextAsset action_type_options[3];
     TextAsset button_mode_options[2];
     TextAsset binding_source_options[4];
-    TextAsset binding_options[ROHR_INPUT_BINDING_LIMIT];
     TextAsset mouse_button_options[5];
     TextAsset axis_component_options[3];
 } EditorInputSettingsPanel;
@@ -38,7 +40,12 @@ void editor_input_settings_panel_open(EditorInputSettingsPanel *panel);
 void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
     const EditorModeContext *context, UIRect bounds);
 void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
+    const EditorModeContext *context, UIRect bounds);
+void editor_input_binding_editor_draw(EditorInputSettingsPanel *panel,
     EditorProject *project, EditorViewportState *viewport, UIRect bounds);
+bool editor_input_key_capture_apply(SDL_Scancode pressed,
+    SDL_Scancode released, SDL_Keymod modifiers, SDL_Scancode *pending_modifier,
+    InputBinding *binding);
 void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel);
 
 #endif

@@ -33,8 +33,8 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
 #define EDITOR_PROJECT_FORMAT_VERSION 2
-#define EDITOR_NAVIGATION_MODE_MAX 28
-#define EDITOR_NAVIGATION_SELECTION_MAX 25
+#define EDITOR_NAVIGATION_MODE_MAX 29
+#define EDITOR_NAVIGATION_SELECTION_MAX 26
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -57,9 +57,11 @@ typedef uint32_t EditorUiFontId;
 typedef uint32_t EditorGraphicsLayerId;
 typedef uint32_t EditorInputControllerId;
 typedef uint32_t EditorInputActionId;
+typedef uint32_t EditorInputBindingId;
 
 #define EDITOR_INPUT_CONTROLLER_INVALID UINT32_C(0)
 #define EDITOR_INPUT_ACTION_INVALID UINT32_C(0)
+#define EDITOR_INPUT_BINDING_INVALID UINT32_C(0)
 
 typedef struct EditorInputAction {
     EditorInputActionId id;
@@ -67,6 +69,8 @@ typedef struct EditorInputAction {
     InputActionType type;
     InputButtonMode button_mode;
     bool button_initial_state;
+    EditorInputBindingId binding_ids[ROHR_INPUT_BINDING_LIMIT];
+    char binding_names[ROHR_INPUT_BINDING_LIMIT][ROHR_INPUT_NAME_MAX];
     InputBinding bindings[ROHR_INPUT_BINDING_LIMIT];
     size_t binding_count;
 } EditorInputAction;
@@ -583,6 +587,7 @@ typedef struct EditorNavigationState {
     EditorSpriteId animation_frame;
     EditorInputControllerId input_controller;
     EditorInputActionId input_action;
+    EditorInputBindingId input_binding;
     uint32_t origin_kind;
 } EditorNavigationState;
 
@@ -642,6 +647,7 @@ typedef struct EditorProject {
     EditorViewportUiDefinitionId next_ui_definition_id;
     EditorInputControllerId next_input_controller_id;
     EditorInputActionId next_input_action_id;
+    EditorInputBindingId next_input_binding_id;
     EditorObjectId selected;
 } EditorProject;
 
@@ -674,6 +680,14 @@ bool editor_project_input_binding_add(EditorProject *project,
 bool editor_project_input_binding_set(EditorProject *project,
     EditorInputControllerId controller, EditorInputActionId action, size_t index,
     InputBinding binding);
+bool editor_project_input_binding_name_set(EditorProject *project,
+    EditorInputControllerId controller, EditorInputActionId action,
+    EditorInputBindingId binding, const char *name);
+bool editor_project_input_binding_named_set(EditorProject *project,
+    EditorInputControllerId controller, EditorInputActionId action,
+    EditorInputBindingId binding, const char *name, InputBinding value);
+bool editor_project_input_binding_index_get(const EditorInputAction *action,
+    EditorInputBindingId binding, size_t *index);
 bool editor_project_input_binding_remove(EditorProject *project,
     EditorInputControllerId controller, EditorInputActionId action, size_t index);
 

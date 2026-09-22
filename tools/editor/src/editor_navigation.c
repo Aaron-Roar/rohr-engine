@@ -306,6 +306,71 @@ static uint32_t editor_reorder_item_id_get(const EditorReorderStorage *storage,
     return id;
 }
 
+typedef struct EditorInputBindingRow {
+    EditorInputBindingId id;
+    char name[ROHR_INPUT_NAME_MAX];
+    InputBinding binding;
+} EditorInputBindingRow;
+
+static bool editor_input_binding_reorder(EditorProject *project,
+        EditorViewportState *state, EditorSelectionRef source,
+        EditorSelectionRef target, bool after, EditorHistory *history) {
+    EditorInputAction *action = editor_project_input_action_get(project,
+        source.parent, source.container);
+    EditorInputBindingRow current[ROHR_INPUT_BINDING_LIMIT];
+    EditorInputBindingRow ordered[ROHR_INPUT_BINDING_LIMIT];
+    bool selected[ROHR_INPUT_BINDING_LIMIT] = {0};
+    size_t source_index = SIZE_MAX, target_index = SIZE_MAX;
+    size_t insertion, selected_before = 0, output = 0, unselected = 0;
+    bool source_selected;
+    if(action == NULL || action->binding_count < 2) return false;
+    for(size_t i = 0; i < action->binding_count; i += 1) {
+        current[i].id = action->binding_ids[i];
+        snprintf(current[i].name, sizeof(current[i].name), "%s",
+            action->binding_names[i]);
+        current[i].binding = action->bindings[i];
+        if(current[i].id == source.item) source_index = i;
+        if(current[i].id == target.item) target_index = i;
+    }
+    if(source_index == SIZE_MAX || target_index == SIZE_MAX) return false;
+    source_selected = editor_viewport_selection_contains(state, source);
+    for(size_t i = 0; i < action->binding_count; i += 1) {
+        EditorSelectionRef candidate = source;
+        candidate.item = current[i].id;
+        selected[i] = source_selected &&
+            editor_viewport_selection_contains(state, candidate);
+    }
+    if(!source_selected) selected[source_index] = true;
+    insertion = target_index + (after ? 1u : 0u);
+    for(size_t i = 0; i < insertion; i += 1)
+        if(selected[i]) selected_before += 1;
+    insertion -= selected_before;
+    for(size_t i = 0; i <= action->binding_count; i += 1) {
+        if(i == insertion)
+            for(size_t j = 0; j < action->binding_count; j += 1)
+                if(selected[j]) ordered[output++] = current[j];
+        if(i == action->binding_count) break;
+        while(unselected < action->binding_count && selected[unselected])
+            unselected += 1;
+        if(unselected < action->binding_count)
+            ordered[output++] = current[unselected++];
+    }
+    if(output != action->binding_count || memcmp(current, ordered,
+            action->binding_count * sizeof(*ordered)) == 0) return false;
+    if(history != NULL && (!editor_history_transaction_begin(history) ||
+            !editor_history_transaction_input_track(history))) {
+        if(history != NULL) editor_history_transaction_cancel(history);
+        return false;
+    }
+    for(size_t i = 0; i < action->binding_count; i += 1) {
+        action->binding_ids[i] = ordered[i].id;
+        snprintf(action->binding_names[i], sizeof(action->binding_names[i]), "%s",
+            ordered[i].name);
+        action->bindings[i] = ordered[i].binding;
+    }
+    return history == NULL || editor_history_transaction_end(history);
+}
+
 bool editor_navigation_selection_reorder(EditorProject *project,
         EditorViewportState *state, EditorSelectionRef source,
         EditorSelectionRef target, bool after, EditorHistory *history) {
@@ -364,6 +429,9 @@ bool editor_navigation_selection_reorder(EditorProject *project,
         return history == NULL || editor_history_transaction_end(history);
     }
     if(!editor_selection_sibling_check(source, target)) return false;
+    if(source.kind == EDITOR_SELECTION_INPUT_BINDING)
+        return editor_input_binding_reorder(project, state, source, target,
+            after, history);
     if((source.kind == EDITOR_SELECTION_RIGID_BODY ||
                 source.kind == EDITOR_SELECTION_JOINT ||
                 source.kind == EDITOR_SELECTION_ANCHOR ||
@@ -505,6 +573,21 @@ static bool editor_selection_remove_command_get(EditorProject *project,
             sizeof(command->data.input_action.name), "%s", action->name);
         return true;
     }
+    if(selection.kind == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            selection.parent, selection.container);
+        size_t index;
+        if(!editor_project_input_binding_index_get(action, selection.item, &index))
+            return false;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_REMOVE,
+            .data.input_binding = {.controller = selection.parent,
+                .action = selection.container, .binding_id = selection.item,
+                .index = index, .binding = action->bindings[index]}};
+        snprintf(command->data.input_binding.name,
+            sizeof(command->data.input_binding.name), "%s",
+            action->binding_names[index]);
+        return true;
+    }
     if(selection.kind == EDITOR_SELECTION_SPRITE) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_REMOVE,
             .data.sprite_remove = {.object = selection.object,
@@ -606,6 +689,13 @@ static bool editor_selection_removed_with_parent_check(
         if(parent.kind == EDITOR_SELECTION_INPUT_CONTROLLER &&
                 selection.kind == EDITOR_SELECTION_INPUT_ACTION &&
                 parent.item == selection.parent) return true;
+        if(parent.kind == EDITOR_SELECTION_INPUT_CONTROLLER &&
+                selection.kind == EDITOR_SELECTION_INPUT_BINDING &&
+                parent.item == selection.parent) return true;
+        if(parent.kind == EDITOR_SELECTION_INPUT_ACTION &&
+                selection.kind == EDITOR_SELECTION_INPUT_BINDING &&
+                parent.parent == selection.parent &&
+                parent.item == selection.container) return true;
     }
     return false;
 }
@@ -637,7 +727,8 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
     }
     for(size_t i = 0; i < state->selected_item_count; i += 1) {
         if(state->selected_items[i].kind == EDITOR_SELECTION_INPUT_CONTROLLER ||
-                state->selected_items[i].kind == EDITOR_SELECTION_INPUT_ACTION) {
+                state->selected_items[i].kind == EDITOR_SELECTION_INPUT_ACTION ||
+                state->selected_items[i].kind == EDITOR_SELECTION_INPUT_BINDING) {
             if(!editor_history_transaction_input_track(history)) {
                 editor_history_transaction_cancel(history);
                 free(ordered);
@@ -673,7 +764,9 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
     if(!editor_history_transaction_end(history)) return false;
     editor_viewport_selection_clear(state);
     state->selection = EDITOR_SELECTION_NONE;
-    if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION ||
+    if(state->mode == EDITOR_VIEWPORT_INPUT_BINDING)
+        state->mode = EDITOR_VIEWPORT_INPUT_ACTION;
+    else if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION ||
             state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER)
         state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
     else if(state->mode != EDITOR_VIEWPORT_HIERARCHY)
@@ -859,6 +952,15 @@ bool editor_navigation_selection_name_get(EditorProject *project,
         snprintf(name, capacity, "%s", action->name);
         return true;
     }
+    if(ref.kind == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            ref.parent, ref.container);
+        size_t index;
+        if(!editor_project_input_binding_index_get(action, ref.item, &index))
+            return false;
+        snprintf(name, capacity, "%s", action->binding_names[index]);
+        return true;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);
@@ -960,6 +1062,20 @@ bool editor_navigation_selection_name_set(EditorProject *project,
             sizeof(command.data.input_action.name), "%s", name);
         return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
     }
+    if(ref.kind == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            ref.parent, ref.container);
+        size_t index;
+        if(!editor_project_input_binding_index_get(action, ref.item, &index))
+            return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_SET,
+            .data.input_binding = {.controller = ref.parent,
+                .action = ref.container, .binding_id = ref.item,
+                .index = index, .binding = action->bindings[index]}};
+        snprintf(command.data.input_binding.name,
+            sizeof(command.data.input_binding.name), "%s", name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
@@ -1054,6 +1170,15 @@ bool editor_navigation_selected_open(EditorProject *project,
                 state->selected_input_controller,
                 state->selected_input_action) == NULL) return false;
         state->mode = EDITOR_VIEWPORT_INPUT_ACTION;
+        return true;
+    }
+    if(state->selection == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            state->selected_input_controller, state->selected_input_action);
+        size_t index;
+        if(!editor_project_input_binding_index_get(action,
+                state->selected_input_binding, &index)) return false;
+        state->mode = EDITOR_VIEWPORT_INPUT_BINDING;
         return true;
     }
     if(state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
@@ -1218,6 +1343,15 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_CAMERA_ENTITY:
             state->selection = EDITOR_SELECTION_CAMERA;
+            return true;
+        case EDITOR_VIEWPORT_INPUT_CONTROLLER:
+            state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+            return true;
+        case EDITOR_VIEWPORT_INPUT_ACTION:
+            state->selection = EDITOR_SELECTION_INPUT_ACTION;
+            return true;
+        case EDITOR_VIEWPORT_INPUT_BINDING:
+            state->selection = EDITOR_SELECTION_INPUT_BINDING;
             return true;
         default:
             return false;

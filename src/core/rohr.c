@@ -58,6 +58,12 @@ bool rohr_input_binding_valid_check(InputActionType type,
         const InputBinding *binding) {
     return input_binding_valid_check(type, binding);
 }
+InputBinding rohr_input_binding_key_create(SDL_Keycode key) {
+    return input_binding_key_create(key);
+}
+InputBinding rohr_input_binding_scancode_create(SDL_Scancode key) {
+    return input_binding_scancode_create(key);
+}
 InputControllerIdResult rohr_input_controller_create(const char *name) {
     return input_controller_create(name);
 }

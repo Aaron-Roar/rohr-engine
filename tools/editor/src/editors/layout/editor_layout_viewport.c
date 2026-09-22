@@ -271,6 +271,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         }
     }
     y += 36.0f;
+    editor_mode_divider_draw(context->x, y, context->width);
+    y += 10.0f;
     size_t content_items = viewport->camera_item_count + viewport->ui_item_count;
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);

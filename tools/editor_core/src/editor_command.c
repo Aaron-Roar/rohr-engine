@@ -1514,6 +1514,7 @@ property_invalid:
                 command->data.input_binding.controller,
                 command->data.input_binding.action);
             size_t index = action == NULL ? 0 : action->binding_count;
+            EditorInputBindingId binding_id;
             if(!editor_project_input_binding_add(project,
                     command->data.input_binding.controller,
                     command->data.input_binding.action,
@@ -1522,32 +1523,87 @@ property_invalid:
                     EDITOR_ERROR_INVALID_ARGUMENT,
                     "input binding is invalid or exceeds binding capacity")
                         .result.error);
+            action = editor_project_input_action_get(project,
+                command->data.input_binding.controller,
+                command->data.input_binding.action);
+            binding_id = action->binding_ids[index];
+            if(command->data.input_binding.name[0] != '\0' &&
+                    !editor_project_input_binding_name_set(project,
+                        command->data.input_binding.controller,
+                        command->data.input_binding.action, binding_id,
+                        command->data.input_binding.name)) {
+                (void)editor_project_input_binding_remove(project,
+                    command->data.input_binding.controller,
+                    command->data.input_binding.action, index);
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "input binding name is invalid or duplicated").result.error);
+            }
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
-                .result.object = (uint32_t)index,
+                .result.object = binding_id,
                 .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_BINDING,
                     .parent = command->data.input_binding.controller,
                     .container = command->data.input_binding.action,
-                    .item = (uint32_t)index}};
+                    .item = binding_id}};
         }
-        case EDITOR_COMMAND_INPUT_BINDING_REMOVE:
+        case EDITOR_COMMAND_INPUT_BINDING_REMOVE: {
+            EditorInputAction *action = editor_project_input_action_get(project,
+                command->data.input_binding.controller,
+                command->data.input_binding.action);
+            size_t index = command->data.input_binding.index;
+            if(command->data.input_binding.binding_id != 0 &&
+                    !editor_project_input_binding_index_get(action,
+                        command->data.input_binding.binding_id, &index))
+                return editor_command_not_found("input binding",
+                    command->data.input_binding.binding_id);
             if(!editor_project_input_binding_remove(project,
                     command->data.input_binding.controller,
                     command->data.input_binding.action,
-                    command->data.input_binding.index))
+                    index))
                 return editor_command_not_found("input binding",
-                    (uint32_t)command->data.input_binding.index);
+                    command->data.input_binding.binding_id != 0 ?
+                        command->data.input_binding.binding_id : (uint32_t)index);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
-        case EDITOR_COMMAND_INPUT_BINDING_SET:
-            if(!editor_project_input_binding_set(project,
+        }
+        case EDITOR_COMMAND_INPUT_BINDING_SET: {
+            EditorInputAction *action = editor_project_input_action_get(project,
+                command->data.input_binding.controller,
+                command->data.input_binding.action);
+            size_t index = command->data.input_binding.index;
+            if(action == NULL)
+                return editor_command_not_found("input action",
+                    command->data.input_binding.action);
+            if(command->data.input_binding.binding_id != 0 &&
+                    !editor_project_input_binding_index_get(action,
+                        command->data.input_binding.binding_id, &index))
+                return editor_command_not_found("input binding",
+                    command->data.input_binding.binding_id);
+            if(index >= action->binding_count)
+                return editor_command_not_found("input binding",
+                    command->data.input_binding.binding_id != 0 ?
+                        command->data.input_binding.binding_id : (uint32_t)index);
+            if(command->data.input_binding.name[0] != '\0') {
+                if(!editor_project_input_binding_named_set(project,
+                        command->data.input_binding.controller,
+                        command->data.input_binding.action,
+                        action->binding_ids[index],
+                        command->data.input_binding.name,
+                        command->data.input_binding.binding))
+                    return editor_command_error(editor_result_error(
+                        EDITOR_ERROR_INVALID_ARGUMENT,
+                        "input binding name or value is invalid for the action")
+                            .result.error);
+            } else if(!editor_project_input_binding_set(project,
                     command->data.input_binding.controller,
                     command->data.input_binding.action,
-                    command->data.input_binding.index,
+                    index,
                     command->data.input_binding.binding))
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
                     "input binding was not found or is invalid for the action")
                         .result.error);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_SPRITE_ADD: {
             EditorObject *object = editor_object_query_get(project,
                 command->data.sprite_add.object);

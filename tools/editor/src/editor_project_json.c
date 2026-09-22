@@ -153,9 +153,12 @@ static const char *editor_json_input_component_name(InputAxisComponent component
 }
 
 static yyjson_mut_val *editor_json_input_binding_write(
-        yyjson_mut_doc *document, const InputBinding *binding) {
+        yyjson_mut_doc *document, EditorInputBindingId id, const char *name,
+        const InputBinding *binding) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
     const char *source = editor_json_input_source_name(binding->source);
+    yyjson_mut_obj_add_uint(document, value, "id", id);
+    yyjson_mut_obj_add_strcpy(document, value, "name", name);
     yyjson_mut_obj_add_strcpy(document, value, "source", source);
     if(binding->source == INPUT_BINDING_KEY)
         yyjson_mut_obj_add_uint(document, value, "scancode", binding->input.key);
@@ -705,6 +708,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             navigation->input_controller);
         yyjson_mut_obj_add_uint(document, value, "input_action",
             navigation->input_action);
+        yyjson_mut_obj_add_uint(document, value, "input_binding",
+            navigation->input_binding);
         yyjson_mut_obj_add_uint(document, value, "origin_kind", navigation->origin_kind);
         yyjson_mut_obj_add_val(document, root, "navigation", value);
     }
@@ -740,6 +745,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_input_controller_id);
     yyjson_mut_obj_add_uint(document, root, "next_input_action_id",
         project->next_input_action_id);
+    yyjson_mut_obj_add_uint(document, root, "next_input_binding_id",
+        project->next_input_binding_id);
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
         yyjson_mut_val *font = yyjson_mut_obj(document);
         yyjson_mut_obj_add_uint(document, font, "id", project->ui_fonts[i].id);
@@ -786,6 +793,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             for(size_t k = 0; k < action->binding_count; k += 1)
                 yyjson_mut_arr_add_val(bindings,
                     editor_json_input_binding_write(document,
+                        action->binding_ids[k], action->binding_names[k],
                         &action->bindings[k]));
             yyjson_mut_obj_add_val(document, action_value, "bindings", bindings);
             yyjson_mut_arr_add_val(actions, action_value);
@@ -1986,6 +1994,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *frame = yyjson_obj_get(navigation, "animation_frame");
             yyjson_val *camera = yyjson_obj_get(navigation, "camera");
             yyjson_val *input_action = yyjson_obj_get(navigation, "input_action");
+            yyjson_val *input_binding = yyjson_obj_get(navigation, "input_binding");
             if((sprite != NULL && (!yyjson_is_uint(sprite) ||
                         yyjson_get_uint(sprite) > UINT32_MAX)) ||
                     (animated != NULL && (!yyjson_is_uint(animated) ||
@@ -1995,7 +2004,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     (camera != NULL && (!yyjson_is_uint(camera) ||
                         yyjson_get_uint(camera) > UINT32_MAX)) ||
                     (input_action != NULL && (!yyjson_is_uint(input_action) ||
-                        yyjson_get_uint(input_action) > UINT32_MAX))) goto done;
+                        yyjson_get_uint(input_action) > UINT32_MAX)) ||
+                    (input_binding != NULL && (!yyjson_is_uint(input_binding) ||
+                        yyjson_get_uint(input_binding) > UINT32_MAX))) goto done;
             if(sprite != NULL)
                 loaded.navigation.sprite = (uint32_t)yyjson_get_uint(sprite);
             if(animated != NULL)
@@ -2009,6 +2020,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             if(input_action != NULL)
                 loaded.navigation.input_action =
                     (uint32_t)yyjson_get_uint(input_action);
+            if(input_binding != NULL)
+                loaded.navigation.input_binding =
+                    (uint32_t)yyjson_get_uint(input_binding);
         }
     }
     if(!editor_json_uint(root, "selected", &loaded.selected) || !yyjson_is_arr(objects) ||
@@ -2047,6 +2061,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "next_input_controller_id");
         yyjson_val *next_input_action = yyjson_obj_get(root,
             "next_input_action_id");
+        yyjson_val *next_input_binding = yyjson_obj_get(root,
+            "next_input_binding_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
                     &loaded.next_sprite_id)) ||
                 (next_animated != NULL && !editor_json_uint(root,
@@ -2069,6 +2085,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     &loaded.next_input_controller_id)) ||
                 (next_input_action == NULL || !editor_json_uint(root,
                     "next_input_action_id", &loaded.next_input_action_id)) ||
+                (next_input_binding != NULL && !editor_json_uint(root,
+                    "next_input_binding_id", &loaded.next_input_binding_id)) ||
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
                 loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
                 loaded.next_viewport_camera_item_id == 0 ||
@@ -2076,6 +2094,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 loaded.next_ui_definition_id == 0 ||
                 loaded.next_input_controller_id == 0 ||
                 loaded.next_input_action_id == 0 ||
+                loaded.next_input_binding_id == 0 ||
                 (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)) ||
                 (hierarchy != NULL && !yyjson_is_arr(hierarchy)) ||
                 !yyjson_is_arr(input_controllers))
@@ -2143,10 +2162,50 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         yyjson_arr_size(bindings) > ROHR_INPUT_BINDING_LIMIT)
                     goto done;
                 action->binding_count = yyjson_arr_size(bindings);
-                for(size_t k = 0; k < action->binding_count; k += 1)
-                    if(!editor_json_input_binding_read(
-                            yyjson_arr_get(bindings, k), action->type,
+                for(size_t k = 0; k < action->binding_count; k += 1) {
+                    yyjson_val *binding_value = yyjson_arr_get(bindings, k);
+                    yyjson_val *binding_id = yyjson_obj_get(binding_value, "id");
+                    yyjson_val *binding_name = yyjson_obj_get(binding_value, "name");
+                    if(!editor_json_input_binding_read(binding_value, action->type,
                             &action->bindings[k])) goto done;
+                    if(binding_id == NULL && binding_name == NULL) {
+                        action->binding_ids[k] = loaded.next_input_binding_id++;
+                        snprintf(action->binding_names[k],
+                            sizeof(action->binding_names[k]), "binding_%u",
+                            action->binding_ids[k]);
+                    } else if(binding_id == NULL || binding_name == NULL ||
+                            !editor_json_uint(binding_value, "id",
+                                &action->binding_ids[k]) ||
+                            action->binding_ids[k] == EDITOR_INPUT_BINDING_INVALID ||
+                            !editor_json_name(binding_value,
+                                action->binding_names[k])) goto done;
+                    for(size_t previous = 0; previous < k; previous += 1)
+                        if(action->binding_ids[previous] == action->binding_ids[k] ||
+                                strcmp(action->binding_names[previous],
+                                    action->binding_names[k]) == 0) goto done;
+                    for(size_t previous_action = 0; previous_action < j;
+                            previous_action += 1)
+                        for(size_t previous = 0; previous < controller->actions[
+                                previous_action].binding_count; previous += 1)
+                            if(controller->actions[previous_action].binding_ids[
+                                    previous] == action->binding_ids[k]) goto done;
+                    for(size_t previous_controller = 0; previous_controller < i;
+                            previous_controller += 1)
+                        for(size_t previous_action = 0;
+                                previous_action < loaded.input_controllers[
+                                    previous_controller].action_count;
+                                previous_action += 1)
+                            for(size_t previous = 0;
+                                    previous < loaded.input_controllers[
+                                        previous_controller].actions[
+                                            previous_action].binding_count;
+                                    previous += 1)
+                                if(loaded.input_controllers[previous_controller].
+                                        actions[previous_action].binding_ids[previous] ==
+                                        action->binding_ids[k]) goto done;
+                    if(loaded.next_input_binding_id <= action->binding_ids[k])
+                        loaded.next_input_binding_id = action->binding_ids[k] + 1;
+                }
                 for(size_t previous = 0; previous < j; previous += 1)
                     if(controller->actions[previous].id == action->id ||
                             strcmp(controller->actions[previous].name,

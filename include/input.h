@@ -144,6 +144,10 @@ InputTextState input_text_state_get(void);
 /** Validate one physical binding for the requested logical action type. */
 bool input_binding_valid_check(InputActionType type,
     const InputBinding *binding);
+/** Create a key binding from an SDL keycode, including required Shift state. */
+InputBinding input_binding_key_create(SDL_Keycode key);
+/** Create a physical-layout key binding directly from an SDL scancode. */
+InputBinding input_binding_scancode_create(SDL_Scancode key);
 
 InputControllerIdResult input_controller_create(const char *name);
 EngineResult input_controller_destroy(InputControllerId controller);

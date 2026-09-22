@@ -672,6 +672,7 @@ static EditorNavigationState editor_navigation_state_get(
         .animation_frame = state->selected_animation_frame,
         .input_controller = state->selected_input_controller,
         .input_action = state->selected_input_action,
+        .input_binding = state->selected_input_binding,
         .origin_kind = (uint32_t)state->selected_origin_kind
     };
 }
@@ -697,6 +698,7 @@ static void editor_navigation_state_apply(EditorProject *project,
     state->selected_animation_frame = navigation->animation_frame;
     state->selected_input_controller = navigation->input_controller;
     state->selected_input_action = navigation->input_action;
+    state->selected_input_binding = navigation->input_binding;
     state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
 }
 
@@ -790,7 +792,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         if(project->objects[i].id == project->selected) object = &project->objects[i];
     }
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        return fmaxf(height, 210.0f +
+        return fmaxf(height, 250.0f +
             (float)project->hierarchy_count * 34.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
@@ -802,6 +804,8 @@ static float editor_panel_content_height_get(const EditorProject *project,
     }
     if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION)
         return fmaxf(height, 520.0f);
+    if(state->mode == EDITOR_VIEWPORT_INPUT_BINDING)
+        return fmaxf(height, 560.0f);
     if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,
@@ -953,10 +957,11 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_LINE_EDITOR ||
         mode == EDITOR_VIEWPORT_INPUT_CONTROLLER ||
-        mode == EDITOR_VIEWPORT_INPUT_ACTION;
+        mode == EDITOR_VIEWPORT_INPUT_ACTION ||
+        mode == EDITOR_VIEWPORT_INPUT_BINDING;
 }
 
-#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_INPUT_ACTION + 1)
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_INPUT_BINDING + 1)
 
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
@@ -976,7 +981,8 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
         mode != EDITOR_VIEWPORT_UI_SLIDER_EDITOR &&
         mode != EDITOR_VIEWPORT_INPUT_CONTROLLER &&
-        mode != EDITOR_VIEWPORT_INPUT_ACTION;
+        mode != EDITOR_VIEWPORT_INPUT_ACTION &&
+        mode != EDITOR_VIEWPORT_INPUT_BINDING;
 }
 
 static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
@@ -1643,6 +1649,30 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->selection == EDITOR_SELECTION_INPUT_BINDING) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            viewport_state->selected_input_controller,
+            viewport_state->selected_input_action);
+        size_t index;
+        EditorCommand command;
+        if(!editor_project_input_binding_index_get(action,
+                viewport_state->selected_input_binding, &index)) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_REMOVE,
+            .data.input_binding = {
+                .controller = viewport_state->selected_input_controller,
+                .action = viewport_state->selected_input_action,
+                .binding_id = viewport_state->selected_input_binding,
+                .index = index, .binding = action->bindings[index]}};
+        snprintf(command.data.input_binding.name,
+            sizeof(command.data.input_binding.name), "%s",
+            action->binding_names[index]);
+        if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
+            return false;
+        viewport_state->selected_input_binding = 0;
+        viewport_state->mode = EDITOR_VIEWPORT_INPUT_ACTION;
+        viewport_state->selection = EDITOR_SELECTION_INPUT_ACTION;
+        return true;
+    }
     if(viewport_state->selection == EDITOR_SELECTION_INPUT_ACTION) {
         EditorInputAction *action = editor_project_input_action_get(project,
             viewport_state->selected_input_controller,
@@ -2675,7 +2705,8 @@ int main(void) {
         rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
             EditorHistoryShortcutResult shortcut = build_settings_panel.open ||
-                visual_settings_panel.open || physics_settings_panel.open ?
+                visual_settings_panel.open || physics_settings_panel.open ||
+                input_settings_panel.key_capture_active ?
                 (EditorHistoryShortcutResult){0} :
                 editor_history_shortcut_handle(&event, workspace.open, &history);
             if(shortcut.consumed) {
@@ -2771,6 +2802,13 @@ int main(void) {
         } else if(physics_settings_panel.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             physics_settings_panel.open = false;
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_BINDING &&
+                !input_settings_panel.key_capture_active &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            input_settings_panel.open = false;
+            viewport_state.selected_input_binding = 0;
+            viewport_state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
+            viewport_state.selection = EDITOR_SELECTION_INPUT_ACTION;
         } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_ACTION &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             input_settings_panel.open = false;
@@ -2836,6 +2874,7 @@ int main(void) {
         }
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
+                !input_settings_panel.key_capture_active &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
                 !color_picker.open &&
@@ -2848,6 +2887,7 @@ int main(void) {
         }
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
+                !input_settings_panel.key_capture_active &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
                 !color_picker.open &&
@@ -3484,15 +3524,52 @@ int main(void) {
                 viewport_state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
                 viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
             } else {
+                EditorModeHierarchyContext hierarchy_context = {
+                    .project = &project, .context_menu = &viewport_context_menu,
+                    .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                    .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
+                    .primary = hierarchy_primary,
+                    .scroll_offset = panel_scroll_offset,
+                    .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
-                editor_input_action_editor_draw(&input_settings_panel, &project,
-                    &viewport_state,
+                editor_input_action_editor_draw(&input_settings_panel,
+                    &(EditorModeContext){.project = &project,
+                        .viewport = &viewport_state,
+                        .x = EDITOR_VIEWPORT_WIDTH,
+                        .width = EDITOR_TOOLS_WIDTH,
+                        .hierarchy_row = editor_mode_hierarchy_row,
+                        .hierarchy_context = &hierarchy_context,
+                        .primary_button = hierarchy_primary},
                     (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
                         EDITOR_TOOLS_WIDTH,
                         EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
                 if(!input_settings_panel.open) {
                     viewport_state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
                     viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+                }
+            }
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_BINDING) {
+            EditorInputAction *action = editor_project_input_action_get(&project,
+                viewport_state.selected_input_controller,
+                viewport_state.selected_input_action);
+            size_t binding_index;
+            if(!editor_project_input_binding_index_get(action,
+                    viewport_state.selected_input_binding, &binding_index)) {
+                input_settings_panel.open = false;
+                viewport_state.selected_input_binding = 0;
+                viewport_state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
+                viewport_state.selection = EDITOR_SELECTION_INPUT_ACTION;
+            } else {
+                input_settings_panel.open = true;
+                editor_input_binding_editor_draw(&input_settings_panel, &project,
+                    &viewport_state,
+                    (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
+                        EDITOR_TOOLS_WIDTH,
+                        EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
+                if(!input_settings_panel.open) {
+                    viewport_state.selected_input_binding = 0;
+                    viewport_state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
+                    viewport_state.selection = EDITOR_SELECTION_INPUT_ACTION;
                 }
             }
         } else {
@@ -3550,6 +3627,10 @@ int main(void) {
                 case EDITOR_VIEWPORT_INPUT_ACTION:
                     delete_label = &input_settings_panel.delete_action_label;
                     delete_id = "editor.project.input_action.delete";
+                    break;
+                case EDITOR_VIEWPORT_INPUT_BINDING:
+                    delete_label = &input_settings_panel.delete_binding_label;
+                    delete_id = "editor.project.input_binding.delete";
                     break;
                 case EDITOR_VIEWPORT_OBJECT:
                     delete_label = &object_editor.delete_label;

@@ -65,7 +65,16 @@ Bindings are evaluated in stored order and combined deterministically. Button
 bindings are active when any valid binding is down. Every bit in a binding's
 modifier mask must be active. Axis scale is applied before clamping;
 `inverted` negates the scaled contribution. Digital Axis 2D bindings also use
-their authored direction vector.
+their authored direction vector. Key bindings use SDL scancodes; prefer SDL's
+named `SDL_SCANCODE_*` constants in C so bindings remain readable and tied to
+physical keys. Numeric scancode values remain valid for serialization and
+tooling.
+
+`rohr_input_binding_key_create(SDLK_*)` is the preferred authoring helper for
+letters, number keys, and other logical SDL keys. It converts the keycode to
+the current SDL scancode and carries any required Shift modifier. Use
+`rohr_input_binding_scancode_create(SDL_SCANCODE_*)` when the physical key
+position is intentional.
 
 The tagged `InputBinding` sources currently support keys, pointer buttons,
 pointer movement, and pointer wheels. The representation can gain SDL gamepad
@@ -79,7 +88,7 @@ InputControllerIdResult controller_result =
 InputActionIdResult jump_result = rohr_input_action_create(
     controller_result.result.value, "jump", INPUT_ACTION_BUTTON);
 InputBinding defaults[] = {
-    {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_SPACE},
+    rohr_input_binding_key_create(SDLK_SPACE),
     {.source = INPUT_BINDING_MOUSE_BUTTON,
         .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT},
 };
@@ -124,10 +133,14 @@ Controllers are top-level editor resources beside Objects and Viewports. Each
 controller element opens directly into that controller instead of selecting
 from a second controller list. **Add Action** creates a selectable child element;
 opening it provides the action editor for type, momentary or persistent Button
-behavior, persistent initial state, and multiple default bindings. Discrete
-choices and binding selection use dropdowns. These edits use normal editor
-commands and participate in undo/redo. Project JSON stores stable
-controller/action IDs and readable action/source names.
+behavior, persistent initial state, and named default-binding children. Each
+binding opens its own editor and has a stable editor ID. Clicking a key field
+captures one key and then ends capture; Ctrl, Shift, Alt, and GUI can be
+captured alone or held while another key is pressed, in which case the modifier
+field is populated automatically. The modifier mask can also be edited
+directly. These edits use normal editor commands and participate in undo/redo.
+Project JSON stores stable controller, action, and binding IDs plus readable
+names.
 Generated `ProjectControllers` state creates runtime controllers before generated
 scene objects and is destroyed with `ProjectObjects`.
 

@@ -208,6 +208,14 @@ float editor_mode_accordion_layout_measure_get(void) {
     return editor_mode_accordion_measured_bottom;
 }
 
+void editor_mode_divider_draw(float x, float y, float width) {
+    float inset;
+    if(width <= 0.0f) return;
+    inset = width * 0.05f;
+    (void)rohr_graphics_screen_rect_draw(x + inset, y,
+        width - inset * 2.0f, 1.0f, (Color){184, 190, 202, 255});
+}
+
 UIButtonStyle editor_mode_section_field_style_get(void) {
     return (UIButtonStyle){
         .idle = {36, 40, 48, 255},
@@ -408,6 +416,8 @@ const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
             return "editor.input.controller.name";
         case EDITOR_VIEWPORT_INPUT_ACTION:
             return "editor.input.action.name";
+        case EDITOR_VIEWPORT_INPUT_BINDING:
+            return "editor.input.binding.name";
         default: return NULL;
     }
 }

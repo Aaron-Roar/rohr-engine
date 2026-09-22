@@ -124,6 +124,10 @@ InputTextState rohr_input_text_state_get(void);
 /** Return whether a tagged physical binding is valid for an action type. */
 bool rohr_input_binding_valid_check(InputActionType type,
     const InputBinding *binding);
+/** Create a key binding from an SDL keycode, including required Shift state. */
+InputBinding rohr_input_binding_key_create(SDL_Keycode key);
+/** Create a physical-layout key binding directly from an SDL scancode. */
+InputBinding rohr_input_binding_scancode_create(SDL_Scancode key);
 /** Create an enabled, engine-owned logical controller with a unique name. */
 InputControllerIdResult rohr_input_controller_create(const char *name);
 /** Destroy a logical controller and all actions owned by it. */

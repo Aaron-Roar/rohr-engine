@@ -261,11 +261,26 @@ int main(void) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
+            move = editor_project_input_action_get(&workspace_project,
+                gameplay->id, move_id);
+            click = editor_project_input_action_get(&workspace_project,
+                gameplay->id, click_id);
+            if(move == NULL || click == NULL ||
+                    !editor_project_input_binding_name_set(&workspace_project,
+                        gameplay->id, move_id, move->binding_ids[0],
+                        "move_up") ||
+                    !editor_project_input_binding_name_set(&workspace_project,
+                        gameplay->id, click_id, click->binding_ids[0],
+                        "primary_click")) {
+                workspace_fixture_remove(fixture);
+                return 1;
+            }
             workspace_project.navigation = (EditorNavigationState){
-                .mode = EDITOR_VIEWPORT_INPUT_ACTION,
-                .selection = EDITOR_SELECTION_INPUT_ACTION,
+                .mode = EDITOR_VIEWPORT_INPUT_BINDING,
+                .selection = EDITOR_SELECTION_INPUT_BINDING,
                 .input_controller = gameplay->id,
-                .input_action = click_id};
+                .input_action = click_id,
+                .input_binding = click->binding_ids[0]};
             workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
             workspace_project.layout_viewports[0].camera_items[0].graphics_layer =
                 hud->id;
@@ -366,6 +381,10 @@ int main(void) {
                 loaded_project.input_controllers[0].actions[0].type !=
                     INPUT_ACTION_AXIS_2D ||
                 loaded_project.input_controllers[0].actions[0].binding_count != 2 ||
+                strcmp(loaded_project.input_controllers[0].actions[0].
+                    binding_names[0], "move_up") != 0 ||
+                loaded_project.input_controllers[0].actions[0].binding_ids[0] ==
+                    EDITOR_INPUT_BINDING_INVALID ||
                 loaded_project.input_controllers[0].actions[0].bindings[1].source !=
                     INPUT_BINDING_MOUSE_MOTION ||
                 !loaded_project.input_controllers[0].actions[0].bindings[1].inverted ||
@@ -373,13 +392,17 @@ int main(void) {
                     INPUT_BUTTON_PERSISTENT ||
                 !loaded_project.input_controllers[0].actions[1].
                     button_initial_state ||
-                loaded_project.navigation.mode != EDITOR_VIEWPORT_INPUT_ACTION ||
+                loaded_project.navigation.mode != EDITOR_VIEWPORT_INPUT_BINDING ||
                 loaded_project.navigation.selection !=
-                    EDITOR_SELECTION_INPUT_ACTION ||
+                    EDITOR_SELECTION_INPUT_BINDING ||
                 loaded_project.navigation.input_controller !=
                     loaded_project.input_controllers[0].id ||
                 loaded_project.navigation.input_action !=
                     loaded_project.input_controllers[0].actions[1].id ||
+                loaded_project.navigation.input_binding !=
+                    loaded_project.input_controllers[0].actions[1].binding_ids[0] ||
+                strcmp(loaded_project.input_controllers[0].actions[1].
+                    binding_names[0], "primary_click") != 0 ||
                 loaded_project.input_controllers[0].actions[1].bindings[0].input.
                     mouse_button != INPUT_MOUSE_BUTTON_LEFT ||
                 strcmp(loaded_project.objects[0].name, "Starter") != 0 ||

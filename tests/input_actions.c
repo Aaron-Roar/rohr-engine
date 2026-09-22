@@ -198,8 +198,18 @@ static bool input_action_test(void) {
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_Q,
             .modifiers = SDL_KMOD_CTRL},
     };
+    InputBinding letter_binding = rohr_input_binding_key_create(SDLK_A);
+    InputBinding number_binding = rohr_input_binding_key_create(SDLK_7);
+    InputBinding physical_binding = rohr_input_binding_scancode_create(
+        SDL_SCANCODE_W);
 
-    if(rohr_error_check(gameplay_result)) return false;
+    if(rohr_error_check(gameplay_result) ||
+            letter_binding.input.key != SDL_SCANCODE_A ||
+            number_binding.input.key != SDL_SCANCODE_7 ||
+            physical_binding.input.key != SDL_SCANCODE_W ||
+            letter_binding.source != INPUT_BINDING_KEY ||
+            letter_binding.scale != 1.0f ||
+            physical_binding.modifiers != SDL_KMOD_NONE) return false;
     gameplay = gameplay_result.result.value;
     if(!rohr_error_check(rohr_input_controller_create("gameplay")) ||
             !rohr_input_controller_enabled_check(gameplay)) return false;

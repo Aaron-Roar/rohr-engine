@@ -100,6 +100,7 @@ float editor_mode_accordion_layout_row_y(
 void editor_mode_accordion_layout_measure_reset(void);
 void editor_mode_accordion_layout_measure_include(float bottom);
 float editor_mode_accordion_layout_measure_get(void);
+void editor_mode_divider_draw(float x, float y, float width);
 UIButtonStyle editor_mode_section_field_style_get(void);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);

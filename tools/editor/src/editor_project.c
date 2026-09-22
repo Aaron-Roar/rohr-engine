@@ -177,7 +177,8 @@ void editor_project_init(EditorProject *project) {
         .next_graphics_layer_id = 1,
         .next_ui_definition_id = 1,
         .next_input_controller_id = 1,
-        .next_input_action_id = 1
+        .next_input_action_id = 1,
+        .next_input_binding_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -1657,9 +1658,14 @@ bool editor_project_input_binding_add(EditorProject *project,
         InputBinding binding) {
     EditorInputAction *action = editor_project_input_action_get(project, controller,
         action_id);
+    size_t index;
     if(action == NULL || action->binding_count >= ROHR_INPUT_BINDING_LIMIT ||
             !rohr_input_binding_valid_check(action->type, &binding)) return false;
-    action->bindings[action->binding_count++] = binding;
+    index = action->binding_count++;
+    action->binding_ids[index] = project->next_input_binding_id++;
+    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
+        "binding_%u", action->binding_ids[index]);
+    action->bindings[index] = binding;
     return true;
 }
 
@@ -1674,15 +1680,67 @@ bool editor_project_input_binding_set(EditorProject *project,
     return true;
 }
 
+bool editor_project_input_binding_name_set(EditorProject *project,
+        EditorInputControllerId controller, EditorInputActionId action_id,
+        EditorInputBindingId binding, const char *name) {
+    EditorInputAction *action = editor_project_input_action_get(project, controller,
+        action_id);
+    size_t index;
+    if(action == NULL || !editor_project_input_name_check(name) ||
+            !editor_project_input_binding_index_get(action, binding, &index))
+        return false;
+    for(size_t i = 0; i < action->binding_count; i += 1)
+        if(i != index && strcmp(action->binding_names[i], name) == 0) return false;
+    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
+        "%s", name);
+    return true;
+}
+
+bool editor_project_input_binding_named_set(EditorProject *project,
+        EditorInputControllerId controller, EditorInputActionId action_id,
+        EditorInputBindingId binding, const char *name, InputBinding value) {
+    EditorInputAction *action = editor_project_input_action_get(project, controller,
+        action_id);
+    size_t index;
+    if(action == NULL || !editor_project_input_name_check(name) ||
+            !rohr_input_binding_valid_check(action->type, &value) ||
+            !editor_project_input_binding_index_get(action, binding, &index))
+        return false;
+    for(size_t i = 0; i < action->binding_count; i += 1)
+        if(i != index && strcmp(action->binding_names[i], name) == 0) return false;
+    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
+        "%s", name);
+    action->bindings[index] = value;
+    return true;
+}
+
+bool editor_project_input_binding_index_get(const EditorInputAction *action,
+        EditorInputBindingId binding, size_t *index) {
+    if(action == NULL || binding == EDITOR_INPUT_BINDING_INVALID || index == NULL)
+        return false;
+    for(size_t i = 0; i < action->binding_count; i += 1)
+        if(action->binding_ids[i] == binding) {
+            *index = i;
+            return true;
+        }
+    return false;
+}
+
 bool editor_project_input_binding_remove(EditorProject *project,
         EditorInputControllerId controller, EditorInputActionId action_id,
         size_t index) {
     EditorInputAction *action = editor_project_input_action_get(project, controller,
         action_id);
     if(action == NULL || index >= action->binding_count) return false;
+    memmove(&action->binding_ids[index], &action->binding_ids[index + 1],
+        (action->binding_count - index - 1) * sizeof(*action->binding_ids));
+    memmove(&action->binding_names[index], &action->binding_names[index + 1],
+        (action->binding_count - index - 1) * sizeof(*action->binding_names));
     memmove(&action->bindings[index], &action->bindings[index + 1],
         (action->binding_count - index - 1) * sizeof(*action->bindings));
     action->binding_count -= 1;
+    action->binding_ids[action->binding_count] = EDITOR_INPUT_BINDING_INVALID;
+    action->binding_names[action->binding_count][0] = '\0';
     action->bindings[action->binding_count] = (InputBinding){0};
     return true;
 }

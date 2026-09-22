@@ -99,6 +99,7 @@ if(ROHR_BUILD_TESTS)
         src/editors/geometry/editor_auto_shape.c
         src/viewport/controls/editor_rotation_control.c
         src/editors/multi/editor_bulk_panel.c
+        src/panels/editor_input_settings_panel.c
     )
     target_include_directories(editor_navigation_test PRIVATE
         src ${PROJECT_SOURCE_DIR}/lib)

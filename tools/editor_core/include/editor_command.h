@@ -117,7 +117,9 @@ typedef struct EditorInputActionCommand {
 typedef struct EditorInputBindingCommand {
     EditorInputControllerId controller;
     EditorInputActionId action;
+    EditorInputBindingId binding_id;
     size_t index;
+    char name[ROHR_INPUT_NAME_MAX];
     InputBinding binding;
 } EditorInputBindingCommand;
 

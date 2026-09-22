@@ -264,6 +264,8 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         }
     }
     y += 38.0f;
+    editor_mode_divider_draw(context->x, y, context->width);
+    y += 10.0f;
     rohr_ui_label(&editor->elements_label,
         (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f});
     elements_y = y + 34.0f;

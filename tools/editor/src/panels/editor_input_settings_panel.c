@@ -4,6 +4,7 @@
 
 #include "editor_input_settings_panel.h"
 #include "editor_command.h"
+#include "editor_navigation.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -56,13 +57,13 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
         "Key", "Mouse Button", "Mouse Motion", "Mouse Wheel"};
     static const char *mouse_buttons[] = {"Left", "Middle", "Right", "X1", "X2"};
     static const char *axis_components[] = {"X", "Y", "X + Y"};
-    char label[32];
     if(panel == NULL || font == NULL) return false;
     *panel = (EditorInputSettingsPanel){.font = font};
 #define CREATE(value, member) \
     if(!input_text_create(font, value, &panel->member)) goto fail
     CREATE("Input", menu_label); CREATE("Controller", controller_title);
-    CREATE("Action", action_title); CREATE("Close", close_label);
+    CREATE("Action", action_title); CREATE("Binding", binding_title);
+    CREATE("Close", close_label);
     CREATE("Add Action", add_action_label); CREATE("Add Binding", add_binding_label);
     CREATE("Delete Binding", delete_binding_label);
     CREATE("Delete Action", delete_action_label); CREATE("Binding", binding_label);
@@ -85,10 +86,6 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     for(size_t i = 0; i < 4; i += 1)
         if(!input_text_create(font, sources[i], &panel->binding_source_options[i]))
             goto fail;
-    for(size_t i = 0; i < ROHR_INPUT_BINDING_LIMIT; i += 1) {
-        snprintf(label, sizeof(label), "Binding %u", (unsigned)(i + 1));
-        if(!input_text_create(font, label, &panel->binding_options[i])) goto fail;
-    }
     for(size_t i = 0; i < 5; i += 1)
         if(!input_text_create(font, mouse_buttons[i],
                 &panel->mouse_button_options[i])) goto fail;
@@ -168,11 +165,11 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
             context->viewport->selected_input_action = result.result.object;
             context->viewport->selection = EDITOR_SELECTION_INPUT_ACTION;
             context->viewport->mode = EDITOR_VIEWPORT_INPUT_ACTION;
-            panel->selected_binding = 0;
             (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 42.0f;
+    editor_mode_divider_draw(bounds.x, y - 10.0f, bounds.width);
     for(size_t i = 0; i < controller->action_count &&
             i < ROHR_INPUT_ACTION_LIMIT; i += 1) {
         EditorInputAction *action = &controller->actions[i];
@@ -201,7 +198,6 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
             context->viewport->selected_input_controller = controller->id;
             context->viewport->selected_input_action = action->id;
             context->viewport->selection = EDITOR_SELECTION_INPUT_ACTION;
-            panel->selected_binding = 0;
             editor_project_selection_clear(context->project);
             if(result.double_clicked)
                 context->viewport->mode = EDITOR_VIEWPORT_INPUT_ACTION;
@@ -266,59 +262,68 @@ static void input_action_properties_draw(EditorInputSettingsPanel *panel,
     }
 }
 
-static void input_binding_selector_draw(EditorInputSettingsPanel *panel,
-        EditorProject *project, EditorInputController *controller,
-        EditorInputAction *action, float x, float width, float y) {
-    bool add;
-    bool remove;
-    rohr_ui_label(&panel->binding_label, (UIRect){x, y, 76.0f, 28.0f});
-    if(action->binding_count > 0) {
-        const TextAsset *options[ROHR_INPUT_BINDING_LIMIT];
-        UIDropdownResult selected;
-        if(panel->selected_binding >= action->binding_count)
-            panel->selected_binding = action->binding_count - 1;
-        for(size_t i = 0; i < action->binding_count; i += 1)
-            options[i] = &panel->binding_options[i];
-        selected = editor_mode_dropdown("editor.input.binding.select", options,
-            action->binding_count, panel->selected_binding,
-            (UIRect){x + 80.0f, y, width - 80.0f, 28.0f}, NULL);
-        if(selected.changed) panel->selected_binding = selected.selected_index;
-    } else {
-        rohr_ui_button_disabled((UIRect){x + 80.0f, y, width - 80.0f, 28.0f},
-            NULL);
+static SDL_Keymod input_modifier_get(SDL_Scancode key) {
+    if(key == SDL_SCANCODE_LCTRL) return SDL_KMOD_LCTRL;
+    if(key == SDL_SCANCODE_RCTRL) return SDL_KMOD_RCTRL;
+    if(key == SDL_SCANCODE_LSHIFT) return SDL_KMOD_LSHIFT;
+    if(key == SDL_SCANCODE_RSHIFT) return SDL_KMOD_RSHIFT;
+    if(key == SDL_SCANCODE_LALT) return SDL_KMOD_LALT;
+    if(key == SDL_SCANCODE_RALT) return SDL_KMOD_RALT;
+    if(key == SDL_SCANCODE_LGUI) return SDL_KMOD_LGUI;
+    if(key == SDL_SCANCODE_RGUI) return SDL_KMOD_RGUI;
+    return SDL_KMOD_NONE;
+}
+
+bool editor_input_key_capture_apply(SDL_Scancode pressed,
+        SDL_Scancode released, SDL_Keymod modifiers,
+        SDL_Scancode *pending_modifier, InputBinding *binding) {
+    SDL_Keymod pressed_modifier;
+    if(pending_modifier == NULL || binding == NULL) return false;
+    pressed_modifier = input_modifier_get(pressed);
+    if(pressed != SDL_SCANCODE_UNKNOWN) {
+        if(pressed_modifier != SDL_KMOD_NONE) {
+            if(released == pressed) {
+                binding->source = INPUT_BINDING_KEY;
+                binding->input.key = pressed;
+                binding->modifiers = SDL_KMOD_NONE;
+                *pending_modifier = SDL_SCANCODE_UNKNOWN;
+                return true;
+            }
+            *pending_modifier = pressed;
+            return false;
+        }
+        binding->source = INPUT_BINDING_KEY;
+        binding->input.key = pressed;
+        binding->modifiers = modifiers &
+            (SDL_KMOD_CTRL | SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI);
+        *pending_modifier = SDL_SCANCODE_UNKNOWN;
+        return true;
     }
-    y += 36.0f;
-    add = rohr_ui_button("editor.input.binding.add", &panel->add_binding_label,
-        (UIRect){x, y, (width - 4.0f) * 0.5f, 28.0f}, NULL).clicked;
-    remove = rohr_ui_button("editor.input.binding.delete",
-        &panel->delete_binding_label,
-        (UIRect){x + (width + 4.0f) * 0.5f, y,
-            (width - 4.0f) * 0.5f, 28.0f}, NULL).clicked;
-    if(add) {
-        EditorCommand command = {.type = EDITOR_COMMAND_INPUT_BINDING_ADD,
-            .data.input_binding = {.controller = controller->id,
-                .action = action->id,
-                .binding = input_binding_default_get(action->type)}};
-        EditorCommandResult result = editor_command_execute(project, &command);
-        if(result.kind == ERROR_RESULT_VALUE)
-            panel->selected_binding = result.result.object;
+    if(released != SDL_SCANCODE_UNKNOWN && released == *pending_modifier) {
+        binding->source = INPUT_BINDING_KEY;
+        binding->input.key = released;
+        binding->modifiers = SDL_KMOD_NONE;
+        *pending_modifier = SDL_SCANCODE_UNKNOWN;
+        return true;
     }
-    if(remove && panel->selected_binding < action->binding_count) {
-        EditorCommand command = {.type = EDITOR_COMMAND_INPUT_BINDING_REMOVE,
-            .data.input_binding = {.controller = controller->id,
-                .action = action->id, .index = panel->selected_binding,
-                .binding = action->bindings[panel->selected_binding]}};
-        (void)editor_command_execute(project, &command);
-        if(panel->selected_binding > 0 &&
-                panel->selected_binding >= action->binding_count - 1)
-            panel->selected_binding -= 1;
+    return false;
+}
+
+static SDL_Scancode input_key_transition_get(bool pressed) {
+    for(SDL_Scancode key = (SDL_Scancode)(SDL_SCANCODE_UNKNOWN + 1);
+            key < SDL_SCANCODE_COUNT; key = (SDL_Scancode)(key + 1)) {
+        if(pressed ? rohr_input_key_pressed_check(key) :
+                rohr_input_key_released_check(key)) return key;
     }
+    return SDL_SCANCODE_UNKNOWN;
 }
 
 static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         EditorProject *project, EditorInputController *controller,
-        EditorInputAction *action, float x, float width, float y) {
+        EditorInputAction *action, size_t index, float x, float width, float y) {
     InputBinding binding;
+    char name[ROHR_INPUT_NAME_MAX];
+    char key_name[64];
     const TextAsset *source_options[] = {&panel->binding_source_options[0],
         &panel->binding_source_options[1], &panel->binding_source_options[2],
         &panel->binding_source_options[3]};
@@ -326,9 +331,9 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
     float input, modifiers, scale, direction_x, direction_y;
     bool inverted, changed = false;
     UIDropdownResult selected;
-    if(action->binding_count == 0 ||
-            panel->selected_binding >= action->binding_count) return;
-    binding = action->bindings[panel->selected_binding];
+    if(index >= action->binding_count) return;
+    binding = action->bindings[index];
+    snprintf(name, sizeof(name), "%s", action->binding_names[index]);
     source = binding.source;
     input = binding.source == INPUT_BINDING_KEY ? binding.input.key :
         binding.source == INPUT_BINDING_MOUSE_BUTTON ?
@@ -338,10 +343,17 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
     direction_x = binding.direction.x;
     direction_y = binding.direction.y;
     inverted = binding.inverted;
-    rohr_ui_label(&panel->source_label, (UIRect){x, y, 80.0f, 28.0f});
+    rohr_ui_label(&panel->name_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
+    if(input_text_field("editor.input.binding.name", &panel->name_field,
+            name, sizeof(name), (UIRect){x, y, width, 28.0f}).changed)
+        changed = true;
+    y += 36.0f;
+    rohr_ui_label(&panel->source_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
     selected = editor_mode_dropdown("editor.input.binding.source", source_options,
         action->type == INPUT_ACTION_BUTTON ? 2 : 4, source,
-        (UIRect){x + 88.0f, y, width - 88.0f, 28.0f}, NULL);
+        (UIRect){x, y, width, 28.0f}, NULL);
     if(selected.changed) {
         source = selected.selected_index;
         changed = true;
@@ -350,15 +362,15 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                 INPUT_AXIS_COMPONENT_X;
     }
     y += 36.0f;
-    rohr_ui_label(&panel->input_label, (UIRect){x, y, 80.0f, 28.0f});
+    rohr_ui_label(&panel->input_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
     if(source == INPUT_BINDING_MOUSE_BUTTON) {
         const TextAsset *options[5];
         size_t selected_button = input >= INPUT_MOUSE_BUTTON_LEFT &&
                 input <= INPUT_MOUSE_BUTTON_X2 ? (size_t)input - 1 : 0;
         for(size_t i = 0; i < 5; i += 1) options[i] = &panel->mouse_button_options[i];
         selected = editor_mode_dropdown("editor.input.binding.mouse_button",
-            options, 5, selected_button,
-            (UIRect){x + 88.0f, y, width - 88.0f, 28.0f}, NULL);
+            options, 5, selected_button, (UIRect){x, y, width, 28.0f}, NULL);
         if(selected.changed) { input = selected.selected_index + 1; changed = true; }
     } else if(source == INPUT_BINDING_MOUSE_MOTION ||
             source == INPUT_BINDING_MOUSE_WHEEL) {
@@ -370,37 +382,60 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         for(size_t i = 0; i < count; i += 1)
             options[i] = &panel->axis_component_options[i];
         selected = editor_mode_dropdown("editor.input.binding.axis", options,
-            count, component, (UIRect){x + 88.0f, y, width - 88.0f, 28.0f}, NULL);
+            count, component, (UIRect){x, y, width, 28.0f}, NULL);
         if(selected.changed) { input = selected.selected_index; changed = true; }
-    } else if(input_number_field("editor.input.binding.key", &panel->input_field,
-            &input, (UIRect){x + 88.0f, y, width - 88.0f, 28.0f}).changed) {
-        changed = true;
+    } else {
+        const char *displayed = SDL_GetScancodeName((SDL_Scancode)(uint32_t)input);
+        UIFieldResult capture;
+        if(displayed == NULL || displayed[0] == '\0')
+            snprintf(key_name, sizeof(key_name), "Scancode %u", (uint32_t)input);
+        else snprintf(key_name, sizeof(key_name), "%s", displayed);
+        capture = input_text_field("editor.input.binding.key", &panel->input_field,
+            key_name, sizeof(key_name), (UIRect){x, y, width, 28.0f});
+        panel->key_capture_active = capture.active;
+        if(capture.active && editor_input_key_capture_apply(
+                input_key_transition_get(true), input_key_transition_get(false),
+                rohr_input_modifiers_get(), &panel->pending_modifier, &binding)) {
+            input = binding.input.key;
+            modifiers = binding.modifiers;
+            changed = true;
+            panel->key_capture_active = false;
+            rohr_ui_field_focus_clear();
+        } else if(!capture.active) {
+            panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
+        }
     }
     y += 36.0f;
-    rohr_ui_label(&panel->modifiers_label, (UIRect){x, y, 80.0f, 28.0f});
+    rohr_ui_label(&panel->modifiers_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
     if(input_number_field("editor.input.binding.modifiers", &panel->modifiers_field,
-            &modifiers, (UIRect){x + 88.0f, y, width * 0.25f, 28.0f}).changed)
-        changed = true;
-    rohr_ui_label(&panel->scale_label,
-        (UIRect){x + width * 0.48f, y, 48.0f, 28.0f});
-    if(input_number_field("editor.input.binding.scale", &panel->scale_field, &scale,
-            (UIRect){x + width * 0.62f, y, width * 0.18f, 28.0f}).changed)
-        changed = true;
-    if(editor_mode_checkbox_left("editor.input.binding.inverted",
-            &panel->inverted_label,
-            (UIRect){x + width * 0.82f, y, width * 0.18f, 28.0f}, &inverted))
+            &modifiers, (UIRect){x, y, width, 28.0f}).changed)
         changed = true;
     y += 36.0f;
-    rohr_ui_label(&panel->direction_x_label, (UIRect){x, y, 90.0f, 28.0f});
+    rohr_ui_label(&panel->scale_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
+    if(input_number_field("editor.input.binding.scale", &panel->scale_field, &scale,
+            (UIRect){x, y, width, 28.0f}).changed)
+        changed = true;
+    y += 36.0f;
+    if(editor_mode_checkbox_left("editor.input.binding.inverted",
+            &panel->inverted_label,
+            (UIRect){x, y, width, 28.0f}, &inverted))
+        changed = true;
+    y += 36.0f;
+    rohr_ui_label(&panel->direction_x_label, (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
     if(input_number_field("editor.input.binding.direction_x",
             &panel->direction_x_field, &direction_x,
-            (UIRect){x + 94.0f, y, width * 0.24f, 28.0f}).changed)
+            (UIRect){x, y, width, 28.0f}).changed)
         changed = true;
+    y += 36.0f;
     rohr_ui_label(&panel->direction_y_label,
-        (UIRect){x + width * 0.52f, y, 90.0f, 28.0f});
+        (UIRect){x, y, width, 22.0f});
+    y += 24.0f;
     if(input_number_field("editor.input.binding.direction_y",
             &panel->direction_y_field, &direction_y,
-            (UIRect){x + width * 0.76f, y, width * 0.24f, 28.0f}).changed)
+            (UIRect){x, y, width, 28.0f}).changed)
         changed = true;
     if(changed) {
         binding = (InputBinding){.source = (InputBindingSource)source,
@@ -415,36 +450,104 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         else binding.input.axis_component = (InputAxisComponent)(uint32_t)input;
         EditorCommand command = {.type = EDITOR_COMMAND_INPUT_BINDING_SET,
             .data.input_binding = {.controller = controller->id,
-                .action = action->id, .index = panel->selected_binding,
+                .action = action->id, .binding_id = action->binding_ids[index],
+                .index = index,
                 .binding = binding}};
+        snprintf(command.data.input_binding.name,
+            sizeof(command.data.input_binding.name), "%s", name);
         (void)editor_command_execute(project, &command);
     }
 }
 
 void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
-        EditorProject *project, EditorViewportState *viewport, UIRect bounds) {
+        const EditorModeContext *context, UIRect bounds) {
     EditorInputController *controller;
     EditorInputAction *action;
     float x, width, y;
-    if(panel == NULL || project == NULL || viewport == NULL || !panel->open) return;
-    controller = editor_project_input_controller_get(project,
-        viewport->selected_input_controller);
-    action = controller == NULL ? NULL : editor_project_input_action_get(project,
-        controller->id, viewport->selected_input_action);
+    if(panel == NULL || context == NULL || context->project == NULL ||
+            context->viewport == NULL || !panel->open) return;
+    controller = editor_project_input_controller_get(context->project,
+        context->viewport->selected_input_controller);
+    action = controller == NULL ? NULL : editor_project_input_action_get(
+        context->project, controller->id,
+        context->viewport->selected_input_action);
     if(action == NULL) return;
     input_panel_begin(&panel->action_title, bounds);
     x = bounds.x + 18.0f;
     width = bounds.width - 36.0f;
     y = bounds.y + 58.0f;
-    input_action_properties_draw(panel, project, controller, action, x, width, &y);
+    input_action_properties_draw(panel, context->project, controller, action,
+        x, width, &y);
     y += 42.0f;
-    input_binding_selector_draw(panel, project, controller, action, x, width, y);
-    action = editor_project_input_action_get(project, controller->id,
-        viewport->selected_input_action);
-    y += 74.0f;
-    if(action != NULL)
-        input_binding_properties_draw(panel, project, controller, action,
-            x, width, y);
+    if(rohr_ui_button("editor.input.binding.add", &panel->add_binding_label,
+            (UIRect){x, y, width, 32.0f}, NULL).clicked) {
+        EditorCommand command = {.type = EDITOR_COMMAND_INPUT_BINDING_ADD,
+            .data.input_binding = {.controller = controller->id,
+                .action = action->id,
+                .binding = input_binding_default_get(action->type)}};
+        EditorCommandResult result = editor_command_execute(context->project,
+            &command);
+        if(result.kind == ERROR_RESULT_VALUE) {
+            context->viewport->selected_input_binding = result.result.object;
+            context->viewport->selection = EDITOR_SELECTION_INPUT_BINDING;
+            context->viewport->mode = EDITOR_VIEWPORT_INPUT_BINDING;
+            (void)editor_mode_name_focus_request(context->viewport);
+        }
+    }
+    y += 42.0f;
+    editor_mode_divider_draw(bounds.x, y - 10.0f, bounds.width);
+    for(size_t i = 0; i < action->binding_count; i += 1) {
+        UIButtonStyle style = rohr_ui_button_style_default_get();
+        UIButtonResult result;
+        UIRect row_bounds = {x, y, width, 30.0f};
+        EditorSelectionRef ref = {EDITOR_SELECTION_INPUT_BINDING, 0,
+            controller->id, action->id, action->binding_ids[i]};
+        char id[96];
+        if(!editor_mode_named_text_sync(panel->font, action->binding_names[i],
+                &panel->binding_names[i], panel->binding_cache[i],
+                ROHR_INPUT_NAME_MAX)) continue;
+        style.idle = (Color){55, 63, 76, 255};
+        style.hovered = (Color){73, 84, 101, 255};
+        snprintf(id, sizeof(id), "editor.input.binding.%u",
+            action->binding_ids[i]);
+        result = rohr_ui_button(id, &panel->binding_names[i], row_bounds,
+            editor_viewport_selection_contains(context->viewport, ref) ?
+                &style : NULL);
+        if(context->hierarchy_row != NULL)
+            context->hierarchy_row(context->hierarchy_context, context->viewport,
+                ref, row_bounds, result, i + 1 == action->binding_count);
+        if(result.clicked || result.focus_changed) {
+            (void)editor_viewport_selection_set(context->project,
+                context->viewport, ref, false);
+            if(result.double_clicked)
+                (void)editor_navigation_selected_open(context->project,
+                    context->viewport);
+        }
+        y += 34.0f;
+    }
+    input_panel_close_draw(panel, bounds);
+}
+
+void editor_input_binding_editor_draw(EditorInputSettingsPanel *panel,
+        EditorProject *project, EditorViewportState *viewport, UIRect bounds) {
+    EditorInputController *controller;
+    EditorInputAction *action;
+    size_t index;
+    float x, width, y;
+    if(panel == NULL || project == NULL || viewport == NULL || !panel->open) return;
+    panel->key_capture_active = false;
+    controller = editor_project_input_controller_get(project,
+        viewport->selected_input_controller);
+    action = controller == NULL ? NULL : editor_project_input_action_get(project,
+        controller->id, viewport->selected_input_action);
+    if(!editor_project_input_binding_index_get(action,
+            viewport->selected_input_binding, &index)) return;
+    input_panel_begin(&panel->binding_title, bounds);
+    x = bounds.x + 18.0f;
+    width = bounds.width - 36.0f;
+    y = bounds.y + 58.0f;
+    input_binding_properties_draw(panel, project, controller, action, index,
+        x, width, y);
     input_panel_close_draw(panel, bounds);
 }
 
@@ -452,6 +555,7 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
     if(panel == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&panel->member)
     DESTROY(menu_label); DESTROY(controller_title); DESTROY(action_title);
+    DESTROY(binding_title);
     DESTROY(close_label); DESTROY(add_action_label); DESTROY(add_binding_label);
     DESTROY(delete_binding_label); DESTROY(delete_action_label);
     DESTROY(binding_label); DESTROY(name_label); DESTROY(enabled_label);
@@ -473,7 +577,7 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
     for(size_t i = 0; i < 4; i += 1)
         rohr_graphics_text_destroy(&panel->binding_source_options[i]);
     for(size_t i = 0; i < ROHR_INPUT_BINDING_LIMIT; i += 1)
-        rohr_graphics_text_destroy(&panel->binding_options[i]);
+        rohr_graphics_text_destroy(&panel->binding_names[i]);
     for(size_t i = 0; i < 5; i += 1)
         rohr_graphics_text_destroy(&panel->mouse_button_options[i]);
     *panel = (EditorInputSettingsPanel){0};

@@ -232,6 +232,18 @@ bool input_binding_valid_check(InputActionType action_type,
     return true;
 }
 
+InputBinding input_binding_key_create(SDL_Keycode key) {
+    SDL_Keymod modifiers = SDL_KMOD_NONE;
+    SDL_Scancode scancode = SDL_GetScancodeFromKey(key, &modifiers);
+    return (InputBinding){.source = INPUT_BINDING_KEY,
+        .input.key = scancode, .modifiers = modifiers, .scale = 1.0f};
+}
+
+InputBinding input_binding_scancode_create(SDL_Scancode key) {
+    return (InputBinding){.source = INPUT_BINDING_KEY,
+        .input.key = key, .scale = 1.0f};
+}
+
 static EngineResult input_bindings_set(InputAction *action,
         InputBinding *destination, size_t *destination_count,
         const InputBinding *bindings, size_t count) {
