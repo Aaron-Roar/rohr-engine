@@ -360,6 +360,7 @@ if(ROHR_BUILD_EXAMPLES)
         joints
         soft_body
         pong
+        player_controller
     )
 
 endif()

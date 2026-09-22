@@ -12,3 +12,5 @@ add_subdirectory(user-interface ${CMAKE_BINARY_DIR}/example-build/user-interface
 add_subdirectory(joints ${CMAKE_BINARY_DIR}/example-build/joints)
 add_subdirectory(soft-body ${CMAKE_BINARY_DIR}/example-build/soft-body)
 add_subdirectory(pong ${CMAKE_BINARY_DIR}/example-build/pong)
+add_subdirectory(player_controller
+    ${CMAKE_BINARY_DIR}/example-build/player_controller)
