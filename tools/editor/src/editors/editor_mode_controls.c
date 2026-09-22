@@ -386,8 +386,6 @@ UIFieldResult editor_mode_name_field(const char *id,
 
 const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
     switch(mode) {
-        case EDITOR_VIEWPORT_HIERARCHY:
-            return "editor.hierarchy.selected.name";
         case EDITOR_VIEWPORT_OBJECT: return "editor.object.name";
         case EDITOR_VIEWPORT_RIGID_BODY: return "editor.rigid_body.name";
         case EDITOR_VIEWPORT_HITBOX: return "editor.hitbox.name";

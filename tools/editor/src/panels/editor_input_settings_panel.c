@@ -74,6 +74,8 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     CREATE("Scale", scale_label); CREATE("Inverted", inverted_label);
     CREATE("Direction X", direction_x_label);
     CREATE("Direction Y", direction_y_label); CREATE("", name_field);
+    CREATE("-> ASCII Value", ascii_value_label);
+    CREATE("-> Letter Symbols", letter_symbols_label);
     CREATE("", input_field); CREATE("", modifiers_field); CREATE("", scale_field);
     CREATE("", direction_x_field); CREATE("", direction_y_field);
 #undef CREATE
@@ -169,7 +171,8 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
         }
     }
     y += 42.0f;
-    editor_mode_divider_draw(bounds.x, y - 10.0f, bounds.width);
+    editor_mode_divider_draw(bounds.x, y, bounds.width);
+    y += 10.0f;
     for(size_t i = 0; i < controller->action_count &&
             i < ROHR_INPUT_ACTION_LIMIT; i += 1) {
         EditorInputAction *action = &controller->actions[i];
@@ -318,6 +321,57 @@ static SDL_Scancode input_key_transition_get(bool pressed) {
     return SDL_SCANCODE_UNKNOWN;
 }
 
+static void input_modifier_symbols_get(SDL_Keymod modifiers, char *output,
+        size_t capacity) {
+    const struct { SDL_Keymod mask; const char *name; } names[] = {
+        {SDL_KMOD_CTRL, "Ctrl"}, {SDL_KMOD_SHIFT, "Shift"},
+        {SDL_KMOD_ALT, "Alt"}, {SDL_KMOD_GUI, "GUI"}};
+    uint32_t known = SDL_KMOD_CTRL | SDL_KMOD_SHIFT | SDL_KMOD_ALT |
+        SDL_KMOD_GUI;
+    size_t used = 0;
+    if(output == NULL || capacity == 0) return;
+    output[0] = '\0';
+    for(size_t i = 0; i < sizeof(names) / sizeof(names[0]); i += 1) {
+        int written;
+        if((modifiers & names[i].mask) == 0) continue;
+        written = snprintf(output + used, capacity - used, "%s%s",
+            used == 0 ? "" : " + ", names[i].name);
+        if(written < 0 || (size_t)written >= capacity - used) {
+            output[capacity - 1] = '\0';
+            return;
+        }
+        used += (size_t)written;
+    }
+    if(((uint32_t)modifiers & ~known) != 0 && used < capacity) {
+        int written = snprintf(output + used, capacity - used, "%s%u",
+            used == 0 ? "" : " + ", (uint32_t)modifiers & ~known);
+        if(written > 0 && (size_t)written < capacity - used)
+            used += (size_t)written;
+    }
+    if(used == 0) snprintf(output, capacity, "None");
+}
+
+static bool input_modifier_capture_apply(SDL_Scancode pressed,
+        SDL_Keymod current, float *modifiers) {
+    SDL_Keymod pressed_modifier = input_modifier_get(pressed);
+    SDL_Keymod captured;
+    if(pressed_modifier == SDL_KMOD_NONE || modifiers == NULL) return false;
+    captured = current &
+        (SDL_KMOD_CTRL | SDL_KMOD_SHIFT | SDL_KMOD_ALT | SDL_KMOD_GUI);
+    if(captured == SDL_KMOD_NONE) captured = pressed_modifier;
+    *modifiers = (float)(uint32_t)captured;
+    return true;
+}
+
+static bool input_representation_toggle_draw(EditorInputSettingsPanel *panel,
+        const char *id, bool numeric, float x, float y, float width) {
+    float toggle_width = fminf(126.0f, width);
+    return rohr_ui_button(id, numeric ? &panel->letter_symbols_label :
+            &panel->ascii_value_label,
+        (UIRect){x + width - toggle_width, y + 32.0f, toggle_width, 20.0f},
+        NULL).clicked;
+}
+
 static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         EditorProject *project, EditorInputController *controller,
         EditorInputAction *action, size_t index, float x, float width, float y) {
@@ -384,6 +438,11 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         selected = editor_mode_dropdown("editor.input.binding.axis", options,
             count, component, (UIRect){x, y, width, 28.0f}, NULL);
         if(selected.changed) { input = selected.selected_index; changed = true; }
+    } else if(panel->input_numeric) {
+        UIFieldResult numeric = input_number_field(
+            "editor.input.binding.key.numeric", &panel->input_field,
+            &input, (UIRect){x, y, width, 28.0f});
+        if(numeric.changed) changed = true;
     } else {
         const char *displayed = SDL_GetScancodeName((SDL_Scancode)(uint32_t)input);
         UIFieldResult capture;
@@ -405,13 +464,48 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
         }
     }
-    y += 36.0f;
+    if(source == INPUT_BINDING_KEY) {
+        if(input_representation_toggle_draw(panel,
+                "editor.input.binding.key.representation",
+                panel->input_numeric, x, y, width)) {
+            panel->input_numeric = !panel->input_numeric;
+            panel->key_capture_active = false;
+            panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
+            rohr_ui_field_focus_clear();
+        }
+        y += 60.0f;
+    } else y += 36.0f;
     rohr_ui_label(&panel->modifiers_label, (UIRect){x, y, width, 22.0f});
     y += 24.0f;
-    if(input_number_field("editor.input.binding.modifiers", &panel->modifiers_field,
-            &modifiers, (UIRect){x, y, width, 28.0f}).changed)
-        changed = true;
-    y += 36.0f;
+    if(panel->modifiers_numeric) {
+        if(input_number_field("editor.input.binding.modifiers.numeric",
+                &panel->modifiers_field, &modifiers,
+                (UIRect){x, y, width, 28.0f}).changed) changed = true;
+    } else {
+        char modifier_symbols[64];
+        UIFieldResult capture;
+        input_modifier_symbols_get((SDL_Keymod)(uint32_t)modifiers,
+            modifier_symbols, sizeof(modifier_symbols));
+        capture = input_text_field("editor.input.binding.modifiers.symbols",
+            &panel->modifiers_field, modifier_symbols,
+            sizeof(modifier_symbols), (UIRect){x, y, width, 28.0f});
+        panel->key_capture_active = panel->key_capture_active || capture.active;
+        if(capture.active && input_modifier_capture_apply(
+                input_key_transition_get(true), rohr_input_modifiers_get(),
+                &modifiers)) {
+            changed = true;
+            panel->key_capture_active = false;
+            rohr_ui_field_focus_clear();
+        }
+    }
+    if(input_representation_toggle_draw(panel,
+            "editor.input.binding.modifiers.representation",
+            panel->modifiers_numeric, x, y, width)) {
+        panel->modifiers_numeric = !panel->modifiers_numeric;
+        panel->key_capture_active = false;
+        rohr_ui_field_focus_clear();
+    }
+    y += 60.0f;
     rohr_ui_label(&panel->scale_label, (UIRect){x, y, width, 22.0f});
     y += 24.0f;
     if(input_number_field("editor.input.binding.scale", &panel->scale_field, &scale,
@@ -495,7 +589,8 @@ void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
         }
     }
     y += 42.0f;
-    editor_mode_divider_draw(bounds.x, y - 10.0f, bounds.width);
+    editor_mode_divider_draw(bounds.x, y, bounds.width);
+    y += 10.0f;
     for(size_t i = 0; i < action->binding_count; i += 1) {
         UIButtonStyle style = rohr_ui_button_style_default_get();
         UIButtonResult result;
@@ -562,7 +657,8 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
     DESTROY(type_label); DESTROY(button_mode_label); DESTROY(initial_state_label);
     DESTROY(source_label); DESTROY(input_label); DESTROY(modifiers_label);
     DESTROY(scale_label); DESTROY(inverted_label); DESTROY(direction_x_label);
-    DESTROY(direction_y_label); DESTROY(name_field); DESTROY(input_field);
+    DESTROY(direction_y_label); DESTROY(ascii_value_label);
+    DESTROY(letter_symbols_label); DESTROY(name_field); DESTROY(input_field);
     DESTROY(modifiers_field); DESTROY(scale_field); DESTROY(direction_x_field);
     DESTROY(direction_y_field);
 #undef DESTROY

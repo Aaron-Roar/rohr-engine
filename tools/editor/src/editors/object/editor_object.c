@@ -263,7 +263,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             (void)editor_mode_name_focus_request(context->viewport);
         }
     }
-    y += 38.0f;
+    y += 42.0f;
     editor_mode_divider_draw(context->x, y, context->width);
     y += 10.0f;
     rohr_ui_label(&editor->elements_label,

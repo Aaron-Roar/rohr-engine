@@ -12,6 +12,8 @@
 typedef struct EditorInputSettingsPanel {
     bool open;
     bool key_capture_active;
+    bool input_numeric;
+    bool modifiers_numeric;
     SDL_Scancode pending_modifier;
     FontAsset *font;
     TextAsset menu_label, controller_title, action_title, binding_title, close_label;
@@ -21,6 +23,7 @@ typedef struct EditorInputSettingsPanel {
     TextAsset type_label, button_mode_label, initial_state_label;
     TextAsset source_label, input_label, modifiers_label;
     TextAsset scale_label, inverted_label, direction_x_label, direction_y_label;
+    TextAsset ascii_value_label, letter_symbols_label;
     TextAsset name_field, input_field, modifiers_field, scale_field;
     TextAsset direction_x_field, direction_y_field;
     TextAsset action_names[ROHR_INPUT_ACTION_LIMIT];

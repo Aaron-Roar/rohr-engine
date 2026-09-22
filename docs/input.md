@@ -133,12 +133,15 @@ Controllers are top-level editor resources beside Objects and Viewports. Each
 controller element opens directly into that controller instead of selecting
 from a second controller list. **Add Action** creates a selectable child element;
 opening it provides the action editor for type, momentary or persistent Button
-behavior, persistent initial state, and named default-binding children. Each
+behavior through a Mode dropdown, persistent initial state, and named
+default-binding children. Each
 binding opens its own editor and has a stable editor ID. Clicking a key field
 captures one key and then ends capture; Ctrl, Shift, Alt, and GUI can be
 captured alone or held while another key is pressed, in which case the modifier
 field is populated automatically. The modifier mask can also be edited
-directly. These edits use normal editor commands and participate in undo/redo.
+directly. Input and modifier fields can toggle between letter/symbol display
+and their numeric SDL values; numeric fields accept Enter or focus loss as
+submission. These edits use normal editor commands and participate in undo/redo.
 Project JSON stores stable controller, action, and binding IDs plus readable
 names.
 Generated `ProjectControllers` state creates runtime controllers before generated

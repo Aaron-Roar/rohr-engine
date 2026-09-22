@@ -792,7 +792,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         if(project->objects[i].id == project->selected) object = &project->objects[i];
     }
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        return fmaxf(height, 250.0f +
+        return fmaxf(height, 210.0f +
             (float)project->hierarchy_count * 34.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
@@ -805,7 +805,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION)
         return fmaxf(height, 520.0f);
     if(state->mode == EDITOR_VIEWPORT_INPUT_BINDING)
-        return fmaxf(height, 560.0f);
+        return fmaxf(height, 630.0f);
     if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,

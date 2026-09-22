@@ -5264,7 +5264,7 @@ static void editor_camera_attachment_icon_draw(Position center) {
 }
 
 static void editor_viewport_cameras_draw(const EditorObject *object,
-        const EditorViewportState *state) {
+        const EditorViewportState *state, bool object_highlighted) {
     for(size_t c = 0; c < object->camera_count; c += 1) {
         const EditorCamera *camera = &object->cameras[c];
         Orientation rotation;
@@ -5292,7 +5292,7 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
             editor_viewport_path_selected(state, EDITOR_SELECTION_CAMERA,
                 object->id, 0, 0, camera->id) ||
             state->preview_camera == camera->id;
-        color = selected ? (Color){255, 215, 70, 255} :
+        color = object_highlighted || selected ? (Color){255, 215, 70, 255} :
             (Color){90, 210, 235, 255};
         for(size_t i = 0; i < 4; i += 1)
             editor_dashed_line_draw(corners[i], corners[(i + 1) % 4], color);
@@ -5410,7 +5410,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
             object->id, 0, 0, object->id);
 
     editor_viewport_sprites_draw(object, state, object_highlighted);
-    if(!editor_view_camera_preview) editor_viewport_cameras_draw(object, state);
+    if(!editor_view_camera_preview)
+        editor_viewport_cameras_draw(object, state, object_highlighted);
 
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {

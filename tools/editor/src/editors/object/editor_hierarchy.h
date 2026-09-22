@@ -11,7 +11,6 @@ typedef struct EditorHierarchyEditor {
     FontAsset *font;
     TextAsset add_object_label, add_viewport_label, add_controller_label;
     TextAsset visible_label, hidden_label;
-    TextAsset name_label, name_field;
     TextAsset delete_object_label, delete_viewport_label, delete_controller_label;
     TextAsset object_names[EDITOR_OBJECT_MAX];
     char object_cache[EDITOR_OBJECT_MAX][EDITOR_OBJECT_NAME_MAX];
