@@ -2412,6 +2412,8 @@ int main(void) {
     TextAsset create_project_label = {0};
     TextAsset save_label = {0};
     TextAsset close_label = {0};
+    TextAsset back_label = {0};
+    TextAsset close_project_label = {0};
     TextAsset exit_label = {0};
     TextAsset unsaved_changes_label = {0};
     TextAsset dont_save_label = {0};
@@ -2618,6 +2620,8 @@ int main(void) {
             !editor_text_create(&font, "Create Project", &create_project_label) ||
             !editor_text_create(&font, "Save", &save_label) ||
             !editor_text_create(&font, "Close", &close_label) ||
+            !editor_text_create(&font, "Back", &back_label) ||
+            !editor_text_create(&font, "Close Project", &close_project_label) ||
             !editor_text_create(&font, "Exit", &exit_label) ||
             !editor_text_create(&font, "Save changes before closing?",
                 &unsaved_changes_label) ||
@@ -2692,6 +2696,7 @@ int main(void) {
 
     while(running) {
         SDL_Event event;
+        bool close_project_requested = false;
         editor_project_particle_auto_fit_update(&project);
         EditorNavigationState navigation_before = editor_navigation_state_get(
             &project, &viewport_state);
@@ -3038,7 +3043,8 @@ int main(void) {
             rigid_body_editor.binding_hitbox_open = 0;
         }
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
-        float delete_footer_height = delete_footer ? 54.0f : 0.0f;
+        float panel_footer_height = workspace.open ?
+            (delete_footer ? 96.0f : 54.0f) : 0.0f;
         bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
             viewport_state.mode >= 0 &&
             (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
@@ -3057,7 +3063,7 @@ int main(void) {
         panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
             (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
                 EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
-                    delete_footer_height},
+                    panel_footer_height},
             panel_content_height,
             panel_scroll_offset, 42.0f).offset;
         viewport_state.preview_rigid_body = 0;
@@ -3598,14 +3604,19 @@ int main(void) {
                 mode_measured_heights[viewport_state.mode] = measured;
         }
         rohr_ui_scroll_region_end();
-        if(delete_footer) {
+        if(workspace.open) {
             const TextAsset *delete_label = NULL;
             const char *delete_id = NULL;
             bool delete_enabled = true;
+            bool navigate_back = false;
+            EditorViewportMode footer_mode = viewport_state.mode;
+            float footer_top = EDITOR_WINDOW_HEIGHT - panel_footer_height;
+            UIRect navigation_bounds = {EDITOR_VIEWPORT_WIDTH + 10.0f,
+                footer_top + 10.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
             UIRect delete_bounds = {EDITOR_VIEWPORT_WIDTH + 10.0f,
                 EDITOR_WINDOW_HEIGHT - 44.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
             UIButtonStyle delete_style = editor_mode_delete_style_get();
-            switch(viewport_state.mode) {
+            switch(footer_mode) {
                 case EDITOR_VIEWPORT_HIERARCHY:
                     if(viewport_state.selection == EDITOR_SELECTION_OBJECT) {
                         delete_label = &hierarchy_editor.delete_object_label;
@@ -3719,9 +3730,18 @@ int main(void) {
                 default: break;
             }
             rohr_ui_surface((UIRect){EDITOR_VIEWPORT_WIDTH,
-                EDITOR_WINDOW_HEIGHT - delete_footer_height,
+                footer_top,
                 EDITOR_TOOLS_WIDTH, 1.0f}, (Color){75, 84, 100, 255});
-            if(delete_label != NULL && delete_id != NULL) {
+            if(rohr_ui_button(footer_mode == EDITOR_VIEWPORT_HIERARCHY ?
+                        "editor.project.close" : "editor.mode.back",
+                    footer_mode == EDITOR_VIEWPORT_HIERARCHY ?
+                        &close_project_label : &back_label,
+                    navigation_bounds, NULL).clicked) {
+                if(footer_mode == EDITOR_VIEWPORT_HIERARCHY)
+                    close_project_requested = true;
+                else navigate_back = true;
+            }
+            if(delete_footer && delete_label != NULL && delete_id != NULL) {
                 if(!delete_enabled) {
                     rohr_ui_button_disabled(delete_bounds, &delete_style);
                     rohr_ui_label(delete_label, delete_bounds);
@@ -3730,6 +3750,7 @@ int main(void) {
                     (void)editor_open_item_delete(&project, &viewport_state);
                 }
             }
+            if(navigate_back) editor_viewport_back(&viewport_state);
         }
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
@@ -3976,21 +3997,7 @@ int main(void) {
                     }
                 }
             } else if(file_menu.changed && file_menu.selected_index == 3) {
-                if(editor_project_hash_get(&project) == saved_project_hash) {
-                    editor_hidden_build_cancel(&hidden_build_process,
-                        &hidden_compile_pending);
-                    editor_workspace_close(&workspace, &project);
-                    editor_app_state_transition(&app_state,
-                        EDITOR_APP_STATE_PROJECT_LAUNCHER);
-                    (void)editor_terminal_panel_project_open(
-                        &terminal_panel, startup_directory);
-                    editor_history_reset(&history);
-                    saved_project_hash = editor_project_hash_get(&project);
-                    editor_viewport_state_init(&viewport_state);
-                    panel_scroll_offset = 0.0f;
-                } else {
-                    close_action = EDITOR_CLOSE_PROJECT;
-                }
+                close_project_requested = true;
             } else if(file_menu.changed && file_menu.selected_index == 4) {
                 if(!workspace.open ||
                         editor_project_hash_get(&project) == saved_project_hash) {
@@ -4133,6 +4140,23 @@ int main(void) {
                 editor_visual_settings_panel_open(&visual_settings_panel);
             }
             rohr_ui_modal_controls_end();
+        }
+        if(close_project_requested && workspace.open) {
+            if(editor_project_hash_get(&project) == saved_project_hash) {
+                editor_hidden_build_cancel(&hidden_build_process,
+                    &hidden_compile_pending);
+                editor_workspace_close(&workspace, &project);
+                editor_app_state_transition(&app_state,
+                    EDITOR_APP_STATE_PROJECT_LAUNCHER);
+                (void)editor_terminal_panel_project_open(
+                    &terminal_panel, startup_directory);
+                editor_history_reset(&history);
+                saved_project_hash = editor_project_hash_get(&project);
+                editor_viewport_state_init(&viewport_state);
+                panel_scroll_offset = 0.0f;
+            } else {
+                close_action = EDITOR_CLOSE_PROJECT;
+            }
         }
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(!notification_panel.report_open && !notification_panel.log_open &&
@@ -4798,6 +4822,8 @@ int main(void) {
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    rohr_graphics_text_destroy(&back_label);
+    rohr_graphics_text_destroy(&close_project_label);
     rohr_graphics_text_destroy(&exit_label);
     rohr_graphics_text_destroy(&open_label);
     rohr_graphics_text_destroy(&load_sprite_label);
@@ -4896,6 +4922,8 @@ fail:
     rohr_graphics_text_destroy(&dont_save_label);
     rohr_graphics_text_destroy(&unsaved_changes_label);
     rohr_graphics_text_destroy(&close_label);
+    rohr_graphics_text_destroy(&back_label);
+    rohr_graphics_text_destroy(&close_project_label);
     rohr_graphics_text_destroy(&exit_label);
     rohr_graphics_text_destroy(&open_label);
     rohr_graphics_text_destroy(&load_sprite_label);

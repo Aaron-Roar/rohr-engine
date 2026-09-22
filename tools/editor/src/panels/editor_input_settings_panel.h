@@ -16,7 +16,7 @@ typedef struct EditorInputSettingsPanel {
     bool modifiers_numeric;
     SDL_Scancode pending_modifier;
     FontAsset *font;
-    TextAsset menu_label, controller_title, action_title, binding_title, close_label;
+    TextAsset menu_label, controller_title, action_title, binding_title;
     TextAsset add_action_label, add_binding_label, delete_binding_label;
     TextAsset delete_action_label;
     TextAsset binding_label, name_label, enabled_label;

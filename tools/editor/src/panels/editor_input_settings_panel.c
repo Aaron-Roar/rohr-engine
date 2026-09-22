@@ -63,7 +63,6 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     if(!input_text_create(font, value, &panel->member)) goto fail
     CREATE("Input", menu_label); CREATE("Controller", controller_title);
     CREATE("Action", action_title); CREATE("Binding", binding_title);
-    CREATE("Close", close_label);
     CREATE("Add Action", add_action_label); CREATE("Add Binding", add_binding_label);
     CREATE("Delete Binding", delete_binding_label);
     CREATE("Delete Action", delete_action_label); CREATE("Binding", binding_label);
@@ -109,14 +108,6 @@ static void input_panel_begin(TextAsset *title, UIRect bounds) {
     rohr_ui_border(bounds, 2.0f, (Color){5, 6, 8, 255});
     rohr_ui_label(title, (UIRect){bounds.x + 20.0f, bounds.y + 14.0f,
         bounds.width - 40.0f, 32.0f});
-}
-
-static void input_panel_close_draw(EditorInputSettingsPanel *panel,
-        UIRect bounds) {
-    if(rohr_ui_button("editor.input.close", &panel->close_label,
-            (UIRect){bounds.x + bounds.width - 92.0f,
-                bounds.y + 12.0f, 72.0f, 30.0f}, NULL).clicked)
-        panel->open = false;
 }
 
 void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
@@ -207,7 +198,6 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
         }
         y += 34.0f;
     }
-    input_panel_close_draw(panel, bounds);
 }
 
 static void input_action_properties_draw(EditorInputSettingsPanel *panel,
@@ -620,7 +610,6 @@ void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
         }
         y += 34.0f;
     }
-    input_panel_close_draw(panel, bounds);
 }
 
 void editor_input_binding_editor_draw(EditorInputSettingsPanel *panel,
@@ -643,7 +632,6 @@ void editor_input_binding_editor_draw(EditorInputSettingsPanel *panel,
     y = bounds.y + 58.0f;
     input_binding_properties_draw(panel, project, controller, action, index,
         x, width, y);
-    input_panel_close_draw(panel, bounds);
 }
 
 void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
@@ -651,7 +639,7 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
 #define DESTROY(member) rohr_graphics_text_destroy(&panel->member)
     DESTROY(menu_label); DESTROY(controller_title); DESTROY(action_title);
     DESTROY(binding_title);
-    DESTROY(close_label); DESTROY(add_action_label); DESTROY(add_binding_label);
+    DESTROY(add_action_label); DESTROY(add_binding_label);
     DESTROY(delete_binding_label); DESTROY(delete_action_label);
     DESTROY(binding_label); DESTROY(name_label); DESTROY(enabled_label);
     DESTROY(type_label); DESTROY(button_mode_label); DESTROY(initial_state_label);
