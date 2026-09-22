@@ -212,8 +212,8 @@ void editor_mode_divider_draw(float x, float y, float width) {
     float inset;
     if(width <= 0.0f) return;
     inset = width * 0.05f;
-    (void)rohr_graphics_screen_rect_draw(x + inset, y,
-        width - inset * 2.0f, 1.0f, (Color){184, 190, 202, 255});
+    rohr_ui_surface((UIRect){x + inset, y,
+        width - inset * 2.0f, 1.0f}, (Color){184, 190, 202, 255});
 }
 
 UIButtonStyle editor_mode_section_field_style_get(void) {

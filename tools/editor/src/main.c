@@ -198,6 +198,7 @@ typedef struct EditorModeHierarchyContext {
     MouseButtonState primary;
     MouseButtonState secondary;
     float scroll_offset;
+    float content_offset;
     bool additive_selection;
 } EditorModeHierarchyContext;
 
@@ -2253,7 +2254,10 @@ static void editor_mode_hierarchy_row(void *opaque,
         EditorViewportState *viewport, EditorSelectionRef selection,
         UIRect bounds, UIButtonResult interaction, bool last) {
     EditorModeHierarchyContext *context = opaque;
+    UIRect screen_bounds;
     if(context == NULL) return;
+    screen_bounds = bounds;
+    screen_bounds.y += context->content_offset - context->scroll_offset;
     if(context->context_menu != NULL && context->context_menu->renaming &&
             context->context_menu->from_column &&
             context->context_menu->target.kind == selection.kind &&
@@ -2277,7 +2281,7 @@ static void editor_mode_hierarchy_row(void *opaque,
                 &context->context_menu->rename_field,
                 context->context_menu->rename_value);
         if(result.submitted || (context->primary == MOUSE_BUTTON_STATE_PRESSED &&
-                !editor_point_in_rect(context->pointer, bounds))) {
+                !editor_point_in_rect(context->pointer, screen_bounds))) {
             (void)editor_navigation_selection_name_set(context->project,
                 selection, context->context_menu->rename_value);
             context->context_menu->renaming = false;
@@ -2289,7 +2293,7 @@ static void editor_mode_hierarchy_row(void *opaque,
         return;
     }
     if(context->secondary == MOUSE_BUTTON_STATE_PRESSED &&
-            editor_point_in_rect(context->pointer, bounds) &&
+            editor_point_in_rect(context->pointer, screen_bounds) &&
             !editor_viewport_context_menu_point_contains(context->context_menu,
                 context->pointer)) {
         editor_context_menu_cancel(context->context_menu);
@@ -2308,9 +2312,9 @@ static void editor_mode_hierarchy_row(void *opaque,
             context->additive_selection)
         (void)editor_viewport_selection_set(context->project, viewport,
             selection, true);
-    editor_hierarchy_drag_row(context->drag, viewport, selection, bounds,
+    editor_hierarchy_drag_row(context->drag, viewport, selection, screen_bounds,
         context->pointer, context->primary,
-        context->scroll_offset, last);
+        0.0f, last);
 }
 
 static bool editor_hierarchy_drag_update(EditorHierarchyDragState *drag,
@@ -2697,6 +2701,7 @@ int main(void) {
     while(running) {
         SDL_Event event;
         bool close_project_requested = false;
+        bool navigate_back_requested = false;
         editor_project_particle_auto_fit_update(&project);
         EditorNavigationState navigation_before = editor_navigation_state_get(
             &project, &viewport_state);
@@ -3043,29 +3048,51 @@ int main(void) {
             rigid_body_editor.binding_hitbox_open = 0;
         }
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
-        float panel_footer_height = workspace.open ?
-            (delete_footer ? 96.0f : 54.0f) : 0.0f;
+        float panel_footer_height = workspace.open && delete_footer ? 54.0f : 0.0f;
         bool mode_accordion_applies = viewport_state.selected_item_count <= 1 &&
             viewport_state.mode >= 0 &&
             (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
             editor_mode_properties_accordion_check(viewport_state.mode);
-        float panel_content_height = fmaxf(
+        float panel_content_offset = workspace.open ?
+            (mode_accordion_applies ? 96.0f : 58.0f) : 0.0f;
+        float panel_content_height = panel_content_offset + fmaxf(
             editor_panel_content_height_get(&project, &viewport_state,
                 &rigid_body_editor),
             editor_bulk_panel_content_height_get(&viewport_state));
         if(viewport_state.mode >= 0 &&
                 (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
                 mode_measured_heights[viewport_state.mode] > 0.0f)
-            panel_content_height = mode_measured_heights[viewport_state.mode];
+            panel_content_height = panel_content_offset +
+                mode_measured_heights[viewport_state.mode];
         if(mode_accordion_applies &&
                 !mode_accordions[viewport_state.mode].expanded)
-            panel_content_height = 76.0f;
+            panel_content_height = panel_content_offset + 76.0f;
         panel_scroll_offset = rohr_ui_scroll_region_begin("editor.tools.scroll",
             (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
                 EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
                     panel_footer_height},
             panel_content_height,
             panel_scroll_offset, 42.0f).offset;
+        if(workspace.open) {
+            EditorViewportMode panel_mode = viewport_state.mode;
+            const TextAsset *navigation_label = panel_mode ==
+                EDITOR_VIEWPORT_HIERARCHY ? &close_project_label : &back_label;
+            float navigation_width = panel_mode == EDITOR_VIEWPORT_HIERARCHY ?
+                136.0f : 88.0f;
+            if(rohr_ui_button(panel_mode == EDITOR_VIEWPORT_HIERARCHY ?
+                        "editor.project.close" : "editor.mode.back",
+                    navigation_label,
+                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 42.0f,
+                        fminf(navigation_width, EDITOR_TOOLS_WIDTH - 20.0f), 32.0f},
+                    NULL).clicked) {
+                if(panel_mode == EDITOR_VIEWPORT_HIERARCHY)
+                    close_project_requested = true;
+                else navigate_back_requested = true;
+            }
+            editor_mode_divider_draw(
+                EDITOR_VIEWPORT_WIDTH, 84.0f, EDITOR_TOOLS_WIDTH);
+        }
+        rohr_ui_translation_y_push(panel_content_offset);
         viewport_state.preview_rigid_body = 0;
         viewport_state.preview_soft_body = 0;
         viewport_state.preview_anchor = 0;
@@ -3145,6 +3172,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             EditorCollisionMenuContext collision_context = {
                 .font = &font, .labels = collision_mask_labels,
@@ -3214,6 +3242,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
                 &(EditorModeContext){.project = &project,
@@ -3248,6 +3277,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_body_editor_draw(&soft_body_editor,
                 &auto_shape_editor, &(EditorModeContext){.project = &project,
@@ -3360,6 +3390,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
@@ -3448,6 +3479,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
@@ -3468,6 +3500,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             EditorAnimationBrowserContext browser_context = {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
@@ -3502,6 +3535,7 @@ int main(void) {
                     .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                     .primary = hierarchy_primary,
                     .scroll_offset = panel_scroll_offset,
+                    .content_offset = panel_content_offset,
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_controller_editor_draw(&input_settings_panel,
@@ -3536,6 +3570,7 @@ int main(void) {
                     .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                     .primary = hierarchy_primary,
                     .scroll_offset = panel_scroll_offset,
+                    .content_offset = panel_content_offset,
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_action_editor_draw(&input_settings_panel,
@@ -3585,6 +3620,7 @@ int main(void) {
                 .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             editor_hierarchy_editor_draw(&hierarchy_editor,
                 &(EditorModeContext){.project = &project,
@@ -3594,6 +3630,7 @@ int main(void) {
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
         }
+        rohr_ui_translation_y_pop();
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))
             pointer_selection_handled = true;
@@ -3604,19 +3641,15 @@ int main(void) {
                 mode_measured_heights[viewport_state.mode] = measured;
         }
         rohr_ui_scroll_region_end();
-        if(workspace.open) {
+        if(delete_footer) {
             const TextAsset *delete_label = NULL;
             const char *delete_id = NULL;
             bool delete_enabled = true;
-            bool navigate_back = false;
-            EditorViewportMode footer_mode = viewport_state.mode;
             float footer_top = EDITOR_WINDOW_HEIGHT - panel_footer_height;
-            UIRect navigation_bounds = {EDITOR_VIEWPORT_WIDTH + 10.0f,
-                footer_top + 10.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
             UIRect delete_bounds = {EDITOR_VIEWPORT_WIDTH + 10.0f,
                 EDITOR_WINDOW_HEIGHT - 44.0f, EDITOR_TOOLS_WIDTH - 20.0f, 34.0f};
             UIButtonStyle delete_style = editor_mode_delete_style_get();
-            switch(footer_mode) {
+            switch(viewport_state.mode) {
                 case EDITOR_VIEWPORT_HIERARCHY:
                     if(viewport_state.selection == EDITOR_SELECTION_OBJECT) {
                         delete_label = &hierarchy_editor.delete_object_label;
@@ -3732,16 +3765,7 @@ int main(void) {
             rohr_ui_surface((UIRect){EDITOR_VIEWPORT_WIDTH,
                 footer_top,
                 EDITOR_TOOLS_WIDTH, 1.0f}, (Color){75, 84, 100, 255});
-            if(rohr_ui_button(footer_mode == EDITOR_VIEWPORT_HIERARCHY ?
-                        "editor.project.close" : "editor.mode.back",
-                    footer_mode == EDITOR_VIEWPORT_HIERARCHY ?
-                        &close_project_label : &back_label,
-                    navigation_bounds, NULL).clicked) {
-                if(footer_mode == EDITOR_VIEWPORT_HIERARCHY)
-                    close_project_requested = true;
-                else navigate_back = true;
-            }
-            if(delete_footer && delete_label != NULL && delete_id != NULL) {
+            if(delete_label != NULL && delete_id != NULL) {
                 if(!delete_enabled) {
                     rohr_ui_button_disabled(delete_bounds, &delete_style);
                     rohr_ui_label(delete_label, delete_bounds);
@@ -3750,8 +3774,8 @@ int main(void) {
                     (void)editor_open_item_delete(&project, &viewport_state);
                 }
             }
-            if(navigate_back) editor_viewport_back(&viewport_state);
         }
+        if(navigate_back_requested) editor_viewport_back(&viewport_state);
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
             bool opened_here = editor_viewport_context_menu_open_check(

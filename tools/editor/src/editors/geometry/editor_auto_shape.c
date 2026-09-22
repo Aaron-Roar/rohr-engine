@@ -46,7 +46,7 @@ static void icon_line_draw(Position start, Position end, Color color) {
     Vec2D delta = {end.x - start.x, end.y - start.y};
     float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
     if(length <= 0.0f) return;
-    (void)rohr_graphics_screen_quad_draw(
+    rohr_ui_quad(
         (Position){(start.x + end.x) * 0.5f, (start.y + end.y) * 0.5f},
         length, 1.5f, -atan2f(delta.y, delta.x), color);
 }

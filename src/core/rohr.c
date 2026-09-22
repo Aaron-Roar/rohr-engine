@@ -706,6 +706,8 @@ bool rohr_ui_primary_pressed_check(void) { return ui_primary_pressed_check(); }
 UIDropdownResult rohr_ui_menu(const char *id, const TextAsset *label, const TextAsset *const *options, size_t option_count, UIRect bounds, const UIButtonStyle *style) { return ui_menu(id, label, options, option_count, bounds, style); }
 UIScrollRegionResult rohr_ui_scroll_region_begin(const char *id, UIRect bounds, float content_height, float offset, float wheel_step) { return ui_scroll_region_begin(id, bounds, content_height, offset, wheel_step); }
 void rohr_ui_scroll_region_end(void) { ui_scroll_region_end(); }
+void rohr_ui_translation_y_push(float offset) { ui_translation_y_push(offset); }
+void rohr_ui_translation_y_pop(void) { ui_translation_y_pop(); }
 UIButtonResult rohr_ui_interaction(const char *id, UIRect bounds) { return ui_interaction(id, bounds); }
 void rohr_ui_surface(UIRect bounds, Color color) { ui_surface(bounds, color); }
 void rohr_ui_border(UIRect bounds, float thickness, Color color) { ui_border(bounds, thickness, color); }

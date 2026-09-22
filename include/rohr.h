@@ -2171,6 +2171,10 @@ UIScrollRegionResult rohr_ui_scroll_region_begin(const char *id, UIRect bounds,
     float content_height, float offset, float wheel_step);
 /** @brief Ends the current UI scroll region. */
 void rohr_ui_scroll_region_end(void);
+/** @brief Adds a scoped vertical translation for subsequent UI controls. */
+void rohr_ui_translation_y_push(float offset);
+/** @brief Restores the vertical translation active before the last push. */
+void rohr_ui_translation_y_pop(void);
 /** @brief Updates pointer interaction without prescribing visuals. */
 UIButtonResult rohr_ui_interaction(const char *id, UIRect bounds);
 /** @brief Draws a filled rectangular UI primitive. */

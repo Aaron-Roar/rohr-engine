@@ -263,6 +263,10 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     float content_height, float offset, float wheel_step);
 /** End the current scroll region. */
 void ui_scroll_region_end(void);
+/** Add a scoped vertical translation for subsequent UI controls. */
+void ui_translation_y_push(float offset);
+/** Restore the vertical translation active before the last push. */
+void ui_translation_y_pop(void);
 
 /** Update pointer interaction without drawing a visual element. */
 UIButtonResult ui_interaction(const char *id, UIRect bounds);

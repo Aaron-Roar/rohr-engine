@@ -63,6 +63,18 @@ int main(void) {
     if(!rohr_ui_interaction("primitive", bounds).clicked) return 1;
     rohr_ui_frame_end();
 
+    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 35.0f}});
+    (void)rohr_ui_scroll_region_begin("translated-scroll",
+        (UIRect){0.0f, 0.0f, 100.0f, 60.0f}, 100.0f, 10.0f, 10.0f);
+    rohr_ui_translation_y_push(20.0f);
+    if(!rohr_ui_button("translated-button", NULL,
+            (UIRect){0.0f, 20.0f, 100.0f, 20.0f}, NULL).hovered) return 1;
+    rohr_ui_translation_y_pop();
+    if(rohr_ui_button("untranslated-button", NULL,
+            (UIRect){0.0f, 20.0f, 100.0f, 20.0f}, NULL).hovered) return 1;
+    rohr_ui_scroll_region_end();
+    rohr_ui_frame_end();
+
     snprintf(string, sizeof(string), "line");
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});

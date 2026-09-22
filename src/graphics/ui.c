@@ -12,6 +12,7 @@
 
 #define UI_DROPDOWN_VISIBLE_MAX 8
 #define UI_SCROLL_REGION_MAX 8
+#define UI_TRANSLATION_STACK_MAX 8
 #define UI_SCROLL_RECORD_MAX 64
 #define UI_NAVIGATION_ITEM_MAX 512
 #define UI_DROPDOWN_DIVIDER_INSET 0.05f
@@ -67,6 +68,8 @@ typedef struct UIContext {
     float wheel_y;
     float translation_y;
     float translation_stack[UI_SCROLL_REGION_MAX];
+    float scoped_translation_stack[UI_TRANSLATION_STACK_MAX];
+    size_t scoped_translation_depth;
     UIRect scroll_clip_stack[UI_SCROLL_REGION_MAX];
     float scroll_offset_stack[UI_SCROLL_REGION_MAX];
     float scroll_content_stack[UI_SCROLL_REGION_MAX];
@@ -546,6 +549,7 @@ void ui_frame_begin(UIInput input) {
         }
     }
     ui_context.translation_y = 0.0f;
+    ui_context.scoped_translation_depth = 0;
     ui_context.scroll_depth = 0;
     ui_context.scroll_record_count = 0;
     ui_context.modal_active = false;
@@ -1206,6 +1210,22 @@ void ui_scroll_region_end(void) {
     if(content_height > bounds.height) {
         ui_scrollbar_raw(bounds, bounds.height, content_height, offset);
     }
+}
+
+void ui_translation_y_push(float offset) {
+    if(!ui_context.frame_active ||
+            ui_context.scoped_translation_depth >= UI_TRANSLATION_STACK_MAX)
+        return;
+    ui_context.scoped_translation_stack[ui_context.scoped_translation_depth++] =
+        ui_context.translation_y;
+    ui_context.translation_y += offset;
+}
+
+void ui_translation_y_pop(void) {
+    if(!ui_context.frame_active || ui_context.scoped_translation_depth == 0) return;
+    ui_context.scoped_translation_depth -= 1;
+    ui_context.translation_y =
+        ui_context.scoped_translation_stack[ui_context.scoped_translation_depth];
 }
 
 UISliderResult ui_slider_with_text(
