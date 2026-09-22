@@ -5499,14 +5499,15 @@ static void editor_viewport_object_draw(const EditorObject *object,
         if(!body->visible) continue;
         for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
             const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible) editor_soft_area_filled_draw(object, body, area,
+            if(area->visible && area->surface_enabled)
+                editor_soft_area_filled_draw(object, body, area,
                 graphics_color_hex_create(
                     area->color_overridden ? area->color : body->area_color));
         }
         if(object_highlighted) {
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
                 const EditorSoftArea *area = &body->areas[area_index];
-                if(area->visible) editor_soft_area_filled_draw(
+                if(area->visible && area->surface_enabled) editor_soft_area_filled_draw(
                     object, body, area, (Color){255, 215, 70, 48});
             }
         }
@@ -5669,7 +5670,8 @@ static void editor_viewport_camera_preview_object_draw(
         if(!body->visible) continue;
         for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
             const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible) editor_soft_area_filled_draw(object, body, area,
+            if(area->visible && area->surface_enabled)
+                editor_soft_area_filled_draw(object, body, area,
                 graphics_color_hex_create(area->color_overridden ? area->color :
                     body->area_color));
         }

@@ -322,6 +322,14 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "node_b", beam->node_b);
         yyjson_mut_obj_add_real(document, item, "stiffness", beam->stiffness);
         yyjson_mut_obj_add_real(document, item, "damping", beam->damping);
+        yyjson_mut_obj_add_bool(document, item, "collision_enabled",
+            beam->collision_enabled);
+        yyjson_mut_obj_add_real(document, item, "collision_thickness",
+            beam->collision_thickness);
+        yyjson_mut_obj_add_uint(document, item, "collision_category",
+            beam->collision_category);
+        yyjson_mut_obj_add_uint(document, item, "collision_with",
+            beam->collision_with);
         yyjson_mut_obj_add_bool(document, item, "visible", beam->visible);
         yyjson_mut_obj_add_uint(document, item, "color", beam->color);
         yyjson_mut_obj_add_bool(document, item, "color_overridden", beam->color_overridden);
@@ -343,6 +351,8 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "color", area->color);
         yyjson_mut_obj_add_bool(document, item, "color_overridden", area->color_overridden);
         yyjson_mut_obj_add_bool(document, item, "visible", area->visible);
+        yyjson_mut_obj_add_bool(document, item, "surface_enabled",
+            area->surface_enabled);
         yyjson_mut_arr_add_val(areas, item);
     }
     for(size_t i = 0; i < body->hierarchy_count; i += 1) {
@@ -1135,7 +1145,41 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                 !editor_json_uint(item, "node_a", &beam->node_a) ||
                 !editor_json_uint(item, "node_b", &beam->node_b) ||
                 !editor_json_real(item, "stiffness", &beam->stiffness) ||
+                !editor_json_bool(item, "collision_enabled",
+                    &beam->collision_enabled) ||
+                !editor_json_real(item, "collision_thickness",
+                    &beam->collision_thickness) ||
+                !editor_json_uint64(item, "collision_category",
+                    &beam->collision_category) ||
+                !editor_json_uint64(item, "collision_with",
+                    &beam->collision_with) ||
                 !editor_json_bool(item, "visible", &beam->visible)) return false;
+        if(!isfinite(beam->collision_thickness) ||
+                beam->collision_thickness <
+                    ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) return false;
+        {
+            const EditorSoftNode *a = NULL;
+            const EditorSoftNode *b = NULL;
+            for(size_t node_index = 0; node_index < body->node_count;
+                    node_index += 1) {
+                if(body->nodes[node_index].id == beam->node_a)
+                    a = &body->nodes[node_index];
+                if(body->nodes[node_index].id == beam->node_b)
+                    b = &body->nodes[node_index];
+            }
+            if(a != NULL && b != NULL) {
+                float maximum = 2.0f * fminf(a->radius, b->radius);
+                if((beam->collision_enabled && maximum <
+                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) ||
+                        (maximum <
+                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN &&
+                            beam->collision_thickness !=
+                                ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) ||
+                        (maximum >=
+                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN &&
+                            beam->collision_thickness > maximum)) return false;
+            }
+        }
         if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
                 (!editor_json_bool(item, "graphics_layer_inherited",
                     &beam->graphics_layer_inherited) ||
@@ -1167,7 +1211,9 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                     area->id == 0 || !editor_json_name(item, area->name) ||
                     !editor_json_uint(item, "color", &area->color) ||
                     !editor_json_bool(item, "color_overridden", &area->color_overridden) ||
-                    !editor_json_bool(item, "visible", &area->visible)) return false;
+                    !editor_json_bool(item, "visible", &area->visible) ||
+                    !editor_json_bool(item, "surface_enabled",
+                        &area->surface_enabled)) return false;
             if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
                     (!editor_json_bool(item, "graphics_layer_inherited",
                         &area->graphics_layer_inherited) ||
@@ -1524,6 +1570,9 @@ static bool editor_json_references_valid(EditorProject *project) {
             for(size_t k = 0; k < body->beam_count; k += 1) {
                 bool found_a = body->beams[k].node_a == 0;
                 bool found_b = body->beams[k].node_b == 0;
+                if((body->beams[k].collision_category & ~valid_masks) != 0 ||
+                        (body->beams[k].collision_with & ~valid_masks) != 0)
+                    return false;
                 for(size_t n = 0; n < body->node_count; n += 1) {
                     found_a = found_a || body->nodes[n].id == body->beams[k].node_a;
                     found_b = found_b || body->nodes[n].id == body->beams[k].node_b;

@@ -36,7 +36,8 @@ change before a stable release.
 - Particle circles stored independently from rigid polygon hitboxes. Particle
   pairs use circles; mixed particle/rigid pairs use their polygons.
 - Pin/revolute, weld, and spring-joint tooling with reusable anchors.
-- Node/beam soft bodies, boundary contacts, damping, friction, and filled areas.
+- Node/beam soft bodies, independently filtered thick-segment beam contacts,
+  damping, friction, and optional visual surfaces.
 - Cameras, multiple viewports, presentation modes, logical resolution/aspect
   configuration, and deferred signed graphics layers.
 - Sprites, animated sprites, text, primitive drawing, and PNG/JPEG-style image

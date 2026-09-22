@@ -10,7 +10,9 @@
 Shape soft_body_boundary_shape_create(
     Position start,
     Position end,
-    float radius
+    float radius,
+    float start_exclusion_radius,
+    float end_exclusion_radius
 );
 
 #endif

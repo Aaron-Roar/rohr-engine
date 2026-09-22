@@ -352,6 +352,8 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/src/main.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
+                !file_contains(path, "project_use_executable_directory()") ||
+                !file_contains(path, "SDL_GetBasePath()") ||
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||
@@ -475,6 +477,12 @@ int main(void) {
                 &loaded_project, generated_soft_body, (Position){20.0f, 40.0f});
             EditorSoftNode *generated_node_c = editor_project_soft_node_add(
                 &loaded_project, generated_soft_body, (Position){10.0f, 60.0f});
+            EditorSoftNode *generated_node_d = editor_project_soft_node_add(
+                &loaded_project, generated_soft_body, (Position){-30.0f, 20.0f});
+            EditorSoftNode *generated_node_e = editor_project_soft_node_add(
+                &loaded_project, generated_soft_body, (Position){-10.0f, 20.0f});
+            EditorSoftNode *generated_node_f = editor_project_soft_node_add(
+                &loaded_project, generated_soft_body, (Position){-20.0f, 40.0f});
             EditorSoftBeam *generated_beam = generated_node_a == NULL ||
                 generated_node_b == NULL ? NULL : editor_project_soft_beam_add(
                     &loaded_project, generated_soft_body, generated_node_a->id,
@@ -487,6 +495,18 @@ int main(void) {
                 generated_node_a == NULL ? NULL : editor_project_soft_beam_add(
                     &loaded_project, generated_soft_body, generated_node_c->id,
                     generated_node_a->id);
+            EditorSoftBeam *generated_beam_d = generated_node_d == NULL ||
+                generated_node_e == NULL ? NULL : editor_project_soft_beam_add(
+                    &loaded_project, generated_soft_body, generated_node_d->id,
+                    generated_node_e->id);
+            EditorSoftBeam *generated_beam_e = generated_node_e == NULL ||
+                generated_node_f == NULL ? NULL : editor_project_soft_beam_add(
+                    &loaded_project, generated_soft_body, generated_node_e->id,
+                    generated_node_f->id);
+            EditorSoftBeam *generated_beam_f = generated_node_f == NULL ||
+                generated_node_d == NULL ? NULL : editor_project_soft_beam_add(
+                    &loaded_project, generated_soft_body, generated_node_f->id,
+                    generated_node_d->id);
             if(generated_node_a != NULL) {
                 generated_node_a->radius = 6.5f;
                 generated_node_a->friction = 0.6f;
@@ -522,6 +542,10 @@ int main(void) {
             }
             if(generated_beam != NULL) {
                 generated_beam->damping = 0.3f;
+                generated_beam->collision_enabled = false;
+                generated_beam->collision_thickness = 4.0f;
+                generated_beam->collision_category = UINT64_C(1);
+                generated_beam->collision_with = UINT64_C(1);
                 generated_beam->graphics_layer_inherited = false;
                 generated_beam->graphics_layer.value = 42;
             }
@@ -529,17 +553,22 @@ int main(void) {
                 generated_node_a->color = UINT32_C(0xff0000ff);
                 generated_node_a->color_overridden = true;
             }
-            if(generated_soft_body != NULL && generated_soft_body->area_count == 1) {
-                generated_soft_body->areas[0].color = UINT32_C(0x00ff00ff);
-                generated_soft_body->areas[0].color_overridden = true;
-                generated_soft_body->areas[0].graphics_layer_inherited = false;
-                generated_soft_body->areas[0].graphics_layer.value = 43;
+            if(generated_soft_body != NULL && generated_soft_body->area_count == 2) {
+                generated_soft_body->areas[0].surface_enabled = false;
+                generated_soft_body->areas[1].color = UINT32_C(0x00ff00ff);
+                generated_soft_body->areas[1].color_overridden = true;
+                generated_soft_body->areas[1].graphics_layer_inherited = false;
+                generated_soft_body->areas[1].graphics_layer.value = 43;
             }
             if(body_anchor == NULL || world_anchor == NULL || generated_joint == NULL ||
                     generated_soft_body == NULL || generated_node_a == NULL ||
                     generated_node_b == NULL || generated_node_c == NULL ||
+                    generated_node_d == NULL || generated_node_e == NULL ||
+                    generated_node_f == NULL ||
                     generated_beam == NULL || generated_beam_b == NULL ||
-                    generated_beam_c == NULL || generated_soft_body->area_count != 1 ||
+                    generated_beam_c == NULL || generated_beam_d == NULL ||
+                    generated_beam_e == NULL || generated_beam_f == NULL ||
+                    generated_soft_body->area_count != 2 ||
                     generated_camera == NULL ||
                     generated_sprite == NULL || generated_animation == NULL ||
                     generated_animation->frame_count != 1 ||
@@ -593,7 +622,13 @@ int main(void) {
                 !file_contains(path,
                     "rohr_physics_soft_body_node_collision_filter_set") ||
                 !file_contains(path, "rohr_physics_soft_body_beam_create") ||
-                !file_contains(path, "rohr_physics_soft_body_triangle_create") ||
+                !file_contains(path,
+                    "rohr_physics_soft_body_beam_collision_config_set") ||
+                !file_contains(path,
+                    ".enabled = false, .thickness = 4.00000000f") ||
+                /* Two starter surfaces plus one enabled new surface. */
+                file_occurrence_count(path,
+                    "rohr_physics_soft_body_triangle_create") != 3 ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_soft_body_area_color_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
@@ -675,7 +710,14 @@ int main(void) {
         if(!file_contains(path,
                 "add_executable(${PROJECT_NAME} src/main.c") ||
                 !file_contains(path,
-                    "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})")) {
+                    "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})") ||
+                !file_contains(path,
+                    "add_custom_target(${PROJECT_NAME}_assets ALL") ||
+                !file_contains(path, "${CMAKE_SOURCE_DIR}/assets") ||
+                !file_contains(path,
+                    "$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets") ||
+                !file_contains(path,
+                    "add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_assets)")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -874,6 +916,10 @@ int main(void) {
     beam = editor_project_soft_beam_add(&project, soft_body, node_a->id, node_b->id);
     if(beam != NULL) {
         beam->damping = 0.45f;
+        beam->collision_enabled = false;
+        beam->collision_thickness = 3.5f;
+        beam->collision_category = UINT64_C(2);
+        beam->collision_with = UINT64_C(3);
         beam->graphics_layer_inherited = false;
         beam->graphics_layer.value = 72;
     }
@@ -957,6 +1003,13 @@ int main(void) {
                 loaded_object->soft_body_items[0].nodes[0].graphics_layer.value != 71 ||
                 fabsf(loaded_object->soft_body_items[0].beams[0].damping - 0.45f) >
                     0.001f ||
+                loaded_object->soft_body_items[0].beams[0].collision_enabled ||
+                fabsf(loaded_object->soft_body_items[0].beams[0].
+                    collision_thickness - 3.5f) > 0.001f ||
+                loaded_object->soft_body_items[0].beams[0].collision_category !=
+                    UINT64_C(2) ||
+                loaded_object->soft_body_items[0].beams[0].collision_with !=
+                    UINT64_C(3) ||
                 loaded_object->soft_body_items[0].beams[0].graphics_layer_inherited ||
                 loaded_object->soft_body_items[0].beams[0].graphics_layer.value != 72 ||
                 strcmp(loaded_object->name, object->name) != 0 ||
@@ -997,6 +1050,7 @@ int main(void) {
         static EditorProject topology_project;
         EditorObject *topology_object;
         EditorSoftBody *topology_body;
+        EditorSoftBeam *divider;
         EditorSoftNode *nodes[6];
         const Position node_positions[6] = {
             {20.0f, 0.0f}, {10.0f, 17.0f}, {-10.0f, 17.0f},
@@ -1025,6 +1079,7 @@ int main(void) {
             const char *path = "editor_soft_area_layer_round_trip.json";
             topology_body->areas[0].graphics_layer_inherited = false;
             topology_body->areas[0].graphics_layer.value = 73;
+            topology_body->areas[0].surface_enabled = false;
             if(!editor_project_save(&topology_project, path) ||
                     editor_result_check(editor_project_load(&topology_loaded, path)))
                 return 1;
@@ -1033,12 +1088,27 @@ int main(void) {
                         graphics_layer_inherited ||
                     topology_loaded.objects[0].soft_body_items[0].areas[0].
                         graphics_layer.value != 73) return 1;
+            if(topology_loaded.objects[0].soft_body_items[0].areas[0].
+                    surface_enabled) return 1;
         }
-        if(editor_project_soft_beam_add(&topology_project, topology_body,
-                nodes[0]->id, nodes[3]->id) == NULL ||
+        divider = editor_project_soft_beam_add(&topology_project, topology_body,
+            nodes[0]->id, nodes[3]->id);
+        if(divider == NULL ||
                 topology_body->area_count != 2 ||
                 topology_body->areas[0].node_count != 4 ||
-                topology_body->areas[1].node_count != 4) return 1;
+                topology_body->areas[1].node_count != 4 ||
+                topology_body->areas[0].surface_enabled ||
+                topology_body->areas[1].surface_enabled ||
+                topology_body->areas[0].graphics_layer_inherited ||
+                topology_body->areas[1].graphics_layer_inherited ||
+                topology_body->areas[0].graphics_layer.value != 73 ||
+                topology_body->areas[1].graphics_layer.value != 73) return 1;
+        if(!editor_project_soft_beam_remove(
+                    &topology_project, topology_body, divider->id) ||
+                topology_body->area_count != 1 ||
+                topology_body->areas[0].surface_enabled ||
+                topology_body->areas[0].graphics_layer_inherited ||
+                topology_body->areas[0].graphics_layer.value != 73) return 1;
     }
 
     {

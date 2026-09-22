@@ -1113,6 +1113,17 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "      object->%s = created.result.value; }\n",
                     body->name, node_a->name, node_b->name, beam->stiffness,
                     beam->damping, beam->name);
+                fprintf(source,
+                    "    result = rohr_physics_soft_body_beam_collision_config_set("
+                    "object->%s, (SoftBodyBeamCollisionConfig){"
+                    ".enabled = %s, .thickness = %#.9gf, .filter = {"
+                    ".category = UINT64_C(%llu), .collides_with = UINT64_C(%llu)}});\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",
+                    beam->name,
+                    beam->collision_enabled ? "true" : "false",
+                    beam->collision_thickness,
+                    (unsigned long long)beam->collision_category,
+                    (unsigned long long)beam->collision_with);
                 if(beam->color_overridden) {
                     fprintf(source,
                         "    result = rohr_graphics_soft_body_beam_color_set(object->%s, "
@@ -1125,7 +1136,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
                 const EditorSoftArea *area = &body->areas[area_index];
                 uint32_t (*triangles)[3];
-                if(area->node_count < 3) continue;
+                if(!area->surface_enabled || area->node_count < 3) continue;
                 triangles = malloc((area->node_count - 2) * sizeof(*triangles));
                 if(triangles == NULL) continue;
                 size_t triangle_count = editor_project_soft_area_triangulate(
@@ -1986,6 +1997,17 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         " */\n\n"
         "#include \"project_viewports.h\"\n\n"
         "#include <stdio.h>\n\n"
+        "#if defined(_WIN32)\n"
+        "#include <direct.h>\n"
+        "#define project_chdir _chdir\n"
+        "#else\n"
+        "#include <unistd.h>\n"
+        "#define project_chdir chdir\n"
+        "#endif\n\n"
+        "static bool project_use_executable_directory(void) {\n"
+        "    const char *base_path = SDL_GetBasePath();\n\n"
+        "    return base_path != NULL && project_chdir(base_path) == 0;\n"
+        "}\n\n"
         "static bool ok(EngineResult result) {\n"
         "    if(!rohr_error_check(result)) return true;\n"
         "    fprintf(stderr, \"error %%d: %%s\\n\", (int)result.result.error,\n"
@@ -1993,6 +2015,10 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "    return false;\n"
         "}\n\n"
         "int main(void) {\n"
+        "    if(!project_use_executable_directory()) {\n"
+        "        fprintf(stderr, \"Could not use the executable directory\\n\");\n"
+        "        return 1;\n"
+        "    }\n"
         "    KeyboardState keyboard = {0};\n"
         "    ProjectObjects objects = {0};\n"
         "    ProjectViewports viewports = {0};\n");
@@ -2034,10 +2060,11 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
 
 static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    char cmake[2048];
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    int cmake_length;
     static const char *gitignore = "build/\n";
 
-    snprintf(cmake, sizeof(cmake),
+    cmake_length = snprintf(cmake, sizeof(cmake),
         "cmake_minimum_required(VERSION 3.20)\n"
         "project(%s LANGUAGES C)\n\n"
         "set(CMAKE_C_STANDARD 99)\n"
@@ -2060,9 +2087,18 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
         "file(GLOB ROHR_GENERATED_SOURCES CONFIGURE_DEPENDS src/generated/*.c)\n"
         "add_executable(${PROJECT_NAME} src/main.c ${ROHR_GENERATED_SOURCES})\n"
         "target_include_directories(${PROJECT_NAME} PRIVATE src/generated)\n"
-        "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})\n",
-        workspace->config.name);
-    return editor_workspace_path_join(path, sizeof(path), workspace->directory,
+        "target_link_libraries(${PROJECT_NAME} PRIVATE ${ROHR_ENGINE_TARGET})\n"
+        "add_custom_target(${PROJECT_NAME}_assets ALL\n"
+        "    COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+        "        \"${CMAKE_SOURCE_DIR}/%s\"\n"
+        "        \"$<TARGET_FILE_DIR:${PROJECT_NAME}>/%s\"\n"
+        "    VERBATIM)\n"
+        "add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_assets)\n",
+        workspace->config.name,
+        workspace->config.asset_directory,
+        workspace->config.asset_directory);
+    return cmake_length >= 0 && (size_t)cmake_length < sizeof(cmake) &&
+        editor_workspace_path_join(path, sizeof(path), workspace->directory,
             "CMakeLists.txt") && editor_workspace_file_write(path, cmake) &&
         editor_workspace_path_join(path, sizeof(path), workspace->directory,
             ".gitignore") && editor_workspace_file_write(path, gitignore);

@@ -278,6 +278,11 @@ EngineResult rohr_physics_soft_body_torque_for_one_tick_apply(Entity soft_body, 
 SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(Entity node, JointAnchorId anchor) { return physics_soft_body_node_to_anchor_pin_create(node, anchor); }
 EntityResult rohr_physics_soft_body_beam_create(Entity soft_body, Entity node_a, Entity node_b, float stiffness, float damping) { return physics_soft_body_beam_create(soft_body, node_a, node_b, stiffness, damping); }
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam) { return physics_soft_body_beam_get(beam); }
+EngineResult rohr_physics_soft_body_beam_collision_config_set(Entity beam, SoftBodyBeamCollisionConfig config) { return physics_soft_body_beam_collision_config_set(beam, config); }
+EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam) { return physics_soft_body_beam_collision_enable(beam); }
+EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam) { return physics_soft_body_beam_collision_disable(beam); }
+EngineResult rohr_physics_soft_body_beam_collision_thickness_set(Entity beam, float thickness) { return physics_soft_body_beam_collision_thickness_set(beam, thickness); }
+EngineResult rohr_physics_soft_body_beam_collision_filter_set(Entity beam, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_beam_collision_filter_set(beam, category, collides_with); }
 EntityResult rohr_physics_soft_body_triangle_create(Entity soft_body, Entity node_a, Entity node_b, Entity node_c) { return physics_soft_body_triangle_create(soft_body, node_a, node_b, node_c); }
 SoftBodyTriangleResult rohr_physics_soft_body_triangle_get(Entity triangle) { return physics_soft_body_triangle_get(triangle); }
 EntityResult rohr_physics_joint_create(Entity a, Entity b, JointType type, Vec2D local_anchor_a, Vec2D local_anchor_b, float stiffness, float damping) {

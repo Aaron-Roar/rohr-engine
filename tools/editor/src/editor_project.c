@@ -2624,8 +2624,10 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
 }
 
 EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftBody *body,
-    EditorSoftNodeId node_a, EditorSoftNodeId node_b) {
+        EditorSoftNodeId node_a, EditorSoftNodeId node_b) {
     EditorSoftBeam *beam;
+    const EditorSoftNode *a = NULL;
+    const EditorSoftNode *b = NULL;
     bool found_a = node_a == 0;
     bool found_b = node_b == 0;
 
@@ -2633,8 +2635,14 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
             !EDITOR_ARRAY_RESERVE(body->beams, body->beam_capacity,
                 body->beam_count + 1)) return NULL;
     for(size_t i = 0; i < body->node_count; i += 1) {
-        if(body->nodes[i].id == node_a) found_a = true;
-        if(body->nodes[i].id == node_b) found_b = true;
+        if(body->nodes[i].id == node_a) {
+            found_a = true;
+            a = &body->nodes[i];
+        }
+        if(body->nodes[i].id == node_b) {
+            found_b = true;
+            b = &body->nodes[i];
+        }
     }
     if(!found_a || !found_b) return NULL;
     beam = &body->beams[body->beam_count++];
@@ -2645,6 +2653,20 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
         .node_b = node_b,
         .stiffness = 1.0f,
         .damping = 0.0f,
+        .collision_enabled = a != NULL && b != NULL &&
+            a->collision_enabled && b->collision_enabled &&
+            2.0f * fminf(a->radius, b->radius) >=
+                ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+        .collision_thickness = a != NULL && b != NULL ?
+            fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+                2.0f * fminf(a->radius, b->radius)) :
+            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+        .collision_category = a != NULL && b != NULL ?
+            a->collision_category | b->collision_category :
+            ROHR_COLLISION_CATEGORY_NONE,
+        .collision_with = a != NULL && b != NULL ?
+            a->collision_with | b->collision_with :
+            ROHR_COLLISION_CATEGORY_NONE,
         .color = UINT32_C(0xebf0f5ff),
         .visible = true
     };
@@ -2695,6 +2717,32 @@ static bool editor_soft_area_boundary_equal(const EditorSoftArea *area,
         }
     }
     return false;
+}
+
+static size_t editor_soft_area_shared_node_count_get(
+        const EditorSoftArea *area, const EditorSoftNodeId *nodes,
+        size_t count) {
+    size_t shared = 0;
+
+    if(area == NULL || nodes == NULL) return 0;
+    for(size_t i = 0; i < count; i += 1)
+        for(size_t j = 0; j < area->node_count; j += 1)
+            if(nodes[i] == area->nodes[j]) {
+                shared += 1;
+                break;
+            }
+    return shared;
+}
+
+static void editor_soft_area_style_copy(
+        EditorSoftArea *target, const EditorSoftArea *source) {
+    if(target == NULL || source == NULL) return;
+    target->graphics_layer = source->graphics_layer;
+    target->graphics_layer_inherited = source->graphics_layer_inherited;
+    target->color = source->color;
+    target->color_overridden = source->color_overridden;
+    target->visible = source->visible;
+    target->surface_enabled = source->surface_enabled;
 }
 
 static float editor_soft_area_signed_twice_get(const EditorSoftBody *body,
@@ -2796,10 +2844,23 @@ void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body
                     }
                 }
                 if(area.id == 0) {
+                    const EditorSoftArea *style = NULL;
+                    size_t most_shared = 0;
+                    for(size_t i = 0; i < previous_count; i += 1) {
+                        size_t shared = editor_soft_area_shared_node_count_get(
+                            &previous[i], nodes, node_count);
+                        if(shared > most_shared) {
+                            most_shared = shared;
+                            style = &previous[i];
+                        }
+                    }
                     area.id = project->next_soft_area_id++;
                     area.graphics_layer_inherited = true;
                     area.color = body->area_color;
                     area.visible = true;
+                    area.surface_enabled = true;
+                    if(style != NULL && most_shared >= 2)
+                        editor_soft_area_style_copy(&area, style);
                     snprintf(area.name, sizeof(area.name), "area_%u", area.id);
                 }
                 if(!EDITOR_ARRAY_RESERVE(area.nodes, area.node_capacity,

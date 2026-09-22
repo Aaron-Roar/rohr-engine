@@ -135,9 +135,30 @@ apply forces; pin and weld joints are iterative constraints. In editor
 constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
-Soft bodies own particle nodes, beams, and generated filled areas. Beams expose
-stiffness and damping. Boundary-edge contacts prevent ordinary rigid bodies
-from passing through closed soft-body boundaries and apply friction.
+Soft bodies own particle nodes, beams, and optional generated filled surfaces.
+Every beam remains a soft-body-owned constraint and owns thick-segment collision
+independently of surface triangles. On creation, collision is enabled only when
+both endpoint nodes enable collision, the node category and collide-with masks
+are combined, and thickness starts at the smaller endpoint diameter. These are
+creation defaults, not live inheritance: later node filter changes do not alter
+the beam, and node growth does not grow or re-enable it.
+
+Thickness is bounded by
+`ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN` and the current smaller endpoint
+diameter. Shrinking a node caps an oversized beam; if the endpoint maximum falls
+below the minimum, collision is disabled while the stored thickness remains at
+the engine minimum. The complete collision config setter validates before
+committing, and the individual enabled, thickness, and filter setters remain
+available for focused changes.
+
+The collision primitive is a centroid-to-centroid rectangle. For each target,
+the solver removes the portion inside an endpoint node only when that node's
+filter allows it to handle the target. This avoids duplicate node/beam response
+without preventing a differently filtered beam from reaching the endpoint.
+Beam contacts belong to the beam's stable entity handle, and endpoint ordering
+does not change the interpolated material response. Surface triangles provide
+rendering only and do not participate in collision; physical holes are simply
+open spaces in the beam topology.
 
 ## Debugging and limits
 

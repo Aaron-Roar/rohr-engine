@@ -15,14 +15,19 @@
 typedef struct SystemSoftBoundaryQuery {
     Entity node_a;
     Entity node_b;
+    EntityIndex beam_index;
     EntityIndex a;
     EntityIndex b;
     Shape shape;
     Position start;
     Position end;
+    float radius;
+    bool exclude_node_a;
+    bool exclude_node_b;
     Entity rigid_entity;
     EntityIndex rigid;
     OverlapInfo overlap;
+    Position contact_position;
     float t;
     bool solving;
     bool solved;

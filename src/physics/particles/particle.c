@@ -81,9 +81,30 @@ EngineResult physics_particle_radius_set(Entity entity, float radius) {
     geometry = physics_particle_geometry_effective_get(index);
     geometry.radius = radius;
     geometry.radius_explicit = true;
-    (void)ParticleGeometryPool_store_at(
-        &particle_geometries_pool, index, geometry);
+    if(ParticleGeometryPool_store_at(
+            &particle_geometries_pool, index, geometry).kind == ERROR_RESULT_ERROR)
+        return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
     entity_mask[index] |= ROHR_PARTICLE;
+    if(index < soft_body_nodes_pool.capacity && soft_body_nodes_pool.used[index]) {
+        soft_body_nodes[index].radius = radius;
+        for(EntityIndex beam = 0; beam < soft_body_beams_pool.capacity; beam += 1) {
+            EntityIndex other;
+            float maximum;
+            if(!soft_body_beams_pool.used[beam] ||
+                    (soft_body_beams[beam].node_a != entity &&
+                        soft_body_beams[beam].node_b != entity)) continue;
+            if(!entity_index_get(soft_body_beams[beam].node_a == entity ?
+                    soft_body_beams[beam].node_b : soft_body_beams[beam].node_a,
+                    &other) || !soft_body_nodes_pool.used[other]) continue;
+            maximum = 2.0f * fminf(radius, soft_body_nodes[other].radius);
+            if(maximum < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) {
+                soft_body_beams[beam].collision_enabled = false;
+                soft_body_beams[beam].collision_thickness =
+                    ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
+            } else if(soft_body_beams[beam].collision_thickness > maximum)
+                soft_body_beams[beam].collision_thickness = maximum;
+        }
+    }
     return error_result_value(true);
 }
 

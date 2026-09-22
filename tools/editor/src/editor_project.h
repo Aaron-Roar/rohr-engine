@@ -242,6 +242,10 @@ typedef struct EditorSoftBeam {
     EditorSoftNodeId node_b;
     float stiffness;
     float damping;
+    bool collision_enabled;
+    float collision_thickness;
+    RohrCollisionCategoryMask collision_category;
+    RohrCollisionCategoryMask collision_with;
     bool visible;
     uint32_t color;
     bool color_overridden;
@@ -258,6 +262,7 @@ typedef struct EditorSoftArea {
     uint32_t color;
     bool color_overridden;
     bool visible;
+    bool surface_enabled;
 } EditorSoftArea;
 
 #define EDITOR_SOFT_BODY_HIERARCHY_MAX \

@@ -872,10 +872,10 @@ void rohr_physics_pipeline_forces_apply(void);
 ### `rohr_physics_pipeline_integrate`
 
 ```c
-void rohr_physics_pipeline_integrate(double dt);
+EngineResult rohr_physics_pipeline_integrate(double dt);
 ```
 
- Integrates rigid-body state by dt seconds.
+ Integrates rigid-body state and reports world-boundary failures.
 
 ### `rohr_physics_pipeline_contacts_gather`
 
@@ -904,7 +904,7 @@ void rohr_physics_pipeline_constraints_solve(uint32_t iterations);
 ### `rohr_physics_pipeline_substep`
 
 ```c
-void rohr_physics_pipeline_substep(double dt);
+EngineResult rohr_physics_pipeline_substep(double dt);
 ```
 
  Runs one standard physics substep.
@@ -912,7 +912,7 @@ void rohr_physics_pipeline_substep(double dt);
 ### `rohr_physics_pipeline_update`
 
 ```c
-void rohr_physics_pipeline_update(double dt);
+EngineResult rohr_physics_pipeline_update(double dt);
 ```
 
  Runs the standard plug-and-play physics pipeline.
@@ -920,15 +920,15 @@ void rohr_physics_pipeline_update(double dt);
 ### `rohr_physics_update`
 
 ```c
-void rohr_physics_update(Tick ticks);
+EngineResult rohr_physics_update(Tick ticks);
 ```
 
- Advances physics using the supplied number of elapsed engine ticks.
+ Advances physics and returns any pipeline failure.
 
 ### `rohr_physics_dt_update`
 
 ```c
-void rohr_physics_dt_update(Time dt);
+EngineResult rohr_physics_dt_update(Time dt);
 ```
 
  Advances physics once with an explicit exceptional delta.
@@ -1148,6 +1148,14 @@ Sets an entity velocity component value.
 | `v` | Velocity value. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_physics_world_position_check`
+
+```c
+bool rohr_physics_world_position_check(Position position);
+```
+
+ Check that both coordinates are finite and inside the supported world.
 
 ### `rohr_physics_velocity_toward_position_set`
 
@@ -1428,24 +1436,77 @@ physical collision response.
 
 **Returns:** EngineResult describing success or failure.
 
-### Hitbox variants and animation bindings
-
-`rohr_physics_hitbox_at_get()` and the other `_at_` functions address variants
-by ordered index. `rohr_physics_hitbox_by_id_get()` and its matching functions
-address stable `HitboxId` values. `rohr_physics_hitbox_id_at_set()` is primarily
-for loaders and generated code restoring persistent IDs.
+### `rohr_physics_hitbox_get`
 
 ```c
-EngineResult rohr_physics_hitbox_animation_binding_set(Entity entity,
-    AnimationId animation_id, AnimationFrameId frame_id, HitboxId hitbox_id);
-EngineResult rohr_physics_hitbox_animation_binding_at_set(Entity entity,
-    size_t frame_index, size_t hitbox_index);
+ShapeResult rohr_physics_hitbox_get(Entity entity);
 ```
 
-Bindings are physics-owned. The graphics animation and frame data never store
-hitbox references. The standard physics update applies bindings before contact
-detection; custom pipelines may call
-`rohr_physics_hitbox_animation_bindings_update()` explicitly.
+ Returns the active local-space hitbox variant.
+
+### `rohr_physics_hitbox_remove`
+
+```c
+EngineResult rohr_physics_hitbox_remove(Entity entity);
+```
+
+ Removes every hitbox variant and the ROHR_HIT_BOX component.
+
+### `rohr_physics_hitbox_add`
+
+```c
+EngineResult rohr_physics_hitbox_add(Entity entity, Shape hitbox);
+```
+
+ Appends a local-space hitbox variant. The first variant becomes active.
+
+### `rohr_physics_hitbox_at_get`
+
+```c
+ShapeResult rohr_physics_hitbox_at_get(Entity entity, size_t index);
+```
+
+ Returns a local-space hitbox variant by ordered index.
+
+### `rohr_physics_hitbox_at_set`
+
+```c
+EngineResult rohr_physics_hitbox_at_set(Entity entity, size_t index, Shape hitbox);
+```
+
+ Replaces a local-space hitbox variant by ordered index.
+
+### `rohr_physics_hitbox_at_remove`
+
+```c
+EngineResult rohr_physics_hitbox_at_remove(Entity entity, size_t index);
+```
+
+ Removes one local-space hitbox variant by ordered index.
+
+### `rohr_physics_hitbox_count_get`
+
+```c
+HitboxIndexResult rohr_physics_hitbox_count_get(Entity entity);
+```
+
+ Returns the number of hitbox variants owned by an entity.
+
+### `rohr_physics_hitbox_active_index_get`
+
+```c
+HitboxIndexResult rohr_physics_hitbox_active_index_get(Entity entity);
+```
+
+ Returns the active hitbox variant index.
+
+### `rohr_physics_hitbox_active_index_set`
+
+```c
+EngineResult rohr_physics_hitbox_active_index_set(Entity entity, size_t index);
+```
+
+ Selects the hitbox variant used by the next physics tick.
 
 ### `rohr_physics_collision_filter_config_default_get`
 
@@ -1956,7 +2017,17 @@ Configures a joint entity as a damped spring between two anchors.
 EntityResult rohr_physics_soft_body_create(void);
 ```
 
- @brief Creates an empty soft-body owner entity. @return EntityResult containing the owner.
+Creates an empty soft body and its origin transform.
+
+The returned owner entity is also the body's origin and may be passed to
+
+rohr_physics_position_set and rohr_physics_orientation_set. Changing that
+
+transform translates or rotates all existing nodes without changing their
+
+topology. SoftBody.origin exposes the same entity for attachment APIs.
+
+**Returns:** EntityResult containing the owner/origin entity.
 
 ### `rohr_physics_soft_body_get`
 
@@ -1983,6 +2054,14 @@ Creates a lightweight point-mass node.
 
 **Returns:** EntityResult containing the node entity.
 
+### `rohr_physics_soft_body_node_local_create`
+
+```c
+EntityResult rohr_physics_soft_body_node_local_create( Entity soft_body, Position local_position, Mass mass_value, float radius);
+```
+
+ Creates a node from a position relative to the soft-body origin.
+
 ### `rohr_physics_soft_body_node_get`
 
 ```c
@@ -1990,6 +2069,22 @@ SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node);
 ```
 
  @brief Returns soft-body node data. @param node Node entity. @return SoftBodyNodeResult.
+
+### `rohr_physics_soft_body_node_local_position_get`
+
+```c
+PositionResult rohr_physics_soft_body_node_local_position_get(Entity node);
+```
+
+ Returns a node position relative to its soft-body origin.
+
+### `rohr_physics_soft_body_node_local_position_set`
+
+```c
+EngineResult rohr_physics_soft_body_node_local_position_set( Entity node, Position local_position);
+```
+
+ Sets a node position relative to its soft-body origin.
 
 ### `rohr_physics_soft_body_node_collision_filter_set`
 
@@ -2090,6 +2185,12 @@ EntityResult rohr_physics_soft_body_beam_create( Entity soft_body, Entity node_a
 
 Creates an elastic beam between two nodes.
 
+Initial collision settings are copied from the endpoints: collision is
+
+enabled only when both nodes can collide, filters are combined, and
+
+thickness uses the smaller endpoint diameter. They do not remain inherited.
+
 | Parameter | Description |
 | --- | --- |
 | `soft_body` | Owning soft body. |
@@ -2107,6 +2208,48 @@ SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam);
 ```
 
  @brief Returns soft-body beam data. @param beam Beam entity. @return SoftBodyBeamResult.
+
+### `rohr_physics_soft_body_beam_collision_config_set`
+
+```c
+EngineResult rohr_physics_soft_body_beam_collision_config_set( Entity beam, SoftBodyBeamCollisionConfig config);
+```
+
+Atomically replaces a beam's independent collision configuration.
+
+Thickness is clamped to the engine minimum and current endpoint maximum.
+
+### `rohr_physics_soft_body_beam_collision_enable`
+
+```c
+EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam);
+```
+
+ Enables thick-segment collision when the endpoint thickness limits allow it.
+
+### `rohr_physics_soft_body_beam_collision_disable`
+
+```c
+EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam);
+```
+
+ Disables thick-segment collision for a beam without discarding its thickness.
+
+### `rohr_physics_soft_body_beam_collision_thickness_set`
+
+```c
+EngineResult rohr_physics_soft_body_beam_collision_thickness_set( Entity beam, float thickness);
+```
+
+ Sets and resolves an explicit beam collision thickness.
+
+### `rohr_physics_soft_body_beam_collision_filter_set`
+
+```c
+EngineResult rohr_physics_soft_body_beam_collision_filter_set( Entity beam, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with );
+```
+
+ Sets the collision filters owned independently by a beam.
 
 ### `rohr_physics_soft_body_triangle_create`
 
@@ -2320,6 +2463,14 @@ size_t rohr_physics_contacts_get( Entity entity, EntityContact *results, size_t 
 
  Write up to capacity current contacts and return the number written.
 
+### `rohr_physics_update_report_get`
+
+```c
+PhysicsUpdateReport rohr_physics_update_report_get(void);
+```
+
+ Returns a snapshot of the latest physics update report.
+
 ## Graphics
 
 ### `rohr_graphics_color_hex_create`
@@ -2379,22 +2530,6 @@ Draws the frame background.
 | Parameter | Description |
 | --- | --- |
 | `color` | Background color. |
-
-### `rohr_graphics_layer_set`
-
-```c
-void rohr_graphics_layer_set(int layer);
-```
-
- Sets the ordering layer captured by subsequent draw commands.
-
-### `rohr_graphics_layer_get`
-
-```c
-int rohr_graphics_layer_get(void);
-```
-
- Returns the ordering layer used by subsequent draw commands.
 
 ### `rohr_graphics_screen_rect_draw`
 
@@ -2461,6 +2596,22 @@ void rohr_graphics_screen_clip_clear(void);
 ```
 
  Clears the active screen-space drawing clip.
+
+### `rohr_graphics_screen_clip_push`
+
+```c
+bool rohr_graphics_screen_clip_push(float x, float y, float width, float height);
+```
+
+ Pushes a nested screen-space clip intersected with the active clip.
+
+### `rohr_graphics_screen_clip_pop`
+
+```c
+void rohr_graphics_screen_clip_pop(void);
+```
+
+ Restores the previous screen-space clip.
 
 ### `rohr_graphics_screen_quad_draw`
 
@@ -2626,6 +2777,14 @@ FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
 ```
 
  @brief Loads a caller-owned font asset.
+
+### `rohr_graphics_font_default_get`
+
+```c
+FontAsset rohr_graphics_font_default_get(void);
+```
+
+ @brief Returns the engine's file-free built-in font.
 
 ### `rohr_graphics_font_destroy`
 
@@ -3341,7 +3500,7 @@ Creates an axis-aligned bounding box for a world-space shape.
 ### `rohr_system_physics_update`
 
 ```c
-void rohr_system_physics_update(double dt);
+EngineResult rohr_system_physics_update(double dt);
 ```
 
 Runs one physics-system update.

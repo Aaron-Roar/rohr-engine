@@ -29,9 +29,12 @@ developer-owned C and do not need to be authored in the editor.
    decisions remain in C.
 5. **Standalone particles** — Support reusable particle definitions and
    particle emitters in addition to particle-enabled rigid bodies.
-6. **Advanced soft-body surfaces** — Support the filled topology and surface
-   authoring needed to reproduce the examples beyond basic nodes, beams, and
-   areas.
+6. **Advanced soft-body surfaces (complete)** — Beams own independently
+   configurable thick-segment collision with per-target endpoint exclusion,
+   while generated triangles are visual-only. Areas can disable visual surface
+   generation without changing the physical openings defined by their beams,
+   with direct C, editor, JSON, generated-C, example, documentation, and
+   Linux/Windows coverage.
 7. **Input and action declarations** — Author action names and default keyboard
    or controller bindings while keeping gameplay responses in C.
 

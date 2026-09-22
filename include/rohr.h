@@ -1159,6 +1159,9 @@ SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(
 );
 /**
  * @brief Creates an elastic beam between two nodes.
+ * Initial collision settings are copied from the endpoints: collision is
+ * enabled only when both nodes can collide, filters are combined, and
+ * thickness uses the smaller endpoint diameter. They do not remain inherited.
  * @param soft_body Owning soft body.
  * @param node_a First node.
  * @param node_b Second node.
@@ -1171,6 +1174,25 @@ EntityResult rohr_physics_soft_body_beam_create(
 );
 /** @brief Returns soft-body beam data. @param beam Beam entity. @return SoftBodyBeamResult. */
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam);
+/**
+ * Atomically replaces a beam's independent collision configuration.
+ * Thickness is clamped to the engine minimum and current endpoint maximum.
+ */
+EngineResult rohr_physics_soft_body_beam_collision_config_set(
+    Entity beam, SoftBodyBeamCollisionConfig config);
+/** Enables thick-segment collision when the endpoint thickness limits allow it. */
+EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam);
+/** Disables thick-segment collision for a beam without discarding its thickness. */
+EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam);
+/** Sets and resolves an explicit beam collision thickness. */
+EngineResult rohr_physics_soft_body_beam_collision_thickness_set(
+    Entity beam, float thickness);
+/** Sets the collision filters owned independently by a beam. */
+EngineResult rohr_physics_soft_body_beam_collision_filter_set(
+    Entity beam,
+    RohrCollisionCategoryMask category,
+    RohrCollisionCategoryMask collides_with
+);
 /**
  * @brief Creates a deforming triangular surface from three nodes.
  * @param soft_body Owning soft body.

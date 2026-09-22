@@ -24,6 +24,15 @@ static EditorSoftArea *area_get(EditorSoftBody *body, EditorSoftAreaId id) {
     return NULL;
 }
 
+static void surface_set(EditorProject *project, EditorObjectId object,
+        EditorSoftBodyId body, EditorSoftAreaId area, bool enabled) {
+    EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {EDITOR_ITEM_SOFT_AREA, object, body, area, 0,
+            EDITOR_PROPERTY_SURFACE_ENABLED, EDITOR_PROPERTY_VALUE_BOOL,
+            {.boolean = enabled}}};
+    (void)editor_command_execute(project, &command);
+}
+
 static EditorSoftBeam *area_beam_get(EditorSoftBody *body,
         const EditorSoftArea *area, size_t edge) {
     EditorSoftNodeId a, b;
@@ -73,7 +82,7 @@ bool editor_soft_area_editor_create(EditorSoftAreaEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Area Color", area_color_label);
     CREATE("Beam Color", beam_color_label); CREATE("Inherit", inherit_label);
-    CREATE("Visibility", visibility_label);
+    CREATE("Visibility", visibility_label); CREATE("Surface", surface_label);
 #undef CREATE
     for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "area_%zu", i + 1);
@@ -96,6 +105,7 @@ void editor_soft_area_editor_destroy(EditorSoftAreaEditor *editor) {
     rohr_graphics_text_destroy(&editor->beam_color_label);
     rohr_graphics_text_destroy(&editor->inherit_label);
     rohr_graphics_text_destroy(&editor->visibility_label);
+    rohr_graphics_text_destroy(&editor->surface_label);
     for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->area_names[i]);
     for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1)
@@ -169,6 +179,15 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor,
                     body->id, area->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }
+    }
+    y += 38.0f;
+    {
+        bool surface = area->surface_enabled;
+        if(editor_mode_checkbox_left("editor.soft_area.surface",
+                &editor->surface_label,
+                (UIRect){context->x + 10.0f, y,
+                    context->width - 20.0f, 28.0f}, &surface))
+            surface_set(context->project, object->id, body->id, area->id, surface);
     }
     y += 38.0f;
     rohr_ui_label(&editor->area_color_label,

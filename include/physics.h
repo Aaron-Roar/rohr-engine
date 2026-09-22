@@ -343,6 +343,8 @@ typedef struct Joint {
 #define SOFT_BODY_MAX_NODES 64
 #define SOFT_BODY_MAX_BEAMS 256
 #define SOFT_BODY_MAX_TRIANGLES 128
+/** Smallest stable full thickness accepted by beam collision. */
+#define ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN 0.01f
 
 /** Entity-owned collection of soft-body topology entities. */
 typedef struct SoftBody {
@@ -368,6 +370,13 @@ typedef struct SoftBodyNode {
     bool draw_color_overridden;
 } SoftBodyNode;
 
+/** Complete collision configuration stored by a soft-body beam. */
+typedef struct SoftBodyBeamCollisionConfig {
+    bool enabled;
+    float thickness;
+    CollisionFilterConfig filter;
+} SoftBodyBeamCollisionConfig;
+
 /** Elastic connection between two soft-body nodes. */
 typedef struct SoftBodyBeam {
     Entity soft_body;
@@ -376,6 +385,11 @@ typedef struct SoftBodyBeam {
     float rest_length;
     float stiffness;
     float damping;
+    /** Full width of the centroid-to-centroid collision segment. */
+    float collision_thickness;
+    bool collision_enabled;
+    RohrCollisionCategoryMask category;
+    RohrCollisionCategoryMask collides_with;
     Color draw_color;
     bool draw_color_overridden;
 } SoftBodyBeam;
@@ -791,6 +805,17 @@ EntityResult physics_soft_body_beam_create(
     float damping
 );
 SoftBodyBeamResult physics_soft_body_beam_get(Entity beam);
+EngineResult physics_soft_body_beam_collision_config_set(
+    Entity beam, SoftBodyBeamCollisionConfig config);
+EngineResult physics_soft_body_beam_collision_enable(Entity beam);
+EngineResult physics_soft_body_beam_collision_disable(Entity beam);
+EngineResult physics_soft_body_beam_collision_thickness_set(
+    Entity beam, float thickness);
+EngineResult physics_soft_body_beam_collision_filter_set(
+    Entity beam,
+    RohrCollisionCategoryMask category,
+    RohrCollisionCategoryMask collides_with
+);
 EntityResult physics_soft_body_triangle_create(
     Entity soft_body,
     Entity node_a,

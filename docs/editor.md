@@ -311,14 +311,25 @@ bodies during editing so authored relationships remain visible.
 
 Soft bodies own nodes and beams. Nodes provide mass, radius, friction,
 restitution, gravity, particle collision filters, and color overrides. Beams
-provide stiffness, damping, endpoints, and color overrides.
+provide stiffness, damping, endpoints, color overrides, and independent
+thick-segment collision settings. A newly authored beam copies its initial
+settings from its endpoint nodes: collision is enabled only when both nodes
+enable collision, its category and collide-with masks are the unions of the
+node masks, and its thickness is the smaller endpoint diameter. These values do
+not continue to inherit. Later node-radius changes only cap an oversized beam
+or disable it when no thickness is valid; growing a node does not grow or
+re-enable an existing beam. Collision, thickness, and both filter masks remain
+individually editable in the beam panel.
 
 Closed node-and-beam loops generate colorable areas automatically. A hexagonal
 loop becomes one area; cross-section beams divide an enclosure into multiple
 independently selectable areas. Beam crossings without nodes are not topology
-and do not divide an area. Concave areas are triangulated internally for drawing
-and generated runtime physics, while the editor preserves one boundary and one
-color setting for the complete area.
+and do not divide an area. Concave areas are triangulated internally for drawing,
+while the editor preserves one boundary and one color setting for the complete
+area. Triangles never define collision. Disable an area's **Surface** option to
+leave that area visually open while keeping its authored beams and their
+independent collision settings. Physical holes are the open spaces left by the
+beam layout; disabling a visual surface does not remove boundary collision.
 
 Areas may override the parent area color and their boundary beams may override
 the parent beam color. When **Inherit** is selected, the local color control is

@@ -210,6 +210,15 @@ static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_
         joint.result.value, anchor_a.result.value, anchor_b.result.value));
 }
 
+static bool soft_beam_create(Entity body, Entity node_a, Entity node_b,
+        float stiffness, float damping, bool collision_enabled) {
+    EntityResult beam = rohr_physics_soft_body_beam_create(
+        body, node_a, node_b, stiffness, damping);
+    if(rohr_error_check(beam)) return false;
+    return collision_enabled || result_ok(
+        rohr_physics_soft_body_beam_collision_disable(beam.result.value));
+}
+
 static bool wheel_soft_body_create(Wheel *wheel, Position center) {
     EntityResult body = rohr_physics_soft_body_create();
 
@@ -249,9 +258,8 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
     }
     for(uint32_t i = 0; i < ANCHOR_NODE_COUNT; i += 1) {
         uint32_t next = (i + 1) % ANCHOR_NODE_COUNT;
-        if(rohr_error_check(rohr_physics_soft_body_beam_create(
-                    wheel->soft_body, wheel->nodes[i], wheel->nodes[next],
-                    inner_beam_stiffness, inner_beam_damping))) return false;
+        if(!soft_beam_create(wheel->soft_body, wheel->nodes[i], wheel->nodes[next],
+                    inner_beam_stiffness, inner_beam_damping, false)) return false;
     }
     for(uint32_t i = 0; i < OUTER_NODE_COUNT; i += 1) {
         uint32_t next = (i + 1) % OUTER_NODE_COUNT;
@@ -259,22 +267,22 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
         uint32_t previous_anchor =
             (anchor + ANCHOR_NODE_COUNT - 1) % ANCHOR_NODE_COUNT;
         uint32_t next_anchor = (anchor + 1) % ANCHOR_NODE_COUNT;
-        if(rohr_error_check(rohr_physics_soft_body_beam_create(
+        if(!soft_beam_create(
                     wheel->soft_body, wheel->nodes[OUTER_NODE_START + i],
                     wheel->nodes[OUTER_NODE_START + next], outer_beam_stiffness,
-                    outer_beam_damping)) ||
-                rohr_error_check(rohr_physics_soft_body_beam_create(
+                    outer_beam_damping, true) ||
+                !soft_beam_create(
                     wheel->soft_body, wheel->nodes[anchor],
                     wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping)) ||
-                rohr_error_check(rohr_physics_soft_body_beam_create(
+                    support_beam_damping, false) ||
+                !soft_beam_create(
                     wheel->soft_body, wheel->nodes[next_anchor],
                     wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping)) ||
-                rohr_error_check(rohr_physics_soft_body_beam_create(
+                    support_beam_damping, false) ||
+                !soft_beam_create(
                     wheel->soft_body, wheel->nodes[previous_anchor],
                     wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping)) ||
+                    support_beam_damping, false) ||
                 rohr_error_check(rohr_physics_soft_body_triangle_create(
                     wheel->soft_body, wheel->nodes[anchor],
                     wheel->nodes[OUTER_NODE_START + i],

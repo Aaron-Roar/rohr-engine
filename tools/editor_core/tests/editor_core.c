@@ -823,6 +823,18 @@ static int property_commands_test(void) {
         EDITOR_PROPERTY_NODE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT, number, 9.0f);
     PROPERTY_SET(EDITOR_ITEM_SOFT_BEAM, soft_body->id, beam->id, 0,
         EDITOR_PROPERTY_DAMPING, EDITOR_PROPERTY_VALUE_FLOAT, number, 0.25f);
+    PROPERTY_SET(EDITOR_ITEM_SOFT_BEAM, soft_body->id, beam->id, 0,
+        EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS, EDITOR_PROPERTY_VALUE_FLOAT,
+        number, 100.0f);
+    if(fabsf(beam->collision_thickness - 8.0f) > 0.001f) return 1;
+    PROPERTY_SET(EDITOR_ITEM_SOFT_NODE, soft_body->id, second_node->id, 0,
+        EDITOR_PROPERTY_NODE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT, number, 1.0f);
+    if(fabsf(beam->collision_thickness - 2.0f) > 0.001f) return 1;
+    PROPERTY_SET(EDITOR_ITEM_SOFT_NODE, soft_body->id, second_node->id, 0,
+        EDITOR_PROPERTY_NODE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT, number, 4.0f);
+    if(fabsf(beam->collision_thickness - 2.0f) > 0.001f) return 1;
+    PROPERTY_SET(EDITOR_ITEM_SOFT_BEAM, soft_body->id, beam->id, 0,
+        EDITOR_PROPERTY_COLLISION, EDITOR_PROPERTY_VALUE_BOOL, boolean, false);
 #undef PROPERTY_SET
     if(rigid_body->mass_value != 5.0f || !rigid_body->particle ||
             rigid_body->particle_radius != 14.0f || rigid_body->particle_auto_fit ||
@@ -833,6 +845,8 @@ static int property_commands_test(void) {
             rigid_body->border_color != UINT32_C(0x11223344) ||
             !hitbox->vertices[0].position_locked || joint->kind != EDITOR_JOINT_WELD ||
             joint->stiffness != 12.0f || anchor->position_follows_body ||
+            beam->collision_enabled ||
+            fabsf(beam->collision_thickness - 2.0f) > 0.001f ||
             node->friction != 0.75f || node->radius != 9.0f ||
             beam->damping != 0.25f) return 1;
     if(editor_result_check(editor_command_cli_parse(9, node_arguments,
@@ -874,6 +888,7 @@ static int relationship_commands_test(void) {
     EditorSoftBody *soft_body;
     EditorSoftNode *node_a;
     EditorSoftNode *node_b;
+    EditorSoftNode *node_c;
     EditorSoftBeam *beam;
     EditorCommand command;
     EditorCommand parsed;
@@ -893,10 +908,12 @@ static int relationship_commands_test(void) {
     soft_body = editor_project_soft_body_add(&project, object);
     node_a = editor_project_soft_node_add(&project, soft_body, (Position){0});
     node_b = editor_project_soft_node_add(&project, soft_body, (Position){1.0f, 0.0f});
+    node_c = editor_project_soft_node_add(&project, soft_body, (Position){2.0f, 0.0f});
     beam = editor_project_soft_beam_add(&project, soft_body, 0, 0);
     if(object == NULL || body == NULL || anchor_a == NULL || anchor_b == NULL ||
             joint == NULL || soft_body == NULL || node_a == NULL || node_b == NULL ||
-            beam == NULL) return 1;
+            node_c == NULL || beam == NULL) return 1;
+    node_c->radius = 0.001f;
 #define RELATIONSHIP_SET(relation_kind, relation_parent, relation_item, \
         relation_endpoint, relation_target) do { \
     command = (EditorCommand){.type = EDITOR_COMMAND_RELATIONSHIP_SET, \
@@ -914,6 +931,14 @@ static int relationship_commands_test(void) {
         body->id);
     RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 0,
         node_a->id);
+    RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 1,
+        node_b->id);
+    beam->collision_enabled = true;
+    beam->collision_thickness = 8.0f;
+    RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 1,
+        node_c->id);
+    if(beam->collision_enabled || beam->collision_thickness !=
+            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) return 1;
     RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 1,
         node_b->id);
 #undef RELATIONSHIP_SET
@@ -942,6 +967,9 @@ static int collision_filter_commands_test(void) {
     EditorRigidBody *body;
     EditorSoftBody *soft_body;
     EditorSoftNode *node;
+    EditorSoftNode *other_node;
+    EditorSoftBeam *beam;
+    EditorSoftBeam *disabled_beam;
     EditorCommand command;
     EditorCommand parsed;
     EditorCommandResult result;
@@ -952,13 +980,33 @@ static int collision_filter_commands_test(void) {
     char *node_arguments[] = {"rohr-cli", "soft-node", "filter",
         "project.rohr.json", "1", "1", "1", "collide-with", "player_body",
         "true"};
+    char *beam_arguments[] = {"rohr-cli", "soft-beam", "filter",
+        "project.rohr.json", "1", "1", "1", "category", "player_body",
+        "true"};
 
     editor_project_init(&project);
     object = editor_project_object_add(&project, (Position){0});
     body = editor_project_rigid_body_add(&project, object);
     soft_body = editor_project_soft_body_add(&project, object);
     node = editor_project_soft_node_add(&project, soft_body, (Position){0});
-    if(object == NULL || body == NULL || soft_body == NULL || node == NULL) return 1;
+    other_node = editor_project_soft_node_add(
+        &project, soft_body, (Position){10.0f, 0.0f});
+    beam = node == NULL || other_node == NULL ? NULL :
+        editor_project_soft_beam_add(
+            &project, soft_body, node->id, other_node->id);
+    if(object == NULL || body == NULL || soft_body == NULL || node == NULL ||
+            other_node == NULL || beam == NULL) return 1;
+    if(!beam->collision_enabled || beam->collision_thickness != 8.0f ||
+            beam->collision_category != UINT64_C(1) ||
+            beam->collision_with != UINT64_C(1)) return 1;
+    other_node->collision_enabled = false;
+    disabled_beam = editor_project_soft_beam_add(
+        &project, soft_body, node->id, other_node->id);
+    other_node->collision_enabled = true;
+    if(disabled_beam == NULL || disabled_beam->collision_enabled ||
+            disabled_beam->collision_thickness != 8.0f ||
+            disabled_beam->collision_category != UINT64_C(1) ||
+            disabled_beam->collision_with != UINT64_C(1)) return 1;
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_MASK_ADD};
     snprintf(command.data.collision_mask_add.name,
         sizeof(command.data.collision_mask_add.name), "%s", "Player Body");
@@ -986,7 +1034,17 @@ static int collision_filter_commands_test(void) {
             .filter = EDITOR_COLLISION_FILTER_COLLIDE_WITH,
             .mask = "player_body", .enabled = true}};
     if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
-            (node->collision_with & (UINT64_C(1) << 1)) == 0) return 1;
+            (node->collision_with & (UINT64_C(1) << 1)) == 0 ||
+            beam->collision_with != UINT64_C(1)) return 1;
+    command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_FILTER_SET,
+        .data.collision_filter_set = {.kind = EDITOR_ITEM_SOFT_BEAM,
+            .object = object->id, .parent = soft_body->id, .item = beam->id,
+            .filter = EDITOR_COLLISION_FILTER_CATEGORY,
+            .mask = "player_body", .enabled = true}};
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
+            (beam->collision_category & (UINT64_C(1) << 1)) == 0 ||
+            editor_result_check(editor_command_cli_write(&command,
+                "project.rohr.json", cli_text, sizeof(cli_text)))) return 1;
     if(editor_result_check(editor_command_cli_parse(5, add_arguments, &path,
                 &parsed)) || parsed.type != EDITOR_COMMAND_COLLISION_MASK_ADD ||
             editor_result_check(editor_command_cli_parse(10, node_arguments, &path,
@@ -994,7 +1052,12 @@ static int collision_filter_commands_test(void) {
             parsed.data.collision_filter_set.kind != EDITOR_ITEM_SOFT_NODE ||
             parsed.data.collision_filter_set.filter !=
                 EDITOR_COLLISION_FILTER_COLLIDE_WITH ||
-            !parsed.data.collision_filter_set.enabled) return 1;
+            !parsed.data.collision_filter_set.enabled ||
+            editor_result_check(editor_command_cli_parse(10, beam_arguments,
+                &path, &parsed)) ||
+            parsed.data.collision_filter_set.kind != EDITOR_ITEM_SOFT_BEAM ||
+            parsed.data.collision_filter_set.filter !=
+                EDITOR_COLLISION_FILTER_CATEGORY) return 1;
     snprintf(command.data.collision_filter_set.mask,
         sizeof(command.data.collision_filter_set.mask), "%s", "missing");
     if(editor_command_execute(&project, &command).kind != ERROR_RESULT_ERROR) return 1;

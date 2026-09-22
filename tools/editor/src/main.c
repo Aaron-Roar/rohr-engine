@@ -886,14 +886,15 @@ static float editor_panel_content_height_get(const EditorProject *project,
             for(size_t area_index = 0; area_index < body->area_count;
                     area_index += 1)
                 if(body->areas[area_index].id == state->selected_soft_area)
-                    return fmaxf(height, 346.0f +
+                    return fmaxf(height, 384.0f +
                         (float)state->soft_area_candidate_count * 32.0f +
                         (float)body->areas[area_index].node_count * 34.0f);
         }
     }
-    if(state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
-            state->mode == EDITOR_VIEWPORT_SOFT_BEAM)
-        return height + 124.0f;
+    if(state->mode == EDITOR_VIEWPORT_SOFT_NODE) return height + 124.0f;
+    if(state->mode == EDITOR_VIEWPORT_SOFT_BEAM)
+        return height + 232.0f +
+            (float)(project->collision_mask_count + 1) * 30.0f;
     return height;
 }
 
@@ -1448,6 +1449,20 @@ static bool editor_soft_node_collision_menu_draw(void *opaque,
     if(context == NULL) return false;
     return editor_collision_mask_menu_draw(id_prefix, project, active_masks,
         EDITOR_ITEM_SOFT_NODE, object, body, node, filter, context->font,
+        context->labels, context->caches, context->name,
+        context->name_capacity, context->name_field, context->add_label,
+        x, y, width, field_active, row_count);
+}
+
+static bool editor_soft_beam_collision_menu_draw(void *opaque,
+        const char *id_prefix, EditorProject *project, uint64_t *active_masks,
+        EditorObjectId object, EditorSoftBodyId body, EditorSoftBeamId beam,
+        EditorCollisionFilterKind filter, float x, float y, float width,
+        bool *field_active, size_t *row_count) {
+    EditorCollisionMenuContext *context = opaque;
+    if(context == NULL) return false;
+    return editor_collision_mask_menu_draw(id_prefix, project, active_masks,
+        EDITOR_ITEM_SOFT_BEAM, object, body, beam, filter, context->font,
         context->labels, context->caches, context->name,
         context->name_capacity, context->name_field, context->add_label,
         x, y, width, field_active, row_count);
@@ -3141,6 +3156,12 @@ int main(void) {
                 .picker = &color_picker, .project = &project};
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
+            EditorCollisionMenuContext collision_context = {
+                .font = &font, .labels = collision_mask_labels,
+                .caches = collision_mask_cache, .name = collision_mask_name,
+                .name_capacity = sizeof(collision_mask_name),
+                .name_field = &collision_mask_name_field,
+                .add_label = &add_label};
             field_editing = editor_soft_beam_editor_draw(&soft_beam_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -3151,7 +3172,9 @@ int main(void) {
                     .delete_y_get = editor_mode_delete_y_get,
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
-                    .delete_footer = true});
+                    .delete_footer = true,
+                    .primary_button = hierarchy_primary},
+                editor_soft_beam_collision_menu_draw, &collision_context);
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_AREA) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};

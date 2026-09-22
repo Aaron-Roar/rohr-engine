@@ -159,6 +159,37 @@ static EditorSoftBeam *editor_command_soft_beam_get(EditorSoftBody *body,
     return NULL;
 }
 
+static bool editor_command_soft_beam_collision_maximum_get(
+        EditorSoftBody *body, const EditorSoftBeam *beam, float *maximum) {
+    EditorSoftNode *a;
+    EditorSoftNode *b;
+    if(body == NULL || beam == NULL || maximum == NULL) return false;
+    a = editor_command_soft_node_get(body, beam->node_a);
+    b = editor_command_soft_node_get(body, beam->node_b);
+    if(a == NULL || b == NULL) return false;
+    *maximum = 2.0f * fminf(a->radius, b->radius);
+    return isfinite(*maximum) && *maximum > 0.0f;
+}
+
+static void editor_command_soft_beam_collision_constrain(
+        EditorSoftBody *body, EditorSoftBeam *beam) {
+    float maximum;
+
+    if(!editor_command_soft_beam_collision_maximum_get(body, beam, &maximum) ||
+            maximum < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) {
+        beam->collision_enabled = false;
+        beam->collision_thickness =
+            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
+        return;
+    }
+    if(beam->collision_thickness <
+            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN)
+        beam->collision_thickness =
+            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
+    if(beam->collision_thickness > maximum)
+        beam->collision_thickness = maximum;
+}
+
 static EditorAnimatedSprite *editor_command_animated_sprite_get(EditorObject *object,
         EditorAnimatedSpriteId id) {
     return editor_project_animated_sprite_get(object, id);
@@ -1183,8 +1214,15 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     node->collision_enabled = set->value.boolean;
                 else if(set->property == EDITOR_PROPERTY_NODE_RADIUS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
-                        set->value.number > 0.0f)
+                        set->value.number > 0.0f) {
                     node->radius = set->value.number;
+                    for(size_t i = 0; i < body->beam_count; i += 1) {
+                        EditorSoftBeam *beam = &body->beams[i];
+                        if(beam->node_a != node->id && beam->node_b != node->id)
+                            continue;
+                        editor_command_soft_beam_collision_constrain(body, beam);
+                    }
+                }
                 else if(set->property == EDITOR_PROPERTY_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
                     node->color = set->value.integer;
@@ -1210,12 +1248,33 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftBeam *beam = editor_command_soft_beam_get(body, set->item);
                 if(beam == NULL) return editor_command_not_found("soft beam", set->item);
+                float maximum = 0.0f;
+                bool collision_valid =
+                    editor_command_soft_beam_collision_maximum_get(
+                        body, beam, &maximum) &&
+                    maximum >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
                 if(set->property == EDITOR_PROPERTY_STIFFNESS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) beam->stiffness = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_DAMPING &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) beam->damping = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_COLLISION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    if(set->value.boolean && !collision_valid) goto property_invalid;
+                    if(set->value.boolean)
+                        beam->collision_thickness = fminf(maximum,
+                            fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+                                beam->collision_thickness));
+                    beam->collision_enabled = set->value.boolean;
+                }
+                else if(set->property == EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
+                        set->value.number > 0.0f && collision_valid) {
+                    beam->collision_thickness = fminf(maximum,
+                        fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+                            set->value.number));
+                }
                 else if(set->property == EDITOR_PROPERTY_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
                     beam->color = set->value.integer;
@@ -1228,11 +1287,14 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 if(body != NULL) for(size_t i = 0; i < body->area_count; i += 1)
                     if(body->areas[i].id == set->item) area = &body->areas[i];
                 if(area == NULL) return editor_command_not_found("soft area", set->item);
-                if(set->property != EDITOR_PROPERTY_COLOR ||
-                        set->value_kind != EDITOR_PROPERTY_VALUE_UINT)
-                    goto property_invalid;
-                area->color = set->value.integer;
-                area->color_overridden = true;
+                if(set->property == EDITOR_PROPERTY_COLOR &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
+                    area->color = set->value.integer;
+                    area->color_overridden = true;
+                } else if(set->property == EDITOR_PROPERTY_SURFACE_ENABLED &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                    area->surface_enabled = set->value.boolean;
+                else goto property_invalid;
             } else goto property_invalid;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
 property_invalid:
@@ -1272,6 +1334,7 @@ property_invalid:
                     return editor_command_not_found("soft node", set->target);
                 if(set->endpoint == 0) beam->node_a = set->target;
                 else beam->node_b = set->target;
+                editor_command_soft_beam_collision_constrain(body, beam);
             } else if(set->kind == EDITOR_RELATIONSHIP_ENTITY_PARENT) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     set->item);
@@ -1349,10 +1412,19 @@ property_invalid:
                 if(node == NULL) return editor_command_not_found("soft node", set->item);
                 filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
                     &node->collision_category : &node->collision_with;
+            } else if(set->kind == EDITOR_ITEM_SOFT_BEAM) {
+                EditorSoftBody *body = editor_command_soft_body_get(
+                    object, set->parent);
+                EditorSoftBeam *beam = editor_command_soft_beam_get(
+                    body, set->item);
+                if(beam == NULL)
+                    return editor_command_not_found("soft beam", set->item);
+                filter = set->filter == EDITOR_COLLISION_FILTER_CATEGORY ?
+                    &beam->collision_category : &beam->collision_with;
             } else {
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
-                    "collision filters are only supported by rigid bodies and soft nodes")
+                    "collision filters are only supported by rigid bodies, soft nodes, and soft beams")
                         .result.error);
             }
             bit = UINT64_C(1) << index;
@@ -1910,6 +1982,8 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_FLOAT_PROPERTY("rest-length", EDITOR_PROPERTY_REST_LENGTH)
     EDITOR_FLOAT_PROPERTY("stiffness", EDITOR_PROPERTY_STIFFNESS)
     EDITOR_FLOAT_PROPERTY("damping", EDITOR_PROPERTY_DAMPING)
+    EDITOR_FLOAT_PROPERTY("collision-thickness",
+        EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS)
     EDITOR_FLOAT_PROPERTY("length", EDITOR_PROPERTY_LINE_LENGTH)
     EDITOR_FLOAT_PROPERTY("particle-radius", EDITOR_PROPERTY_PARTICLE_RADIUS)
     EDITOR_UINT_PROPERTY("particle-rigid-vertices",
@@ -1929,6 +2003,7 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
     EDITOR_BOOL_PROPERTY("rotation-locked", EDITOR_PROPERTY_ROTATION_LOCKED)
     EDITOR_BOOL_PROPERTY("collision", EDITOR_PROPERTY_COLLISION)
+    EDITOR_BOOL_PROPERTY("surface-enabled", EDITOR_PROPERTY_SURFACE_ENABLED)
     EDITOR_BOOL_PROPERTY("particle", EDITOR_PROPERTY_PARTICLE)
     EDITOR_BOOL_PROPERTY("particle-auto-fit", EDITOR_PROPERTY_PARTICLE_AUTO_FIT)
     EDITOR_BOOL_PROPERTY("hitbox-frame-binding",
@@ -1992,6 +2067,9 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_REST_LENGTH: return "rest-length";
         case EDITOR_PROPERTY_STIFFNESS: return "stiffness";
         case EDITOR_PROPERTY_DAMPING: return "damping";
+        case EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS:
+            return "collision-thickness";
+        case EDITOR_PROPERTY_SURFACE_ENABLED: return "surface-enabled";
         case EDITOR_PROPERTY_POSITION_FOLLOWS_BODY: return "position-follows-body";
         case EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY: return "rotation-follows-body";
         case EDITOR_PROPERTY_LINE_LENGTH: return "length";
@@ -2380,8 +2458,10 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
                     !editor_command_uint_parse(arguments[5], &set->item))
                 goto collision_filter_invalid;
             filter_index = 6;
-        } else if(strcmp(domain, "soft-node") == 0 && count == 10) {
-            set->kind = EDITOR_ITEM_SOFT_NODE;
+        } else if((strcmp(domain, "soft-node") == 0 ||
+                strcmp(domain, "soft-beam") == 0) && count == 10) {
+            set->kind = strcmp(domain, "soft-node") == 0 ?
+                EDITOR_ITEM_SOFT_NODE : EDITOR_ITEM_SOFT_BEAM;
             if(!editor_command_uint_parse(arguments[4], &set->object) ||
                     !editor_command_uint_parse(arguments[5], &set->parent) ||
                     !editor_command_uint_parse(arguments[6], &set->item))
@@ -3622,7 +3702,8 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 "category" : "collide-with";
             const char *enabled = set->enabled ? "true" : "false";
             if((set->kind != EDITOR_ITEM_RIGID_BODY &&
-                        set->kind != EDITOR_ITEM_SOFT_NODE) ||
+                        set->kind != EDITOR_ITEM_SOFT_NODE &&
+                        set->kind != EDITOR_ITEM_SOFT_BEAM) ||
                     (set->filter != EDITOR_COLLISION_FILTER_CATEGORY &&
                         set->filter != EDITOR_COLLISION_FILTER_COLLIDE_WITH) ||
                     !editor_command_text_append(output, output_capacity, &used, "filter ") ||

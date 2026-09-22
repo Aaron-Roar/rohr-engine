@@ -407,8 +407,9 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &radius_value},
         &editor->radius_field, (UIRect){context->x + 78.0f,
             physics_row_y[1], context->width - 88.0f, 26.0f}, &field_style);
-    if(radius_result.changed)
-        node->radius = radius_value <= 0.0f ? 0.1f : radius_value;
+    if(radius_result.changed) float_set(context->project, object->id,
+        body->id, node->id, EDITOR_PROPERTY_NODE_RADIUS,
+        radius_value <= 0.0f ? 0.1f : radius_value);
     {
         bool gravity = node->gravity_enabled;
         if(checkbox("editor.soft_node.gravity", &editor->gravity_label,

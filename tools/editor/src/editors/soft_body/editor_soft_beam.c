@@ -32,6 +32,15 @@ static void float_set(EditorProject *project, EditorObjectId object,
     (void)editor_command_execute(project, &command);
 }
 
+static void bool_set(EditorProject *project, EditorObjectId object,
+        EditorSoftBodyId body, EditorSoftBeamId beam,
+        EditorPropertyKind property, bool value) {
+    EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {EDITOR_ITEM_SOFT_BEAM, object, body, beam, 0,
+            property, EDITOR_PROPERTY_VALUE_BOOL, {.boolean = value}}};
+    (void)editor_command_execute(project, &command);
+}
+
 static void relationship_set(EditorProject *project, EditorObjectId object,
         EditorSoftBodyId body, EditorSoftBeamId beam, uint32_t endpoint,
         EditorSoftNodeId node) {
@@ -49,12 +58,15 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Node A", node_a_label);
     CREATE("Node B", node_b_label); CREATE("Stiffness", stiffness_label);
-    CREATE("Damping", damping_label); CREATE("Beam Color", color_label);
+    CREATE("Damping", damping_label); CREATE("Collision", collision_label);
+    CREATE("Thickness", thickness_label);
+    CREATE("Collision Category", collision_category_label);
+    CREATE("Collides With", collide_with_label); CREATE("Beam Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("None", none_label);
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
-    CREATE("", damping_field);
+    CREATE("", damping_field); CREATE("", thickness_field);
 #undef CREATE
     for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "beam_%zu", i + 1);
@@ -74,11 +86,14 @@ void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(node_a_label); DESTROY(node_b_label);
-    DESTROY(stiffness_label); DESTROY(damping_label); DESTROY(color_label);
+    DESTROY(stiffness_label); DESTROY(damping_label); DESTROY(collision_label);
+    DESTROY(thickness_label); DESTROY(collision_category_label);
+    DESTROY(collide_with_label);
+    DESTROY(color_label);
     DESTROY(inherit_label); DESTROY(none_label); DESTROY(visibility_label);
     DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(stiffness_field);
-    DESTROY(damping_field);
+    DESTROY(damping_field); DESTROY(thickness_field);
 #undef DESTROY
     for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->beam_names[i]);
@@ -88,14 +103,20 @@ void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
 }
 
 bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
-        const EditorModeContext *context) {
+        const EditorModeContext *context,
+        EditorSoftBeamCollisionMenuFunction collision_menu,
+        void *collision_menu_context) {
     EditorObject *object;
     EditorSoftBody *body;
     EditorSoftBeam *beam;
     size_t beam_index;
     char name[EDITOR_OBJECT_NAME_MAX];
-    float stiffness, damping;
-    UIFieldResult name_result, stiffness_result, damping_result;
+    float stiffness, damping, thickness;
+    float filter_list_y = 412.0f;
+    float color_y;
+    float layer_y;
+    bool field_active = false;
+    UIFieldResult name_result, stiffness_result, damping_result, thickness_result;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
     object = editor_project_selected_get(context->project);
@@ -190,27 +211,96 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     if(damping_result.changed) float_set(context->project, object->id,
         body->id, beam->id, EDITOR_PROPERTY_DAMPING, fmaxf(0.0f, damping));
     {
+        bool collision = beam->collision_enabled;
+        if(editor_mode_checkbox_left("editor.soft_beam.collision",
+                &editor->collision_label,
+                (UIRect){context->x + 10.0f, 268.0f,
+                    context->width - 20.0f, 28.0f}, &collision)) {
+            bool_set(context->project, object->id, body->id, beam->id,
+                EDITOR_PROPERTY_COLLISION, collision);
+        }
+    }
+    thickness = beam->collision_thickness;
+    rohr_ui_label(&editor->thickness_label,
+        (UIRect){context->x + 8.0f, 304.0f, 90.0f, 26.0f});
+    thickness_result = editor_mode_field("editor.soft_beam.thickness",
+        (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &thickness},
+        &editor->thickness_field, (UIRect){context->x + 100.0f, 304.0f,
+            context->width - 110.0f, 26.0f}, NULL);
+    if(thickness_result.changed) float_set(context->project, object->id,
+        body->id, beam->id, EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS,
+        fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, thickness));
+    {
+        float row_x = context->x + 10.0f;
+        float row_width = context->width - 20.0f;
+        if(rohr_ui_button("editor.soft_beam.collision_category",
+                &editor->collision_category_label,
+                (UIRect){row_x, 340.0f, row_width, 28.0f}, NULL).clicked) {
+            editor->collision_category_open = !editor->collision_category_open;
+            editor->collide_with_open = false;
+        }
+        rohr_ui_border((UIRect){row_x, 340.0f, row_width, 28.0f},
+            2.0f, (Color){0, 0, 0, 255});
+        if(rohr_ui_button("editor.soft_beam.collide_with",
+                &editor->collide_with_label,
+                (UIRect){row_x, 376.0f, row_width, 28.0f}, NULL).clicked) {
+            editor->collide_with_open = !editor->collide_with_open;
+            editor->collision_category_open = false;
+        }
+        rohr_ui_border((UIRect){row_x, 376.0f, row_width, 28.0f},
+            2.0f, (Color){0, 0, 0, 255});
+        if(editor->collision_category_open && collision_menu != NULL) {
+            size_t rows = 0;
+            if(!collision_menu(collision_menu_context,
+                    "editor.soft_beam.collision_category.mask", context->project,
+                    &beam->collision_category, object->id, body->id, beam->id,
+                    EDITOR_COLLISION_FILTER_CATEGORY, row_x, filter_list_y,
+                    row_width, &field_active, &rows)) return field_active;
+        }
+        if(editor->collide_with_open && collision_menu != NULL) {
+            size_t rows = 0;
+            if(!collision_menu(collision_menu_context,
+                    "editor.soft_beam.collide_with.mask", context->project,
+                    &beam->collision_with, object->id, body->id, beam->id,
+                    EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x, filter_list_y,
+                    row_width, &field_active, &rows)) return field_active;
+        }
+        if((editor->collision_category_open || editor->collide_with_open) &&
+                context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+            Position pointer = rohr_graphics_mouse_screen_position_get();
+            float menu_bottom = filter_list_y +
+                (float)(context->project->collision_mask_count + 1) * 30.0f;
+            if(pointer.x < row_x || pointer.x > row_x + row_width ||
+                    pointer.y < 340.0f || pointer.y > menu_bottom)
+                editor->collision_category_open = editor->collide_with_open = false;
+        }
+    }
+    color_y = filter_list_y +
+        ((editor->collision_category_open || editor->collide_with_open) ?
+            (float)(context->project->collision_mask_count + 1) * 30.0f : 0.0f);
+    layer_y = color_y + 36.0f;
+    {
         bool inherit = !beam->color_overridden;
         float field_width = fmaxf(34.0f, context->width - 196.0f);
         if(inherit) beam->color = body->beam_color;
         rohr_ui_label(&editor->color_label,
-            (UIRect){context->x + 8.0f, 268.0f, 90.0f, 26.0f});
+            (UIRect){context->x + 8.0f, color_y, 90.0f, 26.0f});
         if(editor_mode_checkbox_left("editor.soft_beam.color_inherit",
                 &editor->inherit_label,
                 (UIRect){context->x + context->width - 92.0f,
-                    268.0f, 82.0f, 26.0f}, &inherit)) {
+                    color_y, 82.0f, 26.0f}, &inherit)) {
             beam->color_overridden = !inherit;
             beam->color = body->beam_color;
         }
         (void)editor_mode_color_swatch("editor.soft_beam.color", &beam->color,
-            inherit, (UIRect){context->x + 100.0f, 268.0f,
+            inherit, (UIRect){context->x + 100.0f, color_y,
                 field_width, 26.0f}, context, EDITOR_ITEM_SOFT_BEAM,
             object->id, body->id, beam->id, EDITOR_PROPERTY_COLOR);
     }
     bool layer_active = context->layer_control != NULL &&
         editor_mode_layer_control_draw(context->layer_control,
             "editor.soft_beam", context->project, &beam->graphics_layer,
-            &beam->graphics_layer_inherited, context->x, 304.0f,
+            &beam->graphics_layer_inherited, context->x, layer_y,
             context->width);
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {
@@ -222,5 +312,5 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
             (void)context->delete_open_item(context->delete_context);
     }
     return name_result.active || stiffness_result.active || damping_result.active ||
-        layer_active;
+        thickness_result.active || layer_active || field_active;
 }
