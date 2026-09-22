@@ -107,6 +107,34 @@ static bool file_json_number_replace(const char *path, const char *key,
     return replaced;
 }
 
+static bool file_text_replace_first(const char *path, const char *before,
+        const char *after) {
+    char *contents, *at, *replacement;
+    size_t size, prefix_length, before_length, after_length, suffix_length;
+    bool replaced;
+    if(path == NULL || before == NULL || before[0] == '\0' || after == NULL)
+        return false;
+    contents = SDL_LoadFile(path, &size);
+    if(contents == NULL) return false;
+    at = strstr(contents, before);
+    if(at == NULL) { SDL_free(contents); return false; }
+    before_length = strlen(before);
+    after_length = strlen(after);
+    prefix_length = (size_t)(at - contents);
+    suffix_length = size - prefix_length - before_length;
+    replacement = SDL_malloc(prefix_length + after_length + suffix_length + 1);
+    if(replacement == NULL) { SDL_free(contents); return false; }
+    memcpy(replacement, contents, prefix_length);
+    memcpy(replacement + prefix_length, after, after_length);
+    memcpy(replacement + prefix_length + after_length, at + before_length,
+        suffix_length);
+    replacement[prefix_length + after_length + suffix_length] = '\0';
+    replaced = file_replace(path, replacement);
+    SDL_free(replacement);
+    SDL_free(contents);
+    return replaced;
+}
+
 static bool file_property_line_remove_after(const char *path,
         const char *section, const char *property) {
     char *contents;
@@ -194,8 +222,38 @@ int main(void) {
             workspace_project.physics_substeps = 4;
             workspace_project.physics_gravity = (Acceleration){12.0f, 345.0f};
             workspace_project.physics_solver_iterations = 16;
+            EditorInputActionMap *gameplay =
+                editor_project_input_action_map_add(&workspace_project,
+                    "gameplay");
+            EditorInputAction *move = gameplay == NULL ? NULL :
+                editor_project_input_action_add(&workspace_project, gameplay->id,
+                    "move", INPUT_ACTION_AXIS_2D);
+            EditorInputActionId move_id = move == NULL ? 0 : move->id;
+            EditorInputAction *click = gameplay == NULL ? NULL :
+                editor_project_input_action_add(&workspace_project, gameplay->id,
+                    "click", INPUT_ACTION_BUTTON);
+            EditorInputActionId click_id = click == NULL ? 0 : click->id;
             if(hud == NULL || workspace_project.layout_viewport_count == 0 ||
-                    workspace_project.layout_viewports[0].ui_item_count == 0) {
+                    workspace_project.layout_viewports[0].ui_item_count == 0 ||
+                    gameplay == NULL || move == NULL || click == NULL ||
+                    !editor_project_input_action_map_set(&workspace_project,
+                        gameplay->id, "gameplay", false) ||
+                    !editor_project_input_binding_add(&workspace_project,
+                        gameplay->id, move_id,
+                        (InputBinding){.source = INPUT_BINDING_KEY,
+                            .input.key = SDL_SCANCODE_W, .scale = 1.0f,
+                            .direction = {0.0f, -1.0f}}) ||
+                    !editor_project_input_binding_add(&workspace_project,
+                        gameplay->id, move_id,
+                        (InputBinding){.source = INPUT_BINDING_MOUSE_MOTION,
+                            .input.axis_component = INPUT_AXIS_COMPONENT_XY,
+                            .modifiers = SDL_KMOD_SHIFT, .scale = 0.25f,
+                            .inverted = true}) ||
+                    !editor_project_input_binding_add(&workspace_project,
+                        gameplay->id, click_id,
+                        (InputBinding){.source = INPUT_BINDING_MOUSE_BUTTON,
+                            .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT,
+                            .scale = 1.0f})) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
@@ -291,6 +349,19 @@ int main(void) {
                 fabsf(loaded_project.physics_gravity.x - 12.0f) > 0.001f ||
                 fabsf(loaded_project.physics_gravity.y - 345.0f) > 0.001f ||
                 loaded_project.physics_solver_iterations != 16 ||
+                loaded_project.input_action_map_count != 1 ||
+                strcmp(loaded_project.input_action_maps[0].name,
+                    "gameplay") != 0 ||
+                loaded_project.input_action_maps[0].enabled ||
+                loaded_project.input_action_maps[0].action_count != 2 ||
+                loaded_project.input_action_maps[0].actions[0].type !=
+                    INPUT_ACTION_AXIS_2D ||
+                loaded_project.input_action_maps[0].actions[0].binding_count != 2 ||
+                loaded_project.input_action_maps[0].actions[0].bindings[1].source !=
+                    INPUT_BINDING_MOUSE_MOTION ||
+                !loaded_project.input_action_maps[0].actions[0].bindings[1].inverted ||
+                loaded_project.input_action_maps[0].actions[1].bindings[0].input.
+                    mouse_button != INPUT_MOUSE_BUTTON_LEFT ||
                 strcmp(loaded_project.objects[0].name, "Starter") != 0 ||
                 !position_equal(loaded_project.objects[0].position,
                     (Position){0.0f, 0.0f}) ||
@@ -357,7 +428,17 @@ int main(void) {
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||
-                !file_contains(path, "project_objects_destroy_all(&objects")) {
+                !file_contains(path, "project_objects_destroy_all(&objects") ||
+                !file_contains(path, "rohr_input_frame_begin()") ||
+                !file_contains(path,
+                    "rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)")) {
+            workspace_fixture_remove(fixture);
+            return 1;
+        }
+        snprintf(path, sizeof(path), "%s/src/generated/project_objects.h", fixture);
+        if(!file_contains(path, "typedef struct ProjectInput") ||
+                !file_contains(path, "typedef struct ProjectObjects") ||
+                file_occurrence_count(path, "ProjectInput input;") != 1) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -367,7 +448,19 @@ int main(void) {
                 !file_contains(path, "rohr_physics_substeps_set(4)") ||
                 !file_contains(path,
                     "rohr_physics_gravity_set((Acceleration){12.000000000f, 345.000000000f})") ||
-                !file_contains(path, "rohr_physics_solver_iterations_set(16)")) {
+                !file_contains(path, "rohr_physics_solver_iterations_set(16)") ||
+                !file_contains(path, "project_input_create") ||
+                !file_contains(path,
+                    "rohr_input_action_map_create(\"gameplay\")") ||
+                !file_contains(path,
+                    "rohr_input_action_map_enabled_set(input->map_gameplay_") ||
+                !file_contains(path,
+                    "rohr_input_action_create(input->map_gameplay_") ||
+                !file_contains(path,
+                    "rohr_input_action_bindings_default_set") ||
+                !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||
+                !file_contains(path, ".modifiers = (SDL_Keymod)3") ||
+                !file_contains(path, ".inverted = true")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1296,6 +1389,33 @@ int main(void) {
     }
 
     {
+        static EditorProject input_project;
+        static EditorProject ignored_project;
+        EditorInputActionMap *map;
+        EditorInputAction *action;
+        const char *path = "editor_project_invalid_input.json";
+        EditorResult result;
+
+        editor_project_init(&input_project);
+        map = editor_project_input_action_map_add(&input_project, "gameplay");
+        action = map == NULL ? NULL : editor_project_input_action_add(
+            &input_project, map->id, "jump", INPUT_ACTION_BUTTON);
+        if(action == NULL || !editor_project_input_binding_add(
+                &input_project, map->id, action->id,
+                (InputBinding){.source = INPUT_BINDING_KEY,
+                    .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                !editor_project_save(&input_project, path) ||
+                !file_text_replace_first(path, "\"source\": \"key\"",
+                    "\"source\": \"mouse_motion\"")) return 1;
+        result = editor_project_load(&ignored_project, path);
+        (void)remove(path);
+        editor_project_destroy(&input_project);
+        if(!editor_result_check(result) ||
+                result.result.error.code != EDITOR_ERROR_SCHEMA_INVALID)
+            return 1;
+    }
+
+    {
         static EditorProject reference_project;
         static EditorProject ignored_project;
         EditorObject *reference_object;
@@ -1602,6 +1722,32 @@ int main(void) {
                 layer_body->graphics_layer.value != 91 ||
                 layer_ui->graphics_layer != 0 || layer_ui->layer != 91) return 1;
         editor_project_destroy(&layer_project);
+    }
+
+    {
+        EditorProject input_project, input_clone;
+        EditorInputActionMap *map;
+        EditorInputAction *action;
+        editor_project_init(&input_project);
+        editor_project_init(&input_clone);
+        map = editor_project_input_action_map_add(&input_project, "gameplay");
+        action = map == NULL ? NULL : editor_project_input_action_add(
+            &input_project, map->id, "jump", INPUT_ACTION_BUTTON);
+        if(map == NULL || action == NULL ||
+                !editor_project_input_binding_add(&input_project, map->id,
+                    action->id, (InputBinding){.source = INPUT_BINDING_KEY,
+                        .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                !editor_project_clone(&input_clone, &input_project)) return 1;
+        input_clone.input_action_maps[0].actions[0].bindings[0].input.key =
+            SDL_SCANCODE_RETURN;
+        snprintf(input_clone.input_action_maps[0].actions[0].name,
+            sizeof(input_clone.input_action_maps[0].actions[0].name), "confirm");
+        if(input_project.input_action_maps[0].actions[0].bindings[0].input.key !=
+                    SDL_SCANCODE_SPACE ||
+                strcmp(input_project.input_action_maps[0].actions[0].name,
+                    "jump") != 0) return 1;
+        editor_project_destroy(&input_project);
+        editor_project_destroy(&input_clone);
     }
 
     editor_project_selection_clear(&project);

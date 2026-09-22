@@ -162,6 +162,16 @@ The editor defaults to **Auto**, matching the current window or fullscreen
 output without letterboxing. Fixed 16:9, 16:10, 4:3, and 21:9 options are also
 available at 720p, 1080p, and 1440p logical heights.
 
+The **Settings > Input** menu authors named action maps, Button, Axis 1D, and
+Axis 2D actions, and their default keyboard or pointer bindings. Maps, actions,
+and bindings can be added, removed, selected, and edited; all changes use the
+normal undo/redo history. The physical input field uses SDL scancode values for
+keys, Rohr `InputMouseButton` values for pointer buttons, and
+`InputAxisComponent` values for motion or wheel sources. Generated C exposes
+stable map and action handles through `ProjectInput`. Gameplay reads those
+handles and owns responses; callbacks are not serialized. See [Input](input.md)
+for runtime mapping, runtime user overrides, and CLI syntax.
+
 The bottom-left **Notification Log** button is always available. Up to three
 new notifications appear above it, with a fourth replacing the oldest visible
 notification. The log retains the latest 100 notifications independently of

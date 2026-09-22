@@ -10,6 +10,7 @@
 #include "entity_components.h"
 #include "physics.h"
 #include "graphics.h"
+#include "input/input_internal.h"
 
 SDL_Event sdl_event;
 
@@ -86,6 +87,7 @@ EngineResult engine_init(void) {
     engine_tick_accumulator = 0.0;
     engine_tick_count = 0;
 
+    input_init();
     engine_paused = false;
     engine_running = true;
     return error_result_value(true);
@@ -157,6 +159,7 @@ EngineResult engine_time_per_tick_set(Time value) {
 Time engine_time_per_tick_get(void) { return engine_time_per_tick; }
 
 void engine_shutdown(void) {
+    input_shutdown();
     game_state_runtime_reset();
     physics_broadphase_destroy();
     graphics_tables_destroy();
@@ -168,6 +171,7 @@ void engine_shutdown(void) {
 
 SDL_Event engine_event_poll(void) {
     while (SDL_PollEvent(&sdl_event)) {
+        input_event_add(&sdl_event);
         return sdl_event;
     }
     return (SDL_Event) {0};

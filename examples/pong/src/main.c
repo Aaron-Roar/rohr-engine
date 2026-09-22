@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "game_components.h"
 #include "example_runtime.h"
+#include "example_input.h"
 #include <stdio.h>
 
 #define PRINT_ENGINE_ERROR(result_value) \
@@ -201,9 +202,8 @@ static EngineResult pong_constrain_paddle(
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    KeyboardState keyboard = {0};
-    Controller left_controller = rohr_controller_wasd_default_get();
-    Controller right_controller = rohr_controller_arrows_default_get();
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action, debug_action, left_move_action, right_move_action;
     Entity wall_bottom;
     Entity wall_top;
     Entity center_line;
@@ -227,33 +227,38 @@ int main(void) {
     int serve_direction = 1;
     Time fire_expires_at = 0.0;
 
-    if(!rohr_controller_axis_add(
-        &left_controller,
-        "movement",
-        (ControllerAxisBinding){
-            .positive_x = SDLK_W,
-            .negative_x = SDLK_S,
-            .positive_y = SDLK_A,
-            .negative_y = SDLK_D,
-        }
-    )) return 1;
-    if(!rohr_controller_axis_add(
-        &right_controller,
-        "movement",
-        (ControllerAxisBinding){
-            .positive_x = SDLK_UP,
-            .negative_x = SDLK_DOWN,
-            .positive_y = SDLK_LEFT,
-            .negative_y = SDLK_RIGHT,
-        }
-    )) return 1;
-
     {
         EngineResult init_result = rohr_engine_init();
         if(rohr_error_check(init_result)) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
         }
+    }
+    {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
+            1.0f, (Vec2D){0});
+        InputBinding left_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_W, 1.0f, (Vec2D){1, 0}),
+            example_input_key_binding(SDL_SCANCODE_S, 1.0f, (Vec2D){-1, 0}),
+            example_input_key_binding(SDL_SCANCODE_A, 1.0f, (Vec2D){0, 1}),
+            example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0, -1})};
+        InputBinding right_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_UP, 1.0f, (Vec2D){1, 0}),
+            example_input_key_binding(SDL_SCANCODE_DOWN, 1.0f, (Vec2D){-1, 0}),
+            example_input_key_binding(SDL_SCANCODE_LEFT, 1.0f, (Vec2D){0, 1}),
+            example_input_key_binding(SDL_SCANCODE_RIGHT, 1.0f, (Vec2D){0, -1})};
+        if(!example_input_map_create("pong", &input_map) ||
+                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+                    &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
+                !example_input_action_create(input_map, "left_move",
+                    INPUT_ACTION_AXIS_2D, left_bindings, 4, &left_move_action) ||
+                !example_input_action_create(input_map, "right_move",
+                    INPUT_ACTION_AXIS_2D, right_bindings, 4, &right_move_action))
+            goto fail;
     }
     {
         EngineResult tick_result = rohr_engine_time_per_tick_set(1.0 / 120.0);
@@ -441,23 +446,25 @@ int main(void) {
         Tick ticks_advanced;
         bool exit_requested = false;
 
-        rohr_controller_key_states_update(&keyboard);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            KeyboardEvent key_event =
-                rohr_controller_keyboard_event_capture(&event);
-            rohr_controller_key_event_add(&keyboard, key_event);
-            if(key_event.keycode == SDLK_B &&
-                    key_event.state == KEY_STATE_PRESSED) {
-                broadphase_debug = !broadphase_debug;
-                rohr_graphics_aabb_tree_debug_set(broadphase_debug);
-                rohr_graphics_contacts_debug_set(broadphase_debug);
-            }
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
+        if(rohr_input_action_button_pressed_check(debug_action)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
+        }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
-        left_axis = rohr_controller_axis_get(&keyboard, &left_controller, "movement");
-        right_axis = rohr_controller_axis_get(&keyboard, &right_controller, "movement");
+                rohr_input_action_button_pressed_check(exit_action)) break;
+        InputAxis2DResult left_result =
+            rohr_input_action_axis_2d_get(left_move_action);
+        InputAxis2DResult right_result =
+            rohr_input_action_axis_2d_get(right_move_action);
+        left_axis = rohr_error_check(left_result) ? (Vec2D){0} :
+            left_result.result.value;
+        right_axis = rohr_error_check(right_result) ? (Vec2D){0} :
+            right_result.result.value;
         EngineResult left_velocity_result = rohr_physics_velocity_set(
             paddle_left,
             (Velocity){
@@ -595,6 +602,8 @@ int main(void) {
     (void)rohr_camera_destroy(right_camera);
     game_components_clear(ball);
     game_components_shutdown();
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -607,6 +616,8 @@ fail:
     if(left_camera != CAMERA_INVALID) (void)rohr_camera_active_set(left_camera);
     if(right_camera != CAMERA_INVALID) (void)rohr_camera_destroy(right_camera);
     game_components_shutdown();
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

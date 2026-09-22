@@ -1320,6 +1320,60 @@ int main(void) {
         callback_history = NULL;
     }
 
+    {
+        EditorInputActionMapId map_id;
+        EditorInputActionId action_id;
+        editor_history_reset(&history);
+        callback_history = &history;
+        editor_command_executing_callback_set(history_begin, NULL);
+        editor_command_finished_callback_set(history_finish, NULL);
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_ADD,
+            .data.input_map = {.name = "gameplay", .enabled = true}};
+        result = editor_command_execute(&project, &command);
+        assert(result.kind == ERROR_RESULT_VALUE &&
+            project.input_action_map_count == 1);
+        map_id = result.result.object;
+        assert(editor_history_undo(&history) &&
+            project.input_action_map_count == 0);
+        assert(editor_history_redo(&history) &&
+            project.input_action_map_count == 1 &&
+            project.input_action_maps[0].id == map_id);
+
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_ADD,
+            .data.input_action = {.map = map_id, .name = "jump",
+                .type = INPUT_ACTION_BUTTON}};
+        result = editor_command_execute(&project, &command);
+        assert(result.kind == ERROR_RESULT_VALUE &&
+            project.input_action_maps[0].action_count == 1);
+        action_id = result.result.object;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_ADD,
+            .data.input_binding = {.map = map_id, .action = action_id,
+                .binding = {.source = INPUT_BINDING_KEY,
+                    .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}}};
+        result = editor_command_execute(&project, &command);
+        assert(result.kind == ERROR_RESULT_VALUE &&
+            project.input_action_maps[0].actions[0].binding_count == 1);
+        assert(editor_history_undo(&history) &&
+            project.input_action_maps[0].actions[0].binding_count == 0);
+        assert(editor_history_redo(&history) &&
+            project.input_action_maps[0].actions[0].binding_count == 1 &&
+            project.input_action_maps[0].actions[0].bindings[0].input.key ==
+                SDL_SCANCODE_SPACE);
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_SET,
+            .data.input_map = {.map = map_id, .name = "player",
+                .enabled = false}};
+        result = editor_command_execute(&project, &command);
+        assert(result.kind == ERROR_RESULT_VALUE &&
+            strcmp(project.input_action_maps[0].name, "player") == 0 &&
+            !project.input_action_maps[0].enabled);
+        assert(editor_history_undo(&history) &&
+            strcmp(project.input_action_maps[0].name, "gameplay") == 0 &&
+            project.input_action_maps[0].enabled);
+        editor_command_executing_callback_set(NULL, NULL);
+        editor_command_finished_callback_set(NULL, NULL);
+        callback_history = NULL;
+    }
+
     editor_viewport_state_destroy(&viewport);
     editor_history_destroy(&history);
     return 0;

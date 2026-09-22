@@ -17,7 +17,8 @@ typedef enum EditorHistoryActionKind {
     EDITOR_HISTORY_ACTION_COLLISION,
     EDITOR_HISTORY_ACTION_SPRITES,
     EDITOR_HISTORY_ACTION_OBJECT_ORDER,
-    EDITOR_HISTORY_ACTION_UI
+    EDITOR_HISTORY_ACTION_UI,
+    EDITOR_HISTORY_ACTION_INPUT
 } EditorHistoryActionKind;
 
 typedef enum EditorHistoryAggregateKind {
@@ -60,6 +61,54 @@ struct EditorHistoryUiChange {
     EditorViewportUiDefinitionId next_definition_id;
     EditorUiFontId next_font_id;
 };
+
+struct EditorHistoryInputChange {
+    EditorInputActionMap *maps;
+    size_t map_count;
+    EditorInputActionMapId next_map_id;
+    EditorInputActionId next_action_id;
+};
+
+static void editor_history_input_destroy(EditorHistoryInputChange *change) {
+    if(change == NULL) return;
+    for(size_t i = 0; i < change->map_count; i += 1)
+        free(change->maps[i].actions);
+    free(change->maps);
+    free(change);
+}
+
+static EditorHistoryInputChange *editor_history_input_capture(
+        const EditorProject *project) {
+    EditorHistoryInputChange *change;
+    if(project == NULL) return NULL;
+    change = calloc(1, sizeof(*change));
+    if(change == NULL) return NULL;
+    change->map_count = project->input_action_map_count;
+    change->next_map_id = project->next_input_action_map_id;
+    change->next_action_id = project->next_input_action_id;
+    if(change->map_count > 0) {
+        change->maps = calloc(change->map_count, sizeof(*change->maps));
+        if(change->maps == NULL) goto fail;
+    }
+    for(size_t i = 0; i < change->map_count; i += 1) {
+        const EditorInputActionMap *source = &project->input_action_maps[i];
+        EditorInputActionMap *destination = &change->maps[i];
+        *destination = *source;
+        destination->actions = NULL;
+        destination->action_capacity = source->action_count;
+        if(source->action_count > 0) {
+            destination->actions = malloc(source->action_count *
+                sizeof(*destination->actions));
+            if(destination->actions == NULL) goto fail;
+            memcpy(destination->actions, source->actions,
+                source->action_count * sizeof(*destination->actions));
+        }
+    }
+    return change;
+fail:
+    editor_history_input_destroy(change);
+    return NULL;
+}
 
 typedef struct EditorHistoryObjectOrderChange {
     EditorObjectId *ids;
@@ -226,6 +275,7 @@ typedef struct EditorHistoryAction {
         EditorHistorySpriteChange *sprites;
         EditorHistoryObjectOrderChange *order;
         EditorHistoryUiChange *ui;
+        EditorHistoryInputChange *input;
     } data;
 } EditorHistoryAction;
 
@@ -593,6 +643,12 @@ static void editor_history_entry_destroy(EditorHistoryEntry *entry) {
                 editor_history_ui_destroy(entry->commands[i].forward.data.ui);
             if(entry->commands[i].inverse.kind == EDITOR_HISTORY_ACTION_UI)
                 editor_history_ui_destroy(entry->commands[i].inverse.data.ui);
+            if(entry->commands[i].forward.kind == EDITOR_HISTORY_ACTION_INPUT)
+                editor_history_input_destroy(
+                    entry->commands[i].forward.data.input);
+            if(entry->commands[i].inverse.kind == EDITOR_HISTORY_ACTION_INPUT)
+                editor_history_input_destroy(
+                    entry->commands[i].inverse.data.input);
     }
     free(entry->commands);
     free(entry);
@@ -701,6 +757,40 @@ ui_fail:
             free(viewports[i].ui_items);
         }
         free(viewports); free(definitions); free(fonts);
+        return;
+    }
+    if(action->kind == EDITOR_HISTORY_ACTION_INPUT) {
+        const EditorHistoryInputChange *change = action->data.input;
+        EditorInputActionMap *maps = NULL;
+        if(change == NULL) return;
+        if(change->map_count > 0) {
+            maps = calloc(change->map_count, sizeof(*maps));
+            if(maps == NULL) return;
+        }
+        for(size_t i = 0; i < change->map_count; i += 1) {
+            maps[i] = change->maps[i];
+            maps[i].actions = NULL;
+            maps[i].action_capacity = change->maps[i].action_count;
+            if(change->maps[i].action_count > 0) {
+                maps[i].actions = malloc(change->maps[i].action_count *
+                    sizeof(*maps[i].actions));
+                if(maps[i].actions == NULL) {
+                    for(size_t j = 0; j < i; j += 1) free(maps[j].actions);
+                    free(maps);
+                    return;
+                }
+                memcpy(maps[i].actions, change->maps[i].actions,
+                    change->maps[i].action_count * sizeof(*maps[i].actions));
+            }
+        }
+        for(size_t i = 0; i < project->input_action_map_count; i += 1)
+            free(project->input_action_maps[i].actions);
+        free(project->input_action_maps);
+        project->input_action_maps = maps;
+        project->input_action_map_count = change->map_count;
+        project->input_action_map_capacity = change->map_count;
+        project->next_input_action_map_id = change->next_map_id;
+        project->next_input_action_id = change->next_action_id;
         return;
     }
     if(action->kind == EDITOR_HISTORY_ACTION_AGGREGATE) {
@@ -847,6 +937,44 @@ static bool editor_history_command_entry_append(EditorHistoryEntry *entry,
     entry->memory = sizeof(*entry) +
         entry->command_count * sizeof(*entry->commands);
     return true;
+}
+
+static size_t editor_history_input_memory_get(
+        const EditorHistoryInputChange *change) {
+    size_t size = change == NULL ? 0 : sizeof(*change) +
+        change->map_count * sizeof(*change->maps);
+    if(change != NULL) for(size_t i = 0; i < change->map_count; i += 1)
+        size += change->maps[i].action_count * sizeof(*change->maps[i].actions);
+    return size;
+}
+
+static bool editor_history_input_entry_append(EditorHistoryEntry *entry,
+        EditorHistoryInputChange *forward, EditorHistoryInputChange *inverse) {
+    EditorHistoryCommandPair *commands;
+    if(entry == NULL || forward == NULL || inverse == NULL) return false;
+    commands = realloc(entry->commands,
+        (entry->command_count + 1) * sizeof(*commands));
+    if(commands == NULL) return false;
+    entry->commands = commands;
+    entry->commands[entry->command_count++] = (EditorHistoryCommandPair){
+        .forward = {.kind = EDITOR_HISTORY_ACTION_INPUT, .data.input = forward},
+        .inverse = {.kind = EDITOR_HISTORY_ACTION_INPUT, .data.input = inverse}};
+    entry->memory += sizeof(*commands) +
+        editor_history_input_memory_get(forward) +
+        editor_history_input_memory_get(inverse);
+    return true;
+}
+
+static EditorHistoryEntry *editor_history_input_entry_create(
+        EditorHistoryInputChange *forward, EditorHistoryInputChange *inverse) {
+    EditorHistoryEntry *entry = calloc(1, sizeof(*entry));
+    if(entry == NULL) return NULL;
+    entry->memory = sizeof(*entry);
+    if(!editor_history_input_entry_append(entry, forward, inverse)) {
+        free(entry);
+        return NULL;
+    }
+    return entry;
 }
 
 static EditorHistoryEntry *editor_history_object_entry_create(
@@ -1204,6 +1332,7 @@ void editor_history_destroy(EditorHistory *history) {
     editor_history_aggregate_destroy(history->pending_aggregate);
     editor_history_collision_destroy(history->pending_collision);
     editor_history_sprites_destroy(history->pending_sprites);
+    editor_history_input_destroy(history->pending_input);
     editor_history_ui_destroy(history->pending_ui);
     editor_history_entry_destroy(history->transaction_commands);
     memset(history, 0, sizeof(*history));
@@ -1221,6 +1350,8 @@ void editor_history_reset(EditorHistory *history) {
     history->pending_collision = NULL;
     editor_history_sprites_destroy(history->pending_sprites);
     history->pending_sprites = NULL;
+    editor_history_input_destroy(history->pending_input);
+    history->pending_input = NULL;
     editor_history_ui_destroy(history->pending_ui);
     history->pending_ui = NULL;
     history->pending_command_valid = false;
@@ -1245,10 +1376,17 @@ void editor_history_command_begin(EditorHistory *history,
     history->pending_collision = NULL;
     editor_history_sprites_destroy(history->pending_sprites);
     history->pending_sprites = NULL;
+    editor_history_input_destroy(history->pending_input);
+    history->pending_input = NULL;
     history->pending_command_valid = false;
     if(history->transaction_active &&
             history->transaction_commands_suppressed) return;
     if(project == NULL || !editor_history_command_record_check(command)) return;
+    if(command->type >= EDITOR_COMMAND_INPUT_MAP_ADD &&
+            command->type <= EDITOR_COMMAND_INPUT_BINDING_SET) {
+        history->pending_input = editor_history_input_capture(project);
+        return;
+    }
     if(command->type == EDITOR_COMMAND_COLLISION_MASK_ADD) {
         history->pending_collision = editor_history_collision_capture(project);
         return;
@@ -1356,6 +1494,15 @@ void editor_history_command_finish(EditorHistory *history,
                     history->pending_sprites))
                 editor_history_sprites_destroy(after);
             else history->pending_sprites = NULL;
+        } else if(history->pending_input != NULL && command != NULL &&
+                result != NULL && result->kind == ERROR_RESULT_VALUE) {
+            EditorHistoryInputChange *after =
+                editor_history_input_capture(history->project);
+            if(after == NULL || !editor_history_input_entry_append(
+                    history->transaction_commands, after,
+                    history->pending_input))
+                editor_history_input_destroy(after);
+            else history->pending_input = NULL;
         } else if(history->pending_aggregate != NULL && command != NULL && result != NULL &&
                 result->kind == ERROR_RESULT_VALUE) {
             EditorHistoryAggregateChange *after = editor_history_aggregate_recapture(
@@ -1379,6 +1526,8 @@ void editor_history_command_finish(EditorHistory *history,
         history->pending_collision = NULL;
         editor_history_sprites_destroy(history->pending_sprites);
         history->pending_sprites = NULL;
+        editor_history_input_destroy(history->pending_input);
+        history->pending_input = NULL;
         history->pending_command_valid = false;
         return;
     }
@@ -1420,6 +1569,19 @@ void editor_history_command_finish(EditorHistory *history,
             history->pending_sprites);
         if(entry != NULL) history->pending_sprites = NULL;
         else editor_history_sprites_destroy(after);
+        if(entry != NULL && editor_history_stack_push(history->undo,
+                &history->undo_count, entry))
+            editor_history_stack_clear(history->redo, &history->redo_count);
+        else editor_history_entry_destroy(entry);
+        goto finish;
+    }
+    if(history->pending_input != NULL && command != NULL && result != NULL &&
+            result->kind == ERROR_RESULT_VALUE) {
+        EditorHistoryInputChange *after =
+            editor_history_input_capture(history->project);
+        entry = editor_history_input_entry_create(after, history->pending_input);
+        if(entry != NULL) history->pending_input = NULL;
+        else editor_history_input_destroy(after);
         if(entry != NULL && editor_history_stack_push(history->undo,
                 &history->undo_count, entry))
             editor_history_stack_clear(history->redo, &history->redo_count);
@@ -1483,6 +1645,8 @@ finish:
     history->pending_collision = NULL;
     editor_history_sprites_destroy(history->pending_sprites);
     history->pending_sprites = NULL;
+    editor_history_input_destroy(history->pending_input);
+    history->pending_input = NULL;
     history->pending_command_valid = false;
 }
 

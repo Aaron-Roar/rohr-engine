@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -454,8 +455,8 @@ int main(void) {
     Entity chassis;
     Entity cabin;
     Wheel wheels[WHEEL_COUNT] = {0};
-    KeyboardState keyboard = {0};
-    Controller controller = rohr_controller_default_get();
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action, debug_action, torque_action;
     Tick zoom_end_tick = 0;
     Tick camera_return_end_tick = 0;
     bool collision_zoom_started = false;
@@ -465,15 +466,26 @@ int main(void) {
     ViewportId viewport = VIEWPORT_INVALID;
 
     if(!example_use_executable_directory() || !result_ok(rohr_engine_init())) return 1;
+    {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
+            1.0f, (Vec2D){0});
+        InputBinding torque_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_A, -1.0f, (Vec2D){0}),
+            example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0})};
+        if(!example_input_map_create("truck", &input_map) ||
+                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+                    &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
+                !example_input_action_create(input_map, "torque",
+                    INPUT_ACTION_AXIS_1D, torque_bindings, 2, &torque_action))
+            goto fail;
+    }
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
             !result_ok(rohr_physics_substeps_set(4)) ||
             !result_ok(rohr_graphics_start())) goto fail;
-    if(!rohr_controller_axis_add(&controller, "torque", (ControllerAxisBinding){
-                .positive_x = SDLK_D,
-                .negative_x = SDLK_A,
-                .positive_y = SDLK_UNKNOWN,
-                .negative_y = SDLK_UNKNOWN
-            })) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
     for(uint32_t i = 0; i < LEVEL_WALL_COUNT; i += 1) {
@@ -549,21 +561,17 @@ int main(void) {
         SDL_Event event;
         bool exit_requested = false;
 
-        rohr_controller_key_states_update(&keyboard);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            KeyboardEvent key_event =
-                rohr_controller_keyboard_event_capture(&event);
-            rohr_controller_key_event_add(&keyboard, key_event);
-            if(key_event.keycode == SDLK_B &&
-                    key_event.state == KEY_STATE_PRESSED) {
-                broadphase_debug = !broadphase_debug;
-                rohr_graphics_aabb_tree_debug_set(broadphase_debug);
-                rohr_graphics_contacts_debug_set(broadphase_debug);
-            }
-            if(event.type == SDL_EVENT_QUIT ||
-                    rohr_controller_key_pressed_get(
-                        &keyboard, SDLK_ESCAPE)) exit_requested = true;
+            if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
+        if(rohr_input_action_button_pressed_check(debug_action)) {
+            broadphase_debug = !broadphase_debug;
+            rohr_graphics_aabb_tree_debug_set(broadphase_debug);
+            rohr_graphics_contacts_debug_set(broadphase_debug);
+        }
+        if(rohr_input_action_button_pressed_check(exit_action))
+            exit_requested = true;
         if(exit_requested) break;
         {
             Tick ticks = rohr_system_tick_update();
@@ -587,10 +595,12 @@ int main(void) {
                 collision_slow_motion_active = false;
             }
             if(ticks > 0) {
-                Vec2D torque_axis = rohr_controller_axis_get(
-                    &keyboard, &controller, "torque");
+                InputAxis1DResult torque_result =
+                    rohr_input_action_axis_1d_get(torque_action);
+                float torque_axis = rohr_error_check(torque_result) ? 0.0f :
+                    torque_result.result.value;
                 if(!result_ok(rohr_physics_torque_for_one_tick_apply(
-                            wheels[0].disk, -torque_axis.x * control_torque))) goto fail;
+                            wheels[0].disk, -torque_axis * control_torque))) goto fail;
             }
             if(rohr_error_check(rohr_physics_update(ticks))) goto fail;
             if(!collision_zoom_started) {
@@ -615,6 +625,8 @@ int main(void) {
         rohr_graphics_show();
     }
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -622,6 +634,8 @@ int main(void) {
 fail:
     fprintf(stderr, "soft-body example failed\n");
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

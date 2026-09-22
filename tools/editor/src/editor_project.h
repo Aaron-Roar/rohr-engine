@@ -55,6 +55,28 @@ typedef uint32_t EditorViewportUiItemId;
 typedef uint32_t EditorViewportUiDefinitionId;
 typedef uint32_t EditorUiFontId;
 typedef uint32_t EditorGraphicsLayerId;
+typedef uint32_t EditorInputActionMapId;
+typedef uint32_t EditorInputActionId;
+
+#define EDITOR_INPUT_ACTION_MAP_INVALID UINT32_C(0)
+#define EDITOR_INPUT_ACTION_INVALID UINT32_C(0)
+
+typedef struct EditorInputAction {
+    EditorInputActionId id;
+    char name[ROHR_INPUT_NAME_MAX];
+    InputActionType type;
+    InputBinding bindings[ROHR_INPUT_BINDING_LIMIT];
+    size_t binding_count;
+} EditorInputAction;
+
+typedef struct EditorInputActionMap {
+    EditorInputActionMapId id;
+    char name[ROHR_INPUT_NAME_MAX];
+    bool enabled;
+    EditorInputAction *actions;
+    size_t action_count;
+    size_t action_capacity;
+} EditorInputActionMap;
 
 typedef struct EditorGraphicsLayer {
     EditorGraphicsLayerId id;
@@ -591,6 +613,9 @@ typedef struct EditorProject {
     EditorViewportUiDefinition *ui_definitions;
     size_t ui_definition_count;
     size_t ui_definition_capacity;
+    EditorInputActionMap *input_action_maps;
+    size_t input_action_map_count;
+    size_t input_action_map_capacity;
     EditorObjectId next_id;
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
@@ -610,8 +635,41 @@ typedef struct EditorProject {
     EditorUiFontId next_ui_font_id;
     EditorGraphicsLayerId next_graphics_layer_id;
     EditorViewportUiDefinitionId next_ui_definition_id;
+    EditorInputActionMapId next_input_action_map_id;
+    EditorInputActionId next_input_action_id;
     EditorObjectId selected;
 } EditorProject;
+
+EditorInputActionMap *editor_project_input_action_map_add(EditorProject *project,
+    const char *name);
+EditorInputActionMap *editor_project_input_action_map_get(EditorProject *project,
+    EditorInputActionMapId id);
+const EditorInputActionMap *editor_project_input_action_map_const_get(
+    const EditorProject *project, EditorInputActionMapId id);
+bool editor_project_input_action_map_set(EditorProject *project,
+    EditorInputActionMapId id, const char *name, bool enabled);
+bool editor_project_input_action_map_remove(EditorProject *project,
+    EditorInputActionMapId id);
+EditorInputAction *editor_project_input_action_add(EditorProject *project,
+    EditorInputActionMapId map, const char *name, InputActionType type);
+EditorInputAction *editor_project_input_action_get(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId id);
+const EditorInputAction *editor_project_input_action_const_get(
+    const EditorProject *project, EditorInputActionMapId map,
+    EditorInputActionId id);
+bool editor_project_input_action_set(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId id, const char *name,
+    InputActionType type);
+bool editor_project_input_action_remove(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId id);
+bool editor_project_input_binding_add(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId action,
+    InputBinding binding);
+bool editor_project_input_binding_set(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId action, size_t index,
+    InputBinding binding);
+bool editor_project_input_binding_remove(EditorProject *project,
+    EditorInputActionMapId map, EditorInputActionId action, size_t index);
 
 EditorGraphicsLayer *editor_project_graphics_layer_add(EditorProject *project,
     const char *name, int value);

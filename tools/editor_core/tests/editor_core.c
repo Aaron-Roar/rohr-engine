@@ -13,6 +13,78 @@
 
 static EditorCommandResult observed_creation;
 
+static int input_cli_commands_test(void) {
+    EditorProject project;
+    EditorCommand command;
+    EditorCommand parsed;
+    EditorCommandResult executed;
+    EditorResult result;
+    const char *path;
+    char serialized[1024];
+    char *map_add[] = {"rohr-cli", "--project", "input.json",
+        "--input-map", "gameplay", "add", "true"};
+    char *action_add[] = {"rohr-cli", "--project", "input.json",
+        "--input-map", "gameplay", "--input-action", "move", "add",
+        "axis-2d"};
+    char *binding_add[] = {"rohr-cli", "--project", "input.json",
+        "--input-map", "gameplay", "--input-action", "move", "binding-add",
+        "key", "W", "3", "0.5", "true", "0", "-1"};
+    editor_project_init(&project);
+    result = editor_command_cli_standard_parse(&project, 7, map_add, &path,
+        &command);
+    if(editor_result_check(result) || strcmp(path, "input.json") != 0 ||
+            command.type != EDITOR_COMMAND_INPUT_MAP_ADD) goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            project.input_action_map_count != 1) goto fail;
+    result = editor_command_cli_standard_parse(&project, 9, action_add, &path,
+        &command);
+    if(editor_result_check(result) ||
+            command.type != EDITOR_COMMAND_INPUT_ACTION_ADD ||
+            command.data.input_action.type != INPUT_ACTION_AXIS_2D) goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            project.input_action_maps[0].action_count != 1) goto fail;
+    result = editor_command_cli_standard_parse(&project, 15, binding_add, &path,
+        &command);
+    if(editor_result_check(result) ||
+            command.type != EDITOR_COMMAND_INPUT_BINDING_ADD ||
+            command.data.input_binding.binding.input.key != SDL_SCANCODE_W ||
+            command.data.input_binding.binding.modifiers != (SDL_Keymod)3 ||
+            command.data.input_binding.binding.scale != 0.5f ||
+            !command.data.input_binding.binding.inverted) goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            project.input_action_maps[0].actions[0].binding_count != 1)
+        goto fail;
+    result = editor_command_cli_standard_write(&project, &command, &executed,
+        "input.json", serialized, sizeof(serialized));
+    if(editor_result_check(result)) goto fail;
+    {
+        char tokens[24][128];
+        char *arguments[24];
+        size_t count = 0;
+        char *at = strtok(serialized, " ");
+        while(at != NULL && count < 24) {
+            snprintf(tokens[count], sizeof(tokens[count]), "%s", at);
+            arguments[count] = tokens[count];
+            count += 1;
+            at = strtok(NULL, " ");
+        }
+        result = editor_command_cli_standard_parse(&project, (int)count,
+            arguments, &path, &parsed);
+        if(editor_result_check(result) ||
+                parsed.type != EDITOR_COMMAND_INPUT_BINDING_ADD ||
+                parsed.data.input_binding.binding.input.key != SDL_SCANCODE_W)
+            goto fail;
+    }
+    editor_project_destroy(&project);
+    return 0;
+fail:
+    editor_project_destroy(&project);
+    return 1;
+}
+
 static bool position_near(Position position, float x, float y) {
     return fabsf(position.x - x) < 0.001f && fabsf(position.y - y) < 0.001f;
 }
@@ -1398,6 +1470,7 @@ int main(void) {
     RUN_TEST(auto_shape_command_test);
     RUN_TEST(sprite_commands_test);
     RUN_TEST(camera_commands_test);
+    RUN_TEST(input_cli_commands_test);
 #undef RUN_TEST
 
     editor_document_destroy(&loaded);

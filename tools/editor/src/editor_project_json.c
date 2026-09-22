@@ -97,6 +97,119 @@ static bool editor_json_name(yyjson_val *object, char name[EDITOR_OBJECT_NAME_MA
     return true;
 }
 
+static const char *editor_json_input_action_type_name(InputActionType type) {
+    switch(type) {
+        case INPUT_ACTION_BUTTON: return "button";
+        case INPUT_ACTION_AXIS_1D: return "axis_1d";
+        case INPUT_ACTION_AXIS_2D: return "axis_2d";
+    }
+    return NULL;
+}
+
+static bool editor_json_input_action_type_read(yyjson_val *value,
+        InputActionType *type) {
+    const char *name;
+    if(!yyjson_is_str(value) || type == NULL) return false;
+    name = yyjson_get_str(value);
+    if(strcmp(name, "button") == 0) *type = INPUT_ACTION_BUTTON;
+    else if(strcmp(name, "axis_1d") == 0) *type = INPUT_ACTION_AXIS_1D;
+    else if(strcmp(name, "axis_2d") == 0) *type = INPUT_ACTION_AXIS_2D;
+    else return false;
+    return true;
+}
+
+static const char *editor_json_input_source_name(InputBindingSource source) {
+    switch(source) {
+        case INPUT_BINDING_KEY: return "key";
+        case INPUT_BINDING_MOUSE_BUTTON: return "mouse_button";
+        case INPUT_BINDING_MOUSE_MOTION: return "mouse_motion";
+        case INPUT_BINDING_MOUSE_WHEEL: return "mouse_wheel";
+    }
+    return NULL;
+}
+
+static const char *editor_json_input_component_name(InputAxisComponent component) {
+    switch(component) {
+        case INPUT_AXIS_COMPONENT_X: return "x";
+        case INPUT_AXIS_COMPONENT_Y: return "y";
+        case INPUT_AXIS_COMPONENT_XY: return "xy";
+    }
+    return NULL;
+}
+
+static yyjson_mut_val *editor_json_input_binding_write(
+        yyjson_mut_doc *document, const InputBinding *binding) {
+    yyjson_mut_val *value = yyjson_mut_obj(document);
+    const char *source = editor_json_input_source_name(binding->source);
+    yyjson_mut_obj_add_strcpy(document, value, "source", source);
+    if(binding->source == INPUT_BINDING_KEY)
+        yyjson_mut_obj_add_uint(document, value, "scancode", binding->input.key);
+    else if(binding->source == INPUT_BINDING_MOUSE_BUTTON)
+        yyjson_mut_obj_add_uint(document, value, "mouse_button",
+            binding->input.mouse_button);
+    else yyjson_mut_obj_add_strcpy(document, value, "component",
+        editor_json_input_component_name(binding->input.axis_component));
+    yyjson_mut_obj_add_uint(document, value, "modifiers",
+        (uint32_t)binding->modifiers);
+    yyjson_mut_obj_add_real(document, value, "scale", binding->scale);
+    yyjson_mut_obj_add_bool(document, value, "inverted", binding->inverted);
+    yyjson_mut_obj_add_real(document, value, "direction_x", binding->direction.x);
+    yyjson_mut_obj_add_real(document, value, "direction_y", binding->direction.y);
+    return value;
+}
+
+static bool editor_json_input_binding_read(yyjson_val *value,
+        InputActionType type, InputBinding *binding) {
+    yyjson_val *source_value;
+    yyjson_val *input_value;
+    yyjson_val *component_value;
+    uint32_t modifiers;
+    float scale, direction_x, direction_y;
+    bool inverted;
+    const char *source;
+    if(!yyjson_is_obj(value) || binding == NULL ||
+            !editor_json_uint(value, "modifiers", &modifiers) ||
+            !editor_json_real(value, "scale", &scale) ||
+            !editor_json_bool(value, "inverted", &inverted) ||
+            !editor_json_real(value, "direction_x", &direction_x) ||
+            !editor_json_real(value, "direction_y", &direction_y)) return false;
+    source_value = yyjson_obj_get(value, "source");
+    if(!yyjson_is_str(source_value)) return false;
+    source = yyjson_get_str(source_value);
+    *binding = (InputBinding){.modifiers = (SDL_Keymod)modifiers,
+        .scale = scale, .inverted = inverted,
+        .direction = {direction_x, direction_y}};
+    if(strcmp(source, "key") == 0) {
+        input_value = yyjson_obj_get(value, "scancode");
+        if(!yyjson_is_uint(input_value) ||
+                yyjson_get_uint(input_value) > SDL_SCANCODE_COUNT) return false;
+        binding->source = INPUT_BINDING_KEY;
+        binding->input.key = (SDL_Scancode)yyjson_get_uint(input_value);
+    } else if(strcmp(source, "mouse_button") == 0) {
+        input_value = yyjson_obj_get(value, "mouse_button");
+        if(!yyjson_is_uint(input_value) ||
+                yyjson_get_uint(input_value) > UINT32_MAX) return false;
+        binding->source = INPUT_BINDING_MOUSE_BUTTON;
+        binding->input.mouse_button =
+            (InputMouseButton)yyjson_get_uint(input_value);
+    } else {
+        binding->source = strcmp(source, "mouse_motion") == 0 ?
+            INPUT_BINDING_MOUSE_MOTION : INPUT_BINDING_MOUSE_WHEEL;
+        if(strcmp(source, "mouse_motion") != 0 &&
+                strcmp(source, "mouse_wheel") != 0) return false;
+        component_value = yyjson_obj_get(value, "component");
+        if(!yyjson_is_str(component_value)) return false;
+        if(strcmp(yyjson_get_str(component_value), "x") == 0)
+            binding->input.axis_component = INPUT_AXIS_COMPONENT_X;
+        else if(strcmp(yyjson_get_str(component_value), "y") == 0)
+            binding->input.axis_component = INPUT_AXIS_COMPONENT_Y;
+        else if(strcmp(yyjson_get_str(component_value), "xy") == 0)
+            binding->input.axis_component = INPUT_AXIS_COMPONENT_XY;
+        else return false;
+    }
+    return rohr_input_binding_valid_check(type, binding);
+}
+
 static void editor_json_graphics_layer_binding_write(yyjson_mut_doc *document,
         yyjson_mut_val *value, EditorGraphicsLayerBinding binding) {
     yyjson_mut_obj_add_sint(document, value, "graphics_layer_value", binding.value);
@@ -510,6 +623,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_val *ui_fonts;
     yyjson_mut_val *graphics_layers;
     yyjson_mut_val *ui_definitions;
+    yyjson_mut_val *input_action_maps;
     bool success;
     if(project == NULL || path == NULL || path[0] == '\0') return false;
     document = yyjson_mut_doc_new(NULL);
@@ -522,6 +636,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     ui_fonts = yyjson_mut_arr(document);
     graphics_layers = yyjson_mut_arr(document);
     ui_definitions = yyjson_mut_arr(document);
+    input_action_maps = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
     {
@@ -602,6 +717,10 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_graphics_layer_id);
     yyjson_mut_obj_add_uint(document, root, "next_ui_definition_id",
         project->next_ui_definition_id);
+    yyjson_mut_obj_add_uint(document, root, "next_input_action_map_id",
+        project->next_input_action_map_id);
+    yyjson_mut_obj_add_uint(document, root, "next_input_action_id",
+        project->next_input_action_id);
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
         yyjson_mut_val *font = yyjson_mut_obj(document);
         yyjson_mut_obj_add_uint(document, font, "id", project->ui_fonts[i].id);
@@ -624,6 +743,33 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_arr_add_val(ui_definitions,
             editor_json_ui_definition_write(document, &project->ui_definitions[i]));
     yyjson_mut_obj_add_val(document, root, "ui_definitions", ui_definitions);
+    for(size_t i = 0; i < project->input_action_map_count; i += 1) {
+        const EditorInputActionMap *map = &project->input_action_maps[i];
+        yyjson_mut_val *map_value = yyjson_mut_obj(document);
+        yyjson_mut_val *actions = yyjson_mut_arr(document);
+        yyjson_mut_obj_add_uint(document, map_value, "id", map->id);
+        yyjson_mut_obj_add_strcpy(document, map_value, "name", map->name);
+        yyjson_mut_obj_add_bool(document, map_value, "enabled", map->enabled);
+        for(size_t j = 0; j < map->action_count; j += 1) {
+            const EditorInputAction *action = &map->actions[j];
+            yyjson_mut_val *action_value = yyjson_mut_obj(document);
+            yyjson_mut_val *bindings = yyjson_mut_arr(document);
+            yyjson_mut_obj_add_uint(document, action_value, "id", action->id);
+            yyjson_mut_obj_add_strcpy(document, action_value, "name", action->name);
+            yyjson_mut_obj_add_strcpy(document, action_value, "type",
+                editor_json_input_action_type_name(action->type));
+            for(size_t k = 0; k < action->binding_count; k += 1)
+                yyjson_mut_arr_add_val(bindings,
+                    editor_json_input_binding_write(document,
+                        &action->bindings[k]));
+            yyjson_mut_obj_add_val(document, action_value, "bindings", bindings);
+            yyjson_mut_arr_add_val(actions, action_value);
+        }
+        yyjson_mut_obj_add_val(document, map_value, "actions", actions);
+        yyjson_mut_arr_add_val(input_action_maps, map_value);
+    }
+    yyjson_mut_obj_add_val(document, root, "input_action_maps",
+        input_action_maps);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -1703,6 +1849,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     yyjson_val *ui_fonts;
     yyjson_val *graphics_layers;
     yyjson_val *ui_definitions;
+    yyjson_val *input_action_maps;
     uint32_t version;
     EditorResult result = editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
         "Project editor state does not match the current schema: %s",
@@ -1728,6 +1875,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     ui_fonts = yyjson_obj_get(root, "ui_fonts");
     graphics_layers = yyjson_obj_get(root, "graphics_layers");
     ui_definitions = yyjson_obj_get(root, "ui_definitions");
+    input_action_maps = yyjson_obj_get(root, "input_action_maps");
     editor_project_destroy(&loaded);
     editor_project_init(&loaded);
     if(!yyjson_is_obj(root)) goto done;
@@ -1862,6 +2010,10 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "next_graphics_layer_id");
         yyjson_val *next_ui_definition = yyjson_obj_get(root,
             "next_ui_definition_id");
+        yyjson_val *next_input_map = yyjson_obj_get(root,
+            "next_input_action_map_id");
+        yyjson_val *next_input_action = yyjson_obj_get(root,
+            "next_input_action_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
                     &loaded.next_sprite_id)) ||
                 (next_animated != NULL && !editor_json_uint(root,
@@ -1879,14 +2031,90 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     "next_graphics_layer_id", &loaded.next_graphics_layer_id)) ||
                 (next_ui_definition != NULL && !editor_json_uint(root,
                     "next_ui_definition_id", &loaded.next_ui_definition_id)) ||
+                (next_input_map != NULL && !editor_json_uint(root,
+                    "next_input_action_map_id",
+                    &loaded.next_input_action_map_id)) ||
+                (next_input_action != NULL && !editor_json_uint(root,
+                    "next_input_action_id", &loaded.next_input_action_id)) ||
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
                 loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
                 loaded.next_viewport_camera_item_id == 0 ||
                 loaded.next_graphics_layer_id == 0 ||
                 loaded.next_ui_definition_id == 0 ||
+                loaded.next_input_action_map_id == 0 ||
+                loaded.next_input_action_id == 0 ||
                 (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)) ||
-                (hierarchy != NULL && !yyjson_is_arr(hierarchy)))
+                (hierarchy != NULL && !yyjson_is_arr(hierarchy)) ||
+                (input_action_maps != NULL &&
+                    !yyjson_is_arr(input_action_maps)))
             goto done;
+    }
+    if(input_action_maps != NULL) {
+        size_t total_actions = 0;
+        if(yyjson_arr_size(input_action_maps) > ROHR_INPUT_ACTION_MAP_LIMIT ||
+                !EDITOR_ARRAY_RESERVE(loaded.input_action_maps,
+                    loaded.input_action_map_capacity,
+                    yyjson_arr_size(input_action_maps))) goto done;
+        for(size_t i = 0; i < yyjson_arr_size(input_action_maps); i += 1) {
+            yyjson_val *map_value = yyjson_arr_get(input_action_maps, i);
+            yyjson_val *actions;
+            EditorInputActionMap *map = &loaded.input_action_maps[i];
+            *map = (EditorInputActionMap){0};
+            if(!yyjson_is_obj(map_value) ||
+                    !editor_json_uint(map_value, "id", &map->id) || map->id == 0 ||
+                    !editor_json_name(map_value, map->name) ||
+                    !editor_json_bool(map_value, "enabled", &map->enabled))
+                goto done;
+            actions = yyjson_obj_get(map_value, "actions");
+            loaded.input_action_map_count = i + 1;
+            if(!yyjson_is_arr(actions) ||
+                    yyjson_arr_size(actions) > ROHR_INPUT_ACTION_LIMIT -
+                        total_actions ||
+                    !EDITOR_ARRAY_RESERVE(map->actions, map->action_capacity,
+                        yyjson_arr_size(actions))) goto done;
+            map->action_count = yyjson_arr_size(actions);
+            total_actions += map->action_count;
+            for(size_t previous = 0; previous < i; previous += 1)
+                if(loaded.input_action_maps[previous].id == map->id ||
+                        strcmp(loaded.input_action_maps[previous].name,
+                            map->name) == 0) goto done;
+            if(loaded.next_input_action_map_id <= map->id)
+                loaded.next_input_action_map_id = map->id + 1;
+            for(size_t j = 0; j < map->action_count; j += 1) {
+                yyjson_val *action_value = yyjson_arr_get(actions, j);
+                yyjson_val *bindings;
+                EditorInputAction *action = &map->actions[j];
+                if(!yyjson_is_obj(action_value) ||
+                        !editor_json_uint(action_value, "id", &action->id) ||
+                        action->id == 0 ||
+                        !editor_json_name(action_value, action->name) ||
+                        !editor_json_input_action_type_read(
+                            yyjson_obj_get(action_value, "type"),
+                            &action->type)) goto done;
+                bindings = yyjson_obj_get(action_value, "bindings");
+                if(!yyjson_is_arr(bindings) ||
+                        yyjson_arr_size(bindings) > ROHR_INPUT_BINDING_LIMIT)
+                    goto done;
+                action->binding_count = yyjson_arr_size(bindings);
+                for(size_t k = 0; k < action->binding_count; k += 1)
+                    if(!editor_json_input_binding_read(
+                            yyjson_arr_get(bindings, k), action->type,
+                            &action->bindings[k])) goto done;
+                for(size_t previous = 0; previous < j; previous += 1)
+                    if(map->actions[previous].id == action->id ||
+                            strcmp(map->actions[previous].name,
+                                action->name) == 0) goto done;
+                for(size_t previous_map = 0; previous_map < i; previous_map += 1)
+                    for(size_t previous_action = 0;
+                            previous_action < loaded.input_action_maps[
+                                previous_map].action_count;
+                            previous_action += 1)
+                        if(loaded.input_action_maps[previous_map].actions[
+                                previous_action].id == action->id) goto done;
+                if(loaded.next_input_action_id <= action->id)
+                    loaded.next_input_action_id = action->id + 1;
+            }
+        }
     }
     if(graphics_layers != NULL) {
         if(!yyjson_is_arr(graphics_layers) ||

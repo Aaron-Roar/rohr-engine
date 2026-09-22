@@ -175,7 +175,9 @@ void editor_project_init(EditorProject *project) {
         .next_viewport_ui_item_id = 1,
         .next_ui_font_id = 1,
         .next_graphics_layer_id = 1,
-        .next_ui_definition_id = 1
+        .next_ui_definition_id = 1,
+        .next_input_action_map_id = 1,
+        .next_input_action_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
             project->collision_mask_capacity, EDITOR_COLLISION_MASK_MAX)) {
@@ -747,6 +749,9 @@ void editor_project_destroy(EditorProject *project) {
     free(project->ui_fonts);
     free(project->graphics_layers);
     free(project->ui_definitions);
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        free(project->input_action_maps[i].actions);
+    free(project->input_action_maps);
     *project = (EditorProject){0};
 }
 
@@ -761,6 +766,7 @@ bool editor_project_clone(EditorProject *destination,
     destination->ui_fonts = NULL;
     destination->graphics_layers = NULL;
     destination->ui_definitions = NULL;
+    destination->input_action_maps = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
     destination->layout_viewport_count = 0;
@@ -775,6 +781,8 @@ bool editor_project_clone(EditorProject *destination,
     destination->graphics_layer_capacity = 0;
     destination->ui_definition_count = 0;
     destination->ui_definition_capacity = 0;
+    destination->input_action_map_count = 0;
+    destination->input_action_map_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
@@ -791,7 +799,10 @@ bool editor_project_clone(EditorProject *destination,
                 source->graphics_layer_count) ||
             !EDITOR_ARRAY_RESERVE(destination->ui_definitions,
                 destination->ui_definition_capacity,
-                source->ui_definition_count)) goto fail;
+                source->ui_definition_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->input_action_maps,
+                destination->input_action_map_capacity,
+                source->input_action_map_count)) goto fail;
     if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
         source->ui_font_count * sizeof(*source->ui_fonts));
     destination->ui_font_count = source->ui_font_count;
@@ -803,6 +814,22 @@ bool editor_project_clone(EditorProject *destination,
         memcpy(destination->ui_definitions, source->ui_definitions,
             source->ui_definition_count * sizeof(*source->ui_definitions));
     destination->ui_definition_count = source->ui_definition_count;
+    for(size_t i = 0; i < source->input_action_map_count; i += 1) {
+        const EditorInputActionMap *source_map = &source->input_action_maps[i];
+        EditorInputActionMap *destination_map = &destination->input_action_maps[i];
+        *destination_map = *source_map;
+        destination_map->actions = NULL;
+        destination_map->action_count = 0;
+        destination_map->action_capacity = 0;
+        destination->input_action_map_count += 1;
+        if(!EDITOR_ARRAY_RESERVE(destination_map->actions,
+                destination_map->action_capacity, source_map->action_count))
+            goto fail;
+        if(source_map->action_count > 0)
+            memcpy(destination_map->actions, source_map->actions,
+                source_map->action_count * sizeof(*source_map->actions));
+        destination_map->action_count = source_map->action_count;
+    }
     if(source->collision_mask_count > 0)
         memcpy(destination->collision_masks, source->collision_masks,
             source->collision_mask_count * sizeof(*source->collision_masks));
@@ -1440,6 +1467,190 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
     project->graphics_layer_count -= 1;
     project->graphics_layers[project->graphics_layer_count] =
         (EditorGraphicsLayer){0};
+    return true;
+}
+
+static bool editor_project_input_name_check(const char *name) {
+    return name != NULL && name[0] != '\0' &&
+        strlen(name) < ROHR_INPUT_NAME_MAX;
+}
+
+static size_t editor_project_input_action_count_get(const EditorProject *project) {
+    size_t count = 0;
+    if(project == NULL) return 0;
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        count += project->input_action_maps[i].action_count;
+    return count;
+}
+
+EditorInputActionMap *editor_project_input_action_map_add(EditorProject *project,
+        const char *name) {
+    EditorInputActionMap *map;
+    if(project == NULL || !editor_project_input_name_check(name) ||
+            project->input_action_map_count >= ROHR_INPUT_ACTION_MAP_LIMIT)
+        return NULL;
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        if(strcmp(project->input_action_maps[i].name, name) == 0) return NULL;
+    if(!EDITOR_ARRAY_RESERVE(project->input_action_maps,
+            project->input_action_map_capacity,
+            project->input_action_map_count + 1)) return NULL;
+    map = &project->input_action_maps[project->input_action_map_count++];
+    *map = (EditorInputActionMap){
+        .id = project->next_input_action_map_id++, .enabled = true};
+    snprintf(map->name, sizeof(map->name), "%s", name);
+    return map;
+}
+
+EditorInputActionMap *editor_project_input_action_map_get(EditorProject *project,
+        EditorInputActionMapId id) {
+    if(project == NULL || id == EDITOR_INPUT_ACTION_MAP_INVALID) return NULL;
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        if(project->input_action_maps[i].id == id)
+            return &project->input_action_maps[i];
+    return NULL;
+}
+
+const EditorInputActionMap *editor_project_input_action_map_const_get(
+        const EditorProject *project, EditorInputActionMapId id) {
+    return editor_project_input_action_map_get((EditorProject *)project, id);
+}
+
+bool editor_project_input_action_map_set(EditorProject *project,
+        EditorInputActionMapId id, const char *name, bool enabled) {
+    EditorInputActionMap *map;
+    if(project == NULL || !editor_project_input_name_check(name) ||
+            (map = editor_project_input_action_map_get(project, id)) == NULL)
+        return false;
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        if(project->input_action_maps[i].id != id &&
+                strcmp(project->input_action_maps[i].name, name) == 0)
+            return false;
+    snprintf(map->name, sizeof(map->name), "%s", name);
+    map->enabled = enabled;
+    return true;
+}
+
+bool editor_project_input_action_map_remove(EditorProject *project,
+        EditorInputActionMapId id) {
+    size_t index;
+    if(project == NULL || id == EDITOR_INPUT_ACTION_MAP_INVALID) return false;
+    for(index = 0; index < project->input_action_map_count; index += 1)
+        if(project->input_action_maps[index].id == id) break;
+    if(index == project->input_action_map_count) return false;
+    free(project->input_action_maps[index].actions);
+    memmove(&project->input_action_maps[index],
+        &project->input_action_maps[index + 1],
+        (project->input_action_map_count - index - 1) *
+            sizeof(*project->input_action_maps));
+    project->input_action_map_count -= 1;
+    project->input_action_maps[project->input_action_map_count] =
+        (EditorInputActionMap){0};
+    return true;
+}
+
+EditorInputAction *editor_project_input_action_add(EditorProject *project,
+        EditorInputActionMapId map_id, const char *name, InputActionType type) {
+    EditorInputActionMap *map;
+    EditorInputAction *action;
+    if(project == NULL || !editor_project_input_name_check(name) ||
+            type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D ||
+            editor_project_input_action_count_get(project) >=
+                ROHR_INPUT_ACTION_LIMIT ||
+            (map = editor_project_input_action_map_get(project, map_id)) == NULL)
+        return NULL;
+    for(size_t i = 0; i < map->action_count; i += 1)
+        if(strcmp(map->actions[i].name, name) == 0) return NULL;
+    if(!EDITOR_ARRAY_RESERVE(map->actions, map->action_capacity,
+            map->action_count + 1)) return NULL;
+    action = &map->actions[map->action_count++];
+    *action = (EditorInputAction){
+        .id = project->next_input_action_id++, .type = type};
+    snprintf(action->name, sizeof(action->name), "%s", name);
+    return action;
+}
+
+EditorInputAction *editor_project_input_action_get(EditorProject *project,
+        EditorInputActionMapId map_id, EditorInputActionId id) {
+    EditorInputActionMap *map = editor_project_input_action_map_get(project, map_id);
+    if(map == NULL || id == EDITOR_INPUT_ACTION_INVALID) return NULL;
+    for(size_t i = 0; i < map->action_count; i += 1)
+        if(map->actions[i].id == id) return &map->actions[i];
+    return NULL;
+}
+
+const EditorInputAction *editor_project_input_action_const_get(
+        const EditorProject *project, EditorInputActionMapId map,
+        EditorInputActionId id) {
+    return editor_project_input_action_get((EditorProject *)project, map, id);
+}
+
+bool editor_project_input_action_set(EditorProject *project,
+        EditorInputActionMapId map_id, EditorInputActionId id, const char *name,
+        InputActionType type) {
+    EditorInputActionMap *map;
+    EditorInputAction *action;
+    if(project == NULL || !editor_project_input_name_check(name) ||
+            type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D ||
+            (map = editor_project_input_action_map_get(project, map_id)) == NULL ||
+            (action = editor_project_input_action_get(project, map_id, id)) == NULL)
+        return false;
+    for(size_t i = 0; i < map->action_count; i += 1)
+        if(map->actions[i].id != id &&
+                strcmp(map->actions[i].name, name) == 0) return false;
+    for(size_t i = 0; i < action->binding_count; i += 1)
+        if(!rohr_input_binding_valid_check(type, &action->bindings[i]))
+            return false;
+    snprintf(action->name, sizeof(action->name), "%s", name);
+    action->type = type;
+    return true;
+}
+
+bool editor_project_input_action_remove(EditorProject *project,
+        EditorInputActionMapId map_id, EditorInputActionId id) {
+    EditorInputActionMap *map = editor_project_input_action_map_get(project, map_id);
+    size_t index;
+    if(map == NULL || id == EDITOR_INPUT_ACTION_INVALID) return false;
+    for(index = 0; index < map->action_count; index += 1)
+        if(map->actions[index].id == id) break;
+    if(index == map->action_count) return false;
+    memmove(&map->actions[index], &map->actions[index + 1],
+        (map->action_count - index - 1) * sizeof(*map->actions));
+    map->action_count -= 1;
+    map->actions[map->action_count] = (EditorInputAction){0};
+    return true;
+}
+
+bool editor_project_input_binding_add(EditorProject *project,
+        EditorInputActionMapId map, EditorInputActionId action_id,
+        InputBinding binding) {
+    EditorInputAction *action = editor_project_input_action_get(project, map,
+        action_id);
+    if(action == NULL || action->binding_count >= ROHR_INPUT_BINDING_LIMIT ||
+            !rohr_input_binding_valid_check(action->type, &binding)) return false;
+    action->bindings[action->binding_count++] = binding;
+    return true;
+}
+
+bool editor_project_input_binding_set(EditorProject *project,
+        EditorInputActionMapId map, EditorInputActionId action_id, size_t index,
+        InputBinding binding) {
+    EditorInputAction *action = editor_project_input_action_get(project, map,
+        action_id);
+    if(action == NULL || index >= action->binding_count ||
+            !rohr_input_binding_valid_check(action->type, &binding)) return false;
+    action->bindings[index] = binding;
+    return true;
+}
+
+bool editor_project_input_binding_remove(EditorProject *project,
+        EditorInputActionMapId map, EditorInputActionId action_id, size_t index) {
+    EditorInputAction *action = editor_project_input_action_get(project, map,
+        action_id);
+    if(action == NULL || index >= action->binding_count) return false;
+    memmove(&action->bindings[index], &action->bindings[index + 1],
+        (action->binding_count - index - 1) * sizeof(*action->bindings));
+    action->binding_count -= 1;
+    action->bindings[action->binding_count] = (InputBinding){0};
     return true;
 }
 

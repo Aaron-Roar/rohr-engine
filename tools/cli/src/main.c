@@ -93,7 +93,17 @@ static const CliHelpDomain cli_help_domains[] = {
         "timing <ticks> <seconds>, starting-frame <index>, "
         "direction <left|right>, follow-body-rotation <true|false>, "
         "visibility <true|false>",
-        "--object car --animated-sprite wheel_animation --property scale 2 2", 2}
+        "--object car --animated-sprite wheel_animation --property scale 2 2", 2},
+    {"--input-map", "input action map", "map-set <name> <true|false>",
+        "--input-map gameplay add true", 0},
+    {"--input-action", "input action",
+        "action-set <name> <button|axis-1d|axis-2d>",
+        "--input-map gameplay --input-action move add axis-2d", 1},
+    {"--binding-index", "input binding",
+        "binding-set <source> <input> <modifiers> <scale> <inverted> "
+        "<direction-x> <direction-y>",
+        "--input-map gameplay --input-action move --binding-index 0 "
+        "binding-set key W 0 1 false 0 -1", 2}
 };
 
 static bool cli_help_flag_check(const char *argument) {
@@ -142,7 +152,8 @@ static void cli_help_print(int count, char **arguments) {
         puts("\nSelectors:\n"
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
             "  --node, --beam, --area, --vertex, --line, --sprite,\n"
-            "  --animated-sprite, --frame-index\n"
+            "  --animated-sprite, --frame-index, --input-map, --input-action,\n"
+            "  --binding-index\n"
             "  Every named selector also accepts its -id form.");
         return;
     }
@@ -150,7 +161,15 @@ static void cli_help_print(int count, char **arguments) {
     if(property != NULL) printf("Value required:\n  --property %s\n", property);
     printf("What can be set:\n  %s\n\nExample:\n  rohr-cli %s\n",
         domain->properties, domain->example);
-    puts("Operations at this depth:\n  rename <new-name>, delete");
+    if(strcmp(domain->selector, "--input-map") == 0)
+        puts("Operations at this depth:\n"
+            "  add [true|false], delete, map-set <name> <true|false>");
+    else if(strcmp(domain->selector, "--input-action") == 0)
+        puts("Operations at this depth:\n"
+            "  add <type>, delete, action-set <name> <type>, binding-add <binding>");
+    else if(strcmp(domain->selector, "--binding-index") == 0)
+        puts("Operations at this depth:\n  binding-set <binding>, binding-delete");
+    else puts("Operations at this depth:\n  rename <new-name>, delete");
 }
 
 static bool cli_help_request_check(int count, char **arguments) {

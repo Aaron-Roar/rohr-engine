@@ -565,18 +565,66 @@ done:
     return result;
 }
 
+static void editor_workspace_input_map_variable(char *output, size_t capacity,
+        const EditorInputActionMap *map) {
+    char name[ROHR_INPUT_NAME_MAX];
+    editor_project_property_name_format(name, sizeof(name), map->name);
+    snprintf(output, capacity, "map_%s_%u", name, map->id);
+}
+
+static void editor_workspace_input_action_variable(char *output, size_t capacity,
+        const EditorInputActionMap *map, const EditorInputAction *action) {
+    char map_name[ROHR_INPUT_NAME_MAX];
+    char action_name[ROHR_INPUT_NAME_MAX];
+    editor_project_property_name_format(map_name, sizeof(map_name), map->name);
+    editor_project_property_name_format(action_name, sizeof(action_name),
+        action->name);
+    snprintf(output, capacity, "action_%s_%s_%u", map_name, action_name,
+        action->id);
+}
+
+static void editor_workspace_input_binding_write(FILE *source,
+        const InputBinding *binding) {
+    fprintf(source, "        {.source = %s, .input.",
+        binding->source == INPUT_BINDING_KEY ? "INPUT_BINDING_KEY" :
+        binding->source == INPUT_BINDING_MOUSE_BUTTON ?
+            "INPUT_BINDING_MOUSE_BUTTON" :
+        binding->source == INPUT_BINDING_MOUSE_MOTION ?
+            "INPUT_BINDING_MOUSE_MOTION" : "INPUT_BINDING_MOUSE_WHEEL");
+    if(binding->source == INPUT_BINDING_KEY)
+        fprintf(source, "key = (SDL_Scancode)%u", (unsigned)binding->input.key);
+    else if(binding->source == INPUT_BINDING_MOUSE_BUTTON)
+        fprintf(source, "mouse_button = (InputMouseButton)%u",
+            (unsigned)binding->input.mouse_button);
+    else fprintf(source, "axis_component = %s",
+        binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
+            "INPUT_AXIS_COMPONENT_X" :
+        binding->input.axis_component == INPUT_AXIS_COMPONENT_Y ?
+            "INPUT_AXIS_COMPONENT_Y" : "INPUT_AXIS_COMPONENT_XY");
+    fprintf(source,
+        ", .modifiers = (SDL_Keymod)%u, .scale = %#.9gf, .inverted = %s, "
+        ".direction = {%#.9gf, %#.9gf}}",
+        (unsigned)binding->modifiers, binding->scale,
+        binding->inverted ? "true" : "false", binding->direction.x,
+        binding->direction.y);
+}
+
 static bool editor_workspace_generated_objects_write(const EditorWorkspace *workspace,
     const EditorProject *project) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char source_path[EDITOR_WORKSPACE_PATH_MAX * 2];
     FILE *header;
     FILE *source;
+    bool generated_has_input_actions = false;
 
     if(workspace == NULL || project == NULL ||
             !editor_workspace_path_join(header_path, sizeof(header_path),
                 workspace->directory, "src/generated/project_objects.h") ||
             !editor_workspace_path_join(source_path, sizeof(source_path),
                 workspace->directory, "src/generated/project_objects.c")) return false;
+    for(size_t i = 0; i < project->input_action_map_count; i += 1)
+        if(project->input_action_maps[i].action_count > 0)
+            generated_has_input_actions = true;
     header = fopen(header_path, "wb");
     if(header == NULL) return false;
     source = fopen(source_path, "wb");
@@ -1389,6 +1437,117 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         fprintf(source, "    *object = (%s){0};\n}\n\n", object->name);
     }
+    fprintf(header, "typedef struct ProjectInput {\n");
+    for(size_t map_index = 0; map_index < project->input_action_map_count;
+            map_index += 1) {
+        const EditorInputActionMap *map = &project->input_action_maps[map_index];
+        char map_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
+        fprintf(header, "    InputActionMapId %s;\n", map_variable);
+        for(size_t action_index = 0; action_index < map->action_count;
+                action_index += 1) {
+            char action_variable[ROHR_INPUT_NAME_MAX * 3];
+            editor_workspace_input_action_variable(action_variable,
+                sizeof(action_variable), map, &map->actions[action_index]);
+            fprintf(header, "    InputActionId %s;\n", action_variable);
+        }
+    }
+    fprintf(header,
+        "    bool created;\n"
+        "} ProjectInput;\n\n"
+        "EngineResult project_input_create(ProjectInput *input);\n"
+        "void project_input_destroy(ProjectInput *input);\n\n");
+    fprintf(source, "EngineResult project_input_create(ProjectInput *input) {\n");
+    if(project->input_action_map_count > 0)
+        fprintf(source, "    InputActionMapIdResult map_result;\n");
+    if(generated_has_input_actions)
+        fprintf(source, "    InputActionIdResult action_result;\n");
+    if(project->input_action_map_count > 0)
+        fprintf(source, "    EngineResult result;\n");
+    fprintf(source,
+        "    if(input == NULL) return rohr_error_result_error("
+            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
+        "    *input = (ProjectInput){0};\n");
+    for(size_t map_index = 0; map_index < project->input_action_map_count;
+            map_index += 1) {
+        const EditorInputActionMap *map = &project->input_action_maps[map_index];
+        char map_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
+        fprintf(source, "    map_result = rohr_input_action_map_create(");
+        editor_workspace_c_string_write(source, map->name);
+        fprintf(source,
+            ");\n"
+            "    if(rohr_error_check(map_result)) { result = "
+                "rohr_error_result_error(map_result.result.error); goto fail; }\n"
+            "    input->%s = map_result.result.value;\n"
+            "    result = rohr_input_action_map_enabled_set(input->%s, %s);\n"
+            "    if(rohr_error_check(result)) goto fail;\n",
+            map_variable, map_variable, map->enabled ? "true" : "false");
+        for(size_t action_index = 0; action_index < map->action_count;
+                action_index += 1) {
+            const EditorInputAction *action = &map->actions[action_index];
+            char action_variable[ROHR_INPUT_NAME_MAX * 3];
+            editor_workspace_input_action_variable(action_variable,
+                sizeof(action_variable), map, action);
+            fprintf(source, "    action_result = rohr_input_action_create(input->%s, ",
+                map_variable);
+            editor_workspace_c_string_write(source, action->name);
+            fprintf(source, ", %s);\n",
+                action->type == INPUT_ACTION_BUTTON ? "INPUT_ACTION_BUTTON" :
+                action->type == INPUT_ACTION_AXIS_1D ? "INPUT_ACTION_AXIS_1D" :
+                    "INPUT_ACTION_AXIS_2D");
+            fprintf(source,
+                "    if(rohr_error_check(action_result)) { result = "
+                    "rohr_error_result_error(action_result.result.error); goto fail; }\n"
+                "    input->%s = action_result.result.value;\n",
+                action_variable);
+            if(action->binding_count > 0) {
+                fprintf(source, "    const InputBinding %s_bindings[] = {\n",
+                    action_variable);
+                for(size_t binding_index = 0;
+                        binding_index < action->binding_count;
+                        binding_index += 1) {
+                    editor_workspace_input_binding_write(source,
+                        &action->bindings[binding_index]);
+                    fprintf(source, "%s\n",
+                        binding_index + 1 == action->binding_count ? "" : ",");
+                }
+                fprintf(source,
+                    "    };\n"
+                    "    result = rohr_input_action_bindings_default_set(input->%s, "
+                        "%s_bindings, sizeof(%s_bindings) / "
+                        "sizeof(%s_bindings[0]));\n",
+                    action_variable, action_variable, action_variable,
+                    action_variable);
+            } else fprintf(source,
+                "    result = rohr_input_action_bindings_default_set(input->%s, "
+                    "NULL, 0);\n", action_variable);
+            fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
+        }
+    }
+    fprintf(source,
+        "    input->created = true;\n"
+        "    return rohr_error_result_value(true);\n");
+    if(project->input_action_map_count > 0) fprintf(source,
+        "fail:\n"
+        "    project_input_destroy(input);\n"
+        "    return result;\n");
+    fprintf(source,
+        "}\n\n"
+        "void project_input_destroy(ProjectInput *input) {\n"
+        "    if(input == NULL) return;\n");
+    for(size_t map_index = project->input_action_map_count; map_index > 0;
+            map_index -= 1) {
+        const EditorInputActionMap *map = &project->input_action_maps[map_index - 1];
+        char map_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
+        fprintf(source,
+            "    if(input->%s != INPUT_ACTION_MAP_INVALID) "
+                "(void)rohr_input_action_map_destroy(input->%s);\n",
+            map_variable, map_variable);
+    }
+    fprintf(source, "    *input = (ProjectInput){0};\n}\n\n");
+
     fprintf(header, "typedef struct ProjectObjects {\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
         char variable[EDITOR_OBJECT_NAME_MAX];
@@ -1397,6 +1556,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         fprintf(header, "    %s %s;\n", project->objects[object_index].name, variable);
     }
     fprintf(header,
+        "    ProjectInput input;\n"
         "    bool created;\n"
         "} ProjectObjects;\n\n"
         "EngineResult project_objects_create_all(ProjectObjects *objects);\n"
@@ -1407,7 +1567,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    EngineResult result;\n"
         "    if(objects == NULL) return rohr_error_result_error("
             "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *objects = (ProjectObjects){0};\n");
+        "    *objects = (ProjectObjects){0};\n"
+        "    result = project_input_create(&objects->input);\n"
+        "    if(rohr_error_check(result)) goto fail;\n");
     fprintf(source,
         "    result = rohr_engine_time_per_tick_set(%.17g);\n"
         "    if(rohr_error_check(result)) goto fail;\n"
@@ -1463,7 +1625,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             project->objects[object_index - 1].name);
         fprintf(source, "    %s_destroy(&objects->%s);\n", variable, variable);
     }
-    fprintf(source, "    *objects = (ProjectObjects){0};\n}\n\n");
+    fprintf(source,
+        "    project_input_destroy(&objects->input);\n"
+        "    *objects = (ProjectObjects){0};\n}\n\n");
     fprintf(header, "#endif\n");
     {
         bool header_closed = fclose(header) == 0;
@@ -2019,7 +2183,6 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "        fprintf(stderr, \"Could not use the executable directory\\n\");\n"
         "        return 1;\n"
         "    }\n"
-        "    KeyboardState keyboard = {0};\n"
         "    ProjectObjects objects = {0};\n"
         "    ProjectViewports viewports = {0};\n");
     fprintf(file,
@@ -2029,13 +2192,11 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
     fprintf(file,
         "    while(true) {\n"
         "        SDL_Event event;\n"
-        "        rohr_controller_key_states_update(&keyboard);\n"
+        "        rohr_input_frame_begin();\n"
         "        while((event = rohr_engine_event_poll()).type != 0) {\n"
-        "            rohr_controller_key_event_add(&keyboard,\n"
-        "                rohr_controller_keyboard_event_capture(&event));\n"
         "            if(event.type == SDL_EVENT_QUIT) goto done;\n"
         "        }\n"
-        "        if(rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;\n"
+        "        if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;\n"
         "        if(!ok(rohr_physics_update(rohr_system_tick_update()))) goto fail;\n"
         "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), "
         "rohr_engine_time_get());\n"

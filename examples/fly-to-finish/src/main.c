@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -210,7 +211,9 @@ static EngineResult reset_level(
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    KeyboardState keyboard = {0};
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action, debug_action, reset_action;
+    InputActionId thrust_action, brake_action, turn_action;
     ObstacleRecord obstacle_records[MAX_OBSTACLE_RECORDS] = {0};
     size_t next_obstacle_record = 0;
     Time next_spawn_time = 0.0;
@@ -240,6 +243,34 @@ int main(void) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
         }
+    }
+    {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
+            1.0f, (Vec2D){0});
+        InputBinding reset_binding = example_input_key_binding(SDL_SCANCODE_R,
+            1.0f, (Vec2D){0});
+        InputBinding thrust_binding = example_input_key_binding(SDL_SCANCODE_W,
+            1.0f, (Vec2D){0});
+        InputBinding brake_binding = example_input_key_binding(SDL_SCANCODE_S,
+            1.0f, (Vec2D){0});
+        InputBinding turn_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_A, -1.0f, (Vec2D){0}),
+            example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0})};
+        if(!example_input_map_create("flight", &input_map) ||
+                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+                    &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
+                !example_input_action_create(input_map, "reset", INPUT_ACTION_BUTTON,
+                    &reset_binding, 1, &reset_action) ||
+                !example_input_action_create(input_map, "thrust", INPUT_ACTION_BUTTON,
+                    &thrust_binding, 1, &thrust_action) ||
+                !example_input_action_create(input_map, "brake", INPUT_ACTION_BUTTON,
+                    &brake_binding, 1, &brake_action) ||
+                !example_input_action_create(input_map, "turn", INPUT_ACTION_AXIS_1D,
+                    turn_bindings, 2, &turn_action)) goto fail;
     }
     {
         EngineResult tick_result = rohr_engine_time_per_tick_set(1.0 / 120.0);
@@ -320,7 +351,7 @@ int main(void) {
     while(true) {
         SDL_Event event;
         Vec2D thrust_axis;
-        Vec2D turn_axis;
+        float turn_axis;
         EntityIndex player_index;
         Velocity player_velocity;
         float speed;
@@ -328,22 +359,20 @@ int main(void) {
         bool player_control_enabled;
 
         bool exit_requested = false;
-        rohr_controller_key_states_update(&keyboard);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_controller_key_event_add(&keyboard,
-                rohr_controller_keyboard_event_capture(&event));
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
-        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+                rohr_input_action_button_pressed_check(exit_action)) break;
+        if(rohr_input_action_button_pressed_check(debug_action)) {
             broadphase_debug = !broadphase_debug;
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
         }
         Tick ticks_advanced = rohr_system_tick_update();
 
-        if(rohr_controller_key_pressed_get(&keyboard, SDLK_R)) {
+        if(rohr_input_action_button_pressed_check(reset_action)) {
             EngineResult reset_result = reset_level(
                     player,
                     player_start_position,
@@ -383,7 +412,7 @@ int main(void) {
 
         thrust_axis = player_forward(orientations[player_index]);
         if(ticks_advanced > 0 && player_control_enabled &&
-                rohr_controller_key_down_get(&keyboard, SDLK_W)) {
+                rohr_input_action_button_down_check(thrust_action)) {
             EngineResult thrust_result = rohr_physics_force_for_one_tick_apply(player, (Force){
                 .x = thrust_axis.x * player_mass * player_thrust_acceleration,
                 .y = thrust_axis.y * player_mass * player_thrust_acceleration
@@ -394,7 +423,7 @@ int main(void) {
             }
         }
         if(ticks_advanced > 0 && player_control_enabled &&
-                rohr_controller_key_down_get(&keyboard, SDLK_S) && speed > 0.001f) {
+                rohr_input_action_button_down_check(brake_action) && speed > 0.001f) {
             EngineResult brake_result = rohr_physics_force_for_one_tick_apply(player, (Force){
                 .x = -(player_velocity.x / speed) * player_mass * player_brake_acceleration,
                 .y = -(player_velocity.y / speed) * player_mass * player_brake_acceleration
@@ -405,9 +434,10 @@ int main(void) {
             }
         }
 
-        turn_axis = rohr_controller_axis_from_keycodes_get(&keyboard, SDLK_UNKNOWN, SDLK_A, SDLK_UNKNOWN, SDLK_D);
-        if(ticks_advanced > 0 && player_control_enabled && turn_axis.x != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(player, -turn_axis.x * player_control_torque);
+        InputAxis1DResult turn_result = rohr_input_action_axis_1d_get(turn_action);
+        turn_axis = rohr_error_check(turn_result) ? 0.0f : turn_result.result.value;
+        if(ticks_advanced > 0 && player_control_enabled && turn_axis != 0.0f) {
+            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(player, -turn_axis * player_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;
@@ -438,12 +468,16 @@ int main(void) {
     }
 
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

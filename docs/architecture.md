@@ -84,6 +84,14 @@ The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same
 public primitives available to applications.
 
+## Input
+
+The engine event poller automatically feeds an engine-owned per-frame keyboard,
+pointer, and text snapshot. Raw device state remains separate from named action
+maps. Actions combine copied tagged bindings into Button, Axis 1D, or Axis 2D
+values; generated project defaults and runtime user overrides occupy separate
+binding lists. See [Input](input.md) for lifecycle and authoring details.
+
 ## Editor and generated projects
 
 The editor owns an authoring model separate from runtime ECS state. Editor ids

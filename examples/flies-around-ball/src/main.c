@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -48,7 +49,8 @@ static void render_scene(CameraId camera, void *context_value) {
 int main(void) {
     if(!example_use_executable_directory()) return 1;
     GroupId children_group = GROUP_INVALID;
-    KeyboardState keyboard = {0};
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action, debug_action, move_action, turn_action;
     ViewportId viewport = VIEWPORT_INVALID;
     RenderContext render_context = {0};
     bool broadphase_debug = true;
@@ -59,6 +61,29 @@ int main(void) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
         }
+    }
+    {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
+            1.0f, (Vec2D){0});
+        InputBinding move_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_W, 1.0f, (Vec2D){0, 1}),
+            example_input_key_binding(SDL_SCANCODE_A, 1.0f, (Vec2D){-1, 0}),
+            example_input_key_binding(SDL_SCANCODE_S, 1.0f, (Vec2D){0, -1}),
+            example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){1, 0})};
+        InputBinding turn_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_LEFT, -1.0f, (Vec2D){0}),
+            example_input_key_binding(SDL_SCANCODE_RIGHT, 1.0f, (Vec2D){0})};
+        if(!example_input_map_create("flies", &input_map) ||
+                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+                    &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
+                !example_input_action_create(input_map, "move", INPUT_ACTION_AXIS_2D,
+                    move_bindings, 4, &move_action) ||
+                !example_input_action_create(input_map, "turn", INPUT_ACTION_AXIS_1D,
+                    turn_bindings, 2, &turn_action)) goto fail;
     }
     {
         EngineResult tick_result = rohr_engine_time_per_tick_set(1.0 / 120.0);
@@ -153,15 +178,13 @@ int main(void) {
     while(true) {
         SDL_Event event;
         bool exit_requested = false;
-        rohr_controller_key_states_update(&keyboard);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_controller_key_event_add(&keyboard,
-                rohr_controller_keyboard_event_capture(&event));
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
-        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+                rohr_input_action_button_pressed_check(exit_action)) break;
+        if(rohr_input_action_button_pressed_check(debug_action)) {
             broadphase_debug = !broadphase_debug;
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
@@ -182,8 +205,12 @@ int main(void) {
         Time time = rohr_engine_time_get();
         Time phase_time = time - ((int)(time / 4.0) * 4.0);
         float acceleration_magnitude = 50.0f + (float)time * 22.0f;
-        Vec2D move_axis = rohr_controller_wasd_axis_get(&keyboard);
-        Vec2D turn_axis = rohr_controller_axis_from_keycodes_get(&keyboard, SDLK_UNKNOWN, SDLK_LEFT, SDLK_UNKNOWN, SDLK_RIGHT);
+        InputAxis2DResult move_result = rohr_input_action_axis_2d_get(move_action);
+        InputAxis1DResult turn_result = rohr_input_action_axis_1d_get(turn_action);
+        Vec2D move_axis = rohr_error_check(move_result) ? (Vec2D){0} :
+            move_result.result.value;
+        float turn_axis = rohr_error_check(turn_result) ? 0.0f :
+            turn_result.result.value;
 
         if(ticks_advanced > 0 && (move_axis.x != 0.0f || move_axis.y != 0.0f)) {
             EngineResult force_result = rohr_physics_force_for_one_tick_apply(ball, (Force){
@@ -195,8 +222,8 @@ int main(void) {
                 goto fail;
             }
         }
-        if(ticks_advanced > 0 && turn_axis.x != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(ball, -turn_axis.x * ball_control_torque);
+        if(ticks_advanced > 0 && turn_axis != 0.0f) {
+            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(ball, -turn_axis * ball_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;
@@ -221,12 +248,16 @@ int main(void) {
 
     }
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

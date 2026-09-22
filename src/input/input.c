@@ -1,0 +1,773 @@
+/* Copyright 2026 Aaron Rohrer
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+#include "input.h"
+#include "input/input_internal.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+
+typedef struct InputSnapshot {
+    bool keys_down[SDL_SCANCODE_COUNT];
+    bool keys_pressed[SDL_SCANCODE_COUNT];
+    bool keys_released[SDL_SCANCODE_COUNT];
+    bool mouse_down[INPUT_MOUSE_BUTTON_COUNT];
+    bool mouse_pressed[INPUT_MOUSE_BUTTON_COUNT];
+    bool mouse_released[INPUT_MOUSE_BUTTON_COUNT];
+    Vec2D mouse_position;
+    Vec2D mouse_delta;
+    Vec2D mouse_wheel;
+    SDL_Keymod modifiers;
+    InputTextState text;
+    SDL_WindowID mouse_window;
+    SDL_WindowID keyboard_window;
+} InputSnapshot;
+
+typedef struct InputActionMap {
+    char name[ROHR_INPUT_NAME_MAX];
+    InputActionMapId id;
+    bool enabled;
+    bool used;
+} InputActionMap;
+
+typedef struct InputAction {
+    char name[ROHR_INPUT_NAME_MAX];
+    InputActionId id;
+    InputActionMapId map;
+    InputActionType type;
+    InputBinding defaults[ROHR_INPUT_BINDING_LIMIT];
+    size_t default_count;
+    InputBinding overrides[ROHR_INPUT_BINDING_LIMIT];
+    size_t override_count;
+    bool override_active;
+    bool button_down;
+    bool button_pressed;
+    bool button_released;
+    bool used;
+} InputAction;
+
+static InputSnapshot input_snapshot;
+static InputActionMap input_action_maps[ROHR_INPUT_ACTION_MAP_LIMIT];
+static uint32_t input_action_map_generations[ROHR_INPUT_ACTION_MAP_LIMIT];
+static InputAction input_actions[ROHR_INPUT_ACTION_LIMIT];
+static uint32_t input_action_generations[ROHR_INPUT_ACTION_LIMIT];
+
+static uint32_t input_id_create(uint32_t generation, size_t slot) {
+    return (generation << 16) | (uint32_t)(slot + 1);
+}
+
+static bool input_id_slot_get(uint32_t id, size_t capacity, size_t *slot) {
+    uint32_t value = id & UINT32_C(0xffff);
+    if(value == 0 || value > capacity || slot == NULL) return false;
+    *slot = (size_t)(value - 1);
+    return true;
+}
+
+static InputActionMap *input_action_map_get(InputActionMapId id) {
+    size_t slot;
+    if(!input_id_slot_get(id, ROHR_INPUT_ACTION_MAP_LIMIT, &slot) ||
+            !input_action_maps[slot].used || input_action_maps[slot].id != id)
+        return NULL;
+    return &input_action_maps[slot];
+}
+
+static InputAction *input_action_get(InputActionId id) {
+    size_t slot;
+    if(!input_id_slot_get(id, ROHR_INPUT_ACTION_LIMIT, &slot) ||
+            !input_actions[slot].used || input_actions[slot].id != id)
+        return NULL;
+    return &input_actions[slot];
+}
+
+static bool input_name_check(const char *name) {
+    return name != NULL && name[0] != '\0' && strlen(name) < ROHR_INPUT_NAME_MAX;
+}
+
+static bool input_scancode_check(SDL_Scancode key) {
+    return key > SDL_SCANCODE_UNKNOWN && key < SDL_SCANCODE_COUNT;
+}
+
+static bool input_mouse_button_check(InputMouseButton button) {
+    return button > INPUT_MOUSE_BUTTON_NONE && button < INPUT_MOUSE_BUTTON_COUNT;
+}
+
+static bool input_axis_component_check(InputAxisComponent component) {
+    return component >= INPUT_AXIS_COMPONENT_X && component <= INPUT_AXIS_COMPONENT_XY;
+}
+
+static bool input_modifiers_check(SDL_Keymod required) {
+    return (input_snapshot.modifiers & required) == required;
+}
+
+static const InputBinding *input_action_bindings_get(const InputAction *action,
+        size_t *count) {
+    if(action == NULL || count == NULL) return NULL;
+    if(action->override_active) {
+        *count = action->override_count;
+        return action->overrides;
+    }
+    *count = action->default_count;
+    return action->defaults;
+}
+
+static bool input_binding_digital_down_check(const InputBinding *binding) {
+    if(binding == NULL || !input_modifiers_check(binding->modifiers)) return false;
+    if(binding->source == INPUT_BINDING_KEY)
+        return input_key_down_check(binding->input.key);
+    if(binding->source == INPUT_BINDING_MOUSE_BUTTON)
+        return input_mouse_button_down_check(binding->input.mouse_button);
+    return false;
+}
+
+static bool input_action_button_value_get(const InputAction *action) {
+    size_t count = 0;
+    const InputBinding *bindings;
+    InputActionMap *map;
+    if(action == NULL || action->type != INPUT_ACTION_BUTTON ||
+            (map = input_action_map_get(action->map)) == NULL || !map->enabled)
+        return false;
+    bindings = input_action_bindings_get(action, &count);
+    for(size_t i = 0; i < count; i += 1)
+        if(input_binding_digital_down_check(&bindings[i])) return true;
+    return false;
+}
+
+static float input_binding_scalar_get(const InputBinding *binding) {
+    float value = 0.0f;
+    if(binding == NULL || !input_modifiers_check(binding->modifiers)) return 0.0f;
+    if(binding->source == INPUT_BINDING_KEY ||
+            binding->source == INPUT_BINDING_MOUSE_BUTTON) {
+        value = input_binding_digital_down_check(binding) ? 1.0f : 0.0f;
+    } else if(binding->source == INPUT_BINDING_MOUSE_MOTION) {
+        value = binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
+            input_snapshot.mouse_delta.x : input_snapshot.mouse_delta.y;
+    } else if(binding->source == INPUT_BINDING_MOUSE_WHEEL) {
+        value = binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
+            input_snapshot.mouse_wheel.x : input_snapshot.mouse_wheel.y;
+    }
+    value *= binding->scale;
+    return binding->inverted ? -value : value;
+}
+
+static Vec2D input_binding_vector_get(const InputBinding *binding) {
+    Vec2D value = {0};
+    if(binding == NULL || !input_modifiers_check(binding->modifiers)) return value;
+    if(binding->source == INPUT_BINDING_KEY ||
+            binding->source == INPUT_BINDING_MOUSE_BUTTON) {
+        if(input_binding_digital_down_check(binding)) value = binding->direction;
+    } else {
+        Vec2D source = binding->source == INPUT_BINDING_MOUSE_MOTION ?
+            input_snapshot.mouse_delta : input_snapshot.mouse_wheel;
+        if(binding->input.axis_component == INPUT_AXIS_COMPONENT_X)
+            value.x = source.x;
+        else if(binding->input.axis_component == INPUT_AXIS_COMPONENT_Y)
+            value.y = source.y;
+        else value = source;
+    }
+    value.x *= binding->scale;
+    value.y *= binding->scale;
+    if(binding->inverted) {
+        value.x = -value.x;
+        value.y = -value.y;
+    }
+    return value;
+}
+
+static void input_button_actions_refresh(bool transitions) {
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1) {
+        InputAction *action = &input_actions[i];
+        bool down;
+        if(!action->used || action->type != INPUT_ACTION_BUTTON) continue;
+        down = input_action_button_value_get(action);
+        if(transitions && !action->button_down && down)
+            action->button_pressed = true;
+        if(transitions && action->button_down && !down)
+            action->button_released = true;
+        action->button_down = down;
+    }
+}
+
+bool input_binding_valid_check(InputActionType action_type,
+        const InputBinding *binding) {
+    if(binding == NULL || binding->source < INPUT_BINDING_KEY ||
+            binding->source > INPUT_BINDING_MOUSE_WHEEL ||
+            !isfinite(binding->scale) ||
+            !isfinite(binding->direction.x) || !isfinite(binding->direction.y))
+        return false;
+    if(binding->source == INPUT_BINDING_KEY &&
+            !input_scancode_check(binding->input.key)) return false;
+    if(binding->source == INPUT_BINDING_MOUSE_BUTTON &&
+            !input_mouse_button_check(binding->input.mouse_button)) return false;
+    if((binding->source == INPUT_BINDING_MOUSE_MOTION ||
+            binding->source == INPUT_BINDING_MOUSE_WHEEL) &&
+            !input_axis_component_check(binding->input.axis_component)) return false;
+    if(action_type == INPUT_ACTION_BUTTON)
+        return binding->source == INPUT_BINDING_KEY ||
+            binding->source == INPUT_BINDING_MOUSE_BUTTON;
+    if(action_type == INPUT_ACTION_AXIS_1D &&
+            (binding->source == INPUT_BINDING_MOUSE_MOTION ||
+             binding->source == INPUT_BINDING_MOUSE_WHEEL))
+        return binding->input.axis_component != INPUT_AXIS_COMPONENT_XY;
+    if(action_type == INPUT_ACTION_AXIS_2D &&
+            (binding->source == INPUT_BINDING_KEY ||
+             binding->source == INPUT_BINDING_MOUSE_BUTTON))
+        return binding->direction.x != 0.0f || binding->direction.y != 0.0f;
+    return true;
+}
+
+static EngineResult input_bindings_set(InputAction *action,
+        InputBinding *destination, size_t *destination_count,
+        const InputBinding *bindings, size_t count) {
+    if(action == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    if(count > ROHR_INPUT_BINDING_LIMIT || (count > 0 && bindings == NULL))
+        return error_result_error(ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
+    for(size_t i = 0; i < count; i += 1)
+        if(!input_binding_valid_check(action->type, &bindings[i]))
+            return error_result_error(ERROR_ENGINE_INPUT_BINDING_INVALID);
+    if(count > 0) memcpy(destination, bindings, count * sizeof(*bindings));
+    if(count < ROHR_INPUT_BINDING_LIMIT)
+        memset(destination + count, 0,
+            (ROHR_INPUT_BINDING_LIMIT - count) * sizeof(*destination));
+    *destination_count = count;
+    input_button_actions_refresh(false);
+    return error_result_value(true);
+}
+
+static InputBindingListResult input_binding_list_result_get(
+        const InputBinding *bindings, size_t count) {
+    InputBindingList list = {.count = count};
+    if(count > 0) memcpy(list.values, bindings, count * sizeof(*bindings));
+    return ERROR_RESULT_MAKE_VALUE(InputBindingListResult, list);
+}
+
+static void input_utf8_copy(char *destination, size_t capacity,
+        bool *truncated, const char *source) {
+    size_t source_length;
+    size_t copy_length;
+    if(destination == NULL || capacity == 0 || truncated == NULL) return;
+    if(source == NULL) source = "";
+    source_length = strlen(source);
+    copy_length = source_length < capacity ? source_length : capacity - 1;
+    while(copy_length > 0 && ((unsigned char)source[copy_length] & 0xc0) == 0x80)
+        copy_length -= 1;
+    memcpy(destination, source, copy_length);
+    destination[copy_length] = '\0';
+    *truncated = source_length >= capacity;
+}
+
+static void input_text_copy(char destination[ROHR_INPUT_TEXT_CAPACITY],
+        bool *truncated, const char *source) {
+    input_utf8_copy(destination, ROHR_INPUT_TEXT_CAPACITY, truncated, source);
+}
+
+static void input_text_candidates_clear(void) {
+    memset(input_snapshot.text.candidates, 0,
+        sizeof(input_snapshot.text.candidates));
+    input_snapshot.text.candidate_count = 0;
+    input_snapshot.text.selected_candidate = -1;
+    input_snapshot.text.candidates_horizontal = false;
+    input_snapshot.text.candidates_truncated = false;
+}
+
+static void input_text_append(const char *source) {
+    size_t current;
+    size_t available;
+    size_t source_length;
+    size_t copy_length;
+    if(source == NULL) return;
+    current = strlen(input_snapshot.text.committed);
+    available = ROHR_INPUT_TEXT_CAPACITY - current - 1;
+    source_length = strlen(source);
+    copy_length = source_length < available ? source_length : available;
+    while(copy_length > 0 && ((unsigned char)source[copy_length] & 0xc0) == 0x80)
+        copy_length -= 1;
+    memcpy(input_snapshot.text.committed + current, source, copy_length);
+    input_snapshot.text.committed[current + copy_length] = '\0';
+    if(copy_length < source_length) input_snapshot.text.committed_truncated = true;
+}
+
+void input_init(void) {
+    memset(&input_snapshot, 0, sizeof(input_snapshot));
+    memset(input_action_maps, 0, sizeof(input_action_maps));
+    memset(input_action_map_generations, 0, sizeof(input_action_map_generations));
+    memset(input_actions, 0, sizeof(input_actions));
+    memset(input_action_generations, 0, sizeof(input_action_generations));
+    input_snapshot.text.selected_candidate = -1;
+}
+
+void input_shutdown(void) {
+    SDL_Window *window = SDL_GetKeyboardFocus();
+    if(window != NULL && SDL_TextInputActive(window)) (void)SDL_StopTextInput(window);
+    input_init();
+}
+
+void input_frame_begin(void) {
+    memset(input_snapshot.keys_pressed, 0, sizeof(input_snapshot.keys_pressed));
+    memset(input_snapshot.keys_released, 0, sizeof(input_snapshot.keys_released));
+    memset(input_snapshot.mouse_pressed, 0, sizeof(input_snapshot.mouse_pressed));
+    memset(input_snapshot.mouse_released, 0, sizeof(input_snapshot.mouse_released));
+    input_snapshot.mouse_delta = (Vec2D){0};
+    input_snapshot.mouse_wheel = (Vec2D){0};
+    input_snapshot.text.committed[0] = '\0';
+    input_snapshot.text.committed_truncated = false;
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1) {
+        input_actions[i].button_pressed = false;
+        input_actions[i].button_released = false;
+    }
+    input_button_actions_refresh(false);
+}
+
+bool input_key_down_check(SDL_Scancode key) {
+    return input_scancode_check(key) && input_snapshot.keys_down[key];
+}
+
+bool input_key_pressed_check(SDL_Scancode key) {
+    return input_scancode_check(key) && input_snapshot.keys_pressed[key];
+}
+
+bool input_key_released_check(SDL_Scancode key) {
+    return input_scancode_check(key) && input_snapshot.keys_released[key];
+}
+
+SDL_Keymod input_modifiers_get(void) { return input_snapshot.modifiers; }
+
+bool input_mouse_button_down_check(InputMouseButton button) {
+    return input_mouse_button_check(button) && input_snapshot.mouse_down[button];
+}
+
+bool input_mouse_button_pressed_check(InputMouseButton button) {
+    return input_mouse_button_check(button) && input_snapshot.mouse_pressed[button];
+}
+
+bool input_mouse_button_released_check(InputMouseButton button) {
+    return input_mouse_button_check(button) && input_snapshot.mouse_released[button];
+}
+
+Vec2D input_mouse_position_get(void) { return input_snapshot.mouse_position; }
+Vec2D input_mouse_delta_get(void) { return input_snapshot.mouse_delta; }
+Vec2D input_mouse_wheel_get(void) { return input_snapshot.mouse_wheel; }
+
+static SDL_Window *input_mouse_window_get(void) {
+    SDL_Window *window = input_snapshot.mouse_window == 0 ? NULL :
+        SDL_GetWindowFromID(input_snapshot.mouse_window);
+    if(window == NULL) window = SDL_GetMouseFocus();
+    if(window == NULL) window = SDL_GetKeyboardFocus();
+    return window;
+}
+
+EngineResult input_mouse_relative_mode_set(bool enabled) {
+    SDL_Window *window = input_mouse_window_get();
+    if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
+    if(!SDL_SetWindowRelativeMouseMode(window, enabled))
+        return error_result_error_detail(ERROR_ENGINE_INPUT_OPERATION_FAILED,
+            SDL_GetError());
+    return error_result_value(true);
+}
+
+bool input_mouse_relative_mode_check(void) {
+    SDL_Window *window = input_mouse_window_get();
+    return window != NULL && SDL_GetWindowRelativeMouseMode(window);
+}
+
+static SDL_Window *input_keyboard_window_get(void) {
+    SDL_Window *window = input_snapshot.keyboard_window == 0 ? NULL :
+        SDL_GetWindowFromID(input_snapshot.keyboard_window);
+    if(window == NULL) window = SDL_GetKeyboardFocus();
+    return window;
+}
+
+EngineResult input_text_start(void) {
+    SDL_Window *window = input_keyboard_window_get();
+    if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
+    if(!SDL_StartTextInput(window)) return error_result_error_detail(
+        ERROR_ENGINE_INPUT_OPERATION_FAILED, SDL_GetError());
+    input_snapshot.text.active = true;
+    return error_result_value(true);
+}
+
+EngineResult input_text_stop(void) {
+    SDL_Window *window = input_keyboard_window_get();
+    if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
+    if(!SDL_StopTextInput(window)) return error_result_error_detail(
+        ERROR_ENGINE_INPUT_OPERATION_FAILED, SDL_GetError());
+    input_snapshot.text.active = false;
+    input_snapshot.text.composition[0] = '\0';
+    input_snapshot.text.composition_start = 0;
+    input_snapshot.text.composition_length = 0;
+    input_text_candidates_clear();
+    return error_result_value(true);
+}
+
+EngineResult input_text_area_set(SDL_Rect area, int cursor) {
+    SDL_Window *window = input_keyboard_window_get();
+    if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
+    if(!SDL_SetTextInputArea(window, &area, cursor))
+        return error_result_error_detail(ERROR_ENGINE_INPUT_OPERATION_FAILED,
+            SDL_GetError());
+    return error_result_value(true);
+}
+
+InputTextState input_text_state_get(void) { return input_snapshot.text; }
+
+InputActionMapIdResult input_action_map_create(const char *name) {
+    size_t slot;
+    if(name == NULL || name[0] == '\0') return ERROR_RESULT_MAKE_ERROR(
+        InputActionMapIdResult, ERROR_ENGINE_INVALID_INPUT_NAME);
+    if(strlen(name) >= ROHR_INPUT_NAME_MAX) return ERROR_RESULT_MAKE_ERROR(
+        InputActionMapIdResult, ERROR_ENGINE_INPUT_NAME_TOO_LONG);
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_MAP_LIMIT; i += 1)
+        if(input_action_maps[i].used && strcmp(input_action_maps[i].name, name) == 0)
+            return ERROR_RESULT_MAKE_ERROR(InputActionMapIdResult,
+                ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+    for(slot = 0; slot < ROHR_INPUT_ACTION_MAP_LIMIT; slot += 1)
+        if(!input_action_maps[slot].used) break;
+    if(slot == ROHR_INPUT_ACTION_MAP_LIMIT) return ERROR_RESULT_MAKE_ERROR(
+        InputActionMapIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
+    input_action_map_generations[slot] += 1;
+    if(input_action_map_generations[slot] == 0)
+        input_action_map_generations[slot] = 1;
+    input_action_maps[slot] = (InputActionMap){
+        .id = input_id_create(input_action_map_generations[slot], slot),
+        .enabled = true,
+        .used = true,
+    };
+    snprintf(input_action_maps[slot].name, sizeof(input_action_maps[slot].name),
+        "%s", name);
+    return ERROR_RESULT_MAKE_VALUE(InputActionMapIdResult,
+        input_action_maps[slot].id);
+}
+
+EngineResult input_action_map_destroy(InputActionMapId map) {
+    InputActionMap *value = input_action_map_get(map);
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1)
+        if(input_actions[i].used && input_actions[i].map == map)
+            input_actions[i] = (InputAction){0};
+    *value = (InputActionMap){0};
+    return error_result_value(true);
+}
+
+InputActionMapIdResult input_action_map_by_name_get(const char *name) {
+    if(!input_name_check(name)) return ERROR_RESULT_MAKE_ERROR(
+        InputActionMapIdResult, ERROR_ENGINE_INVALID_INPUT_NAME);
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_MAP_LIMIT; i += 1)
+        if(input_action_maps[i].used && strcmp(input_action_maps[i].name, name) == 0)
+            return ERROR_RESULT_MAKE_VALUE(InputActionMapIdResult,
+                input_action_maps[i].id);
+    return ERROR_RESULT_MAKE_ERROR(InputActionMapIdResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+}
+
+EngineResult input_action_map_enabled_set(InputActionMapId map, bool enabled) {
+    InputActionMap *value = input_action_map_get(map);
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    value->enabled = enabled;
+    input_button_actions_refresh(false);
+    return error_result_value(true);
+}
+
+bool input_action_map_enabled_check(InputActionMapId map) {
+    InputActionMap *value = input_action_map_get(map);
+    return value != NULL && value->enabled;
+}
+
+InputActionIdResult input_action_create(InputActionMapId map,
+        const char *name, InputActionType type) {
+    size_t slot;
+    if(input_action_map_get(map) == NULL) return ERROR_RESULT_MAKE_ERROR(
+        InputActionIdResult, ERROR_ENGINE_INPUT_NOT_FOUND);
+    if(name == NULL || name[0] == '\0') return ERROR_RESULT_MAKE_ERROR(
+        InputActionIdResult, ERROR_ENGINE_INVALID_INPUT_NAME);
+    if(strlen(name) >= ROHR_INPUT_NAME_MAX) return ERROR_RESULT_MAKE_ERROR(
+        InputActionIdResult, ERROR_ENGINE_INPUT_NAME_TOO_LONG);
+    if(type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D)
+        return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
+            ERROR_ENGINE_INPUT_TYPE_MISMATCH);
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1)
+        if(input_actions[i].used && input_actions[i].map == map &&
+                strcmp(input_actions[i].name, name) == 0)
+            return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
+                ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+    for(slot = 0; slot < ROHR_INPUT_ACTION_LIMIT; slot += 1)
+        if(!input_actions[slot].used) break;
+    if(slot == ROHR_INPUT_ACTION_LIMIT) return ERROR_RESULT_MAKE_ERROR(
+        InputActionIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
+    input_action_generations[slot] += 1;
+    if(input_action_generations[slot] == 0) input_action_generations[slot] = 1;
+    input_actions[slot] = (InputAction){
+        .id = input_id_create(input_action_generations[slot], slot),
+        .map = map,
+        .type = type,
+        .used = true,
+    };
+    snprintf(input_actions[slot].name, sizeof(input_actions[slot].name), "%s", name);
+    input_actions[slot].button_down = input_action_button_value_get(
+        &input_actions[slot]);
+    return ERROR_RESULT_MAKE_VALUE(InputActionIdResult, input_actions[slot].id);
+}
+
+EngineResult input_action_destroy(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    *value = (InputAction){0};
+    return error_result_value(true);
+}
+
+InputActionIdResult input_action_by_name_get(InputActionMapId map,
+        const char *name) {
+    if(input_action_map_get(map) == NULL || !input_name_check(name))
+        return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
+            ERROR_ENGINE_INPUT_NOT_FOUND);
+    for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1)
+        if(input_actions[i].used && input_actions[i].map == map &&
+                strcmp(input_actions[i].name, name) == 0)
+            return ERROR_RESULT_MAKE_VALUE(InputActionIdResult, input_actions[i].id);
+    return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+}
+
+InputActionTypeResult input_action_type_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputActionTypeResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(InputActionTypeResult, value->type);
+}
+
+EngineResult input_action_bindings_default_set(InputActionId action,
+        const InputBinding *bindings, size_t count) {
+    InputAction *value = input_action_get(action);
+    return input_bindings_set(value, value == NULL ? NULL : value->defaults,
+        value == NULL ? NULL : &value->default_count, bindings, count);
+}
+
+InputBindingListResult input_action_bindings_default_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputBindingListResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    return input_binding_list_result_get(value->defaults, value->default_count);
+}
+
+EngineResult input_action_bindings_override_set(InputActionId action,
+        const InputBinding *bindings, size_t count) {
+    InputAction *value = input_action_get(action);
+    EngineResult result = input_bindings_set(value,
+        value == NULL ? NULL : value->overrides,
+        value == NULL ? NULL : &value->override_count, bindings, count);
+    if(result.kind != ERROR_RESULT_ERROR) {
+        value->override_active = true;
+        input_button_actions_refresh(false);
+    }
+    return result;
+}
+
+InputBindingListResult input_action_bindings_override_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputBindingListResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    return input_binding_list_result_get(value->overrides, value->override_count);
+}
+
+InputBindingListResult input_action_bindings_effective_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    size_t count = 0;
+    const InputBinding *bindings;
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputBindingListResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    bindings = input_action_bindings_get(value, &count);
+    return input_binding_list_result_get(bindings, count);
+}
+
+EngineResult input_action_bindings_override_clear(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    memset(value->overrides, 0, sizeof(value->overrides));
+    value->override_count = 0;
+    value->override_active = false;
+    input_button_actions_refresh(false);
+    return error_result_value(true);
+}
+
+bool input_action_bindings_override_check(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    return value != NULL && value->override_active;
+}
+
+bool input_action_button_down_check(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    return value != NULL && value->type == INPUT_ACTION_BUTTON && value->button_down;
+}
+
+bool input_action_button_pressed_check(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    return value != NULL && value->type == INPUT_ACTION_BUTTON &&
+        value->button_pressed;
+}
+
+bool input_action_button_released_check(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    return value != NULL && value->type == INPUT_ACTION_BUTTON &&
+        value->button_released;
+}
+
+InputAxis1DResult input_action_axis_1d_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    InputActionMap *map;
+    const InputBinding *bindings;
+    size_t count = 0;
+    float axis = 0.0f;
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputAxis1DResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    if(value->type != INPUT_ACTION_AXIS_1D) return ERROR_RESULT_MAKE_ERROR(
+        InputAxis1DResult, ERROR_ENGINE_INPUT_TYPE_MISMATCH);
+    map = input_action_map_get(value->map);
+    if(map == NULL || !map->enabled)
+        return ERROR_RESULT_MAKE_VALUE(InputAxis1DResult, 0.0f);
+    bindings = input_action_bindings_get(value, &count);
+    for(size_t i = 0; i < count; i += 1)
+        axis += input_binding_scalar_get(&bindings[i]);
+    if(axis < -1.0f) axis = -1.0f;
+    if(axis > 1.0f) axis = 1.0f;
+    return ERROR_RESULT_MAKE_VALUE(InputAxis1DResult, axis);
+}
+
+InputAxis2DResult input_action_axis_2d_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    InputActionMap *map;
+    const InputBinding *bindings;
+    size_t count = 0;
+    Vec2D axis = {0};
+    float magnitude_squared;
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(InputAxis2DResult,
+        ERROR_ENGINE_INPUT_NOT_FOUND);
+    if(value->type != INPUT_ACTION_AXIS_2D) return ERROR_RESULT_MAKE_ERROR(
+        InputAxis2DResult, ERROR_ENGINE_INPUT_TYPE_MISMATCH);
+    map = input_action_map_get(value->map);
+    if(map == NULL || !map->enabled)
+        return ERROR_RESULT_MAKE_VALUE(InputAxis2DResult, axis);
+    bindings = input_action_bindings_get(value, &count);
+    for(size_t i = 0; i < count; i += 1) {
+        Vec2D contribution = input_binding_vector_get(&bindings[i]);
+        axis.x += contribution.x;
+        axis.y += contribution.y;
+    }
+    magnitude_squared = axis.x * axis.x + axis.y * axis.y;
+    if(magnitude_squared > 1.0f) {
+        float inverse = 1.0f / sqrtf(magnitude_squared);
+        axis.x *= inverse;
+        axis.y *= inverse;
+    }
+    return ERROR_RESULT_MAKE_VALUE(InputAxis2DResult, axis);
+}
+
+void input_event_add(const SDL_Event *event) {
+    bool button_source_changed = false;
+    if(event == NULL) return;
+    switch(event->type) {
+        case SDL_EVENT_KEY_DOWN:
+            input_snapshot.keyboard_window = event->key.windowID;
+            input_snapshot.modifiers = event->key.mod;
+            if(input_scancode_check(event->key.scancode) && !event->key.repeat &&
+                    !input_snapshot.keys_down[event->key.scancode]) {
+                input_snapshot.keys_down[event->key.scancode] = true;
+                input_snapshot.keys_pressed[event->key.scancode] = true;
+                button_source_changed = true;
+            }
+            break;
+        case SDL_EVENT_KEY_UP:
+            input_snapshot.keyboard_window = event->key.windowID;
+            input_snapshot.modifiers = event->key.mod;
+            if(input_scancode_check(event->key.scancode) &&
+                    input_snapshot.keys_down[event->key.scancode]) {
+                input_snapshot.keys_down[event->key.scancode] = false;
+                input_snapshot.keys_released[event->key.scancode] = true;
+                button_source_changed = true;
+            }
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP: {
+            InputMouseButton button = (InputMouseButton)event->button.button;
+            bool down = event->type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+            input_snapshot.mouse_window = event->button.windowID;
+            input_snapshot.mouse_position = (Vec2D){event->button.x, event->button.y};
+            if(input_mouse_button_check(button) &&
+                    input_snapshot.mouse_down[button] != down) {
+                input_snapshot.mouse_down[button] = down;
+                input_snapshot.mouse_pressed[button] |= down;
+                input_snapshot.mouse_released[button] |= !down;
+                button_source_changed = true;
+            }
+            break;
+        }
+        case SDL_EVENT_MOUSE_MOTION:
+            input_snapshot.mouse_window = event->motion.windowID;
+            input_snapshot.mouse_position = (Vec2D){event->motion.x, event->motion.y};
+            input_snapshot.mouse_delta.x += event->motion.xrel;
+            input_snapshot.mouse_delta.y += event->motion.yrel;
+            break;
+        case SDL_EVENT_MOUSE_WHEEL: {
+            float direction = event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ?
+                -1.0f : 1.0f;
+            input_snapshot.mouse_window = event->wheel.windowID;
+            input_snapshot.mouse_position = (Vec2D){
+                event->wheel.mouse_x, event->wheel.mouse_y};
+            input_snapshot.mouse_wheel.x += event->wheel.x * direction;
+            input_snapshot.mouse_wheel.y += event->wheel.y * direction;
+            break;
+        }
+        case SDL_EVENT_TEXT_INPUT:
+            input_snapshot.keyboard_window = event->text.windowID;
+            input_text_append(event->text.text);
+            input_snapshot.text.composition[0] = '\0';
+            input_snapshot.text.composition_start = 0;
+            input_snapshot.text.composition_length = 0;
+            input_snapshot.text.composition_truncated = false;
+            input_text_candidates_clear();
+            break;
+        case SDL_EVENT_TEXT_EDITING:
+            input_snapshot.keyboard_window = event->edit.windowID;
+            input_text_copy(input_snapshot.text.composition,
+                &input_snapshot.text.composition_truncated, event->edit.text);
+            input_snapshot.text.composition_start = event->edit.start;
+            input_snapshot.text.composition_length = event->edit.length;
+            break;
+        case SDL_EVENT_TEXT_EDITING_CANDIDATES: {
+            size_t count = event->edit_candidates.num_candidates > 0 ?
+                (size_t)event->edit_candidates.num_candidates : 0;
+            input_snapshot.keyboard_window = event->edit_candidates.windowID;
+            input_text_candidates_clear();
+            if(count > ROHR_INPUT_TEXT_CANDIDATE_LIMIT) {
+                count = ROHR_INPUT_TEXT_CANDIDATE_LIMIT;
+                input_snapshot.text.candidates_truncated = true;
+            }
+            input_snapshot.text.candidate_count = count;
+            input_snapshot.text.selected_candidate =
+                event->edit_candidates.selected_candidate;
+            input_snapshot.text.candidates_horizontal =
+                event->edit_candidates.horizontal;
+            for(size_t i = 0; i < count; i += 1) {
+                bool truncated = false;
+                input_utf8_copy(input_snapshot.text.candidates[i],
+                    ROHR_INPUT_TEXT_CANDIDATE_CAPACITY, &truncated,
+                    event->edit_candidates.candidates == NULL ? NULL :
+                        event->edit_candidates.candidates[i]);
+                input_snapshot.text.candidates_truncated |= truncated;
+            }
+            break;
+        }
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+            for(size_t i = 0; i < SDL_SCANCODE_COUNT; i += 1)
+                input_snapshot.keys_released[i] |= input_snapshot.keys_down[i];
+            for(size_t i = 0; i < INPUT_MOUSE_BUTTON_COUNT; i += 1)
+                input_snapshot.mouse_released[i] |= input_snapshot.mouse_down[i];
+            memset(input_snapshot.keys_down, 0, sizeof(input_snapshot.keys_down));
+            memset(input_snapshot.mouse_down, 0, sizeof(input_snapshot.mouse_down));
+            input_snapshot.modifiers = SDL_KMOD_NONE;
+            button_source_changed = true;
+            break;
+        default:
+            break;
+    }
+    if(button_source_changed) input_button_actions_refresh(true);
+}

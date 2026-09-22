@@ -3924,6 +3924,318 @@ Returns a random float in a range.
 
 ## Other
 
+### `rohr_input_frame_begin`
+
+```c
+void rohr_input_frame_begin(void);
+```
+
+ Clear transient input values before polling events for a new frame.
+
+### `rohr_input_key_down_check`
+
+```c
+bool rohr_input_key_down_check(SDL_Scancode key);
+```
+
+ Return whether a physical key is currently held.
+
+### `rohr_input_key_pressed_check`
+
+```c
+bool rohr_input_key_pressed_check(SDL_Scancode key);
+```
+
+ Return whether a physical key entered the held state this frame.
+
+### `rohr_input_key_released_check`
+
+```c
+bool rohr_input_key_released_check(SDL_Scancode key);
+```
+
+ Return whether a physical key left the held state this frame.
+
+### `rohr_input_modifiers_get`
+
+```c
+SDL_Keymod rohr_input_modifiers_get(void);
+```
+
+ Return the modifier state captured from the latest keyboard event.
+
+### `rohr_input_mouse_button_down_check`
+
+```c
+bool rohr_input_mouse_button_down_check(InputMouseButton button);
+```
+
+ Return whether a mouse button is currently held.
+
+### `rohr_input_mouse_button_pressed_check`
+
+```c
+bool rohr_input_mouse_button_pressed_check(InputMouseButton button);
+```
+
+ Return whether a mouse button entered the held state this frame.
+
+### `rohr_input_mouse_button_released_check`
+
+```c
+bool rohr_input_mouse_button_released_check(InputMouseButton button);
+```
+
+ Return whether a mouse button left the held state this frame.
+
+### `rohr_input_mouse_position_get`
+
+```c
+Vec2D rohr_input_mouse_position_get(void);
+```
+
+ Return the latest absolute pointer position in window coordinates.
+
+### `rohr_input_mouse_delta_get`
+
+```c
+Vec2D rohr_input_mouse_delta_get(void);
+```
+
+ Return accumulated pointer movement since rohr_input_frame_begin.
+
+### `rohr_input_mouse_wheel_get`
+
+```c
+Vec2D rohr_input_mouse_wheel_get(void);
+```
+
+ Return accumulated normalized wheel movement for the current frame.
+
+### `rohr_input_mouse_relative_mode_set`
+
+```c
+EngineResult rohr_input_mouse_relative_mode_set(bool enabled);
+```
+
+ Enable or disable relative pointer mode on the focused input window.
+
+### `rohr_input_mouse_relative_mode_check`
+
+```c
+bool rohr_input_mouse_relative_mode_check(void);
+```
+
+ Return whether the focused input window uses relative pointer mode.
+
+### `rohr_input_text_start`
+
+```c
+EngineResult rohr_input_text_start(void);
+```
+
+ Begin SDL UTF-8 and IME text input on the focused keyboard window.
+
+### `rohr_input_text_stop`
+
+```c
+EngineResult rohr_input_text_stop(void);
+```
+
+ Stop SDL text input and clear its active composition and candidates.
+
+### `rohr_input_text_area_set`
+
+```c
+EngineResult rohr_input_text_area_set(SDL_Rect area, int cursor);
+```
+
+ Set the on-screen text field and cursor location used to place an IME.
+
+### `rohr_input_text_state_get`
+
+```c
+InputTextState rohr_input_text_state_get(void);
+```
+
+ Return a copied snapshot of committed text, composition, and IME candidates.
+
+### `rohr_input_binding_valid_check`
+
+```c
+bool rohr_input_binding_valid_check(InputActionType type, const InputBinding *binding);
+```
+
+ Return whether a tagged physical binding is valid for an action type.
+
+### `rohr_input_action_map_create`
+
+```c
+InputActionMapIdResult rohr_input_action_map_create(const char *name);
+```
+
+ Create an enabled, engine-owned action map with a unique name.
+
+### `rohr_input_action_map_destroy`
+
+```c
+EngineResult rohr_input_action_map_destroy(InputActionMapId map);
+```
+
+ Destroy an action map and all actions owned by it.
+
+### `rohr_input_action_map_by_name_get`
+
+```c
+InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name);
+```
+
+ Find an action map by its unique name.
+
+### `rohr_input_action_map_enabled_set`
+
+```c
+EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled);
+```
+
+ Enable or disable all actions in a map without changing their bindings.
+
+### `rohr_input_action_map_enabled_check`
+
+```c
+bool rohr_input_action_map_enabled_check(InputActionMapId map);
+```
+
+ Return whether a valid action map is enabled.
+
+### `rohr_input_action_create`
+
+```c
+InputActionIdResult rohr_input_action_create(InputActionMapId map, const char *name, InputActionType type);
+```
+
+ Create an engine-owned typed action with a map-local unique name.
+
+### `rohr_input_action_destroy`
+
+```c
+EngineResult rohr_input_action_destroy(InputActionId action);
+```
+
+ Destroy an action while leaving its owning map intact.
+
+### `rohr_input_action_by_name_get`
+
+```c
+InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map, const char *name);
+```
+
+ Find an action by its map and map-local name.
+
+### `rohr_input_action_type_get`
+
+```c
+InputActionTypeResult rohr_input_action_type_get(InputActionId action);
+```
+
+ Return the logical value type declared for an action.
+
+### `rohr_input_action_bindings_default_set`
+
+```c
+EngineResult rohr_input_action_bindings_default_set(InputActionId action, const InputBinding *bindings, size_t count);
+```
+
+ Replace the copied editor/application default bindings for an action.
+
+### `rohr_input_action_bindings_default_get`
+
+```c
+InputBindingListResult rohr_input_action_bindings_default_get(InputActionId action);
+```
+
+ Return a copy of an action's default bindings.
+
+### `rohr_input_action_bindings_override_set`
+
+```c
+EngineResult rohr_input_action_bindings_override_set(InputActionId action, const InputBinding *bindings, size_t count);
+```
+
+ Replace and activate the copied runtime user bindings for an action.
+
+### `rohr_input_action_bindings_override_get`
+
+```c
+InputBindingListResult rohr_input_action_bindings_override_get(InputActionId action);
+```
+
+ Return a copy of an action's runtime override bindings.
+
+### `rohr_input_action_bindings_effective_get`
+
+```c
+InputBindingListResult rohr_input_action_bindings_effective_get(InputActionId action);
+```
+
+ Return a copy of the active override bindings, or defaults when none exist.
+
+### `rohr_input_action_bindings_override_clear`
+
+```c
+EngineResult rohr_input_action_bindings_override_clear(InputActionId action);
+```
+
+ Clear runtime overrides so the action uses its defaults again.
+
+### `rohr_input_action_bindings_override_check`
+
+```c
+bool rohr_input_action_bindings_override_check(InputActionId action);
+```
+
+ Return whether runtime override bindings are active for an action.
+
+### `rohr_input_action_button_down_check`
+
+```c
+bool rohr_input_action_button_down_check(InputActionId action);
+```
+
+ Return whether a Button action is currently held.
+
+### `rohr_input_action_button_pressed_check`
+
+```c
+bool rohr_input_action_button_pressed_check(InputActionId action);
+```
+
+ Return whether a Button action entered the held state this frame.
+
+### `rohr_input_action_button_released_check`
+
+```c
+bool rohr_input_action_button_released_check(InputActionId action);
+```
+
+ Return whether a Button action left the held state this frame.
+
+### `rohr_input_action_axis_1d_get`
+
+```c
+InputAxis1DResult rohr_input_action_axis_1d_get(InputActionId action);
+```
+
+ Return a combined and clamped Axis 1D action value.
+
+### `rohr_input_action_axis_2d_get`
+
+```c
+InputAxis2DResult rohr_input_action_axis_2d_get(InputActionId action);
+```
+
+ Return a combined and unit-length-clamped Axis 2D action value.
+
 ### `rohr_game_state_file_load`
 
 ```c

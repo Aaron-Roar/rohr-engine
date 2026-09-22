@@ -148,6 +148,24 @@ const char *error_code_message_get(EngineError error) {
             return "duplicate graphics layer name";
         case ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND:
             return "graphics layer not found";
+        case ERROR_ENGINE_INVALID_INPUT_NAME:
+            return "invalid input name";
+        case ERROR_ENGINE_INPUT_NAME_TOO_LONG:
+            return "input name is too long";
+        case ERROR_ENGINE_DUPLICATE_INPUT_NAME:
+            return "duplicate input name";
+        case ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED:
+            return "input capacity exceeded";
+        case ERROR_ENGINE_INPUT_NOT_FOUND:
+            return "input action or map not found";
+        case ERROR_ENGINE_INPUT_TYPE_MISMATCH:
+            return "input action type mismatch";
+        case ERROR_ENGINE_INPUT_BINDING_INVALID:
+            return "invalid input binding";
+        case ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND:
+            return "input window not found";
+        case ERROR_ENGINE_INPUT_OPERATION_FAILED:
+            return "input operation failed";
         default:
             return "unknown error";
     }

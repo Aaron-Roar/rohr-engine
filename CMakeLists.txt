@@ -174,6 +174,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/window_presentation.c
     src/graphics/ui.c
     src/input/controller.c
+    src/input/input.c
     src/math/math2d.c
     src/physics/broadphase/aabb_tree.c
     src/physics/body/body_state.c
@@ -411,6 +412,12 @@ if(ROHR_BUILD_TESTS)
     )
     add_test(NAME controller_mappings COMMAND controller_mappings_test)
 
+    add_executable(input_actions_test tests/input_actions.c)
+    target_link_libraries(input_actions_test PRIVATE rohr_engine)
+    set_target_properties(input_actions_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME input_actions COMMAND input_actions_test)
+
     add_executable(cameras_test tests/cameras.c)
     target_link_libraries(cameras_test PRIVATE rohr_engine)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -605,6 +612,7 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(
         engine_lifecycle
         controller_mappings
+        input_actions
         cameras
         ui_instance_isolation
         graphics_layer_order
@@ -632,6 +640,7 @@ if(ROHR_BUILD_TESTS)
         rohr_tests
         engine_lifecycle_test
         controller_mappings_test
+        input_actions_test
         cameras_test
         ui_instance_isolation_test
         graphics_layer_order_test

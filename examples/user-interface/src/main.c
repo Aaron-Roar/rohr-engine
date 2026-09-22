@@ -6,13 +6,13 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
 
 typedef struct RenderContext {
-    MouseState *mouse;
     TextAsset *title;
     TextAsset *play_label;
     TextAsset *settings_label;
@@ -43,7 +43,8 @@ static void render_scene(CameraId camera, void *context_value) {
     rohr_graphics_layer_active_set(0);
     rohr_ui_frame_begin((UIInput){
         .pointer = rohr_graphics_mouse_screen_position_get(),
-        .primary_button = context->mouse->button_states[MOUSE_BUTTON_LEFT],
+        .primary_button = example_input_mouse_button_state_get(
+            INPUT_MOUSE_BUTTON_LEFT),
     });
     rohr_ui_label(context->title, context->title_definition->bounds);
     context->play = rohr_ui_button("main_menu.play", NULL, play_bounds, NULL);
@@ -64,8 +65,8 @@ static void render_scene(CameraId camera, void *context_value) {
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    KeyboardState keyboard = {0};
-    MouseState mouse = {0};
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action = INPUT_ACTION_INVALID;
     bool running = true;
     FontAsset font = {0};
     TextAsset title = {0};
@@ -95,9 +96,17 @@ int main(void) {
         }
     }
     {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        if(!example_input_map_create("ui", &input_map) ||
+                !example_input_action_create(input_map, "exit",
+                    INPUT_ACTION_BUTTON, &exit_binding, 1, &exit_action)) goto fail;
+    }
+    {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
             PRINT_ENGINE_ERROR(graphics_result);
+            (void)rohr_input_action_map_destroy(input_map);
             rohr_engine_shutdown();
             return 1;
         }
@@ -261,7 +270,7 @@ int main(void) {
         slider_value_label = value_result.result.value;
     }
     render_context = (RenderContext){
-        .mouse = &mouse, .title = &title, .play_label = &play_label,
+        .title = &title, .play_label = &play_label,
         .settings_label = &settings_label, .quit_label = &quit_label,
         .description = &description, .slider_label = &slider_label,
         .slider_value_label = &slider_value_label, .slider_minus = &slider_minus,
@@ -276,18 +285,13 @@ int main(void) {
         SDL_Event event;
         bool exit_requested = false;
 
-        rohr_controller_key_states_update(&keyboard);
-        rohr_controller_mouse_states_update(&mouse);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_controller_key_event_add(&keyboard,
-                rohr_controller_keyboard_event_capture(&event));
-            rohr_controller_mouse_event_add(&mouse,
-                rohr_controller_mouse_event_capture(&event));
             rohr_ui_event_add(&event);
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
+                rohr_input_action_button_pressed_check(exit_action)) break;
 
         render_context.slider_value = slider_value;
         rohr_graphics_show();
@@ -324,6 +328,8 @@ int main(void) {
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
     rohr_graphics_end();
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_engine_shutdown();
     return 0;
 
@@ -340,6 +346,8 @@ fail:
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
     rohr_graphics_end();
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_engine_shutdown();
     return 1;
 }

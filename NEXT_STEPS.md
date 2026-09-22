@@ -35,8 +35,11 @@ developer-owned C and do not need to be authored in the editor.
    generation without changing the physical openings defined by their beams,
    with direct C, editor, JSON, generated-C, example, documentation, and
    Linux/Windows coverage.
-7. **Input and action declarations** — Author action names and default keyboard
-   or controller bindings while keeping gameplay responses in C.
+7. **Input and action declarations (complete)** — Engine-owned keyboard,
+   pointer, text/IME snapshots and named Button, Axis 1D, and Axis 2D maps now
+   support editor-authored defaults, runtime overrides, CLI/JSON/generated C,
+   converted examples, and Linux/Windows tests while gameplay responses remain
+   in C. SDL gamepad device management and bindings remain a later extension.
 
 For each item, complete the direct C API where applicable, editor interaction,
 JSON persistence, generated C, project loading, runtime application, and
@@ -211,8 +214,8 @@ These runtime foundations should precede broad asset-heavy example authoring.
   unloading, failure cleanup, and shutdown behavior.
 - Build a small SDL-backed audio API for sounds, looping, mixing, volume, and
   destruction without adding another framework.
-- Add an engine-owned per-frame input snapshot, gamepads, analog axes, text
-  input, device changes, and a small action-mapping layer.
+- Extend the completed keyboard, pointer, text/IME, and action snapshot with
+  SDL gamepad discovery, device lifetime, buttons, triggers, and sticks.
 - Implement texture ownership, audio, and input as separate commits.
 
 ## 9. Remaining Example Authoring Coverage

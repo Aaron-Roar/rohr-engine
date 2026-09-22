@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -43,10 +44,52 @@ int main(void) {
             return 1;
         }
     }
-    KeyboardState keyboard = {0};
-    MouseState mouse = {0};
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action, debug_action, move_action, camera_move_action;
+    InputActionId camera_turn_action, drag_action, rotate_action;
     ViewportId viewport = VIEWPORT_INVALID;
     bool broadphase_debug = true;
+    {
+        InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
+            1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
+            1.0f, (Vec2D){0});
+        InputBinding move_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_W, 1.0f, (Vec2D){0, 1}),
+            example_input_key_binding(SDL_SCANCODE_A, 1.0f, (Vec2D){-1, 0}),
+            example_input_key_binding(SDL_SCANCODE_S, 1.0f, (Vec2D){0, -1}),
+            example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){1, 0})};
+        InputBinding camera_move_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_I, 1.0f, (Vec2D){0, 1}),
+            example_input_key_binding(SDL_SCANCODE_J, 1.0f, (Vec2D){-1, 0}),
+            example_input_key_binding(SDL_SCANCODE_K, 1.0f, (Vec2D){0, -1}),
+            example_input_key_binding(SDL_SCANCODE_L, 1.0f, (Vec2D){1, 0})};
+        InputBinding camera_turn_bindings[] = {
+            example_input_key_binding(SDL_SCANCODE_Q, -1.0f, (Vec2D){0}),
+            example_input_key_binding(SDL_SCANCODE_E, 1.0f, (Vec2D){0})};
+        InputBinding drag_binding =
+            example_input_mouse_button_binding(INPUT_MOUSE_BUTTON_LEFT);
+        InputBinding rotate_binding =
+            example_input_mouse_button_binding(INPUT_MOUSE_BUTTON_RIGHT);
+        if(!example_input_map_create("viewport", &input_map) ||
+                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+                    &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
+                !example_input_action_create(input_map, "move", INPUT_ACTION_AXIS_2D,
+                    move_bindings, 4, &move_action) ||
+                !example_input_action_create(input_map, "camera_move",
+                    INPUT_ACTION_AXIS_2D, camera_move_bindings, 4,
+                    &camera_move_action) ||
+                !example_input_action_create(input_map, "camera_turn",
+                    INPUT_ACTION_AXIS_1D, camera_turn_bindings, 2,
+                    &camera_turn_action) ||
+                !example_input_action_create(input_map, "drag", INPUT_ACTION_BUTTON,
+                    &drag_binding, 1, &drag_action) ||
+                !example_input_action_create(input_map, "rotate",
+                    INPUT_ACTION_BUTTON, &rotate_binding, 1, &rotate_action))
+            goto fail;
+    }
     {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
@@ -105,37 +148,28 @@ int main(void) {
         SDL_Event sdl_event;
         bool exit_requested = false;
 
-        rohr_controller_key_states_update(&keyboard);
-        rohr_controller_mouse_states_update(&mouse);
+        rohr_input_frame_begin();
         while((sdl_event = rohr_engine_event_poll()).type != 0) {
-            rohr_controller_key_event_add(&keyboard,
-                rohr_controller_keyboard_event_capture(&sdl_event));
-            rohr_controller_mouse_event_add(&mouse,
-                rohr_controller_mouse_event_capture(&sdl_event));
             if(sdl_event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
-        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+        if(rohr_input_action_button_pressed_check(debug_action)) {
             broadphase_debug = !broadphase_debug;
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
         }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
-        Vec2D move_axis = rohr_controller_wasd_axis_get(&keyboard);
-        Vec2D camera_move_axis = rohr_controller_axis_from_keycodes_get(
-            &keyboard,
-            SDLK_I,
-            SDLK_J,
-            SDLK_K,
-            SDLK_L
-        );
-        Vec2D camera_turn_axis = rohr_controller_axis_from_keycodes_get(
-            &keyboard,
-            SDLK_UNKNOWN,
-            SDLK_Q,
-            SDLK_UNKNOWN,
-            SDLK_E
-        );
+                rohr_input_action_button_pressed_check(exit_action)) break;
+        InputAxis2DResult move_result = rohr_input_action_axis_2d_get(move_action);
+        InputAxis2DResult camera_move_result =
+            rohr_input_action_axis_2d_get(camera_move_action);
+        InputAxis1DResult camera_turn_result =
+            rohr_input_action_axis_1d_get(camera_turn_action);
+        Vec2D move_axis = rohr_error_check(move_result) ? (Vec2D){0} :
+            move_result.result.value;
+        Vec2D camera_move_axis = rohr_error_check(camera_move_result) ?
+            (Vec2D){0} : camera_move_result.result.value;
+        float camera_turn_axis = rohr_error_check(camera_turn_result) ? 0.0f :
+            camera_turn_result.result.value;
         rohr_physics_velocity_set(water_smash, (Velocity){
             .x = move_axis.x * 100.0f,
             .y = move_axis.y * 100.0f
@@ -145,16 +179,17 @@ int main(void) {
             .y = camera_move_axis.y * camera_move_speed * tick_time
         });
         rohr_graphics_camera_rotate(
-            camera_turn_axis.x * camera_turn_speed * tick_time
+            camera_turn_axis * camera_turn_speed * tick_time
         );
 
-        if(mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_DOWN) {
+        if(rohr_input_action_button_down_check(drag_action)) {
+            Vec2D pointer = rohr_input_mouse_position_get();
             rohr_physics_position_set(
                 water_smash,
-                rohr_controller_mouse_world_position_get(&mouse)
+                rohr_graphics_screen_to_world_get((Position){pointer.x, pointer.y})
             );
         }
-        if(mouse.button_states[MOUSE_BUTTON_RIGHT] == MOUSE_BUTTON_STATE_DOWN) {
+        if(rohr_input_action_button_down_check(rotate_action)) {
             EntityIndexResult index_result = rohr_entity_index_get(water_smash);
             if(!rohr_error_check(index_result)) {
                 rohr_physics_orientation_set(water_smash, orientations[index_result.result.value] + 10*(2*PI_F/360));
@@ -164,12 +199,16 @@ int main(void) {
 
     }
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

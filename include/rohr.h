@@ -12,6 +12,7 @@
 #include "error.h"
 #include "graphics.h"
 #include "game_state.h"
+#include "input.h"
 #include "math2d.h"
 #include "physics.h"
 #include "systems.h"
@@ -86,6 +87,90 @@ bool rohr_engine_paused_get(void);
  * @brief Resets the engine clock baseline.
  */
 void rohr_engine_clock_reset(void);
+
+/** Clear transient input values before polling events for a new frame. */
+void rohr_input_frame_begin(void);
+/** Return whether a physical key is currently held. */
+bool rohr_input_key_down_check(SDL_Scancode key);
+/** Return whether a physical key entered the held state this frame. */
+bool rohr_input_key_pressed_check(SDL_Scancode key);
+/** Return whether a physical key left the held state this frame. */
+bool rohr_input_key_released_check(SDL_Scancode key);
+/** Return the modifier state captured from the latest keyboard event. */
+SDL_Keymod rohr_input_modifiers_get(void);
+/** Return whether a mouse button is currently held. */
+bool rohr_input_mouse_button_down_check(InputMouseButton button);
+/** Return whether a mouse button entered the held state this frame. */
+bool rohr_input_mouse_button_pressed_check(InputMouseButton button);
+/** Return whether a mouse button left the held state this frame. */
+bool rohr_input_mouse_button_released_check(InputMouseButton button);
+/** Return the latest absolute pointer position in window coordinates. */
+Vec2D rohr_input_mouse_position_get(void);
+/** Return accumulated pointer movement since rohr_input_frame_begin. */
+Vec2D rohr_input_mouse_delta_get(void);
+/** Return accumulated normalized wheel movement for the current frame. */
+Vec2D rohr_input_mouse_wheel_get(void);
+/** Enable or disable relative pointer mode on the focused input window. */
+EngineResult rohr_input_mouse_relative_mode_set(bool enabled);
+/** Return whether the focused input window uses relative pointer mode. */
+bool rohr_input_mouse_relative_mode_check(void);
+/** Begin SDL UTF-8 and IME text input on the focused keyboard window. */
+EngineResult rohr_input_text_start(void);
+/** Stop SDL text input and clear its active composition and candidates. */
+EngineResult rohr_input_text_stop(void);
+/** Set the on-screen text field and cursor location used to place an IME. */
+EngineResult rohr_input_text_area_set(SDL_Rect area, int cursor);
+/** Return a copied snapshot of committed text, composition, and IME candidates. */
+InputTextState rohr_input_text_state_get(void);
+/** Return whether a tagged physical binding is valid for an action type. */
+bool rohr_input_binding_valid_check(InputActionType type,
+    const InputBinding *binding);
+/** Create an enabled, engine-owned action map with a unique name. */
+InputActionMapIdResult rohr_input_action_map_create(const char *name);
+/** Destroy an action map and all actions owned by it. */
+EngineResult rohr_input_action_map_destroy(InputActionMapId map);
+/** Find an action map by its unique name. */
+InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name);
+/** Enable or disable all actions in a map without changing their bindings. */
+EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled);
+/** Return whether a valid action map is enabled. */
+bool rohr_input_action_map_enabled_check(InputActionMapId map);
+/** Create an engine-owned typed action with a map-local unique name. */
+InputActionIdResult rohr_input_action_create(InputActionMapId map,
+    const char *name, InputActionType type);
+/** Destroy an action while leaving its owning map intact. */
+EngineResult rohr_input_action_destroy(InputActionId action);
+/** Find an action by its map and map-local name. */
+InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map,
+    const char *name);
+/** Return the logical value type declared for an action. */
+InputActionTypeResult rohr_input_action_type_get(InputActionId action);
+/** Replace the copied editor/application default bindings for an action. */
+EngineResult rohr_input_action_bindings_default_set(InputActionId action,
+    const InputBinding *bindings, size_t count);
+/** Return a copy of an action's default bindings. */
+InputBindingListResult rohr_input_action_bindings_default_get(InputActionId action);
+/** Replace and activate the copied runtime user bindings for an action. */
+EngineResult rohr_input_action_bindings_override_set(InputActionId action,
+    const InputBinding *bindings, size_t count);
+/** Return a copy of an action's runtime override bindings. */
+InputBindingListResult rohr_input_action_bindings_override_get(InputActionId action);
+/** Return a copy of the active override bindings, or defaults when none exist. */
+InputBindingListResult rohr_input_action_bindings_effective_get(InputActionId action);
+/** Clear runtime overrides so the action uses its defaults again. */
+EngineResult rohr_input_action_bindings_override_clear(InputActionId action);
+/** Return whether runtime override bindings are active for an action. */
+bool rohr_input_action_bindings_override_check(InputActionId action);
+/** Return whether a Button action is currently held. */
+bool rohr_input_action_button_down_check(InputActionId action);
+/** Return whether a Button action entered the held state this frame. */
+bool rohr_input_action_button_pressed_check(InputActionId action);
+/** Return whether a Button action left the held state this frame. */
+bool rohr_input_action_button_released_check(InputActionId action);
+/** Return a combined and clamped Axis 1D action value. */
+InputAxis1DResult rohr_input_action_axis_1d_get(InputActionId action);
+/** Return a combined and unit-length-clamped Axis 2D action value. */
+InputAxis2DResult rohr_input_action_axis_2d_get(InputActionId action);
 
 /**
  * @brief Creates a successful boolean engine result.

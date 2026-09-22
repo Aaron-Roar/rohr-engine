@@ -21,6 +21,111 @@ SDL_Event rohr_engine_event_poll(void) { return engine_event_poll(); }
 bool rohr_engine_paused_get(void) { return engine_paused_get(); }
 void rohr_engine_clock_reset(void) { engine_clock_reset(); }
 
+void rohr_input_frame_begin(void) { input_frame_begin(); }
+bool rohr_input_key_down_check(SDL_Scancode key) { return input_key_down_check(key); }
+bool rohr_input_key_pressed_check(SDL_Scancode key) {
+    return input_key_pressed_check(key);
+}
+bool rohr_input_key_released_check(SDL_Scancode key) {
+    return input_key_released_check(key);
+}
+SDL_Keymod rohr_input_modifiers_get(void) { return input_modifiers_get(); }
+bool rohr_input_mouse_button_down_check(InputMouseButton button) {
+    return input_mouse_button_down_check(button);
+}
+bool rohr_input_mouse_button_pressed_check(InputMouseButton button) {
+    return input_mouse_button_pressed_check(button);
+}
+bool rohr_input_mouse_button_released_check(InputMouseButton button) {
+    return input_mouse_button_released_check(button);
+}
+Vec2D rohr_input_mouse_position_get(void) { return input_mouse_position_get(); }
+Vec2D rohr_input_mouse_delta_get(void) { return input_mouse_delta_get(); }
+Vec2D rohr_input_mouse_wheel_get(void) { return input_mouse_wheel_get(); }
+EngineResult rohr_input_mouse_relative_mode_set(bool enabled) {
+    return input_mouse_relative_mode_set(enabled);
+}
+bool rohr_input_mouse_relative_mode_check(void) {
+    return input_mouse_relative_mode_check();
+}
+EngineResult rohr_input_text_start(void) { return input_text_start(); }
+EngineResult rohr_input_text_stop(void) { return input_text_stop(); }
+EngineResult rohr_input_text_area_set(SDL_Rect area, int cursor) {
+    return input_text_area_set(area, cursor);
+}
+InputTextState rohr_input_text_state_get(void) { return input_text_state_get(); }
+bool rohr_input_binding_valid_check(InputActionType type,
+        const InputBinding *binding) {
+    return input_binding_valid_check(type, binding);
+}
+InputActionMapIdResult rohr_input_action_map_create(const char *name) {
+    return input_action_map_create(name);
+}
+EngineResult rohr_input_action_map_destroy(InputActionMapId map) {
+    return input_action_map_destroy(map);
+}
+InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name) {
+    return input_action_map_by_name_get(name);
+}
+EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled) {
+    return input_action_map_enabled_set(map, enabled);
+}
+bool rohr_input_action_map_enabled_check(InputActionMapId map) {
+    return input_action_map_enabled_check(map);
+}
+InputActionIdResult rohr_input_action_create(InputActionMapId map,
+        const char *name, InputActionType type) {
+    return input_action_create(map, name, type);
+}
+EngineResult rohr_input_action_destroy(InputActionId action) {
+    return input_action_destroy(action);
+}
+InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map,
+        const char *name) {
+    return input_action_by_name_get(map, name);
+}
+InputActionTypeResult rohr_input_action_type_get(InputActionId action) {
+    return input_action_type_get(action);
+}
+EngineResult rohr_input_action_bindings_default_set(InputActionId action,
+        const InputBinding *bindings, size_t count) {
+    return input_action_bindings_default_set(action, bindings, count);
+}
+InputBindingListResult rohr_input_action_bindings_default_get(InputActionId action) {
+    return input_action_bindings_default_get(action);
+}
+EngineResult rohr_input_action_bindings_override_set(InputActionId action,
+        const InputBinding *bindings, size_t count) {
+    return input_action_bindings_override_set(action, bindings, count);
+}
+InputBindingListResult rohr_input_action_bindings_override_get(InputActionId action) {
+    return input_action_bindings_override_get(action);
+}
+InputBindingListResult rohr_input_action_bindings_effective_get(InputActionId action) {
+    return input_action_bindings_effective_get(action);
+}
+EngineResult rohr_input_action_bindings_override_clear(InputActionId action) {
+    return input_action_bindings_override_clear(action);
+}
+bool rohr_input_action_bindings_override_check(InputActionId action) {
+    return input_action_bindings_override_check(action);
+}
+bool rohr_input_action_button_down_check(InputActionId action) {
+    return input_action_button_down_check(action);
+}
+bool rohr_input_action_button_pressed_check(InputActionId action) {
+    return input_action_button_pressed_check(action);
+}
+bool rohr_input_action_button_released_check(InputActionId action) {
+    return input_action_button_released_check(action);
+}
+InputAxis1DResult rohr_input_action_axis_1d_get(InputActionId action) {
+    return input_action_axis_1d_get(action);
+}
+InputAxis2DResult rohr_input_action_axis_2d_get(InputActionId action) {
+    return input_action_axis_2d_get(action);
+}
+
 EngineResult rohr_error_result_value(bool value) { return error_result_value(value); }
 EngineResult rohr_error_result_error(EngineError error) { return error_result_error(error); }
 const char *rohr_error_code_message_get(EngineError error) { return error_code_message_get(error); }

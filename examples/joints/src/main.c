@@ -5,6 +5,7 @@
 #include "rohr.h"
 #include "example_runtime.h"
 #include "example_viewport.h"
+#include "example_input.h"
 
 #include <stdio.h>
 
@@ -116,7 +117,9 @@ int main(void) {
     Entity spring_joint;
     JointAnchorIdResult anchor_a;
     JointAnchorIdResult anchor_b;
-    KeyboardState keyboard = {0};
+    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputActionId exit_action = INPUT_ACTION_INVALID;
+    InputActionId debug_action = INPUT_ACTION_INVALID;
     Time next_throw = 1.0;
     uint32_t throw_index = 0;
     const Force throws[] = {
@@ -128,6 +131,18 @@ int main(void) {
     };
 
     if(!example_use_executable_directory() || !result_ok(rohr_engine_init())) return 1;
+    {
+        InputBinding exit_binding = example_input_key_binding(
+            SDL_SCANCODE_ESCAPE, 1.0f, (Vec2D){0});
+        InputBinding debug_binding = example_input_key_binding(
+            SDL_SCANCODE_B, 1.0f, (Vec2D){0});
+        if(!example_input_map_create("joints", &input_map) ||
+                !example_input_action_create(input_map, "exit",
+                    INPUT_ACTION_BUTTON, &exit_binding, 1, &exit_action) ||
+                !example_input_action_create(input_map, "toggle_debug",
+                    INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action))
+            goto fail;
+    }
     if(!result_ok(rohr_engine_time_per_tick_set(1.0 / 120.0)) ||
             !result_ok(rohr_graphics_start())) goto fail;
     if(!room_create(walls)) goto fail;
@@ -177,15 +192,13 @@ int main(void) {
     while(true) {
         SDL_Event event;
         bool exit_requested = false;
-        rohr_controller_key_states_update(&keyboard);
+        rohr_input_frame_begin();
         while((event = rohr_engine_event_poll()).type != 0) {
-            rohr_controller_key_event_add(&keyboard,
-                rohr_controller_keyboard_event_capture(&event));
             if(event.type == SDL_EVENT_QUIT) exit_requested = true;
         }
         if(exit_requested ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) break;
-        if(rohr_controller_key_pressed_get(&keyboard, SDLK_B)) {
+                rohr_input_action_button_pressed_check(exit_action)) break;
+        if(rohr_input_action_button_pressed_check(debug_action)) {
             broadphase_debug = !broadphase_debug;
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
@@ -211,6 +224,8 @@ int main(void) {
     }
 
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -218,6 +233,8 @@ int main(void) {
 fail:
     fprintf(stderr, "joints example failed\n");
     example_viewport_destroy(&viewport);
+    if(input_map != INPUT_ACTION_MAP_INVALID)
+        (void)rohr_input_action_map_destroy(input_map);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

@@ -15,6 +15,7 @@ typedef struct EditorHistoryAggregateChange EditorHistoryAggregateChange;
 typedef struct EditorHistoryCollisionChange EditorHistoryCollisionChange;
 typedef struct EditorHistorySpriteChange EditorHistorySpriteChange;
 typedef struct EditorHistoryUiChange EditorHistoryUiChange;
+typedef struct EditorHistoryInputChange EditorHistoryInputChange;
 
 typedef struct EditorHistory {
     EditorProject *project;
@@ -38,6 +39,7 @@ typedef struct EditorHistory {
     EditorHistoryCollisionChange *pending_collision;
     EditorHistorySpriteChange *pending_sprites;
     EditorHistoryUiChange *pending_ui;
+    EditorHistoryInputChange *pending_input;
     size_t pending_ui_undo_count;
 } EditorHistory;
 
