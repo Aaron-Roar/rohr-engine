@@ -1556,8 +1556,15 @@ property_invalid:
             if(sprite == NULL) return editor_command_error(editor_result_error(
                 EDITOR_ERROR_CAPACITY, "could not add sprite").result.error);
             sprite->size = command->data.sprite_add.size;
-            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
-                .result.object = sprite->id};
+            {
+                EditorCommandResult result = {.kind = ERROR_RESULT_VALUE,
+                    .result.object = sprite->id,
+                    .created = {.valid = true, .kind = EDITOR_ITEM_SPRITE,
+                        .object = object->id, .item = sprite->id}};
+                snprintf(result.created.name, sizeof(result.created.name), "%s",
+                    sprite->name);
+                return result;
+            }
         }
         case EDITOR_COMMAND_SPRITE_REMOVE:
             if(!editor_project_sprite_remove(editor_object_query_get(project,
@@ -1700,8 +1707,16 @@ property_invalid:
             if(command->data.animated_sprite_add.name[0] != '\0')
                 editor_project_property_name_format(sprite->name, sizeof(sprite->name),
                     command->data.animated_sprite_add.name);
-            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
-                .result.object = sprite->id};
+            {
+                EditorCommandResult result = {.kind = ERROR_RESULT_VALUE,
+                    .result.object = sprite->id,
+                    .created = {.valid = true,
+                        .kind = EDITOR_ITEM_ANIMATED_SPRITE,
+                        .object = object->id, .item = sprite->id}};
+                snprintf(result.created.name, sizeof(result.created.name), "%s",
+                    sprite->name);
+                return result;
+            }
         }
         case EDITOR_COMMAND_ANIMATED_SPRITE_REMOVE: {
             EditorObject *object = editor_object_query_get(project,
@@ -1847,6 +1862,7 @@ property_invalid:
             else if(command->type == EDITOR_COMMAND_ANIMATED_SPRITE_PLAYING_SET)
                 sprite->playing = command->data.animated_sprite_boolean_set.enabled;
             else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_ADD) {
+                EditorAnimationFrame *frame;
                 if(sprite->frame_count >= MAX_ANIMATIONS_FRAMES ||
                         !editor_project_animation_frame_add(project, sprite,
                             command->data.animation_frame_add.name,
@@ -1856,6 +1872,18 @@ property_invalid:
                         EDITOR_ERROR_CAPACITY,
                         "animation frame is invalid or reached the runtime frame limit")
                             .result.error);
+                frame = &sprite->frames[sprite->frame_count - 1];
+                {
+                    EditorCommandResult result = {.kind = ERROR_RESULT_VALUE,
+                        .result.object = frame->id,
+                        .created = {.valid = true,
+                            .kind = EDITOR_ITEM_ANIMATION_FRAME,
+                            .object = object->id, .parent = sprite->id,
+                            .item = frame->id}};
+                    snprintf(result.created.name, sizeof(result.created.name),
+                        "%s", frame->name);
+                    return result;
+                }
             } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_REMOVE) {
                 size_t frame_index = command->data.animation_frame_remove.index;
                 EditorSpriteId frame_id;

@@ -80,8 +80,12 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
         snprintf(command.data.item_add.name, sizeof(command.data.item_add.name),
             "Object%u", context->project->next_id);
         EditorCommandResult result = editor_command_execute(context->project, &command);
-        if(result.kind == ERROR_RESULT_VALUE)
-            context->viewport->selection = EDITOR_SELECTION_OBJECT;
+        if(result.kind == ERROR_RESULT_VALUE &&
+                editor_project_object_select(context->project,
+                    result.result.object)) {
+            editor_viewport_object_editor_enter(context->viewport);
+            (void)editor_mode_name_focus_request(context->viewport);
+        }
     }
     if(rohr_ui_button("editor.add_viewport", &editor->add_viewport_label,
             (UIRect){context->x + 20.0f + (context->width - 40.0f) / 3.0f,
@@ -96,6 +100,7 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             context->viewport->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
             context->viewport->mode = EDITOR_VIEWPORT_LAYOUT;
             editor_project_selection_clear(context->project);
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     if(rohr_ui_button("editor.add_controller", &editor->add_controller_label,
@@ -121,6 +126,7 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             context->viewport->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
             context->viewport->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
             editor_project_selection_clear(context->project);
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     selected_object = context->viewport->selection == EDITOR_SELECTION_OBJECT ?

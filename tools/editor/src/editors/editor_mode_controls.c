@@ -9,6 +9,7 @@
 #include <string.h>
 
 static float editor_mode_accordion_measured_bottom;
+static const char *editor_mode_pending_field_focus;
 
 bool editor_mode_text_create(FontAsset *font, const char *value,
         TextAsset *output) {
@@ -80,6 +81,13 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
             editor_mode_accordion_measured_bottom = bottom;
     }
     return section->expanded;
+}
+
+void editor_mode_accordion_section_expanded_set(
+        EditorModeAccordionSection *section, bool expanded) {
+    if(section == NULL || section->expanded == expanded) return;
+    section->expanded = expanded;
+    (void)editor_mode_accordion_label_sync(section);
 }
 
 EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
@@ -212,6 +220,11 @@ UIButtonStyle editor_mode_section_field_style_get(void) {
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
         TextAsset *display, UIRect bounds, const UIButtonStyle *style) {
     UIButtonStyle baseline;
+    if(id != NULL && editor_mode_pending_field_focus != NULL &&
+            strcmp(id, editor_mode_pending_field_focus) == 0) {
+        ui_field_focus_set(id, binding, display, true);
+        editor_mode_pending_field_focus = NULL;
+    }
     if(style == NULL) {
         baseline = editor_mode_section_field_style_get();
         style = &baseline;
@@ -361,6 +374,68 @@ UIFieldResult editor_mode_name_field(const char *id,
             .string_capacity = capacity}, display, bounds, NULL);
     if(result.changed) editor_project_property_name_format(name, capacity, name);
     return result;
+}
+
+const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
+    switch(mode) {
+        case EDITOR_VIEWPORT_HIERARCHY:
+            return "editor.hierarchy.selected.name";
+        case EDITOR_VIEWPORT_OBJECT: return "editor.object.name";
+        case EDITOR_VIEWPORT_RIGID_BODY: return "editor.rigid_body.name";
+        case EDITOR_VIEWPORT_HITBOX: return "editor.hitbox.name";
+        case EDITOR_VIEWPORT_JOINT: return "editor.joint.name";
+        case EDITOR_VIEWPORT_ANCHOR: return "editor.anchor.name";
+        case EDITOR_VIEWPORT_SOFT_BODY: return "editor.soft_body.name";
+        case EDITOR_VIEWPORT_SOFT_NODE: return "editor.soft_node.name";
+        case EDITOR_VIEWPORT_SOFT_BEAM: return "editor.soft_beam.name";
+        case EDITOR_VIEWPORT_SOFT_AREA: return "editor.soft_area.name";
+        case EDITOR_VIEWPORT_LINE: return "editor.line.name";
+        case EDITOR_VIEWPORT_VERTEX: return "editor.vertex.name";
+        case EDITOR_VIEWPORT_SPRITE: return "editor.sprite.name";
+        case EDITOR_VIEWPORT_ANIMATED_SPRITE:
+            return "editor.animated_sprite.name";
+        case EDITOR_VIEWPORT_ANIMATION_FRAME:
+            return "editor.animation_frame.name";
+        case EDITOR_VIEWPORT_CAMERA_ENTITY: return "editor.camera.name";
+        case EDITOR_VIEWPORT_LAYOUT: return "editor.layout.name";
+        case EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR:
+            return "editor.layout.camera.name";
+        case EDITOR_VIEWPORT_UI_SHAPE_EDITOR:
+        case EDITOR_VIEWPORT_UI_TEXT_EDITOR:
+        case EDITOR_VIEWPORT_UI_SLIDER_EDITOR:
+            return "editor.layout.ui.name";
+        case EDITOR_VIEWPORT_INPUT_CONTROLLER:
+            return "editor.input.controller.name";
+        case EDITOR_VIEWPORT_INPUT_ACTION:
+            return "editor.input.action.name";
+        default: return NULL;
+    }
+}
+
+bool editor_mode_name_focus_request(EditorViewportState *state) {
+    if(state == NULL || editor_mode_name_field_id_get(state->mode) == NULL)
+        return false;
+    state->name_focus_mode = state->mode;
+    state->name_focus_requested = true;
+    return true;
+}
+
+bool editor_mode_name_focus_pending_check(const EditorViewportState *state) {
+    return state != NULL && state->name_focus_requested &&
+        state->name_focus_mode == state->mode;
+}
+
+void editor_mode_name_focus_apply(EditorViewportState *state) {
+    const char *id;
+    editor_mode_pending_field_focus = NULL;
+    if(state == NULL || !state->name_focus_requested) return;
+    if(state->name_focus_mode != state->mode) {
+        state->name_focus_requested = false;
+        return;
+    }
+    id = editor_mode_name_field_id_get(state->mode);
+    state->name_focus_requested = false;
+    if(id != NULL) editor_mode_pending_field_focus = id;
 }
 
 UIButtonStyle editor_mode_delete_style_get(void) {

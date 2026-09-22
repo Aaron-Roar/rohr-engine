@@ -331,6 +331,9 @@ static int creation_result_test(void) {
     EditorObject *object;
     EditorCommand command;
     EditorCommandResult result;
+    EditorCommandResult sprite;
+    EditorCommandResult animation;
+    EditorCommandResult frame;
     editor_project_init(&project);
     object = editor_project_object_add(&project, (Position){0});
     if(object == NULL) return 1;
@@ -345,6 +348,33 @@ static int creation_result_test(void) {
             result.created.object != object->id || result.created.item == 0 ||
             result.created.name[0] == '\0' || !observed_creation.created.valid ||
             observed_creation.created.item != result.created.item) return 1;
+    command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_ADD,
+        .data.sprite_add = {.object = object->id, .name = "sprite_1",
+            .path = "sprite.png", .size = {32.0f, 32.0f}}};
+    sprite = editor_command_execute(&project, &command);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATED_SPRITE_ADD,
+        .data.animated_sprite_add = {.object = object->id,
+            .name = "animation_1"}};
+    animation = editor_command_execute(&project, &command);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_ADD,
+        .data.animation_frame_add = {.object = object->id,
+            .sprite = animation.result.object, .name = "frame_1",
+            .path = "frame.png", .size = {32.0f, 32.0f}}};
+    frame = editor_command_execute(&project, &command);
+    if(sprite.kind != ERROR_RESULT_VALUE || !sprite.created.valid ||
+            sprite.created.kind != EDITOR_ITEM_SPRITE ||
+            sprite.created.object != object->id ||
+            sprite.created.item != sprite.result.object ||
+            strcmp(sprite.created.name, "sprite_1") != 0 ||
+            animation.kind != ERROR_RESULT_VALUE || !animation.created.valid ||
+            animation.created.kind != EDITOR_ITEM_ANIMATED_SPRITE ||
+            animation.created.item != animation.result.object ||
+            strcmp(animation.created.name, "animation_1") != 0 ||
+            frame.kind != ERROR_RESULT_VALUE || !frame.created.valid ||
+            frame.created.kind != EDITOR_ITEM_ANIMATION_FRAME ||
+            frame.created.parent != animation.result.object ||
+            frame.created.item != frame.result.object ||
+            strcmp(frame.created.name, "frame_1") != 0) return 1;
     return 0;
 }
 

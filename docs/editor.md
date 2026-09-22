@@ -175,6 +175,11 @@ values. Generated C exposes stable controller and action handles through
 callbacks are not serialized. See [Input](input.md) for runtime overrides and
 CLI syntax.
 
+Add buttons for named project, object, UI, and nested elements immediately
+open the created element and select its generated name in the name field.
+Typing replaces the default name without an extra click or manual select-all
+step. Elements without names keep their existing creation flow.
+
 The bottom-left **Notification Log** button is always available. Up to three
 new notifications appear above it, with a fourth replacing the oldest visible
 notification. The log retains the latest 100 notifications independently of

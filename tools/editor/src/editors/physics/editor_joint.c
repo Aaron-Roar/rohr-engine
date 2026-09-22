@@ -281,8 +281,13 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
                 .parent = object->rigid_body_count > 0 ?
                     object->rigid_bodies[0].id : 0}};
         EditorCommandResult added = editor_command_execute(context->project, &command);
-        if(added.kind == ERROR_RESULT_VALUE)
+        if(added.kind == ERROR_RESULT_VALUE) {
+            context->viewport->selection = EDITOR_SELECTION_ANCHOR;
             context->viewport->selected_anchor = added.result.object;
+            if(editor_navigation_selected_open(context->project,
+                    context->viewport))
+                (void)editor_mode_name_focus_request(context->viewport);
+        }
     }
     {
         size_t start = 0;

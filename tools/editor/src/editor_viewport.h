@@ -124,6 +124,8 @@ typedef struct EditorViewportState {
     float group_pointer_angle;
     float rotation_pointer_offset;
     EditorViewportMode mode;
+    EditorViewportMode name_focus_mode;
+    bool name_focus_requested;
     EditorViewportMode multi_selection_return_mode;
     EditorSelectionRef multi_selection_return_selection;
     bool multi_selection_return_valid;

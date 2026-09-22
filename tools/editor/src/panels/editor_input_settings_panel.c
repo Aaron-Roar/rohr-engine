@@ -167,7 +167,9 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
         if(result.kind == ERROR_RESULT_VALUE) {
             context->viewport->selected_input_action = result.result.object;
             context->viewport->selection = EDITOR_SELECTION_INPUT_ACTION;
+            context->viewport->mode = EDITOR_VIEWPORT_INPUT_ACTION;
             panel->selected_binding = 0;
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 42.0f;

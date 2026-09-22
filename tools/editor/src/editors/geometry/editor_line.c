@@ -4,6 +4,7 @@
 
 #include "editor_line.h"
 
+#include "editor_navigation.h"
 #include "editors/editor_mode_controls.h"
 
 #include <stdio.h>
@@ -106,9 +107,17 @@ bool editor_line_editor_draw(EditorLineEditor *editor,
             .data.item_add = {.kind = EDITOR_ITEM_VERTEX,
                 .object = object->id, .parent = body->id,
                 .first = hitbox->id, .index = line}};
-        if(editor_command_execute(context->project, &command).kind ==
-                ERROR_RESULT_VALUE) {
-            editor_viewport_hitbox_editor_enter(context->viewport);
+        EditorCommandResult added = editor_command_execute(
+            context->project, &command);
+        if(added.kind == ERROR_RESULT_VALUE &&
+                editor_viewport_selection_set(context->project,
+                    context->viewport,
+                    (EditorSelectionRef){EDITOR_SELECTION_VERTEX,
+                        object->id, body->id, hitbox->id,
+                        added.result.object}, false) &&
+                editor_navigation_selected_open(context->project,
+                    context->viewport)) {
+            (void)editor_mode_name_focus_request(context->viewport);
             vertex_inserted = true;
         }
     }

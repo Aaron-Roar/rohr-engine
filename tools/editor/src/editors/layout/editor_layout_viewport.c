@@ -222,6 +222,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
             context->viewport->selection = EDITOR_SELECTION_UI_SHAPE;
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 36.0f;
@@ -235,6 +236,7 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             context->viewport->selected_viewport_camera_item = 0;
             context->viewport->mode = EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
             context->viewport->selection = EDITOR_SELECTION_UI_SLIDER;
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 36.0f;
@@ -255,7 +257,17 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 .data.item_add = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
                     .object = camera_object->id, .parent = viewport->id,
                     .first = camera->id}};
-            (void)editor_command_execute(context->project, &command);
+            EditorCommandResult result = editor_command_execute(
+                context->project, &command);
+            if(result.kind == ERROR_RESULT_VALUE) {
+                context->viewport->selected_layout_viewport = viewport->id;
+                context->viewport->selected_viewport_camera_item =
+                    result.result.object;
+                context->viewport->selected_viewport_ui_item = 0;
+                context->viewport->selection = EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                context->viewport->mode = EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR;
+                (void)editor_mode_name_focus_request(context->viewport);
+            }
         }
     }
     y += 36.0f;

@@ -206,8 +206,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         if(result.kind == ERROR_RESULT_VALUE) { \
             context->viewport->selection = (selection_value); \
             context->viewport->member = result.result.object; \
-            if((selection_value) == EDITOR_SELECTION_PARTICLE) \
-                context->viewport->mode = EDITOR_VIEWPORT_PARTICLE; \
+            if(editor_navigation_selected_open(context->project, \
+                    context->viewport)) \
+                (void)editor_mode_name_focus_request(context->viewport); \
         } \
     }
     ADD_BUTTON("editor.add_rigid_body", editor->add_rigid_body_label, y,
@@ -243,6 +244,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         if(result.kind == ERROR_RESULT_VALUE) {
             context->viewport->selection = EDITOR_SELECTION_ANIMATED_SPRITE;
             context->viewport->selected_animated_sprite = result.result.object;
+            if(editor_navigation_selected_open(context->project,
+                    context->viewport))
+                (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 38.0f;
@@ -256,6 +260,7 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             context->viewport->selection = EDITOR_SELECTION_CAMERA;
             context->viewport->selected_camera_entity = result.result.object;
             context->viewport->mode = EDITOR_VIEWPORT_CAMERA_ENTITY;
+            (void)editor_mode_name_focus_request(context->viewport);
         }
     }
     y += 38.0f;

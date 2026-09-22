@@ -56,6 +56,57 @@ static bool accordion_layout_metrics_check(void) {
         fabsf(editor_mode_accordion_layout_measure_get() - 321.0f) < 0.001f;
 }
 
+static bool created_name_focus_mapping_check(void) {
+    const EditorViewportMode modes[] = {
+        EDITOR_VIEWPORT_HIERARCHY, EDITOR_VIEWPORT_OBJECT,
+        EDITOR_VIEWPORT_RIGID_BODY, EDITOR_VIEWPORT_HITBOX,
+        EDITOR_VIEWPORT_JOINT, EDITOR_VIEWPORT_ANCHOR,
+        EDITOR_VIEWPORT_SOFT_BODY, EDITOR_VIEWPORT_SOFT_NODE,
+        EDITOR_VIEWPORT_SOFT_BEAM, EDITOR_VIEWPORT_SOFT_AREA,
+        EDITOR_VIEWPORT_LINE, EDITOR_VIEWPORT_VERTEX,
+        EDITOR_VIEWPORT_SPRITE, EDITOR_VIEWPORT_ANIMATED_SPRITE,
+        EDITOR_VIEWPORT_ANIMATION_FRAME, EDITOR_VIEWPORT_CAMERA_ENTITY,
+        EDITOR_VIEWPORT_LAYOUT, EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR,
+        EDITOR_VIEWPORT_UI_SHAPE_EDITOR, EDITOR_VIEWPORT_UI_TEXT_EDITOR,
+        EDITOR_VIEWPORT_UI_SLIDER_EDITOR,
+        EDITOR_VIEWPORT_INPUT_CONTROLLER, EDITOR_VIEWPORT_INPUT_ACTION};
+    EditorViewportState state = {0};
+    for(size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i += 1)
+        if(editor_mode_name_field_id_get(modes[i]) == NULL) return false;
+    if(editor_mode_name_field_id_get(EDITOR_VIEWPORT_PARTICLE) != NULL)
+        return false;
+    state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
+    if(!editor_mode_name_focus_request(&state) ||
+            !editor_mode_name_focus_pending_check(&state) ||
+            state.name_focus_mode != EDITOR_VIEWPORT_INPUT_ACTION) return false;
+    state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+    return !editor_mode_name_focus_pending_check(&state);
+}
+
+static bool created_name_focus_replacement_check(void) {
+    EditorViewportState state = {.mode = EDITOR_VIEWPORT_INPUT_ACTION};
+    char name[32] = "action_1";
+    SDL_Event typed = {0};
+    UIFieldBinding binding = {.kind = UI_FIELD_STRING, .string = name,
+        .string_capacity = sizeof(name)};
+    UIRect bounds = {0.0f, 0.0f, 100.0f, 30.0f};
+    if(!editor_mode_name_focus_request(&state)) return false;
+    editor_mode_name_focus_apply(&state);
+    rohr_ui_frame_begin((UIInput){0});
+    if(!editor_mode_field("editor.input.action.name", binding, NULL,
+            bounds, NULL).active) return false;
+    rohr_ui_frame_end();
+    typed.type = SDL_EVENT_KEY_DOWN;
+    typed.key.key = 'j';
+    rohr_ui_field_event_add(&typed);
+    rohr_ui_frame_begin((UIInput){0});
+    if(!editor_mode_field("editor.input.action.name", binding, NULL,
+            bounds, NULL).changed || strcmp(name, "j") != 0) return false;
+    rohr_ui_frame_end();
+    rohr_ui_field_focus_clear();
+    return true;
+}
+
 static bool screen_rotation_pointer_check(float width, float height, float zoom) {
     EditorProject project;
     EditorViewportState state;
@@ -137,7 +188,9 @@ static bool modifier_click_toggle_check(EditorProject *project,
 }
 
 int main(void) {
-    if(!accordion_layout_metrics_check()) return 1;
+    if(!accordion_layout_metrics_check() ||
+            !created_name_focus_mapping_check() ||
+            !created_name_focus_replacement_check()) return 1;
     static EditorProject project;
     EditorObject *object;
     EditorRigidBody *body;

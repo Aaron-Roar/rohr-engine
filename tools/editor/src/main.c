@@ -3037,6 +3037,10 @@ int main(void) {
                     EDITOR_SELECTION_ANIMATION_FRAME) frame_multi_selection = false;
         if(!frame_multi_selection) column_frame_multi_edit_open = false;
         bool mode_properties_open = true;
+        if(mode_accordion_applies &&
+                editor_mode_name_focus_pending_check(&viewport_state))
+            editor_mode_accordion_section_expanded_set(
+                &mode_accordions[viewport_state.mode], true);
         if(mode_accordion_applies) {
             mode_properties_open = editor_mode_accordion_section_draw(
                 &mode_accordions[viewport_state.mode],
@@ -3044,6 +3048,7 @@ int main(void) {
                     4.0f, EDITOR_TOOLS_WIDTH - 12.0f, 30.0f},
                 fmaxf(0.0f, panel_content_height - 34.0f));
         }
+        editor_mode_name_focus_apply(&viewport_state);
         editor_mode_accordion_layout_measure_reset();
         if(!mode_properties_open) {
             field_editing = false;
@@ -4188,6 +4193,7 @@ int main(void) {
                 EditorWorkspaceCommand command = {0};
                 if(workspace_browser_action ==
                         EDITOR_WORKSPACE_BROWSER_ADD_ANIMATION_FRAME) {
+                    EditorSpriteId first_frame = 0;
                     opened = sprite_browser_object != EDITOR_OBJECT_INVALID &&
                         animation_browser_sprite != 0 &&
                         browser_result.selected_count > 0;
@@ -4246,10 +4252,24 @@ int main(void) {
                                 load_result.kind = ERROR_RESULT_ERROR;
                                 load_result.result.error = added.result.error;
                                 opened = false;
-                            }
+                            } else if(first_frame == 0)
+                                first_frame = added.result.object;
                         }
                         if(opened) opened = editor_history_transaction_end(&history);
                         else editor_history_transaction_cancel(&history);
+                        if(opened && first_frame != 0 &&
+                                editor_project_object_select(&project,
+                                    sprite_browser_object)) {
+                            viewport_state.selection =
+                                EDITOR_SELECTION_ANIMATION_FRAME;
+                            viewport_state.selected_animated_sprite =
+                                animation_browser_sprite;
+                            viewport_state.selected_animation_frame = first_frame;
+                            if(editor_navigation_selected_open(&project,
+                                    &viewport_state))
+                                (void)editor_mode_name_focus_request(
+                                    &viewport_state);
+                        }
                     }
                     sprite_browser_object = 0;
                     animation_browser_sprite = 0;
@@ -4283,6 +4303,10 @@ int main(void) {
                         if(opened) {
                             viewport_state.selection = EDITOR_SELECTION_SPRITE;
                             viewport_state.selected_sprite = added.result.object;
+                            if(editor_navigation_selected_open(&project,
+                                    &viewport_state))
+                                (void)editor_mode_name_focus_request(
+                                    &viewport_state);
                         }
                     }
                     sprite_browser_object = 0;

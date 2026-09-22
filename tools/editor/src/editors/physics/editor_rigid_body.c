@@ -755,6 +755,9 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 if(added.kind == ERROR_RESULT_VALUE) {
                     context->viewport->selection = EDITOR_SELECTION_HITBOX;
                     context->viewport->selected_hitbox = added.result.object;
+                    if(editor_navigation_selected_open(context->project,
+                            context->viewport))
+                        (void)editor_mode_name_focus_request(context->viewport);
                 }
             }
             {

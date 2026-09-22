@@ -460,6 +460,9 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             if(result.kind == ERROR_RESULT_VALUE) {
                 context->viewport->selection = EDITOR_SELECTION_SOFT_NODE;
                 context->viewport->selected_soft_node = result.result.object;
+                if(editor_navigation_selected_open(context->project,
+                        context->viewport))
+                    (void)editor_mode_name_focus_request(context->viewport);
             }
         }
         if(rohr_ui_button("editor.soft_body.add_beam", &editor->add_beam_label,
@@ -472,6 +475,9 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             if(result.kind == ERROR_RESULT_VALUE) {
                 context->viewport->selection = EDITOR_SELECTION_SOFT_BEAM;
                 context->viewport->selected_soft_beam = result.result.object;
+                if(editor_navigation_selected_open(context->project,
+                        context->viewport))
+                    (void)editor_mode_name_focus_request(context->viewport);
             }
         }
         editor_project_soft_body_hierarchy_sync(body);

@@ -73,6 +73,8 @@ bool editor_mode_accordion_section_create(EditorModeAccordionSection *section,
 void editor_mode_accordion_section_destroy(EditorModeAccordionSection *section);
 bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
     const char *id, UIRect bounds, float content_height);
+void editor_mode_accordion_section_expanded_set(
+    EditorModeAccordionSection *section, bool expanded);
 EditorModeAccordionLayoutCursor editor_mode_accordion_layout_cursor_get(
     float x, float width, float y);
 EditorModeAccordionLayoutMetrics editor_mode_accordion_layout_metrics_get(
@@ -119,6 +121,10 @@ bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required)
 void editor_mode_text_cache_destroy(EditorModeTextCache *cache);
 UIFieldResult editor_mode_name_field(const char *id, char *name,
     size_t capacity, TextAsset *display, UIRect bounds);
+const char *editor_mode_name_field_id_get(EditorViewportMode mode);
+bool editor_mode_name_focus_request(EditorViewportState *state);
+bool editor_mode_name_focus_pending_check(const EditorViewportState *state);
+void editor_mode_name_focus_apply(EditorViewportState *state);
 UIButtonStyle editor_mode_delete_style_get(void);
 bool editor_mode_layer_control_create(EditorModeLayerControl *control,
     FontAsset *font);
