@@ -10,7 +10,7 @@
 typedef struct EditorSoftAreaEditor {
     FontAsset *font;
     TextAsset name_label, area_color_label, beam_color_label, inherit_label;
-    TextAsset visibility_label, surface_label;
+    TextAsset visibility_label, visible_label, hidden_label, surface_label;
     TextAsset area_names[EDITOR_SOFT_AREA_MAX];
     TextAsset beam_names[EDITOR_SOFT_BEAM_MAX];
     char area_cache[EDITOR_SOFT_AREA_MAX][EDITOR_OBJECT_NAME_MAX];

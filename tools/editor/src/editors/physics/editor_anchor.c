@@ -116,8 +116,9 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
     }
     {
         bool visible = anchor->visible;
-        if(editor_mode_checkbox_left("editor.anchor.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.anchor.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,

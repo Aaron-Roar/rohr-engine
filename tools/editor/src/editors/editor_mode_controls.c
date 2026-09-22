@@ -290,6 +290,24 @@ bool editor_mode_checkbox_left(const char *id,
     return interaction.clicked;
 }
 
+bool editor_mode_visibility_field(const char *id,
+        const TextAsset *label,
+        const TextAsset *visible_icon,
+        const TextAsset *hidden_icon,
+        UIRect bounds,
+        bool *visible) {
+    UIRect icon_bounds;
+    if(id == NULL || label == NULL || visible_icon == NULL ||
+            hidden_icon == NULL || visible == NULL) return false;
+    icon_bounds = (UIRect){bounds.x, bounds.y, bounds.height, bounds.height};
+    bool clicked = rohr_ui_button(id, *visible ? visible_icon : hidden_icon,
+        icon_bounds, NULL).clicked;
+    if(clicked) *visible = !*visible;
+    rohr_ui_label(label, (UIRect){bounds.x + bounds.height + 6.0f, bounds.y,
+        bounds.width - bounds.height - 6.0f, bounds.height});
+    return clicked;
+}
+
 bool editor_mode_color_swatch(const char *id,
         uint32_t *color,
         bool disabled,

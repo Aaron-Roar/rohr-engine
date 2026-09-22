@@ -185,8 +185,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     }
     {
         bool visible = object->visible;
-        if(editor_mode_checkbox_left("editor.object.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.object.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){context->x + 10.0f, 96.0f,
                     context->width - 20.0f, 28.0f}, &visible))
             visibility_toggle(context->project, EDITOR_VISIBILITY_OBJECT,
@@ -267,7 +268,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     editor_mode_divider_draw(context->x, y, context->width);
     y += 10.0f;
     rohr_ui_label(&editor->elements_label,
-        (UIRect){context->x + 10.0f, y, context->width - 20.0f, 28.0f});
+        (UIRect){context->x + 96.0f, y, context->width - 106.0f, 28.0f});
+    rohr_ui_label(&editor->visibility_label,
+        (UIRect){context->x + 10.0f, y, 80.0f, 28.0f});
     elements_y = y + 34.0f;
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];
@@ -288,8 +291,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
             "editor.object.item.%u.%u.visibility", selection, item.id);
         item_visibility_toggle(editor, context->project, object, item, selection,
             visibility, visible, visibility_id,
-            (UIRect){context->x + 10.0f, y, 26.0f, 26.0f});
-        UIRect bounds = {context->x + 42.0f, y, context->width - 50.0f, 26.0f};
+            (UIRect){context->x + 10.0f, y, 80.0f, 26.0f});
+        UIRect bounds = {context->x + 96.0f, y,
+            context->width - 106.0f, 26.0f};
         EditorSelectionRef ref = {selection, object->id, 0, 0, item.id};
         UIButtonStyle style = selected_style_get();
         UIButtonResult result = rohr_ui_button(id, label, bounds,

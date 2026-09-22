@@ -145,8 +145,9 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     }
     {
         bool visible = beam->visible;
-        if(editor_mode_checkbox_left("editor.soft_beam.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.soft_beam.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,

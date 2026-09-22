@@ -18,7 +18,8 @@ typedef struct EditorAnimatedSpriteEditor {
     TextAsset scale_x_label, scale_y_label, ticks_label, time_label;
     TextAsset starting_label, direction_label, left_label, right_label;
     TextAsset follow_label, playing_label, add_frame_label;
-    TextAsset visibility_label, none_label, delete_label;
+    TextAsset visibility_label, visible_label, hidden_label;
+    TextAsset none_label, delete_label;
     TextAsset name_values[32], body_names[EDITOR_RIGID_BODY_MAX];
     TextAsset frame_names[64];
     TextAsset x_field, y_field, rotation_field, scale_x_field, scale_y_field;

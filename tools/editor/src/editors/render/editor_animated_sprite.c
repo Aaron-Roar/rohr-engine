@@ -22,6 +22,7 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
     CREATE("Left", left_label); CREATE("Right", right_label);
     CREATE("Follow Rotation", follow_label); CREATE("Playing", playing_label);
     CREATE("Add Frame", add_frame_label); CREATE("Visibility", visibility_label);
+    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label);
     CREATE("Delete Animation", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field); CREATE("", scale_x_field);
@@ -50,7 +51,8 @@ void editor_animated_sprite_editor_destroy(EditorAnimatedSpriteEditor *editor) {
     DESTROY(ticks_label); DESTROY(time_label); DESTROY(starting_label);
     DESTROY(direction_label); DESTROY(left_label); DESTROY(right_label);
     DESTROY(follow_label); DESTROY(playing_label); DESTROY(add_frame_label);
-    DESTROY(visibility_label); DESTROY(none_label);
+    DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
+    DESTROY(none_label);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field);
     DESTROY(rotation_field); DESTROY(scale_x_field); DESTROY(scale_y_field);
     DESTROY(ticks_field); DESTROY(time_field); DESTROY(starting_field);
@@ -123,8 +125,10 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 88.0f, 42.0f, context->width - 96.0f, 28.0f}, NULL);
-    visible_changed = editor_mode_checkbox_left("editor.animated_sprite.visible",
-        &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
+    visible_changed = editor_mode_visibility_field(
+        "editor.animated_sprite.visible", &editor->visibility_label,
+        &editor->visible_label, &editor->hidden_label,
+        (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     section_y = 118.0f;
     {

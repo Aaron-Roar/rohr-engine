@@ -477,6 +477,20 @@ int main(void) {
     browser.preview_selected_directory = true;
     if(!editor_file_browser_directory_path_get(&browser, path, sizeof(path)) ||
             strcmp(path, "/projects/game/assets") != 0) return 1;
+    snprintf(browser.directory, sizeof(browser.directory), "/projects/game/");
+    browser.refresh_pending = false;
+    if(!editor_file_browser_parent(&browser) ||
+            strcmp(browser.directory, "/projects") != 0 ||
+            !browser.refresh_pending) return 1;
+    snprintf(browser.directory, sizeof(browser.directory), "/");
+    browser.refresh_pending = false;
+    if(editor_file_browser_parent(&browser) || browser.refresh_pending) return 1;
+    snprintf(browser.directory, sizeof(browser.directory), "C:\\projects\\game");
+    if(!editor_file_browser_parent(&browser) ||
+            strcmp(browser.directory, "C:\\projects") != 0) return 1;
+    snprintf(browser.directory, sizeof(browser.directory), "C:\\");
+    browser.refresh_pending = false;
+    if(editor_file_browser_parent(&browser) || browser.refresh_pending) return 1;
     {
         EditorProject drag_project;
         EditorViewportState drag_state = {0};

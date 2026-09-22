@@ -17,6 +17,7 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     CREATE("Rigid Body", body_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation", rotation_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Visibility", visibility_label);
+    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Follow Rotation", follow_label); CREATE("None", none_label);
     CREATE("Delete Sprite", delete_label); CREATE("", path_field);
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
@@ -39,7 +40,8 @@ void editor_sprite_editor_destroy(EditorSpriteEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(path_label); DESTROY(body_label); DESTROY(x_label);
     DESTROY(y_label); DESTROY(rotation_label); DESTROY(width_label);
-    DESTROY(height_label); DESTROY(visibility_label);
+    DESTROY(height_label); DESTROY(visibility_label); DESTROY(visible_label);
+    DESTROY(hidden_label);
     DESTROY(follow_label);
     DESTROY(none_label); DESTROY(delete_label); DESTROY(path_field);
     DESTROY(x_field); DESTROY(y_field); DESTROY(rotation_field);
@@ -101,8 +103,9 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     }
     position = sprite->position; rotation = sprite->rotation;
     width = sprite->size.x; height = sprite->size.y;
-    visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
-        &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
+    visible_changed = editor_mode_visibility_field("editor.sprite.visible",
+        &editor->visibility_label, &editor->visible_label, &editor->hidden_label,
+        (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     {
         EditorRigidBody *attached = editor_project_rigid_body_get(object,

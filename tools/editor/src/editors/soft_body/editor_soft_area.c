@@ -82,7 +82,8 @@ bool editor_soft_area_editor_create(EditorSoftAreaEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Area Color", area_color_label);
     CREATE("Beam Color", beam_color_label); CREATE("Inherit", inherit_label);
-    CREATE("Visibility", visibility_label); CREATE("Surface", surface_label);
+    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("[ ]", hidden_label); CREATE("Surface", surface_label);
 #undef CREATE
     for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1) {
         char name[32]; snprintf(name, sizeof(name), "area_%zu", i + 1);
@@ -105,6 +106,8 @@ void editor_soft_area_editor_destroy(EditorSoftAreaEditor *editor) {
     rohr_graphics_text_destroy(&editor->beam_color_label);
     rohr_graphics_text_destroy(&editor->inherit_label);
     rohr_graphics_text_destroy(&editor->visibility_label);
+    rohr_graphics_text_destroy(&editor->visible_label);
+    rohr_graphics_text_destroy(&editor->hidden_label);
     rohr_graphics_text_destroy(&editor->surface_label);
     for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->area_names[i]);
@@ -170,8 +173,9 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor,
     y += 40.0f;
     {
         bool visible = area->visible;
-        if(editor_mode_checkbox_left("editor.soft_area.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.soft_area.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){context->x + 10.0f, y,
                     context->width - 20.0f, 28.0f}, &visible)) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,

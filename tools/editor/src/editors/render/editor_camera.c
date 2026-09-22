@@ -17,6 +17,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Zoom", zoom_label);
     CREATE("Follow Orientation", inherit_label);
     CREATE("Visibility", visibility_label);
+    CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", angle_field);
     CREATE("", width_field); CREATE("", height_field);
@@ -40,7 +41,8 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(angle_label);
     DESTROY(width_label); DESTROY(height_label); DESTROY(attachment_label);
     DESTROY(zoom_label);
-    DESTROY(inherit_label); DESTROY(visibility_label);
+    DESTROY(inherit_label); DESTROY(visibility_label); DESTROY(visible_label);
+    DESTROY(hidden_label);
     DESTROY(none_label);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field); DESTROY(angle_field);
     DESTROY(width_field); DESTROY(height_field);
@@ -101,8 +103,9 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         (UIRect){context->x + 94, 42, context->width - 104, 28}, NULL);
     position = camera->position; angle = camera->rotation;
     width = camera->dimensions.x; height = camera->dimensions.y; zoom = camera->zoom;
-    visible_changed = editor_mode_checkbox_left("editor.camera.visible",
-        &editor->visibility_label, (UIRect){context->x + 10.0f, 80.0f,
+    visible_changed = editor_mode_visibility_field("editor.camera.visible",
+        &editor->visibility_label, &editor->visible_label, &editor->hidden_label,
+        (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     y = 118.0f;
     const float transform_rows[] = {

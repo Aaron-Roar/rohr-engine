@@ -793,7 +793,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         if(project->objects[i].id == project->selected) object = &project->objects[i];
     }
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        return fmaxf(height, 210.0f +
+        return fmaxf(height, 244.0f +
             (float)project->hierarchy_count * 34.0f);
     }
     if(state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
@@ -2796,7 +2796,15 @@ int main(void) {
             viewport_state.dragged_viewport_vertex ||
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
-        if(notification_panel.report_open &&
+        if(file_browser.active &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            if(!editor_file_browser_parent(&file_browser)) {
+                file_browser.active = false;
+                workspace_browser_action = EDITOR_WORKSPACE_BROWSER_NONE;
+                sprite_browser_object = 0;
+                animation_browser_sprite = 0;
+            }
+        } else if(notification_panel.report_open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             notification_panel.report_open = false;
         } else if(notification_panel.log_open &&
@@ -2829,14 +2837,6 @@ int main(void) {
             input_settings_panel.open = false;
             viewport_state.mode = EDITOR_VIEWPORT_HIERARCHY;
             viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
-        } else if(file_browser.active &&
-                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
-            if(!editor_file_browser_selection_clear(&file_browser)) {
-                file_browser.active = false;
-                workspace_browser_action = EDITOR_WORKSPACE_BROWSER_NONE;
-                sprite_browser_object = 0;
-                animation_browser_sprite = 0;
-            }
         } else if(close_action != EDITOR_CLOSE_NONE &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             close_action = EDITOR_CLOSE_NONE;
@@ -3032,7 +3032,10 @@ int main(void) {
             fmaxf(560.0f, EDITOR_VIEWPORT_WIDTH * 0.84f),
             fminf(500.0f, EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT - 68.0f)
         };
-        if(context_menu_modal)
+        if(file_browser.active)
+            rohr_ui_modal_set((UIRect){0.0f, EDITOR_MENU_HEIGHT,
+                editor_window_width, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
+        else if(context_menu_modal)
             rohr_ui_modal_set((UIRect){0.0f, 0.0f,
                 editor_window_width, EDITOR_WINDOW_HEIGHT});
         else if(build_settings_panel.open || visual_settings_panel.open ||
@@ -3782,7 +3785,8 @@ int main(void) {
                     &viewport_context_menu) &&
                 fabsf(viewport_context_menu.position.x - pointer.x) < 0.001f &&
                 fabsf(viewport_context_menu.position.y - pointer.y) < 0.001f;
-            if(workspace.open && pointer.x >= EDITOR_VIEWPORT_WIDTH &&
+            if(workspace.open && !file_browser.active &&
+                    pointer.x >= EDITOR_VIEWPORT_WIDTH &&
                     pointer.x < editor_window_width &&
                     pointer.y >= EDITOR_MENU_HEIGHT &&
                     pointer.y < EDITOR_WINDOW_HEIGHT &&
@@ -4304,6 +4308,11 @@ int main(void) {
         }
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(file_browser.active) {
+            rohr_ui_surface((UIRect){EDITOR_VIEWPORT_WIDTH,
+                EDITOR_VIEWPORT_BOTTOM, EDITOR_TOOLS_WIDTH,
+                EDITOR_WINDOW_HEIGHT - EDITOR_VIEWPORT_BOTTOM},
+                (Color){12, 14, 18, 255});
+            rohr_ui_modal_controls_begin();
             EditorFileBrowserResult browser_result = editor_file_browser_draw(
                 &file_browser, &file_browser_field,
                 &save_label,
@@ -4316,6 +4325,7 @@ int main(void) {
                         &load_font_label : &open_label,
                 &create_project_label, &cancel_label,
                 editor_window_width, EDITOR_VIEWPORT_BOTTOM);
+            rohr_ui_modal_controls_end();
             if(browser_result.submitted) {
                 EditorResult load_result = editor_result_value(true);
                 bool opened;
@@ -4394,10 +4404,6 @@ int main(void) {
                             viewport_state.selected_animated_sprite =
                                 animation_browser_sprite;
                             viewport_state.selected_animation_frame = first_frame;
-                            if(editor_navigation_selected_open(&project,
-                                    &viewport_state))
-                                (void)editor_mode_name_focus_request(
-                                    &viewport_state);
                         }
                     }
                     sprite_browser_object = 0;
@@ -4432,10 +4438,6 @@ int main(void) {
                         if(opened) {
                             viewport_state.selection = EDITOR_SELECTION_SPRITE;
                             viewport_state.selected_sprite = added.result.object;
-                            if(editor_navigation_selected_open(&project,
-                                    &viewport_state))
-                                (void)editor_mode_name_focus_request(
-                                    &viewport_state);
                         }
                     }
                     sprite_browser_object = 0;

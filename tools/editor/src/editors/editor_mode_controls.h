@@ -111,6 +111,9 @@ void editor_mode_numeric_disabled_draw(TextAsset *display, float value,
     UIRect bounds);
 bool editor_mode_checkbox_left(const char *id, const TextAsset *label,
     UIRect bounds, bool *checked);
+bool editor_mode_visibility_field(const char *id, const TextAsset *label,
+    const TextAsset *visible_icon, const TextAsset *hidden_icon,
+    UIRect bounds, bool *visible);
 bool editor_mode_color_swatch(const char *id, uint32_t *color, bool disabled,
     UIRect bounds,
     const EditorModeContext *context, EditorItemKind kind,

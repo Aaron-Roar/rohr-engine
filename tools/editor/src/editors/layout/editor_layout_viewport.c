@@ -207,8 +207,9 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             .string_capacity = sizeof(name)}, &editor->name_field,
         (UIRect){context->x + 94.0f, 42.0f, context->width - 104.0f, 28.0f}, NULL);
     bool enabled = viewport->enabled;
-    if(editor_mode_checkbox_left("editor.layout.visibility",
-            &editor->visible_label, (UIRect){context->x + 10.0f, 80.0f,
+    if(editor_mode_visibility_field("editor.layout.visibility",
+            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+            (UIRect){context->x + 10.0f, 80.0f,
                 context->width - 20.0f, 28.0f}, &enabled))
         viewport->enabled = enabled;
     y = 118.0f;
@@ -326,8 +327,10 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     rohr_ui_label(&editor->cameras_label,
-        (UIRect){context->x + 8.0f, contents_y,
-            context->width - 16.0f, 28.0f});
+        (UIRect){context->x + 94.0f, contents_y,
+            context->width - 102.0f, 28.0f});
+    rohr_ui_label(&editor->visible_label,
+        (UIRect){context->x + 8.0f, contents_y, 80.0f, 28.0f});
     y = contents_y + 34.0f;
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
         EditorViewportCameraItem *item = &viewport->camera_items[i];
@@ -342,13 +345,14 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             "editor.layout.camera.%u.visibility", item->id);
         if(rohr_ui_button(visibility_id, item->placement.visible ?
                 &editor->visible_icon : &editor->hidden_icon,
-                (UIRect){context->x + 8.0f, y, 34.0f, 28.0f}, NULL).clicked)
+                (UIRect){context->x + 8.0f, y, 80.0f, 28.0f}, NULL).clicked)
             item->placement.visible = !item->placement.visible;
         UIButtonStyle selected_style = rohr_ui_button_style_default_get();
         selected_style.idle = (Color){118, 96, 35, 255};
         selected_style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult camera_result = rohr_ui_button(id, &editor->camera_names[i],
-                (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
+                (UIRect){context->x + 94.0f, y,
+                    context->width - 102.0f, 28.0f},
                 context->viewport->selected_viewport_camera_item == item->id ?
                     &selected_style : NULL);
         if(camera_result.clicked) {
@@ -373,9 +377,10 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
             "editor.layout.ui.%u.visibility", item->id);
         if(rohr_ui_button(visibility_id, item->visible ? &editor->visible_icon :
                 &editor->hidden_icon, (UIRect){context->x + 8.0f, y,
-                    34.0f, 28.0f}, NULL).clicked) item->visible = !item->visible;
+                    80.0f, 28.0f}, NULL).clicked) item->visible = !item->visible;
         UIButtonResult ui_result = rohr_ui_button(id, &editor->ui_names[i],
-                (UIRect){context->x + 46.0f, y, context->width - 54.0f, 28.0f},
+                (UIRect){context->x + 94.0f, y,
+                    context->width - 102.0f, 28.0f},
                 NULL);
         if(context->hierarchy_row != NULL) {
             EditorSelectionRef ref = {
@@ -385,8 +390,8 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 viewport->id, 0, 0, item->id};
             context->hierarchy_row(context->hierarchy_context,
                 context->viewport, ref,
-                (UIRect){context->x + 46.0f, y,
-                    context->width - 54.0f, 28.0f}, ui_result,
+                (UIRect){context->x + 94.0f, y,
+                    context->width - 102.0f, 28.0f}, ui_result,
                 i + 1 == viewport->ui_item_count);
         }
         if(ui_result.clicked) {
@@ -432,8 +437,9 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(item_layer.changed) item->placement.layer = (int)layer;
         y += 38.0f;
         visible = item->placement.visible;
-        if(editor_mode_checkbox_left("editor.layout.camera.visible",
-                &editor->visible_label, (UIRect){context->x + 10.0f, y,
+        if(editor_mode_visibility_field("editor.layout.camera.visible",
+                &editor->visible_label, &editor->visible_icon,
+                &editor->hidden_icon, (UIRect){context->x + 10.0f, y,
                     context->width - 20.0f, 28.0f}, &visible))
             item->placement.visible = visible;
         y += 38.0f;
@@ -493,8 +499,9 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(item_layer.changed) item->layer = (int)layer;
         y += 38.0f;
         visible = item->visible;
-        if(editor_mode_checkbox_left("editor.layout.ui.visible",
-                &editor->visible_label, (UIRect){context->x + 10.0f, y,
+        if(editor_mode_visibility_field("editor.layout.ui.visible",
+                &editor->visible_label, &editor->visible_icon,
+                &editor->hidden_icon, (UIRect){context->x + 10.0f, y,
                     context->width - 20.0f, 28.0f}, &visible))
             item->visible = visible;
         y += 38.0f;
@@ -567,8 +574,9 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             context->width - 104.0f, 28.0f});
     y += 38.0f;
     bool visible = item->placement.visible;
-    if(editor_mode_checkbox_left("editor.layout.camera.visibility",
-            &editor->visible_label, (UIRect){context->x + 10.0f, y,
+    if(editor_mode_visibility_field("editor.layout.camera.visibility",
+            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+            (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &visible))
         item->placement.visible = visible;
     y += 38.0f;
@@ -771,8 +779,9 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         (UIRect){context->x + 94.0f, *y,
             context->width - 104.0f, 28.0f});
     *y += 38.0f;
-    if(editor_mode_checkbox_left("editor.layout.ui.visibility",
-            &editor->visible_label, (UIRect){context->x + 10.0f, *y,
+    if(editor_mode_visibility_field("editor.layout.ui.visibility",
+            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+            (UIRect){context->x + 10.0f, *y,
                 context->width - 20.0f, 28.0f}, &visible))
         item->visible = visible;
     *y += 38.0f;

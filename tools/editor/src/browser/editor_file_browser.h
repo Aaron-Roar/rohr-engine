@@ -63,7 +63,7 @@ void editor_file_browser_init(EditorFileBrowser *browser);
 void editor_file_browser_destroy(EditorFileBrowser *browser);
 bool editor_file_browser_open(EditorFileBrowser *browser, EditorFileBrowserMode mode,
     const char *directory, FontAsset *font);
-bool editor_file_browser_selection_clear(EditorFileBrowser *browser);
+bool editor_file_browser_parent(EditorFileBrowser *browser);
 bool editor_file_browser_directory_path_get(const EditorFileBrowser *browser,
     char *path, size_t capacity);
 bool editor_file_browser_selected_path_get(const EditorFileBrowser *browser,

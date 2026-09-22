@@ -14,6 +14,8 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
     *editor = (EditorParticleEditor){0};
     if(!editor_mode_text_create(font, "Particle", &editor->title) ||
             !editor_mode_text_create(font, "Visibility", &editor->visibility_label) ||
+            !editor_mode_text_create(font, "[X]", &editor->visible_label) ||
+            !editor_mode_text_create(font, "[ ]", &editor->hidden_label) ||
             !editor_mode_text_create(font, "Delete Particle", &editor->delete_label) ||
             !editor_mode_text_create(font, "Radius", &editor->radius_label) ||
             !editor_mode_text_create(font, "Rigid Vertices",
@@ -39,6 +41,8 @@ void editor_particle_editor_destroy(EditorParticleEditor *editor) {
     if(editor == NULL) return;
     rohr_graphics_text_destroy(&editor->title);
     rohr_graphics_text_destroy(&editor->visibility_label);
+    rohr_graphics_text_destroy(&editor->visible_label);
+    rohr_graphics_text_destroy(&editor->hidden_label);
     rohr_graphics_text_destroy(&editor->delete_label);
     rohr_graphics_text_destroy(&editor->radius_label);
     rohr_graphics_text_destroy(&editor->rigid_vertices_label);
@@ -72,8 +76,9 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         (UIRect){context->x + 10.0f, 42.0f, context->width - 20.0f, 30.0f});
     {
         bool visible = body->visible;
-        if(editor_mode_checkbox_left("editor.particle.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.particle.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,

@@ -159,32 +159,6 @@ static void editor_file_browser_preview_clear(EditorFileBrowser *browser) {
     (void)rohr_graphics_text_value_set(&browser->selected_directory_label, "");
 }
 
-bool editor_file_browser_selection_clear(EditorFileBrowser *browser) {
-    if(browser == NULL) return false;
-    if(browser->mode == EDITOR_FILE_BROWSER_OPEN_PNG_MULTI) {
-        bool selected = false;
-        for(size_t i = 0; i < browser->entry_count; i += 1) {
-            selected = selected || browser->entry_selected[i];
-            browser->entry_selected[i] = false;
-        }
-        browser->selection_anchor_valid = false;
-        if(selected) {
-            browser->filename[0] = '\0';
-            return true;
-        }
-    }
-    if(browser->preview_selected_path[0] != '\0') {
-        browser->preview_selected_path[0] = '\0';
-        browser->preview_selected_directory = false;
-        return true;
-    }
-    if(browser->selected_directory[0] != '\0') {
-        editor_file_browser_preview_clear(browser);
-        return true;
-    }
-    return false;
-}
-
 bool editor_file_browser_selected_path_get(const EditorFileBrowser *browser,
         size_t selected_index, char *path, size_t capacity) {
     size_t found = 0;
@@ -251,7 +225,9 @@ static bool editor_file_browser_parent_path_get(const EditorFileBrowser *browser
             strlen(browser->directory) >= capacity) return false;
     snprintf(path, capacity, "%s", browser->directory);
     length = strlen(path);
-    minimum = length >= 2 && path[1] == ':' ? 2 : 1;
+    minimum = length >= 3 && path[1] == ':' &&
+        (path[2] == '/' || path[2] == '\\') ? 3 :
+        length >= 2 && path[1] == ':' ? 2 : 1;
     while(length > minimum && (path[length - 1] == '/' ||
             path[length - 1] == '\\')) path[--length] = '\0';
     while(length > minimum && path[length - 1] != '/' &&
@@ -261,14 +237,16 @@ static bool editor_file_browser_parent_path_get(const EditorFileBrowser *browser
     return true;
 }
 
-static void editor_file_browser_parent(EditorFileBrowser *browser) {
+bool editor_file_browser_parent(EditorFileBrowser *browser) {
     char path[EDITOR_FILE_BROWSER_PATH_MAX];
 
-    if(!editor_file_browser_parent_path_get(browser, path, sizeof(path))) return;
+    if(!editor_file_browser_parent_path_get(browser, path, sizeof(path)) ||
+            strcmp(path, browser->directory) == 0) return false;
     snprintf(browser->directory, sizeof(browser->directory), "%s", path);
     browser->filename[0] = '\0';
     editor_file_browser_preview_clear(browser);
     browser->refresh_pending = true;
+    return true;
 }
 
 void editor_file_browser_init(EditorFileBrowser *browser) {
@@ -374,7 +352,7 @@ EditorFileBrowserResult editor_file_browser_draw(EditorFileBrowser *browser,
             &browser->parent_label, (UIRect){dialog.x + 14.0f, dialog.y + 50.0f,
                 left_width, 28.0f}, selected ? &selected_style : NULL);
         if(parent.double_clicked) {
-            editor_file_browser_parent(browser);
+            (void)editor_file_browser_parent(browser);
         } else if(parent.clicked && directory_mode && have_parent) {
             (void)editor_file_browser_preview_refresh(browser, parent_path);
         }

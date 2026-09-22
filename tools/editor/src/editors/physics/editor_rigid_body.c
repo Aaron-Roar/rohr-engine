@@ -235,8 +235,9 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     }
     {
         bool visible = body->visible;
-        if(editor_mode_checkbox_left("editor.rigid_body.visibility",
-                &editor->visibility_label,
+        if(editor_mode_visibility_field("editor.rigid_body.visibility",
+                &editor->visibility_label, &editor->visible_label,
+                &editor->hidden_label,
                 (UIRect){x + 10.0f, 80.0f, width - 20.0f, 28.0f}, &visible)) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
                 .data.visibility = {EDITOR_VISIBILITY_RIGID_BODY, object->id, 0,

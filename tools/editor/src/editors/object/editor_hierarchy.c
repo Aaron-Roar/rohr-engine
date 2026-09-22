@@ -18,6 +18,9 @@ bool editor_hierarchy_editor_create(EditorHierarchyEditor *editor,
             !editor_mode_text_create(font, "Add Viewport", &editor->add_viewport_label) ||
             !editor_mode_text_create(font, "Add Controller",
                 &editor->add_controller_label) ||
+            !editor_mode_text_create(font, "Visibility",
+                &editor->visibility_label) ||
+            !editor_mode_text_create(font, "Elements", &editor->elements_label) ||
             !editor_mode_text_create(font, "[X]", &editor->visible_label) ||
             !editor_mode_text_create(font, "[ ]", &editor->hidden_label) ||
             !editor_mode_text_create(font, "Delete Object",
@@ -37,6 +40,8 @@ void editor_hierarchy_editor_destroy(EditorHierarchyEditor *editor) {
     rohr_graphics_text_destroy(&editor->add_object_label);
     rohr_graphics_text_destroy(&editor->add_viewport_label);
     rohr_graphics_text_destroy(&editor->add_controller_label);
+    rohr_graphics_text_destroy(&editor->visibility_label);
+    rohr_graphics_text_destroy(&editor->elements_label);
     rohr_graphics_text_destroy(&editor->visible_label);
     rohr_graphics_text_destroy(&editor->hidden_label);
     rohr_graphics_text_destroy(&editor->delete_object_label);
@@ -112,8 +117,13 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             (void)editor_mode_name_focus_request(context->viewport);
         }
     }
-    list_y = 170.0f;
     editor_mode_divider_draw(context->x, 160.0f, context->width);
+    rohr_ui_label(&editor->visibility_label,
+        (UIRect){context->x + 8.0f, 170.0f, 80.0f, 28.0f});
+    rohr_ui_label(&editor->elements_label,
+        (UIRect){context->x + 94.0f, 170.0f,
+            context->width - 102.0f, 28.0f});
+    list_y = 204.0f;
     editor_project_hierarchy_sync(context->project);
     for(size_t row = 0; row < context->project->hierarchy_count; row += 1) {
         EditorProjectHierarchyItem hierarchy_item =
@@ -136,7 +146,7 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             "editor.object.%u.visibility", object->id);
         if(rohr_ui_button(visibility_id, object->visible ? &editor->visible_label :
                 &editor->hidden_label, (UIRect){context->x + 8.0f,
-                    y + 1.0f, 26.0f, 26.0f}, NULL).clicked) {
+                    y, 80.0f, 28.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
                 .data.visibility = {EDITOR_VISIBILITY_OBJECT,
                     object->id, 0, 0, !object->visible}};
@@ -145,8 +155,8 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
         UIButtonStyle style = rohr_ui_button_style_default_get();
         style.idle = (Color){118, 96, 35, 255};
         style.hovered = (Color){145, 119, 45, 255};
-        UIRect bounds = {context->x + 40.0f, y,
-            context->width - 48.0f, 28.0f};
+        UIRect bounds = {context->x + 94.0f, y,
+            context->width - 102.0f, 28.0f};
         UIButtonResult result = rohr_ui_button(id, &editor->object_names[i], bounds,
             editor_viewport_selection_contains(context->viewport, ref) ? &style : NULL);
         if(context->hierarchy_row != NULL)
@@ -176,22 +186,22 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             "editor.layout_viewport.%u.visibility", viewport->id);
         if(rohr_ui_button(visibility_id, viewport->enabled ? &editor->visible_label :
                 &editor->hidden_label, (UIRect){context->x + 8.0f,
-                    y + 1.0f, 26.0f, 26.0f},
+                    y, 80.0f, 28.0f},
                 NULL).clicked)
             viewport->enabled = !viewport->enabled;
         UIButtonStyle style = rohr_ui_button_style_default_get();
         style.idle = (Color){118, 96, 35, 255};
         style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult result = rohr_ui_button(id, &editor->viewport_names[i],
-            (UIRect){context->x + 40.0f, y,
-                context->width - 48.0f, 28.0f},
+            (UIRect){context->x + 94.0f, y,
+                context->width - 102.0f, 28.0f},
             context->viewport->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
                 context->viewport->selected_layout_viewport == viewport->id ?
                 &style : NULL);
         if(context->hierarchy_row != NULL) {
-            UIRect bounds = {context->x + 40.0f,
+            UIRect bounds = {context->x + 94.0f,
                 y,
-                context->width - 48.0f, 28.0f};
+                context->width - 102.0f, 28.0f};
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
                     0, 0, 0, viewport->id}, bounds, result,
@@ -219,7 +229,7 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             "editor.input_controller.%u.enabled", controller->id);
         if(rohr_ui_button(enabled_id, controller->enabled ? &editor->visible_label :
                 &editor->hidden_label, (UIRect){context->x + 8.0f,
-                    y + 1.0f, 26.0f, 26.0f}, NULL).clicked) {
+                    y, 80.0f, 28.0f}, NULL).clicked) {
             EditorCommand command = {.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
                 .data.input_controller = {.controller = controller->id,
                     .enabled = !controller->enabled}};
@@ -230,8 +240,8 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
         UIButtonStyle style = rohr_ui_button_style_default_get();
         style.idle = (Color){118, 96, 35, 255};
         style.hovered = (Color){145, 119, 45, 255};
-        UIRect bounds = {context->x + 40.0f, y,
-            context->width - 48.0f, 28.0f};
+        UIRect bounds = {context->x + 94.0f, y,
+            context->width - 102.0f, 28.0f};
         UIButtonResult result = rohr_ui_button(id, &editor->controller_names[i],
             bounds, context->viewport->selection ==
                     EDITOR_SELECTION_INPUT_CONTROLLER &&
