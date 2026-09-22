@@ -162,15 +162,18 @@ The editor defaults to **Auto**, matching the current window or fullscreen
 output without letterboxing. Fixed 16:9, 16:10, 4:3, and 21:9 options are also
 available at 720p, 1080p, and 1440p logical heights.
 
-The **Settings > Input** menu authors named action maps, Button, Axis 1D, and
-Axis 2D actions, and their default keyboard or pointer bindings. Maps, actions,
-and bindings can be added, removed, selected, and edited; all changes use the
-normal undo/redo history. The physical input field uses SDL scancode values for
-keys, Rohr `InputMouseButton` values for pointer buttons, and
-`InputAxisComponent` values for motion or wheel sources. Generated C exposes
-stable map and action handles through `ProjectInput`. Gameplay reads those
-handles and owns responses; callbacks are not serialized. See [Input](input.md)
-for runtime mapping, runtime user overrides, and CLI syntax.
+Controllers are top-level resources beside Objects and Viewports. **Add
+Controller** creates a named logical controller. Opening that element edits only
+that controller and presents **Add Action** plus one selectable element per
+Button, Axis 1D, or Axis 2D action. Double-clicking an action opens its own
+editor. Action type, Button mode, binding selection, binding source, mouse
+button, and pointer-axis choices use dropdowns. Persistent actions can author
+their initial state, and every action can own multiple keyboard or pointer
+bindings. All changes use normal undo/redo history. Key inputs use SDL scancode
+values. Generated C exposes stable controller and action handles through
+`ProjectControllers`. Gameplay reads those handles and owns responses;
+callbacks are not serialized. See [Input](input.md) for runtime overrides and
+CLI syntax.
 
 The bottom-left **Notification Log** button is always available. Up to three
 new notifications appear above it, with a fourth replacing the oldest visible

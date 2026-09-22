@@ -6,7 +6,6 @@
 #define ROHR_H
 
 #include "console.h"
-#include "controller.h"
 #include "engine.h"
 #include "entity_components.h"
 #include "error.h"
@@ -125,26 +124,41 @@ InputTextState rohr_input_text_state_get(void);
 /** Return whether a tagged physical binding is valid for an action type. */
 bool rohr_input_binding_valid_check(InputActionType type,
     const InputBinding *binding);
-/** Create an enabled, engine-owned action map with a unique name. */
-InputActionMapIdResult rohr_input_action_map_create(const char *name);
-/** Destroy an action map and all actions owned by it. */
-EngineResult rohr_input_action_map_destroy(InputActionMapId map);
-/** Find an action map by its unique name. */
-InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name);
-/** Enable or disable all actions in a map without changing their bindings. */
-EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled);
-/** Return whether a valid action map is enabled. */
-bool rohr_input_action_map_enabled_check(InputActionMapId map);
-/** Create an engine-owned typed action with a map-local unique name. */
-InputActionIdResult rohr_input_action_create(InputActionMapId map,
+/** Create an enabled, engine-owned logical controller with a unique name. */
+InputControllerIdResult rohr_input_controller_create(const char *name);
+/** Destroy a logical controller and all actions owned by it. */
+EngineResult rohr_input_controller_destroy(InputControllerId controller);
+/** Find a logical controller by its unique name. */
+InputControllerIdResult rohr_input_controller_by_name_get(const char *name);
+/** Enable or disable a controller without changing its action state. */
+EngineResult rohr_input_controller_enabled_set(InputControllerId controller,
+    bool enabled);
+/** Return whether a valid logical controller is enabled. */
+bool rohr_input_controller_enabled_check(InputControllerId controller);
+/** Create an engine-owned typed action with a controller-local unique name. */
+InputActionIdResult rohr_input_action_create(InputControllerId controller,
     const char *name, InputActionType type);
-/** Destroy an action while leaving its owning map intact. */
+/** Destroy an action while leaving its owning controller intact. */
 EngineResult rohr_input_action_destroy(InputActionId action);
-/** Find an action by its map and map-local name. */
-InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map,
+/** Find an action by its controller and controller-local name. */
+InputActionIdResult rohr_input_action_by_name_get(InputControllerId controller,
     const char *name);
 /** Return the logical value type declared for an action. */
 InputActionTypeResult rohr_input_action_type_get(InputActionId action);
+/** Replace a Button action's momentary or persistent behavior. */
+EngineResult rohr_input_action_button_mode_set(InputActionId action,
+    InputButtonMode mode);
+/** Return a Button action's configured behavior. */
+InputButtonModeResult rohr_input_action_button_mode_get(InputActionId action);
+/** Set the state restored by a persistent Button reset. */
+EngineResult rohr_input_action_button_initial_state_set(InputActionId action,
+    bool state);
+/** Return a Button action's authored initial state. */
+bool rohr_input_action_button_initial_state_check(InputActionId action);
+/** Explicitly replace a persistent Button action's logical state. */
+EngineResult rohr_input_action_button_state_set(InputActionId action, bool state);
+/** Restore a persistent Button action to its authored initial state. */
+EngineResult rohr_input_action_button_state_reset(InputActionId action);
 /** Replace the copied editor/application default bindings for an action. */
 EngineResult rohr_input_action_bindings_default_set(InputActionId action,
     const InputBinding *bindings, size_t count);
@@ -2055,199 +2069,6 @@ Tick rohr_system_tick_update(void);
  * @brief Deletes entities whose lifetime has expired.
  */
 void rohr_system_entities_past_lifetime_clean(void);
-
-/**
- * @brief Updates keyboard key states for the frame.
- * @param keyboard Keyboard state table to update.
- */
-void rohr_controller_key_states_update(KeyboardState *keyboard);
-
-/**
- * @brief Adds a keyboard event to a keyboard state table.
- * @param keyboard Keyboard state table to modify.
- * @param key_event Keyboard event to add.
- */
-void rohr_controller_key_event_add(KeyboardState *keyboard, KeyboardEvent key_event);
-
-/**
- * @brief Converts an SDL event into a Rohr keyboard event.
- * @param sdl_event SDL event to inspect.
- * @return KeyboardEvent derived from sdl_event.
- */
-KeyboardEvent rohr_controller_keyboard_event_capture(const SDL_Event *sdl_event);
-
-/**
- * @brief Checks whether an SDL keycode is currently held or was pressed this frame.
- * @param keyboard Keyboard state table to inspect.
- * @param keycode SDL keycode to check.
- * @return true when the key is down or pressed.
- */
-bool rohr_controller_key_down_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-
-/**
- * @brief Checks whether an SDL keycode was pressed this frame.
- * @param keyboard Keyboard state table to inspect.
- * @param keycode SDL keycode to check.
- * @return true when the key was pressed this frame.
- */
-bool rohr_controller_key_pressed_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-
-/**
- * @brief Checks whether an SDL keycode was released this frame.
- * @param keyboard Keyboard state table to inspect.
- * @param keycode SDL keycode to check.
- * @return true when the key was released this frame.
- */
-bool rohr_controller_key_released_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-
-/**
- * @brief Returns normalized movement input from supplied up/left/down/right SDL keycodes.
- *
- * Opposing directions cancel before normalization. For example, left+right
- * produces zero X, and up+down produces zero Y.
- *
- * @param keyboard Keyboard state table to inspect.
- * @param up SDL keycode for positive Y.
- * @param left SDL keycode for negative X.
- * @param down SDL keycode for negative Y.
- * @param right SDL keycode for positive X.
- * @return Direction vector from the supplied directional keys.
- */
-Vec2D rohr_controller_axis_from_keycodes_get(
-        const KeyboardState *keyboard,
-        SDL_Keycode up,
-        SDL_Keycode left,
-        SDL_Keycode down,
-        SDL_Keycode right
-);
-
-/**
- * @brief Returns normalized movement input from W/A/S/D.
- * @param keyboard Keyboard state table to inspect.
- * @return Direction vector where W is positive Y and D is positive X.
- */
-Vec2D rohr_controller_wasd_axis_get(const KeyboardState *keyboard);
-
-/**
- * @brief Returns normalized movement input from arrow keys.
- * @param keyboard Keyboard state table to inspect.
- * @return Direction vector where up is positive Y and right is positive X.
- */
-Vec2D rohr_controller_arrow_axis_get(const KeyboardState *keyboard);
-
-/**
- * @brief Returns an enabled, empty, game-owned controller.
- * @return Controller ready for named axes and buttons.
- */
-Controller rohr_controller_default_get(void);
-
-/**
- * @brief Returns a game-owned controller with W/A/S/D axis bindings.
- * @return Default enabled W/A/S/D controller.
- */
-Controller rohr_controller_wasd_default_get(void);
-
-/**
- * @brief Returns a game-owned controller with arrow-key axis bindings.
- * @return Default enabled arrow-key controller.
- */
-Controller rohr_controller_arrows_default_get(void);
-
-/**
- * @brief Replaces the axis mapping on a caller-owned controller.
- * @param controller Controller to modify. NULL is ignored.
- * @param binding New positive/negative X/Y key mapping.
- */
-void rohr_controller_axis_binding_set(
-    Controller *controller,
-    ControllerAxisBinding binding
-);
-
-/**
- * @brief Reads a game-owned controller from shared keyboard state.
- * @param keyboard Shared keyboard state captured for the frame.
- * @param controller Game-owned mapping to read.
- * @return Normalized axis, or zero for NULL or disabled controllers.
- */
-Vec2D rohr_controller_default_axis_get(
-    const KeyboardState *keyboard,
-    const Controller *controller
-);
-
-/** @brief Adds or replaces a named axis without allocating memory. */
-bool rohr_controller_axis_add(
-    Controller *controller,
-    const char *name,
-    ControllerAxisBinding binding
-);
-
-/** @brief Adds or replaces a named button without allocating memory. */
-bool rohr_controller_button_add(
-    Controller *controller,
-    const char *name,
-    SDL_Keycode keycode
-);
-
-/** @brief Reads a named axis, returning zero when unavailable or disabled. */
-Vec2D rohr_controller_axis_get(
-    const KeyboardState *keyboard,
-    const Controller *controller,
-    const char *name
-);
-
-/** @brief Checks whether a named button is held or newly pressed. */
-bool rohr_controller_button_down_get(
-    const KeyboardState *keyboard,
-    const Controller *controller,
-    const char *name
-);
-
-/** @brief Checks whether a named button was pressed this frame. */
-bool rohr_controller_button_pressed_get(
-    const KeyboardState *keyboard,
-    const Controller *controller,
-    const char *name
-);
-
-/** @brief Checks whether a named button was released this frame. */
-bool rohr_controller_button_released_get(
-    const KeyboardState *keyboard,
-    const Controller *controller,
-    const char *name
-);
-
-/**
- * @brief Prints a mouse event for debugging.
- * @param event Mouse event to print.
- */
-void rohr_controller_mouse_event_print(MouseEvent event);
-
-/**
- * @brief Updates mouse button states for the frame.
- * @param mouse Mouse state table to update.
- */
-void rohr_controller_mouse_states_update(MouseState *mouse);
-
-/**
- * @brief Adds a mouse event to a mouse state table.
- * @param mouse Mouse state table to modify.
- * @param mouse_event Mouse event to add.
- */
-void rohr_controller_mouse_event_add(MouseState *mouse, MouseEvent mouse_event);
-
-/**
- * @brief Converts an SDL event into a Rohr mouse event.
- * @param sdl_event SDL event to inspect.
- * @return MouseEvent derived from sdl_event.
- */
-MouseEvent rohr_controller_mouse_event_capture(const SDL_Event *sdl_event);
-
-/**
- * @brief Converts the current logical screen-space mouse position to world space.
- * @param mouse Mouse state to convert.
- * @return World position under the mouse, or zero when mouse is NULL.
- */
-Position rohr_controller_mouse_world_position_get(const MouseState *mouse);
 
 /**
  * @brief Delays execution for a number of seconds.

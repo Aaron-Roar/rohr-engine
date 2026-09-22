@@ -157,7 +157,7 @@ const char *error_code_message_get(EngineError error) {
         case ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED:
             return "input capacity exceeded";
         case ERROR_ENGINE_INPUT_NOT_FOUND:
-            return "input action or map not found";
+            return "input controller or action not found";
         case ERROR_ENGINE_INPUT_TYPE_MISMATCH:
             return "input action type mismatch";
         case ERROR_ENGINE_INPUT_BINDING_INVALID:
@@ -166,6 +166,8 @@ const char *error_code_message_get(EngineError error) {
             return "input window not found";
         case ERROR_ENGINE_INPUT_OPERATION_FAILED:
             return "input operation failed";
+        case ERROR_ENGINE_INPUT_CONFIGURATION_INVALID:
+            return "input configuration invalid";
         default:
             return "unknown error";
     }

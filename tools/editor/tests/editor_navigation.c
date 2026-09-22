@@ -729,6 +729,113 @@ int main(void) {
         }
     }
     {
+        EditorInputController *controller =
+            editor_project_input_controller_add(&project, "gameplay");
+        EditorLayoutViewport *layout =
+            editor_project_layout_viewport_add(&project);
+        EditorSelectionRef controller_ref;
+        EditorSelectionRef object_ref = {EDITOR_SELECTION_OBJECT,
+            object->id, 0, 0, object->id};
+        if(controller == NULL || layout == NULL) return 1;
+        controller_ref = (EditorSelectionRef){EDITOR_SELECTION_INPUT_CONTROLLER,
+            0, 0, 0, controller->id};
+        editor_project_hierarchy_sync(&project);
+        editor_history_reset(&history);
+        if(!editor_navigation_selection_reorder(&project, &state,
+                controller_ref, object_ref, false, &history) ||
+                project.hierarchy[0].kind !=
+                    EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER ||
+                project.hierarchy[0].id != controller->id ||
+                history.undo_count != 1 || !editor_history_undo(&history) ||
+                project.hierarchy[0].kind != EDITOR_PROJECT_HIERARCHY_OBJECT ||
+                !editor_history_redo(&history) ||
+                project.hierarchy[0].kind !=
+                    EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER) return 1;
+        editor_history_reset(&history);
+    }
+    {
+        EditorInputController *controller = NULL;
+        EditorInputAction *action;
+        EditorInputAction *second_action;
+        EditorInputControllerId controller_id;
+        EditorInputActionId action_id;
+        EditorInputActionId second_action_id;
+        EditorSelectionRef action_ref;
+        EditorSelectionRef second_action_ref;
+        char name[ROHR_INPUT_NAME_MAX];
+        for(size_t i = 0; i < project.input_controller_count; i += 1)
+            if(strcmp(project.input_controllers[i].name, "gameplay") == 0)
+                controller = &project.input_controllers[i];
+        action = controller == NULL ? NULL : editor_project_input_action_add(
+            &project, controller->id, "jump", INPUT_ACTION_BUTTON);
+        action_id = action == NULL ? 0 : action->id;
+        second_action = controller == NULL ? NULL : editor_project_input_action_add(
+            &project, controller->id, "pause", INPUT_ACTION_BUTTON);
+        if(action == NULL || second_action == NULL) return 1;
+        second_action_id = second_action->id;
+        controller_id = controller->id;
+        action_ref = (EditorSelectionRef){EDITOR_SELECTION_INPUT_ACTION,
+            0, controller_id, 0, action_id};
+        second_action_ref = (EditorSelectionRef){EDITOR_SELECTION_INPUT_ACTION,
+            0, controller_id, 0, second_action_id};
+        if(!editor_viewport_selection_set(&project, &state, action_ref, false) ||
+                state.selection != EDITOR_SELECTION_INPUT_ACTION ||
+                state.selected_input_controller != controller_id ||
+                state.selected_input_action != action_id ||
+                !editor_navigation_selected_open(&project, &state) ||
+                state.mode != EDITOR_VIEWPORT_INPUT_ACTION ||
+                !editor_navigation_selection_name_get(&project, action_ref,
+                    name, sizeof(name)) || strcmp(name, "jump") != 0 ||
+                !editor_navigation_selection_name_set(&project, action_ref,
+                    "jump_button") ||
+                !editor_navigation_selection_name_get(&project, action_ref,
+                    name, sizeof(name)) || strcmp(name, "jump_button") != 0)
+            return 1;
+        editor_viewport_back(&state);
+        if(state.mode != EDITOR_VIEWPORT_INPUT_CONTROLLER ||
+                state.selection != EDITOR_SELECTION_INPUT_CONTROLLER)
+            return 1;
+        editor_history_reset(&history);
+        if(!editor_navigation_selection_reorder(&project, &state, action_ref,
+                second_action_ref, true, &history) ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[0].id != second_action_id ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[1].id != action_id ||
+                history.undo_count != 1 || !editor_history_undo(&history) ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[0].id != action_id ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[1].id != second_action_id ||
+                !editor_history_redo(&history) ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[0].id != second_action_id ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->actions[1].id != action_id)
+            return 1;
+        editor_history_reset(&history);
+        if(!editor_viewport_selection_set(&project, &state, action_ref, false) ||
+                !editor_viewport_selection_set(&project, &state,
+                    second_action_ref, true))
+            return 1;
+        state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
+        bool deleted = editor_navigation_multi_selection_delete(
+            &project, &state, &history);
+        if(!deleted ||
+                state.mode != EDITOR_VIEWPORT_INPUT_CONTROLLER ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->action_count != 0 ||
+                editor_project_input_action_get(&project, controller_id,
+                    action_ref.item) != NULL || history.undo_count != 1 ||
+                !editor_history_undo(&history) ||
+                editor_project_input_controller_get(&project,
+                    controller_id)->action_count != 2 ||
+                editor_project_input_action_get(&project, controller_id,
+                    action_ref.item) == NULL)
+            return 1;
+        editor_history_reset(&history);
+    }
+    {
         EditorSelectionRef first = {EDITOR_SELECTION_RIGID_BODY,
             object->id, 0, 0, body->id};
         EditorSelectionRef second = {EDITOR_SELECTION_RIGID_BODY,

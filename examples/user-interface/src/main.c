@@ -65,7 +65,7 @@ static void render_scene(CameraId camera, void *context_value) {
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action = INPUT_ACTION_INVALID;
     bool running = true;
     FontAsset font = {0};
@@ -98,15 +98,15 @@ int main(void) {
     {
         InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
             1.0f, (Vec2D){0});
-        if(!example_input_map_create("ui", &input_map) ||
-                !example_input_action_create(input_map, "exit",
+        if(!example_input_controller_create("ui", &input_controller) ||
+                !example_input_action_create(input_controller, "exit",
                     INPUT_ACTION_BUTTON, &exit_binding, 1, &exit_action)) goto fail;
     }
     {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
             PRINT_ENGINE_ERROR(graphics_result);
-            (void)rohr_input_action_map_destroy(input_map);
+            (void)rohr_input_controller_destroy(input_controller);
             rohr_engine_shutdown();
             return 1;
         }
@@ -328,8 +328,8 @@ int main(void) {
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
     rohr_graphics_end();
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_engine_shutdown();
     return 0;
 
@@ -346,8 +346,8 @@ fail:
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
     rohr_graphics_end();
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_engine_shutdown();
     return 1;
 }

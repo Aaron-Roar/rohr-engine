@@ -232,17 +232,26 @@ float editor_window_width = WINDOW_WIDTH;
 float editor_window_height = WINDOW_HEIGHT;
 float editor_viewport_bottom = WINDOW_HEIGHT;
 
-static bool editor_control_modifier_check(const KeyboardState *keyboard) {
-    return (SDL_GetModState() & SDL_KMOD_CTRL) != 0 ||
-        rohr_controller_key_down_get(keyboard, SDLK_LCTRL) ||
-        rohr_controller_key_down_get(keyboard, SDLK_RCTRL);
+static bool editor_control_modifier_check(void) {
+    return (rohr_input_modifiers_get() & SDL_KMOD_CTRL) != 0 ||
+        rohr_input_key_down_check(SDL_SCANCODE_LCTRL) ||
+        rohr_input_key_down_check(SDL_SCANCODE_RCTRL);
 }
 
-static bool editor_selection_modifier_check(const KeyboardState *keyboard) {
-    return (SDL_GetModState() & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT)) != 0 ||
-        editor_control_modifier_check(keyboard) ||
-        rohr_controller_key_down_get(keyboard, SDLK_LSHIFT) ||
-        rohr_controller_key_down_get(keyboard, SDLK_RSHIFT);
+static bool editor_selection_modifier_check(void) {
+    return (rohr_input_modifiers_get() & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT)) != 0 ||
+        editor_control_modifier_check() ||
+        rohr_input_key_down_check(SDL_SCANCODE_LSHIFT) ||
+        rohr_input_key_down_check(SDL_SCANCODE_RSHIFT);
+}
+
+static MouseButtonState editor_pointer_button_state_get(InputMouseButton button) {
+    if(rohr_input_mouse_button_pressed_check(button))
+        return MOUSE_BUTTON_STATE_PRESSED;
+    if(rohr_input_mouse_button_released_check(button))
+        return MOUSE_BUTTON_STATE_RELEASED;
+    return rohr_input_mouse_button_down_check(button) ?
+        MOUSE_BUTTON_STATE_DOWN : MOUSE_BUTTON_STATE_UP;
 }
 
 static EditorTerminalPanel *editor_operation_terminal;
@@ -661,6 +670,8 @@ static EditorNavigationState editor_navigation_state_get(
         .animated_sprite = state->selected_animated_sprite,
         .camera = state->selected_camera_entity,
         .animation_frame = state->selected_animation_frame,
+        .input_controller = state->selected_input_controller,
+        .input_action = state->selected_input_action,
         .origin_kind = (uint32_t)state->selected_origin_kind
     };
 }
@@ -684,6 +695,8 @@ static void editor_navigation_state_apply(EditorProject *project,
     state->selected_animated_sprite = navigation->animated_sprite;
     state->selected_camera_entity = navigation->camera;
     state->selected_animation_frame = navigation->animation_frame;
+    state->selected_input_controller = navigation->input_controller;
+    state->selected_input_action = navigation->input_action;
     state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
 }
 
@@ -780,6 +793,15 @@ static float editor_panel_content_height_get(const EditorProject *project,
         return fmaxf(height, 210.0f +
             (float)project->hierarchy_count * 34.0f);
     }
+    if(state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
+        const EditorInputController *controller =
+            editor_project_input_controller_const_get(project,
+                state->selected_input_controller);
+        return fmaxf(height, 220.0f + (float)(controller == NULL ? 0 :
+            controller->action_count) * 34.0f);
+    }
+    if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION)
+        return fmaxf(height, 520.0f);
     if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
         const EditorLayoutViewport *viewport =
             editor_project_layout_viewport_get((EditorProject *)project,
@@ -912,7 +934,8 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
     mode = state->mode;
     if(mode == EDITOR_VIEWPORT_HIERARCHY)
         return state->selection == EDITOR_SELECTION_OBJECT ||
-            state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT;
+            state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+            state->selection == EDITOR_SELECTION_INPUT_CONTROLLER;
     return mode == EDITOR_VIEWPORT_OBJECT || mode == EDITOR_VIEWPORT_RIGID_BODY ||
         mode == EDITOR_VIEWPORT_HITBOX || mode == EDITOR_VIEWPORT_VERTEX ||
         mode == EDITOR_VIEWPORT_LINE || mode == EDITOR_VIEWPORT_JOINT ||
@@ -928,10 +951,12 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
         mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
-        mode == EDITOR_VIEWPORT_UI_LINE_EDITOR;
+        mode == EDITOR_VIEWPORT_UI_LINE_EDITOR ||
+        mode == EDITOR_VIEWPORT_INPUT_CONTROLLER ||
+        mode == EDITOR_VIEWPORT_INPUT_ACTION;
 }
 
-#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_UI_LINE_EDITOR + 1)
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_INPUT_ACTION + 1)
 
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
@@ -949,7 +974,9 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR &&
         mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
         mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
-        mode != EDITOR_VIEWPORT_UI_SLIDER_EDITOR;
+        mode != EDITOR_VIEWPORT_UI_SLIDER_EDITOR &&
+        mode != EDITOR_VIEWPORT_INPUT_CONTROLLER &&
+        mode != EDITOR_VIEWPORT_INPUT_ACTION;
 }
 
 static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
@@ -1194,7 +1221,8 @@ static bool editor_point_in_rect(Position point, UIRect bounds) {
         point.y >= bounds.y && point.y <= bounds.y + bounds.height;
 }
 
-static bool editor_color_picker_draw(EditorColorPicker *picker, MouseState *mouse,
+static bool editor_color_picker_draw(EditorColorPicker *picker,
+        UIPointerState *pointer_state,
         TextAsset *hex_display, TextAsset *opacity_display,
         const TextAsset *opacity_label, bool *field_editing) {
     UIRect menu = {EDITOR_VIEWPORT_WIDTH * 0.5f - 180.0f,
@@ -1209,7 +1237,8 @@ static bool editor_color_picker_draw(EditorColorPicker *picker, MouseState *mous
     UIFieldResult opacity_result;
     UIButtonResult palette_interaction;
     UIButtonResult hue_interaction;
-    if(picker == NULL || !picker->open || picker->target == NULL || mouse == NULL) {
+    if(picker == NULL || !picker->open || picker->target == NULL ||
+            pointer_state == NULL) {
         return false;
     }
     pointer = rohr_graphics_mouse_screen_position_get();
@@ -1242,8 +1271,10 @@ static bool editor_color_picker_draw(EditorColorPicker *picker, MouseState *mous
     }
     palette_interaction = rohr_ui_interaction("editor.color_picker.palette", palette);
     if(editor_point_in_rect(pointer, palette) &&
-            (mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED ||
-            mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_DOWN)) {
+            (pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+                MOUSE_BUTTON_STATE_PRESSED ||
+            pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+                MOUSE_BUTTON_STATE_DOWN)) {
         picker->saturation = fminf(1.0f, fmaxf(0.0f,
             (pointer.x - palette.x) / palette.width));
         picker->value = 1.0f - fminf(1.0f, fmaxf(0.0f,
@@ -1265,8 +1296,10 @@ static bool editor_color_picker_draw(EditorColorPicker *picker, MouseState *mous
     }
     hue_interaction = rohr_ui_interaction("editor.color_picker.hue", hue);
     if(editor_point_in_rect(pointer, hue) &&
-            (mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED ||
-            mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_DOWN)) {
+            (pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+                MOUSE_BUTTON_STATE_PRESSED ||
+            pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+                MOUSE_BUTTON_STATE_DOWN)) {
         picker->hue = fminf(0.9999f, fmaxf(0.0f,
             (pointer.y - hue.y) / hue.height));
         (void)hue_interaction;
@@ -1292,7 +1325,8 @@ static bool editor_color_picker_draw(EditorColorPicker *picker, MouseState *mous
     rohr_ui_border(preview, 2.0f, (Color){8, 9, 12, 255});
     *field_editing = *field_editing || hex_result.active || opacity_result.active;
     if(!picker->opened_this_frame &&
-            mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&
+            pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+                MOUSE_BUTTON_STATE_PRESSED &&
             !editor_point_in_rect(pointer, menu)) editor_color_picker_commit(picker);
     picker->opened_this_frame = false;
     return true;
@@ -1609,6 +1643,45 @@ static bool editor_single_selected_delete(
     EditorObject *selected;
 
     if(project == NULL || viewport_state == NULL) return false;
+    if(viewport_state->selection == EDITOR_SELECTION_INPUT_ACTION) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            viewport_state->selected_input_controller,
+            viewport_state->selected_input_action);
+        EditorCommand command;
+        if(action == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_REMOVE,
+            .data.input_action = {
+                .controller = viewport_state->selected_input_controller,
+                .action = action->id, .type = action->type,
+                .button_mode = action->button_mode,
+                .button_initial_state = action->button_initial_state}};
+        snprintf(command.data.input_action.name,
+            sizeof(command.data.input_action.name), "%s", action->name);
+        if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
+            return false;
+        viewport_state->selected_input_action = 0;
+        viewport_state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+        viewport_state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+        return true;
+    }
+    if(viewport_state->selection == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, viewport_state->selected_input_controller);
+        EditorCommand command;
+        if(controller == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE,
+            .data.input_controller = {.controller = controller->id,
+                .enabled = controller->enabled}};
+        snprintf(command.data.input_controller.name,
+            sizeof(command.data.input_controller.name), "%s", controller->name);
+        if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
+            return false;
+        viewport_state->selected_input_controller = 0;
+        viewport_state->selected_input_action = 0;
+        viewport_state->mode = EDITOR_VIEWPORT_HIERARCHY;
+        viewport_state->selection = EDITOR_SELECTION_NONE;
+        return true;
+    }
     if(viewport_state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             (viewport_state->mode == EDITOR_VIEWPORT_LAYOUT &&
                 viewport_state->selected_viewport_camera_item != 0)) {
@@ -2275,8 +2348,7 @@ static bool editor_open_item_delete(
 }
 int main(void) {
     const char *startup_stage = "editor history initialization";
-    KeyboardState keyboard = {0};
-    MouseState mouse = {0};
+    UIPointerState pointer_state = {0};
     float viewport_wheel_y = 0.0f;
     FontAsset font = {0};
     FontAsset notification_font = {0};
@@ -2601,12 +2673,9 @@ int main(void) {
             &terminal_panel);
         viewport_wheel_y = 0.0f;
         rohr_input_frame_begin();
-        rohr_controller_key_states_update(&keyboard);
-        rohr_controller_mouse_states_update(&mouse);
         while((event = rohr_engine_event_poll()).type != 0) {
             EditorHistoryShortcutResult shortcut = build_settings_panel.open ||
-                visual_settings_panel.open || physics_settings_panel.open ||
-                input_settings_panel.open ?
+                visual_settings_panel.open || physics_settings_panel.open ?
                 (EditorHistoryShortcutResult){0} :
                 editor_history_shortcut_handle(&event, workspace.open, &history);
             if(shortcut.consumed) {
@@ -2624,12 +2693,6 @@ int main(void) {
             if(event.type == SDL_EVENT_MOUSE_WHEEL && !terminal_consumed)
                 viewport_wheel_y += event.wheel.y;
             rohr_ui_event_add(&event);
-            rohr_controller_key_event_add(
-                &keyboard,
-                rohr_controller_keyboard_event_capture(&event));
-            rohr_controller_mouse_event_add(
-                &mouse,
-                rohr_controller_mouse_event_capture(&event));
             if(event.type == SDL_EVENT_QUIT) {
                 if(!workspace.open ||
                         editor_project_hash_get(&project) == saved_project_hash) {
@@ -2639,6 +2702,13 @@ int main(void) {
                 }
             }
         }
+        pointer_state.position = rohr_graphics_mouse_screen_position_get();
+        pointer_state.button_states[MOUSE_BUTTON_LEFT] =
+            editor_pointer_button_state_get(INPUT_MOUSE_BUTTON_LEFT);
+        pointer_state.button_states[MOUSE_BUTTON_RIGHT] =
+            editor_pointer_button_state_get(INPUT_MOUSE_BUTTON_RIGHT);
+        pointer_state.button_states[MOUSE_BUTTON_MIDDLE] =
+            editor_pointer_button_state_get(INPUT_MOUSE_BUTTON_MIDDLE);
         editor_terminal_panel_update(&terminal_panel);
         {
             int exit_code;
@@ -2686,26 +2756,33 @@ int main(void) {
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
         if(notification_panel.report_open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             notification_panel.report_open = false;
         } else if(notification_panel.log_open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             notification_panel.log_open = false;
         } else if(build_settings_panel.open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             build_settings_panel.open = false;
             rohr_ui_field_focus_clear();
         } else if(visual_settings_panel.open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             visual_settings_panel.open = false;
         } else if(physics_settings_panel.open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             physics_settings_panel.open = false;
-        } else if(input_settings_panel.open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_ACTION &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             input_settings_panel.open = false;
+            viewport_state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+            viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_CONTROLLER &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            input_settings_panel.open = false;
+            viewport_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+            viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
         } else if(file_browser.active &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             if(!editor_file_browser_selection_clear(&file_browser)) {
                 file_browser.active = false;
                 workspace_browser_action = EDITOR_WORKSPACE_BROWSER_NONE;
@@ -2713,30 +2790,30 @@ int main(void) {
                 animation_browser_sprite = 0;
             }
         } else if(close_action != EDITOR_CLOSE_NONE &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             close_action = EDITOR_CLOSE_NONE;
         } else if((soft_body_editor.auto_shape_picker_open ||
                 hitbox_editor.auto_shape_picker_open) &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             soft_body_editor.auto_shape_picker_open = false;
             hitbox_editor.auto_shape_picker_open = false;
         } else if((collision_category_open || collide_with_open) &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             collision_category_open = false;
             collide_with_open = false;
         } else if(color_picker.open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             editor_color_picker_commit(&color_picker);
         } else if(column_frame_multi_edit_open &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             column_frame_multi_edit_open = false;
         } else if((editor_viewport_context_menu_open_check(
                     &viewport_context_menu) || viewport_context_menu.renaming) &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             editor_context_menu_cancel(&viewport_context_menu);
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_ESCAPE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
             } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT ||
@@ -2759,7 +2836,6 @@ int main(void) {
         }
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
-                !input_settings_panel.open &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
                 !color_picker.open &&
@@ -2767,12 +2843,11 @@ int main(void) {
                 !file_browser.active &&
                 close_action == EDITOR_CLOSE_NONE &&
                 viewport_state.selection != EDITOR_SELECTION_NONE &&
-                rohr_controller_key_pressed_get(&keyboard, SDLK_DELETE)) {
+                rohr_input_key_pressed_check(SDL_SCANCODE_DELETE)) {
             (void)editor_selected_delete(&project, &viewport_state);
         }
         if(workspace.open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open &&
-                !input_settings_panel.open &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
                 !color_picker.open &&
@@ -2783,12 +2858,12 @@ int main(void) {
             bool pointer_in_viewport = pointer.x >= 0.0f &&
                 pointer.x < EDITOR_VIEWPORT_WIDTH && pointer.y >= EDITOR_MENU_HEIGHT &&
                 pointer.y < EDITOR_VIEWPORT_BOTTOM;
-            bool up = rohr_controller_key_pressed_get(&keyboard, SDLK_UP);
-            bool down = rohr_controller_key_pressed_get(&keyboard, SDLK_DOWN);
-            bool left = rohr_controller_key_pressed_get(&keyboard, SDLK_LEFT);
-            bool right = rohr_controller_key_pressed_get(&keyboard, SDLK_RIGHT);
-            bool enter = rohr_controller_key_pressed_get(&keyboard, SDLK_RETURN) ||
-                rohr_controller_key_pressed_get(&keyboard, SDLK_KP_ENTER);
+            bool up = rohr_input_key_pressed_check(SDL_SCANCODE_UP);
+            bool down = rohr_input_key_pressed_check(SDL_SCANCODE_DOWN);
+            bool left = rohr_input_key_pressed_check(SDL_SCANCODE_LEFT);
+            bool right = rohr_input_key_pressed_check(SDL_SCANCODE_RIGHT);
+            bool enter = rohr_input_key_pressed_check(SDL_SCANCODE_RETURN) ||
+                rohr_input_key_pressed_check(SDL_SCANCODE_KP_ENTER);
             if(pointer_in_viewport) {
                 if(up) (void)editor_selection_nudge(&project,
                     &viewport_state, &history, (Vec2D){0.0f, -1.0f});
@@ -2838,11 +2913,10 @@ int main(void) {
 
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            MouseButtonState primary = mouse.button_states[MOUSE_BUTTON_LEFT];
+            MouseButtonState primary = pointer_state.button_states[MOUSE_BUTTON_LEFT];
 
             if(file_browser.active || build_settings_panel.open ||
-                    visual_settings_panel.open || physics_settings_panel.open ||
-                    input_settings_panel.open) {
+                    visual_settings_panel.open || physics_settings_panel.open) {
                 panel_resizing = false;
             } else if(!panel_resizing && primary == MOUSE_BUTTON_STATE_PRESSED &&
                     fabsf(pointer.x - EDITOR_VIEWPORT_WIDTH) <=
@@ -2869,7 +2943,7 @@ int main(void) {
                     primary == MOUSE_BUTTON_STATE_DOWN)) {
                 bool large_overlay = !workspace.open || file_browser.active ||
                     build_settings_panel.open || visual_settings_panel.open ||
-                    physics_settings_panel.open || input_settings_panel.open ||
+                    physics_settings_panel.open ||
                     notification_panel.log_open || notification_panel.report_open ||
                     close_action != EDITOR_CLOSE_NONE || color_picker.open;
                 float minimum_bottom = EDITOR_MENU_HEIGHT +
@@ -2898,7 +2972,7 @@ int main(void) {
             editor_history_ui_change_begin(&history);
         rohr_ui_frame_begin((UIInput){
             .pointer = rohr_graphics_mouse_screen_position_get(),
-            .primary_button = mouse.button_states[MOUSE_BUTTON_LEFT]
+            .primary_button = pointer_state.button_states[MOUSE_BUTTON_LEFT]
         });
         bool context_menu_modal =
             editor_viewport_context_menu_open_check(&viewport_context_menu);
@@ -2912,7 +2986,7 @@ int main(void) {
             rohr_ui_modal_set((UIRect){0.0f, 0.0f,
                 editor_window_width, EDITOR_WINDOW_HEIGHT});
         else if(build_settings_panel.open || visual_settings_panel.open ||
-                physics_settings_panel.open || input_settings_panel.open ||
+                physics_settings_panel.open ||
                 notification_panel.report_open ||
                 notification_panel.log_open)
             rohr_ui_modal_set(build_settings_bounds);
@@ -2954,9 +3028,9 @@ int main(void) {
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
-            mouse.button_states[MOUSE_BUTTON_LEFT];
+            pointer_state.button_states[MOUSE_BUTTON_LEFT];
         bool hierarchy_additive_selection =
-            editor_selection_modifier_check(&keyboard);
+            editor_selection_modifier_check();
         bool frame_multi_selection = viewport_state.selected_item_count > 1;
         for(size_t i = 0; i < viewport_state.selected_item_count; i += 1)
             if(viewport_state.selected_items[i].kind !=
@@ -3017,7 +3091,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3086,7 +3160,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3120,7 +3194,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3232,7 +3306,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3241,7 +3315,7 @@ int main(void) {
                 .object = &sprite_browser_object,
                 .sprite = &animation_browser_sprite,
                 .action = &workspace_browser_action};
-            bool additive_selection = editor_selection_modifier_check(&keyboard);
+            bool additive_selection = editor_selection_modifier_check();
             field_editing = editor_animated_sprite_editor_draw(
                 &animated_sprite_editor,
                 &(EditorModeContext){.project = &project,
@@ -3320,7 +3394,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3340,7 +3414,7 @@ int main(void) {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3349,7 +3423,7 @@ int main(void) {
                 .object = &sprite_browser_object,
                 .sprite = &animation_browser_sprite,
                 .action = &workspace_browser_action};
-            bool additive_selection = editor_selection_modifier_check(&keyboard);
+            bool additive_selection = editor_selection_modifier_check();
             field_editing = editor_object_editor_draw(&object_editor,
                 &(EditorModeContext){.project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
@@ -3363,11 +3437,64 @@ int main(void) {
                     .primary_button = hierarchy_primary},
                 editor_mode_sprite_browser_open, &browser_context,
                 additive_selection);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
+            EditorInputController *controller = editor_project_input_controller_get(
+                &project, viewport_state.selected_input_controller);
+            if(controller == NULL) {
+                input_settings_panel.open = false;
+                viewport_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+                viewport_state.selection = EDITOR_SELECTION_NONE;
+            } else {
+                EditorModeHierarchyContext hierarchy_context = {
+                    .project = &project, .context_menu = &viewport_context_menu,
+                    .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                    .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
+                    .primary = hierarchy_primary,
+                    .scroll_offset = panel_scroll_offset,
+                    .additive_selection = hierarchy_additive_selection};
+                input_settings_panel.open = true;
+                editor_input_controller_editor_draw(&input_settings_panel,
+                    &(EditorModeContext){.project = &project,
+                        .viewport = &viewport_state,
+                        .x = EDITOR_VIEWPORT_WIDTH,
+                        .width = EDITOR_TOOLS_WIDTH,
+                        .hierarchy_row = editor_mode_hierarchy_row,
+                        .hierarchy_context = &hierarchy_context,
+                        .primary_button = hierarchy_primary},
+                    (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
+                        EDITOR_TOOLS_WIDTH,
+                        EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
+                if(!input_settings_panel.open) {
+                    viewport_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+                    viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+                }
+            }
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_INPUT_ACTION) {
+            EditorInputAction *action = editor_project_input_action_get(&project,
+                viewport_state.selected_input_controller,
+                viewport_state.selected_input_action);
+            if(action == NULL) {
+                input_settings_panel.open = false;
+                viewport_state.selected_input_action = 0;
+                viewport_state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+                viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+            } else {
+                input_settings_panel.open = true;
+                editor_input_action_editor_draw(&input_settings_panel, &project,
+                    &viewport_state,
+                    (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
+                        EDITOR_TOOLS_WIDTH,
+                        EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT});
+                if(!input_settings_panel.open) {
+                    viewport_state.mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+                    viewport_state.selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+                }
+            }
         } else {
             EditorModeHierarchyContext hierarchy_context = {
                 .project = &project, .context_menu = &viewport_context_menu,
                 .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
-                .secondary = mouse.button_states[MOUSE_BUTTON_RIGHT],
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
                 .primary = hierarchy_primary,
                 .scroll_offset = panel_scroll_offset,
                 .additive_selection = hierarchy_additive_selection};
@@ -3405,7 +3532,19 @@ int main(void) {
                             EDITOR_SELECTION_LAYOUT_VIEWPORT) {
                         delete_label = &hierarchy_editor.delete_viewport_label;
                         delete_id = "editor.project.viewport.delete";
+                    } else if(viewport_state.selection ==
+                            EDITOR_SELECTION_INPUT_CONTROLLER) {
+                        delete_label = &hierarchy_editor.delete_controller_label;
+                        delete_id = "editor.project.input_controller.delete";
                     }
+                    break;
+                case EDITOR_VIEWPORT_INPUT_CONTROLLER:
+                    delete_label = &hierarchy_editor.delete_controller_label;
+                    delete_id = "editor.project.input_controller.delete";
+                    break;
+                case EDITOR_VIEWPORT_INPUT_ACTION:
+                    delete_label = &input_settings_panel.delete_action_label;
+                    delete_id = "editor.project.input_action.delete";
                     break;
                 case EDITOR_VIEWPORT_OBJECT:
                     delete_label = &object_editor.delete_label;
@@ -3516,7 +3655,7 @@ int main(void) {
                     pointer.x < editor_window_width &&
                     pointer.y >= EDITOR_MENU_HEIGHT &&
                     pointer.y < EDITOR_WINDOW_HEIGHT &&
-                    mouse.button_states[MOUSE_BUTTON_RIGHT] ==
+                    pointer_state.button_states[MOUSE_BUTTON_RIGHT] ==
                         MOUSE_BUTTON_STATE_PRESSED && !opened_here &&
                     !editor_viewport_context_menu_point_contains(
                         &viewport_context_menu, pointer)) {
@@ -3543,7 +3682,7 @@ int main(void) {
             (Color){18, 21, 27, 255});
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_OVERLAY);
         if(color_picker.open) {
-            (void)editor_color_picker_draw(&color_picker, &mouse,
+            (void)editor_color_picker_draw(&color_picker, &pointer_state,
                 &color_picker_hex_field, &color_picker_opacity_field,
                 &opacity_label, &field_editing);
         }
@@ -3562,7 +3701,7 @@ int main(void) {
             EditorContextMenuAction context_action;
             rohr_ui_modal_controls_begin();
             context_action = editor_viewport_context_menu_draw(
-                &viewport_context_menu, &mouse, context_visible, context_name,
+                &viewport_context_menu, &pointer_state, context_visible, context_name,
                 editor_window_width, EDITOR_MENU_HEIGHT,
                 EDITOR_VIEWPORT_BOTTOM, EDITOR_WINDOW_HEIGHT);
             rohr_ui_modal_controls_end();
@@ -3616,8 +3755,7 @@ int main(void) {
             };
             const TextAsset *edit_options[] = {&undo_label, &redo_label};
             const TextAsset *settings_options[] = {
-                &preferences_label, &input_settings_panel.menu_label,
-                &physics_settings_panel.menu_label,
+                &preferences_label, &physics_settings_panel.menu_label,
                 &visual_settings_panel.menu_label
             };
             const TextAsset *file_texts[] = {
@@ -3637,7 +3775,6 @@ int main(void) {
                 &terminal_build_operations_label
             };
             const TextAsset *settings_texts[] = {&settings_label, &preferences_label,
-                &input_settings_panel.menu_label,
                 &physics_settings_panel.menu_label,
                 &visual_settings_panel.menu_label};
             UIComponentConfig menu_components = {
@@ -3693,7 +3830,7 @@ int main(void) {
                 (UIRect){menu_x, 3.0f, 0.0f, 0.0f}, settings_texts,
                 sizeof(settings_texts) / sizeof(settings_texts[0]), menu_components);
 
-            if(mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
+            if(pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
                 Position pointer = rohr_graphics_mouse_screen_position_get();
                 bool top_menu_pressed = editor_point_in_rect(pointer, file_bounds) ||
                     editor_point_in_rect(pointer, edit_bounds) ||
@@ -3905,35 +4042,24 @@ int main(void) {
                 }
             } else if(settings_menu.changed && settings_menu.selected_index == 1 &&
                     workspace.open) {
-                editor_input_settings_panel_open(&input_settings_panel);
-            } else if(settings_menu.changed && settings_menu.selected_index == 2 &&
-                    workspace.open) {
                 editor_physics_settings_panel_open(&physics_settings_panel);
-            } else if(settings_menu.changed && settings_menu.selected_index == 3) {
+            } else if(settings_menu.changed && settings_menu.selected_index == 2) {
                 editor_visual_settings_panel_open(&visual_settings_panel);
             }
             rohr_ui_modal_controls_end();
         }
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !visual_settings_panel.open && !physics_settings_panel.open &&
-                !input_settings_panel.open)
+                !visual_settings_panel.open && !physics_settings_panel.open)
             editor_build_settings_panel_draw(&build_settings_panel,
                 &notification_panel, workspace.directory, build_settings_bounds);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !physics_settings_panel.open &&
-                !input_settings_panel.open)
+                !build_settings_panel.open && !physics_settings_panel.open)
             editor_visual_settings_panel_draw(&visual_settings_panel,
                 build_settings_bounds);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !visual_settings_panel.open &&
-                !input_settings_panel.open)
+                !build_settings_panel.open && !visual_settings_panel.open)
             editor_physics_settings_panel_draw(&physics_settings_panel,
-                &project, build_settings_bounds);
-        if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !visual_settings_panel.open &&
-                !physics_settings_panel.open)
-            editor_input_settings_panel_draw(&input_settings_panel,
                 &project, build_settings_bounds);
         if(build_settings_panel.build_requested) {
             build_settings_panel.build_requested = false;
@@ -4287,7 +4413,7 @@ int main(void) {
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
                     pointer.y >= EDITOR_MENU_HEIGHT &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
-                    mouse.button_states[MOUSE_BUTTON_RIGHT] ==
+                    pointer_state.button_states[MOUSE_BUTTON_RIGHT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
                     !editor_viewport_context_menu_point_contains(
                         &viewport_context_menu, pointer)) {
@@ -4316,7 +4442,7 @@ int main(void) {
             }
             if((soft_body_editor.auto_shape_picker_open ||
                     hitbox_editor.auto_shape_picker_open) &&
-                    mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
+                    pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
                 UIRect button_bounds = viewport_state.mode == EDITOR_VIEWPORT_HITBOX ?
                     (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 78.0f,
                         EDITOR_TOOLS_WIDTH - 20.0f, 28.0f} :
@@ -4343,14 +4469,14 @@ int main(void) {
                 pointer.y >= EDITOR_VIEWPORT_BOTTOM;
             bool viewport_consumed;
             bool selection_modifier_active =
-                editor_selection_modifier_check(&keyboard);
+                editor_selection_modifier_check();
             bool selection_modifier_press = false;
             bool transform_before =
                 editor_viewport_transform_active_check(&viewport_state);
-            bool pan_modifier = editor_control_modifier_check(&keyboard);
+            bool pan_modifier = editor_control_modifier_check();
             if(viewport_state.marquee_active) {
                 viewport_consumed = true;
-                if(mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                if(pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_RELEASED) {
                     pointer_selection_handled = editor_viewport_marquee_finish(
                         &viewport_state, &project, pointer);
@@ -4359,32 +4485,32 @@ int main(void) {
             } else if(viewport_state.mode == EDITOR_VIEWPORT_AUTO_SHAPE) {
                 viewport_consumed = editor_viewport_auto_shape_update(
                     &viewport_state, &project, &auto_shape_editor.config, pointer,
-                    mouse.button_states[MOUSE_BUTTON_LEFT],
-                    mouse.button_states[MOUSE_BUTTON_MIDDLE], pan_modifier,
+                    pointer_state.button_states[MOUSE_BUTTON_LEFT],
+                    pointer_state.button_states[MOUSE_BUTTON_MIDDLE], pan_modifier,
                     viewport_wheel_y, ui_consumed);
             } else {
                 selection_modifier_press = selection_modifier_active &&
-                    mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                    pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED;
                 viewport_state.selection_modifier = selection_modifier_press;
                 viewport_consumed = editor_viewport_update(
                     &viewport_state, &project, pointer,
-                    mouse.button_states[MOUSE_BUTTON_LEFT],
-                    mouse.button_states[MOUSE_BUTTON_MIDDLE],
+                    pointer_state.button_states[MOUSE_BUTTON_LEFT],
+                    pointer_state.button_states[MOUSE_BUTTON_MIDDLE],
                     selection_modifier_press ? false : pan_modifier,
                     viewport_wheel_y, ui_consumed);
                 if(pan_modifier && selection_modifier_press && !viewport_consumed)
                     viewport_consumed = editor_viewport_update(
                         &viewport_state, &project, pointer,
-                        mouse.button_states[MOUSE_BUTTON_LEFT],
-                        mouse.button_states[MOUSE_BUTTON_MIDDLE], true,
+                        pointer_state.button_states[MOUSE_BUTTON_LEFT],
+                        pointer_state.button_states[MOUSE_BUTTON_MIDDLE], true,
                         viewport_wheel_y, ui_consumed);
                 viewport_state.selection_modifier = false;
             }
             if(selection_modifier_active &&
-                    (mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                    (pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                             MOUSE_BUTTON_STATE_PRESSED ||
-                        mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                        pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                             MOUSE_BUTTON_STATE_RELEASED) &&
                     (ui_consumed || viewport_consumed)) {
                 pointer_selection_handled = true;
@@ -4400,7 +4526,7 @@ int main(void) {
                     }
                 }
             }
-            if(mouse.button_states[MOUSE_BUTTON_LEFT] ==
+            if(pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
                     !transform_before &&
                     editor_viewport_transform_active_check(&viewport_state))
@@ -4408,7 +4534,7 @@ int main(void) {
             (void)editor_navigation_viewport_transform_history_update(
                 &project, &viewport_state, &history, transform_before);
 
-            if(mouse.button_states[MOUSE_BUTTON_LEFT] ==
+            if(pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
                     !ui_consumed && viewport_consumed &&
                     !viewport_state.camera_panning &&
@@ -4434,7 +4560,7 @@ int main(void) {
                 }
             }
 
-            if(mouse.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&
+            if(pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&
                     !ui_consumed && !viewport_consumed && !panel_resizing) {
                 editor_navigation_current_selection_clear(&project, &viewport_state);
                 editor_viewport_marquee_begin(&viewport_state, pointer);
@@ -4460,13 +4586,16 @@ int main(void) {
                     navigation_after.animated_sprite ||
                 navigation_before.animation_frame !=
                     navigation_after.animation_frame ||
+                navigation_before.input_controller !=
+                    navigation_after.input_controller ||
+                navigation_before.input_action != navigation_after.input_action ||
                 navigation_before.selected_line != navigation_after.selected_line ||
                 navigation_before.selected_vertex != navigation_after.selected_vertex;
             if(selection_changed && !pointer_selection_handled) {
                 EditorSelectionRef selection;
-                bool additive = mouse.button_states[MOUSE_BUTTON_LEFT] ==
+                bool additive = pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
-                    editor_selection_modifier_check(&keyboard);
+                    editor_selection_modifier_check();
                 if(editor_viewport_selection_ref_get(
                         &project, &viewport_state, &selection)) {
                     if(additive && viewport_state.selected_item_count == 0 &&

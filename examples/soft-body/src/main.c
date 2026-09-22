@@ -455,7 +455,7 @@ int main(void) {
     Entity chassis;
     Entity cabin;
     Wheel wheels[WHEEL_COUNT] = {0};
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, torque_action;
     Tick zoom_end_tick = 0;
     Tick camera_return_end_tick = 0;
@@ -474,12 +474,12 @@ int main(void) {
         InputBinding torque_bindings[] = {
             example_input_key_binding(SDL_SCANCODE_A, -1.0f, (Vec2D){0}),
             example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0})};
-        if(!example_input_map_create("truck", &input_map) ||
-                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+        if(!example_input_controller_create("truck", &input_controller) ||
+                !example_input_action_create(input_controller, "exit", INPUT_ACTION_BUTTON,
                     &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
-                !example_input_action_create(input_map, "torque",
+                !example_input_action_create(input_controller, "torque",
                     INPUT_ACTION_AXIS_1D, torque_bindings, 2, &torque_action))
             goto fail;
     }
@@ -625,8 +625,8 @@ int main(void) {
         rohr_graphics_show();
     }
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -634,8 +634,8 @@ int main(void) {
 fail:
     fprintf(stderr, "soft-body example failed\n");
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

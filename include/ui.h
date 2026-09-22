@@ -6,7 +6,6 @@
 #define UI_H
 
 #include <stdbool.h>
-#include "controller.h"
 #include "graphics.h"
 
 #define UI_DEFINITION_NAME_MAX 64
@@ -14,6 +13,30 @@
 #define UI_FONT_PATH_MAX 512
 #define UI_FIELD_EDIT_MAX 8192
 #define UI_FIELD_KEY_EVENT_MAX 64
+
+/** UI-facing pointer buttons, independent from gameplay input bindings. */
+typedef enum MouseButton {
+    MOUSE_BUTTON_NONE = 0,
+    MOUSE_BUTTON_LEFT,
+    MOUSE_BUTTON_RIGHT,
+    MOUSE_BUTTON_MIDDLE,
+    MOUSE_BUTTON_COUNT,
+} MouseButton;
+
+/** UI-facing state of one pointer button during the current frame. */
+typedef enum MouseButtonState {
+    MOUSE_BUTTON_STATE_UP = 0,
+    MOUSE_BUTTON_STATE_DOWN,
+    MOUSE_BUTTON_STATE_PRESSED,
+    MOUSE_BUTTON_STATE_RELEASED,
+    MOUSE_BUTTON_STATE_NONE,
+} MouseButtonState;
+
+/** UI pointer snapshot assembled from the engine-owned raw input snapshot. */
+typedef struct UIPointerState {
+    MouseButtonState button_states[MOUSE_BUTTON_COUNT];
+    Position position;
+} UIPointerState;
 
 /** Axis-aligned rectangle in logical screen coordinates. */
 typedef struct UIRect {

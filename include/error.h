@@ -113,15 +113,15 @@ typedef enum EngineError {
     ERROR_ENGINE_GRAPHICS_LAYER_NAME_TOO_LONG,
     ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME,
     ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND,
-    /** An input action or map name is null or empty. */
+    /** An input controller or action name is null or empty. */
     ERROR_ENGINE_INVALID_INPUT_NAME,
-    /** An input action or map name exceeds ROHR_INPUT_NAME_MAX. */
+    /** An input controller or action name exceeds ROHR_INPUT_NAME_MAX. */
     ERROR_ENGINE_INPUT_NAME_TOO_LONG,
-    /** An input action or map name is duplicated in its namespace. */
+    /** An input controller or action name is duplicated in its namespace. */
     ERROR_ENGINE_DUPLICATE_INPUT_NAME,
-    /** Input action-map, action, or binding capacity was exceeded. */
+    /** Input controller, action, or binding capacity was exceeded. */
     ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED,
-    /** An input action map or action handle was not found. */
+    /** An input controller or action handle was not found. */
     ERROR_ENGINE_INPUT_NOT_FOUND,
     /** An input action was queried or configured with the wrong value type. */
     ERROR_ENGINE_INPUT_TYPE_MISMATCH,
@@ -131,6 +131,8 @@ typedef enum EngineError {
     ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND,
     /** SDL could not apply an input operation. */
     ERROR_ENGINE_INPUT_OPERATION_FAILED,
+    /** An input action configuration contains an unsupported value. */
+    ERROR_ENGINE_INPUT_CONFIGURATION_INVALID,
 } EngineError;
 
 /**

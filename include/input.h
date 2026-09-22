@@ -12,7 +12,7 @@
 #include "error.h"
 #include "math2d.h"
 
-#define ROHR_INPUT_ACTION_MAP_LIMIT 16
+#define ROHR_INPUT_CONTROLLER_LIMIT 16
 #define ROHR_INPUT_ACTION_LIMIT 256
 #define ROHR_INPUT_BINDING_LIMIT 16
 #define ROHR_INPUT_NAME_MAX 64
@@ -20,13 +20,13 @@
 #define ROHR_INPUT_TEXT_CANDIDATE_LIMIT 8
 #define ROHR_INPUT_TEXT_CANDIDATE_CAPACITY 64
 
-typedef uint32_t InputActionMapId;
+typedef uint32_t InputControllerId;
 typedef uint32_t InputActionId;
 
-#define INPUT_ACTION_MAP_INVALID UINT32_C(0)
+#define INPUT_CONTROLLER_INVALID UINT32_C(0)
 #define INPUT_ACTION_INVALID UINT32_C(0)
 
-ERROR_DECLARE_RESULT_TYPE(InputActionMapIdResult, InputActionMapId);
+ERROR_DECLARE_RESULT_TYPE(InputControllerIdResult, InputControllerId);
 ERROR_DECLARE_RESULT_TYPE(InputActionIdResult, InputActionId);
 ERROR_DECLARE_RESULT_TYPE(InputAxis1DResult, float);
 ERROR_DECLARE_RESULT_TYPE(InputAxis2DResult, Vec2D);
@@ -39,6 +39,16 @@ typedef enum InputActionType {
 } InputActionType;
 
 ERROR_DECLARE_RESULT_TYPE(InputActionTypeResult, InputActionType);
+
+/** Logical behavior applied to a Button action's combined physical input. */
+typedef enum InputButtonMode {
+    /** The logical state follows whether any binding is currently active. */
+    INPUT_BUTTON_MOMENTARY,
+    /** Each inactive-to-active binding transition toggles the logical state. */
+    INPUT_BUTTON_PERSISTENT,
+} InputButtonMode;
+
+ERROR_DECLARE_RESULT_TYPE(InputButtonModeResult, InputButtonMode);
 
 /** Mouse buttons supported by the engine-owned snapshot. */
 typedef enum InputMouseButton {
@@ -135,18 +145,28 @@ InputTextState input_text_state_get(void);
 bool input_binding_valid_check(InputActionType type,
     const InputBinding *binding);
 
-InputActionMapIdResult input_action_map_create(const char *name);
-EngineResult input_action_map_destroy(InputActionMapId map);
-InputActionMapIdResult input_action_map_by_name_get(const char *name);
-EngineResult input_action_map_enabled_set(InputActionMapId map, bool enabled);
-bool input_action_map_enabled_check(InputActionMapId map);
+InputControllerIdResult input_controller_create(const char *name);
+EngineResult input_controller_destroy(InputControllerId controller);
+InputControllerIdResult input_controller_by_name_get(const char *name);
+EngineResult input_controller_enabled_set(InputControllerId controller,
+    bool enabled);
+bool input_controller_enabled_check(InputControllerId controller);
 
-InputActionIdResult input_action_create(InputActionMapId map,
+InputActionIdResult input_action_create(InputControllerId controller,
     const char *name, InputActionType type);
 EngineResult input_action_destroy(InputActionId action);
-InputActionIdResult input_action_by_name_get(InputActionMapId map,
+InputActionIdResult input_action_by_name_get(InputControllerId controller,
     const char *name);
 InputActionTypeResult input_action_type_get(InputActionId action);
+
+EngineResult input_action_button_mode_set(InputActionId action,
+    InputButtonMode mode);
+InputButtonModeResult input_action_button_mode_get(InputActionId action);
+EngineResult input_action_button_initial_state_set(InputActionId action,
+    bool state);
+bool input_action_button_initial_state_check(InputActionId action);
+EngineResult input_action_button_state_set(InputActionId action, bool state);
+EngineResult input_action_button_state_reset(InputActionId action);
 
 EngineResult input_action_bindings_default_set(InputActionId action,
     const InputBinding *bindings, size_t count);

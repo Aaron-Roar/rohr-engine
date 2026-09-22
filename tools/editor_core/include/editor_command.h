@@ -37,9 +37,9 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_RELATIONSHIP_SET,
     EDITOR_COMMAND_COLLISION_MASK_ADD,
     EDITOR_COMMAND_COLLISION_FILTER_SET,
-    EDITOR_COMMAND_INPUT_MAP_ADD,
-    EDITOR_COMMAND_INPUT_MAP_REMOVE,
-    EDITOR_COMMAND_INPUT_MAP_SET,
+    EDITOR_COMMAND_INPUT_CONTROLLER_ADD,
+    EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE,
+    EDITOR_COMMAND_INPUT_CONTROLLER_SET,
     EDITOR_COMMAND_INPUT_ACTION_ADD,
     EDITOR_COMMAND_INPUT_ACTION_REMOVE,
     EDITOR_COMMAND_INPUT_ACTION_SET,
@@ -91,26 +91,28 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_CAMERA,
     EDITOR_ITEM_LAYOUT_VIEWPORT,
     EDITOR_ITEM_VIEWPORT_CAMERA,
-    EDITOR_ITEM_INPUT_MAP,
+    EDITOR_ITEM_INPUT_CONTROLLER,
     EDITOR_ITEM_INPUT_ACTION,
     EDITOR_ITEM_INPUT_BINDING
 } EditorItemKind;
 
-typedef struct EditorInputMapCommand {
-    EditorInputActionMapId map;
+typedef struct EditorInputControllerCommand {
+    EditorInputControllerId controller;
     char name[ROHR_INPUT_NAME_MAX];
     bool enabled;
-} EditorInputMapCommand;
+} EditorInputControllerCommand;
 
 typedef struct EditorInputActionCommand {
-    EditorInputActionMapId map;
+    EditorInputControllerId controller;
     EditorInputActionId action;
     char name[ROHR_INPUT_NAME_MAX];
     InputActionType type;
+    InputButtonMode button_mode;
+    bool button_initial_state;
 } EditorInputActionCommand;
 
 typedef struct EditorInputBindingCommand {
-    EditorInputActionMapId map;
+    EditorInputControllerId controller;
     EditorInputActionId action;
     size_t index;
     InputBinding binding;
@@ -360,7 +362,7 @@ typedef struct EditorCommand {
             char name[EDITOR_OBJECT_NAME_MAX];
         } collision_mask_add;
         EditorCollisionFilterSetCommand collision_filter_set;
-        EditorInputMapCommand input_map;
+        EditorInputControllerCommand input_controller;
         EditorInputActionCommand input_action;
         EditorInputBindingCommand input_binding;
         struct {

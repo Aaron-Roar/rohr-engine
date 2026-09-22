@@ -888,6 +888,15 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
         case EDITOR_SELECTION_CAMERA:
             selection->item = state->selected_camera_entity;
             return selection->item != 0;
+        case EDITOR_SELECTION_INPUT_CONTROLLER:
+            selection->object = 0;
+            selection->item = state->selected_input_controller;
+            return selection->item != 0;
+        case EDITOR_SELECTION_INPUT_ACTION:
+            selection->object = 0;
+            selection->parent = state->selected_input_controller;
+            selection->item = state->selected_input_action;
+            return selection->parent != 0 && selection->item != 0;
         case EDITOR_SELECTION_ORIGIN:
             selection->parent = state->selected_origin_kind;
             selection->item = state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY ?
@@ -915,6 +924,23 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
         EditorViewportState *state, EditorSelectionRef selection) {
     EditorObject *object;
     if(project == NULL || state == NULL) return false;
+    if(selection.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        if(editor_project_input_controller_get(project, selection.item) == NULL)
+            return false;
+        editor_project_selection_clear(project);
+        state->selected_input_controller = selection.item;
+        state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+        return true;
+    }
+    if(selection.kind == EDITOR_SELECTION_INPUT_ACTION) {
+        if(editor_project_input_action_get(project, selection.parent,
+                selection.item) == NULL) return false;
+        editor_project_selection_clear(project);
+        state->selected_input_controller = selection.parent;
+        state->selected_input_action = selection.item;
+        state->selection = EDITOR_SELECTION_INPUT_ACTION;
+        return true;
+    }
     if(selection.kind == EDITOR_SELECTION_UI_SHAPE ||
             selection.kind == EDITOR_SELECTION_UI_TEXT ||
             selection.kind == EDITOR_SELECTION_UI_SLIDER ||
@@ -1668,6 +1694,12 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_OBJECT) {
         state->mode = EDITOR_VIEWPORT_HIERARCHY;
         state->selection = EDITOR_SELECTION_OBJECT;
+    } else if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION) {
+        state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+        state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
+    } else if(state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER) {
+        state->mode = EDITOR_VIEWPORT_HIERARCHY;
+        state->selection = EDITOR_SELECTION_INPUT_CONTROLLER;
     } else if(state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         state->mode = EDITOR_VIEWPORT_UI_SHAPE_EDITOR;
@@ -5938,8 +5970,8 @@ void editor_viewport_draw(const EditorProject *project,
                     Position pointer = rohr_graphics_mouse_screen_position_get();
                     if(pointer.x >= ui.x && pointer.x <= ui.x + ui.width &&
                             pointer.y >= ui.y && pointer.y <= ui.y + ui.height) {
-                        bool pressed = (SDL_GetMouseState(NULL, NULL) &
-                            SDL_BUTTON_LMASK) != 0;
+                        bool pressed = rohr_input_mouse_button_down_check(
+                            INPUT_MOUSE_BUTTON_LEFT);
                         displayed_border = pressed ? item->click_border_color :
                             item->hover_border_color;
                         displayed_fill = pressed ? item->click_fill_color :

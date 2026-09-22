@@ -152,9 +152,9 @@ static bool input_raw_snapshot_test(void) {
 }
 
 static bool input_action_test(void) {
-    InputActionMapIdResult gameplay_result =
-        rohr_input_action_map_create("gameplay");
-    InputActionMapId gameplay;
+    InputControllerIdResult gameplay_result =
+        rohr_input_controller_create("gameplay");
+    InputControllerId gameplay;
     InputActionIdResult jump_result;
     InputActionIdResult throttle_result;
     InputActionIdResult move_result;
@@ -201,8 +201,8 @@ static bool input_action_test(void) {
 
     if(rohr_error_check(gameplay_result)) return false;
     gameplay = gameplay_result.result.value;
-    if(!rohr_error_check(rohr_input_action_map_create("gameplay")) ||
-            !rohr_input_action_map_enabled_check(gameplay)) return false;
+    if(!rohr_error_check(rohr_input_controller_create("gameplay")) ||
+            !rohr_input_controller_enabled_check(gameplay)) return false;
     jump_result = rohr_input_action_create(gameplay, "jump", INPUT_ACTION_BUTTON);
     throttle_result = rohr_input_action_create(
         gameplay, "throttle", INPUT_ACTION_AXIS_1D);
@@ -226,6 +226,17 @@ static bool input_action_test(void) {
                 zoom_result.result.value, zoom_bindings, 1)) ||
             rohr_error_check(rohr_input_action_bindings_default_set(
                 shortcut_result.result.value, shortcut_bindings, 1))) return false;
+    {
+        InputControllerIdResult controller_lookup =
+            rohr_input_controller_by_name_get("gameplay");
+        InputActionIdResult action_lookup =
+            rohr_input_action_by_name_get(gameplay, "move");
+        if(rohr_error_check(controller_lookup) ||
+                controller_lookup.result.value != gameplay ||
+                rohr_error_check(action_lookup) ||
+                action_lookup.result.value != move_result.result.value)
+            return false;
+    }
     {
         InputBinding invalid = {.source = INPUT_BINDING_MOUSE_MOTION,
             .input.axis_component = INPUT_AXIS_COMPONENT_X};
@@ -314,13 +325,13 @@ static bool input_action_test(void) {
             !rohr_input_action_button_pressed_check(shortcut_result.result.value))
         return false;
 
-    if(rohr_error_check(rohr_input_action_map_enabled_set(gameplay, false)))
+    if(rohr_error_check(rohr_input_controller_enabled_set(gameplay, false)))
         return false;
     axis_2d = rohr_input_action_axis_2d_get(move_result.result.value);
     if(rohr_input_action_button_down_check(jump_result.result.value) ||
             rohr_error_check(axis_2d) || axis_2d.result.value.x != 0.0f ||
             axis_2d.result.value.y != 0.0f) return false;
-    if(rohr_error_check(rohr_input_action_map_enabled_set(gameplay, true)))
+    if(rohr_error_check(rohr_input_controller_enabled_set(gameplay, true)))
         return false;
 
     {
@@ -351,39 +362,163 @@ static bool input_action_test(void) {
         if(rohr_error_check(jump_result) || jump_result.result.value == stale ||
                 rohr_input_action_button_down_check(stale)) return false;
     }
-    return !rohr_error_check(rohr_input_action_map_destroy(gameplay)) &&
+    return !rohr_error_check(rohr_input_controller_destroy(gameplay)) &&
         rohr_error_check(rohr_input_action_by_name_get(gameplay, "move"));
 }
 
 static bool input_capacity_test(void) {
-    InputActionMapId maps[ROHR_INPUT_ACTION_MAP_LIMIT];
-    InputActionMapId action_map;
+    InputControllerId controllers[ROHR_INPUT_CONTROLLER_LIMIT];
+    InputControllerId action_controller;
     char name[32];
-    for(size_t i = 0; i < ROHR_INPUT_ACTION_MAP_LIMIT; i += 1) {
-        InputActionMapIdResult result;
-        snprintf(name, sizeof(name), "map_%zu", i);
-        result = rohr_input_action_map_create(name);
+    for(size_t i = 0; i < ROHR_INPUT_CONTROLLER_LIMIT; i += 1) {
+        InputControllerIdResult result;
+        snprintf(name, sizeof(name), "controller_%zu", i);
+        result = rohr_input_controller_create(name);
         if(rohr_error_check(result)) return false;
-        maps[i] = result.result.value;
+        controllers[i] = result.result.value;
     }
-    if(!rohr_error_check(rohr_input_action_map_create("overflow"))) return false;
-    for(size_t i = 0; i < ROHR_INPUT_ACTION_MAP_LIMIT; i += 1)
-        if(rohr_error_check(rohr_input_action_map_destroy(maps[i]))) return false;
+    if(!rohr_error_check(rohr_input_controller_create("overflow"))) return false;
+    for(size_t i = 0; i < ROHR_INPUT_CONTROLLER_LIMIT; i += 1)
+        if(rohr_error_check(rohr_input_controller_destroy(controllers[i]))) return false;
 
     {
-        InputActionMapIdResult result =
-            rohr_input_action_map_create("action_capacity");
+        InputControllerIdResult result =
+            rohr_input_controller_create("action_capacity");
         if(rohr_error_check(result)) return false;
-        action_map = result.result.value;
+        action_controller = result.result.value;
     }
     for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1) {
         snprintf(name, sizeof(name), "action_%zu", i);
         if(rohr_error_check(rohr_input_action_create(
-                action_map, name, INPUT_ACTION_BUTTON))) return false;
+                action_controller, name, INPUT_ACTION_BUTTON))) return false;
     }
     if(!rohr_error_check(rohr_input_action_create(
-            action_map, "overflow", INPUT_ACTION_BUTTON))) return false;
-    return !rohr_error_check(rohr_input_action_map_destroy(action_map));
+            action_controller, "overflow", INPUT_ACTION_BUTTON))) return false;
+    return !rohr_error_check(rohr_input_controller_destroy(action_controller));
+}
+
+static bool input_persistent_button_test(void) {
+    InputControllerIdResult controller_result =
+        rohr_input_controller_create("persistent_buttons");
+    InputActionIdResult toggle_result;
+    InputActionIdResult axis_result;
+    InputButtonModeResult mode_result;
+    const InputBinding bindings[] = {
+        {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_E},
+        {.source = INPUT_BINDING_MOUSE_BUTTON,
+            .input.mouse_button = INPUT_MOUSE_BUTTON_RIGHT},
+    };
+    const InputBinding override[] = {
+        {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_R},
+    };
+    InputControllerId controller;
+    InputActionId toggle;
+
+    if(rohr_error_check(controller_result)) return false;
+    controller = controller_result.result.value;
+    toggle_result = rohr_input_action_create(
+        controller, "console", INPUT_ACTION_BUTTON);
+    axis_result = rohr_input_action_create(
+        controller, "axis", INPUT_ACTION_AXIS_1D);
+    if(rohr_error_check(toggle_result) || rohr_error_check(axis_result)) return false;
+    toggle = toggle_result.result.value;
+    mode_result = rohr_input_action_button_mode_get(toggle);
+    if(rohr_error_check(mode_result) ||
+            mode_result.result.value != INPUT_BUTTON_MOMENTARY ||
+            !rohr_error_check(rohr_input_action_button_mode_set(
+                toggle, (InputButtonMode)99)) ||
+            !rohr_error_check(rohr_input_action_button_mode_set(
+                axis_result.result.value, INPUT_BUTTON_PERSISTENT)) ||
+            rohr_error_check(rohr_input_action_button_mode_set(
+                toggle, INPUT_BUTTON_PERSISTENT)) ||
+            rohr_error_check(rohr_input_action_button_initial_state_set(
+                toggle, true)) ||
+            !rohr_input_action_button_initial_state_check(toggle) ||
+            rohr_error_check(rohr_input_action_bindings_default_set(
+                toggle, bindings, 2)) ||
+            !rohr_input_action_button_down_check(toggle) ||
+            rohr_input_action_button_pressed_check(toggle) ||
+            rohr_input_action_button_released_check(toggle)) return false;
+
+    rohr_input_frame_begin();
+    if(!key_event_push(SDL_EVENT_KEY_DOWN, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+    if(rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_released_check(toggle)) return false;
+    if(!mouse_button_event_push(SDL_EVENT_MOUSE_BUTTON_DOWN,
+            INPUT_MOUSE_BUTTON_RIGHT, 0.0f, 0.0f) ||
+            !key_event_push(SDL_EVENT_KEY_UP, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+    if(rohr_input_action_button_down_check(toggle) ||
+            rohr_input_action_button_pressed_check(toggle)) return false;
+    if(!mouse_button_event_push(SDL_EVENT_MOUSE_BUTTON_UP,
+            INPUT_MOUSE_BUTTON_RIGHT, 0.0f, 0.0f)) return false;
+    events_drain();
+    if(rohr_input_action_button_down_check(toggle)) return false;
+
+    rohr_input_frame_begin();
+    if(!mouse_button_event_push(SDL_EVENT_MOUSE_BUTTON_DOWN,
+            INPUT_MOUSE_BUTTON_RIGHT, 0.0f, 0.0f)) return false;
+    events_drain();
+    if(!rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_pressed_check(toggle)) return false;
+    rohr_input_frame_begin();
+    if(rohr_error_check(rohr_input_controller_enabled_set(controller, false)) ||
+            rohr_input_action_button_down_check(toggle) ||
+            !mouse_button_event_push(SDL_EVENT_MOUSE_BUTTON_UP,
+                INPUT_MOUSE_BUTTON_RIGHT, 0.0f, 0.0f) ||
+            !key_event_push(SDL_EVENT_KEY_DOWN, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+    if(rohr_input_action_button_down_check(toggle) ||
+            rohr_input_action_button_pressed_check(toggle) ||
+            rohr_input_action_button_released_check(toggle) ||
+            rohr_error_check(rohr_input_controller_enabled_set(controller, true)) ||
+            !rohr_input_action_button_down_check(toggle) ||
+            rohr_input_action_button_pressed_check(toggle) ||
+            rohr_input_action_button_released_check(toggle)) return false;
+    if(!key_event_push(SDL_EVENT_KEY_UP, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+    rohr_input_frame_begin();
+    if(!key_event_push(SDL_EVENT_KEY_DOWN, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+    if(rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_released_check(toggle)) return false;
+
+    rohr_input_frame_begin();
+    if(rohr_error_check(rohr_input_action_bindings_override_set(
+                toggle, override, 1)) ||
+            rohr_input_action_button_pressed_check(toggle) ||
+            rohr_input_action_button_released_check(toggle) ||
+            rohr_error_check(rohr_input_action_bindings_override_clear(toggle)) ||
+            rohr_input_action_button_pressed_check(toggle) ||
+            rohr_input_action_button_released_check(toggle)) return false;
+    if(!key_event_push(SDL_EVENT_KEY_UP, SDL_SCANCODE_E, SDL_KMOD_NONE))
+        return false;
+    events_drain();
+
+    rohr_input_frame_begin();
+    if(rohr_error_check(rohr_input_action_button_state_set(toggle, true)) ||
+            !rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_pressed_check(toggle)) return false;
+    rohr_input_frame_begin();
+    if(rohr_error_check(rohr_input_action_button_state_set(toggle, false)) ||
+            rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_released_check(toggle)) return false;
+    rohr_input_frame_begin();
+    if(rohr_error_check(rohr_input_action_button_state_reset(toggle)) ||
+            !rohr_input_action_button_down_check(toggle) ||
+            !rohr_input_action_button_pressed_check(toggle) ||
+            rohr_error_check(rohr_input_action_button_mode_set(
+                toggle, INPUT_BUTTON_MOMENTARY)) ||
+            !rohr_error_check(rohr_input_action_button_state_set(toggle, true)))
+        return false;
+
+    return !rohr_error_check(rohr_input_controller_destroy(controller));
 }
 
 static bool input_window_mode_test(void) {
@@ -427,7 +562,8 @@ static bool input_focus_release_test(void) {
 int main(void) {
     if(rohr_error_check(rohr_engine_init())) return 1;
     if(!input_raw_snapshot_test() || !input_action_test() ||
-            !input_focus_release_test() || !input_capacity_test() ||
+            !input_persistent_button_test() || !input_focus_release_test() ||
+            !input_capacity_test() ||
             !input_window_mode_test()) {
         fprintf(stderr, "input action test failed\n");
         rohr_engine_shutdown();

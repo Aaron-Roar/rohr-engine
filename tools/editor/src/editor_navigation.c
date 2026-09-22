@@ -230,6 +230,14 @@ static bool editor_reorder_storage_get(EditorProject *project,
             project->layout_viewport_count, sizeof(project->layout_viewports[0])};
         return true;
     }
+    if(selection.kind == EDITOR_SELECTION_INPUT_ACTION) {
+        EditorInputController *controller =
+            editor_project_input_controller_get(project, selection.parent);
+        if(controller == NULL) return false;
+        *storage = (EditorReorderStorage){(unsigned char *)controller->actions,
+            controller->action_count, sizeof(controller->actions[0])};
+        return true;
+    }
     object = editor_object_query_get(project, selection.object);
     if(object == NULL) return false;
     switch(selection.kind) {
@@ -313,22 +321,33 @@ bool editor_navigation_selection_reorder(EditorProject *project,
 
     if(project == NULL || state == NULL) return false;
     if((source.kind == EDITOR_SELECTION_OBJECT ||
-                source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) &&
+                source.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                source.kind == EDITOR_SELECTION_INPUT_CONTROLLER) &&
             (target.kind == EDITOR_SELECTION_OBJECT ||
-                target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT)) {
+                target.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                target.kind == EDITOR_SELECTION_INPUT_CONTROLLER)) {
         size_t source_index = SIZE_MAX, target_index = SIZE_MAX;
         EditorProjectHierarchyItem moving;
         editor_project_hierarchy_sync(project);
         for(size_t i = 0; i < project->hierarchy_count; i += 1) {
             EditorProjectHierarchyItem item = project->hierarchy[i];
             EditorHierarchySelection kind = item.kind ==
-                EDITOR_PROJECT_HIERARCHY_OBJECT ? EDITOR_SELECTION_OBJECT :
-                EDITOR_SELECTION_LAYOUT_VIEWPORT;
+                    EDITOR_PROJECT_HIERARCHY_OBJECT ? EDITOR_SELECTION_OBJECT :
+                item.kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT ?
+                    EDITOR_SELECTION_LAYOUT_VIEWPORT :
+                    EDITOR_SELECTION_INPUT_CONTROLLER;
             if(kind == source.kind && item.id == source.item) source_index = i;
             if(kind == target.kind && item.id == target.item) target_index = i;
         }
         if(source_index == SIZE_MAX || target_index == SIZE_MAX ||
                 source_index == target_index) return false;
+        if(history != NULL) {
+            if(!editor_history_transaction_begin(history)) return false;
+            if(!editor_history_transaction_project_hierarchy_track(history)) {
+                editor_history_transaction_cancel(history);
+                return false;
+            }
+        }
         moving = project->hierarchy[source_index];
         if(source_index < target_index) {
             memmove(&project->hierarchy[source_index],
@@ -342,7 +361,7 @@ bool editor_navigation_selection_reorder(EditorProject *project,
         }
         target_index += after ? 1 : 0;
         project->hierarchy[target_index] = moving;
-        return true;
+        return history == NULL || editor_history_transaction_end(history);
     }
     if(!editor_selection_sibling_check(source, target)) return false;
     if((source.kind == EDITOR_SELECTION_RIGID_BODY ||
@@ -432,10 +451,21 @@ bool editor_navigation_selection_reorder(EditorProject *project,
     if(output != storage.count ||
             memcmp(storage.items, ordered, storage.count * storage.stride) == 0)
         goto fail;
-    if(history != NULL && (!editor_history_transaction_begin(history) ||
-            (source.kind == EDITOR_SELECTION_OBJECT ?
-                !editor_history_transaction_object_order_track(history) :
-                !editor_history_transaction_object_track(history, source.object)))) goto fail;
+    if(history != NULL) {
+        bool tracked;
+        if(!editor_history_transaction_begin(history)) goto fail;
+        if(source.kind == EDITOR_SELECTION_OBJECT)
+            tracked = editor_history_transaction_object_order_track(history);
+        else if(source.kind == EDITOR_SELECTION_INPUT_ACTION)
+            tracked = editor_history_transaction_input_track(history);
+        else
+            tracked = editor_history_transaction_object_track(history,
+                source.object);
+        if(!tracked) {
+            editor_history_transaction_cancel(history);
+            goto fail;
+        }
+    }
     memcpy(storage.items, ordered, storage.count * storage.stride);
     free(selected);
     free(ordered);
@@ -451,6 +481,30 @@ static bool editor_selection_remove_command_get(EditorProject *project,
         EditorSelectionRef selection, EditorCommand *command) {
     EditorItemKind kind;
     if(command == NULL) return false;
+    if(selection.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, selection.item);
+        if(controller == NULL) return false;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE,
+            .data.input_controller = {.controller = controller->id,
+                .enabled = controller->enabled}};
+        snprintf(command->data.input_controller.name,
+            sizeof(command->data.input_controller.name), "%s", controller->name);
+        return true;
+    }
+    if(selection.kind == EDITOR_SELECTION_INPUT_ACTION) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            selection.parent, selection.item);
+        if(action == NULL) return false;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_REMOVE,
+            .data.input_action = {.controller = selection.parent,
+                .action = action->id, .type = action->type,
+                .button_mode = action->button_mode,
+                .button_initial_state = action->button_initial_state}};
+        snprintf(command->data.input_action.name,
+            sizeof(command->data.input_action.name), "%s", action->name);
+        return true;
+    }
     if(selection.kind == EDITOR_SELECTION_SPRITE) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_SPRITE_REMOVE,
             .data.sprite_remove = {.object = selection.object,
@@ -549,6 +603,9 @@ static bool editor_selection_removed_with_parent_check(
                     selection.kind == EDITOR_SELECTION_SOFT_BEAM ||
                     selection.kind == EDITOR_SELECTION_SOFT_AREA) &&
                 parent.item == selection.parent) return true;
+        if(parent.kind == EDITOR_SELECTION_INPUT_CONTROLLER &&
+                selection.kind == EDITOR_SELECTION_INPUT_ACTION &&
+                parent.item == selection.parent) return true;
     }
     return false;
 }
@@ -578,13 +635,24 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
         free(ordered);
         return false;
     }
-    for(size_t i = 0; i < state->selected_item_count; i += 1)
+    for(size_t i = 0; i < state->selected_item_count; i += 1) {
+        if(state->selected_items[i].kind == EDITOR_SELECTION_INPUT_CONTROLLER ||
+                state->selected_items[i].kind == EDITOR_SELECTION_INPUT_ACTION) {
+            if(!editor_history_transaction_input_track(history)) {
+                editor_history_transaction_cancel(history);
+                free(ordered);
+                return false;
+            }
+            continue;
+        }
         if(!editor_history_transaction_object_track(history,
                 state->selected_items[i].object)) {
             editor_history_transaction_cancel(history);
             free(ordered);
             return false;
         }
+    }
+    editor_history_transaction_commands_suppress_set(history, true);
     for(size_t i = 0; i < state->selected_item_count; i += 1) {
         EditorCommand command;
         EditorCommandResult result;
@@ -605,7 +673,10 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
     if(!editor_history_transaction_end(history)) return false;
     editor_viewport_selection_clear(state);
     state->selection = EDITOR_SELECTION_NONE;
-    if(state->mode != EDITOR_VIEWPORT_HIERARCHY)
+    if(state->mode == EDITOR_VIEWPORT_INPUT_ACTION ||
+            state->mode == EDITOR_VIEWPORT_INPUT_CONTROLLER)
+        state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+    else if(state->mode != EDITOR_VIEWPORT_HIERARCHY)
         state->mode = EDITOR_VIEWPORT_OBJECT;
     return true;
 }
@@ -614,6 +685,13 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
         EditorSelectionRef ref, bool *visible) {
     EditorObject *object;
     if(project == NULL || visible == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, ref.item);
+        if(controller == NULL) return false;
+        *visible = controller->enabled;
+        return true;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);
@@ -693,6 +771,17 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
     EditorCommand command;
     EditorVisibilityKind kind;
     if(project == NULL) return false;
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, ref.item);
+        if(controller == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
+            .data.input_controller = {.controller = controller->id,
+                .enabled = visible}};
+        snprintf(command.data.input_controller.name,
+            sizeof(command.data.input_controller.name), "%s", controller->name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);
@@ -756,6 +845,20 @@ bool editor_navigation_selection_name_get(EditorProject *project,
     EditorObject *object;
     const char *value = NULL;
     if(project == NULL || name == NULL || capacity == 0) return false;
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, ref.item);
+        if(controller == NULL) return false;
+        snprintf(name, capacity, "%s", controller->name);
+        return true;
+    }
+    if(ref.kind == EDITOR_SELECTION_INPUT_ACTION) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            ref.parent, ref.item);
+        if(action == NULL) return false;
+        snprintf(name, capacity, "%s", action->name);
+        return true;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);
@@ -833,6 +936,30 @@ bool editor_navigation_selection_name_set(EditorProject *project,
     EditorItemKind kind;
     EditorCommand command;
     if(project == NULL || name == NULL || name[0] == '\0') return false;
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        EditorInputController *controller = editor_project_input_controller_get(
+            project, ref.item);
+        if(controller == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
+            .data.input_controller = {.controller = controller->id,
+                .enabled = controller->enabled}};
+        snprintf(command.data.input_controller.name,
+            sizeof(command.data.input_controller.name), "%s", name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
+    if(ref.kind == EDITOR_SELECTION_INPUT_ACTION) {
+        EditorInputAction *action = editor_project_input_action_get(project,
+            ref.parent, ref.item);
+        if(action == NULL) return false;
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_SET,
+            .data.input_action = {.controller = ref.parent,
+                .action = action->id, .type = action->type,
+                .button_mode = action->button_mode,
+                .button_initial_state = action->button_initial_state}};
+        snprintf(command.data.input_action.name,
+            sizeof(command.data.input_action.name), "%s", name);
+        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
+    }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = EDITOR_ITEM_VIEWPORT_CAMERA,
@@ -916,6 +1043,19 @@ bool editor_navigation_selected_open(EditorProject *project,
     EditorHitbox *hitbox;
 
     if(project == NULL || state == NULL) return false;
+    if(state->selection == EDITOR_SELECTION_INPUT_CONTROLLER) {
+        if(editor_project_input_controller_get(project,
+                state->selected_input_controller) == NULL) return false;
+        state->mode = EDITOR_VIEWPORT_INPUT_CONTROLLER;
+        return true;
+    }
+    if(state->selection == EDITOR_SELECTION_INPUT_ACTION) {
+        if(editor_project_input_action_get(project,
+                state->selected_input_controller,
+                state->selected_input_action) == NULL) return false;
+        state->mode = EDITOR_VIEWPORT_INPUT_ACTION;
+        return true;
+    }
     if(state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
         if(editor_project_layout_viewport_get(project,
                 state->selected_layout_viewport) == NULL) return false;

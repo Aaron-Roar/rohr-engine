@@ -45,7 +45,7 @@ static void render_scene(CameraId camera, void *context_value) {
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, move_action, turn_action;
     ViewportId viewport = VIEWPORT_INVALID;
     RenderContext render_context = {0};
@@ -71,14 +71,14 @@ int main(void) {
         InputBinding turn_bindings[] = {
             example_input_key_binding(SDL_SCANCODE_LEFT, -1.0f, (Vec2D){0}),
             example_input_key_binding(SDL_SCANCODE_RIGHT, 1.0f, (Vec2D){0})};
-        if(!example_input_map_create("flies", &input_map) ||
-                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+        if(!example_input_controller_create("flies", &input_controller) ||
+                !example_input_action_create(input_controller, "exit", INPUT_ACTION_BUTTON,
                     &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
-                !example_input_action_create(input_map, "move", INPUT_ACTION_AXIS_2D,
+                !example_input_action_create(input_controller, "move", INPUT_ACTION_AXIS_2D,
                     move_bindings, 4, &move_action) ||
-                !example_input_action_create(input_map, "turn", INPUT_ACTION_AXIS_1D,
+                !example_input_action_create(input_controller, "turn", INPUT_ACTION_AXIS_1D,
                     turn_bindings, 2, &turn_action)) goto fail;
     }
     {
@@ -210,16 +210,16 @@ int main(void) {
 
     }
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

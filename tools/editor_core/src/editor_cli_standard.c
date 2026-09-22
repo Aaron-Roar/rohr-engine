@@ -14,6 +14,7 @@
 #define CLI_TEXT 1024
 
 static const char *cli_input_type_name(InputActionType type);
+static const char *cli_input_button_mode_name(InputButtonMode mode);
 
 static bool cli_selector_flag(const char *value) {
     static const char *flags[] = {"--object", "--object-id", "--body", "--body-id",
@@ -337,7 +338,7 @@ static EditorResult cli_input_command_write(const EditorCommand *command,
     size_t used = 0;
     char number[64];
     const EditorInputBindingCommand *binding;
-    *handled = command->type >= EDITOR_COMMAND_INPUT_MAP_ADD &&
+    *handled = command->type >= EDITOR_COMMAND_INPUT_CONTROLLER_ADD &&
         command->type <= EDITOR_COMMAND_INPUT_BINDING_SET;
     if(!*handled) return editor_result_value(true);
     output[0] = '\0';
@@ -345,36 +346,48 @@ static EditorResult cli_input_command_write(const EditorCommand *command,
     if(!cli_token_add(output, capacity, &used, (value))) goto full; \
 } while(0)
     INPUT_ADD("rohr-cli"); INPUT_ADD("--project"); INPUT_ADD(path);
-    if(command->type == EDITOR_COMMAND_INPUT_MAP_ADD) {
-        INPUT_ADD("--input-map"); INPUT_ADD(command->data.input_map.name);
+    if(command->type == EDITOR_COMMAND_INPUT_CONTROLLER_ADD) {
+        INPUT_ADD("--controller"); INPUT_ADD(command->data.input_controller.name);
         INPUT_ADD("add");
-        INPUT_ADD(command->data.input_map.enabled ? "true" : "false");
+        INPUT_ADD(command->data.input_controller.enabled ? "true" : "false");
         return editor_result_value(true);
     }
     snprintf(number, sizeof(number), "%u", command->type <=
-        EDITOR_COMMAND_INPUT_MAP_SET ? command->data.input_map.map :
+        EDITOR_COMMAND_INPUT_CONTROLLER_SET ? command->data.input_controller.controller :
         command->type <= EDITOR_COMMAND_INPUT_ACTION_SET ?
-            command->data.input_action.map : command->data.input_binding.map);
-    INPUT_ADD("--input-map-id"); INPUT_ADD(number);
-    if(command->type == EDITOR_COMMAND_INPUT_MAP_REMOVE) INPUT_ADD("delete");
-    else if(command->type == EDITOR_COMMAND_INPUT_MAP_SET) {
-        INPUT_ADD("map-set"); INPUT_ADD(command->data.input_map.name);
-        INPUT_ADD(command->data.input_map.enabled ? "true" : "false");
+            command->data.input_action.controller : command->data.input_binding.controller);
+    INPUT_ADD("--controller-id"); INPUT_ADD(number);
+    if(command->type == EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE) INPUT_ADD("delete");
+    else if(command->type == EDITOR_COMMAND_INPUT_CONTROLLER_SET) {
+        INPUT_ADD("controller-set"); INPUT_ADD(command->data.input_controller.name);
+        INPUT_ADD(command->data.input_controller.enabled ? "true" : "false");
     } else if(command->type == EDITOR_COMMAND_INPUT_ACTION_ADD) {
-        INPUT_ADD("--input-action"); INPUT_ADD(command->data.input_action.name);
+        INPUT_ADD("--action"); INPUT_ADD(command->data.input_action.name);
         INPUT_ADD("add"); INPUT_ADD(cli_input_type_name(
             command->data.input_action.type));
+        if(command->data.input_action.type == INPUT_ACTION_BUTTON) {
+            INPUT_ADD(cli_input_button_mode_name(
+                command->data.input_action.button_mode));
+            INPUT_ADD(command->data.input_action.button_initial_state ?
+                "true" : "false");
+        }
     } else {
         snprintf(number, sizeof(number), "%u", command->type <=
             EDITOR_COMMAND_INPUT_ACTION_SET ? command->data.input_action.action :
             command->data.input_binding.action);
-        INPUT_ADD("--input-action-id"); INPUT_ADD(number);
+        INPUT_ADD("--action-id"); INPUT_ADD(number);
         if(command->type == EDITOR_COMMAND_INPUT_ACTION_REMOVE)
             INPUT_ADD("delete");
         else if(command->type == EDITOR_COMMAND_INPUT_ACTION_SET) {
             INPUT_ADD("action-set");
             INPUT_ADD(command->data.input_action.name);
             INPUT_ADD(cli_input_type_name(command->data.input_action.type));
+            if(command->data.input_action.type == INPUT_ACTION_BUTTON) {
+                INPUT_ADD(cli_input_button_mode_name(
+                    command->data.input_action.button_mode));
+                INPUT_ADD(command->data.input_action.button_initial_state ?
+                    "true" : "false");
+            }
         } else {
             binding = &command->data.input_binding;
             if(command->type != EDITOR_COMMAND_INPUT_BINDING_ADD) {
@@ -595,6 +608,19 @@ static const char *cli_input_type_name(InputActionType type) {
         type == INPUT_ACTION_AXIS_1D ? "axis-1d" : "axis-2d";
 }
 
+static bool cli_input_button_mode_parse(const char *value,
+        InputButtonMode *mode) {
+    if(value == NULL || mode == NULL) return false;
+    if(strcmp(value, "momentary") == 0) *mode = INPUT_BUTTON_MOMENTARY;
+    else if(strcmp(value, "persistent") == 0) *mode = INPUT_BUTTON_PERSISTENT;
+    else return false;
+    return true;
+}
+
+static const char *cli_input_button_mode_name(InputButtonMode mode) {
+    return mode == INPUT_BUTTON_PERSISTENT ? "persistent" : "momentary";
+}
+
 static EditorResult cli_input_binding_parse(int count, char **arguments,
         int at, InputActionType type, InputBinding *binding) {
     uint32_t number, modifiers;
@@ -654,11 +680,11 @@ static EditorResult cli_input_binding_parse(int count, char **arguments,
 static EditorResult cli_input_command_parse(const EditorProject *project,
         int count, char **arguments, const char **path, EditorCommand *command,
         bool *handled) {
-    const char *map_name = NULL;
+    const char *controller_name = NULL;
     const char *action_name = NULL;
     const char *operation = NULL;
-    uint32_t map_id = 0, action_id = 0, binding_index = 0;
-    bool map_id_set = false, action_id_set = false, binding_index_set = false;
+    uint32_t controller_id = 0, action_id = 0, binding_index = 0;
+    bool controller_id_set = false, action_id_set = false, binding_index_set = false;
     int operation_index = -1;
     *handled = false;
     if(project == NULL || arguments == NULL || path == NULL || command == NULL)
@@ -668,15 +694,15 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     for(int i = 1; i < count; i += 1) {
         if(strcmp(arguments[i], "--project") == 0 && i + 1 < count)
             *path = arguments[++i];
-        else if(strcmp(arguments[i], "--input-map") == 0 && i + 1 < count) {
-            *handled = true; map_name = arguments[++i];
-        } else if(strcmp(arguments[i], "--input-map-id") == 0 && i + 1 < count) {
+        else if(strcmp(arguments[i], "--controller") == 0 && i + 1 < count) {
+            *handled = true; controller_name = arguments[++i];
+        } else if(strcmp(arguments[i], "--controller-id") == 0 && i + 1 < count) {
             *handled = true;
-            if(!cli_input_uint_parse(arguments[++i], &map_id)) goto invalid_selector;
-            map_id_set = true;
-        } else if(strcmp(arguments[i], "--input-action") == 0 && i + 1 < count) {
+            if(!cli_input_uint_parse(arguments[++i], &controller_id)) goto invalid_selector;
+            controller_id_set = true;
+        } else if(strcmp(arguments[i], "--action") == 0 && i + 1 < count) {
             *handled = true; action_name = arguments[++i];
-        } else if(strcmp(arguments[i], "--input-action-id") == 0 && i + 1 < count) {
+        } else if(strcmp(arguments[i], "--action-id") == 0 && i + 1 < count) {
             *handled = true;
             if(!cli_input_uint_parse(arguments[++i], &action_id)) goto invalid_selector;
             action_id_set = true;
@@ -692,88 +718,107 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     if(!*handled) return editor_result_value(true);
     if(operation == NULL) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
         "input selector requires an operation");
-    if(map_id_set) {
-        if(editor_project_input_action_map_const_get(project, map_id) == NULL)
+    if(controller_id_set) {
+        if(editor_project_input_controller_const_get(project, controller_id) == NULL)
             return editor_result_error(EDITOR_ERROR_NOT_FOUND,
-                "input map %u was not found", map_id);
-    } else if(map_name != NULL &&
+                "input controller %u was not found", controller_id);
+    } else if(controller_name != NULL &&
             (strcmp(operation, "add") != 0 || action_name != NULL)) {
-        for(size_t i = 0; i < project->input_action_map_count; i += 1)
-            if(strcmp(project->input_action_maps[i].name, map_name) == 0)
-                map_id = project->input_action_maps[i].id;
-        if(map_id == 0) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
-            "input map '%s' was not found", map_name);
+        for(size_t i = 0; i < project->input_controller_count; i += 1)
+            if(strcmp(project->input_controllers[i].name, controller_name) == 0)
+                controller_id = project->input_controllers[i].id;
+        if(controller_id == 0) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+            "input controller '%s' was not found", controller_name);
     }
-    const EditorInputActionMap *map =
-        editor_project_input_action_map_const_get(project, map_id);
+    const EditorInputController *controller =
+        editor_project_input_controller_const_get(project, controller_id);
     if(action_id_set) {
-        if(map == NULL || editor_project_input_action_const_get(project, map_id,
+        if(controller == NULL || editor_project_input_action_const_get(project, controller_id,
                 action_id) == NULL)
             return editor_result_error(EDITOR_ERROR_NOT_FOUND,
-                "input action %u was not found in the selected map", action_id);
+                "input action %u was not found in the selected controller", action_id);
     } else if(action_name != NULL) {
-        if(map == NULL && strcmp(operation, "add") != 0)
+        if(controller == NULL && strcmp(operation, "add") != 0)
             return editor_result_error(EDITOR_ERROR_NOT_FOUND,
-                "input action requires an existing map");
-        if(map != NULL) for(size_t i = 0; i < map->action_count; i += 1)
-            if(strcmp(map->actions[i].name, action_name) == 0)
-                action_id = map->actions[i].id;
+                "input action requires an existing controller");
+        if(controller != NULL) for(size_t i = 0; i < controller->action_count; i += 1)
+            if(strcmp(controller->actions[i].name, action_name) == 0)
+                action_id = controller->actions[i].id;
         if(action_id == 0 && strcmp(operation, "add") != 0)
             return editor_result_error(EDITOR_ERROR_NOT_FOUND,
                 "input action '%s' was not found", action_name);
     }
-    const EditorInputAction *action = map == NULL ? NULL :
-        editor_project_input_action_const_get(project, map_id, action_id);
+    const EditorInputAction *action = controller == NULL ? NULL :
+        editor_project_input_action_const_get(project, controller_id, action_id);
     if(action_name == NULL && action != NULL) action_name = action->name;
-    if(map_name == NULL && map != NULL) map_name = map->name;
+    if(controller_name == NULL && controller != NULL) controller_name = controller->name;
     if(action_name == NULL) {
         bool enabled;
-        if(map_name == NULL) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "input map selector is required");
+        if(controller_name == NULL) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "input controller selector is required");
         if(strcmp(operation, "add") == 0) {
             enabled = true;
             if(operation_index + 1 < count &&
                     !cli_input_bool_parse(arguments[operation_index + 1], &enabled))
                 return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-                    "input map enabled value must be true or false");
+                    "input controller enabled value must be true or false");
             if(operation_index + (operation_index + 1 < count ? 2 : 1) != count)
                 return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-                    "input map add accepts only an optional enabled value");
-            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_ADD,
-                .data.input_map = {.enabled = enabled}};
-            snprintf(command->data.input_map.name,
-                sizeof(command->data.input_map.name), "%s", map_name);
+                    "input controller add accepts only an optional enabled value");
+            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_ADD,
+                .data.input_controller = {.enabled = enabled}};
+            snprintf(command->data.input_controller.name,
+                sizeof(command->data.input_controller.name), "%s", controller_name);
             return editor_result_value(true);
         }
-        if(map == NULL) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
-            "input map was not found");
+        if(controller == NULL) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+            "input controller was not found");
         if(strcmp(operation, "delete") == 0 && operation_index + 1 == count) {
-            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_REMOVE,
-                .data.input_map = {.map = map_id, .enabled = map->enabled}};
-            snprintf(command->data.input_map.name,
-                sizeof(command->data.input_map.name), "%s", map->name);
+            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE,
+                .data.input_controller = {.controller = controller_id, .enabled = controller->enabled}};
+            snprintf(command->data.input_controller.name,
+                sizeof(command->data.input_controller.name), "%s", controller->name);
             return editor_result_value(true);
         }
-        if(strcmp(operation, "map-set") == 0 && operation_index + 3 == count &&
+        if(strcmp(operation, "controller-set") == 0 && operation_index + 3 == count &&
                 cli_input_bool_parse(arguments[operation_index + 2], &enabled)) {
-            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_SET,
-                .data.input_map = {.map = map_id, .enabled = enabled}};
-            snprintf(command->data.input_map.name,
-                sizeof(command->data.input_map.name), "%s",
+            *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
+                .data.input_controller = {.controller = controller_id, .enabled = enabled}};
+            snprintf(command->data.input_controller.name,
+                sizeof(command->data.input_controller.name), "%s",
                 arguments[operation_index + 1]);
             return editor_result_value(true);
         }
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "input map supports add, delete, or map-set <name> <enabled>");
+            "input controller supports add, delete, or controller-set <name> <enabled>");
     }
     if(action == NULL && strcmp(operation, "add") == 0) {
         InputActionType type;
-        if(map == NULL || operation_index + 2 != count ||
+        InputButtonMode mode = INPUT_BUTTON_MOMENTARY;
+        bool initial_state = false;
+        if(controller == NULL || operation_index + 2 > count ||
                 !cli_input_type_parse(arguments[operation_index + 1], &type))
             return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                 "input action add requires button, axis-1d, or axis-2d");
+        if(type == INPUT_ACTION_BUTTON) {
+            if(operation_index + 4 != count ||
+                    !cli_input_button_mode_parse(
+                        arguments[operation_index + 2], &mode) ||
+                    !cli_input_bool_parse(arguments[operation_index + 3],
+                        &initial_state))
+                return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Button action add requires momentary|persistent and an initial boolean state");
+            if(mode == INPUT_BUTTON_MOMENTARY && initial_state)
+                return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Momentary Button actions cannot have an active initial state");
+        } else if(operation_index + 2 != count) {
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Axis action add accepts only its action type");
+        }
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_ADD,
-            .data.input_action = {.map = map_id, .type = type}};
+            .data.input_action = {.controller = controller_id, .type = type,
+                .button_mode = mode,
+                .button_initial_state = initial_state}};
         snprintf(command->data.input_action.name,
             sizeof(command->data.input_action.name), "%s", action_name);
         return editor_result_value(true);
@@ -783,20 +828,40 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     if(strcmp(operation, "delete") == 0 && !binding_index_set &&
             operation_index + 1 == count) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_REMOVE,
-            .data.input_action = {.map = map_id, .action = action_id,
-                .type = action->type}};
+            .data.input_action = {.controller = controller_id, .action = action_id,
+                .type = action->type, .button_mode = action->button_mode,
+                .button_initial_state = action->button_initial_state}};
         snprintf(command->data.input_action.name,
             sizeof(command->data.input_action.name), "%s", action->name);
         return editor_result_value(true);
     }
-    if(strcmp(operation, "action-set") == 0 && operation_index + 3 == count) {
+    if(strcmp(operation, "action-set") == 0) {
         InputActionType type;
-        if(!cli_input_type_parse(arguments[operation_index + 2], &type))
+        InputButtonMode mode = INPUT_BUTTON_MOMENTARY;
+        bool initial_state = false;
+        if(operation_index + 3 > count ||
+                !cli_input_type_parse(arguments[operation_index + 2], &type))
             return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                 "input action type must be button, axis-1d, or axis-2d");
+        if(type == INPUT_ACTION_BUTTON) {
+            if(operation_index + 5 != count ||
+                    !cli_input_button_mode_parse(
+                        arguments[operation_index + 3], &mode) ||
+                    !cli_input_bool_parse(arguments[operation_index + 4],
+                        &initial_state))
+                return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Button action-set requires name, type, momentary|persistent, and initial state");
+            if(mode == INPUT_BUTTON_MOMENTARY && initial_state)
+                return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Momentary Button actions cannot have an active initial state");
+        } else if(operation_index + 3 != count) {
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Axis action-set accepts only name and action type");
+        }
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_SET,
-            .data.input_action = {.map = map_id, .action = action_id,
-                .type = type}};
+            .data.input_action = {.controller = controller_id, .action = action_id,
+                .type = type, .button_mode = mode,
+                .button_initial_state = initial_state}};
         snprintf(command->data.input_action.name,
             sizeof(command->data.input_action.name), "%s",
             arguments[operation_index + 1]);
@@ -805,7 +870,7 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     if(strcmp(operation, "binding-delete") == 0 && binding_index_set &&
             operation_index + 1 == count) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_REMOVE,
-            .data.input_binding = {.map = map_id, .action = action_id,
+            .data.input_binding = {.controller = controller_id, .action = action_id,
                 .index = binding_index}};
         return editor_result_value(true);
     }
@@ -815,7 +880,7 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
         *command = (EditorCommand){
             .type = binding_index_set ? EDITOR_COMMAND_INPUT_BINDING_SET :
                 EDITOR_COMMAND_INPUT_BINDING_ADD,
-            .data.input_binding = {.map = map_id, .action = action_id,
+            .data.input_binding = {.controller = controller_id, .action = action_id,
                 .index = binding_index}};
         parsed = cli_input_binding_parse(count, arguments, operation_index + 1,
             action->type, &command->data.input_binding.binding);

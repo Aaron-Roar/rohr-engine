@@ -87,8 +87,9 @@ public primitives available to applications.
 ## Input
 
 The engine event poller automatically feeds an engine-owned per-frame keyboard,
-pointer, and text snapshot. Raw device state remains separate from named action
-maps. Actions combine copied tagged bindings into Button, Axis 1D, or Axis 2D
+pointer, and text snapshot. Raw device state remains separate from named logical
+controllers. Controller-owned actions combine copied tagged bindings into Button,
+Axis 1D, or Axis 2D
 values; generated project defaults and runtime user overrides occupy separate
 binding lists. See [Input](input.md) for lifecycle and authoring details.
 

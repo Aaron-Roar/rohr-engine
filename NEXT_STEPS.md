@@ -35,11 +35,13 @@ developer-owned C and do not need to be authored in the editor.
    generation without changing the physical openings defined by their beams,
    with direct C, editor, JSON, generated-C, example, documentation, and
    Linux/Windows coverage.
-7. **Input and action declarations (complete)** — Engine-owned keyboard,
-   pointer, text/IME snapshots and named Button, Axis 1D, and Axis 2D maps now
-   support editor-authored defaults, runtime overrides, CLI/JSON/generated C,
-   converted examples, and Linux/Windows tests while gameplay responses remain
-   in C. SDL gamepad device management and bindings remain a later extension.
+7. **Input controllers and action declarations (complete)** — Engine-owned
+   keyboard, pointer, and text/IME snapshots feed top-level named logical
+   controllers with Button, Axis 1D, and Axis 2D actions. Momentary and
+   persistent Buttons, editor-authored defaults, runtime overrides,
+   CLI/JSON/generated C, converted examples, and Linux/Windows tests are
+   supported while gameplay responses remain in C. SDL gamepad device
+   management and bindings remain a later extension.
 
 For each item, complete the direct C API where applicable, editor interaction,
 JSON persistence, generated C, project loading, runtime application, and

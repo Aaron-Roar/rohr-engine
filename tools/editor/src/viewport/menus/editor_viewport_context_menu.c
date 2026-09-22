@@ -87,7 +87,7 @@ static bool action_button(const char *id, const TextAsset *label, UIRect bounds,
 }
 
 EditorContextMenuAction editor_viewport_context_menu_draw(
-        EditorViewportContextMenu *menu, const MouseState *mouse,
+        EditorViewportContextMenu *menu, const UIPointerState *pointer_state,
         bool target_visible, const char *target_name, float window_width,
         float menu_height,
         float viewport_bottom, float window_height) {
@@ -96,7 +96,7 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
     EditorContextMenuAction action = EDITOR_CONTEXT_MENU_NONE;
     float height, content_height;
     bool scroll_active;
-    if(menu == NULL || mouse == NULL || !menu->open) return action;
+    if(menu == NULL || pointer_state == NULL || !menu->open) return action;
     pointer = rohr_graphics_mouse_screen_position_get();
     content_height = menu->renaming ? 74.0f : menu->target_valid ? 198.0f : 162.0f;
     height = fminf(content_height + 4.0f,
@@ -187,7 +187,8 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
     }
     if(scroll_active) rohr_ui_scroll_region_end();
     if(action != EDITOR_CONTEXT_MENU_NONE) menu->open = false;
-    if(mouse->button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&
+    if(pointer_state->button_states[MOUSE_BUTTON_LEFT] ==
+            MOUSE_BUTTON_STATE_PRESSED &&
             (pointer.x < bounds.x || pointer.x > bounds.x + bounds.width ||
              pointer.y < bounds.y || pointer.y > bounds.y + bounds.height)) {
         if(menu->renaming) {

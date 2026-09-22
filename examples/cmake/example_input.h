@@ -7,18 +7,18 @@
 
 #include "rohr.h"
 
-static inline bool example_input_map_create(const char *name,
-        InputActionMapId *map) {
-    InputActionMapIdResult result = rohr_input_action_map_create(name);
-    if(rohr_error_check(result) || map == NULL) return false;
-    *map = result.result.value;
+static inline bool example_input_controller_create(const char *name,
+        InputControllerId *controller) {
+    InputControllerIdResult result = rohr_input_controller_create(name);
+    if(rohr_error_check(result) || controller == NULL) return false;
+    *controller = result.result.value;
     return true;
 }
 
-static inline bool example_input_action_create(InputActionMapId map,
+static inline bool example_input_action_create(InputControllerId controller,
         const char *name, InputActionType type, const InputBinding *bindings,
         size_t binding_count, InputActionId *action) {
-    InputActionIdResult result = rohr_input_action_create(map, name, type);
+    InputActionIdResult result = rohr_input_action_create(controller, name, type);
     EngineResult binding_result;
     if(rohr_error_check(result) || action == NULL) return false;
     *action = result.result.value;

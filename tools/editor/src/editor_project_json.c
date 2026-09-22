@@ -118,6 +118,21 @@ static bool editor_json_input_action_type_read(yyjson_val *value,
     return true;
 }
 
+static const char *editor_json_input_button_mode_name(InputButtonMode mode) {
+    return mode == INPUT_BUTTON_PERSISTENT ? "persistent" : "momentary";
+}
+
+static bool editor_json_input_button_mode_read(yyjson_val *value,
+        InputButtonMode *mode) {
+    const char *name;
+    if(!yyjson_is_str(value) || mode == NULL) return false;
+    name = yyjson_get_str(value);
+    if(strcmp(name, "momentary") == 0) *mode = INPUT_BUTTON_MOMENTARY;
+    else if(strcmp(name, "persistent") == 0) *mode = INPUT_BUTTON_PERSISTENT;
+    else return false;
+    return true;
+}
+
 static const char *editor_json_input_source_name(InputBindingSource source) {
     switch(source) {
         case INPUT_BINDING_KEY: return "key";
@@ -623,7 +638,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_val *ui_fonts;
     yyjson_mut_val *graphics_layers;
     yyjson_mut_val *ui_definitions;
-    yyjson_mut_val *input_action_maps;
+    yyjson_mut_val *input_controllers;
     bool success;
     if(project == NULL || path == NULL || path[0] == '\0') return false;
     document = yyjson_mut_doc_new(NULL);
@@ -636,7 +651,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     ui_fonts = yyjson_mut_arr(document);
     graphics_layers = yyjson_mut_arr(document);
     ui_definitions = yyjson_mut_arr(document);
-    input_action_maps = yyjson_mut_arr(document);
+    input_controllers = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
     {
@@ -686,6 +701,10 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_uint(document, value, "animation_frame",
             navigation->animation_frame);
         yyjson_mut_obj_add_uint(document, value, "camera", navigation->camera);
+        yyjson_mut_obj_add_uint(document, value, "input_controller",
+            navigation->input_controller);
+        yyjson_mut_obj_add_uint(document, value, "input_action",
+            navigation->input_action);
         yyjson_mut_obj_add_uint(document, value, "origin_kind", navigation->origin_kind);
         yyjson_mut_obj_add_val(document, root, "navigation", value);
     }
@@ -717,8 +736,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         project->next_graphics_layer_id);
     yyjson_mut_obj_add_uint(document, root, "next_ui_definition_id",
         project->next_ui_definition_id);
-    yyjson_mut_obj_add_uint(document, root, "next_input_action_map_id",
-        project->next_input_action_map_id);
+    yyjson_mut_obj_add_uint(document, root, "next_input_controller_id",
+        project->next_input_controller_id);
     yyjson_mut_obj_add_uint(document, root, "next_input_action_id",
         project->next_input_action_id);
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
@@ -743,21 +762,27 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_arr_add_val(ui_definitions,
             editor_json_ui_definition_write(document, &project->ui_definitions[i]));
     yyjson_mut_obj_add_val(document, root, "ui_definitions", ui_definitions);
-    for(size_t i = 0; i < project->input_action_map_count; i += 1) {
-        const EditorInputActionMap *map = &project->input_action_maps[i];
-        yyjson_mut_val *map_value = yyjson_mut_obj(document);
+    for(size_t i = 0; i < project->input_controller_count; i += 1) {
+        const EditorInputController *controller = &project->input_controllers[i];
+        yyjson_mut_val *controller_value = yyjson_mut_obj(document);
         yyjson_mut_val *actions = yyjson_mut_arr(document);
-        yyjson_mut_obj_add_uint(document, map_value, "id", map->id);
-        yyjson_mut_obj_add_strcpy(document, map_value, "name", map->name);
-        yyjson_mut_obj_add_bool(document, map_value, "enabled", map->enabled);
-        for(size_t j = 0; j < map->action_count; j += 1) {
-            const EditorInputAction *action = &map->actions[j];
+        yyjson_mut_obj_add_uint(document, controller_value, "id", controller->id);
+        yyjson_mut_obj_add_strcpy(document, controller_value, "name",
+            controller->name);
+        yyjson_mut_obj_add_bool(document, controller_value, "enabled",
+            controller->enabled);
+        for(size_t j = 0; j < controller->action_count; j += 1) {
+            const EditorInputAction *action = &controller->actions[j];
             yyjson_mut_val *action_value = yyjson_mut_obj(document);
             yyjson_mut_val *bindings = yyjson_mut_arr(document);
             yyjson_mut_obj_add_uint(document, action_value, "id", action->id);
             yyjson_mut_obj_add_strcpy(document, action_value, "name", action->name);
             yyjson_mut_obj_add_strcpy(document, action_value, "type",
                 editor_json_input_action_type_name(action->type));
+            yyjson_mut_obj_add_strcpy(document, action_value, "button_mode",
+                editor_json_input_button_mode_name(action->button_mode));
+            yyjson_mut_obj_add_bool(document, action_value,
+                "button_initial_state", action->button_initial_state);
             for(size_t k = 0; k < action->binding_count; k += 1)
                 yyjson_mut_arr_add_val(bindings,
                     editor_json_input_binding_write(document,
@@ -765,11 +790,11 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_val(document, action_value, "bindings", bindings);
             yyjson_mut_arr_add_val(actions, action_value);
         }
-        yyjson_mut_obj_add_val(document, map_value, "actions", actions);
-        yyjson_mut_arr_add_val(input_action_maps, map_value);
+        yyjson_mut_obj_add_val(document, controller_value, "actions", actions);
+        yyjson_mut_arr_add_val(input_controllers, controller_value);
     }
-    yyjson_mut_obj_add_val(document, root, "input_action_maps",
-        input_action_maps);
+    yyjson_mut_obj_add_val(document, root, "input_controllers",
+        input_controllers);
     for(size_t i = 0; i < project->collision_mask_count; i += 1) {
         yyjson_mut_arr_add_strcpy(document, collision_masks,
             project->collision_masks[i].name);
@@ -1849,7 +1874,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     yyjson_val *ui_fonts;
     yyjson_val *graphics_layers;
     yyjson_val *ui_definitions;
-    yyjson_val *input_action_maps;
+    yyjson_val *input_controllers;
     uint32_t version;
     EditorResult result = editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
         "Project editor state does not match the current schema: %s",
@@ -1875,7 +1900,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     ui_fonts = yyjson_obj_get(root, "ui_fonts");
     graphics_layers = yyjson_obj_get(root, "graphics_layers");
     ui_definitions = yyjson_obj_get(root, "ui_definitions");
-    input_action_maps = yyjson_obj_get(root, "input_action_maps");
+    input_controllers = yyjson_obj_get(root, "input_controllers");
     editor_project_destroy(&loaded);
     editor_project_init(&loaded);
     if(!yyjson_is_obj(root)) goto done;
@@ -1949,6 +1974,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !editor_json_uint(navigation, "soft_body", &loaded.navigation.soft_body) ||
                 !editor_json_uint(navigation, "soft_node", &loaded.navigation.soft_node) ||
                 !editor_json_uint(navigation, "soft_beam", &loaded.navigation.soft_beam) ||
+                !editor_json_uint(navigation, "input_controller",
+                    &loaded.navigation.input_controller) ||
                 !editor_json_uint(navigation, "origin_kind", &loaded.navigation.origin_kind) ||
                 loaded.navigation.mode > EDITOR_NAVIGATION_MODE_MAX ||
                 loaded.navigation.selection > EDITOR_NAVIGATION_SELECTION_MAX ||
@@ -1958,6 +1985,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             yyjson_val *animated = yyjson_obj_get(navigation, "animated_sprite");
             yyjson_val *frame = yyjson_obj_get(navigation, "animation_frame");
             yyjson_val *camera = yyjson_obj_get(navigation, "camera");
+            yyjson_val *input_action = yyjson_obj_get(navigation, "input_action");
             if((sprite != NULL && (!yyjson_is_uint(sprite) ||
                         yyjson_get_uint(sprite) > UINT32_MAX)) ||
                     (animated != NULL && (!yyjson_is_uint(animated) ||
@@ -1965,7 +1993,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     (frame != NULL && (!yyjson_is_uint(frame) ||
                         yyjson_get_uint(frame) > UINT32_MAX)) ||
                     (camera != NULL && (!yyjson_is_uint(camera) ||
-                        yyjson_get_uint(camera) > UINT32_MAX))) goto done;
+                        yyjson_get_uint(camera) > UINT32_MAX)) ||
+                    (input_action != NULL && (!yyjson_is_uint(input_action) ||
+                        yyjson_get_uint(input_action) > UINT32_MAX))) goto done;
             if(sprite != NULL)
                 loaded.navigation.sprite = (uint32_t)yyjson_get_uint(sprite);
             if(animated != NULL)
@@ -1976,6 +2006,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     (uint32_t)yyjson_get_uint(frame);
             if(camera != NULL)
                 loaded.navigation.camera = (uint32_t)yyjson_get_uint(camera);
+            if(input_action != NULL)
+                loaded.navigation.input_action =
+                    (uint32_t)yyjson_get_uint(input_action);
         }
     }
     if(!editor_json_uint(root, "selected", &loaded.selected) || !yyjson_is_arr(objects) ||
@@ -2010,8 +2043,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             "next_graphics_layer_id");
         yyjson_val *next_ui_definition = yyjson_obj_get(root,
             "next_ui_definition_id");
-        yyjson_val *next_input_map = yyjson_obj_get(root,
-            "next_input_action_map_id");
+        yyjson_val *next_input_controller = yyjson_obj_get(root,
+            "next_input_controller_id");
         yyjson_val *next_input_action = yyjson_obj_get(root,
             "next_input_action_id");
         if((next_sprite != NULL && !editor_json_uint(root, "next_sprite_id",
@@ -2031,66 +2064,80 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     "next_graphics_layer_id", &loaded.next_graphics_layer_id)) ||
                 (next_ui_definition != NULL && !editor_json_uint(root,
                     "next_ui_definition_id", &loaded.next_ui_definition_id)) ||
-                (next_input_map != NULL && !editor_json_uint(root,
-                    "next_input_action_map_id",
-                    &loaded.next_input_action_map_id)) ||
-                (next_input_action != NULL && !editor_json_uint(root,
+                (next_input_controller == NULL || !editor_json_uint(root,
+                    "next_input_controller_id",
+                    &loaded.next_input_controller_id)) ||
+                (next_input_action == NULL || !editor_json_uint(root,
                     "next_input_action_id", &loaded.next_input_action_id)) ||
                 loaded.next_sprite_id == 0 || loaded.next_animated_sprite_id == 0 ||
                 loaded.next_camera_id == 0 || loaded.next_layout_viewport_id == 0 ||
                 loaded.next_viewport_camera_item_id == 0 ||
                 loaded.next_graphics_layer_id == 0 ||
                 loaded.next_ui_definition_id == 0 ||
-                loaded.next_input_action_map_id == 0 ||
+                loaded.next_input_controller_id == 0 ||
                 loaded.next_input_action_id == 0 ||
                 (layout_viewports != NULL && !yyjson_is_arr(layout_viewports)) ||
                 (hierarchy != NULL && !yyjson_is_arr(hierarchy)) ||
-                (input_action_maps != NULL &&
-                    !yyjson_is_arr(input_action_maps)))
+                !yyjson_is_arr(input_controllers))
             goto done;
     }
-    if(input_action_maps != NULL) {
+    {
         size_t total_actions = 0;
-        if(yyjson_arr_size(input_action_maps) > ROHR_INPUT_ACTION_MAP_LIMIT ||
-                !EDITOR_ARRAY_RESERVE(loaded.input_action_maps,
-                    loaded.input_action_map_capacity,
-                    yyjson_arr_size(input_action_maps))) goto done;
-        for(size_t i = 0; i < yyjson_arr_size(input_action_maps); i += 1) {
-            yyjson_val *map_value = yyjson_arr_get(input_action_maps, i);
+        if(yyjson_arr_size(input_controllers) > ROHR_INPUT_CONTROLLER_LIMIT ||
+                !EDITOR_ARRAY_RESERVE(loaded.input_controllers,
+                    loaded.input_controller_capacity,
+                    yyjson_arr_size(input_controllers))) goto done;
+        for(size_t i = 0; i < yyjson_arr_size(input_controllers); i += 1) {
+            yyjson_val *controller_value = yyjson_arr_get(input_controllers, i);
             yyjson_val *actions;
-            EditorInputActionMap *map = &loaded.input_action_maps[i];
-            *map = (EditorInputActionMap){0};
-            if(!yyjson_is_obj(map_value) ||
-                    !editor_json_uint(map_value, "id", &map->id) || map->id == 0 ||
-                    !editor_json_name(map_value, map->name) ||
-                    !editor_json_bool(map_value, "enabled", &map->enabled))
+            EditorInputController *controller = &loaded.input_controllers[i];
+            *controller = (EditorInputController){0};
+            if(!yyjson_is_obj(controller_value) ||
+                    !editor_json_uint(controller_value, "id", &controller->id) ||
+                    controller->id == 0 ||
+                    !editor_json_name(controller_value, controller->name) ||
+                    !editor_json_bool(controller_value, "enabled",
+                        &controller->enabled))
                 goto done;
-            actions = yyjson_obj_get(map_value, "actions");
-            loaded.input_action_map_count = i + 1;
+            actions = yyjson_obj_get(controller_value, "actions");
+            loaded.input_controller_count = i + 1;
             if(!yyjson_is_arr(actions) ||
                     yyjson_arr_size(actions) > ROHR_INPUT_ACTION_LIMIT -
                         total_actions ||
-                    !EDITOR_ARRAY_RESERVE(map->actions, map->action_capacity,
+                    !EDITOR_ARRAY_RESERVE(controller->actions,
+                        controller->action_capacity,
                         yyjson_arr_size(actions))) goto done;
-            map->action_count = yyjson_arr_size(actions);
-            total_actions += map->action_count;
+            controller->action_count = yyjson_arr_size(actions);
+            total_actions += controller->action_count;
             for(size_t previous = 0; previous < i; previous += 1)
-                if(loaded.input_action_maps[previous].id == map->id ||
-                        strcmp(loaded.input_action_maps[previous].name,
-                            map->name) == 0) goto done;
-            if(loaded.next_input_action_map_id <= map->id)
-                loaded.next_input_action_map_id = map->id + 1;
-            for(size_t j = 0; j < map->action_count; j += 1) {
+                if(loaded.input_controllers[previous].id == controller->id ||
+                        strcmp(loaded.input_controllers[previous].name,
+                            controller->name) == 0) goto done;
+            if(loaded.next_input_controller_id <= controller->id)
+                loaded.next_input_controller_id = controller->id + 1;
+            for(size_t j = 0; j < controller->action_count; j += 1) {
                 yyjson_val *action_value = yyjson_arr_get(actions, j);
                 yyjson_val *bindings;
-                EditorInputAction *action = &map->actions[j];
+                EditorInputAction *action = &controller->actions[j];
                 if(!yyjson_is_obj(action_value) ||
                         !editor_json_uint(action_value, "id", &action->id) ||
                         action->id == 0 ||
                         !editor_json_name(action_value, action->name) ||
                         !editor_json_input_action_type_read(
                             yyjson_obj_get(action_value, "type"),
-                            &action->type)) goto done;
+                            &action->type) ||
+                        !editor_json_input_button_mode_read(
+                            yyjson_obj_get(action_value, "button_mode"),
+                            &action->button_mode) ||
+                        !editor_json_bool(action_value,
+                            "button_initial_state",
+                            &action->button_initial_state)) goto done;
+                if(action->type != INPUT_ACTION_BUTTON &&
+                        (action->button_mode != INPUT_BUTTON_MOMENTARY ||
+                         action->button_initial_state)) goto done;
+                if(action->type == INPUT_ACTION_BUTTON &&
+                        action->button_mode == INPUT_BUTTON_MOMENTARY &&
+                        action->button_initial_state) goto done;
                 bindings = yyjson_obj_get(action_value, "bindings");
                 if(!yyjson_is_arr(bindings) ||
                         yyjson_arr_size(bindings) > ROHR_INPUT_BINDING_LIMIT)
@@ -2101,15 +2148,15 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                             yyjson_arr_get(bindings, k), action->type,
                             &action->bindings[k])) goto done;
                 for(size_t previous = 0; previous < j; previous += 1)
-                    if(map->actions[previous].id == action->id ||
-                            strcmp(map->actions[previous].name,
+                    if(controller->actions[previous].id == action->id ||
+                            strcmp(controller->actions[previous].name,
                                 action->name) == 0) goto done;
-                for(size_t previous_map = 0; previous_map < i; previous_map += 1)
+                for(size_t previous_controller = 0; previous_controller < i; previous_controller += 1)
                     for(size_t previous_action = 0;
-                            previous_action < loaded.input_action_maps[
-                                previous_map].action_count;
+                            previous_action < loaded.input_controllers[
+                                previous_controller].action_count;
                             previous_action += 1)
-                        if(loaded.input_action_maps[previous_map].actions[
+                        if(loaded.input_controllers[previous_controller].actions[
                                 previous_action].id == action->id) goto done;
                 if(loaded.next_input_action_id <= action->id)
                     loaded.next_input_action_id = action->id + 1;
@@ -2558,14 +2605,14 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     if(hierarchy != NULL) {
         loaded.hierarchy_count = yyjson_arr_size(hierarchy);
         if(loaded.hierarchy_count > loaded.object_count +
-                    loaded.layout_viewport_count ||
+                    loaded.layout_viewport_count + loaded.input_controller_count ||
                 !EDITOR_ARRAY_RESERVE(loaded.hierarchy,
                     loaded.hierarchy_capacity, loaded.hierarchy_count)) goto done;
         for(size_t i = 0; i < loaded.hierarchy_count; i += 1) {
             yyjson_val *item = yyjson_arr_get(hierarchy, i);
             uint32_t kind;
             if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                    kind > EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
+                    kind > EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER ||
                     !editor_json_uint(item, "id", &loaded.hierarchy[i].id) ||
                     loaded.hierarchy[i].id == 0) goto done;
             loaded.hierarchy[i].kind = (EditorProjectHierarchyItemKind)kind;
@@ -2576,7 +2623,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         editor_project_hierarchy_sync(&loaded);
         if(hierarchy != NULL && (loaded.hierarchy_count != serialized_count ||
                 loaded.hierarchy_count != loaded.object_count +
-                    loaded.layout_viewport_count)) goto done;
+                    loaded.layout_viewport_count +
+                    loaded.input_controller_count)) goto done;
     }
     if(!editor_project_ui_definitions_refresh(&loaded)) goto done;
     if(!editor_json_references_valid(&loaded)) {

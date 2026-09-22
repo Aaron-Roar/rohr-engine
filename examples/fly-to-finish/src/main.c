@@ -211,7 +211,7 @@ static EngineResult reset_level(
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, reset_action;
     InputActionId thrust_action, brake_action, turn_action;
     ObstacleRecord obstacle_records[MAX_OBSTACLE_RECORDS] = {0};
@@ -258,18 +258,18 @@ int main(void) {
         InputBinding turn_bindings[] = {
             example_input_key_binding(SDL_SCANCODE_A, -1.0f, (Vec2D){0}),
             example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0})};
-        if(!example_input_map_create("flight", &input_map) ||
-                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+        if(!example_input_controller_create("flight", &input_controller) ||
+                !example_input_action_create(input_controller, "exit", INPUT_ACTION_BUTTON,
                     &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
-                !example_input_action_create(input_map, "reset", INPUT_ACTION_BUTTON,
+                !example_input_action_create(input_controller, "reset", INPUT_ACTION_BUTTON,
                     &reset_binding, 1, &reset_action) ||
-                !example_input_action_create(input_map, "thrust", INPUT_ACTION_BUTTON,
+                !example_input_action_create(input_controller, "thrust", INPUT_ACTION_BUTTON,
                     &thrust_binding, 1, &thrust_action) ||
-                !example_input_action_create(input_map, "brake", INPUT_ACTION_BUTTON,
+                !example_input_action_create(input_controller, "brake", INPUT_ACTION_BUTTON,
                     &brake_binding, 1, &brake_action) ||
-                !example_input_action_create(input_map, "turn", INPUT_ACTION_AXIS_1D,
+                !example_input_action_create(input_controller, "turn", INPUT_ACTION_AXIS_1D,
                     turn_bindings, 2, &turn_action)) goto fail;
     }
     {
@@ -468,16 +468,16 @@ int main(void) {
     }
 
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

@@ -44,7 +44,7 @@ int main(void) {
             return 1;
         }
     }
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, move_action, camera_move_action;
     InputActionId camera_turn_action, drag_action, rotate_action;
     ViewportId viewport = VIEWPORT_INVALID;
@@ -71,22 +71,22 @@ int main(void) {
             example_input_mouse_button_binding(INPUT_MOUSE_BUTTON_LEFT);
         InputBinding rotate_binding =
             example_input_mouse_button_binding(INPUT_MOUSE_BUTTON_RIGHT);
-        if(!example_input_map_create("viewport", &input_map) ||
-                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+        if(!example_input_controller_create("viewport", &input_controller) ||
+                !example_input_action_create(input_controller, "exit", INPUT_ACTION_BUTTON,
                     &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
-                !example_input_action_create(input_map, "move", INPUT_ACTION_AXIS_2D,
+                !example_input_action_create(input_controller, "move", INPUT_ACTION_AXIS_2D,
                     move_bindings, 4, &move_action) ||
-                !example_input_action_create(input_map, "camera_move",
+                !example_input_action_create(input_controller, "camera_move",
                     INPUT_ACTION_AXIS_2D, camera_move_bindings, 4,
                     &camera_move_action) ||
-                !example_input_action_create(input_map, "camera_turn",
+                !example_input_action_create(input_controller, "camera_turn",
                     INPUT_ACTION_AXIS_1D, camera_turn_bindings, 2,
                     &camera_turn_action) ||
-                !example_input_action_create(input_map, "drag", INPUT_ACTION_BUTTON,
+                !example_input_action_create(input_controller, "drag", INPUT_ACTION_BUTTON,
                     &drag_binding, 1, &drag_action) ||
-                !example_input_action_create(input_map, "rotate",
+                !example_input_action_create(input_controller, "rotate",
                     INPUT_ACTION_BUTTON, &rotate_binding, 1, &rotate_action))
             goto fail;
     }
@@ -199,16 +199,16 @@ int main(void) {
 
     }
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

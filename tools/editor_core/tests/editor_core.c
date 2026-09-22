@@ -21,22 +21,56 @@ static int input_cli_commands_test(void) {
     EditorResult result;
     const char *path;
     char serialized[1024];
-    char *map_add[] = {"rohr-cli", "--project", "input.json",
-        "--input-map", "gameplay", "add", "true"};
+    char *controller_add[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "add", "true"};
+    char *button_add[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "console", "add",
+        "button", "persistent", "true"};
+    char *button_missing_mode[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "missing", "add", "button"};
+    char *button_invalid_mode[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "invalid", "add",
+        "button", "latching", "false"};
+    char *button_invalid_initial[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "invalid_initial", "add",
+        "button", "momentary", "true"};
     char *action_add[] = {"rohr-cli", "--project", "input.json",
-        "--input-map", "gameplay", "--input-action", "move", "add",
+        "--controller", "gameplay", "--action", "move", "add",
         "axis-2d"};
     char *binding_add[] = {"rohr-cli", "--project", "input.json",
-        "--input-map", "gameplay", "--input-action", "move", "binding-add",
+        "--controller", "gameplay", "--action", "move", "binding-add",
         "key", "W", "3", "0.5", "true", "0", "-1"};
     editor_project_init(&project);
-    result = editor_command_cli_standard_parse(&project, 7, map_add, &path,
+    result = editor_command_cli_standard_parse(&project, 7, controller_add, &path,
         &command);
     if(editor_result_check(result) || strcmp(path, "input.json") != 0 ||
-            command.type != EDITOR_COMMAND_INPUT_MAP_ADD) goto fail;
+            command.type != EDITOR_COMMAND_INPUT_CONTROLLER_ADD) goto fail;
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE ||
-            project.input_action_map_count != 1) goto fail;
+            project.input_controller_count != 1) goto fail;
+    result = editor_command_cli_standard_parse(&project, 11, button_add, &path,
+        &command);
+    if(editor_result_check(result) ||
+            command.type != EDITOR_COMMAND_INPUT_ACTION_ADD ||
+            command.data.input_action.type != INPUT_ACTION_BUTTON ||
+            command.data.input_action.button_mode != INPUT_BUTTON_PERSISTENT ||
+            !command.data.input_action.button_initial_state) goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            project.input_controllers[0].action_count != 1 ||
+            project.input_controllers[0].actions[0].button_mode !=
+                INPUT_BUTTON_PERSISTENT ||
+            !project.input_controllers[0].actions[0].button_initial_state)
+        goto fail;
+    result = editor_command_cli_standard_parse(&project, 9,
+        button_missing_mode, &path, &command);
+    if(!editor_result_check(result)) goto fail;
+    result = editor_command_cli_standard_parse(&project, 11,
+        button_invalid_mode, &path, &command);
+    if(!editor_result_check(result)) goto fail;
+    result = editor_command_cli_standard_parse(&project, 11,
+        button_invalid_initial, &path, &command);
+    if(!editor_result_check(result)) goto fail;
     result = editor_command_cli_standard_parse(&project, 9, action_add, &path,
         &command);
     if(editor_result_check(result) ||
@@ -44,7 +78,7 @@ static int input_cli_commands_test(void) {
             command.data.input_action.type != INPUT_ACTION_AXIS_2D) goto fail;
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE ||
-            project.input_action_maps[0].action_count != 1) goto fail;
+            project.input_controllers[0].action_count != 2) goto fail;
     result = editor_command_cli_standard_parse(&project, 15, binding_add, &path,
         &command);
     if(editor_result_check(result) ||
@@ -55,7 +89,7 @@ static int input_cli_commands_test(void) {
             !command.data.input_binding.binding.inverted) goto fail;
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE ||
-            project.input_action_maps[0].actions[0].binding_count != 1)
+            project.input_controllers[0].actions[1].binding_count != 1)
         goto fail;
     result = editor_command_cli_standard_write(&project, &command, &executed,
         "input.json", serialized, sizeof(serialized));

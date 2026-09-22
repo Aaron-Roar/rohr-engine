@@ -63,17 +63,22 @@ struct EditorHistoryUiChange {
 };
 
 struct EditorHistoryInputChange {
-    EditorInputActionMap *maps;
-    size_t map_count;
-    EditorInputActionMapId next_map_id;
+    EditorInputController *controllers;
+    size_t controller_count;
+    EditorInputControllerId next_controller_id;
     EditorInputActionId next_action_id;
+    EditorProjectHierarchyItem *hierarchy;
+    size_t hierarchy_count;
+    bool input_tracked;
+    bool hierarchy_tracked;
 };
 
 static void editor_history_input_destroy(EditorHistoryInputChange *change) {
     if(change == NULL) return;
-    for(size_t i = 0; i < change->map_count; i += 1)
-        free(change->maps[i].actions);
-    free(change->maps);
+    for(size_t i = 0; i < change->controller_count; i += 1)
+        free(change->controllers[i].actions);
+    free(change->controllers);
+    free(change->hierarchy);
     free(change);
 }
 
@@ -83,16 +88,17 @@ static EditorHistoryInputChange *editor_history_input_capture(
     if(project == NULL) return NULL;
     change = calloc(1, sizeof(*change));
     if(change == NULL) return NULL;
-    change->map_count = project->input_action_map_count;
-    change->next_map_id = project->next_input_action_map_id;
+    change->controller_count = project->input_controller_count;
+    change->next_controller_id = project->next_input_controller_id;
     change->next_action_id = project->next_input_action_id;
-    if(change->map_count > 0) {
-        change->maps = calloc(change->map_count, sizeof(*change->maps));
-        if(change->maps == NULL) goto fail;
+    change->hierarchy_count = project->hierarchy_count;
+    if(change->controller_count > 0) {
+        change->controllers = calloc(change->controller_count, sizeof(*change->controllers));
+        if(change->controllers == NULL) goto fail;
     }
-    for(size_t i = 0; i < change->map_count; i += 1) {
-        const EditorInputActionMap *source = &project->input_action_maps[i];
-        EditorInputActionMap *destination = &change->maps[i];
+    for(size_t i = 0; i < change->controller_count; i += 1) {
+        const EditorInputController *source = &project->input_controllers[i];
+        EditorInputController *destination = &change->controllers[i];
         *destination = *source;
         destination->actions = NULL;
         destination->action_capacity = source->action_count;
@@ -103,6 +109,13 @@ static EditorHistoryInputChange *editor_history_input_capture(
             memcpy(destination->actions, source->actions,
                 source->action_count * sizeof(*destination->actions));
         }
+    }
+    if(change->hierarchy_count > 0) {
+        change->hierarchy = malloc(change->hierarchy_count *
+            sizeof(*change->hierarchy));
+        if(change->hierarchy == NULL) goto fail;
+        memcpy(change->hierarchy, project->hierarchy,
+            change->hierarchy_count * sizeof(*change->hierarchy));
     }
     return change;
 fail:
@@ -761,36 +774,52 @@ ui_fail:
     }
     if(action->kind == EDITOR_HISTORY_ACTION_INPUT) {
         const EditorHistoryInputChange *change = action->data.input;
-        EditorInputActionMap *maps = NULL;
+        EditorInputController *controllers = NULL;
+        EditorProjectHierarchyItem *hierarchy = NULL;
         if(change == NULL) return;
-        if(change->map_count > 0) {
-            maps = calloc(change->map_count, sizeof(*maps));
-            if(maps == NULL) return;
+        if(change->controller_count > 0) {
+            controllers = calloc(change->controller_count, sizeof(*controllers));
+            if(controllers == NULL) return;
         }
-        for(size_t i = 0; i < change->map_count; i += 1) {
-            maps[i] = change->maps[i];
-            maps[i].actions = NULL;
-            maps[i].action_capacity = change->maps[i].action_count;
-            if(change->maps[i].action_count > 0) {
-                maps[i].actions = malloc(change->maps[i].action_count *
-                    sizeof(*maps[i].actions));
-                if(maps[i].actions == NULL) {
-                    for(size_t j = 0; j < i; j += 1) free(maps[j].actions);
-                    free(maps);
+        for(size_t i = 0; i < change->controller_count; i += 1) {
+            controllers[i] = change->controllers[i];
+            controllers[i].actions = NULL;
+            controllers[i].action_capacity = change->controllers[i].action_count;
+            if(change->controllers[i].action_count > 0) {
+                controllers[i].actions = malloc(change->controllers[i].action_count *
+                    sizeof(*controllers[i].actions));
+                if(controllers[i].actions == NULL) {
+                    for(size_t j = 0; j < i; j += 1) free(controllers[j].actions);
+                    free(controllers);
                     return;
                 }
-                memcpy(maps[i].actions, change->maps[i].actions,
-                    change->maps[i].action_count * sizeof(*maps[i].actions));
+                memcpy(controllers[i].actions, change->controllers[i].actions,
+                    change->controllers[i].action_count * sizeof(*controllers[i].actions));
             }
         }
-        for(size_t i = 0; i < project->input_action_map_count; i += 1)
-            free(project->input_action_maps[i].actions);
-        free(project->input_action_maps);
-        project->input_action_maps = maps;
-        project->input_action_map_count = change->map_count;
-        project->input_action_map_capacity = change->map_count;
-        project->next_input_action_map_id = change->next_map_id;
+        if(change->hierarchy_count > 0) {
+            hierarchy = malloc(change->hierarchy_count * sizeof(*hierarchy));
+            if(hierarchy == NULL) {
+                for(size_t i = 0; i < change->controller_count; i += 1)
+                    free(controllers[i].actions);
+                free(controllers);
+                return;
+            }
+            memcpy(hierarchy, change->hierarchy,
+                change->hierarchy_count * sizeof(*hierarchy));
+        }
+        for(size_t i = 0; i < project->input_controller_count; i += 1)
+            free(project->input_controllers[i].actions);
+        free(project->input_controllers);
+        free(project->hierarchy);
+        project->input_controllers = controllers;
+        project->input_controller_count = change->controller_count;
+        project->input_controller_capacity = change->controller_count;
+        project->next_input_controller_id = change->next_controller_id;
         project->next_input_action_id = change->next_action_id;
+        project->hierarchy = hierarchy;
+        project->hierarchy_count = change->hierarchy_count;
+        project->hierarchy_capacity = change->hierarchy_count;
         return;
     }
     if(action->kind == EDITOR_HISTORY_ACTION_AGGREGATE) {
@@ -942,10 +971,30 @@ static bool editor_history_command_entry_append(EditorHistoryEntry *entry,
 static size_t editor_history_input_memory_get(
         const EditorHistoryInputChange *change) {
     size_t size = change == NULL ? 0 : sizeof(*change) +
-        change->map_count * sizeof(*change->maps);
-    if(change != NULL) for(size_t i = 0; i < change->map_count; i += 1)
-        size += change->maps[i].action_count * sizeof(*change->maps[i].actions);
+        change->controller_count * sizeof(*change->controllers) +
+        change->hierarchy_count * sizeof(*change->hierarchy);
+    if(change != NULL) for(size_t i = 0; i < change->controller_count; i += 1)
+        size += change->controllers[i].action_count * sizeof(*change->controllers[i].actions);
     return size;
+}
+
+static bool editor_history_input_content_equal(
+        const EditorHistoryInputChange *first,
+        const EditorHistoryInputChange *second) {
+    if(first == NULL || second == NULL ||
+            first->controller_count != second->controller_count ||
+            first->next_controller_id != second->next_controller_id ||
+            first->next_action_id != second->next_action_id) return false;
+    for(size_t i = 0; i < first->controller_count; i += 1) {
+        const EditorInputController *a = &first->controllers[i];
+        const EditorInputController *b = &second->controllers[i];
+        if(a->id != b->id || a->enabled != b->enabled ||
+                strcmp(a->name, b->name) != 0 ||
+                a->action_count != b->action_count ||
+                (a->action_count > 0 && memcmp(a->actions, b->actions,
+                    a->action_count * sizeof(*a->actions)) != 0)) return false;
+    }
+    return true;
 }
 
 static bool editor_history_input_entry_append(EditorHistoryEntry *entry,
@@ -1382,7 +1431,7 @@ void editor_history_command_begin(EditorHistory *history,
     if(history->transaction_active &&
             history->transaction_commands_suppressed) return;
     if(project == NULL || !editor_history_command_record_check(command)) return;
-    if(command->type >= EDITOR_COMMAND_INPUT_MAP_ADD &&
+    if(command->type >= EDITOR_COMMAND_INPUT_CONTROLLER_ADD &&
             command->type <= EDITOR_COMMAND_INPUT_BINDING_SET) {
         history->pending_input = editor_history_input_capture(project);
         return;
@@ -1831,6 +1880,57 @@ fail:
     return false;
 }
 
+bool editor_history_transaction_project_hierarchy_track(EditorHistory *history) {
+    EditorHistoryInputChange *forward;
+    EditorHistoryInputChange *inverse;
+    if(history == NULL || !history->transaction_active ||
+            history->transaction_commands == NULL) return false;
+    forward = editor_history_input_capture(history->project);
+    inverse = editor_history_input_capture(history->project);
+    if(forward == NULL || inverse == NULL) {
+        editor_history_input_destroy(forward);
+        editor_history_input_destroy(inverse);
+        return false;
+    }
+    forward->hierarchy_tracked = true;
+    if(!editor_history_input_entry_append(history->transaction_commands,
+            forward, inverse)) {
+        editor_history_input_destroy(forward);
+        editor_history_input_destroy(inverse);
+        return false;
+    }
+    return true;
+}
+
+bool editor_history_transaction_input_track(EditorHistory *history) {
+    EditorHistoryInputChange *forward;
+    EditorHistoryInputChange *inverse;
+    if(history == NULL || !history->transaction_active ||
+            history->transaction_commands == NULL) return false;
+    for(size_t i = 0; i < history->transaction_commands->command_count; i += 1) {
+        EditorHistoryAction *action =
+            &history->transaction_commands->commands[i].forward;
+        if(action->kind == EDITOR_HISTORY_ACTION_INPUT &&
+                action->data.input != NULL && action->data.input->input_tracked)
+            return true;
+    }
+    forward = editor_history_input_capture(history->project);
+    inverse = editor_history_input_capture(history->project);
+    if(forward == NULL || inverse == NULL) {
+        editor_history_input_destroy(forward);
+        editor_history_input_destroy(inverse);
+        return false;
+    }
+    forward->input_tracked = true;
+    if(!editor_history_input_entry_append(history->transaction_commands,
+            forward, inverse)) {
+        editor_history_input_destroy(forward);
+        editor_history_input_destroy(inverse);
+        return false;
+    }
+    return true;
+}
+
 void editor_history_transaction_commands_suppress_set(EditorHistory *history,
         bool suppressed) {
     if(history == NULL || !history->transaction_active) return;
@@ -1869,6 +1969,29 @@ static bool editor_history_transaction_tracks_finalize(EditorHistory *history) {
                 free(pair.inverse.data.order->ids);
                 free(pair.forward.data.order);
                 free(pair.inverse.data.order);
+                continue;
+            }
+        } else if(pair.forward.kind == EDITOR_HISTORY_ACTION_INPUT &&
+                pair.forward.data.input != NULL &&
+                (pair.forward.data.input->input_tracked ||
+                    pair.forward.data.input->hierarchy_tracked)) {
+            bool input_tracked = pair.forward.data.input->input_tracked;
+            EditorHistoryInputChange *updated =
+                editor_history_input_capture(history->project);
+            if(updated == NULL) return false;
+            editor_history_input_destroy(pair.forward.data.input);
+            pair.forward.data.input = updated;
+            if((input_tracked && editor_history_input_content_equal(updated,
+                        pair.inverse.data.input)) ||
+                    (!input_tracked &&
+                    updated->hierarchy_count == pair.inverse.data.input->hierarchy_count &&
+                    (updated->hierarchy_count == 0 ||
+                        memcmp(updated->hierarchy,
+                            pair.inverse.data.input->hierarchy,
+                            updated->hierarchy_count *
+                                sizeof(updated->hierarchy[0])) == 0))) {
+                editor_history_input_destroy(pair.forward.data.input);
+                editor_history_input_destroy(pair.inverse.data.input);
                 continue;
             }
         }

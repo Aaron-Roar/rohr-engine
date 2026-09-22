@@ -9,13 +9,16 @@
 
 typedef struct EditorHierarchyEditor {
     FontAsset *font;
-    TextAsset add_object_label, add_viewport_label, visible_label, hidden_label;
+    TextAsset add_object_label, add_viewport_label, add_controller_label;
+    TextAsset visible_label, hidden_label;
     TextAsset name_label, x_label, y_label, name_field, x_field, y_field;
-    TextAsset delete_object_label, delete_viewport_label;
+    TextAsset delete_object_label, delete_viewport_label, delete_controller_label;
     TextAsset object_names[EDITOR_OBJECT_MAX];
     char object_cache[EDITOR_OBJECT_MAX][EDITOR_OBJECT_NAME_MAX];
     TextAsset viewport_names[EDITOR_LAYOUT_VIEWPORT_MAX];
     char viewport_cache[EDITOR_LAYOUT_VIEWPORT_MAX][EDITOR_OBJECT_NAME_MAX];
+    TextAsset controller_names[ROHR_INPUT_CONTROLLER_LIMIT];
+    char controller_cache[ROHR_INPUT_CONTROLLER_LIMIT][ROHR_INPUT_NAME_MAX];
 } EditorHierarchyEditor;
 
 bool editor_hierarchy_editor_create(EditorHierarchyEditor *editor,

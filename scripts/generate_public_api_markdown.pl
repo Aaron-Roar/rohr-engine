@@ -99,7 +99,7 @@ sub group_name {
     return 'Graphics' if $name =~ /^rohr_graphics_/;
     return 'Math' if $name =~ /^rohr_math_/;
     return 'Systems' if $name =~ /^rohr_system_/;
-    return 'Controller Input' if $name =~ /^rohr_controller_/;
+    return 'Input' if $name =~ /^rohr_input_/;
     return 'Spatial Grid' if $name =~ /^rohr_grid_/;
     return 'Tools' if $name =~ /^rohr_tools_/;
     return 'Other';
@@ -122,7 +122,7 @@ my @engine_order = (
     'Graphics',
     'Math',
     'Systems',
-    'Controller Input',
+    'Input',
     'Spatial Grid',
     'Tools',
     'Other',

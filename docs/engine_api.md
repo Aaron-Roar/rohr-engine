@@ -21,7 +21,7 @@ Entity values are stable ids, not component table indexes. Use the public entity
 - <a href="#graphics">Graphics</a>
 - <a href="#math">Math</a>
 - <a href="#systems">Systems</a>
-- <a href="#controller-input">Controller Input</a>
+- <a href="#input">Input</a>
 - <a href="#tools">Tools</a>
 - <a href="#other">Other</a>
 
@@ -3527,402 +3527,7 @@ void rohr_system_entities_past_lifetime_clean(void);
 
 Deletes entities whose lifetime has expired.
 
-## Controller Input
-
-### `rohr_controller_key_states_update`
-
-```c
-void rohr_controller_key_states_update(KeyboardState *keyboard);
-```
-
-Updates keyboard key states for the frame.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to update. |
-
-### `rohr_controller_key_event_add`
-
-```c
-void rohr_controller_key_event_add(KeyboardState *keyboard, KeyboardEvent key_event);
-```
-
-Adds a keyboard event to a keyboard state table.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to modify. |
-| `key_event` | Keyboard event to add. |
-
-### `rohr_controller_keyboard_event_capture`
-
-```c
-KeyboardEvent rohr_controller_keyboard_event_capture(const SDL_Event *sdl_event);
-```
-
-Converts an SDL event into a Rohr keyboard event.
-
-| Parameter | Description |
-| --- | --- |
-| `sdl_event` | SDL event to inspect. |
-
-**Returns:** KeyboardEvent derived from sdl_event.
-
-### `rohr_controller_key_down_get`
-
-```c
-bool rohr_controller_key_down_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-```
-
-Checks whether an SDL keycode is currently held or was pressed this frame.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-| `keycode` | SDL keycode to check. |
-
-**Returns:** true when the key is down or pressed.
-
-### `rohr_controller_key_pressed_get`
-
-```c
-bool rohr_controller_key_pressed_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-```
-
-Checks whether an SDL keycode was pressed this frame.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-| `keycode` | SDL keycode to check. |
-
-**Returns:** true when the key was pressed this frame.
-
-### `rohr_controller_key_released_get`
-
-```c
-bool rohr_controller_key_released_get(const KeyboardState *keyboard, SDL_Keycode keycode);
-```
-
-Checks whether an SDL keycode was released this frame.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-| `keycode` | SDL keycode to check. |
-
-**Returns:** true when the key was released this frame.
-
-### `rohr_controller_axis_from_keycodes_get`
-
-```c
-Vec2D rohr_controller_axis_from_keycodes_get( const KeyboardState *keyboard, SDL_Keycode up, SDL_Keycode left, SDL_Keycode down, SDL_Keycode right );
-```
-
-Returns normalized movement input from supplied up/left/down/right SDL keycodes.
-
-Opposing directions cancel before normalization. For example, left+right
-
-produces zero X, and up+down produces zero Y.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-| `up` | SDL keycode for positive Y. |
-| `left` | SDL keycode for negative X. |
-| `down` | SDL keycode for negative Y. |
-| `right` | SDL keycode for positive X. |
-
-**Returns:** Direction vector from the supplied directional keys.
-
-### `rohr_controller_wasd_axis_get`
-
-```c
-Vec2D rohr_controller_wasd_axis_get(const KeyboardState *keyboard);
-```
-
-Returns normalized movement input from W/A/S/D.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-
-**Returns:** Direction vector where W is positive Y and D is positive X.
-
-### `rohr_controller_arrow_axis_get`
-
-```c
-Vec2D rohr_controller_arrow_axis_get(const KeyboardState *keyboard);
-```
-
-Returns normalized movement input from arrow keys.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Keyboard state table to inspect. |
-
-**Returns:** Direction vector where up is positive Y and right is positive X.
-
-### `rohr_controller_default_get`
-
-```c
-Controller rohr_controller_default_get(void);
-```
-
-Returns an enabled, empty, game-owned controller.
-
-**Returns:** Controller ready for named axes and buttons.
-
-### `rohr_controller_wasd_default_get`
-
-```c
-Controller rohr_controller_wasd_default_get(void);
-```
-
-Returns a game-owned controller with W/A/S/D axis bindings.
-
-**Returns:** Default enabled W/A/S/D controller.
-
-### `rohr_controller_arrows_default_get`
-
-```c
-Controller rohr_controller_arrows_default_get(void);
-```
-
-Returns a game-owned controller with arrow-key axis bindings.
-
-**Returns:** Default enabled arrow-key controller.
-
-### `rohr_controller_axis_binding_set`
-
-```c
-void rohr_controller_axis_binding_set( Controller *controller, ControllerAxisBinding binding );
-```
-
-Replaces the axis mapping on a caller-owned controller.
-
-| Parameter | Description |
-| --- | --- |
-| `controller` | Controller to modify. NULL is ignored. |
-| `binding` | New positive/negative X/Y key mapping. |
-
-### `rohr_controller_default_axis_get`
-
-```c
-Vec2D rohr_controller_default_axis_get( const KeyboardState *keyboard, const Controller *controller );
-```
-
-Reads a game-owned controller from shared keyboard state.
-
-| Parameter | Description |
-| --- | --- |
-| `keyboard` | Shared keyboard state captured for the frame. |
-| `controller` | Game-owned mapping to read. |
-
-**Returns:** Normalized axis, or zero for NULL or disabled controllers.
-
-### `rohr_controller_axis_add`
-
-```c
-bool rohr_controller_axis_add( Controller *controller, const char *name, ControllerAxisBinding binding );
-```
-
- @brief Adds or replaces a named axis without allocating memory.
-
-### `rohr_controller_button_add`
-
-```c
-bool rohr_controller_button_add( Controller *controller, const char *name, SDL_Keycode keycode );
-```
-
- @brief Adds or replaces a named button without allocating memory.
-
-### `rohr_controller_axis_get`
-
-```c
-Vec2D rohr_controller_axis_get( const KeyboardState *keyboard, const Controller *controller, const char *name );
-```
-
- @brief Reads a named axis, returning zero when unavailable or disabled.
-
-### `rohr_controller_button_down_get`
-
-```c
-bool rohr_controller_button_down_get( const KeyboardState *keyboard, const Controller *controller, const char *name );
-```
-
- @brief Checks whether a named button is held or newly pressed.
-
-### `rohr_controller_button_pressed_get`
-
-```c
-bool rohr_controller_button_pressed_get( const KeyboardState *keyboard, const Controller *controller, const char *name );
-```
-
- @brief Checks whether a named button was pressed this frame.
-
-### `rohr_controller_button_released_get`
-
-```c
-bool rohr_controller_button_released_get( const KeyboardState *keyboard, const Controller *controller, const char *name );
-```
-
- @brief Checks whether a named button was released this frame.
-
-### `rohr_controller_mouse_event_print`
-
-```c
-void rohr_controller_mouse_event_print(MouseEvent event);
-```
-
-Prints a mouse event for debugging.
-
-| Parameter | Description |
-| --- | --- |
-| `event` | Mouse event to print. |
-
-### `rohr_controller_mouse_states_update`
-
-```c
-void rohr_controller_mouse_states_update(MouseState *mouse);
-```
-
-Updates mouse button states for the frame.
-
-| Parameter | Description |
-| --- | --- |
-| `mouse` | Mouse state table to update. |
-
-### `rohr_controller_mouse_event_add`
-
-```c
-void rohr_controller_mouse_event_add(MouseState *mouse, MouseEvent mouse_event);
-```
-
-Adds a mouse event to a mouse state table.
-
-| Parameter | Description |
-| --- | --- |
-| `mouse` | Mouse state table to modify. |
-| `mouse_event` | Mouse event to add. |
-
-### `rohr_controller_mouse_event_capture`
-
-```c
-MouseEvent rohr_controller_mouse_event_capture(const SDL_Event *sdl_event);
-```
-
-Converts an SDL event into a Rohr mouse event.
-
-| Parameter | Description |
-| --- | --- |
-| `sdl_event` | SDL event to inspect. |
-
-**Returns:** MouseEvent derived from sdl_event.
-
-### `rohr_controller_mouse_world_position_get`
-
-```c
-Position rohr_controller_mouse_world_position_get(const MouseState *mouse);
-```
-
-Converts the current logical screen-space mouse position to world space.
-
-| Parameter | Description |
-| --- | --- |
-| `mouse` | Mouse state to convert. |
-
-**Returns:** World position under the mouse, or zero when mouse is NULL.
-
-## Tools
-
-### `rohr_tools_delay`
-
-```c
-void rohr_tools_delay(int seconds);
-```
-
-Delays execution for a number of seconds.
-
-| Parameter | Description |
-| --- | --- |
-| `seconds` | Number of seconds to delay. |
-
-### `rohr_tools_binary_to_string`
-
-```c
-void rohr_tools_binary_to_string(uint32_t value, char *buffer, size_t size);
-```
-
-Writes a binary string representation of a value.
-
-| Parameter | Description |
-| --- | --- |
-| `value` | Value to convert. |
-| `buffer` | Destination buffer. |
-| `size` | Size of buffer in bytes. |
-
-### `rohr_tools_append_string`
-
-```c
-void rohr_tools_append_string(char *src, char *dst, size_t src_size, size_t dst_size);
-```
-
-Appends one string to another using explicit buffer sizes.
-
-| Parameter | Description |
-| --- | --- |
-| `src` | Source string. |
-| `dst` | Destination string. |
-| `src_size` | Source buffer size. |
-| `dst_size` | Destination buffer size. |
-
-### `rohr_tools_sizeof_string`
-
-```c
-uint32_t rohr_tools_sizeof_string(char *str, char delimiter);
-```
-
-Counts characters in a string until a delimiter.
-
-| Parameter | Description |
-| --- | --- |
-| `str` | String to inspect. |
-| `delimiter` | Delimiter that stops counting. |
-
-**Returns:** Number of characters before delimiter.
-
-### `rohr_tools_random_range`
-
-```c
-int rohr_tools_random_range(int min, int max);
-```
-
-Returns a random integer in a range.
-
-| Parameter | Description |
-| --- | --- |
-| `min` | Minimum value. |
-| `max` | Maximum value. |
-
-**Returns:** Random integer between min and max.
-
-### `rohr_tools_random_range_float`
-
-```c
-float rohr_tools_random_range_float(float min, float max);
-```
-
-Returns a random float in a range.
-
-| Parameter | Description |
-| --- | --- |
-| `min` | Minimum value. |
-| `max` | Maximum value. |
-
-**Returns:** Random float between min and max.
-
-## Other
+## Input
 
 ### `rohr_input_frame_begin`
 
@@ -4068,53 +3673,53 @@ bool rohr_input_binding_valid_check(InputActionType type, const InputBinding *bi
 
  Return whether a tagged physical binding is valid for an action type.
 
-### `rohr_input_action_map_create`
+### `rohr_input_controller_create`
 
 ```c
-InputActionMapIdResult rohr_input_action_map_create(const char *name);
+InputControllerIdResult rohr_input_controller_create(const char *name);
 ```
 
- Create an enabled, engine-owned action map with a unique name.
+ Create an enabled, engine-owned logical controller with a unique name.
 
-### `rohr_input_action_map_destroy`
+### `rohr_input_controller_destroy`
 
 ```c
-EngineResult rohr_input_action_map_destroy(InputActionMapId map);
+EngineResult rohr_input_controller_destroy(InputControllerId controller);
 ```
 
- Destroy an action map and all actions owned by it.
+ Destroy a logical controller and all actions owned by it.
 
-### `rohr_input_action_map_by_name_get`
+### `rohr_input_controller_by_name_get`
 
 ```c
-InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name);
+InputControllerIdResult rohr_input_controller_by_name_get(const char *name);
 ```
 
- Find an action map by its unique name.
+ Find a logical controller by its unique name.
 
-### `rohr_input_action_map_enabled_set`
+### `rohr_input_controller_enabled_set`
 
 ```c
-EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled);
+EngineResult rohr_input_controller_enabled_set(InputControllerId controller, bool enabled);
 ```
 
- Enable or disable all actions in a map without changing their bindings.
+ Enable or disable a controller without changing its action state.
 
-### `rohr_input_action_map_enabled_check`
+### `rohr_input_controller_enabled_check`
 
 ```c
-bool rohr_input_action_map_enabled_check(InputActionMapId map);
+bool rohr_input_controller_enabled_check(InputControllerId controller);
 ```
 
- Return whether a valid action map is enabled.
+ Return whether a valid logical controller is enabled.
 
 ### `rohr_input_action_create`
 
 ```c
-InputActionIdResult rohr_input_action_create(InputActionMapId map, const char *name, InputActionType type);
+InputActionIdResult rohr_input_action_create(InputControllerId controller, const char *name, InputActionType type);
 ```
 
- Create an engine-owned typed action with a map-local unique name.
+ Create an engine-owned typed action with a controller-local unique name.
 
 ### `rohr_input_action_destroy`
 
@@ -4122,15 +3727,15 @@ InputActionIdResult rohr_input_action_create(InputActionMapId map, const char *n
 EngineResult rohr_input_action_destroy(InputActionId action);
 ```
 
- Destroy an action while leaving its owning map intact.
+ Destroy an action while leaving its owning controller intact.
 
 ### `rohr_input_action_by_name_get`
 
 ```c
-InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map, const char *name);
+InputActionIdResult rohr_input_action_by_name_get(InputControllerId controller, const char *name);
 ```
 
- Find an action by its map and map-local name.
+ Find an action by its controller and controller-local name.
 
 ### `rohr_input_action_type_get`
 
@@ -4139,6 +3744,54 @@ InputActionTypeResult rohr_input_action_type_get(InputActionId action);
 ```
 
  Return the logical value type declared for an action.
+
+### `rohr_input_action_button_mode_set`
+
+```c
+EngineResult rohr_input_action_button_mode_set(InputActionId action, InputButtonMode mode);
+```
+
+ Replace a Button action's momentary or persistent behavior.
+
+### `rohr_input_action_button_mode_get`
+
+```c
+InputButtonModeResult rohr_input_action_button_mode_get(InputActionId action);
+```
+
+ Return a Button action's configured behavior.
+
+### `rohr_input_action_button_initial_state_set`
+
+```c
+EngineResult rohr_input_action_button_initial_state_set(InputActionId action, bool state);
+```
+
+ Set the state restored by a persistent Button reset.
+
+### `rohr_input_action_button_initial_state_check`
+
+```c
+bool rohr_input_action_button_initial_state_check(InputActionId action);
+```
+
+ Return a Button action's authored initial state.
+
+### `rohr_input_action_button_state_set`
+
+```c
+EngineResult rohr_input_action_button_state_set(InputActionId action, bool state);
+```
+
+ Explicitly replace a persistent Button action's logical state.
+
+### `rohr_input_action_button_state_reset`
+
+```c
+EngineResult rohr_input_action_button_state_reset(InputActionId action);
+```
+
+ Restore a persistent Button action to its authored initial state.
 
 ### `rohr_input_action_bindings_default_set`
 
@@ -4235,6 +3888,96 @@ InputAxis2DResult rohr_input_action_axis_2d_get(InputActionId action);
 ```
 
  Return a combined and unit-length-clamped Axis 2D action value.
+
+## Tools
+
+### `rohr_tools_delay`
+
+```c
+void rohr_tools_delay(int seconds);
+```
+
+Delays execution for a number of seconds.
+
+| Parameter | Description |
+| --- | --- |
+| `seconds` | Number of seconds to delay. |
+
+### `rohr_tools_binary_to_string`
+
+```c
+void rohr_tools_binary_to_string(uint32_t value, char *buffer, size_t size);
+```
+
+Writes a binary string representation of a value.
+
+| Parameter | Description |
+| --- | --- |
+| `value` | Value to convert. |
+| `buffer` | Destination buffer. |
+| `size` | Size of buffer in bytes. |
+
+### `rohr_tools_append_string`
+
+```c
+void rohr_tools_append_string(char *src, char *dst, size_t src_size, size_t dst_size);
+```
+
+Appends one string to another using explicit buffer sizes.
+
+| Parameter | Description |
+| --- | --- |
+| `src` | Source string. |
+| `dst` | Destination string. |
+| `src_size` | Source buffer size. |
+| `dst_size` | Destination buffer size. |
+
+### `rohr_tools_sizeof_string`
+
+```c
+uint32_t rohr_tools_sizeof_string(char *str, char delimiter);
+```
+
+Counts characters in a string until a delimiter.
+
+| Parameter | Description |
+| --- | --- |
+| `str` | String to inspect. |
+| `delimiter` | Delimiter that stops counting. |
+
+**Returns:** Number of characters before delimiter.
+
+### `rohr_tools_random_range`
+
+```c
+int rohr_tools_random_range(int min, int max);
+```
+
+Returns a random integer in a range.
+
+| Parameter | Description |
+| --- | --- |
+| `min` | Minimum value. |
+| `max` | Maximum value. |
+
+**Returns:** Random integer between min and max.
+
+### `rohr_tools_random_range_float`
+
+```c
+float rohr_tools_random_range_float(float min, float max);
+```
+
+Returns a random float in a range.
+
+| Parameter | Description |
+| --- | --- |
+| `min` | Minimum value. |
+| `max` | Maximum value. |
+
+**Returns:** Random float between min and max.
+
+## Other
 
 ### `rohr_game_state_file_load`
 

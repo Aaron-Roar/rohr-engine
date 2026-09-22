@@ -57,6 +57,8 @@ bool editor_history_transaction_begin(EditorHistory *history);
 bool editor_history_transaction_object_track(EditorHistory *history,
     EditorObjectId object);
 bool editor_history_transaction_object_order_track(EditorHistory *history);
+bool editor_history_transaction_input_track(EditorHistory *history);
+bool editor_history_transaction_project_hierarchy_track(EditorHistory *history);
 void editor_history_transaction_commands_suppress_set(EditorHistory *history,
     bool suppressed);
 bool editor_history_transaction_end(EditorHistory *history);

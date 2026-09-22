@@ -48,7 +48,7 @@ void editor_viewport_context_menu_open(EditorViewportContextMenu *menu,
 void editor_viewport_context_menu_replace(EditorViewportContextMenu *menu,
     Position position, const EditorSelectionRef *target, bool from_column);
 EditorContextMenuAction editor_viewport_context_menu_draw(
-    EditorViewportContextMenu *menu, const MouseState *mouse,
+    EditorViewportContextMenu *menu, const UIPointerState *pointer_state,
     bool target_visible, const char *target_name, float window_width, float menu_height,
     float viewport_bottom, float window_height);
 void editor_viewport_context_menu_close(EditorViewportContextMenu *menu);

@@ -3,6 +3,7 @@
  */
 
 #include "editor_project.h"
+#include "editor_viewport.h"
 #include "editor_workspace.h"
 
 #include <math.h>
@@ -222,8 +223,8 @@ int main(void) {
             workspace_project.physics_substeps = 4;
             workspace_project.physics_gravity = (Acceleration){12.0f, 345.0f};
             workspace_project.physics_solver_iterations = 16;
-            EditorInputActionMap *gameplay =
-                editor_project_input_action_map_add(&workspace_project,
+            EditorInputController *gameplay =
+                editor_project_input_controller_add(&workspace_project,
                     "gameplay");
             EditorInputAction *move = gameplay == NULL ? NULL :
                 editor_project_input_action_add(&workspace_project, gameplay->id,
@@ -236,8 +237,11 @@ int main(void) {
             if(hud == NULL || workspace_project.layout_viewport_count == 0 ||
                     workspace_project.layout_viewports[0].ui_item_count == 0 ||
                     gameplay == NULL || move == NULL || click == NULL ||
-                    !editor_project_input_action_map_set(&workspace_project,
+                    !editor_project_input_controller_set(&workspace_project,
                         gameplay->id, "gameplay", false) ||
+                    !editor_project_input_action_set(&workspace_project,
+                        gameplay->id, click_id, "click", INPUT_ACTION_BUTTON,
+                        INPUT_BUTTON_PERSISTENT, true) ||
                     !editor_project_input_binding_add(&workspace_project,
                         gameplay->id, move_id,
                         (InputBinding){.source = INPUT_BINDING_KEY,
@@ -257,6 +261,11 @@ int main(void) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
+            workspace_project.navigation = (EditorNavigationState){
+                .mode = EDITOR_VIEWPORT_INPUT_ACTION,
+                .selection = EDITOR_SELECTION_INPUT_ACTION,
+                .input_controller = gameplay->id,
+                .input_action = click_id};
             workspace_project.layout_viewports[0].ui_items[0].graphics_layer = hud->id;
             workspace_project.layout_viewports[0].camera_items[0].graphics_layer =
                 hud->id;
@@ -349,18 +358,29 @@ int main(void) {
                 fabsf(loaded_project.physics_gravity.x - 12.0f) > 0.001f ||
                 fabsf(loaded_project.physics_gravity.y - 345.0f) > 0.001f ||
                 loaded_project.physics_solver_iterations != 16 ||
-                loaded_project.input_action_map_count != 1 ||
-                strcmp(loaded_project.input_action_maps[0].name,
+                loaded_project.input_controller_count != 1 ||
+                strcmp(loaded_project.input_controllers[0].name,
                     "gameplay") != 0 ||
-                loaded_project.input_action_maps[0].enabled ||
-                loaded_project.input_action_maps[0].action_count != 2 ||
-                loaded_project.input_action_maps[0].actions[0].type !=
+                loaded_project.input_controllers[0].enabled ||
+                loaded_project.input_controllers[0].action_count != 2 ||
+                loaded_project.input_controllers[0].actions[0].type !=
                     INPUT_ACTION_AXIS_2D ||
-                loaded_project.input_action_maps[0].actions[0].binding_count != 2 ||
-                loaded_project.input_action_maps[0].actions[0].bindings[1].source !=
+                loaded_project.input_controllers[0].actions[0].binding_count != 2 ||
+                loaded_project.input_controllers[0].actions[0].bindings[1].source !=
                     INPUT_BINDING_MOUSE_MOTION ||
-                !loaded_project.input_action_maps[0].actions[0].bindings[1].inverted ||
-                loaded_project.input_action_maps[0].actions[1].bindings[0].input.
+                !loaded_project.input_controllers[0].actions[0].bindings[1].inverted ||
+                loaded_project.input_controllers[0].actions[1].button_mode !=
+                    INPUT_BUTTON_PERSISTENT ||
+                !loaded_project.input_controllers[0].actions[1].
+                    button_initial_state ||
+                loaded_project.navigation.mode != EDITOR_VIEWPORT_INPUT_ACTION ||
+                loaded_project.navigation.selection !=
+                    EDITOR_SELECTION_INPUT_ACTION ||
+                loaded_project.navigation.input_controller !=
+                    loaded_project.input_controllers[0].id ||
+                loaded_project.navigation.input_action !=
+                    loaded_project.input_controllers[0].actions[1].id ||
+                loaded_project.input_controllers[0].actions[1].bindings[0].input.
                     mouse_button != INPUT_MOUSE_BUTTON_LEFT ||
                 strcmp(loaded_project.objects[0].name, "Starter") != 0 ||
                 !position_equal(loaded_project.objects[0].position,
@@ -436,9 +456,10 @@ int main(void) {
             return 1;
         }
         snprintf(path, sizeof(path), "%s/src/generated/project_objects.h", fixture);
-        if(!file_contains(path, "typedef struct ProjectInput") ||
+        if(!file_contains(path, "typedef struct ProjectControllers") ||
                 !file_contains(path, "typedef struct ProjectObjects") ||
-                file_occurrence_count(path, "ProjectInput input;") != 1) {
+                file_occurrence_count(path,
+                    "ProjectControllers controllers;") != 1) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -449,13 +470,19 @@ int main(void) {
                 !file_contains(path,
                     "rohr_physics_gravity_set((Acceleration){12.000000000f, 345.000000000f})") ||
                 !file_contains(path, "rohr_physics_solver_iterations_set(16)") ||
-                !file_contains(path, "project_input_create") ||
+                !file_contains(path, "project_controllers_create") ||
                 !file_contains(path,
-                    "rohr_input_action_map_create(\"gameplay\")") ||
+                    "rohr_input_controller_create(\"gameplay\")") ||
                 !file_contains(path,
-                    "rohr_input_action_map_enabled_set(input->map_gameplay_") ||
+                    "rohr_input_controller_enabled_set(controllers->controller_gameplay_") ||
                 !file_contains(path,
-                    "rohr_input_action_create(input->map_gameplay_") ||
+                    "rohr_input_action_create(controllers->controller_gameplay_") ||
+                !file_contains(path,
+                    "rohr_input_action_button_mode_set(controllers->action_gameplay_click_") ||
+                !file_contains(path, "INPUT_BUTTON_PERSISTENT") ||
+                !file_contains(path,
+                    "rohr_input_action_button_initial_state_set(") ||
+                !file_contains(path, "controllers->created = true") ||
                 !file_contains(path,
                     "rohr_input_action_bindings_default_set") ||
                 !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||
@@ -1310,7 +1337,7 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 1") == NULL) return 1;
+                strstr(result.result.error.message, "requires 2") == NULL) return 1;
     }
 
     {
@@ -1391,17 +1418,17 @@ int main(void) {
     {
         static EditorProject input_project;
         static EditorProject ignored_project;
-        EditorInputActionMap *map;
+        EditorInputController *controller;
         EditorInputAction *action;
         const char *path = "editor_project_invalid_input.json";
         EditorResult result;
 
         editor_project_init(&input_project);
-        map = editor_project_input_action_map_add(&input_project, "gameplay");
-        action = map == NULL ? NULL : editor_project_input_action_add(
-            &input_project, map->id, "jump", INPUT_ACTION_BUTTON);
+        controller = editor_project_input_controller_add(&input_project, "gameplay");
+        action = controller == NULL ? NULL : editor_project_input_action_add(
+            &input_project, controller->id, "jump", INPUT_ACTION_BUTTON);
         if(action == NULL || !editor_project_input_binding_add(
-                &input_project, map->id, action->id,
+                &input_project, controller->id, action->id,
                 (InputBinding){.source = INPUT_BINDING_KEY,
                     .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
                 !editor_project_save(&input_project, path) ||
@@ -1410,6 +1437,42 @@ int main(void) {
         result = editor_project_load(&ignored_project, path);
         (void)remove(path);
         editor_project_destroy(&input_project);
+        if(!editor_result_check(result) ||
+                result.result.error.code != EDITOR_ERROR_SCHEMA_INVALID)
+            return 1;
+    }
+
+    {
+        static EditorProject input_project;
+        static EditorProject ignored_project;
+        EditorInputController *controller;
+        EditorInputAction *action;
+        const char *path = "editor_project_invalid_button_mode.json";
+        EditorResult result;
+
+        editor_project_init(&input_project);
+        controller = editor_project_input_controller_add(&input_project, "ui");
+        action = controller == NULL ? NULL : editor_project_input_action_add(
+            &input_project, controller->id, "console", INPUT_ACTION_BUTTON);
+        if(action == NULL || !editor_project_input_action_set(&input_project,
+                controller->id, action->id, "console", INPUT_ACTION_BUTTON,
+                INPUT_BUTTON_PERSISTENT, true) ||
+                !editor_project_save(&input_project, path) ||
+                !file_text_replace_first(path,
+                    "\"button_mode\": \"persistent\"",
+                    "\"button_mode\": \"momentary\"")) return 1;
+        result = editor_project_load(&ignored_project, path);
+        if(!editor_result_check(result) ||
+                result.result.error.code != EDITOR_ERROR_SCHEMA_INVALID)
+            return 1;
+        if(!editor_project_save(&input_project, path) ||
+                !file_text_replace_first(path,
+                    "\"button_mode\": \"persistent\"",
+                    "\"button_mode\": \"invalid\"")) return 1;
+        result = editor_project_load(&ignored_project, path);
+        (void)remove(path);
+        editor_project_destroy(&input_project);
+        editor_project_destroy(&ignored_project);
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_INVALID)
             return 1;
@@ -1660,16 +1723,23 @@ int main(void) {
         EditorProject hierarchy_project, loaded_hierarchy_project;
         EditorObject *hierarchy_object;
         EditorLayoutViewport *hierarchy_viewport;
+        EditorInputController *hierarchy_controller;
         editor_project_init(&hierarchy_project);
         editor_project_init(&loaded_hierarchy_project);
         hierarchy_object = editor_project_object_add(&hierarchy_project,
             (Position){0});
         hierarchy_viewport = editor_project_layout_viewport_add(&hierarchy_project);
+        hierarchy_controller = editor_project_input_controller_add(
+            &hierarchy_project, "gameplay");
         if(hierarchy_object == NULL || hierarchy_viewport == NULL ||
-                hierarchy_project.hierarchy_count != 2) return 1;
+                hierarchy_controller == NULL ||
+                hierarchy_project.hierarchy_count != 3) return 1;
         hierarchy_project.hierarchy[0] = (EditorProjectHierarchyItem){
-            EDITOR_PROJECT_HIERARCHY_VIEWPORT, hierarchy_viewport->id};
+            EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER,
+            hierarchy_controller->id};
         hierarchy_project.hierarchy[1] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_VIEWPORT, hierarchy_viewport->id};
+        hierarchy_project.hierarchy[2] = (EditorProjectHierarchyItem){
             EDITOR_PROJECT_HIERARCHY_OBJECT, hierarchy_object->id};
         hierarchy_viewport->background_color = 0x12345678u;
         hierarchy_viewport->overview_position = (Position){91.0f, -27.0f};
@@ -1678,10 +1748,14 @@ int main(void) {
         if(!hierarchy_viewport->enabled ||
                 !editor_project_save(&hierarchy_project, hierarchy_path) ||
                 editor_result_check(editor_project_load(&loaded_hierarchy_project,
-                    hierarchy_path)) || loaded_hierarchy_project.hierarchy_count != 2 ||
+                    hierarchy_path)) || loaded_hierarchy_project.hierarchy_count != 3 ||
                 loaded_hierarchy_project.hierarchy[0].kind !=
+                    EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER ||
+                loaded_hierarchy_project.hierarchy[0].id !=
+                    hierarchy_controller->id ||
+                loaded_hierarchy_project.hierarchy[1].kind !=
                     EDITOR_PROJECT_HIERARCHY_VIEWPORT ||
-                loaded_hierarchy_project.hierarchy[0].id != hierarchy_viewport->id ||
+                loaded_hierarchy_project.hierarchy[1].id != hierarchy_viewport->id ||
                 loaded_hierarchy_project.objects[0].visible ||
                 !position_equal(loaded_hierarchy_project.objects[0].overview_position,
                     (Position){-42.0f, 63.0f}) ||
@@ -1726,25 +1800,25 @@ int main(void) {
 
     {
         EditorProject input_project, input_clone;
-        EditorInputActionMap *map;
+        EditorInputController *controller;
         EditorInputAction *action;
         editor_project_init(&input_project);
         editor_project_init(&input_clone);
-        map = editor_project_input_action_map_add(&input_project, "gameplay");
-        action = map == NULL ? NULL : editor_project_input_action_add(
-            &input_project, map->id, "jump", INPUT_ACTION_BUTTON);
-        if(map == NULL || action == NULL ||
-                !editor_project_input_binding_add(&input_project, map->id,
+        controller = editor_project_input_controller_add(&input_project, "gameplay");
+        action = controller == NULL ? NULL : editor_project_input_action_add(
+            &input_project, controller->id, "jump", INPUT_ACTION_BUTTON);
+        if(controller == NULL || action == NULL ||
+                !editor_project_input_binding_add(&input_project, controller->id,
                     action->id, (InputBinding){.source = INPUT_BINDING_KEY,
                         .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
                 !editor_project_clone(&input_clone, &input_project)) return 1;
-        input_clone.input_action_maps[0].actions[0].bindings[0].input.key =
+        input_clone.input_controllers[0].actions[0].bindings[0].input.key =
             SDL_SCANCODE_RETURN;
-        snprintf(input_clone.input_action_maps[0].actions[0].name,
-            sizeof(input_clone.input_action_maps[0].actions[0].name), "confirm");
-        if(input_project.input_action_maps[0].actions[0].bindings[0].input.key !=
+        snprintf(input_clone.input_controllers[0].actions[0].name,
+            sizeof(input_clone.input_controllers[0].actions[0].name), "confirm");
+        if(input_project.input_controllers[0].actions[0].bindings[0].input.key !=
                     SDL_SCANCODE_SPACE ||
-                strcmp(input_project.input_action_maps[0].actions[0].name,
+                strcmp(input_project.input_controllers[0].actions[0].name,
                     "jump") != 0) return 1;
         editor_project_destroy(&input_project);
         editor_project_destroy(&input_clone);

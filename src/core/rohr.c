@@ -58,34 +58,55 @@ bool rohr_input_binding_valid_check(InputActionType type,
         const InputBinding *binding) {
     return input_binding_valid_check(type, binding);
 }
-InputActionMapIdResult rohr_input_action_map_create(const char *name) {
-    return input_action_map_create(name);
+InputControllerIdResult rohr_input_controller_create(const char *name) {
+    return input_controller_create(name);
 }
-EngineResult rohr_input_action_map_destroy(InputActionMapId map) {
-    return input_action_map_destroy(map);
+EngineResult rohr_input_controller_destroy(InputControllerId controller) {
+    return input_controller_destroy(controller);
 }
-InputActionMapIdResult rohr_input_action_map_by_name_get(const char *name) {
-    return input_action_map_by_name_get(name);
+InputControllerIdResult rohr_input_controller_by_name_get(const char *name) {
+    return input_controller_by_name_get(name);
 }
-EngineResult rohr_input_action_map_enabled_set(InputActionMapId map, bool enabled) {
-    return input_action_map_enabled_set(map, enabled);
+EngineResult rohr_input_controller_enabled_set(InputControllerId controller,
+        bool enabled) {
+    return input_controller_enabled_set(controller, enabled);
 }
-bool rohr_input_action_map_enabled_check(InputActionMapId map) {
-    return input_action_map_enabled_check(map);
+bool rohr_input_controller_enabled_check(InputControllerId controller) {
+    return input_controller_enabled_check(controller);
 }
-InputActionIdResult rohr_input_action_create(InputActionMapId map,
+InputActionIdResult rohr_input_action_create(InputControllerId controller,
         const char *name, InputActionType type) {
-    return input_action_create(map, name, type);
+    return input_action_create(controller, name, type);
 }
 EngineResult rohr_input_action_destroy(InputActionId action) {
     return input_action_destroy(action);
 }
-InputActionIdResult rohr_input_action_by_name_get(InputActionMapId map,
+InputActionIdResult rohr_input_action_by_name_get(InputControllerId controller,
         const char *name) {
-    return input_action_by_name_get(map, name);
+    return input_action_by_name_get(controller, name);
 }
 InputActionTypeResult rohr_input_action_type_get(InputActionId action) {
     return input_action_type_get(action);
+}
+EngineResult rohr_input_action_button_mode_set(InputActionId action,
+        InputButtonMode mode) {
+    return input_action_button_mode_set(action, mode);
+}
+InputButtonModeResult rohr_input_action_button_mode_get(InputActionId action) {
+    return input_action_button_mode_get(action);
+}
+EngineResult rohr_input_action_button_initial_state_set(InputActionId action,
+        bool state) {
+    return input_action_button_initial_state_set(action, state);
+}
+bool rohr_input_action_button_initial_state_check(InputActionId action) {
+    return input_action_button_initial_state_check(action);
+}
+EngineResult rohr_input_action_button_state_set(InputActionId action, bool state) {
+    return input_action_button_state_set(action, state);
+}
+EngineResult rohr_input_action_button_state_reset(InputActionId action) {
+    return input_action_button_state_reset(action);
 }
 EngineResult rohr_input_action_bindings_default_set(InputActionId action,
         const InputBinding *bindings, size_t count) {
@@ -653,77 +674,6 @@ AABB rohr_math_aabb_create(Shape world_shape) { return math_aabb_create(world_sh
 EngineResult rohr_system_physics_update(double dt) { return system_physics_update(dt); }
 Tick rohr_system_tick_update(void) { return system_tick_update(); }
 void rohr_system_entities_past_lifetime_clean(void) { system_entities_past_lifetime_clean(); }
-
-void rohr_controller_key_states_update(KeyboardState *keyboard) { controller_key_states_update(keyboard); }
-void rohr_controller_key_event_add(KeyboardState *keyboard, KeyboardEvent key_event) { controller_key_event_add(keyboard, key_event); }
-KeyboardEvent rohr_controller_keyboard_event_capture(const SDL_Event *sdl_event) { return controller_keyboard_event_capture(sdl_event); }
-bool rohr_controller_key_down_get(const KeyboardState *keyboard, SDL_Keycode keycode) { return controller_key_down_get(keyboard, keycode); }
-bool rohr_controller_key_pressed_get(const KeyboardState *keyboard, SDL_Keycode keycode) { return controller_key_pressed_get(keyboard, keycode); }
-bool rohr_controller_key_released_get(const KeyboardState *keyboard, SDL_Keycode keycode) { return controller_key_released_get(keyboard, keycode); }
-Vec2D rohr_controller_axis_from_keycodes_get(
-        const KeyboardState *keyboard,
-        SDL_Keycode up,
-        SDL_Keycode left,
-        SDL_Keycode down,
-        SDL_Keycode right
-        ) {
-    return controller_axis_from_keycodes_get(keyboard, up, left, down, right);
-}
-Vec2D rohr_controller_wasd_axis_get(const KeyboardState *keyboard) { return controller_wasd_axis_get(keyboard); }
-Vec2D rohr_controller_arrow_axis_get(const KeyboardState *keyboard) { return controller_arrow_axis_get(keyboard); }
-Controller rohr_controller_default_get(void) { return controller_default_get(); }
-Controller rohr_controller_wasd_default_get(void) { return controller_wasd_default_get(); }
-Controller rohr_controller_arrows_default_get(void) { return controller_arrows_default_get(); }
-void rohr_controller_axis_binding_set(Controller *controller, ControllerAxisBinding binding) {
-    controller_axis_binding_set(controller, binding);
-}
-Vec2D rohr_controller_default_axis_get(const KeyboardState *keyboard, const Controller *controller) {
-    return controller_default_axis_get(keyboard, controller);
-}
-bool rohr_controller_axis_add(Controller *controller, const char *name, ControllerAxisBinding binding) {
-    return controller_axis_add(controller, name, binding);
-}
-bool rohr_controller_button_add(Controller *controller, const char *name, SDL_Keycode keycode) {
-    return controller_button_add(controller, name, keycode);
-}
-Vec2D rohr_controller_axis_get(
-        const KeyboardState *keyboard,
-        const Controller *controller,
-        const char *name
-        ) {
-    return controller_axis_get(keyboard, controller, name);
-}
-bool rohr_controller_button_down_get(
-        const KeyboardState *keyboard,
-        const Controller *controller,
-        const char *name
-        ) {
-    return controller_button_down_get(keyboard, controller, name);
-}
-bool rohr_controller_button_pressed_get(
-        const KeyboardState *keyboard,
-        const Controller *controller,
-        const char *name
-        ) {
-    return controller_button_pressed_get(keyboard, controller, name);
-}
-bool rohr_controller_button_released_get(
-        const KeyboardState *keyboard,
-        const Controller *controller,
-        const char *name
-        ) {
-    return controller_button_released_get(keyboard, controller, name);
-}
-void rohr_controller_mouse_event_print(MouseEvent event) { controller_mouse_event_print(event); }
-void rohr_controller_mouse_states_update(MouseState *mouse) { controller_mouse_states_update(mouse); }
-void rohr_controller_mouse_event_add(MouseState *mouse, MouseEvent mouse_event) { controller_mouse_event_add(mouse, mouse_event); }
-MouseEvent rohr_controller_mouse_event_capture(const SDL_Event *sdl_event) { return controller_mouse_event_capture(sdl_event); }
-Position rohr_controller_mouse_world_position_get(const MouseState *mouse) {
-    if(mouse == NULL) {
-        return (Position){0};
-    }
-    return graphics_screen_to_world_get(mouse->position);
-}
 
 void rohr_tools_delay(int seconds) { delay(seconds); }
 void rohr_tools_binary_to_string(uint32_t value, char *buffer, size_t size) { binary_to_string(value, buffer, size); }

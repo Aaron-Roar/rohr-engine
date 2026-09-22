@@ -117,7 +117,7 @@ int main(void) {
     Entity spring_joint;
     JointAnchorIdResult anchor_a;
     JointAnchorIdResult anchor_b;
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action = INPUT_ACTION_INVALID;
     InputActionId debug_action = INPUT_ACTION_INVALID;
     Time next_throw = 1.0;
@@ -136,10 +136,10 @@ int main(void) {
             SDL_SCANCODE_ESCAPE, 1.0f, (Vec2D){0});
         InputBinding debug_binding = example_input_key_binding(
             SDL_SCANCODE_B, 1.0f, (Vec2D){0});
-        if(!example_input_map_create("joints", &input_map) ||
-                !example_input_action_create(input_map, "exit",
+        if(!example_input_controller_create("joints", &input_controller) ||
+                !example_input_action_create(input_controller, "exit",
                     INPUT_ACTION_BUTTON, &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action))
             goto fail;
     }
@@ -224,8 +224,8 @@ int main(void) {
     }
 
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -233,8 +233,8 @@ int main(void) {
 fail:
     fprintf(stderr, "joints example failed\n");
     example_viewport_destroy(&viewport);
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

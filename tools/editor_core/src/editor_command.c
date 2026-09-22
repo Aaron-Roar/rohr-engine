@@ -1432,63 +1432,78 @@ property_invalid:
             else *filter &= ~bit;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         }
-        case EDITOR_COMMAND_INPUT_MAP_ADD: {
-            EditorInputActionMap *map = editor_project_input_action_map_add(project,
-                command->data.input_map.name);
-            if(map == NULL) return editor_command_error(editor_result_error(
+        case EDITOR_COMMAND_INPUT_CONTROLLER_ADD: {
+            EditorInputController *controller =
+                editor_project_input_controller_add(project,
+                    command->data.input_controller.name);
+            if(controller == NULL) return editor_command_error(editor_result_error(
                 EDITOR_ERROR_INVALID_ARGUMENT,
-                "input map name must be unique and map capacity must be available")
+                "input controller name must be unique and capacity must be available")
                     .result.error);
-            map->enabled = command->data.input_map.enabled;
+            controller->enabled = command->data.input_controller.enabled;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
-                .result.object = map->id,
-                .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_MAP,
-                    .item = map->id}};
+                .result.object = controller->id,
+                .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_CONTROLLER,
+                    .item = controller->id}};
         }
-        case EDITOR_COMMAND_INPUT_MAP_REMOVE:
-            if(!editor_project_input_action_map_remove(project,
-                    command->data.input_map.map))
-                return editor_command_not_found("input map",
-                    command->data.input_map.map);
+        case EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE:
+            if(!editor_project_input_controller_remove(project,
+                    command->data.input_controller.controller))
+                return editor_command_not_found("input controller",
+                    command->data.input_controller.controller);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
-        case EDITOR_COMMAND_INPUT_MAP_SET:
-            if(!editor_project_input_action_map_set(project,
-                    command->data.input_map.map,
-                    command->data.input_map.name,
-                    command->data.input_map.enabled))
+        case EDITOR_COMMAND_INPUT_CONTROLLER_SET:
+            if(!editor_project_input_controller_set(project,
+                    command->data.input_controller.controller,
+                    command->data.input_controller.name,
+                    command->data.input_controller.enabled))
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
-                    "input map was not found or its name is invalid or duplicate")
+                    "input controller was not found or its name is invalid or duplicate")
                         .result.error);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_INPUT_ACTION_ADD: {
             EditorInputAction *action = editor_project_input_action_add(project,
-                command->data.input_action.map,
+                command->data.input_action.controller,
                 command->data.input_action.name,
                 command->data.input_action.type);
             if(action == NULL) return editor_command_error(editor_result_error(
                 EDITOR_ERROR_INVALID_ARGUMENT,
                 "input action is invalid, duplicate, or exceeds action capacity")
                     .result.error);
+            if(!editor_project_input_action_set(project,
+                    command->data.input_action.controller, action->id,
+                    command->data.input_action.name,
+                    command->data.input_action.type,
+                    command->data.input_action.button_mode,
+                    command->data.input_action.button_initial_state)) {
+                (void)editor_project_input_action_remove(project,
+                    command->data.input_action.controller, action->id);
+                return editor_command_error(editor_result_error(
+                    EDITOR_ERROR_INVALID_ARGUMENT,
+                    "input action button configuration is invalid").result.error);
+            }
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
                 .result.object = action->id,
                 .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_ACTION,
-                    .parent = command->data.input_action.map,
+                    .parent = command->data.input_action.controller,
                     .item = action->id}};
         }
         case EDITOR_COMMAND_INPUT_ACTION_REMOVE:
             if(!editor_project_input_action_remove(project,
-                    command->data.input_action.map,
+                    command->data.input_action.controller,
                     command->data.input_action.action))
                 return editor_command_not_found("input action",
                     command->data.input_action.action);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_INPUT_ACTION_SET:
             if(!editor_project_input_action_set(project,
-                    command->data.input_action.map,
+                    command->data.input_action.controller,
                     command->data.input_action.action,
                     command->data.input_action.name,
-                    command->data.input_action.type))
+                    command->data.input_action.type,
+                    command->data.input_action.button_mode,
+                    command->data.input_action.button_initial_state))
                 return editor_command_error(editor_result_error(
                     EDITOR_ERROR_INVALID_ARGUMENT,
                     "input action was not found, duplicate, or incompatible with its bindings")
@@ -1496,11 +1511,11 @@ property_invalid:
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_INPUT_BINDING_ADD: {
             EditorInputAction *action = editor_project_input_action_get(project,
-                command->data.input_binding.map,
+                command->data.input_binding.controller,
                 command->data.input_binding.action);
             size_t index = action == NULL ? 0 : action->binding_count;
             if(!editor_project_input_binding_add(project,
-                    command->data.input_binding.map,
+                    command->data.input_binding.controller,
                     command->data.input_binding.action,
                     command->data.input_binding.binding))
                 return editor_command_error(editor_result_error(
@@ -1510,13 +1525,13 @@ property_invalid:
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
                 .result.object = (uint32_t)index,
                 .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_BINDING,
-                    .parent = command->data.input_binding.map,
+                    .parent = command->data.input_binding.controller,
                     .container = command->data.input_binding.action,
                     .item = (uint32_t)index}};
         }
         case EDITOR_COMMAND_INPUT_BINDING_REMOVE:
             if(!editor_project_input_binding_remove(project,
-                    command->data.input_binding.map,
+                    command->data.input_binding.controller,
                     command->data.input_binding.action,
                     command->data.input_binding.index))
                 return editor_command_not_found("input binding",
@@ -1524,7 +1539,7 @@ property_invalid:
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_INPUT_BINDING_SET:
             if(!editor_project_input_binding_set(project,
-                    command->data.input_binding.map,
+                    command->data.input_binding.controller,
                     command->data.input_binding.action,
                     command->data.input_binding.index,
                     command->data.input_binding.binding))

@@ -176,7 +176,7 @@ void editor_project_init(EditorProject *project) {
         .next_ui_font_id = 1,
         .next_graphics_layer_id = 1,
         .next_ui_definition_id = 1,
-        .next_input_action_map_id = 1,
+        .next_input_controller_id = 1,
         .next_input_action_id = 1
     };
     if(EDITOR_ARRAY_RESERVE(project->collision_masks,
@@ -749,9 +749,9 @@ void editor_project_destroy(EditorProject *project) {
     free(project->ui_fonts);
     free(project->graphics_layers);
     free(project->ui_definitions);
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        free(project->input_action_maps[i].actions);
-    free(project->input_action_maps);
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        free(project->input_controllers[i].actions);
+    free(project->input_controllers);
     *project = (EditorProject){0};
 }
 
@@ -766,7 +766,7 @@ bool editor_project_clone(EditorProject *destination,
     destination->ui_fonts = NULL;
     destination->graphics_layers = NULL;
     destination->ui_definitions = NULL;
-    destination->input_action_maps = NULL;
+    destination->input_controllers = NULL;
     destination->collision_mask_count = 0;
     destination->object_count = 0;
     destination->layout_viewport_count = 0;
@@ -781,8 +781,8 @@ bool editor_project_clone(EditorProject *destination,
     destination->graphics_layer_capacity = 0;
     destination->ui_definition_count = 0;
     destination->ui_definition_capacity = 0;
-    destination->input_action_map_count = 0;
-    destination->input_action_map_capacity = 0;
+    destination->input_controller_count = 0;
+    destination->input_controller_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
@@ -800,9 +800,9 @@ bool editor_project_clone(EditorProject *destination,
             !EDITOR_ARRAY_RESERVE(destination->ui_definitions,
                 destination->ui_definition_capacity,
                 source->ui_definition_count) ||
-            !EDITOR_ARRAY_RESERVE(destination->input_action_maps,
-                destination->input_action_map_capacity,
-                source->input_action_map_count)) goto fail;
+            !EDITOR_ARRAY_RESERVE(destination->input_controllers,
+                destination->input_controller_capacity,
+                source->input_controller_count)) goto fail;
     if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
         source->ui_font_count * sizeof(*source->ui_fonts));
     destination->ui_font_count = source->ui_font_count;
@@ -814,14 +814,14 @@ bool editor_project_clone(EditorProject *destination,
         memcpy(destination->ui_definitions, source->ui_definitions,
             source->ui_definition_count * sizeof(*source->ui_definitions));
     destination->ui_definition_count = source->ui_definition_count;
-    for(size_t i = 0; i < source->input_action_map_count; i += 1) {
-        const EditorInputActionMap *source_map = &source->input_action_maps[i];
-        EditorInputActionMap *destination_map = &destination->input_action_maps[i];
+    for(size_t i = 0; i < source->input_controller_count; i += 1) {
+        const EditorInputController *source_map = &source->input_controllers[i];
+        EditorInputController *destination_map = &destination->input_controllers[i];
         *destination_map = *source_map;
         destination_map->actions = NULL;
         destination_map->action_count = 0;
         destination_map->action_capacity = 0;
-        destination->input_action_map_count += 1;
+        destination->input_controller_count += 1;
         if(!EDITOR_ARRAY_RESERVE(destination_map->actions,
                 destination_map->action_capacity, source_map->action_count))
             goto fail;
@@ -1019,7 +1019,8 @@ void editor_project_hierarchy_sync(EditorProject *project) {
     size_t output = 0;
     if(project == NULL || !EDITOR_ARRAY_RESERVE(project->hierarchy,
             project->hierarchy_capacity,
-            project->object_count + project->layout_viewport_count)) return;
+            project->object_count + project->layout_viewport_count +
+                project->input_controller_count)) return;
     for(size_t i = 0; i < project->hierarchy_count; i += 1) {
         EditorProjectHierarchyItem item = project->hierarchy[i];
         bool valid = false;
@@ -1033,6 +1034,9 @@ void editor_project_hierarchy_sync(EditorProject *project) {
         } else if(item.kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT) {
             for(size_t j = 0; j < project->layout_viewport_count; j += 1)
                 if(project->layout_viewports[j].id == item.id) valid = true;
+        } else if(item.kind == EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER) {
+            for(size_t j = 0; j < project->input_controller_count; j += 1)
+                if(project->input_controllers[j].id == item.id) valid = true;
         }
         if(valid) project->hierarchy[output++] = item;
     }
@@ -1052,6 +1056,17 @@ void editor_project_hierarchy_sync(EditorProject *project) {
                 found = true;
         if(!found) project->hierarchy[output++] = (EditorProjectHierarchyItem){
             EDITOR_PROJECT_HIERARCHY_VIEWPORT, project->layout_viewports[i].id};
+    }
+    for(size_t i = 0; i < project->input_controller_count; i += 1) {
+        bool found = false;
+        for(size_t j = 0; j < output; j += 1)
+            if(project->hierarchy[j].kind ==
+                        EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER &&
+                    project->hierarchy[j].id == project->input_controllers[i].id)
+                found = true;
+        if(!found) project->hierarchy[output++] = (EditorProjectHierarchyItem){
+            EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER,
+            project->input_controllers[i].id};
     }
     project->hierarchy_count = output;
 }
@@ -1478,152 +1493,169 @@ static bool editor_project_input_name_check(const char *name) {
 static size_t editor_project_input_action_count_get(const EditorProject *project) {
     size_t count = 0;
     if(project == NULL) return 0;
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        count += project->input_action_maps[i].action_count;
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        count += project->input_controllers[i].action_count;
     return count;
 }
 
-EditorInputActionMap *editor_project_input_action_map_add(EditorProject *project,
+EditorInputController *editor_project_input_controller_add(EditorProject *project,
         const char *name) {
-    EditorInputActionMap *map;
+    EditorInputController *controller;
     if(project == NULL || !editor_project_input_name_check(name) ||
-            project->input_action_map_count >= ROHR_INPUT_ACTION_MAP_LIMIT)
+            project->input_controller_count >= ROHR_INPUT_CONTROLLER_LIMIT)
         return NULL;
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        if(strcmp(project->input_action_maps[i].name, name) == 0) return NULL;
-    if(!EDITOR_ARRAY_RESERVE(project->input_action_maps,
-            project->input_action_map_capacity,
-            project->input_action_map_count + 1)) return NULL;
-    map = &project->input_action_maps[project->input_action_map_count++];
-    *map = (EditorInputActionMap){
-        .id = project->next_input_action_map_id++, .enabled = true};
-    snprintf(map->name, sizeof(map->name), "%s", name);
-    return map;
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        if(strcmp(project->input_controllers[i].name, name) == 0) return NULL;
+    if(!EDITOR_ARRAY_RESERVE(project->input_controllers,
+            project->input_controller_capacity,
+            project->input_controller_count + 1)) return NULL;
+    controller = &project->input_controllers[project->input_controller_count++];
+    *controller = (EditorInputController){
+        .id = project->next_input_controller_id++, .enabled = true};
+    snprintf(controller->name, sizeof(controller->name), "%s", name);
+    editor_project_hierarchy_sync(project);
+    return controller;
 }
 
-EditorInputActionMap *editor_project_input_action_map_get(EditorProject *project,
-        EditorInputActionMapId id) {
-    if(project == NULL || id == EDITOR_INPUT_ACTION_MAP_INVALID) return NULL;
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        if(project->input_action_maps[i].id == id)
-            return &project->input_action_maps[i];
+EditorInputController *editor_project_input_controller_get(EditorProject *project,
+        EditorInputControllerId id) {
+    if(project == NULL || id == EDITOR_INPUT_CONTROLLER_INVALID) return NULL;
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        if(project->input_controllers[i].id == id)
+            return &project->input_controllers[i];
     return NULL;
 }
 
-const EditorInputActionMap *editor_project_input_action_map_const_get(
-        const EditorProject *project, EditorInputActionMapId id) {
-    return editor_project_input_action_map_get((EditorProject *)project, id);
+const EditorInputController *editor_project_input_controller_const_get(
+        const EditorProject *project, EditorInputControllerId id) {
+    return editor_project_input_controller_get((EditorProject *)project, id);
 }
 
-bool editor_project_input_action_map_set(EditorProject *project,
-        EditorInputActionMapId id, const char *name, bool enabled) {
-    EditorInputActionMap *map;
+bool editor_project_input_controller_set(EditorProject *project,
+        EditorInputControllerId id, const char *name, bool enabled) {
+    EditorInputController *controller;
     if(project == NULL || !editor_project_input_name_check(name) ||
-            (map = editor_project_input_action_map_get(project, id)) == NULL)
+            (controller = editor_project_input_controller_get(project, id)) == NULL)
         return false;
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        if(project->input_action_maps[i].id != id &&
-                strcmp(project->input_action_maps[i].name, name) == 0)
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        if(project->input_controllers[i].id != id &&
+                strcmp(project->input_controllers[i].name, name) == 0)
             return false;
-    snprintf(map->name, sizeof(map->name), "%s", name);
-    map->enabled = enabled;
+    snprintf(controller->name, sizeof(controller->name), "%s", name);
+    controller->enabled = enabled;
     return true;
 }
 
-bool editor_project_input_action_map_remove(EditorProject *project,
-        EditorInputActionMapId id) {
+bool editor_project_input_controller_remove(EditorProject *project,
+        EditorInputControllerId id) {
     size_t index;
-    if(project == NULL || id == EDITOR_INPUT_ACTION_MAP_INVALID) return false;
-    for(index = 0; index < project->input_action_map_count; index += 1)
-        if(project->input_action_maps[index].id == id) break;
-    if(index == project->input_action_map_count) return false;
-    free(project->input_action_maps[index].actions);
-    memmove(&project->input_action_maps[index],
-        &project->input_action_maps[index + 1],
-        (project->input_action_map_count - index - 1) *
-            sizeof(*project->input_action_maps));
-    project->input_action_map_count -= 1;
-    project->input_action_maps[project->input_action_map_count] =
-        (EditorInputActionMap){0};
+    if(project == NULL || id == EDITOR_INPUT_CONTROLLER_INVALID) return false;
+    for(index = 0; index < project->input_controller_count; index += 1)
+        if(project->input_controllers[index].id == id) break;
+    if(index == project->input_controller_count) return false;
+    free(project->input_controllers[index].actions);
+    memmove(&project->input_controllers[index],
+        &project->input_controllers[index + 1],
+        (project->input_controller_count - index - 1) *
+            sizeof(*project->input_controllers));
+    project->input_controller_count -= 1;
+    project->input_controllers[project->input_controller_count] =
+        (EditorInputController){0};
+    editor_project_hierarchy_sync(project);
     return true;
 }
 
 EditorInputAction *editor_project_input_action_add(EditorProject *project,
-        EditorInputActionMapId map_id, const char *name, InputActionType type) {
-    EditorInputActionMap *map;
+        EditorInputControllerId controller_id, const char *name,
+        InputActionType type) {
+    EditorInputController *controller;
     EditorInputAction *action;
     if(project == NULL || !editor_project_input_name_check(name) ||
             type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D ||
             editor_project_input_action_count_get(project) >=
                 ROHR_INPUT_ACTION_LIMIT ||
-            (map = editor_project_input_action_map_get(project, map_id)) == NULL)
+            (controller = editor_project_input_controller_get(
+                project, controller_id)) == NULL)
         return NULL;
-    for(size_t i = 0; i < map->action_count; i += 1)
-        if(strcmp(map->actions[i].name, name) == 0) return NULL;
-    if(!EDITOR_ARRAY_RESERVE(map->actions, map->action_capacity,
-            map->action_count + 1)) return NULL;
-    action = &map->actions[map->action_count++];
+    for(size_t i = 0; i < controller->action_count; i += 1)
+        if(strcmp(controller->actions[i].name, name) == 0) return NULL;
+    if(!EDITOR_ARRAY_RESERVE(controller->actions, controller->action_capacity,
+            controller->action_count + 1)) return NULL;
+    action = &controller->actions[controller->action_count++];
     *action = (EditorInputAction){
-        .id = project->next_input_action_id++, .type = type};
+        .id = project->next_input_action_id++, .type = type,
+        .button_mode = INPUT_BUTTON_MOMENTARY};
     snprintf(action->name, sizeof(action->name), "%s", name);
     return action;
 }
 
 EditorInputAction *editor_project_input_action_get(EditorProject *project,
-        EditorInputActionMapId map_id, EditorInputActionId id) {
-    EditorInputActionMap *map = editor_project_input_action_map_get(project, map_id);
-    if(map == NULL || id == EDITOR_INPUT_ACTION_INVALID) return NULL;
-    for(size_t i = 0; i < map->action_count; i += 1)
-        if(map->actions[i].id == id) return &map->actions[i];
+        EditorInputControllerId controller_id, EditorInputActionId id) {
+    EditorInputController *controller = editor_project_input_controller_get(
+        project, controller_id);
+    if(controller == NULL || id == EDITOR_INPUT_ACTION_INVALID) return NULL;
+    for(size_t i = 0; i < controller->action_count; i += 1)
+        if(controller->actions[i].id == id) return &controller->actions[i];
     return NULL;
 }
 
 const EditorInputAction *editor_project_input_action_const_get(
-        const EditorProject *project, EditorInputActionMapId map,
+        const EditorProject *project, EditorInputControllerId controller,
         EditorInputActionId id) {
-    return editor_project_input_action_get((EditorProject *)project, map, id);
+    return editor_project_input_action_get(
+        (EditorProject *)project, controller, id);
 }
 
 bool editor_project_input_action_set(EditorProject *project,
-        EditorInputActionMapId map_id, EditorInputActionId id, const char *name,
-        InputActionType type) {
-    EditorInputActionMap *map;
+        EditorInputControllerId controller_id, EditorInputActionId id,
+        const char *name, InputActionType type, InputButtonMode button_mode,
+        bool button_initial_state) {
+    EditorInputController *controller;
     EditorInputAction *action;
     if(project == NULL || !editor_project_input_name_check(name) ||
             type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D ||
-            (map = editor_project_input_action_map_get(project, map_id)) == NULL ||
-            (action = editor_project_input_action_get(project, map_id, id)) == NULL)
+            button_mode < INPUT_BUTTON_MOMENTARY ||
+            button_mode > INPUT_BUTTON_PERSISTENT ||
+            (controller = editor_project_input_controller_get(
+                project, controller_id)) == NULL ||
+            (action = editor_project_input_action_get(
+                project, controller_id, id)) == NULL)
         return false;
-    for(size_t i = 0; i < map->action_count; i += 1)
-        if(map->actions[i].id != id &&
-                strcmp(map->actions[i].name, name) == 0) return false;
+    for(size_t i = 0; i < controller->action_count; i += 1)
+        if(controller->actions[i].id != id &&
+                strcmp(controller->actions[i].name, name) == 0) return false;
     for(size_t i = 0; i < action->binding_count; i += 1)
         if(!rohr_input_binding_valid_check(type, &action->bindings[i]))
             return false;
     snprintf(action->name, sizeof(action->name), "%s", name);
     action->type = type;
+    action->button_mode = type == INPUT_ACTION_BUTTON ?
+        button_mode : INPUT_BUTTON_MOMENTARY;
+    action->button_initial_state = type == INPUT_ACTION_BUTTON &&
+        button_mode == INPUT_BUTTON_PERSISTENT && button_initial_state;
     return true;
 }
 
 bool editor_project_input_action_remove(EditorProject *project,
-        EditorInputActionMapId map_id, EditorInputActionId id) {
-    EditorInputActionMap *map = editor_project_input_action_map_get(project, map_id);
+        EditorInputControllerId controller_id, EditorInputActionId id) {
+    EditorInputController *controller = editor_project_input_controller_get(
+        project, controller_id);
     size_t index;
-    if(map == NULL || id == EDITOR_INPUT_ACTION_INVALID) return false;
-    for(index = 0; index < map->action_count; index += 1)
-        if(map->actions[index].id == id) break;
-    if(index == map->action_count) return false;
-    memmove(&map->actions[index], &map->actions[index + 1],
-        (map->action_count - index - 1) * sizeof(*map->actions));
-    map->action_count -= 1;
-    map->actions[map->action_count] = (EditorInputAction){0};
+    if(controller == NULL || id == EDITOR_INPUT_ACTION_INVALID) return false;
+    for(index = 0; index < controller->action_count; index += 1)
+        if(controller->actions[index].id == id) break;
+    if(index == controller->action_count) return false;
+    memmove(&controller->actions[index], &controller->actions[index + 1],
+        (controller->action_count - index - 1) * sizeof(*controller->actions));
+    controller->action_count -= 1;
+    controller->actions[controller->action_count] = (EditorInputAction){0};
     return true;
 }
 
 bool editor_project_input_binding_add(EditorProject *project,
-        EditorInputActionMapId map, EditorInputActionId action_id,
+        EditorInputControllerId controller, EditorInputActionId action_id,
         InputBinding binding) {
-    EditorInputAction *action = editor_project_input_action_get(project, map,
+    EditorInputAction *action = editor_project_input_action_get(project, controller,
         action_id);
     if(action == NULL || action->binding_count >= ROHR_INPUT_BINDING_LIMIT ||
             !rohr_input_binding_valid_check(action->type, &binding)) return false;
@@ -1632,9 +1664,9 @@ bool editor_project_input_binding_add(EditorProject *project,
 }
 
 bool editor_project_input_binding_set(EditorProject *project,
-        EditorInputActionMapId map, EditorInputActionId action_id, size_t index,
+        EditorInputControllerId controller, EditorInputActionId action_id, size_t index,
         InputBinding binding) {
-    EditorInputAction *action = editor_project_input_action_get(project, map,
+    EditorInputAction *action = editor_project_input_action_get(project, controller,
         action_id);
     if(action == NULL || index >= action->binding_count ||
             !rohr_input_binding_valid_check(action->type, &binding)) return false;
@@ -1643,8 +1675,9 @@ bool editor_project_input_binding_set(EditorProject *project,
 }
 
 bool editor_project_input_binding_remove(EditorProject *project,
-        EditorInputActionMapId map, EditorInputActionId action_id, size_t index) {
-    EditorInputAction *action = editor_project_input_action_get(project, map,
+        EditorInputControllerId controller, EditorInputActionId action_id,
+        size_t index) {
+    EditorInputAction *action = editor_project_input_action_get(project, controller,
         action_id);
     if(action == NULL || index >= action->binding_count) return false;
     memmove(&action->bindings[index], &action->bindings[index + 1],

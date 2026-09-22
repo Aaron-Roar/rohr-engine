@@ -1321,54 +1321,63 @@ int main(void) {
     }
 
     {
-        EditorInputActionMapId map_id;
+        EditorInputControllerId controller_id;
         EditorInputActionId action_id;
+        size_t hierarchy_count = project.hierarchy_count;
         editor_history_reset(&history);
         callback_history = &history;
         editor_command_executing_callback_set(history_begin, NULL);
         editor_command_finished_callback_set(history_finish, NULL);
-        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_ADD,
-            .data.input_map = {.name = "gameplay", .enabled = true}};
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_ADD,
+            .data.input_controller = {.name = "gameplay", .enabled = true}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
-            project.input_action_map_count == 1);
-        map_id = result.result.object;
+            project.input_controller_count == 1 &&
+            project.hierarchy_count == hierarchy_count + 1);
+        controller_id = result.result.object;
         assert(editor_history_undo(&history) &&
-            project.input_action_map_count == 0);
+            project.input_controller_count == 0 &&
+            project.hierarchy_count == hierarchy_count);
         assert(editor_history_redo(&history) &&
-            project.input_action_map_count == 1 &&
-            project.input_action_maps[0].id == map_id);
+            project.input_controller_count == 1 &&
+            project.hierarchy_count == hierarchy_count + 1 &&
+            project.input_controllers[0].id == controller_id);
 
         command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_ADD,
-            .data.input_action = {.map = map_id, .name = "jump",
-                .type = INPUT_ACTION_BUTTON}};
+            .data.input_action = {.controller = controller_id, .name = "jump",
+                .type = INPUT_ACTION_BUTTON,
+                .button_mode = INPUT_BUTTON_PERSISTENT,
+                .button_initial_state = true}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
-            project.input_action_maps[0].action_count == 1);
+            project.input_controllers[0].action_count == 1 &&
+            project.input_controllers[0].actions[0].button_mode ==
+                INPUT_BUTTON_PERSISTENT &&
+            project.input_controllers[0].actions[0].button_initial_state);
         action_id = result.result.object;
         command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_ADD,
-            .data.input_binding = {.map = map_id, .action = action_id,
+            .data.input_binding = {.controller = controller_id, .action = action_id,
                 .binding = {.source = INPUT_BINDING_KEY,
                     .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
-            project.input_action_maps[0].actions[0].binding_count == 1);
+            project.input_controllers[0].actions[0].binding_count == 1);
         assert(editor_history_undo(&history) &&
-            project.input_action_maps[0].actions[0].binding_count == 0);
+            project.input_controllers[0].actions[0].binding_count == 0);
         assert(editor_history_redo(&history) &&
-            project.input_action_maps[0].actions[0].binding_count == 1 &&
-            project.input_action_maps[0].actions[0].bindings[0].input.key ==
+            project.input_controllers[0].actions[0].binding_count == 1 &&
+            project.input_controllers[0].actions[0].bindings[0].input.key ==
                 SDL_SCANCODE_SPACE);
-        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_MAP_SET,
-            .data.input_map = {.map = map_id, .name = "player",
+        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
+            .data.input_controller = {.controller = controller_id, .name = "player",
                 .enabled = false}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
-            strcmp(project.input_action_maps[0].name, "player") == 0 &&
-            !project.input_action_maps[0].enabled);
+            strcmp(project.input_controllers[0].name, "player") == 0 &&
+            !project.input_controllers[0].enabled);
         assert(editor_history_undo(&history) &&
-            strcmp(project.input_action_maps[0].name, "gameplay") == 0 &&
-            project.input_action_maps[0].enabled);
+            strcmp(project.input_controllers[0].name, "gameplay") == 0 &&
+            project.input_controllers[0].enabled);
         editor_command_executing_callback_set(NULL, NULL);
         editor_command_finished_callback_set(NULL, NULL);
         callback_history = NULL;

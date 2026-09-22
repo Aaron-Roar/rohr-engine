@@ -202,7 +202,7 @@ static EngineResult pong_constrain_paddle(
 
 int main(void) {
     if(!example_use_executable_directory()) return 1;
-    InputActionMapId input_map = INPUT_ACTION_MAP_INVALID;
+    InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, left_move_action, right_move_action;
     Entity wall_bottom;
     Entity wall_top;
@@ -249,14 +249,14 @@ int main(void) {
             example_input_key_binding(SDL_SCANCODE_DOWN, 1.0f, (Vec2D){-1, 0}),
             example_input_key_binding(SDL_SCANCODE_LEFT, 1.0f, (Vec2D){0, 1}),
             example_input_key_binding(SDL_SCANCODE_RIGHT, 1.0f, (Vec2D){0, -1})};
-        if(!example_input_map_create("pong", &input_map) ||
-                !example_input_action_create(input_map, "exit", INPUT_ACTION_BUTTON,
+        if(!example_input_controller_create("pong", &input_controller) ||
+                !example_input_action_create(input_controller, "exit", INPUT_ACTION_BUTTON,
                     &exit_binding, 1, &exit_action) ||
-                !example_input_action_create(input_map, "toggle_debug",
+                !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
-                !example_input_action_create(input_map, "left_move",
+                !example_input_action_create(input_controller, "left_move",
                     INPUT_ACTION_AXIS_2D, left_bindings, 4, &left_move_action) ||
-                !example_input_action_create(input_map, "right_move",
+                !example_input_action_create(input_controller, "right_move",
                     INPUT_ACTION_AXIS_2D, right_bindings, 4, &right_move_action))
             goto fail;
     }
@@ -602,8 +602,8 @@ int main(void) {
     (void)rohr_camera_destroy(right_camera);
     game_components_clear(ball);
     game_components_shutdown();
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 0;
@@ -616,8 +616,8 @@ fail:
     if(left_camera != CAMERA_INVALID) (void)rohr_camera_active_set(left_camera);
     if(right_camera != CAMERA_INVALID) (void)rohr_camera_destroy(right_camera);
     game_components_shutdown();
-    if(input_map != INPUT_ACTION_MAP_INVALID)
-        (void)rohr_input_action_map_destroy(input_map);
+    if(input_controller != INPUT_CONTROLLER_INVALID)
+        (void)rohr_input_controller_destroy(input_controller);
     rohr_graphics_end();
     rohr_engine_shutdown();
     return 1;

@@ -32,9 +32,9 @@
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
-#define EDITOR_PROJECT_FORMAT_VERSION 1
-#define EDITOR_NAVIGATION_MODE_MAX 23
-#define EDITOR_NAVIGATION_SELECTION_MAX 22
+#define EDITOR_PROJECT_FORMAT_VERSION 2
+#define EDITOR_NAVIGATION_MODE_MAX 28
+#define EDITOR_NAVIGATION_SELECTION_MAX 25
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -55,28 +55,30 @@ typedef uint32_t EditorViewportUiItemId;
 typedef uint32_t EditorViewportUiDefinitionId;
 typedef uint32_t EditorUiFontId;
 typedef uint32_t EditorGraphicsLayerId;
-typedef uint32_t EditorInputActionMapId;
+typedef uint32_t EditorInputControllerId;
 typedef uint32_t EditorInputActionId;
 
-#define EDITOR_INPUT_ACTION_MAP_INVALID UINT32_C(0)
+#define EDITOR_INPUT_CONTROLLER_INVALID UINT32_C(0)
 #define EDITOR_INPUT_ACTION_INVALID UINT32_C(0)
 
 typedef struct EditorInputAction {
     EditorInputActionId id;
     char name[ROHR_INPUT_NAME_MAX];
     InputActionType type;
+    InputButtonMode button_mode;
+    bool button_initial_state;
     InputBinding bindings[ROHR_INPUT_BINDING_LIMIT];
     size_t binding_count;
 } EditorInputAction;
 
-typedef struct EditorInputActionMap {
-    EditorInputActionMapId id;
+typedef struct EditorInputController {
+    EditorInputControllerId id;
     char name[ROHR_INPUT_NAME_MAX];
     bool enabled;
     EditorInputAction *actions;
     size_t action_count;
     size_t action_capacity;
-} EditorInputActionMap;
+} EditorInputController;
 
 typedef struct EditorGraphicsLayer {
     EditorGraphicsLayerId id;
@@ -113,7 +115,8 @@ typedef struct EditorHierarchyItem {
 
 typedef enum EditorProjectHierarchyItemKind {
     EDITOR_PROJECT_HIERARCHY_OBJECT,
-    EDITOR_PROJECT_HIERARCHY_VIEWPORT
+    EDITOR_PROJECT_HIERARCHY_VIEWPORT,
+    EDITOR_PROJECT_HIERARCHY_INPUT_CONTROLLER
 } EditorProjectHierarchyItemKind;
 
 typedef struct EditorProjectHierarchyItem {
@@ -578,6 +581,8 @@ typedef struct EditorNavigationState {
     EditorAnimatedSpriteId animated_sprite;
     EditorCameraId camera;
     EditorSpriteId animation_frame;
+    EditorInputControllerId input_controller;
+    EditorInputActionId input_action;
     uint32_t origin_kind;
 } EditorNavigationState;
 
@@ -613,9 +618,9 @@ typedef struct EditorProject {
     EditorViewportUiDefinition *ui_definitions;
     size_t ui_definition_count;
     size_t ui_definition_capacity;
-    EditorInputActionMap *input_action_maps;
-    size_t input_action_map_count;
-    size_t input_action_map_capacity;
+    EditorInputController *input_controllers;
+    size_t input_controller_count;
+    size_t input_controller_capacity;
     EditorObjectId next_id;
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
@@ -635,41 +640,42 @@ typedef struct EditorProject {
     EditorUiFontId next_ui_font_id;
     EditorGraphicsLayerId next_graphics_layer_id;
     EditorViewportUiDefinitionId next_ui_definition_id;
-    EditorInputActionMapId next_input_action_map_id;
+    EditorInputControllerId next_input_controller_id;
     EditorInputActionId next_input_action_id;
     EditorObjectId selected;
 } EditorProject;
 
-EditorInputActionMap *editor_project_input_action_map_add(EditorProject *project,
+EditorInputController *editor_project_input_controller_add(EditorProject *project,
     const char *name);
-EditorInputActionMap *editor_project_input_action_map_get(EditorProject *project,
-    EditorInputActionMapId id);
-const EditorInputActionMap *editor_project_input_action_map_const_get(
-    const EditorProject *project, EditorInputActionMapId id);
-bool editor_project_input_action_map_set(EditorProject *project,
-    EditorInputActionMapId id, const char *name, bool enabled);
-bool editor_project_input_action_map_remove(EditorProject *project,
-    EditorInputActionMapId id);
+EditorInputController *editor_project_input_controller_get(EditorProject *project,
+    EditorInputControllerId id);
+const EditorInputController *editor_project_input_controller_const_get(
+    const EditorProject *project, EditorInputControllerId id);
+bool editor_project_input_controller_set(EditorProject *project,
+    EditorInputControllerId id, const char *name, bool enabled);
+bool editor_project_input_controller_remove(EditorProject *project,
+    EditorInputControllerId id);
 EditorInputAction *editor_project_input_action_add(EditorProject *project,
-    EditorInputActionMapId map, const char *name, InputActionType type);
+    EditorInputControllerId controller, const char *name, InputActionType type);
 EditorInputAction *editor_project_input_action_get(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId id);
+    EditorInputControllerId controller, EditorInputActionId id);
 const EditorInputAction *editor_project_input_action_const_get(
-    const EditorProject *project, EditorInputActionMapId map,
+    const EditorProject *project, EditorInputControllerId controller,
     EditorInputActionId id);
 bool editor_project_input_action_set(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId id, const char *name,
-    InputActionType type);
+    EditorInputControllerId controller, EditorInputActionId id, const char *name,
+    InputActionType type, InputButtonMode button_mode,
+    bool button_initial_state);
 bool editor_project_input_action_remove(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId id);
+    EditorInputControllerId controller, EditorInputActionId id);
 bool editor_project_input_binding_add(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId action,
+    EditorInputControllerId controller, EditorInputActionId action,
     InputBinding binding);
 bool editor_project_input_binding_set(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId action, size_t index,
+    EditorInputControllerId controller, EditorInputActionId action, size_t index,
     InputBinding binding);
 bool editor_project_input_binding_remove(EditorProject *project,
-    EditorInputActionMapId map, EditorInputActionId action, size_t index);
+    EditorInputControllerId controller, EditorInputActionId action, size_t index);
 
 EditorGraphicsLayer *editor_project_graphics_layer_add(EditorProject *project,
     const char *name, int value);

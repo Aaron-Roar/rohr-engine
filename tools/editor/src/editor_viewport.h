@@ -37,7 +37,9 @@ typedef enum EditorViewportMode {
     EDITOR_VIEWPORT_UI_TEXT_EDITOR,
     EDITOR_VIEWPORT_UI_SLIDER_EDITOR,
     EDITOR_VIEWPORT_UI_VERTEX_EDITOR,
-    EDITOR_VIEWPORT_UI_LINE_EDITOR
+    EDITOR_VIEWPORT_UI_LINE_EDITOR,
+    EDITOR_VIEWPORT_INPUT_CONTROLLER,
+    EDITOR_VIEWPORT_INPUT_ACTION
 } EditorViewportMode;
 
 typedef enum EditorHierarchySelection {
@@ -64,7 +66,9 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_UI_TEXT,
     EDITOR_SELECTION_UI_SLIDER,
     EDITOR_SELECTION_UI_VERTEX,
-    EDITOR_SELECTION_UI_LINE
+    EDITOR_SELECTION_UI_LINE,
+    EDITOR_SELECTION_INPUT_CONTROLLER,
+    EDITOR_SELECTION_INPUT_ACTION
 } EditorHierarchySelection;
 
 typedef enum EditorOriginKind {
@@ -142,6 +146,8 @@ typedef struct EditorViewportState {
     EditorAnimatedSpriteId selected_animated_sprite;
     EditorCameraId selected_camera_entity;
     EditorLayoutViewportId selected_layout_viewport;
+    EditorInputControllerId selected_input_controller;
+    EditorInputActionId selected_input_action;
     EditorViewportCameraItemId selected_viewport_camera_item;
     EditorViewportUiItemId selected_viewport_ui_item;
     EditorSpriteId selected_animation_frame;

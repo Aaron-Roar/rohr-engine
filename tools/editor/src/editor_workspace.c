@@ -565,21 +565,21 @@ done:
     return result;
 }
 
-static void editor_workspace_input_map_variable(char *output, size_t capacity,
-        const EditorInputActionMap *map) {
+static void editor_workspace_input_controller_variable(char *output, size_t capacity,
+        const EditorInputController *controller) {
     char name[ROHR_INPUT_NAME_MAX];
-    editor_project_property_name_format(name, sizeof(name), map->name);
-    snprintf(output, capacity, "map_%s_%u", name, map->id);
+    editor_project_property_name_format(name, sizeof(name), controller->name);
+    snprintf(output, capacity, "controller_%s_%u", name, controller->id);
 }
 
 static void editor_workspace_input_action_variable(char *output, size_t capacity,
-        const EditorInputActionMap *map, const EditorInputAction *action) {
-    char map_name[ROHR_INPUT_NAME_MAX];
+        const EditorInputController *controller, const EditorInputAction *action) {
+    char controller_name[ROHR_INPUT_NAME_MAX];
     char action_name[ROHR_INPUT_NAME_MAX];
-    editor_project_property_name_format(map_name, sizeof(map_name), map->name);
+    editor_project_property_name_format(controller_name, sizeof(controller_name), controller->name);
     editor_project_property_name_format(action_name, sizeof(action_name),
         action->name);
-    snprintf(output, capacity, "action_%s_%s_%u", map_name, action_name,
+    snprintf(output, capacity, "action_%s_%s_%u", controller_name, action_name,
         action->id);
 }
 
@@ -622,8 +622,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 workspace->directory, "src/generated/project_objects.h") ||
             !editor_workspace_path_join(source_path, sizeof(source_path),
                 workspace->directory, "src/generated/project_objects.c")) return false;
-    for(size_t i = 0; i < project->input_action_map_count; i += 1)
-        if(project->input_action_maps[i].action_count > 0)
+    for(size_t i = 0; i < project->input_controller_count; i += 1)
+        if(project->input_controllers[i].action_count > 0)
             generated_has_input_actions = true;
     header = fopen(header_path, "wb");
     if(header == NULL) return false;
@@ -1437,60 +1437,71 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         fprintf(source, "    *object = (%s){0};\n}\n\n", object->name);
     }
-    fprintf(header, "typedef struct ProjectInput {\n");
-    for(size_t map_index = 0; map_index < project->input_action_map_count;
-            map_index += 1) {
-        const EditorInputActionMap *map = &project->input_action_maps[map_index];
-        char map_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
-        fprintf(header, "    InputActionMapId %s;\n", map_variable);
-        for(size_t action_index = 0; action_index < map->action_count;
+    fprintf(header, "typedef struct ProjectControllers {\n");
+    for(size_t controller_index = 0;
+            controller_index < project->input_controller_count;
+            controller_index += 1) {
+        const EditorInputController *controller =
+            &project->input_controllers[controller_index];
+        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_controller_variable(controller_variable,
+            sizeof(controller_variable), controller);
+        fprintf(header, "    InputControllerId %s;\n", controller_variable);
+        for(size_t action_index = 0; action_index < controller->action_count;
                 action_index += 1) {
             char action_variable[ROHR_INPUT_NAME_MAX * 3];
             editor_workspace_input_action_variable(action_variable,
-                sizeof(action_variable), map, &map->actions[action_index]);
+                sizeof(action_variable), controller,
+                &controller->actions[action_index]);
             fprintf(header, "    InputActionId %s;\n", action_variable);
         }
     }
     fprintf(header,
         "    bool created;\n"
-        "} ProjectInput;\n\n"
-        "EngineResult project_input_create(ProjectInput *input);\n"
-        "void project_input_destroy(ProjectInput *input);\n\n");
-    fprintf(source, "EngineResult project_input_create(ProjectInput *input) {\n");
-    if(project->input_action_map_count > 0)
-        fprintf(source, "    InputActionMapIdResult map_result;\n");
+        "} ProjectControllers;\n\n"
+        "EngineResult project_controllers_create(ProjectControllers *controllers);\n"
+        "void project_controllers_destroy(ProjectControllers *controllers);\n\n");
+    fprintf(source,
+        "EngineResult project_controllers_create(ProjectControllers *controllers) {\n");
+    if(project->input_controller_count > 0)
+        fprintf(source, "    InputControllerIdResult controller_result;\n");
     if(generated_has_input_actions)
         fprintf(source, "    InputActionIdResult action_result;\n");
-    if(project->input_action_map_count > 0)
+    if(project->input_controller_count > 0)
         fprintf(source, "    EngineResult result;\n");
     fprintf(source,
-        "    if(input == NULL) return rohr_error_result_error("
+        "    if(controllers == NULL) return rohr_error_result_error("
             "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *input = (ProjectInput){0};\n");
-    for(size_t map_index = 0; map_index < project->input_action_map_count;
-            map_index += 1) {
-        const EditorInputActionMap *map = &project->input_action_maps[map_index];
-        char map_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
-        fprintf(source, "    map_result = rohr_input_action_map_create(");
-        editor_workspace_c_string_write(source, map->name);
+        "    *controllers = (ProjectControllers){0};\n");
+    for(size_t controller_index = 0;
+            controller_index < project->input_controller_count;
+            controller_index += 1) {
+        const EditorInputController *controller =
+            &project->input_controllers[controller_index];
+        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_controller_variable(controller_variable,
+            sizeof(controller_variable), controller);
+        fprintf(source, "    controller_result = rohr_input_controller_create(");
+        editor_workspace_c_string_write(source, controller->name);
         fprintf(source,
             ");\n"
-            "    if(rohr_error_check(map_result)) { result = "
-                "rohr_error_result_error(map_result.result.error); goto fail; }\n"
-            "    input->%s = map_result.result.value;\n"
-            "    result = rohr_input_action_map_enabled_set(input->%s, %s);\n"
+            "    if(rohr_error_check(controller_result)) { result = "
+                "rohr_error_result_error(controller_result.result.error); "
+                "goto fail; }\n"
+            "    controllers->%s = controller_result.result.value;\n"
+            "    result = rohr_input_controller_enabled_set(controllers->%s, %s);\n"
             "    if(rohr_error_check(result)) goto fail;\n",
-            map_variable, map_variable, map->enabled ? "true" : "false");
-        for(size_t action_index = 0; action_index < map->action_count;
+            controller_variable, controller_variable,
+            controller->enabled ? "true" : "false");
+        for(size_t action_index = 0; action_index < controller->action_count;
                 action_index += 1) {
-            const EditorInputAction *action = &map->actions[action_index];
+            const EditorInputAction *action = &controller->actions[action_index];
             char action_variable[ROHR_INPUT_NAME_MAX * 3];
             editor_workspace_input_action_variable(action_variable,
-                sizeof(action_variable), map, action);
-            fprintf(source, "    action_result = rohr_input_action_create(input->%s, ",
-                map_variable);
+                sizeof(action_variable), controller, action);
+            fprintf(source,
+                "    action_result = rohr_input_action_create(controllers->%s, ",
+                controller_variable);
             editor_workspace_c_string_write(source, action->name);
             fprintf(source, ", %s);\n",
                 action->type == INPUT_ACTION_BUTTON ? "INPUT_ACTION_BUTTON" :
@@ -1499,8 +1510,19 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             fprintf(source,
                 "    if(rohr_error_check(action_result)) { result = "
                     "rohr_error_result_error(action_result.result.error); goto fail; }\n"
-                "    input->%s = action_result.result.value;\n",
+                "    controllers->%s = action_result.result.value;\n",
                 action_variable);
+            if(action->type == INPUT_ACTION_BUTTON) fprintf(source,
+                "    result = rohr_input_action_button_mode_set(controllers->%s, %s);\n"
+                "    if(rohr_error_check(result)) goto fail;\n"
+                "    result = rohr_input_action_button_initial_state_set("
+                    "controllers->%s, %s);\n"
+                "    if(rohr_error_check(result)) goto fail;\n",
+                action_variable,
+                action->button_mode == INPUT_BUTTON_PERSISTENT ?
+                    "INPUT_BUTTON_PERSISTENT" : "INPUT_BUTTON_MOMENTARY",
+                action_variable,
+                action->button_initial_state ? "true" : "false");
             if(action->binding_count > 0) {
                 fprintf(source, "    const InputBinding %s_bindings[] = {\n",
                     action_variable);
@@ -1514,39 +1536,44 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 }
                 fprintf(source,
                     "    };\n"
-                    "    result = rohr_input_action_bindings_default_set(input->%s, "
+                    "    result = rohr_input_action_bindings_default_set("
+                        "controllers->%s, "
                         "%s_bindings, sizeof(%s_bindings) / "
                         "sizeof(%s_bindings[0]));\n",
                     action_variable, action_variable, action_variable,
                     action_variable);
             } else fprintf(source,
-                "    result = rohr_input_action_bindings_default_set(input->%s, "
+                "    result = rohr_input_action_bindings_default_set("
+                    "controllers->%s, "
                     "NULL, 0);\n", action_variable);
             fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
         }
     }
     fprintf(source,
-        "    input->created = true;\n"
+        "    controllers->created = true;\n"
         "    return rohr_error_result_value(true);\n");
-    if(project->input_action_map_count > 0) fprintf(source,
+    if(project->input_controller_count > 0) fprintf(source,
         "fail:\n"
-        "    project_input_destroy(input);\n"
+        "    project_controllers_destroy(controllers);\n"
         "    return result;\n");
     fprintf(source,
         "}\n\n"
-        "void project_input_destroy(ProjectInput *input) {\n"
-        "    if(input == NULL) return;\n");
-    for(size_t map_index = project->input_action_map_count; map_index > 0;
-            map_index -= 1) {
-        const EditorInputActionMap *map = &project->input_action_maps[map_index - 1];
-        char map_variable[ROHR_INPUT_NAME_MAX * 2];
-        editor_workspace_input_map_variable(map_variable, sizeof(map_variable), map);
+        "void project_controllers_destroy(ProjectControllers *controllers) {\n"
+        "    if(controllers == NULL) return;\n");
+    for(size_t controller_index = project->input_controller_count;
+            controller_index > 0; controller_index -= 1) {
+        const EditorInputController *controller =
+            &project->input_controllers[controller_index - 1];
+        char controller_variable[ROHR_INPUT_NAME_MAX * 2];
+        editor_workspace_input_controller_variable(controller_variable,
+            sizeof(controller_variable), controller);
         fprintf(source,
-            "    if(input->%s != INPUT_ACTION_MAP_INVALID) "
-                "(void)rohr_input_action_map_destroy(input->%s);\n",
-            map_variable, map_variable);
+            "    if(controllers->%s != INPUT_CONTROLLER_INVALID) "
+                "(void)rohr_input_controller_destroy(controllers->%s);\n",
+            controller_variable, controller_variable);
     }
-    fprintf(source, "    *input = (ProjectInput){0};\n}\n\n");
+    fprintf(source,
+        "    *controllers = (ProjectControllers){0};\n}\n\n");
 
     fprintf(header, "typedef struct ProjectObjects {\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
@@ -1556,7 +1583,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         fprintf(header, "    %s %s;\n", project->objects[object_index].name, variable);
     }
     fprintf(header,
-        "    ProjectInput input;\n"
+        "    ProjectControllers controllers;\n"
         "    bool created;\n"
         "} ProjectObjects;\n\n"
         "EngineResult project_objects_create_all(ProjectObjects *objects);\n"
@@ -1568,7 +1595,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    if(objects == NULL) return rohr_error_result_error("
             "ERROR_MEMORY_POOL_NULL_POINTER);\n"
         "    *objects = (ProjectObjects){0};\n"
-        "    result = project_input_create(&objects->input);\n"
+        "    result = project_controllers_create(&objects->controllers);\n"
         "    if(rohr_error_check(result)) goto fail;\n");
     fprintf(source,
         "    result = rohr_engine_time_per_tick_set(%.17g);\n"
@@ -1626,7 +1653,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         fprintf(source, "    %s_destroy(&objects->%s);\n", variable, variable);
     }
     fprintf(source,
-        "    project_input_destroy(&objects->input);\n"
+        "    project_controllers_destroy(&objects->controllers);\n"
         "    *objects = (ProjectObjects){0};\n}\n\n");
     fprintf(header, "#endif\n");
     {
