@@ -21,6 +21,57 @@ void rohr_engine_pause(void) { engine_pause(); }
 void rohr_engine_resume(void) { engine_resume(); }
 EngineResult rohr_engine_time_per_tick_set(Time value) { return engine_time_per_tick_set(value); }
 Time rohr_engine_time_per_tick_get(void) { return engine_time_per_tick_get(); }
+EngineResult rohr_audio_start(void) { return audio_start(); }
+void rohr_audio_stop(void) { audio_stop(); }
+bool rohr_audio_started_check(void) { return audio_started_check(); }
+EngineResult rohr_audio_volume_set(float volume) {
+    return audio_volume_set(volume);
+}
+float rohr_audio_volume_get(void) { return audio_volume_get(); }
+SoundConfig rohr_audio_sound_config_default_get(void) {
+    return audio_sound_config_default_get();
+}
+SoundResult rohr_audio_sound_create(SoundConfig config) {
+    return audio_sound_create(config);
+}
+EngineResult rohr_audio_sound_destroy(Sound sound) {
+    return audio_sound_destroy(sound);
+}
+EngineResult rohr_audio_sound_play(Sound sound) {
+    return audio_sound_play(sound);
+}
+EngineResult rohr_audio_sound_stop(Sound sound) {
+    return audio_sound_stop(sound);
+}
+EngineResult rohr_audio_sound_volume_set(Sound sound, float volume) {
+    return audio_sound_volume_set(sound, volume);
+}
+AudioValueResult rohr_audio_sound_volume_get(Sound sound) {
+    return audio_sound_volume_get(sound);
+}
+EngineResult rohr_audio_sound_pan_set(Sound sound, float pan) {
+    return audio_sound_pan_set(sound, pan);
+}
+AudioValueResult rohr_audio_sound_pan_get(Sound sound) {
+    return audio_sound_pan_get(sound);
+}
+EngineResult rohr_audio_sound_loop_set(Sound sound, bool loop) {
+    return audio_sound_loop_set(sound, loop);
+}
+bool rohr_audio_sound_loop_check(Sound sound) {
+    return audio_sound_loop_check(sound);
+}
+EngineResult rohr_audio_sound_playback_rate_set(
+        Sound sound,
+        float playback_rate) {
+    return audio_sound_playback_rate_set(sound, playback_rate);
+}
+AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound) {
+    return audio_sound_playback_rate_get(sound);
+}
+bool rohr_audio_sound_playing_check(Sound sound) {
+    return audio_sound_playing_check(sound);
+}
 const char *rohr_directory_base_get(void) { return SDL_GetBasePath(); }
 EngineResult rohr_directory_working_set(const char *directory) {
     int error_number;

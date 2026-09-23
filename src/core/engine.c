@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <SDL3/SDL.h>
 #include "engine.h"
+#include "audio.h"
 #include "core/engine_internal.h"
 #include "entity_components.h"
 #include "physics.h"
@@ -159,6 +160,7 @@ EngineResult engine_time_per_tick_set(Time value) {
 Time engine_time_per_tick_get(void) { return engine_time_per_tick; }
 
 void engine_stop(void) {
+    audio_stop();
     input_stop();
     game_state_runtime_reset();
     physics_broadphase_destroy();

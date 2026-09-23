@@ -2296,27 +2296,6 @@ Creates a joint between two entities.
 
 **Returns:** EntityResult containing the joint entity, or an error.
 
-### `rohr_physics_particle_config_default_get`
-
-```c
-ParticleConfig rohr_physics_particle_config_default_get(void);
-```
-
-Returns a valid standalone particle configuration with a unit radius, default
-material values, default collision filtering, and
-`ROHR_PARTICLE_RIGID_VERTICES_DEFAULT` polygon vertices.
-
-### `rohr_physics_particle_create`
-
-```c
-EntityResult rohr_physics_particle_create(ParticleConfig config);
-```
-
-Creates one translation-only particle entity. Its particle circle and circular
-polygon hitbox share `config.radius` and `config.local_origin`. Zero
-`rigid_vertices` selects the engine default. `static_body` chooses static
-creation; otherwise the initial dynamic motion and optional gravity are used.
-
 ### `rohr_physics_particle_overlap_get`
 
 ```c
@@ -2331,6 +2310,36 @@ Gets overlap information for two particle shapes.
 | `shape_2` | Second shape. |
 
 **Returns:** Geometric overlap information.
+
+### `rohr_physics_particle_config_default_get`
+
+```c
+ParticleConfig rohr_physics_particle_config_default_get(void);
+```
+
+Returns a valid standalone particle configuration with engine defaults.
+
+**Returns:** ParticleConfig with a unit radius, default material and collision.
+
+### `rohr_physics_particle_create`
+
+```c
+EntityResult rohr_physics_particle_create(ParticleConfig config);
+```
+
+Creates one translation-only particle entity.
+
+The particle radius and local origin drive both its circle geometry and
+
+circular polygon hitbox. A rigid_vertices value of zero uses
+
+ROHR_PARTICLE_RIGID_VERTICES_DEFAULT.
+
+| Parameter | Description |
+| --- | --- |
+| `config` | Reusable particle configuration and initial instance state. |
+
+**Returns:** EntityResult containing the created particle, or an error.
 
 ### `rohr_physics_particle_origin_set`
 
@@ -4024,6 +4033,160 @@ Returns a random float in a range.
 
 ## Other
 
+### `rohr_audio_start`
+
+```c
+EngineResult rohr_audio_start(void);
+```
+
+ Start the optional SDL-backed audio service and shared mixer.
+
+### `rohr_audio_stop`
+
+```c
+void rohr_audio_stop(void);
+```
+
+ Destroy all audio resources and stop the audio service.
+
+### `rohr_audio_started_check`
+
+```c
+bool rohr_audio_started_check(void);
+```
+
+ Return whether the audio service is currently started.
+
+### `rohr_audio_volume_set`
+
+```c
+EngineResult rohr_audio_volume_set(float volume);
+```
+
+ Set the shared mixer volume, clamped to 0..1.
+
+### `rohr_audio_volume_get`
+
+```c
+float rohr_audio_volume_get(void);
+```
+
+ Return the shared mixer volume.
+
+### `rohr_audio_sound_config_default_get`
+
+```c
+SoundConfig rohr_audio_sound_config_default_get(void);
+```
+
+ Return defaults for one WAV sound playback instance.
+
+### `rohr_audio_sound_create`
+
+```c
+SoundResult rohr_audio_sound_create(SoundConfig config);
+```
+
+ Load a WAV and create one independently controlled playback instance.
+
+### `rohr_audio_sound_destroy`
+
+```c
+EngineResult rohr_audio_sound_destroy(Sound sound);
+```
+
+ Stop and release one sound and its decoded samples.
+
+### `rohr_audio_sound_play`
+
+```c
+EngineResult rohr_audio_sound_play(Sound sound);
+```
+
+ Restart one sound from its beginning.
+
+### `rohr_audio_sound_stop`
+
+```c
+EngineResult rohr_audio_sound_stop(Sound sound);
+```
+
+ Stop one sound and reset it to its beginning.
+
+### `rohr_audio_sound_volume_set`
+
+```c
+EngineResult rohr_audio_sound_volume_set(Sound sound, float volume);
+```
+
+ Set one sound's volume, clamped to 0..1.
+
+### `rohr_audio_sound_volume_get`
+
+```c
+AudioValueResult rohr_audio_sound_volume_get(Sound sound);
+```
+
+ Return one sound's stored volume, or an error for an invalid handle.
+
+### `rohr_audio_sound_pan_set`
+
+```c
+EngineResult rohr_audio_sound_pan_set(Sound sound, float pan);
+```
+
+ Set one sound's stereo pan, clamped to -1..1.
+
+### `rohr_audio_sound_pan_get`
+
+```c
+AudioValueResult rohr_audio_sound_pan_get(Sound sound);
+```
+
+ Return one sound's stored stereo pan.
+
+### `rohr_audio_sound_loop_set`
+
+```c
+EngineResult rohr_audio_sound_loop_set(Sound sound, bool loop);
+```
+
+ Enable or disable restarting the sound when it reaches its end.
+
+### `rohr_audio_sound_loop_check`
+
+```c
+bool rohr_audio_sound_loop_check(Sound sound);
+```
+
+ Return whether one sound is configured to loop.
+
+### `rohr_audio_sound_playback_rate_set`
+
+```c
+EngineResult rohr_audio_sound_playback_rate_set( Sound sound, float playback_rate );
+```
+
+Set one sound's speed and pitch ratio.
+
+Zero freezes playback and negative values are normalized to zero.
+
+### `rohr_audio_sound_playback_rate_get`
+
+```c
+AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound);
+```
+
+ Return one sound's normalized speed and pitch ratio.
+
+### `rohr_audio_sound_playing_check`
+
+```c
+bool rohr_audio_sound_playing_check(Sound sound);
+```
+
+ Return true only while the sound is actively advancing.
+
 ### `rohr_directory_base_get`
 
 ```c
@@ -4248,8 +4411,9 @@ Draws and updates one button identified by a stable string.
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, UIRect bounds, const UIButtonStyle *style);
 ```
 
-Draws a dropdown and returns selection and hover-preview state. At most three
-option rows are visible; longer lists provide wheel and scrollbar navigation.
+Draws a dropdown and returns selection and hover-preview state.
+
+At most three option rows are visible; longer lists scroll.
 
 ### `rohr_ui_menu`
 

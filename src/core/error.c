@@ -170,6 +170,22 @@ const char *error_code_message_get(EngineError error) {
             return "input configuration invalid";
         case ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED:
             return "working directory could not be set";
+        case ERROR_ENGINE_AUDIO_ALREADY_STARTED:
+            return "audio service already started";
+        case ERROR_ENGINE_AUDIO_NOT_STARTED:
+            return "audio service is not started";
+        case ERROR_ENGINE_AUDIO_INIT_FAILED:
+            return "audio service initialization failed";
+        case ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID:
+            return "invalid sound configuration";
+        case ERROR_ENGINE_AUDIO_SOUND_LOAD_FAILED:
+            return "WAV sound load failed";
+        case ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND:
+            return "sound not found";
+        case ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED:
+            return "sound capacity exceeded";
+        case ERROR_ENGINE_AUDIO_OPERATION_FAILED:
+            return "audio operation failed";
         default:
             return "unknown error";
     }

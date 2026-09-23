@@ -135,6 +135,22 @@ typedef enum EngineError {
     ERROR_ENGINE_INPUT_CONFIGURATION_INVALID,
     /** The process working directory could not be changed. */
     ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED,
+    /** The audio service is already started. */
+    ERROR_ENGINE_AUDIO_ALREADY_STARTED,
+    /** An audio operation requires the audio service to be started. */
+    ERROR_ENGINE_AUDIO_NOT_STARTED,
+    /** SDL could not initialize or open the audio service. */
+    ERROR_ENGINE_AUDIO_INIT_FAILED,
+    /** A sound configuration contains no usable WAV path or audio data. */
+    ERROR_ENGINE_AUDIO_SOUND_CONFIG_INVALID,
+    /** A WAV sound could not be loaded or converted for the mixer. */
+    ERROR_ENGINE_AUDIO_SOUND_LOAD_FAILED,
+    /** No live sound exists for the requested handle. */
+    ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND,
+    /** No additional sound playback instances can be created. */
+    ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED,
+    /** SDL could not perform an audio operation. */
+    ERROR_ENGINE_AUDIO_OPERATION_FAILED,
 } EngineError;
 
 /**

@@ -161,6 +161,7 @@ set(ROHR_SDL3_IMAGE_TARGET SDL3_image::SDL3_image-static)
 set(ROHR_SDL3_TTF_TARGET SDL3_ttf::SDL3_ttf-static)
 
 set(ROHR_ENGINE_SOURCES
+    src/audio/audio.c
     src/core/console.c
     src/core/engine.c
     src/core/error.c
@@ -394,6 +395,12 @@ if(ROHR_BUILD_SDK_CONSUMER_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(audio_test tests/audio.c)
+    target_link_libraries(audio_test PRIVATE rohr_engine)
+    set_target_properties(audio_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME audio COMMAND audio_test)
+
     add_executable(engine_lifecycle_test tests/engine_lifecycle.c)
     target_include_directories(engine_lifecycle_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(engine_lifecycle_test PRIVATE rohr_engine)
@@ -608,6 +615,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     set_tests_properties(
+        audio
         engine_lifecycle
         directory
         input_actions
@@ -636,6 +644,7 @@ if(ROHR_BUILD_TESTS)
     add_custom_target(rohr_tests)
     add_dependencies(
         rohr_tests
+        audio_test
         engine_lifecycle_test
         directory_test
         input_actions_test
