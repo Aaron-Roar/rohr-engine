@@ -246,13 +246,16 @@ int main(void) {
                         gameplay->id, move_id,
                         (InputBinding){.source = INPUT_BINDING_KEY,
                             .input.key = SDL_SCANCODE_W,
+                            .affects_y = true,
                             .scale = {1.0f, 0.5f},
-                            .direction = {0.0f, -1.0f}}) ||
+                            .inverted_x = true,
+                            .direction = {0.5f, -1.0f}}) ||
                     !editor_project_input_binding_add(&workspace_project,
                         gameplay->id, move_id,
                         (InputBinding){.source = INPUT_BINDING_MOUSE_MOTION,
                             .input.axis_component = INPUT_AXIS_COMPONENT_XY,
                             .modifiers = SDL_KMOD_SHIFT,
+                            .affects_x = true, .affects_y = true,
                             .scale = {0.25f, 0.75f},
                             .inverted_x = true}) ||
                     !editor_project_input_binding_add(&workspace_project,
@@ -389,6 +392,18 @@ int main(void) {
                     EDITOR_INPUT_BINDING_INVALID ||
                 loaded_project.input_controllers[0].actions[0].bindings[1].source !=
                     INPUT_BINDING_MOUSE_MOTION ||
+                loaded_project.input_controllers[0].actions[0].bindings[0].
+                    affects_x ||
+                !loaded_project.input_controllers[0].actions[0].bindings[0].
+                    affects_y ||
+                !loaded_project.input_controllers[0].actions[0].bindings[0].
+                    inverted_x ||
+                fabsf(loaded_project.input_controllers[0].actions[0].bindings[0].
+                    direction.x - 0.5f) > 0.001f ||
+                !loaded_project.input_controllers[0].actions[0].bindings[1].
+                    affects_x ||
+                !loaded_project.input_controllers[0].actions[0].bindings[1].
+                    affects_y ||
                 fabsf(loaded_project.input_controllers[0].actions[0].bindings[1].
                     scale.x - 0.25f) > 0.001f ||
                 fabsf(loaded_project.input_controllers[0].actions[0].bindings[1].
@@ -523,6 +538,10 @@ int main(void) {
                 !file_contains(path, ".name = \"primary_click\"") ||
                 !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||
                 !file_contains(path, ".modifiers = (SDL_Keymod)3") ||
+                !file_contains(path,
+                    ".affects_x = false, .affects_y = true") ||
+                !file_contains(path,
+                    ".affects_x = true, .affects_y = true") ||
                 !file_contains(path, ".scale = {0.250000000f, 0.750000000f}") ||
                 !file_contains(path, ".inverted_x = true")) {
             workspace_fixture_remove(fixture);
@@ -1496,12 +1515,13 @@ int main(void) {
         if(action == NULL || !editor_project_input_binding_add(
                 &input_project, controller->id, action->id,
                 (InputBinding){.source = INPUT_BINDING_KEY,
-                    .input.key = SDL_SCANCODE_W, .scale = {2.0f, 2.0f},
+                    .input.key = SDL_SCANCODE_W, .affects_y = true,
+                    .scale = {2.0f, 2.0f},
                     .inverted_x = true, .inverted_y = true,
                     .direction = {0.0f, -1.0f}}) ||
                 !editor_project_save(&input_project, path) ||
                 !file_text_replace_first(path,
-                    "\"scale_x\": 2.0,\n                            \"scale_y\": 2.0,\n                            \"inverted_x\": true,\n                            \"inverted_y\": true,",
+                    "\"affects_x\": false,\n                            \"affects_y\": true,\n                            \"scale_x\": 2.0,\n                            \"scale_y\": 2.0,\n                            \"inverted_x\": true,\n                            \"inverted_y\": true,",
                     "\"scale\": 2.0,\n                            \"inverted\": true,"))
             return 1;
         result = editor_project_load(&loaded_project, path);
@@ -1516,6 +1536,10 @@ int main(void) {
                     scale.x != 2.0f ||
                 loaded_project.input_controllers[0].actions[0].bindings[0].
                     scale.y != 2.0f ||
+                loaded_project.input_controllers[0].actions[0].bindings[0].
+                    affects_x ||
+                !loaded_project.input_controllers[0].actions[0].bindings[0].
+                    affects_y ||
                 !loaded_project.input_controllers[0].actions[0].bindings[0].
                     inverted_x ||
                 !loaded_project.input_controllers[0].actions[0].bindings[0].

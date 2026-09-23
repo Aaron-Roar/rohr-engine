@@ -604,10 +604,14 @@ static void editor_workspace_input_binding_write(FILE *source,
         binding->input.axis_component == INPUT_AXIS_COMPONENT_Y ?
             "INPUT_AXIS_COMPONENT_Y" : "INPUT_AXIS_COMPONENT_XY");
     fprintf(source,
-        ", .modifiers = (SDL_Keymod)%u, .scale = {%#.9gf, %#.9gf}, "
+        ", .modifiers = (SDL_Keymod)%u, .affects_x = %s, .affects_y = %s, "
+        ".scale = {%#.9gf, %#.9gf}, "
         ".inverted_x = %s, .inverted_y = %s, "
         ".direction = {%#.9gf, %#.9gf}}",
-        (unsigned)binding->modifiers, binding->scale.x, binding->scale.y,
+        (unsigned)binding->modifiers,
+        binding->affects_x ? "true" : "false",
+        binding->affects_y ? "true" : "false",
+        binding->scale.x, binding->scale.y,
         binding->inverted_x ? "true" : "false",
         binding->inverted_y ? "true" : "false",
         binding->direction.x, binding->direction.y);

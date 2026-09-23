@@ -169,6 +169,8 @@ static yyjson_mut_val *editor_json_input_binding_write(
         editor_json_input_component_name(binding->input.axis_component));
     yyjson_mut_obj_add_uint(document, value, "modifiers",
         (uint32_t)binding->modifiers);
+    yyjson_mut_obj_add_bool(document, value, "affects_x", binding->affects_x);
+    yyjson_mut_obj_add_bool(document, value, "affects_y", binding->affects_y);
     yyjson_mut_obj_add_real(document, value, "scale_x", binding->scale.x);
     yyjson_mut_obj_add_real(document, value, "scale_y", binding->scale.y);
     yyjson_mut_obj_add_bool(document, value, "inverted_x",
@@ -185,11 +187,14 @@ static bool editor_json_input_binding_read(yyjson_val *value,
     yyjson_val *source_value;
     yyjson_val *input_value;
     yyjson_val *component_value;
+    yyjson_val *affects_x_value;
+    yyjson_val *affects_y_value;
     yyjson_val *legacy_scale;
     yyjson_val *legacy_inverted;
     uint32_t modifiers;
     float scale_x, scale_y, direction_x, direction_y;
-    bool inverted_x, inverted_y;
+    bool affects_x = false, affects_y = false;
+    bool effects_authored, inverted_x, inverted_y;
     const char *source;
     if(!yyjson_is_obj(value) || binding == NULL ||
             !editor_json_uint(value, "modifiers", &modifiers) ||
@@ -197,6 +202,13 @@ static bool editor_json_input_binding_read(yyjson_val *value,
             !editor_json_real(value, "direction_y", &direction_y)) return false;
     legacy_scale = yyjson_obj_get(value, "scale");
     legacy_inverted = yyjson_obj_get(value, "inverted");
+    affects_x_value = yyjson_obj_get(value, "affects_x");
+    affects_y_value = yyjson_obj_get(value, "affects_y");
+    if((affects_x_value == NULL) != (affects_y_value == NULL)) return false;
+    effects_authored = affects_x_value != NULL;
+    if(effects_authored &&
+            (!editor_json_bool(value, "affects_x", &affects_x) ||
+             !editor_json_bool(value, "affects_y", &affects_y))) return false;
     if(legacy_scale != NULL || legacy_inverted != NULL) {
         float scale;
         bool inverted;
@@ -216,6 +228,7 @@ static bool editor_json_input_binding_read(yyjson_val *value,
     if(!yyjson_is_str(source_value)) return false;
     source = yyjson_get_str(source_value);
     *binding = (InputBinding){.modifiers = (SDL_Keymod)modifiers,
+        .affects_x = affects_x, .affects_y = affects_y,
         .scale = {scale_x, scale_y}, .inverted_x = inverted_x,
         .inverted_y = inverted_y,
         .direction = {direction_x, direction_y}};
@@ -246,6 +259,21 @@ static bool editor_json_input_binding_read(yyjson_val *value,
         else if(strcmp(yyjson_get_str(component_value), "xy") == 0)
             binding->input.axis_component = INPUT_AXIS_COMPONENT_XY;
         else return false;
+    }
+    if(!effects_authored) {
+        if(type != INPUT_ACTION_AXIS_2D) {
+            binding->affects_x = true;
+            binding->affects_y = true;
+        } else if(binding->source == INPUT_BINDING_KEY ||
+                binding->source == INPUT_BINDING_MOUSE_BUTTON) {
+            binding->affects_x = direction_x != 0.0f;
+            binding->affects_y = direction_y != 0.0f;
+        } else {
+            binding->affects_x = binding->input.axis_component !=
+                INPUT_AXIS_COMPONENT_Y;
+            binding->affects_y = binding->input.axis_component !=
+                INPUT_AXIS_COMPONENT_X;
+        }
     }
     return rohr_input_binding_valid_check(type, binding);
 }

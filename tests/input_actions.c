@@ -180,18 +180,26 @@ static bool input_action_test(void) {
     };
     const InputBinding move_bindings[] = {
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_W,
-            .scale = {1.0f, 1.0f}, .direction = {0.0f, 1.0f}},
+            .affects_y = true, .scale = {1.0f, 1.0f},
+            .direction = {0.5f, 1.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_S,
-            .scale = {1.0f, 1.0f}, .direction = {0.0f, -1.0f}},
+            .affects_y = true, .scale = {1.0f, 1.0f},
+            .direction = {0.0f, -1.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_A,
-            .scale = {1.0f, 1.0f}, .direction = {-1.0f, 0.0f}},
+            .affects_x = true, .scale = {1.0f, 1.0f},
+            .direction = {-1.0f, 0.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_D,
-            .scale = {1.0f, 1.0f}, .direction = {1.0f, 0.0f}},
+            .affects_x = true, .scale = {1.0f, 1.0f},
+            .direction = {1.0f, 0.0f}},
     };
     const InputBinding look_bindings[] = {
         {.source = INPUT_BINDING_MOUSE_MOTION,
             .input.axis_component = INPUT_AXIS_COMPONENT_XY,
+            .affects_x = true, .affects_y = true,
             .scale = {0.1f, 0.05f}, .inverted_y = true},
+        {.source = INPUT_BINDING_MOUSE_MOTION,
+            .input.axis_component = INPUT_AXIS_COMPONENT_Y,
+            .affects_x = true, .scale = {0.05f, 1.0f}},
     };
     const InputBinding zoom_bindings[] = {
         {.source = INPUT_BINDING_MOUSE_WHEEL,
@@ -214,6 +222,7 @@ static bool input_action_test(void) {
             letter_binding.source != INPUT_BINDING_KEY ||
             letter_binding.scale.x != 1.0f ||
             letter_binding.scale.y != 1.0f ||
+            !letter_binding.affects_x || !letter_binding.affects_y ||
             physical_binding.modifiers != SDL_KMOD_NONE) return false;
     gameplay = gameplay_result.result.value;
     if(!rohr_error_check(rohr_input_controller_create("gameplay")) ||
@@ -236,7 +245,7 @@ static bool input_action_test(void) {
             rohr_error_check(rohr_input_action_bindings_default_set(
                 move_result.result.value, move_bindings, 4)) ||
             rohr_error_check(rohr_input_action_bindings_default_set(
-                look_result.result.value, look_bindings, 1)) ||
+                look_result.result.value, look_bindings, 2)) ||
             rohr_error_check(rohr_input_action_bindings_default_set(
                 zoom_result.result.value, zoom_bindings, 1)) ||
             rohr_error_check(rohr_input_action_bindings_default_set(
@@ -332,7 +341,7 @@ static bool input_action_test(void) {
             !close_float(axis_2d.result.value.y, 0.7071067f)) return false;
     axis_2d = rohr_input_action_axis_2d_get(look_result.result.value);
     if(rohr_error_check(axis_2d) ||
-            !close_float(axis_2d.result.value.x, 0.8f) ||
+            !close_float(axis_2d.result.value.x, 0.5f) ||
             !close_float(axis_2d.result.value.y, 0.3f)) return false;
     axis_1d = rohr_input_action_axis_1d_get(zoom_result.result.value);
     if(rohr_error_check(axis_1d) || !close_float(axis_1d.result.value, -0.5f))

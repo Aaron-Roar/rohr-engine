@@ -44,6 +44,8 @@ static InputBinding input_binding_default_get(InputActionType type) {
     InputBinding binding = {.source = INPUT_BINDING_KEY,
         .input.key = type == INPUT_ACTION_BUTTON ? SDL_SCANCODE_SPACE :
             type == INPUT_ACTION_AXIS_1D ? SDL_SCANCODE_A : SDL_SCANCODE_W,
+        .affects_x = type != INPUT_ACTION_AXIS_2D,
+        .affects_y = true,
         .scale = {1.0f, 1.0f}};
     if(type == INPUT_ACTION_AXIS_2D) binding.direction.y = -1.0f;
     return binding;
@@ -70,11 +72,13 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     CREATE("Type", type_label); CREATE("Mode", button_mode_label);
     CREATE("Initial state", initial_state_label); CREATE("Source", source_label);
     CREATE("Input / Axis", input_label); CREATE("Modifiers", modifiers_label);
-    CREATE("Scale", scale_label); CREATE("Scale X", scale_x_label);
-    CREATE("Scale Y", scale_y_label); CREATE("Inverted", inverted_label);
-    CREATE("Invert X", inverted_x_label); CREATE("Invert Y", inverted_y_label);
-    CREATE("Direction X", direction_x_label);
-    CREATE("Direction Y", direction_y_label); CREATE("", name_field);
+    CREATE("Affects Action Axis X", affects_x_label);
+    CREATE("Affects Action Axis Y", affects_y_label);
+    CREATE("Scale", scale_label); CREATE("Scale", scale_x_label);
+    CREATE("Scale", scale_y_label); CREATE("Inverted", inverted_label);
+    CREATE("Invert", inverted_x_label); CREATE("Invert", inverted_y_label);
+    CREATE("Direction", direction_x_label);
+    CREATE("Direction", direction_y_label); CREATE("", name_field);
     CREATE("-> SDL Scancode", ascii_value_label);
     CREATE("-> Letter Symbols", letter_symbols_label);
     CREATE("", input_field); CREATE("", modifiers_field);
@@ -99,11 +103,11 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     if(!editor_mode_accordion_section_create(&panel->input_section, font,
             "Input", true) ||
             !editor_mode_accordion_section_create(&panel->axis_section, font,
-                "Axis", false) ||
+                "Axis Effect", false) ||
             !editor_mode_accordion_section_create(&panel->x_axis_section, font,
-                "X Axis", false) ||
+                "Action Axis X Effect", false) ||
             !editor_mode_accordion_section_create(&panel->y_axis_section, font,
-                "Y Axis", false)) goto fail;
+                "Action Axis Y Effect", false)) goto fail;
     return true;
 fail:
     editor_input_settings_panel_destroy(panel);
@@ -387,7 +391,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         &panel->binding_source_options[3]};
     size_t source;
     float input, modifiers, scale_x, scale_y, direction_x, direction_y;
-    bool inverted_x, inverted_y, changed = false;
+    bool affects_x, affects_y, inverted_x, inverted_y, changed = false;
     UIDropdownResult selected;
     if(index >= action->binding_count) return;
     binding = action->bindings[index];
@@ -397,6 +401,8 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         binding.source == INPUT_BINDING_MOUSE_BUTTON ?
             binding.input.mouse_button : binding.input.axis_component;
     modifiers = binding.modifiers;
+    affects_x = binding.affects_x;
+    affects_y = binding.affects_y;
     scale_x = binding.scale.x;
     scale_y = binding.scale.y;
     direction_x = binding.direction.x;
@@ -412,14 +418,19 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
     {
         float content_x = x + 8.0f;
         float content_width = width - 16.0f;
-        const float input_rows[] = {52.0f, 76.0f, 76.0f};
+        const float standard_input_rows[] = {52.0f, 76.0f, 76.0f};
+        const float axis_2d_input_rows[] = {
+            52.0f, 76.0f, 76.0f, 28.0f, 28.0f};
+        const float *input_rows = action->type == INPUT_ACTION_AXIS_2D ?
+            axis_2d_input_rows : standard_input_rows;
+        size_t input_row_count = action->type == INPUT_ACTION_AXIS_2D ? 5 : 3;
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(x - 8.0f,
                 width + 16.0f, y);
         EditorModeAccordionLayoutResult input_section =
             editor_mode_accordion_layout_section(&accordion,
                 &panel->input_section, "editor.input.binding.section.input",
-                input_rows, 3, 8.0f);
+                input_rows, input_row_count, 8.0f);
         if(input_section.expanded) {
             float source_y = editor_mode_accordion_layout_row_y(&input_section,
                 input_rows, 0, 8.0f);
@@ -554,6 +565,24 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                 panel->key_capture_active = false;
                 rohr_ui_field_focus_clear();
             }
+            if(action->type == INPUT_ACTION_AXIS_2D) {
+                float affects_x_y = editor_mode_accordion_layout_row_y(
+                    &input_section, input_rows, 3, 8.0f);
+                float affects_y_y = editor_mode_accordion_layout_row_y(
+                    &input_section, input_rows, 4, 8.0f);
+                if(editor_mode_checkbox_left(
+                        "editor.input.binding.affects_x",
+                        &panel->affects_x_label,
+                        (UIRect){content_x, affects_x_y,
+                            content_width, 28.0f}, &affects_x))
+                    changed = true;
+                if(editor_mode_checkbox_left(
+                        "editor.input.binding.affects_y",
+                        &panel->affects_y_label,
+                        (UIRect){content_x, affects_y_y,
+                            content_width, 28.0f}, &affects_y))
+                    changed = true;
+            }
         } else panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
         if(action->type == INPUT_ACTION_AXIS_1D) {
             const float axis_rows[] = {52.0f, 28.0f};
@@ -590,13 +619,15 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             const float pointer_rows[] = {52.0f, 28.0f};
             const float *axis_rows = digital ? digital_rows : pointer_rows;
             size_t axis_row_count = digital ? 3 : 2;
-            EditorModeAccordionLayoutResult x_axis =
-                editor_mode_accordion_layout_section(&accordion,
+            EditorModeAccordionLayoutResult x_axis = {0};
+            EditorModeAccordionLayoutResult y_axis = {0};
+            if(affects_x) x_axis = editor_mode_accordion_layout_section(
+                    &accordion,
                     &panel->x_axis_section,
                     "editor.input.binding.section.x_axis", axis_rows,
                     axis_row_count, 8.0f);
-            EditorModeAccordionLayoutResult y_axis =
-                editor_mode_accordion_layout_section(&accordion,
+            if(affects_y) y_axis = editor_mode_accordion_layout_section(
+                    &accordion,
                     &panel->y_axis_section,
                     "editor.input.binding.section.y_axis", axis_rows,
                     axis_row_count, 8.0f);
@@ -681,6 +712,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
     if(changed) {
         binding = (InputBinding){.source = (InputBindingSource)source,
             .modifiers = (SDL_Keymod)(uint32_t)fmaxf(0.0f, roundf(modifiers)),
+            .affects_x = affects_x, .affects_y = affects_y,
             .scale = {scale_x, scale_y}, .inverted_x = inverted_x,
             .inverted_y = inverted_y,
             .direction = {direction_x, direction_y}};
@@ -810,6 +842,7 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
     DESTROY(binding_label); DESTROY(name_label); DESTROY(enabled_label);
     DESTROY(type_label); DESTROY(button_mode_label); DESTROY(initial_state_label);
     DESTROY(source_label); DESTROY(input_label); DESTROY(modifiers_label);
+    DESTROY(affects_x_label); DESTROY(affects_y_label);
     DESTROY(scale_label); DESTROY(scale_x_label); DESTROY(scale_y_label);
     DESTROY(inverted_label); DESTROY(inverted_x_label); DESTROY(inverted_y_label);
     DESTROY(direction_x_label);

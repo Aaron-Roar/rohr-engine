@@ -160,12 +160,16 @@ static Vec2D input_binding_vector_get(const InputBinding *binding) {
     } else {
         Vec2D source = binding->source == INPUT_BINDING_MOUSE_MOTION ?
             input_snapshot.mouse_delta : input_snapshot.mouse_wheel;
-        if(binding->input.axis_component == INPUT_AXIS_COMPONENT_X)
+        if(binding->input.axis_component == INPUT_AXIS_COMPONENT_X) {
             value.x = source.x;
-        else if(binding->input.axis_component == INPUT_AXIS_COMPONENT_Y)
+            value.y = source.x;
+        } else if(binding->input.axis_component == INPUT_AXIS_COMPONENT_Y) {
+            value.x = source.y;
             value.y = source.y;
-        else value = source;
+        } else value = source;
     }
+    if(!binding->affects_x) value.x = 0.0f;
+    if(!binding->affects_y) value.y = 0.0f;
     value.x *= binding->scale.x;
     value.y *= binding->scale.y;
     if(binding->inverted_x) value.x = -value.x;
@@ -224,10 +228,6 @@ bool input_binding_valid_check(InputActionType action_type,
             (binding->source == INPUT_BINDING_MOUSE_MOTION ||
              binding->source == INPUT_BINDING_MOUSE_WHEEL))
         return binding->input.axis_component != INPUT_AXIS_COMPONENT_XY;
-    if(action_type == INPUT_ACTION_AXIS_2D &&
-            (binding->source == INPUT_BINDING_KEY ||
-             binding->source == INPUT_BINDING_MOUSE_BUTTON))
-        return binding->direction.x != 0.0f || binding->direction.y != 0.0f;
     return true;
 }
 
@@ -235,12 +235,14 @@ InputBinding input_binding_key_create(SDL_Keycode key) {
     SDL_Keymod modifiers = SDL_KMOD_NONE;
     SDL_Scancode scancode = SDL_GetScancodeFromKey(key, &modifiers);
     return (InputBinding){.source = INPUT_BINDING_KEY,
-        .input.key = scancode, .modifiers = modifiers, .scale = {1.0f, 1.0f}};
+        .input.key = scancode, .modifiers = modifiers,
+        .affects_x = true, .affects_y = true, .scale = {1.0f, 1.0f}};
 }
 
 InputBinding input_binding_scancode_create(SDL_Scancode key) {
     return (InputBinding){.source = INPUT_BINDING_KEY,
-        .input.key = key, .scale = {1.0f, 1.0f}};
+        .input.key = key, .affects_x = true, .affects_y = true,
+        .scale = {1.0f, 1.0f}};
 }
 
 static EngineResult input_bindings_set(InputAction *action,

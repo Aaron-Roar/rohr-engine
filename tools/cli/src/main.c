@@ -102,10 +102,11 @@ static const CliHelpDomain cli_help_domains[] = {
         "--controller gameplay --action move add axis-2d", 1},
     {"--binding", "input binding",
         "binding-set <name> <source> <input> <modifiers> [<scale> <inverted> "
-        "| <scale-x> <scale-y> <inverted-x> <inverted-y> "
+        "| <affects-x> <affects-y> <scale-x> <scale-y> "
+        "<inverted-x> <inverted-y> "
         "<direction-x> <direction-y>]",
         "--controller gameplay --action move --binding move_up "
-        "binding-set move_forward key W 0 1 1 false false 0 -1", 2}
+        "binding-set move_forward key W 0 false true 1 1 false false 0 -1", 2}
 };
 
 static bool cli_help_flag_check(const char *argument) {
@@ -177,8 +178,8 @@ static void cli_help_print(int count, char **arguments) {
             "  add <binding>, binding-set <new-name> <binding>, delete\n"
             "  Button: source input modifiers\n"
             "  Axis 1D: source input modifiers scale inverted\n"
-            "  Axis 2D: source input modifiers scale-x scale-y inverted-x "
-            "inverted-y direction-x direction-y");
+            "  Axis 2D: source input modifiers affects-x affects-y scale-x "
+            "scale-y inverted-x inverted-y direction-x direction-y");
     else puts("Operations at this depth:\n  rename <new-name>, delete");
 }
 

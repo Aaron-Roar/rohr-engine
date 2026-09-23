@@ -66,8 +66,12 @@ bindings are active when any valid binding is down, and do not use scale or
 inversion. Every bit in a binding's modifier mask must be active. Axis 1D uses
 `scale.x` and `inverted_x`. Axis 2D applies `scale.x` and `scale.y` independently,
 then flips the sign of each component selected by `inverted_x` or `inverted_y`.
+`affects_x` and `affects_y` independently enable those Action Axis effects;
+disabled effects retain their authored direction, scale, and inversion values.
 For pointer movement and wheel sources, those scales act as per-axis
-sensitivity. Digital Axis 2D bindings also use their authored direction vector.
+sensitivity. A single selected pointer component can feed either enabled
+Action Axis, while `xy` feeds the corresponding X and Y components. Digital
+Axis 2D bindings instead use their authored direction vector.
 Binding names are optional in direct C, must
 be unique within an action when present, and are retained by copied binding
 lists. Key bindings use SDL scancodes; prefer SDL's
@@ -157,8 +161,9 @@ The selector-first CLI supports the same authored state. Bindings can be
 selected by `--binding`, `--binding-id`, or the legacy `--binding-index`.
 Every binding starts with source, physical input, and modifier bit mask. Button
 bindings stop there. Axis 1D adds scale and inversion. Axis 2D adds scale X,
-scale Y, inversion X, inversion Y, direction X, and direction Y. The old
-seven-value uniform-scale form remains readable for compatibility.
+scale Y, inversion X, inversion Y, direction X, and direction Y, preceded by
+booleans selecting whether the binding affects Action Axis X and Y. The older
+uniform-scale and implicit-axis-effect forms remain readable for compatibility.
 
 ```sh
 rohr-cli --project objects/project.rohr.json \
@@ -172,11 +177,11 @@ rohr-cli --project objects/project.rohr.json \
 
 rohr-cli --project objects/project.rohr.json \
   --controller gameplay --action move --binding move_up \
-  add key W 0 1 1 false false 0 -1
+  add key W 0 false true 1 1 false false 0 -1
 
 rohr-cli --project objects/project.rohr.json \
   --controller gameplay --action move --binding move_up \
-  binding-set move_forward key W 0 1 1 false false 0 -1
+  binding-set move_forward key W 0 false true 1 1 false false 0 -1
 
 rohr-cli --project objects/project.rohr.json \
   --controller gameplay --action move --binding move_forward delete

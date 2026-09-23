@@ -88,6 +88,10 @@ typedef struct InputBinding {
     } input;
     /** Required modifier mask. Every bit in the mask must be active. */
     SDL_Keymod modifiers;
+    /** Whether this binding contributes to an Axis 2D action's X axis. */
+    bool affects_x;
+    /** Whether this binding contributes to an Axis 2D action's Y axis. */
+    bool affects_y;
     /** Per-axis multipliers. Axis 1D uses x. Ignored by buttons. */
     Vec2D scale;
     /** Flip the scaled X contribution. Ignored by buttons. */

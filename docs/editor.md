@@ -173,9 +173,13 @@ bindings. Binding properties follow the action type: Buttons omit scale and
 inversion, Axis 1D shows one scale and inversion pair, and Axis 2D shows
 independent X/Y scale and inversion. Digital Axis 2D bindings additionally show
 X/Y direction; pointer movement and wheel bindings use scale as sensitivity.
-The binding name remains visible above **Input**, **Axis**, **X Axis**, and
-**Y Axis** accordions. Each two-dimensional axis groups its direction, scale,
-and inversion controls vertically.
+The binding name remains visible above the accordions. **Input** provides
+**Affects Action Axis X** and **Affects Action Axis Y** controls for Axis 2D;
+only enabled **Action Axis X Effect** and **Action Axis Y Effect** accordions
+appear. Disabling an effect hides it without discarding its direction, scale,
+or inversion. For pointer bindings, the physical axis dropdown and Action Axis
+effect controls express the source-to-output relationship separately. Axis 1D
+uses one **Axis Effect** accordion.
 All changes use normal undo/redo history. Key inputs use SDL scancode
 values; the numeric representation toggle is labelled **SDL Scancode**.
 Generated C preserves binding names and exposes stable controller and action

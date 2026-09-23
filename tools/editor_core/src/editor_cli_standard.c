@@ -451,6 +451,8 @@ static EditorResult cli_input_command_write(const EditorProject *project,
                     binding->binding.scale.x); INPUT_ADD(number);
                 INPUT_ADD(binding->binding.inverted_x ? "true" : "false");
             } else if(action->type == INPUT_ACTION_AXIS_2D) {
+                INPUT_ADD(binding->binding.affects_x ? "true" : "false");
+                INPUT_ADD(binding->binding.affects_y ? "true" : "false");
                 snprintf(number, sizeof(number), "%#.9g",
                     binding->binding.scale.x); INPUT_ADD(number);
                 snprintf(number, sizeof(number), "%#.9g",
@@ -661,11 +663,13 @@ static const char *cli_input_button_mode_name(InputButtonMode mode) {
 static EditorResult cli_input_binding_parse(int count, char **arguments,
         int at, InputActionType type, InputBinding *binding) {
     int value_count = count - at;
+    bool effects_authored = false;
     uint32_t number, modifiers;
     if(binding == NULL || value_count < 3)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "input binding requires source, input, and modifiers");
-    *binding = (InputBinding){.scale = {1.0f, 1.0f}};
+    *binding = (InputBinding){.affects_x = true, .affects_y = true,
+        .scale = {1.0f, 1.0f}};
     if(strcmp(arguments[at], "key") == 0) {
         binding->source = INPUT_BINDING_KEY;
         if(cli_input_uint_parse(arguments[at + 1], &number))
@@ -731,17 +735,46 @@ static EditorResult cli_input_binding_parse(int count, char **arguments,
                     &binding->inverted_x))
             return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                 "Axis 1D binding requires scale and inverted after modifiers");
-    } else if(value_count != 9 ||
-            !cli_input_float_parse(arguments[at + 3], &binding->scale.x) ||
-            !cli_input_float_parse(arguments[at + 4], &binding->scale.y) ||
-            !cli_input_bool_parse(arguments[at + 5], &binding->inverted_x) ||
-            !cli_input_bool_parse(arguments[at + 6], &binding->inverted_y) ||
-            !cli_input_float_parse(arguments[at + 7],
+    } else if(value_count == 9) {
+        if(!cli_input_float_parse(arguments[at + 3], &binding->scale.x) ||
+                !cli_input_float_parse(arguments[at + 4],
+                    &binding->scale.y) ||
+                !cli_input_bool_parse(arguments[at + 5],
+                    &binding->inverted_x) ||
+                !cli_input_bool_parse(arguments[at + 6],
+                    &binding->inverted_y) ||
+                !cli_input_float_parse(arguments[at + 7],
+                    &binding->direction.x) ||
+                !cli_input_float_parse(arguments[at + 8],
+                    &binding->direction.y))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "legacy Axis 2D binding contains an invalid scale, inversion, or direction");
+    } else if(value_count != 11 ||
+            !cli_input_bool_parse(arguments[at + 3], &binding->affects_x) ||
+            !cli_input_bool_parse(arguments[at + 4], &binding->affects_y) ||
+            !cli_input_float_parse(arguments[at + 5], &binding->scale.x) ||
+            !cli_input_float_parse(arguments[at + 6], &binding->scale.y) ||
+            !cli_input_bool_parse(arguments[at + 7], &binding->inverted_x) ||
+            !cli_input_bool_parse(arguments[at + 8], &binding->inverted_y) ||
+            !cli_input_float_parse(arguments[at + 9],
                 &binding->direction.x) ||
-            !cli_input_float_parse(arguments[at + 8],
+            !cli_input_float_parse(arguments[at + 10],
                 &binding->direction.y))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "Axis 2D binding requires scale-x, scale-y, inverted-x, inverted-y, direction-x, and direction-y after modifiers");
+            "Axis 2D binding requires affects-x, affects-y, scale-x, scale-y, inverted-x, inverted-y, direction-x, and direction-y after modifiers");
+    else effects_authored = true;
+    if(type == INPUT_ACTION_AXIS_2D && !effects_authored) {
+        if(binding->source == INPUT_BINDING_KEY ||
+                binding->source == INPUT_BINDING_MOUSE_BUTTON) {
+            binding->affects_x = binding->direction.x != 0.0f;
+            binding->affects_y = binding->direction.y != 0.0f;
+        } else {
+            binding->affects_x = binding->input.axis_component !=
+                INPUT_AXIS_COMPONENT_Y;
+            binding->affects_y = binding->input.axis_component !=
+                INPUT_AXIS_COMPONENT_X;
+        }
+    }
     if(!rohr_input_binding_valid_check(type, binding))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "input binding is invalid for the selected action type");
@@ -991,7 +1024,7 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
         EditorResult parsed;
         int value_index = operation_index + 1;
         int binding_value_count = action->type == INPUT_ACTION_BUTTON ? 3 :
-            action->type == INPUT_ACTION_AXIS_1D ? 5 : 9;
+            action->type == INPUT_ACTION_AXIS_1D ? 5 : 11;
         *command = (EditorCommand){
             .type = binding_add ? EDITOR_COMMAND_INPUT_BINDING_ADD :
                 EDITOR_COMMAND_INPUT_BINDING_SET,
@@ -1003,7 +1036,7 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
             if(binding_name != NULL) snprintf(command->data.input_binding.name,
                 sizeof(command->data.input_binding.name), "%s", binding_name);
         } else if(count - value_index == binding_value_count + 1 ||
-                count - value_index == 8) {
+                count - value_index == 8 || count - value_index == 10) {
             snprintf(command->data.input_binding.name,
                 sizeof(command->data.input_binding.name), "%s",
                 arguments[value_index++]);

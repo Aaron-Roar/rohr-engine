@@ -165,8 +165,8 @@ EngineResult project_controllers_create(ProjectControllers *controllers) {
     if(rohr_error_check(action_result)) { result = rohr_error_result_error(action_result.result.error); goto fail; }
     controllers->action_player_move_1 = action_result.result.value;
     const InputBinding action_player_move_1_bindings[] = {
-        {.name = "move_left", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)4, .modifiers = (SDL_Keymod)0, .scale = {-1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}},
-        {.name = "move_right", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)7, .modifiers = (SDL_Keymod)0, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
+        {.name = "move_left", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)4, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {-1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}},
+        {.name = "move_right", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)7, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
     };
     result = rohr_input_action_bindings_default_set(controllers->action_player_move_1, action_player_move_1_bindings, sizeof(action_player_move_1_bindings) / sizeof(action_player_move_1_bindings[0]));
     if(rohr_error_check(result)) goto fail;
@@ -178,7 +178,7 @@ EngineResult project_controllers_create(ProjectControllers *controllers) {
     result = rohr_input_action_button_initial_state_set(controllers->action_player_jump_2, false);
     if(rohr_error_check(result)) goto fail;
     const InputBinding action_player_jump_2_bindings[] = {
-        {.name = "jump_space", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)44, .modifiers = (SDL_Keymod)0, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
+        {.name = "jump_space", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)44, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
     };
     result = rohr_input_action_bindings_default_set(controllers->action_player_jump_2, action_player_jump_2_bindings, sizeof(action_player_jump_2_bindings) / sizeof(action_player_jump_2_bindings[0]));
     if(rohr_error_check(result)) goto fail;

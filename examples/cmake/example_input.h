@@ -33,6 +33,8 @@ static inline bool example_input_action_create(InputControllerId controller,
 static inline InputBinding example_input_key_binding(SDL_Scancode key,
         float scale, Vec2D direction) {
     return (InputBinding){.source = INPUT_BINDING_KEY, .input.key = key,
+        .affects_x = direction.x != 0.0f,
+        .affects_y = direction.y != 0.0f,
         .scale = {scale, scale}, .direction = direction};
 }
 

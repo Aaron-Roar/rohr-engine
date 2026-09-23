@@ -26,6 +26,7 @@ typedef struct EditorInputSettingsPanel {
     TextAsset binding_label, name_label, enabled_label;
     TextAsset type_label, button_mode_label, initial_state_label;
     TextAsset source_label, input_label, modifiers_label;
+    TextAsset affects_x_label, affects_y_label;
     TextAsset scale_label, scale_x_label, scale_y_label;
     TextAsset inverted_label, inverted_x_label, inverted_y_label;
     TextAsset direction_x_label, direction_y_label;
