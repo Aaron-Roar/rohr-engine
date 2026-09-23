@@ -11,6 +11,7 @@
 #include <string.h>
 
 #define UI_DROPDOWN_VISIBLE_MAX 3
+#define UI_MENU_OPTION_MAX 512
 #define UI_SCROLL_REGION_MAX 8
 #define UI_TRANSLATION_STACK_MAX 8
 #define UI_SCROLL_RECORD_MAX 64
@@ -54,9 +55,9 @@ typedef struct UIContext {
     size_t dropdown_capture_option_count;
     bool dropdown_seen;
     uint64_t dropdown_render_id;
-    const TextAsset *dropdown_options[UI_DROPDOWN_VISIBLE_MAX];
-    uint64_t dropdown_option_ids[UI_DROPDOWN_VISIBLE_MAX];
-    uint64_t dropdown_action_ids[UI_DROPDOWN_VISIBLE_MAX];
+    const TextAsset *dropdown_options[UI_MENU_OPTION_MAX];
+    uint64_t dropdown_option_ids[UI_MENU_OPTION_MAX];
+    uint64_t dropdown_action_ids[UI_MENU_OPTION_MAX];
     size_t dropdown_option_count;
     size_t dropdown_total_option_count;
     const TextAsset *dropdown_action;
@@ -983,8 +984,8 @@ UIButtonResult ui_button(
 
 static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, size_t selected_index,
-    bool always_changed, const TextAsset *action, size_t first_action_index,
-    UIRect bounds, const UIButtonStyle *style) {
+    bool always_changed, bool show_all_options, const TextAsset *action,
+    size_t first_action_index, UIRect bounds, const UIButtonStyle *style) {
     UIDropdownResult result = {.selected_index = selected_index,
         .hovered_index = -1, .action_index = -1};
     uint64_t dropdown_id = ui_hash_id(id);
@@ -992,7 +993,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     UIRect resolved_bounds = ui_bounds_resolve(bounds);
 
     if(!ui_context.frame_active || dropdown_id == 0 || options == NULL ||
-            option_count == 0 ||
+            option_count == 0 || (show_all_options &&
+                option_count > UI_MENU_OPTION_MAX) ||
             selected_index >= option_count ||
             bounds.width <= 0.0f || bounds.height <= 0.0f) return result;
     button = ui_button(id, label, bounds, style);
@@ -1004,7 +1006,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
             ui_context.dropdown_id = 0;
         } else {
             ui_context.dropdown_id = dropdown_id;
-            ui_context.dropdown_first_option = selected_index >= UI_DROPDOWN_VISIBLE_MAX ?
+            ui_context.dropdown_first_option = !show_all_options &&
+                    selected_index >= UI_DROPDOWN_VISIBLE_MAX ?
                 selected_index - UI_DROPDOWN_VISIBLE_MAX + 1 : 0;
         }
     }
@@ -1012,7 +1015,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     if(!result.open) return result;
     ui_context.dropdown_seen = true;
     {
-        size_t visible_count = option_count < UI_DROPDOWN_VISIBLE_MAX ?
+        size_t visible_count = show_all_options ||
+                option_count < UI_DROPDOWN_VISIBLE_MAX ?
             option_count : UI_DROPDOWN_VISIBLE_MAX;
         UIRect menu_bounds = {resolved_bounds.x, resolved_bounds.y + resolved_bounds.height,
             resolved_bounds.width, resolved_bounds.height * (float)visible_count};
@@ -1037,7 +1041,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     ui_context.dropdown_first_action_index = first_action_index;
     ui_context.dropdown_total_option_count = option_count;
     ui_context.dropdown_option_count = option_count - ui_context.dropdown_first_option;
-    if(ui_context.dropdown_option_count > UI_DROPDOWN_VISIBLE_MAX) {
+    if(!show_all_options &&
+            ui_context.dropdown_option_count > UI_DROPDOWN_VISIBLE_MAX) {
         ui_context.dropdown_option_count = UI_DROPDOWN_VISIBLE_MAX;
     }
     ui_context.dropdown_bounds = resolved_bounds;
@@ -1113,7 +1118,7 @@ UIDropdownResult ui_dropdown(const char *id, const TextAsset *const *options,
     const UIButtonStyle *style) {
     if(options == NULL || selected_index >= option_count) return (UIDropdownResult){0};
     return ui_dropdown_draw(id, options[selected_index], options, option_count,
-        selected_index, false, NULL, 0, bounds, style);
+        selected_index, false, false, NULL, 0, bounds, style);
 }
 
 UIDropdownResult ui_dropdown_actions(const char *id,
@@ -1123,14 +1128,14 @@ UIDropdownResult ui_dropdown_actions(const char *id,
     if(options == NULL || selected_index >= option_count)
         return (UIDropdownResult){.action_index = -1, .hovered_index = -1};
     return ui_dropdown_draw(id, options[selected_index], options, option_count,
-        selected_index, false, action, first_action_index, bounds, style);
+        selected_index, false, false, action, first_action_index, bounds, style);
 }
 
 UIDropdownResult ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,
     const UIButtonStyle *style) {
     return ui_dropdown_draw(id, label, options, option_count, 0, true,
-        NULL, 0, bounds, style);
+        true, NULL, 0, bounds, style);
 }
 
 UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,

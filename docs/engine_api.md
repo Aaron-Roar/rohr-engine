@@ -4421,7 +4421,9 @@ At most three option rows are visible; longer lists scroll.
 UIDropdownResult rohr_ui_menu(const char *id, const TextAsset *label, const TextAsset *const *options, size_t option_count, UIRect bounds, const UIButtonStyle *style);
 ```
 
- @brief Draws a menu button whose label is not repeated in its action list.
+Draws a menu button with every action visible and no scrollbar.
+
+The menu label is not repeated in its action list.
 
 ### `rohr_ui_scroll_region_begin`
 

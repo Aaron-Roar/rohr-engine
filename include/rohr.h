@@ -2246,7 +2246,11 @@ UIDropdownResult rohr_ui_dropdown_actions(const char *id,
     const UIButtonStyle *style);
 bool rohr_ui_key_pressed_check(SDL_Keycode key);
 bool rohr_ui_primary_pressed_check(void);
-/** @brief Draws a menu button whose label is not repeated in its action list. */
+/**
+ * @brief Draws a menu button with every action visible and no scrollbar.
+ *
+ * The menu label is not repeated in its action list.
+ */
 UIDropdownResult rohr_ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,
     const UIButtonStyle *style);
