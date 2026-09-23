@@ -173,6 +173,9 @@ bindings. Binding properties follow the action type: Buttons omit scale and
 inversion, Axis 1D shows one scale and inversion pair, and Axis 2D shows
 independent X/Y scale and inversion. Digital Axis 2D bindings additionally show
 X/Y direction; pointer movement and wheel bindings use scale as sensitivity.
+The binding name remains visible above **Input**, **Axis**, **X Axis**, and
+**Y Axis** accordions. Each two-dimensional axis groups its direction, scale,
+and inversion controls vertically.
 All changes use normal undo/redo history. Key inputs use SDL scancode
 values; the numeric representation toggle is labelled **SDL Scancode**.
 Generated C preserves binding names and exposes stable controller and action
