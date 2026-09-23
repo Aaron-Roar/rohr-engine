@@ -1358,8 +1358,8 @@ ParticleConfig rohr_physics_particle_config_default_get(void);
 /**
  * @brief Creates one translation-only particle entity.
  *
- * The particle radius drives both its circle geometry and circular polygon
- * hitbox. A rigid_vertices value of zero uses
+ * The particle radius and local origin drive both its circle geometry and
+ * circular polygon hitbox. A rigid_vertices value of zero uses
  * ROHR_PARTICLE_RIGID_VERTICES_DEFAULT.
  *
  * @param config Reusable particle configuration and initial instance state.

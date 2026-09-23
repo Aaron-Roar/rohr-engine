@@ -107,11 +107,14 @@ for(size_t i = 0; i < amount; i += 1) {
 }
 ```
 
-Creation derives the circular polygon hitbox from `radius`. A
+Creation derives the circular polygon hitbox from `radius` and offsets both
+representations by `local_origin`. A
 `rigid_vertices` value of zero selects
 `ROHR_PARTICLE_RIGID_VERTICES_DEFAULT`; an explicit value changes only the
 polygon approximation quality. The particle circle and initial polygon radius
-therefore cannot disagree.
+therefore cannot disagree. `static_body` creates a static particle; otherwise
+mass, initial motion, acceleration, and optional gravity are applied to a
+dynamic particle.
 
 Particle origin is a local offset from the rigid-body origin and rotates with
 the body. Particle radius and origin have dedicated APIs:

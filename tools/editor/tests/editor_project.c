@@ -601,6 +601,14 @@ int main(void) {
                 !file_contains(path,
                     "generated_body_create(&object->box") ||
                 !file_contains(path,
+                    "const ParticleConfig starter_particle_body_config") ||
+                !file_contains(path,
+                    "created = rohr_physics_particle_create(config)") ||
+                !file_contains(path,
+                    ".rigid_vertices = UINT32_C(16)") ||
+                !file_contains(path,
+                    ".radius = 28.0000000f") ||
+                !file_contains(path,
                     "rohr_physics_hitbox_set(*output, hitbox)") ||
                 !file_contains(path, "rohr_physics_collision_category_set") ||
                 !file_contains(path, "ROHR_COLLISION_CATEGORY_NONE") ||
@@ -614,9 +622,28 @@ int main(void) {
         {
             EditorObject *generated_object = &loaded_project.objects[0];
             EditorRigidBody *generated_body = &generated_object->rigid_bodies[1];
+            EditorRigidBody *generated_particle = NULL;
+            for(size_t body_index = 0;
+                    body_index < generated_object->rigid_body_count;
+                    body_index += 1)
+                if(strcmp(generated_object->rigid_bodies[body_index].name,
+                        "particle_body") == 0)
+                    generated_particle =
+                        &generated_object->rigid_bodies[body_index];
             generated_body->initial_velocity = (Velocity){11.0f, 12.0f};
             generated_body->initial_acceleration = (Acceleration){13.0f, 14.0f};
             generated_body->initial_angular_velocity = 15.0f;
+            if(generated_particle != NULL) {
+                generated_particle->particle_auto_fit = false;
+                generated_particle->particle_radius = 9.0f;
+                generated_particle->particle_rigid_vertices = 12;
+                generated_particle->particle_origin = (Position){3.0f, -4.0f};
+                generated_particle->static_body = true;
+                generated_particle->particle_fill_color = UINT32_C(0x11223344);
+                generated_particle->particle_ring_color = UINT32_C(0x55667788);
+                (void)editor_project_particle_hitbox_sync(
+                    &loaded_project, generated_particle);
+            }
             EditorAnchor *body_anchor = editor_project_anchor_add(&loaded_project,
                 generated_object, (Position){12.0f, 0.0f}, generated_body->id);
             EditorAnchor *world_anchor = editor_project_anchor_add(&loaded_project,
@@ -746,6 +773,7 @@ int main(void) {
                     generated_beam_e == NULL || generated_beam_f == NULL ||
                     generated_soft_body->area_count != 2 ||
                     generated_camera == NULL ||
+                    generated_particle == NULL ||
                     generated_sprite == NULL || generated_animation == NULL ||
                     generated_animation->frame_count != 1 ||
                     !editor_project_joint_anchor_set(generated_object,
@@ -780,6 +808,13 @@ int main(void) {
                     "LGPL-3.0-only license.") ||
                 !file_contains(path, "rohr_physics_particle_origin_set") ||
                 !file_contains(path, "rohr_physics_particle_radius_set") ||
+                !file_contains(path,
+                    ".local_origin = {3.00000000f, -4.00000000f}") ||
+                !file_contains(path, ".radius = 9.00000000f") ||
+                !file_contains(path, ".rigid_vertices = UINT32_C(12)") ||
+                !file_contains(path, ".static_body = true") ||
+                !file_contains(path, "UINT32_C(0x11223344)") ||
+                !file_contains(path, "UINT32_C(0x55667788)") ||
                 !file_contains(path, "generated_world_anchor_create") ||
                 !file_contains(path, "rohr_physics_joint_anchor_create") ||
                 !file_contains(path, "rohr_camera_create") ||
@@ -842,6 +877,8 @@ int main(void) {
         if(!file_contains(path,
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
+                !file_contains(path,
+                    "extern const ParticleConfig starter_particle_body_config;") ||
                 !file_contains(path, "Entity soft_body;") ||
                 file_contains(path, "Entity soft_body_soft_body_1;") ||
                 !file_contains(path, "typedef struct ProjectObjects") ||

@@ -27,8 +27,9 @@ developer-owned C and do not need to be authored in the editor.
    and internal references. Repeated UI mounts likewise receive independent
    mutable runtime resources and placement handles. Spawn timing and gameplay
    decisions remain in C.
-5. **Standalone particles** — Support reusable particle definitions and
-   particle emitters in addition to particle-enabled rigid bodies.
+5. **Standalone particles** — Reusable editor-authored particle definitions now
+   generate public `ParticleConfig` constants and instantiate through the
+   particle API. Particle emitters remain.
 6. **Advanced soft-body surfaces (complete)** — Beams own independently
    configurable thick-segment collision with per-target endpoint exclusion,
    while generated triangles are visual-only. Areas can disable visual surface
@@ -223,7 +224,7 @@ These runtime foundations should precede broad asset-heavy example authoring.
 ## 9. Remaining Example Authoring Coverage
 
 - Filled soft-body surfaces and topology tooling beyond simple triangles.
-- Standalone particle definitions and particle emitters.
+- Particle emitters; reusable standalone particle definitions are complete.
 - UI layout authoring using primitive UI components.
 - Spawn templates and repeated entity arrays.
 - Runtime behavior hooks for controls, timed spawning, scoring, and recording;

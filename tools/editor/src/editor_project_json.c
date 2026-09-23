@@ -1192,7 +1192,8 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
         const EditorHitbox *active = count == 0 ? NULL :
             &body->hitboxes[body->active_hitbox_index];
         body->particle_rigid_vertices = active != NULL &&
-            active->vertex_count >= 3 ? active->vertex_count : 16;
+            active->vertex_count >= 3 ? active->vertex_count :
+                ROHR_PARTICLE_RIGID_VERTICES_DEFAULT;
     }
     if(bindings != NULL) {
         if(!yyjson_is_arr(bindings) ||

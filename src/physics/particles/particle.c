@@ -21,11 +21,13 @@ ParticleConfig physics_particle_config_default_get(void) {
 EntityResult physics_particle_create(ParticleConfig config) {
     uint32_t rigid_vertices = config.rigid_vertices == 0 ?
         ROHR_PARTICLE_RIGID_VERTICES_DEFAULT : config.rigid_vertices;
+    Shape hitbox;
     EntityResult added;
     EngineResult result;
     Entity particle;
 
     if(!physics_world_position_check(config.position) ||
+            !physics_world_position_check(config.local_origin) ||
             !isfinite(config.velocity.x) || !isfinite(config.velocity.y) ||
             !isfinite(config.acceleration.x) ||
             !isfinite(config.acceleration.y) ||
@@ -40,26 +42,36 @@ EntityResult physics_particle_create(ParticleConfig config) {
     added = entity_add();
     if(error_check(added)) return added;
     particle = added.result.value;
+    hitbox = math_circle_create(config.radius, (uint8_t)rigid_vertices);
+    for(uint16_t i = 0; i < hitbox.amount_of_vertices; i += 1) {
+        hitbox.vertices[i].x += config.local_origin.x;
+        hitbox.vertices[i].y += config.local_origin.y;
+    }
 #define PARTICLE_APPLY(call) do { \
     result = (call); \
     if(error_check(result)) goto fail; \
 } while(0)
     PARTICLE_APPLY(physics_position_set(particle, config.position));
-    PARTICLE_APPLY(physics_hitbox_set(particle,
-        math_circle_create(config.radius, (uint8_t)rigid_vertices)));
+    PARTICLE_APPLY(physics_hitbox_set(particle, hitbox));
+    PARTICLE_APPLY(physics_particle_origin_set(
+        particle, config.local_origin));
     PARTICLE_APPLY(physics_particle_radius_set(particle, config.radius));
-    PARTICLE_APPLY(physics_mass_set(particle, config.mass_value));
-    PARTICLE_APPLY(physics_velocity_set(particle, config.velocity));
-    PARTICLE_APPLY(physics_acceleration_set(particle, config.acceleration));
-    PARTICLE_APPLY(physics_dynamic_set(particle));
+    if(config.static_body)
+        PARTICLE_APPLY(physics_static_set(particle));
+    else {
+        PARTICLE_APPLY(physics_mass_set(particle, config.mass_value));
+        PARTICLE_APPLY(physics_velocity_set(particle, config.velocity));
+        PARTICLE_APPLY(physics_acceleration_set(particle, config.acceleration));
+        PARTICLE_APPLY(physics_dynamic_set(particle));
+        if(config.gravity_enabled)
+            PARTICLE_APPLY(physics_gravity_enable(particle));
+    }
     PARTICLE_APPLY(physics_friction_set(particle, config.friction));
     PARTICLE_APPLY(physics_restitution_set(particle, config.restitution));
     PARTICLE_APPLY(physics_collision_filter_set(
         particle, config.collision_filter));
     if(!config.collision_enabled)
         PARTICLE_APPLY(entity_components_delete(particle, ROHR_COLLISION));
-    if(config.gravity_enabled)
-        PARTICLE_APPLY(physics_gravity_enable(particle));
 #undef PARTICLE_APPLY
     return added;
 

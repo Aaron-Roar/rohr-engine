@@ -1782,7 +1782,7 @@ EditorRigidBody editor_project_rigid_body_default_get(void) {
         .collision_with = UINT64_C(1),
         .particle_auto_fit = true,
         .particle_radius = 30.0f,
-        .particle_rigid_vertices = 16,
+        .particle_rigid_vertices = ROHR_PARTICLE_RIGID_VERTICES_DEFAULT,
         .particle_ring_color = UINT32_C(0x4a90e2ff),
         .particle_fill_color = UINT32_C(0x4a90e240),
         .border_color = UINT32_C(0xffffffff),
@@ -2039,6 +2039,8 @@ bool editor_project_particle_hitbox_sync(EditorProject *project,
             snprintf(hitbox->vertices[i].name,
                 sizeof(hitbox->vertices[i].name), "vertex_%u",
                 hitbox->vertices[i].id);
+            snprintf(hitbox->line_names[i], sizeof(hitbox->line_names[i]),
+                "line_%u", i + 1);
         }
         hitbox->vertices[i].position = (Position){
             body->particle_origin.x + cosf(angle) * body->particle_radius,

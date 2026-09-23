@@ -309,6 +309,13 @@ A pair responds only when both directional filters accept one another.
 
 ## Particles
 
+**Add Particle** creates a standalone translation-only particle. Its authored
+radius, local origin, and **Rigid Vertices** produce one synchronized circular
+particle shape and polygon hitbox. Generated C exposes a reusable
+`<object>_<particle>_config` constant and creates the placed instance through
+`rohr_physics_particle_create()`, so game code can copy the same config to
+create additional particles.
+
 Enable **Collision**, then enable **Particle** on a rigid body. The viewport
 shows a dotted particle ring with its fill behind rigid bodies. Single-clicking
 the ring selects it, double-clicking opens the particle editor, and dragging the
@@ -321,10 +328,12 @@ particle-origin-to-vertex distance. Moving a vertex updates the fitted radius.
 Disabling auto-fit preserves its last value, after which radius can be edited
 manually.
 
-Particle geometry is independent from the polygon hitbox. Generated C retains
-the authored polygon and separately calls the particle-origin and
-particle-radius APIs. Particle/particle pairs use circles; particle/ordinary
-rigid-body pairs use their polygon hitboxes.
+For ordinary rigid bodies with Particle enabled, particle geometry remains
+independent from the polygon hitbox. Generated C retains the authored polygon
+and separately calls the particle-origin and particle-radius APIs. This path
+does not turn the body into a standalone particle configuration.
+Particle/particle pairs use circles; particle/ordinary rigid-body pairs use
+their polygon hitboxes.
 
 ## Anchors and joints
 

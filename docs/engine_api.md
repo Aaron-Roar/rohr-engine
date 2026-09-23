@@ -2313,8 +2313,9 @@ EntityResult rohr_physics_particle_create(ParticleConfig config);
 ```
 
 Creates one translation-only particle entity. Its particle circle and circular
-polygon hitbox share `config.radius`. Zero `rigid_vertices` selects the engine
-default.
+polygon hitbox share `config.radius` and `config.local_origin`. Zero
+`rigid_vertices` selects the engine default. `static_body` chooses static
+creation; otherwise the initial dynamic motion and optional gravity are used.
 
 ### `rohr_physics_particle_overlap_get`
 

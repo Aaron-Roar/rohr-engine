@@ -238,16 +238,28 @@ typedef Orientation Torque;
 
 /** Complete configuration used to create one standalone particle entity. */
 typedef struct ParticleConfig {
+    /** Initial world position of the particle entity. */
     Position position;
+    /** Shared local offset of the particle circle and polygon hitbox. */
+    Position local_origin;
+    /** Initial linear velocity; ignored for static particles. */
     Velocity velocity;
+    /** Initial linear acceleration; ignored for static particles. */
     Acceleration acceleration;
+    /** Radius shared by the particle circle and polygon hitbox. */
     float radius;
+    /** Circle approximation quality; zero selects the engine default. */
     uint32_t rigid_vertices;
+    /** Dynamic mass; ignored for static particles. */
     Mass mass_value;
     Friction friction;
     Restitution restitution;
     CollisionFilterConfig collision_filter;
+    /** Whether to create a static rather than dynamic particle. */
+    bool static_body;
+    /** Whether a dynamic particle receives engine gravity. */
     bool gravity_enabled;
+    /** Whether overlaps enter physical collision response. */
     bool collision_enabled;
 } ParticleConfig;
 

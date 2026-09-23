@@ -323,8 +323,11 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     snprintf(particle_body->name, sizeof(particle_body->name), "particle_body");
     particle_body->position = (Position){100.0f, 20.0f};
     particle_body->particle = true;
+    particle_body->standalone_particle = true;
     particle_body->particle_auto_fit = false;
     particle_body->particle_radius = 28.0f;
+    particle_body->rotation_locked = true;
+    if(!editor_project_particle_hitbox_sync(project, particle_body)) return false;
 
     chassis_pin = editor_project_anchor_add(project, starter,
         (Position){60.0f, 0.0f}, chassis_body->id);
@@ -617,6 +620,46 @@ static void editor_workspace_input_binding_write(FILE *source,
         binding->direction.x, binding->direction.y);
 }
 
+static void editor_workspace_particle_config_name(char *output, size_t capacity,
+        const char *object_name, const EditorRigidBody *body) {
+    snprintf(output, capacity, "%s_%s_config", object_name, body->name);
+}
+
+static void editor_workspace_particle_config_write(FILE *source,
+        const char *name, const EditorRigidBody *body) {
+    float radius = body->particle_auto_fit ?
+        editor_project_particle_auto_radius_get(body) : body->particle_radius;
+
+    fprintf(source,
+        "const ParticleConfig %s = {\n"
+        "    .position = {%#.9gf, %#.9gf},\n"
+        "    .local_origin = {%#.9gf, %#.9gf},\n"
+        "    .velocity = {%#.9gf, %#.9gf},\n"
+        "    .acceleration = {%#.9gf, %#.9gf},\n"
+        "    .radius = %#.9gf,\n"
+        "    .rigid_vertices = UINT32_C(%u),\n"
+        "    .mass_value = %#.9gf,\n"
+        "    .friction = %#.9gf,\n"
+        "    .restitution = %#.9gf,\n"
+        "    .collision_filter = {.category = UINT64_C(%llu), "
+            ".collides_with = UINT64_C(%llu)},\n"
+        "    .static_body = %s,\n"
+        "    .gravity_enabled = %s,\n"
+        "    .collision_enabled = %s\n"
+        "};\n\n",
+        name, body->position.x, body->position.y,
+        body->particle_origin.x, body->particle_origin.y,
+        body->initial_velocity.x, body->initial_velocity.y,
+        body->initial_acceleration.x, body->initial_acceleration.y,
+        radius, body->particle_rigid_vertices, body->mass_value,
+        body->friction, body->restitution,
+        (unsigned long long)body->collision_category,
+        (unsigned long long)body->collision_with,
+        body->static_body ? "true" : "false",
+        body->gravity_enabled ? "true" : "false",
+        body->collision_enabled ? "true" : "false");
+}
+
 static bool editor_workspace_generated_objects_write(const EditorWorkspace *workspace,
     const EditorProject *project) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -769,6 +812,17 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
 
         editor_project_property_name_format(function_name, sizeof(function_name),
             object->name);
+        for(size_t body_index = 0; body_index < object->rigid_body_count;
+                body_index += 1) {
+            const EditorRigidBody *body = &object->rigid_bodies[body_index];
+            char config_name[EDITOR_OBJECT_NAME_MAX * 2 + 32];
+            if(!body->particle || !body->standalone_particle) continue;
+            editor_workspace_particle_config_name(config_name,
+                sizeof(config_name), function_name, body);
+            fprintf(header, "extern const ParticleConfig %s;\n", config_name);
+            editor_workspace_particle_config_write(source, config_name, body);
+        }
+        fprintf(header, "\n");
         fprintf(header, "typedef struct %s {\n", object->name);
         for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
             fprintf(header, "    Entity %s;\n", object->rigid_bodies[body_index].name);
@@ -831,6 +885,32 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 &body->hitboxes[0] : NULL;
             float particle_radius = body->particle_auto_fit ?
                 editor_project_particle_auto_radius_get(body) : body->particle_radius;
+
+            if(body->particle && body->standalone_particle) {
+                char config_name[EDITOR_OBJECT_NAME_MAX * 2 + 32];
+                const EditorHitbox *active_hitbox = body->hitbox_count > 0 ?
+                    &body->hitboxes[body->active_hitbox_index < body->hitbox_count ?
+                        body->active_hitbox_index : 0] : NULL;
+                editor_workspace_particle_config_name(config_name,
+                    sizeof(config_name), function_name, body);
+                fprintf(source,
+                    "    { ParticleConfig config = %s;\n"
+                    "      EntityResult created;\n"
+                    "      config.position.x += position.x;\n"
+                    "      config.position.y += position.y;\n"
+                    "      created = rohr_physics_particle_create(config);\n"
+                    "      if(rohr_error_check(created)) { result = "
+                        "rohr_error_result_error(created.result.error); goto fail; }\n"
+                    "      object->%s = created.result.value; }\n",
+                    config_name, body->name);
+                if(active_hitbox != NULL)
+                    fprintf(source,
+                        "    result = rohr_physics_hitbox_id_at_set(object->%s, 0, "
+                            "UINT32_C(%u));\n"
+                        "    if(rohr_error_check(result)) goto fail;\n",
+                        body->name, active_hitbox->id);
+                continue;
+            }
 
             fprintf(source,
                 "    result = generated_body_create(&object->%s, "
@@ -1370,7 +1450,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
                 "    (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_OUTLINE, "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
-                body->name, body->surface_color, body->name, body->border_color);
+                body->name,
+                body->standalone_particle ? body->particle_fill_color :
+                    body->surface_color,
+                body->name,
+                body->standalone_particle ? body->particle_ring_color :
+                    body->border_color);
         }
         for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
                 soft_body_index += 1) {
