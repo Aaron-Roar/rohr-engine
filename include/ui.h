@@ -246,7 +246,10 @@ UIButtonResult ui_button(
     const UIButtonStyle *style
 );
 
-/** Draw a caller-owned dropdown. Options and text assets remain caller-owned. */
+/**
+ * Draw a caller-owned dropdown. Options and text assets remain caller-owned.
+ * At most three option rows are visible; longer lists scroll.
+ */
 UIDropdownResult ui_dropdown(const char *id, const TextAsset *const *options,
     size_t option_count, size_t selected_index, UIRect bounds,
     const UIButtonStyle *style);

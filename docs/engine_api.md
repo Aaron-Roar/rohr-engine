@@ -4248,7 +4248,8 @@ Draws and updates one button identified by a stable string.
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, UIRect bounds, const UIButtonStyle *style);
 ```
 
- @brief Draws a dropdown and returns selection and hover-preview state.
+Draws a dropdown and returns selection and hover-preview state. At most three
+option rows are visible; longer lists provide wheel and scrollbar navigation.
 
 ### `rohr_ui_menu`
 

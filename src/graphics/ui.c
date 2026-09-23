@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define UI_DROPDOWN_VISIBLE_MAX 8
+#define UI_DROPDOWN_VISIBLE_MAX 3
 #define UI_SCROLL_REGION_MAX 8
 #define UI_TRANSLATION_STACK_MAX 8
 #define UI_SCROLL_RECORD_MAX 64
