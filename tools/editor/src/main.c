@@ -1666,7 +1666,7 @@ static bool editor_single_selected_delete(
                 .index = index, .binding = action->bindings[index]}};
         snprintf(command.data.input_binding.name,
             sizeof(command.data.input_binding.name), "%s",
-            action->binding_names[index]);
+            action->bindings[index].name);
         if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR)
             return false;
         viewport_state->selected_input_binding = 0;

@@ -3823,7 +3823,7 @@ EngineResult rohr_input_action_button_state_reset(InputActionId action);
 EngineResult rohr_input_action_bindings_default_set(InputActionId action, const InputBinding *bindings, size_t count);
 ```
 
- Replace the copied editor/application default bindings for an action.
+ Replace copied defaults; non-empty names must be unique within the list.
 
 ### `rohr_input_action_bindings_default_get`
 
@@ -3839,7 +3839,7 @@ InputBindingListResult rohr_input_action_bindings_default_get(InputActionId acti
 EngineResult rohr_input_action_bindings_override_set(InputActionId action, const InputBinding *bindings, size_t count);
 ```
 
- Replace and activate the copied runtime user bindings for an action.
+ Replace copied overrides; non-empty names must be unique within the list.
 
 ### `rohr_input_action_bindings_override_get`
 

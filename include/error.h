@@ -117,7 +117,7 @@ typedef enum EngineError {
     ERROR_ENGINE_INVALID_INPUT_NAME,
     /** An input controller or action name exceeds ROHR_INPUT_NAME_MAX. */
     ERROR_ENGINE_INPUT_NAME_TOO_LONG,
-    /** An input controller or action name is duplicated in its namespace. */
+    /** A controller, action, or named binding is duplicated in its namespace. */
     ERROR_ENGINE_DUPLICATE_INPUT_NAME,
     /** Input controller, action, or binding capacity was exceeded. */
     ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED,

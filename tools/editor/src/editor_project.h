@@ -70,7 +70,6 @@ typedef struct EditorInputAction {
     InputButtonMode button_mode;
     bool button_initial_state;
     EditorInputBindingId binding_ids[ROHR_INPUT_BINDING_LIMIT];
-    char binding_names[ROHR_INPUT_BINDING_LIMIT][ROHR_INPUT_NAME_MAX];
     InputBinding bindings[ROHR_INPUT_BINDING_LIMIT];
     size_t binding_count;
 } EditorInputAction;

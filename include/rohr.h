@@ -175,12 +175,12 @@ bool rohr_input_action_button_initial_state_check(InputActionId action);
 EngineResult rohr_input_action_button_state_set(InputActionId action, bool state);
 /** Restore a persistent Button action to its authored initial state. */
 EngineResult rohr_input_action_button_state_reset(InputActionId action);
-/** Replace the copied editor/application default bindings for an action. */
+/** Replace copied defaults; non-empty names must be unique within the list. */
 EngineResult rohr_input_action_bindings_default_set(InputActionId action,
     const InputBinding *bindings, size_t count);
 /** Return a copy of an action's default bindings. */
 InputBindingListResult rohr_input_action_bindings_default_get(InputActionId action);
-/** Replace and activate the copied runtime user bindings for an action. */
+/** Replace copied overrides; non-empty names must be unique within the list. */
 EngineResult rohr_input_action_bindings_override_set(InputActionId action,
     const InputBinding *bindings, size_t count);
 /** Return a copy of an action's runtime override bindings. */

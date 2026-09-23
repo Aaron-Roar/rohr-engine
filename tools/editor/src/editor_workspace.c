@@ -585,7 +585,9 @@ static void editor_workspace_input_action_variable(char *output, size_t capacity
 
 static void editor_workspace_input_binding_write(FILE *source,
         const InputBinding *binding) {
-    fprintf(source, "        {.source = %s, .input.",
+    fprintf(source, "        {.name = ");
+    editor_workspace_c_string_write(source, binding->name);
+    fprintf(source, ", .source = %s, .input.",
         binding->source == INPUT_BINDING_KEY ? "INPUT_BINDING_KEY" :
         binding->source == INPUT_BINDING_MOUSE_BUTTON ?
             "INPUT_BINDING_MOUSE_BUTTON" :
@@ -602,11 +604,13 @@ static void editor_workspace_input_binding_write(FILE *source,
         binding->input.axis_component == INPUT_AXIS_COMPONENT_Y ?
             "INPUT_AXIS_COMPONENT_Y" : "INPUT_AXIS_COMPONENT_XY");
     fprintf(source,
-        ", .modifiers = (SDL_Keymod)%u, .scale = %#.9gf, .inverted = %s, "
+        ", .modifiers = (SDL_Keymod)%u, .scale = {%#.9gf, %#.9gf}, "
+        ".inverted_x = %s, .inverted_y = %s, "
         ".direction = {%#.9gf, %#.9gf}}",
-        (unsigned)binding->modifiers, binding->scale,
-        binding->inverted ? "true" : "false", binding->direction.x,
-        binding->direction.y);
+        (unsigned)binding->modifiers, binding->scale.x, binding->scale.y,
+        binding->inverted_x ? "true" : "false",
+        binding->inverted_y ? "true" : "false",
+        binding->direction.x, binding->direction.y);
 }
 
 static bool editor_workspace_generated_objects_write(const EditorWorkspace *workspace,

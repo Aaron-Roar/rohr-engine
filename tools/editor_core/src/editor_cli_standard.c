@@ -333,7 +333,8 @@ full:
 #undef ADD
 }
 
-static EditorResult cli_input_command_write(const EditorCommand *command,
+static EditorResult cli_input_command_write(const EditorProject *project,
+        const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity, bool *handled) {
     size_t used = 0;
     char number[64];
@@ -390,16 +391,43 @@ static EditorResult cli_input_command_write(const EditorCommand *command,
             }
         } else {
             binding = &command->data.input_binding;
-            if(command->type != EDITOR_COMMAND_INPUT_BINDING_ADD) {
+            const EditorInputAction *action = project == NULL ? NULL :
+                editor_project_input_action_const_get(project,
+                    binding->controller, binding->action);
+            const char *binding_name = binding->name[0] != '\0' ?
+                binding->name : binding->binding.name;
+            if(action == NULL)
+                return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                    "Cannot serialize a binding without its input action");
+            if(command->type == EDITOR_COMMAND_INPUT_BINDING_ADD &&
+                    binding_name[0] == '\0' && project != NULL && result != NULL &&
+                    result->created.valid) {
+                const EditorInputAction *action =
+                    editor_project_input_action_const_get(project,
+                        binding->controller, binding->action);
+                size_t index;
+                if(editor_project_input_binding_index_get(action,
+                        result->created.item, &index))
+                    binding_name = action->bindings[index].name;
+            }
+            if(command->type == EDITOR_COMMAND_INPUT_BINDING_ADD) {
+                INPUT_ADD("--binding"); INPUT_ADD(binding_name);
+            } else if(binding->binding_id != EDITOR_INPUT_BINDING_INVALID) {
+                INPUT_ADD("--binding-id");
+                snprintf(number, sizeof(number), "%u", binding->binding_id);
+                INPUT_ADD(number);
+            } else {
                 snprintf(number, sizeof(number), "%zu", binding->index);
                 INPUT_ADD("--binding-index"); INPUT_ADD(number);
             }
             if(command->type == EDITOR_COMMAND_INPUT_BINDING_REMOVE) {
-                INPUT_ADD("binding-delete");
+                INPUT_ADD("delete");
                 return editor_result_value(true);
             }
             INPUT_ADD(command->type == EDITOR_COMMAND_INPUT_BINDING_ADD ?
-                "binding-add" : "binding-set");
+                "add" : "binding-set");
+            if(command->type == EDITOR_COMMAND_INPUT_BINDING_SET)
+                INPUT_ADD(binding_name);
             INPUT_ADD(binding->binding.source == INPUT_BINDING_KEY ? "key" :
                 binding->binding.source == INPUT_BINDING_MOUSE_BUTTON ?
                     "mouse-button" :
@@ -418,13 +446,22 @@ static EditorResult cli_input_command_write(const EditorCommand *command,
             INPUT_ADD(number);
             snprintf(number, sizeof(number), "%u",
                 (unsigned)binding->binding.modifiers); INPUT_ADD(number);
-            snprintf(number, sizeof(number), "%#.9g", binding->binding.scale);
-            INPUT_ADD(number);
-            INPUT_ADD(binding->binding.inverted ? "true" : "false");
-            snprintf(number, sizeof(number), "%#.9g",
-                binding->binding.direction.x); INPUT_ADD(number);
-            snprintf(number, sizeof(number), "%#.9g",
-                binding->binding.direction.y); INPUT_ADD(number);
+            if(action->type == INPUT_ACTION_AXIS_1D) {
+                snprintf(number, sizeof(number), "%#.9g",
+                    binding->binding.scale.x); INPUT_ADD(number);
+                INPUT_ADD(binding->binding.inverted_x ? "true" : "false");
+            } else if(action->type == INPUT_ACTION_AXIS_2D) {
+                snprintf(number, sizeof(number), "%#.9g",
+                    binding->binding.scale.x); INPUT_ADD(number);
+                snprintf(number, sizeof(number), "%#.9g",
+                    binding->binding.scale.y); INPUT_ADD(number);
+                INPUT_ADD(binding->binding.inverted_x ? "true" : "false");
+                INPUT_ADD(binding->binding.inverted_y ? "true" : "false");
+                snprintf(number, sizeof(number), "%#.9g",
+                    binding->binding.direction.x); INPUT_ADD(number);
+                snprintf(number, sizeof(number), "%#.9g",
+                    binding->binding.direction.y); INPUT_ADD(number);
+            }
         }
     }
     return editor_result_value(true);
@@ -441,8 +478,8 @@ EditorResult editor_command_cli_standard_write(const EditorProject *project,
     size_t count, at = 4, used = 0;
     const char *property;
     bool handled = false;
-    EditorResult input = cli_input_command_write(command, path, output,
-        capacity, &handled);
+    EditorResult input = cli_input_command_write(project, command, result, path,
+        output, capacity, &handled);
     if(handled) return input;
     EditorResult special = cli_sprite_command_write(project, command, path,
         output, capacity, &handled);
@@ -623,11 +660,12 @@ static const char *cli_input_button_mode_name(InputButtonMode mode) {
 
 static EditorResult cli_input_binding_parse(int count, char **arguments,
         int at, InputActionType type, InputBinding *binding) {
+    int value_count = count - at;
     uint32_t number, modifiers;
-    if(binding == NULL || at + 7 != count)
+    if(binding == NULL || value_count < 3)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "input binding requires source, input, modifiers, scale, inverted, direction-x, and direction-y");
-    *binding = (InputBinding){0};
+            "input binding requires source, input, and modifiers");
+    *binding = (InputBinding){.scale = {1.0f, 1.0f}};
     if(strcmp(arguments[at], "key") == 0) {
         binding->source = INPUT_BINDING_KEY;
         if(cli_input_uint_parse(arguments[at + 1], &number))
@@ -663,14 +701,47 @@ static EditorResult cli_input_binding_parse(int count, char **arguments,
         else return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "mouse axes use x, y, or xy");
     }
-    if(!cli_input_uint_parse(arguments[at + 2], &modifiers) ||
-            !cli_input_float_parse(arguments[at + 3], &binding->scale) ||
-            !cli_input_bool_parse(arguments[at + 4], &binding->inverted) ||
-            !cli_input_float_parse(arguments[at + 5], &binding->direction.x) ||
-            !cli_input_float_parse(arguments[at + 6], &binding->direction.y))
+    if(!cli_input_uint_parse(arguments[at + 2], &modifiers))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "input binding contains an invalid modifier, scale, inversion, or direction");
+            "input binding contains invalid modifiers");
     binding->modifiers = (SDL_Keymod)modifiers;
+    if(value_count == 7) {
+        float scale;
+        bool inverted;
+        if(!cli_input_float_parse(arguments[at + 3], &scale) ||
+                !cli_input_bool_parse(arguments[at + 4], &inverted) ||
+                !cli_input_float_parse(arguments[at + 5],
+                    &binding->direction.x) ||
+                !cli_input_float_parse(arguments[at + 6],
+                    &binding->direction.y))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "legacy input binding contains an invalid scale, inversion, or direction");
+        binding->scale = (Vec2D){scale, scale};
+        binding->inverted_x = inverted;
+        binding->inverted_y = inverted;
+    } else if(type == INPUT_ACTION_BUTTON) {
+        if(value_count != 3)
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "button binding requires source, input, and modifiers");
+    } else if(type == INPUT_ACTION_AXIS_1D) {
+        if(value_count != 5 ||
+                !cli_input_float_parse(arguments[at + 3],
+                    &binding->scale.x) ||
+                !cli_input_bool_parse(arguments[at + 4],
+                    &binding->inverted_x))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Axis 1D binding requires scale and inverted after modifiers");
+    } else if(value_count != 9 ||
+            !cli_input_float_parse(arguments[at + 3], &binding->scale.x) ||
+            !cli_input_float_parse(arguments[at + 4], &binding->scale.y) ||
+            !cli_input_bool_parse(arguments[at + 5], &binding->inverted_x) ||
+            !cli_input_bool_parse(arguments[at + 6], &binding->inverted_y) ||
+            !cli_input_float_parse(arguments[at + 7],
+                &binding->direction.x) ||
+            !cli_input_float_parse(arguments[at + 8],
+                &binding->direction.y))
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "Axis 2D binding requires scale-x, scale-y, inverted-x, inverted-y, direction-x, and direction-y after modifiers");
     if(!rohr_input_binding_valid_check(type, binding))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "input binding is invalid for the selected action type");
@@ -682,9 +753,12 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
         bool *handled) {
     const char *controller_name = NULL;
     const char *action_name = NULL;
+    const char *binding_name = NULL;
     const char *operation = NULL;
-    uint32_t controller_id = 0, action_id = 0, binding_index = 0;
-    bool controller_id_set = false, action_id_set = false, binding_index_set = false;
+    uint32_t controller_id = 0, action_id = 0, binding_id = 0;
+    uint32_t binding_index = 0;
+    bool controller_id_set = false, action_id_set = false;
+    bool binding_id_set = false, binding_index_set = false;
     int operation_index = -1;
     *handled = false;
     if(project == NULL || arguments == NULL || path == NULL || command == NULL)
@@ -706,6 +780,13 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
             *handled = true;
             if(!cli_input_uint_parse(arguments[++i], &action_id)) goto invalid_selector;
             action_id_set = true;
+        } else if(strcmp(arguments[i], "--binding") == 0 && i + 1 < count) {
+            *handled = true; binding_name = arguments[++i];
+        } else if(strcmp(arguments[i], "--binding-id") == 0 && i + 1 < count) {
+            *handled = true;
+            if(!cli_input_uint_parse(arguments[++i], &binding_id))
+                goto invalid_selector;
+            binding_id_set = true;
         } else if(strcmp(arguments[i], "--binding-index") == 0 && i + 1 < count) {
             *handled = true;
             if(!cli_input_uint_parse(arguments[++i], &binding_index))
@@ -750,6 +831,12 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     }
     const EditorInputAction *action = controller == NULL ? NULL :
         editor_project_input_action_const_get(project, controller_id, action_id);
+    size_t selected_binding_index = binding_index;
+    bool binding_add = strcmp(operation, "binding-add") == 0 ||
+        (strcmp(operation, "add") == 0 && binding_name != NULL &&
+            !binding_id_set && !binding_index_set);
+    bool binding_selected = binding_name != NULL || binding_id_set ||
+        binding_index_set;
     if(action_name == NULL && action != NULL) action_name = action->name;
     if(controller_name == NULL && controller != NULL) controller_name = controller->name;
     if(action_name == NULL) {
@@ -825,7 +912,26 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
     }
     if(action == NULL) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
         "input action was not found");
-    if(strcmp(operation, "delete") == 0 && !binding_index_set &&
+    if(binding_id_set) {
+        if(!editor_project_input_binding_index_get(action, binding_id,
+                &selected_binding_index))
+            return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                "input binding %u was not found", binding_id);
+    } else if(binding_name != NULL && !binding_add) {
+        selected_binding_index = SIZE_MAX;
+        for(size_t i = 0; i < action->binding_count; i += 1)
+            if(strcmp(action->bindings[i].name, binding_name) == 0) {
+                selected_binding_index = i;
+                break;
+            }
+        if(selected_binding_index == SIZE_MAX)
+            return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                "input binding '%s' was not found", binding_name);
+    } else if(binding_index_set && selected_binding_index >= action->binding_count) {
+        return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+            "input binding index %u was not found", binding_index);
+    }
+    if(strcmp(operation, "delete") == 0 && !binding_selected &&
             operation_index + 1 == count) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_ACTION_REMOVE,
             .data.input_action = {.controller = controller_id, .action = action_id,
@@ -867,23 +973,51 @@ static EditorResult cli_input_command_parse(const EditorProject *project,
             arguments[operation_index + 1]);
         return editor_result_value(true);
     }
-    if(strcmp(operation, "binding-delete") == 0 && binding_index_set &&
+    if((strcmp(operation, "binding-delete") == 0 ||
+            strcmp(operation, "delete") == 0) && binding_selected &&
             operation_index + 1 == count) {
         *command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_REMOVE,
             .data.input_binding = {.controller = controller_id, .action = action_id,
-                .index = binding_index}};
+                .binding_id = action->binding_ids[selected_binding_index],
+                .index = selected_binding_index,
+                .binding = action->bindings[selected_binding_index]}};
+        snprintf(command->data.input_binding.name,
+            sizeof(command->data.input_binding.name), "%s",
+            action->bindings[selected_binding_index].name);
         return editor_result_value(true);
     }
-    if((strcmp(operation, "binding-add") == 0 && !binding_index_set) ||
-            (strcmp(operation, "binding-set") == 0 && binding_index_set)) {
+    if(binding_add || (strcmp(operation, "binding-set") == 0 &&
+            binding_selected)) {
         EditorResult parsed;
+        int value_index = operation_index + 1;
+        int binding_value_count = action->type == INPUT_ACTION_BUTTON ? 3 :
+            action->type == INPUT_ACTION_AXIS_1D ? 5 : 9;
         *command = (EditorCommand){
-            .type = binding_index_set ? EDITOR_COMMAND_INPUT_BINDING_SET :
-                EDITOR_COMMAND_INPUT_BINDING_ADD,
+            .type = binding_add ? EDITOR_COMMAND_INPUT_BINDING_ADD :
+                EDITOR_COMMAND_INPUT_BINDING_SET,
             .data.input_binding = {.controller = controller_id, .action = action_id,
-                .index = binding_index}};
-        parsed = cli_input_binding_parse(count, arguments, operation_index + 1,
+                .binding_id = binding_add ? EDITOR_INPUT_BINDING_INVALID :
+                    action->binding_ids[selected_binding_index],
+                .index = binding_add ? 0 : selected_binding_index}};
+        if(binding_add) {
+            if(binding_name != NULL) snprintf(command->data.input_binding.name,
+                sizeof(command->data.input_binding.name), "%s", binding_name);
+        } else if(count - value_index == binding_value_count + 1 ||
+                count - value_index == 8) {
+            snprintf(command->data.input_binding.name,
+                sizeof(command->data.input_binding.name), "%s",
+                arguments[value_index++]);
+        } else {
+            snprintf(command->data.input_binding.name,
+                sizeof(command->data.input_binding.name), "%s",
+                action->bindings[selected_binding_index].name);
+        }
+        parsed = cli_input_binding_parse(count, arguments, value_index,
             action->type, &command->data.input_binding.binding);
+        if(!editor_result_check(parsed)) snprintf(
+            command->data.input_binding.binding.name,
+            sizeof(command->data.input_binding.binding.name), "%s",
+            command->data.input_binding.name);
         return parsed;
     }
     return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,

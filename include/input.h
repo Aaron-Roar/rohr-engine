@@ -76,8 +76,10 @@ typedef enum InputAxisComponent {
     INPUT_AXIS_COMPONENT_XY,
 } InputAxisComponent;
 
-/** One copied, allocation-free physical-source binding. */
+/** One named, copied, allocation-free physical-source binding. */
 typedef struct InputBinding {
+    /** Optional name used by authored defaults and runtime rebinding tools. */
+    char name[ROHR_INPUT_NAME_MAX];
     InputBindingSource source;
     union {
         SDL_Scancode key;
@@ -86,10 +88,12 @@ typedef struct InputBinding {
     } input;
     /** Required modifier mask. Every bit in the mask must be active. */
     SDL_Keymod modifiers;
-    /** Axis multiplier. Zero is a valid multiplier. Ignored by buttons. */
-    float scale;
-    /** Negate the scaled axis contribution. Ignored by buttons. */
-    bool inverted;
+    /** Per-axis multipliers. Axis 1D uses x. Ignored by buttons. */
+    Vec2D scale;
+    /** Flip the scaled X contribution. Ignored by buttons. */
+    bool inverted_x;
+    /** Flip the scaled Y contribution. Used only by Axis 2D. */
+    bool inverted_y;
     /** Direction contributed by a digital source to an Axis 2D action. */
     Vec2D direction;
 } InputBinding;
@@ -172,9 +176,11 @@ bool input_action_button_initial_state_check(InputActionId action);
 EngineResult input_action_button_state_set(InputActionId action, bool state);
 EngineResult input_action_button_state_reset(InputActionId action);
 
+/** Replace copied defaults; non-empty names must be unique within the list. */
 EngineResult input_action_bindings_default_set(InputActionId action,
     const InputBinding *bindings, size_t count);
 InputBindingListResult input_action_bindings_default_get(InputActionId action);
+/** Replace copied overrides; non-empty names must be unique within the list. */
 EngineResult input_action_bindings_override_set(InputActionId action,
     const InputBinding *bindings, size_t count);
 InputBindingListResult input_action_bindings_override_get(InputActionId action);

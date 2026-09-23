@@ -44,7 +44,7 @@ static InputBinding input_binding_default_get(InputActionType type) {
     InputBinding binding = {.source = INPUT_BINDING_KEY,
         .input.key = type == INPUT_ACTION_BUTTON ? SDL_SCANCODE_SPACE :
             type == INPUT_ACTION_AXIS_1D ? SDL_SCANCODE_A : SDL_SCANCODE_W,
-        .scale = 1.0f};
+        .scale = {1.0f, 1.0f}};
     if(type == INPUT_ACTION_AXIS_2D) binding.direction.y = -1.0f;
     return binding;
 }
@@ -70,12 +70,15 @@ bool editor_input_settings_panel_create(EditorInputSettingsPanel *panel,
     CREATE("Type", type_label); CREATE("Mode", button_mode_label);
     CREATE("Initial state", initial_state_label); CREATE("Source", source_label);
     CREATE("Input / Axis", input_label); CREATE("Modifiers", modifiers_label);
-    CREATE("Scale", scale_label); CREATE("Inverted", inverted_label);
+    CREATE("Scale", scale_label); CREATE("Scale X", scale_x_label);
+    CREATE("Scale Y", scale_y_label); CREATE("Inverted", inverted_label);
+    CREATE("Invert X", inverted_x_label); CREATE("Invert Y", inverted_y_label);
     CREATE("Direction X", direction_x_label);
     CREATE("Direction Y", direction_y_label); CREATE("", name_field);
-    CREATE("-> ASCII Value", ascii_value_label);
+    CREATE("-> SDL Scancode", ascii_value_label);
     CREATE("-> Letter Symbols", letter_symbols_label);
-    CREATE("", input_field); CREATE("", modifiers_field); CREATE("", scale_field);
+    CREATE("", input_field); CREATE("", modifiers_field);
+    CREATE("", scale_x_field); CREATE("", scale_y_field);
     CREATE("", direction_x_field); CREATE("", direction_y_field);
 #undef CREATE
     for(size_t i = 0; i < 3; i += 1)
@@ -375,21 +378,23 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         &panel->binding_source_options[1], &panel->binding_source_options[2],
         &panel->binding_source_options[3]};
     size_t source;
-    float input, modifiers, scale, direction_x, direction_y;
-    bool inverted, changed = false;
+    float input, modifiers, scale_x, scale_y, direction_x, direction_y;
+    bool inverted_x, inverted_y, changed = false;
     UIDropdownResult selected;
     if(index >= action->binding_count) return;
     binding = action->bindings[index];
-    snprintf(name, sizeof(name), "%s", action->binding_names[index]);
+    snprintf(name, sizeof(name), "%s", binding.name);
     source = binding.source;
     input = binding.source == INPUT_BINDING_KEY ? binding.input.key :
         binding.source == INPUT_BINDING_MOUSE_BUTTON ?
             binding.input.mouse_button : binding.input.axis_component;
     modifiers = binding.modifiers;
-    scale = binding.scale;
+    scale_x = binding.scale.x;
+    scale_y = binding.scale.y;
     direction_x = binding.direction.x;
     direction_y = binding.direction.y;
-    inverted = binding.inverted;
+    inverted_x = binding.inverted_x;
+    inverted_y = binding.inverted_y;
     rohr_ui_label(&panel->name_label, (UIRect){x, y, width, 22.0f});
     y += 24.0f;
     if(input_text_field("editor.input.binding.name", &panel->name_field,
@@ -499,36 +504,69 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         rohr_ui_field_focus_clear();
     }
     y += 60.0f;
-    rohr_ui_label(&panel->scale_label, (UIRect){x, y, width, 22.0f});
-    y += 24.0f;
-    if(input_number_field("editor.input.binding.scale", &panel->scale_field, &scale,
-            (UIRect){x, y, width, 28.0f}).changed)
-        changed = true;
-    y += 36.0f;
-    if(editor_mode_checkbox_left("editor.input.binding.inverted",
-            &panel->inverted_label,
-            (UIRect){x, y, width, 28.0f}, &inverted))
-        changed = true;
-    y += 36.0f;
-    rohr_ui_label(&panel->direction_x_label, (UIRect){x, y, width, 22.0f});
-    y += 24.0f;
-    if(input_number_field("editor.input.binding.direction_x",
-            &panel->direction_x_field, &direction_x,
-            (UIRect){x, y, width, 28.0f}).changed)
-        changed = true;
-    y += 36.0f;
-    rohr_ui_label(&panel->direction_y_label,
-        (UIRect){x, y, width, 22.0f});
-    y += 24.0f;
-    if(input_number_field("editor.input.binding.direction_y",
-            &panel->direction_y_field, &direction_y,
-            (UIRect){x, y, width, 28.0f}).changed)
-        changed = true;
+    if(action->type == INPUT_ACTION_AXIS_1D) {
+        rohr_ui_label(&panel->scale_label, (UIRect){x, y, width, 22.0f});
+        y += 24.0f;
+        if(input_number_field("editor.input.binding.scale",
+                &panel->scale_x_field, &scale_x,
+                (UIRect){x, y, width, 28.0f}).changed)
+            changed = true;
+        y += 36.0f;
+        if(editor_mode_checkbox_left("editor.input.binding.inverted",
+                &panel->inverted_label,
+                (UIRect){x, y, width, 28.0f}, &inverted_x))
+            changed = true;
+    } else if(action->type == INPUT_ACTION_AXIS_2D) {
+        rohr_ui_label(&panel->scale_x_label, (UIRect){x, y, width, 22.0f});
+        y += 24.0f;
+        if(input_number_field("editor.input.binding.scale_x",
+                &panel->scale_x_field, &scale_x,
+                (UIRect){x, y, width, 28.0f}).changed)
+            changed = true;
+        y += 36.0f;
+        rohr_ui_label(&panel->scale_y_label, (UIRect){x, y, width, 22.0f});
+        y += 24.0f;
+        if(input_number_field("editor.input.binding.scale_y",
+                &panel->scale_y_field, &scale_y,
+                (UIRect){x, y, width, 28.0f}).changed)
+            changed = true;
+        y += 36.0f;
+        if(editor_mode_checkbox_left("editor.input.binding.inverted_x",
+                &panel->inverted_x_label,
+                (UIRect){x, y, width, 28.0f}, &inverted_x))
+            changed = true;
+        y += 36.0f;
+        if(editor_mode_checkbox_left("editor.input.binding.inverted_y",
+                &panel->inverted_y_label,
+                (UIRect){x, y, width, 28.0f}, &inverted_y))
+            changed = true;
+        if(source == INPUT_BINDING_KEY ||
+                source == INPUT_BINDING_MOUSE_BUTTON) {
+            y += 36.0f;
+            rohr_ui_label(&panel->direction_x_label,
+                (UIRect){x, y, width, 22.0f});
+            y += 24.0f;
+            if(input_number_field("editor.input.binding.direction_x",
+                    &panel->direction_x_field, &direction_x,
+                    (UIRect){x, y, width, 28.0f}).changed)
+                changed = true;
+            y += 36.0f;
+            rohr_ui_label(&panel->direction_y_label,
+                (UIRect){x, y, width, 22.0f});
+            y += 24.0f;
+            if(input_number_field("editor.input.binding.direction_y",
+                    &panel->direction_y_field, &direction_y,
+                    (UIRect){x, y, width, 28.0f}).changed)
+                changed = true;
+        }
+    }
     if(changed) {
         binding = (InputBinding){.source = (InputBindingSource)source,
             .modifiers = (SDL_Keymod)(uint32_t)fmaxf(0.0f, roundf(modifiers)),
-            .scale = scale, .inverted = inverted,
+            .scale = {scale_x, scale_y}, .inverted_x = inverted_x,
+            .inverted_y = inverted_y,
             .direction = {direction_x, direction_y}};
+        snprintf(binding.name, sizeof(binding.name), "%s", name);
         if(binding.source == INPUT_BINDING_KEY)
             binding.input.key = (SDL_Scancode)(uint32_t)fmaxf(0.0f,
                 roundf(input));
@@ -591,7 +629,7 @@ void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
         EditorSelectionRef ref = {EDITOR_SELECTION_INPUT_BINDING, 0,
             controller->id, action->id, action->binding_ids[i]};
         char id[96];
-        if(!editor_mode_named_text_sync(panel->font, action->binding_names[i],
+        if(!editor_mode_named_text_sync(panel->font, action->bindings[i].name,
                 &panel->binding_names[i], panel->binding_cache[i],
                 ROHR_INPUT_NAME_MAX)) continue;
         style.idle = (Color){55, 63, 76, 255};
@@ -650,10 +688,13 @@ void editor_input_settings_panel_destroy(EditorInputSettingsPanel *panel) {
     DESTROY(binding_label); DESTROY(name_label); DESTROY(enabled_label);
     DESTROY(type_label); DESTROY(button_mode_label); DESTROY(initial_state_label);
     DESTROY(source_label); DESTROY(input_label); DESTROY(modifiers_label);
-    DESTROY(scale_label); DESTROY(inverted_label); DESTROY(direction_x_label);
+    DESTROY(scale_label); DESTROY(scale_x_label); DESTROY(scale_y_label);
+    DESTROY(inverted_label); DESTROY(inverted_x_label); DESTROY(inverted_y_label);
+    DESTROY(direction_x_label);
     DESTROY(direction_y_label); DESTROY(ascii_value_label);
     DESTROY(letter_symbols_label); DESTROY(name_field); DESTROY(input_field);
-    DESTROY(modifiers_field); DESTROY(scale_field); DESTROY(direction_x_field);
+    DESTROY(modifiers_field); DESTROY(scale_x_field); DESTROY(scale_y_field);
+    DESTROY(direction_x_field);
     DESTROY(direction_y_field);
 #undef DESTROY
     for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1)

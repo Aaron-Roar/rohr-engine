@@ -245,19 +245,21 @@ int main(void) {
                     !editor_project_input_binding_add(&workspace_project,
                         gameplay->id, move_id,
                         (InputBinding){.source = INPUT_BINDING_KEY,
-                            .input.key = SDL_SCANCODE_W, .scale = 1.0f,
+                            .input.key = SDL_SCANCODE_W,
+                            .scale = {1.0f, 0.5f},
                             .direction = {0.0f, -1.0f}}) ||
                     !editor_project_input_binding_add(&workspace_project,
                         gameplay->id, move_id,
                         (InputBinding){.source = INPUT_BINDING_MOUSE_MOTION,
                             .input.axis_component = INPUT_AXIS_COMPONENT_XY,
-                            .modifiers = SDL_KMOD_SHIFT, .scale = 0.25f,
-                            .inverted = true}) ||
+                            .modifiers = SDL_KMOD_SHIFT,
+                            .scale = {0.25f, 0.75f},
+                            .inverted_x = true}) ||
                     !editor_project_input_binding_add(&workspace_project,
                         gameplay->id, click_id,
                         (InputBinding){.source = INPUT_BINDING_MOUSE_BUTTON,
                             .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT,
-                            .scale = 1.0f})) {
+                            .scale = {1.0f, 1.0f}})) {
                 workspace_fixture_remove(fixture);
                 return 1;
             }
@@ -382,12 +384,19 @@ int main(void) {
                     INPUT_ACTION_AXIS_2D ||
                 loaded_project.input_controllers[0].actions[0].binding_count != 2 ||
                 strcmp(loaded_project.input_controllers[0].actions[0].
-                    binding_names[0], "move_up") != 0 ||
+                    bindings[0].name, "move_up") != 0 ||
                 loaded_project.input_controllers[0].actions[0].binding_ids[0] ==
                     EDITOR_INPUT_BINDING_INVALID ||
                 loaded_project.input_controllers[0].actions[0].bindings[1].source !=
                     INPUT_BINDING_MOUSE_MOTION ||
-                !loaded_project.input_controllers[0].actions[0].bindings[1].inverted ||
+                fabsf(loaded_project.input_controllers[0].actions[0].bindings[1].
+                    scale.x - 0.25f) > 0.001f ||
+                fabsf(loaded_project.input_controllers[0].actions[0].bindings[1].
+                    scale.y - 0.75f) > 0.001f ||
+                !loaded_project.input_controllers[0].actions[0].bindings[1].
+                    inverted_x ||
+                loaded_project.input_controllers[0].actions[0].bindings[1].
+                    inverted_y ||
                 loaded_project.input_controllers[0].actions[1].button_mode !=
                     INPUT_BUTTON_PERSISTENT ||
                 !loaded_project.input_controllers[0].actions[1].
@@ -402,7 +411,7 @@ int main(void) {
                 loaded_project.navigation.input_binding !=
                     loaded_project.input_controllers[0].actions[1].binding_ids[0] ||
                 strcmp(loaded_project.input_controllers[0].actions[1].
-                    binding_names[0], "primary_click") != 0 ||
+                    bindings[0].name, "primary_click") != 0 ||
                 loaded_project.input_controllers[0].actions[1].bindings[0].input.
                     mouse_button != INPUT_MOUSE_BUTTON_LEFT ||
                 strcmp(loaded_project.objects[0].name, "Starter") != 0 ||
@@ -510,9 +519,12 @@ int main(void) {
                 !file_contains(path, "controllers->created = true") ||
                 !file_contains(path,
                     "rohr_input_action_bindings_default_set") ||
+                !file_contains(path, ".name = \"move_up\"") ||
+                !file_contains(path, ".name = \"primary_click\"") ||
                 !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||
                 !file_contains(path, ".modifiers = (SDL_Keymod)3") ||
-                !file_contains(path, ".inverted = true")) {
+                !file_contains(path, ".scale = {0.250000000f, 0.750000000f}") ||
+                !file_contains(path, ".inverted_x = true")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -1455,7 +1467,8 @@ int main(void) {
         if(action == NULL || !editor_project_input_binding_add(
                 &input_project, controller->id, action->id,
                 (InputBinding){.source = INPUT_BINDING_KEY,
-                    .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                    .input.key = SDL_SCANCODE_SPACE,
+                    .scale = {1.0f, 1.0f}}) ||
                 !editor_project_save(&input_project, path) ||
                 !file_text_replace_first(path, "\"source\": \"key\"",
                     "\"source\": \"mouse_motion\"")) return 1;
@@ -1465,6 +1478,50 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_INVALID)
             return 1;
+    }
+
+    {
+        static EditorProject input_project;
+        static EditorProject loaded_project;
+        EditorInputController *controller;
+        EditorInputAction *action;
+        const char *path = "editor_project_legacy_input.json";
+        EditorResult result;
+
+        editor_project_init(&input_project);
+        controller = editor_project_input_controller_add(&input_project,
+            "gameplay");
+        action = controller == NULL ? NULL : editor_project_input_action_add(
+            &input_project, controller->id, "move", INPUT_ACTION_AXIS_2D);
+        if(action == NULL || !editor_project_input_binding_add(
+                &input_project, controller->id, action->id,
+                (InputBinding){.source = INPUT_BINDING_KEY,
+                    .input.key = SDL_SCANCODE_W, .scale = {2.0f, 2.0f},
+                    .inverted_x = true, .inverted_y = true,
+                    .direction = {0.0f, -1.0f}}) ||
+                !editor_project_save(&input_project, path) ||
+                !file_text_replace_first(path,
+                    "\"scale_x\": 2.0,\n                            \"scale_y\": 2.0,\n                            \"inverted_x\": true,\n                            \"inverted_y\": true,",
+                    "\"scale\": 2.0,\n                            \"inverted\": true,"))
+            return 1;
+        result = editor_project_load(&loaded_project, path);
+        (void)remove(path);
+        editor_project_destroy(&input_project);
+        if(editor_result_check(result) ||
+                loaded_project.input_controller_count != 1 ||
+                loaded_project.input_controllers[0].action_count != 1 ||
+                loaded_project.input_controllers[0].actions[0].binding_count !=
+                    1 ||
+                loaded_project.input_controllers[0].actions[0].bindings[0].
+                    scale.x != 2.0f ||
+                loaded_project.input_controllers[0].actions[0].bindings[0].
+                    scale.y != 2.0f ||
+                !loaded_project.input_controllers[0].actions[0].bindings[0].
+                    inverted_x ||
+                !loaded_project.input_controllers[0].actions[0].bindings[0].
+                    inverted_y)
+            return 1;
+        editor_project_destroy(&loaded_project);
     }
 
     {
@@ -1835,7 +1892,8 @@ int main(void) {
         if(controller == NULL || action == NULL ||
                 !editor_project_input_binding_add(&input_project, controller->id,
                     action->id, (InputBinding){.source = INPUT_BINDING_KEY,
-                        .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                        .input.key = SDL_SCANCODE_SPACE,
+                        .scale = {1.0f, 1.0f}}) ||
                 !editor_project_clone(&input_clone, &input_project)) return 1;
         input_clone.input_controllers[0].actions[0].bindings[0].input.key =
             SDL_SCANCODE_RETURN;

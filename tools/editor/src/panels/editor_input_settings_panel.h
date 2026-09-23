@@ -22,9 +22,12 @@ typedef struct EditorInputSettingsPanel {
     TextAsset binding_label, name_label, enabled_label;
     TextAsset type_label, button_mode_label, initial_state_label;
     TextAsset source_label, input_label, modifiers_label;
-    TextAsset scale_label, inverted_label, direction_x_label, direction_y_label;
+    TextAsset scale_label, scale_x_label, scale_y_label;
+    TextAsset inverted_label, inverted_x_label, inverted_y_label;
+    TextAsset direction_x_label, direction_y_label;
     TextAsset ascii_value_label, letter_symbols_label;
-    TextAsset name_field, input_field, modifiers_field, scale_field;
+    TextAsset name_field, input_field, modifiers_field;
+    TextAsset scale_x_field, scale_y_field;
     TextAsset direction_x_field, direction_y_field;
     TextAsset action_names[ROHR_INPUT_ACTION_LIMIT];
     char action_cache[ROHR_INPUT_ACTION_LIMIT][ROHR_INPUT_NAME_MAX];

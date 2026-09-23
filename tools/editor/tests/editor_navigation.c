@@ -1049,11 +1049,13 @@ int main(void) {
             if(binding_action == NULL || !editor_project_input_binding_add(
                     &project, controller_id, action_id,
                     (InputBinding){.source = INPUT_BINDING_KEY,
-                        .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}) ||
+                        .input.key = SDL_SCANCODE_SPACE,
+                        .scale = {1.0f, 1.0f}}) ||
                     !editor_project_input_binding_add(&project, controller_id,
                         action_id,
                         (InputBinding){.source = INPUT_BINDING_KEY,
-                            .input.key = SDL_SCANCODE_RETURN, .scale = 1.0f}))
+                            .input.key = SDL_SCANCODE_RETURN,
+                            .scale = {1.0f, 1.0f}}))
                 return 1;
             binding_action = editor_project_input_action_get(&project,
                 controller_id, action_id);
@@ -1086,7 +1088,7 @@ int main(void) {
                 controller_id, action_id);
             if(binding_action->binding_ids[0] != second_binding ||
                     binding_action->binding_ids[1] != first_binding ||
-                    strcmp(binding_action->binding_names[1],
+                    strcmp(binding_action->bindings[1].name,
                         "keyboard_jump") != 0 ||
                     binding_action->bindings[1].input.key !=
                         SDL_SCANCODE_SPACE ||
@@ -1095,7 +1097,7 @@ int main(void) {
             binding_action = editor_project_input_action_get(&project,
                 controller_id, action_id);
             if(binding_action->binding_ids[0] != first_binding ||
-                    strcmp(binding_action->binding_names[0],
+                    strcmp(binding_action->bindings[0].name,
                         "keyboard_jump") != 0 ||
                     !editor_history_redo(&history)) return 1;
             binding_action = editor_project_input_action_get(&project,

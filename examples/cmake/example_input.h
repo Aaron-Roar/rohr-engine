@@ -33,13 +33,13 @@ static inline bool example_input_action_create(InputControllerId controller,
 static inline InputBinding example_input_key_binding(SDL_Scancode key,
         float scale, Vec2D direction) {
     return (InputBinding){.source = INPUT_BINDING_KEY, .input.key = key,
-        .scale = scale, .direction = direction};
+        .scale = {scale, scale}, .direction = direction};
 }
 
 static inline InputBinding example_input_mouse_button_binding(
         InputMouseButton button) {
     return (InputBinding){.source = INPUT_BINDING_MOUSE_BUTTON,
-        .input.mouse_button = button, .scale = 1.0f};
+        .input.mouse_button = button, .scale = {1.0f, 1.0f}};
 }
 
 static inline MouseButtonState example_input_mouse_button_state_get(

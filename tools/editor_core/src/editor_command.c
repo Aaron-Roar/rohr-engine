@@ -1539,12 +1539,15 @@ property_invalid:
                     EDITOR_ERROR_INVALID_ARGUMENT,
                     "input binding name is invalid or duplicated").result.error);
             }
-            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE,
+            EditorCommandResult result = {.kind = ERROR_RESULT_VALUE,
                 .result.object = binding_id,
                 .created = {.valid = true, .kind = EDITOR_ITEM_INPUT_BINDING,
                     .parent = command->data.input_binding.controller,
                     .container = command->data.input_binding.action,
                     .item = binding_id}};
+            snprintf(result.created.name, sizeof(result.created.name), "%s",
+                action->bindings[index].name);
+            return result;
         }
         case EDITOR_COMMAND_INPUT_BINDING_REMOVE: {
             EditorInputAction *action = editor_project_input_action_get(project,

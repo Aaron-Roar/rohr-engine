@@ -308,7 +308,6 @@ static uint32_t editor_reorder_item_id_get(const EditorReorderStorage *storage,
 
 typedef struct EditorInputBindingRow {
     EditorInputBindingId id;
-    char name[ROHR_INPUT_NAME_MAX];
     InputBinding binding;
 } EditorInputBindingRow;
 
@@ -326,8 +325,6 @@ static bool editor_input_binding_reorder(EditorProject *project,
     if(action == NULL || action->binding_count < 2) return false;
     for(size_t i = 0; i < action->binding_count; i += 1) {
         current[i].id = action->binding_ids[i];
-        snprintf(current[i].name, sizeof(current[i].name), "%s",
-            action->binding_names[i]);
         current[i].binding = action->bindings[i];
         if(current[i].id == source.item) source_index = i;
         if(current[i].id == target.item) target_index = i;
@@ -364,8 +361,6 @@ static bool editor_input_binding_reorder(EditorProject *project,
     }
     for(size_t i = 0; i < action->binding_count; i += 1) {
         action->binding_ids[i] = ordered[i].id;
-        snprintf(action->binding_names[i], sizeof(action->binding_names[i]), "%s",
-            ordered[i].name);
         action->bindings[i] = ordered[i].binding;
     }
     return history == NULL || editor_history_transaction_end(history);
@@ -585,7 +580,7 @@ static bool editor_selection_remove_command_get(EditorProject *project,
                 .index = index, .binding = action->bindings[index]}};
         snprintf(command->data.input_binding.name,
             sizeof(command->data.input_binding.name), "%s",
-            action->binding_names[index]);
+            action->bindings[index].name);
         return true;
     }
     if(selection.kind == EDITOR_SELECTION_SPRITE) {
@@ -958,7 +953,7 @@ bool editor_navigation_selection_name_get(EditorProject *project,
         size_t index;
         if(!editor_project_input_binding_index_get(action, ref.item, &index))
             return false;
-        snprintf(name, capacity, "%s", action->binding_names[index]);
+        snprintf(name, capacity, "%s", action->bindings[index].name);
         return true;
     }
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {

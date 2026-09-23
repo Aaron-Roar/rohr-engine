@@ -1358,14 +1358,15 @@ int main(void) {
         command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_BINDING_ADD,
             .data.input_binding = {.controller = controller_id, .action = action_id,
                 .binding = {.source = INPUT_BINDING_KEY,
-                    .input.key = SDL_SCANCODE_SPACE, .scale = 1.0f}}};
+                    .input.key = SDL_SCANCODE_SPACE,
+                    .scale = {1.0f, 1.0f}}}};
         result = editor_command_execute(&project, &command);
         assert(result.kind == ERROR_RESULT_VALUE &&
             result.result.object != EDITOR_INPUT_BINDING_INVALID &&
             project.input_controllers[0].actions[0].binding_count == 1 &&
             project.input_controllers[0].actions[0].binding_ids[0] ==
                 result.result.object &&
-            project.input_controllers[0].actions[0].binding_names[0][0] != '\0');
+            project.input_controllers[0].actions[0].bindings[0].name[0] != '\0');
         EditorInputBindingId binding_id = result.result.object;
         assert(editor_history_undo(&history) &&
             project.input_controllers[0].actions[0].binding_count == 0);

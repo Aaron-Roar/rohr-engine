@@ -153,12 +153,12 @@ static const char *editor_json_input_component_name(InputAxisComponent component
 }
 
 static yyjson_mut_val *editor_json_input_binding_write(
-        yyjson_mut_doc *document, EditorInputBindingId id, const char *name,
+        yyjson_mut_doc *document, EditorInputBindingId id,
         const InputBinding *binding) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
     const char *source = editor_json_input_source_name(binding->source);
     yyjson_mut_obj_add_uint(document, value, "id", id);
-    yyjson_mut_obj_add_strcpy(document, value, "name", name);
+    yyjson_mut_obj_add_strcpy(document, value, "name", binding->name);
     yyjson_mut_obj_add_strcpy(document, value, "source", source);
     if(binding->source == INPUT_BINDING_KEY)
         yyjson_mut_obj_add_uint(document, value, "scancode", binding->input.key);
@@ -169,8 +169,12 @@ static yyjson_mut_val *editor_json_input_binding_write(
         editor_json_input_component_name(binding->input.axis_component));
     yyjson_mut_obj_add_uint(document, value, "modifiers",
         (uint32_t)binding->modifiers);
-    yyjson_mut_obj_add_real(document, value, "scale", binding->scale);
-    yyjson_mut_obj_add_bool(document, value, "inverted", binding->inverted);
+    yyjson_mut_obj_add_real(document, value, "scale_x", binding->scale.x);
+    yyjson_mut_obj_add_real(document, value, "scale_y", binding->scale.y);
+    yyjson_mut_obj_add_bool(document, value, "inverted_x",
+        binding->inverted_x);
+    yyjson_mut_obj_add_bool(document, value, "inverted_y",
+        binding->inverted_y);
     yyjson_mut_obj_add_real(document, value, "direction_x", binding->direction.x);
     yyjson_mut_obj_add_real(document, value, "direction_y", binding->direction.y);
     return value;
@@ -181,21 +185,39 @@ static bool editor_json_input_binding_read(yyjson_val *value,
     yyjson_val *source_value;
     yyjson_val *input_value;
     yyjson_val *component_value;
+    yyjson_val *legacy_scale;
+    yyjson_val *legacy_inverted;
     uint32_t modifiers;
-    float scale, direction_x, direction_y;
-    bool inverted;
+    float scale_x, scale_y, direction_x, direction_y;
+    bool inverted_x, inverted_y;
     const char *source;
     if(!yyjson_is_obj(value) || binding == NULL ||
             !editor_json_uint(value, "modifiers", &modifiers) ||
-            !editor_json_real(value, "scale", &scale) ||
-            !editor_json_bool(value, "inverted", &inverted) ||
             !editor_json_real(value, "direction_x", &direction_x) ||
             !editor_json_real(value, "direction_y", &direction_y)) return false;
+    legacy_scale = yyjson_obj_get(value, "scale");
+    legacy_inverted = yyjson_obj_get(value, "inverted");
+    if(legacy_scale != NULL || legacy_inverted != NULL) {
+        float scale;
+        bool inverted;
+        if(yyjson_obj_get(value, "scale_x") != NULL ||
+                yyjson_obj_get(value, "scale_y") != NULL ||
+                yyjson_obj_get(value, "inverted_x") != NULL ||
+                yyjson_obj_get(value, "inverted_y") != NULL ||
+                !editor_json_real(value, "scale", &scale) ||
+                !editor_json_bool(value, "inverted", &inverted)) return false;
+        scale_x = scale_y = scale;
+        inverted_x = inverted_y = inverted;
+    } else if(!editor_json_real(value, "scale_x", &scale_x) ||
+            !editor_json_real(value, "scale_y", &scale_y) ||
+            !editor_json_bool(value, "inverted_x", &inverted_x) ||
+            !editor_json_bool(value, "inverted_y", &inverted_y)) return false;
     source_value = yyjson_obj_get(value, "source");
     if(!yyjson_is_str(source_value)) return false;
     source = yyjson_get_str(source_value);
     *binding = (InputBinding){.modifiers = (SDL_Keymod)modifiers,
-        .scale = scale, .inverted = inverted,
+        .scale = {scale_x, scale_y}, .inverted_x = inverted_x,
+        .inverted_y = inverted_y,
         .direction = {direction_x, direction_y}};
     if(strcmp(source, "key") == 0) {
         input_value = yyjson_obj_get(value, "scancode");
@@ -793,8 +815,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             for(size_t k = 0; k < action->binding_count; k += 1)
                 yyjson_mut_arr_add_val(bindings,
                     editor_json_input_binding_write(document,
-                        action->binding_ids[k], action->binding_names[k],
-                        &action->bindings[k]));
+                        action->binding_ids[k], &action->bindings[k]));
             yyjson_mut_obj_add_val(document, action_value, "bindings", bindings);
             yyjson_mut_arr_add_val(actions, action_value);
         }
@@ -2170,19 +2191,19 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                             &action->bindings[k])) goto done;
                     if(binding_id == NULL && binding_name == NULL) {
                         action->binding_ids[k] = loaded.next_input_binding_id++;
-                        snprintf(action->binding_names[k],
-                            sizeof(action->binding_names[k]), "binding_%u",
+                        snprintf(action->bindings[k].name,
+                            sizeof(action->bindings[k].name), "binding_%u",
                             action->binding_ids[k]);
                     } else if(binding_id == NULL || binding_name == NULL ||
                             !editor_json_uint(binding_value, "id",
                                 &action->binding_ids[k]) ||
                             action->binding_ids[k] == EDITOR_INPUT_BINDING_INVALID ||
                             !editor_json_name(binding_value,
-                                action->binding_names[k])) goto done;
+                                action->bindings[k].name)) goto done;
                     for(size_t previous = 0; previous < k; previous += 1)
                         if(action->binding_ids[previous] == action->binding_ids[k] ||
-                                strcmp(action->binding_names[previous],
-                                    action->binding_names[k]) == 0) goto done;
+                                strcmp(action->bindings[previous].name,
+                                    action->bindings[k].name) == 0) goto done;
                     for(size_t previous_action = 0; previous_action < j;
                             previous_action += 1)
                         for(size_t previous = 0; previous < controller->actions[

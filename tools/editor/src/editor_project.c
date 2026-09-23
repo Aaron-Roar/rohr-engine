@@ -1663,7 +1663,7 @@ bool editor_project_input_binding_add(EditorProject *project,
             !rohr_input_binding_valid_check(action->type, &binding)) return false;
     index = action->binding_count++;
     action->binding_ids[index] = project->next_input_binding_id++;
-    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
+    snprintf(binding.name, sizeof(binding.name),
         "binding_%u", action->binding_ids[index]);
     action->bindings[index] = binding;
     return true;
@@ -1676,6 +1676,8 @@ bool editor_project_input_binding_set(EditorProject *project,
         action_id);
     if(action == NULL || index >= action->binding_count ||
             !rohr_input_binding_valid_check(action->type, &binding)) return false;
+    snprintf(binding.name, sizeof(binding.name), "%s",
+        action->bindings[index].name);
     action->bindings[index] = binding;
     return true;
 }
@@ -1690,9 +1692,9 @@ bool editor_project_input_binding_name_set(EditorProject *project,
             !editor_project_input_binding_index_get(action, binding, &index))
         return false;
     for(size_t i = 0; i < action->binding_count; i += 1)
-        if(i != index && strcmp(action->binding_names[i], name) == 0) return false;
-    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
-        "%s", name);
+        if(i != index && strcmp(action->bindings[i].name, name) == 0) return false;
+    snprintf(action->bindings[index].name,
+        sizeof(action->bindings[index].name), "%s", name);
     return true;
 }
 
@@ -1707,9 +1709,8 @@ bool editor_project_input_binding_named_set(EditorProject *project,
             !editor_project_input_binding_index_get(action, binding, &index))
         return false;
     for(size_t i = 0; i < action->binding_count; i += 1)
-        if(i != index && strcmp(action->binding_names[i], name) == 0) return false;
-    snprintf(action->binding_names[index], sizeof(action->binding_names[index]),
-        "%s", name);
+        if(i != index && strcmp(action->bindings[i].name, name) == 0) return false;
+    snprintf(value.name, sizeof(value.name), "%s", name);
     action->bindings[index] = value;
     return true;
 }
@@ -1734,13 +1735,10 @@ bool editor_project_input_binding_remove(EditorProject *project,
     if(action == NULL || index >= action->binding_count) return false;
     memmove(&action->binding_ids[index], &action->binding_ids[index + 1],
         (action->binding_count - index - 1) * sizeof(*action->binding_ids));
-    memmove(&action->binding_names[index], &action->binding_names[index + 1],
-        (action->binding_count - index - 1) * sizeof(*action->binding_names));
     memmove(&action->bindings[index], &action->bindings[index + 1],
         (action->binding_count - index - 1) * sizeof(*action->bindings));
     action->binding_count -= 1;
     action->binding_ids[action->binding_count] = EDITOR_INPUT_BINDING_INVALID;
-    action->binding_names[action->binding_count][0] = '\0';
     action->bindings[action->binding_count] = (InputBinding){0};
     return true;
 }

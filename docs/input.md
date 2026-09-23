@@ -62,10 +62,15 @@ Actions have stable generation-checked identities and one logical type:
   greater than one, preventing faster diagonal movement.
 
 Bindings are evaluated in stored order and combined deterministically. Button
-bindings are active when any valid binding is down. Every bit in a binding's
-modifier mask must be active. Axis scale is applied before clamping;
-`inverted` negates the scaled contribution. Digital Axis 2D bindings also use
-their authored direction vector. Key bindings use SDL scancodes; prefer SDL's
+bindings are active when any valid binding is down, and do not use scale or
+inversion. Every bit in a binding's modifier mask must be active. Axis 1D uses
+`scale.x` and `inverted_x`. Axis 2D applies `scale.x` and `scale.y` independently,
+then flips the sign of each component selected by `inverted_x` or `inverted_y`.
+For pointer movement and wheel sources, those scales act as per-axis
+sensitivity. Digital Axis 2D bindings also use their authored direction vector.
+Binding names are optional in direct C, must
+be unique within an action when present, and are retained by copied binding
+lists. Key bindings use SDL scancodes; prefer SDL's
 named `SDL_SCANCODE_*` constants in C so bindings remain readable and tied to
 physical keys. Numeric scancode values remain valid for serialization and
 tooling.
@@ -88,8 +93,9 @@ InputControllerIdResult controller_result =
 InputActionIdResult jump_result = rohr_input_action_create(
     controller_result.result.value, "jump", INPUT_ACTION_BUTTON);
 InputBinding defaults[] = {
-    rohr_input_binding_key_create(SDLK_SPACE),
-    {.source = INPUT_BINDING_MOUSE_BUTTON,
+    {.name = "keyboard", .source = INPUT_BINDING_KEY,
+        .input.key = SDL_SCANCODE_SPACE},
+    {.name = "pointer", .source = INPUT_BINDING_MOUSE_BUTTON,
         .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT},
 };
 rohr_input_action_bindings_default_set(
@@ -143,13 +149,16 @@ directly. Input and modifier fields can toggle between letter/symbol display
 and their numeric SDL values; numeric fields accept Enter or focus loss as
 submission. These edits use normal editor commands and participate in undo/redo.
 Project JSON stores stable controller, action, and binding IDs plus readable
-names.
+names. Generated `InputBinding` initializers retain those binding names.
 Generated `ProjectControllers` state creates runtime controllers before generated
 scene objects and is destroyed with `ProjectObjects`.
 
-The selector-first CLI supports the same authored state. A binding command has
-seven values after its operation: source, physical input, modifier bit mask,
-scale, inversion, direction X, and direction Y.
+The selector-first CLI supports the same authored state. Bindings can be
+selected by `--binding`, `--binding-id`, or the legacy `--binding-index`.
+Every binding starts with source, physical input, and modifier bit mask. Button
+bindings stop there. Axis 1D adds scale and inversion. Axis 2D adds scale X,
+scale Y, inversion X, inversion Y, direction X, and direction Y. The old
+seven-value uniform-scale form remains readable for compatibility.
 
 ```sh
 rohr-cli --project objects/project.rohr.json \
@@ -162,8 +171,15 @@ rohr-cli --project objects/project.rohr.json \
   --controller gameplay --action console add button persistent false
 
 rohr-cli --project objects/project.rohr.json \
-  --controller gameplay --action move \
-  binding-add key W 0 1 false 0 -1
+  --controller gameplay --action move --binding move_up \
+  add key W 0 1 1 false false 0 -1
+
+rohr-cli --project objects/project.rohr.json \
+  --controller gameplay --action move --binding move_up \
+  binding-set move_forward key W 0 1 1 false false 0 -1
+
+rohr-cli --project objects/project.rohr.json \
+  --controller gameplay --action move --binding move_forward delete
 ```
 
 Sources are `key`, `mouse-button`, `mouse-motion`, and `mouse-wheel`. Keys

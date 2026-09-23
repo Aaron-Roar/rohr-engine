@@ -26,6 +26,9 @@ static int input_cli_commands_test(void) {
     char *button_add[] = {"rohr-cli", "--project", "input.json",
         "--controller", "gameplay", "--action", "console", "add",
         "button", "persistent", "true"};
+    char *button_binding_add[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "console",
+        "--binding", "open_console", "add", "key", "53", "0"};
     char *button_missing_mode[] = {"rohr-cli", "--project", "input.json",
         "--controller", "gameplay", "--action", "missing", "add", "button"};
     char *button_invalid_mode[] = {"rohr-cli", "--project", "input.json",
@@ -38,8 +41,23 @@ static int input_cli_commands_test(void) {
         "--controller", "gameplay", "--action", "move", "add",
         "axis-2d"};
     char *binding_add[] = {"rohr-cli", "--project", "input.json",
-        "--controller", "gameplay", "--action", "move", "binding-add",
-        "key", "W", "3", "0.5", "true", "0", "-1"};
+        "--controller", "gameplay", "--action", "move",
+        "--binding", "move_up", "add",
+        "key", "W", "3", "0.5", "0.75", "true", "false", "0", "-1"};
+    char *binding_set[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "move",
+        "--binding", "move_up", "binding-set", "move_right",
+        "key", "D", "0", "1", "0.75", "false", "true", "1", "0"};
+    char *legacy_binding_set[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "move",
+        "--binding", "move_up", "binding-set", "legacy_move",
+        "key", "D", "0", "0.25", "true", "1", "0"};
+    char *axis_1d_add[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "throttle", "add",
+        "axis-1d"};
+    char *axis_1d_binding_add[] = {"rohr-cli", "--project", "input.json",
+        "--controller", "gameplay", "--action", "throttle",
+        "--binding", "reverse", "add", "key", "S", "0", "0.5", "true"};
     editor_project_init(&project);
     result = editor_command_cli_standard_parse(&project, 7, controller_add, &path,
         &command);
@@ -62,6 +80,19 @@ static int input_cli_commands_test(void) {
                 INPUT_BUTTON_PERSISTENT ||
             !project.input_controllers[0].actions[0].button_initial_state)
         goto fail;
+    result = editor_command_cli_standard_parse(&project, 13,
+        button_binding_add, &path, &command);
+    if(editor_result_check(result) ||
+            command.type != EDITOR_COMMAND_INPUT_BINDING_ADD ||
+            command.data.input_binding.binding.input.key !=
+                (SDL_Scancode)53 ||
+            command.data.input_binding.binding.scale.x != 1.0f ||
+            command.data.input_binding.binding.scale.y != 1.0f)
+        goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            project.input_controllers[0].actions[0].binding_count != 1)
+        goto fail;
     result = editor_command_cli_standard_parse(&project, 9,
         button_missing_mode, &path, &command);
     if(!editor_result_check(result)) goto fail;
@@ -79,17 +110,31 @@ static int input_cli_commands_test(void) {
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE ||
             project.input_controllers[0].action_count != 2) goto fail;
-    result = editor_command_cli_standard_parse(&project, 15, binding_add, &path,
+    result = editor_command_cli_standard_parse(&project, 19, binding_add, &path,
         &command);
     if(editor_result_check(result) ||
             command.type != EDITOR_COMMAND_INPUT_BINDING_ADD ||
+            strcmp(command.data.input_binding.name, "move_up") != 0 ||
+            strcmp(command.data.input_binding.binding.name, "move_up") != 0 ||
             command.data.input_binding.binding.input.key != SDL_SCANCODE_W ||
             command.data.input_binding.binding.modifiers != (SDL_Keymod)3 ||
-            command.data.input_binding.binding.scale != 0.5f ||
-            !command.data.input_binding.binding.inverted) goto fail;
+            command.data.input_binding.binding.scale.x != 0.5f ||
+            command.data.input_binding.binding.scale.y != 0.75f ||
+            !command.data.input_binding.binding.inverted_x ||
+            command.data.input_binding.binding.inverted_y) goto fail;
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE ||
-            project.input_controllers[0].actions[1].binding_count != 1)
+            project.input_controllers[0].actions[1].binding_count != 1 ||
+            strcmp(project.input_controllers[0].actions[1].bindings[0].name,
+                "move_up") != 0)
+        goto fail;
+    result = editor_command_cli_standard_parse(&project, 18,
+        legacy_binding_set, &path, &parsed);
+    if(editor_result_check(result) ||
+            parsed.data.input_binding.binding.scale.x != 0.25f ||
+            parsed.data.input_binding.binding.scale.y != 0.25f ||
+            !parsed.data.input_binding.binding.inverted_x ||
+            !parsed.data.input_binding.binding.inverted_y)
         goto fail;
     result = editor_command_cli_standard_write(&project, &command, &executed,
         "input.json", serialized, sizeof(serialized));
@@ -109,7 +154,61 @@ static int input_cli_commands_test(void) {
             arguments, &path, &parsed);
         if(editor_result_check(result) ||
                 parsed.type != EDITOR_COMMAND_INPUT_BINDING_ADD ||
+                strcmp(parsed.data.input_binding.name, "move_up") != 0 ||
                 parsed.data.input_binding.binding.input.key != SDL_SCANCODE_W)
+            goto fail;
+    }
+    result = editor_command_cli_standard_parse(&project, 9, axis_1d_add, &path,
+        &command);
+    if(editor_result_check(result) ||
+            editor_command_execute(&project, &command).kind !=
+                ERROR_RESULT_VALUE)
+        goto fail;
+    result = editor_command_cli_standard_parse(&project, 15,
+        axis_1d_binding_add, &path, &command);
+    if(editor_result_check(result) ||
+            command.data.input_binding.binding.scale.x != 0.5f ||
+            command.data.input_binding.binding.scale.y != 1.0f ||
+            !command.data.input_binding.binding.inverted_x ||
+            command.data.input_binding.binding.inverted_y ||
+            editor_command_execute(&project, &command).kind !=
+                ERROR_RESULT_VALUE)
+        goto fail;
+    result = editor_command_cli_standard_parse(&project, 20, binding_set, &path,
+        &command);
+    if(editor_result_check(result) ||
+            command.type != EDITOR_COMMAND_INPUT_BINDING_SET ||
+            command.data.input_binding.binding_id !=
+                project.input_controllers[0].actions[1].binding_ids[0] ||
+            strcmp(command.data.input_binding.name, "move_right") != 0 ||
+            command.data.input_binding.binding.input.key != SDL_SCANCODE_D ||
+            command.data.input_binding.binding.scale.y != 0.75f ||
+            !command.data.input_binding.binding.inverted_y)
+        goto fail;
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE ||
+            strcmp(project.input_controllers[0].actions[1].bindings[0].name,
+                "move_right") != 0 ||
+            project.input_controllers[0].actions[1].bindings[0].input.key !=
+                SDL_SCANCODE_D)
+        goto fail;
+    result = editor_command_cli_standard_write(&project, &command, &executed,
+        "input.json", serialized, sizeof(serialized));
+    if(editor_result_check(result) || strstr(serialized, "--binding-id") == NULL ||
+            strstr(serialized, "binding-set move_right key") == NULL)
+        goto fail;
+    {
+        char *binding_delete[] = {"rohr-cli", "--project", "input.json",
+            "--controller", "gameplay", "--action", "move",
+            "--binding", "move_right", "delete"};
+        result = editor_command_cli_standard_parse(&project, 10,
+            binding_delete, &path, &command);
+        if(editor_result_check(result) ||
+                command.type != EDITOR_COMMAND_INPUT_BINDING_REMOVE ||
+                strcmp(command.data.input_binding.name, "move_right") != 0 ||
+                editor_command_execute(&project, &command).kind !=
+                    ERROR_RESULT_VALUE ||
+                project.input_controllers[0].actions[1].binding_count != 0)
             goto fail;
     }
     editor_project_destroy(&project);

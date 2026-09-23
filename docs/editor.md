@@ -169,11 +169,16 @@ Button, Axis 1D, or Axis 2D action. Double-clicking an action opens its own
 editor. Action type, Button mode, binding selection, binding source, mouse
 button, and pointer-axis choices use dropdowns. Persistent actions can author
 their initial state, and every action can own multiple keyboard or pointer
-bindings. All changes use normal undo/redo history. Key inputs use SDL scancode
-values. Generated C exposes stable controller and action handles through
-`ProjectControllers`. Gameplay reads those handles and owns responses;
-callbacks are not serialized. See [Input](input.md) for runtime overrides and
-CLI syntax.
+bindings. Binding properties follow the action type: Buttons omit scale and
+inversion, Axis 1D shows one scale and inversion pair, and Axis 2D shows
+independent X/Y scale and inversion. Digital Axis 2D bindings additionally show
+X/Y direction; pointer movement and wheel bindings use scale as sensitivity.
+All changes use normal undo/redo history. Key inputs use SDL scancode
+values; the numeric representation toggle is labelled **SDL Scancode**.
+Generated C preserves binding names and exposes stable controller and action
+handles through `ProjectControllers`. Gameplay reads those handles and owns
+responses; callbacks are not serialized. See [Input](input.md) for runtime
+overrides and CLI syntax.
 
 Add buttons for named project, object, UI, and nested elements immediately
 open the created element and select its generated name in the name field.

@@ -82,8 +82,10 @@
                             "source": "key",
                             "scancode": 4,
                             "modifiers": 0,
-                            "scale": -1.0,
-                            "inverted": false,
+                            "scale_x": -1.0,
+                            "scale_y": 1.0,
+                            "inverted_x": false,
+                            "inverted_y": false,
                             "direction_x": 0.0,
                             "direction_y": 0.0
                         },
@@ -93,8 +95,10 @@
                             "source": "key",
                             "scancode": 7,
                             "modifiers": 0,
-                            "scale": 1.0,
-                            "inverted": false,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "inverted_x": false,
+                            "inverted_y": false,
                             "direction_x": 0.0,
                             "direction_y": 0.0
                         }
@@ -113,8 +117,10 @@
                             "source": "key",
                             "scancode": 44,
                             "modifiers": 0,
-                            "scale": 1.0,
-                            "inverted": false,
+                            "scale_x": 1.0,
+                            "scale_y": 1.0,
+                            "inverted_x": false,
+                            "inverted_y": false,
                             "direction_x": 0.0,
                             "direction_y": 0.0
                         }

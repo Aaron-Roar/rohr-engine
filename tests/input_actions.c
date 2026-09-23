@@ -165,34 +165,38 @@ static bool input_action_test(void) {
     InputAxis1DResult axis_1d;
     InputAxis2DResult axis_2d;
     const InputBinding jump_defaults[] = {
-        {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_SPACE},
-        {.source = INPUT_BINDING_MOUSE_BUTTON,
+        {.name = "keyboard", .source = INPUT_BINDING_KEY,
+            .input.key = SDL_SCANCODE_SPACE,
+            .scale = {0.0f, 0.0f},
+            .inverted_x = true, .inverted_y = true},
+        {.name = "pointer", .source = INPUT_BINDING_MOUSE_BUTTON,
             .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT},
     };
     const InputBinding throttle_bindings[] = {
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_D,
-            .scale = 1.0f},
+            .scale = {1.0f, 1.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_A,
-            .scale = 1.0f, .inverted = true},
+            .scale = {1.0f, 1.0f}, .inverted_x = true},
     };
     const InputBinding move_bindings[] = {
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_W,
-            .scale = 1.0f, .direction = {0.0f, 1.0f}},
+            .scale = {1.0f, 1.0f}, .direction = {0.0f, 1.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_S,
-            .scale = 1.0f, .direction = {0.0f, -1.0f}},
+            .scale = {1.0f, 1.0f}, .direction = {0.0f, -1.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_A,
-            .scale = 1.0f, .direction = {-1.0f, 0.0f}},
+            .scale = {1.0f, 1.0f}, .direction = {-1.0f, 0.0f}},
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_D,
-            .scale = 1.0f, .direction = {1.0f, 0.0f}},
+            .scale = {1.0f, 1.0f}, .direction = {1.0f, 0.0f}},
     };
     const InputBinding look_bindings[] = {
         {.source = INPUT_BINDING_MOUSE_MOTION,
-            .input.axis_component = INPUT_AXIS_COMPONENT_XY, .scale = 0.1f},
+            .input.axis_component = INPUT_AXIS_COMPONENT_XY,
+            .scale = {0.1f, 0.05f}, .inverted_y = true},
     };
     const InputBinding zoom_bindings[] = {
         {.source = INPUT_BINDING_MOUSE_WHEEL,
             .input.axis_component = INPUT_AXIS_COMPONENT_Y,
-            .scale = 0.25f, .inverted = true},
+            .scale = {0.25f, 1.0f}, .inverted_x = true},
     };
     const InputBinding shortcut_bindings[] = {
         {.source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_Q,
@@ -208,7 +212,8 @@ static bool input_action_test(void) {
             number_binding.input.key != SDL_SCANCODE_7 ||
             physical_binding.input.key != SDL_SCANCODE_W ||
             letter_binding.source != INPUT_BINDING_KEY ||
-            letter_binding.scale != 1.0f ||
+            letter_binding.scale.x != 1.0f ||
+            letter_binding.scale.y != 1.0f ||
             physical_binding.modifiers != SDL_KMOD_NONE) return false;
     gameplay = gameplay_result.result.value;
     if(!rohr_error_check(rohr_input_controller_create("gameplay")) ||
@@ -236,6 +241,25 @@ static bool input_action_test(void) {
                 zoom_result.result.value, zoom_bindings, 1)) ||
             rohr_error_check(rohr_input_action_bindings_default_set(
                 shortcut_result.result.value, shortcut_bindings, 1))) return false;
+    binding_list = rohr_input_action_bindings_default_get(
+        jump_result.result.value);
+    if(rohr_error_check(binding_list) || binding_list.result.value.count != 2 ||
+            strcmp(binding_list.result.value.values[0].name, "keyboard") != 0 ||
+            strcmp(binding_list.result.value.values[1].name, "pointer") != 0)
+        return false;
+    {
+        const InputBinding duplicates[] = {
+            {.name = "duplicate", .source = INPUT_BINDING_KEY,
+                .input.key = SDL_SCANCODE_SPACE},
+            {.name = "duplicate", .source = INPUT_BINDING_KEY,
+                .input.key = SDL_SCANCODE_RETURN},
+        };
+        EngineResult duplicate_result = rohr_input_action_bindings_default_set(
+            jump_result.result.value, duplicates, 2);
+        if(!rohr_error_check(duplicate_result) ||
+                duplicate_result.result.error != ERROR_ENGINE_DUPLICATE_INPUT_NAME)
+            return false;
+    }
     {
         InputControllerIdResult controller_lookup =
             rohr_input_controller_by_name_get("gameplay");
@@ -309,7 +333,7 @@ static bool input_action_test(void) {
     axis_2d = rohr_input_action_axis_2d_get(look_result.result.value);
     if(rohr_error_check(axis_2d) ||
             !close_float(axis_2d.result.value.x, 0.8f) ||
-            !close_float(axis_2d.result.value.y, -0.6f)) return false;
+            !close_float(axis_2d.result.value.y, 0.3f)) return false;
     axis_1d = rohr_input_action_axis_1d_get(zoom_result.result.value);
     if(rohr_error_check(axis_1d) || !close_float(axis_1d.result.value, -0.5f))
         return false;
@@ -345,8 +369,8 @@ static bool input_action_test(void) {
         return false;
 
     {
-        const InputBinding override[] = {{.source = INPUT_BINDING_KEY,
-            .input.key = SDL_SCANCODE_RETURN}};
+        const InputBinding override[] = {{.name = "confirm",
+            .source = INPUT_BINDING_KEY, .input.key = SDL_SCANCODE_RETURN}};
         if(rohr_error_check(rohr_input_action_bindings_override_set(
                     jump_result.result.value, override, 1)) ||
                 !rohr_input_action_bindings_override_check(jump_result.result.value))
@@ -355,6 +379,7 @@ static bool input_action_test(void) {
             jump_result.result.value);
         if(rohr_error_check(binding_list) || binding_list.result.value.count != 1 ||
                 binding_list.result.value.values[0].input.key != SDL_SCANCODE_RETURN ||
+                strcmp(binding_list.result.value.values[0].name, "confirm") != 0 ||
                 rohr_error_check(rohr_input_action_bindings_override_clear(
                     jump_result.result.value))) return false;
         binding_list = rohr_input_action_bindings_effective_get(

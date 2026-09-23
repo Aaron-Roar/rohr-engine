@@ -100,11 +100,12 @@ static const CliHelpDomain cli_help_domains[] = {
         "action-set <name> button <momentary|persistent> <initial-state>, or "
         "action-set <name> <axis-1d|axis-2d>",
         "--controller gameplay --action move add axis-2d", 1},
-    {"--binding-index", "input binding",
-        "binding-set <source> <input> <modifiers> <scale> <inverted> "
-        "<direction-x> <direction-y>",
-        "--controller gameplay --action move --binding-index 0 "
-        "binding-set key W 0 1 false 0 -1", 2}
+    {"--binding", "input binding",
+        "binding-set <name> <source> <input> <modifiers> [<scale> <inverted> "
+        "| <scale-x> <scale-y> <inverted-x> <inverted-y> "
+        "<direction-x> <direction-y>]",
+        "--controller gameplay --action move --binding move_up "
+        "binding-set move_forward key W 0 1 1 false false 0 -1", 2}
 };
 
 static bool cli_help_flag_check(const char *argument) {
@@ -124,7 +125,9 @@ static const CliHelpDomain *cli_help_domain_get(int count, char **arguments) {
                      strcmp(arguments[i] + strlen(cli_help_domains[j].selector),
                         "-id") == 0) ||
                     (strcmp(cli_help_domains[j].selector, "--line") == 0 &&
-                     strcmp(arguments[i], "--line-index") == 0)) {
+                     strcmp(arguments[i], "--line-index") == 0) ||
+                    (strcmp(cli_help_domains[j].selector, "--binding") == 0 &&
+                     strcmp(arguments[i], "--binding-index") == 0)) {
                 if(selected == NULL || cli_help_domains[j].depth >= selected->depth)
                     selected = &cli_help_domains[j];
             }
@@ -154,7 +157,7 @@ static void cli_help_print(int count, char **arguments) {
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
             "  --node, --beam, --area, --vertex, --line, --sprite,\n"
             "  --animated-sprite, --frame-index, --controller, --action,\n"
-            "  --binding-index\n"
+            "  --binding, --binding-index\n"
             "  Every named selector also accepts its -id form.");
         return;
     }
@@ -168,9 +171,14 @@ static void cli_help_print(int count, char **arguments) {
     else if(strcmp(domain->selector, "--action") == 0)
         puts("Operations at this depth:\n"
             "  add button <momentary|persistent> <initial-state>, "
-            "add <axis-1d|axis-2d>, delete, action-set, binding-add <binding>");
-    else if(strcmp(domain->selector, "--binding-index") == 0)
-        puts("Operations at this depth:\n  binding-set <binding>, binding-delete");
+            "add <axis-1d|axis-2d>, delete, action-set; use --binding to add bindings");
+    else if(strcmp(domain->selector, "--binding") == 0)
+        puts("Operations at this depth:\n"
+            "  add <binding>, binding-set <new-name> <binding>, delete\n"
+            "  Button: source input modifiers\n"
+            "  Axis 1D: source input modifiers scale inverted\n"
+            "  Axis 2D: source input modifiers scale-x scale-y inverted-x "
+            "inverted-y direction-x direction-y");
     else puts("Operations at this depth:\n  rename <new-name>, delete");
 }
 

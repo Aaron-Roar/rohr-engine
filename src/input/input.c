@@ -147,8 +147,8 @@ static float input_binding_scalar_get(const InputBinding *binding) {
         value = binding->input.axis_component == INPUT_AXIS_COMPONENT_X ?
             input_snapshot.mouse_wheel.x : input_snapshot.mouse_wheel.y;
     }
-    value *= binding->scale;
-    return binding->inverted ? -value : value;
+    value *= binding->scale.x;
+    return binding->inverted_x ? -value : value;
 }
 
 static Vec2D input_binding_vector_get(const InputBinding *binding) {
@@ -166,12 +166,10 @@ static Vec2D input_binding_vector_get(const InputBinding *binding) {
             value.y = source.y;
         else value = source;
     }
-    value.x *= binding->scale;
-    value.y *= binding->scale;
-    if(binding->inverted) {
-        value.x = -value.x;
-        value.y = -value.y;
-    }
+    value.x *= binding->scale.x;
+    value.y *= binding->scale.y;
+    if(binding->inverted_x) value.x = -value.x;
+    if(binding->inverted_y) value.y = -value.y;
     return value;
 }
 
@@ -208,7 +206,8 @@ bool input_binding_valid_check(InputActionType action_type,
     if(action_type < INPUT_ACTION_BUTTON || action_type > INPUT_ACTION_AXIS_2D ||
             binding == NULL || binding->source < INPUT_BINDING_KEY ||
             binding->source > INPUT_BINDING_MOUSE_WHEEL ||
-            !isfinite(binding->scale) ||
+            memchr(binding->name, '\0', sizeof(binding->name)) == NULL ||
+            !isfinite(binding->scale.x) || !isfinite(binding->scale.y) ||
             !isfinite(binding->direction.x) || !isfinite(binding->direction.y))
         return false;
     if(binding->source == INPUT_BINDING_KEY &&
@@ -236,12 +235,12 @@ InputBinding input_binding_key_create(SDL_Keycode key) {
     SDL_Keymod modifiers = SDL_KMOD_NONE;
     SDL_Scancode scancode = SDL_GetScancodeFromKey(key, &modifiers);
     return (InputBinding){.source = INPUT_BINDING_KEY,
-        .input.key = scancode, .modifiers = modifiers, .scale = 1.0f};
+        .input.key = scancode, .modifiers = modifiers, .scale = {1.0f, 1.0f}};
 }
 
 InputBinding input_binding_scancode_create(SDL_Scancode key) {
     return (InputBinding){.source = INPUT_BINDING_KEY,
-        .input.key = key, .scale = 1.0f};
+        .input.key = key, .scale = {1.0f, 1.0f}};
 }
 
 static EngineResult input_bindings_set(InputAction *action,
@@ -250,9 +249,14 @@ static EngineResult input_bindings_set(InputAction *action,
     if(action == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
     if(count > ROHR_INPUT_BINDING_LIMIT || (count > 0 && bindings == NULL))
         return error_result_error(ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
-    for(size_t i = 0; i < count; i += 1)
+    for(size_t i = 0; i < count; i += 1) {
         if(!input_binding_valid_check(action->type, &bindings[i]))
             return error_result_error(ERROR_ENGINE_INPUT_BINDING_INVALID);
+        if(bindings[i].name[0] == '\0') continue;
+        for(size_t previous = 0; previous < i; previous += 1)
+            if(strcmp(bindings[previous].name, bindings[i].name) == 0)
+                return error_result_error(ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+    }
     if(count > 0) memcpy(destination, bindings, count * sizeof(*bindings));
     if(count < ROHR_INPUT_BINDING_LIMIT)
         memset(destination + count, 0,
