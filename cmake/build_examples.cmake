@@ -12,6 +12,7 @@ foreach(required_variable
 endforeach()
 
 set(example_directories
+    audio
     view-port
     flies-in-pit
     flies-around-ball

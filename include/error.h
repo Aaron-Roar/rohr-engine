@@ -149,6 +149,16 @@ typedef enum EngineError {
     ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND,
     /** No additional sound playback instances can be created. */
     ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED,
+    /** A music configuration contains no usable Ogg Vorbis path. */
+    ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID,
+    /** An Ogg Vorbis music stream could not be opened or decoded. */
+    ERROR_ENGINE_AUDIO_MUSIC_LOAD_FAILED,
+    /** No live music resource exists for the requested handle. */
+    ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND,
+    /** No additional music resources can be created. */
+    ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED,
+    /** A pause or resume operation targeted music that is not active. */
+    ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE,
     /** SDL could not perform an audio operation. */
     ERROR_ENGINE_AUDIO_OPERATION_FAILED,
 } EngineError;

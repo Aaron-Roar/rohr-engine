@@ -117,6 +117,40 @@ AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound);
 /** Return true only while the sound is actively advancing. */
 bool rohr_audio_sound_playing_check(Sound sound);
 
+/** Return defaults for one streamed Ogg Vorbis track. */
+MusicConfig rohr_audio_music_config_default_get(void);
+/** Open an Ogg Vorbis file for incremental decoding during playback. */
+MusicResult rohr_audio_music_create(MusicConfig config);
+/** Stop and release one music decoder and its stream buffer. */
+EngineResult rohr_audio_music_destroy(Music music);
+/** Start one track from the beginning, replacing any active track. */
+EngineResult rohr_audio_music_play(Music music);
+/** Pause the active track without changing its playback position. */
+EngineResult rohr_audio_music_pause(Music music);
+/** Resume an explicitly paused active track. */
+EngineResult rohr_audio_music_resume(Music music);
+/** Stop one track and reset it to the beginning. */
+EngineResult rohr_audio_music_stop(Music music);
+/** Set one music track's volume, clamped to 0..1. */
+EngineResult rohr_audio_music_volume_set(Music music, float volume);
+/** Return one music track's stored volume. */
+AudioValueResult rohr_audio_music_volume_get(Music music);
+/** Enable or disable restarting the track when it reaches its end. */
+EngineResult rohr_audio_music_loop_set(Music music, bool loop);
+/** Return whether one music track is configured to loop. */
+bool rohr_audio_music_loop_check(Music music);
+/** Set speed and pitch; zero freezes and negative values normalize to zero. */
+EngineResult rohr_audio_music_playback_rate_set(
+    Music music,
+    float playback_rate
+);
+/** Return one music track's normalized speed and pitch ratio. */
+AudioValueResult rohr_audio_music_playback_rate_get(Music music);
+/** Return true only while the active track is advancing. */
+bool rohr_audio_music_playing_check(Music music);
+/** Return whether the active track was explicitly paused. */
+bool rohr_audio_music_paused_check(Music music);
+
 /**
  * Returns the platform application base directory.
  * The returned path is SDL-owned and must not be freed.

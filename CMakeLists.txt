@@ -213,6 +213,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/soft_body/soft_body_solver.c
     src/state/game_state.c
     src/tools/tools.c
+    lib/vorbis/stb_vorbis.c
     lib/yyjson/yyjson.c
 )
 
@@ -355,6 +356,7 @@ if(ROHR_BUILD_EXAMPLES)
 
     add_custom_target(examples)
     add_dependencies(examples
+        audio
         view_port
         flies_in_pit
         flies_around_ball

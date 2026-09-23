@@ -55,8 +55,10 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
-1. **Audio** — Add sound effects and music through a small, explicit API with
-   reliable loading, playback, looping, mixing, volume control, and unloading.
+1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
+   backend with reliable loading, playback, looping, mixing, volume control,
+   playback-rate control, and unloading. Sounds decode WAV assets into memory;
+   one active music track streams Ogg Vorbis.
 2. **Asset and resource ownership** — Define handles, sharing, caching,
    reference/lifetime rules, failure cleanup, and destruction for textures,
    sounds, animations, fonts, and other shared resources before expanding
@@ -215,8 +217,9 @@ These runtime foundations should precede broad asset-heavy example authoring.
 
 - Add engine-owned texture and animation handles with explicit sharing,
   unloading, failure cleanup, and shutdown behavior.
-- Build a small SDL-backed audio API for sounds, looping, mixing, volume, and
-  destruction without adding another framework.
+- The SDL-backed audio API is complete for in-memory WAV sounds and one
+  streamed Ogg Vorbis music track, including looping, mixing, volume, playback
+  rate, pause/freeze behavior, and explicit destruction.
 - Extend the completed keyboard, pointer, text/IME, and action snapshot with
   SDL gamepad discovery, device lifetime, buttons, triggers, and sticks.
 - Implement texture ownership, audio, and input as separate commits.

@@ -184,6 +184,16 @@ const char *error_code_message_get(EngineError error) {
             return "sound not found";
         case ERROR_ENGINE_AUDIO_SOUND_CAPACITY_EXCEEDED:
             return "sound capacity exceeded";
+        case ERROR_ENGINE_AUDIO_MUSIC_CONFIG_INVALID:
+            return "invalid music configuration";
+        case ERROR_ENGINE_AUDIO_MUSIC_LOAD_FAILED:
+            return "Ogg Vorbis music load failed";
+        case ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND:
+            return "music not found";
+        case ERROR_ENGINE_AUDIO_MUSIC_CAPACITY_EXCEEDED:
+            return "music capacity exceeded";
+        case ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE:
+            return "music is not the active track";
         case ERROR_ENGINE_AUDIO_OPERATION_FAILED:
             return "audio operation failed";
         default:

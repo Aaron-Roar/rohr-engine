@@ -4187,6 +4187,126 @@ bool rohr_audio_sound_playing_check(Sound sound);
 
  Return true only while the sound is actively advancing.
 
+### `rohr_audio_music_config_default_get`
+
+```c
+MusicConfig rohr_audio_music_config_default_get(void);
+```
+
+ Return defaults for one streamed Ogg Vorbis track.
+
+### `rohr_audio_music_create`
+
+```c
+MusicResult rohr_audio_music_create(MusicConfig config);
+```
+
+ Open an Ogg Vorbis file for incremental decoding during playback.
+
+### `rohr_audio_music_destroy`
+
+```c
+EngineResult rohr_audio_music_destroy(Music music);
+```
+
+ Stop and release one music decoder and its stream buffer.
+
+### `rohr_audio_music_play`
+
+```c
+EngineResult rohr_audio_music_play(Music music);
+```
+
+ Start one track from the beginning, replacing any active track.
+
+### `rohr_audio_music_pause`
+
+```c
+EngineResult rohr_audio_music_pause(Music music);
+```
+
+ Pause the active track without changing its playback position.
+
+### `rohr_audio_music_resume`
+
+```c
+EngineResult rohr_audio_music_resume(Music music);
+```
+
+ Resume an explicitly paused active track.
+
+### `rohr_audio_music_stop`
+
+```c
+EngineResult rohr_audio_music_stop(Music music);
+```
+
+ Stop one track and reset it to the beginning.
+
+### `rohr_audio_music_volume_set`
+
+```c
+EngineResult rohr_audio_music_volume_set(Music music, float volume);
+```
+
+ Set one music track's volume, clamped to 0..1.
+
+### `rohr_audio_music_volume_get`
+
+```c
+AudioValueResult rohr_audio_music_volume_get(Music music);
+```
+
+ Return one music track's stored volume.
+
+### `rohr_audio_music_loop_set`
+
+```c
+EngineResult rohr_audio_music_loop_set(Music music, bool loop);
+```
+
+ Enable or disable restarting the track when it reaches its end.
+
+### `rohr_audio_music_loop_check`
+
+```c
+bool rohr_audio_music_loop_check(Music music);
+```
+
+ Return whether one music track is configured to loop.
+
+### `rohr_audio_music_playback_rate_set`
+
+```c
+EngineResult rohr_audio_music_playback_rate_set( Music music, float playback_rate );
+```
+
+ Set speed and pitch; zero freezes and negative values normalize to zero.
+
+### `rohr_audio_music_playback_rate_get`
+
+```c
+AudioValueResult rohr_audio_music_playback_rate_get(Music music);
+```
+
+ Return one music track's normalized speed and pitch ratio.
+
+### `rohr_audio_music_playing_check`
+
+```c
+bool rohr_audio_music_playing_check(Music music);
+```
+
+ Return true only while the active track is advancing.
+
+### `rohr_audio_music_paused_check`
+
+```c
+bool rohr_audio_music_paused_check(Music music);
+```
+
+ Return whether the active track was explicitly paused.
+
 ### `rohr_directory_base_get`
 
 ```c

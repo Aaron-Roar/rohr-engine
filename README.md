@@ -201,6 +201,7 @@ Generated HTML is written to `build/docs/html/index.html` and is not committed.
 
 ## Examples
 
+- `audio`: WAV sound playback over streamed Ogg Vorbis music.
 - `flies-in-pit`: particles, collision, animation, and recording.
 - `flies-around-ball`: attraction-style movement, particles, and animation.
 - `fly-to-finish`: input, obstacles, animation, and collision.

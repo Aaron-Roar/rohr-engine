@@ -46,6 +46,34 @@ to zero; reverse playback is not supported.
 
 ## Music
 
-Music will use the same mixer while exposing streaming controls suited to Ogg
-Vorbis tracks. Its decoder and public API are not part of the WAV Sound
-foundation yet.
+A `Music` resource keeps an Ogg Vorbis file and decoder open, then decodes
+small blocks as the shared mixer requests them. Music is not fully decoded
+into memory. The initial implementation accepts mono and stereo Vorbis streams.
+
+```c
+MusicConfig config = rohr_audio_music_config_default_get();
+config.path = "assets/theme.ogg";
+config.volume = 0.7f;
+config.loop = true;
+
+MusicResult music = rohr_audio_music_create(config);
+if(!error_check(music)) rohr_audio_music_play(music.result.value);
+```
+
+Only one music track is active at a time. Playing a track from the beginning
+stops the previously active track. Pause and resume preserve the active
+track's stream position; stop resets it to the beginning. Destroying active
+music stops it before releasing the decoder and stream buffer.
+
+Music volume and playback rate follow the same rules as Sound. A zero playback
+rate freezes the stream but does not mark it as explicitly paused. A later
+positive rate continues from the frozen position. `rohr_audio_music_playing_check()`
+reports only active, unpaused music with a positive rate, while
+`rohr_audio_music_paused_check()` reports the explicit pause state.
+
+## Formats and ownership
+
+Use WAV for short reusable sounds and Ogg Vorbis for streamed music. MP3 and
+reverse playback are not supported. The game owns each returned `Sound` and
+`Music` handle and should destroy it explicitly. Audio service shutdown closes
+and frees any resources that remain.

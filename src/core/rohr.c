@@ -72,6 +72,53 @@ AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound) {
 bool rohr_audio_sound_playing_check(Sound sound) {
     return audio_sound_playing_check(sound);
 }
+MusicConfig rohr_audio_music_config_default_get(void) {
+    return audio_music_config_default_get();
+}
+MusicResult rohr_audio_music_create(MusicConfig config) {
+    return audio_music_create(config);
+}
+EngineResult rohr_audio_music_destroy(Music music) {
+    return audio_music_destroy(music);
+}
+EngineResult rohr_audio_music_play(Music music) {
+    return audio_music_play(music);
+}
+EngineResult rohr_audio_music_pause(Music music) {
+    return audio_music_pause(music);
+}
+EngineResult rohr_audio_music_resume(Music music) {
+    return audio_music_resume(music);
+}
+EngineResult rohr_audio_music_stop(Music music) {
+    return audio_music_stop(music);
+}
+EngineResult rohr_audio_music_volume_set(Music music, float volume) {
+    return audio_music_volume_set(music, volume);
+}
+AudioValueResult rohr_audio_music_volume_get(Music music) {
+    return audio_music_volume_get(music);
+}
+EngineResult rohr_audio_music_loop_set(Music music, bool loop) {
+    return audio_music_loop_set(music, loop);
+}
+bool rohr_audio_music_loop_check(Music music) {
+    return audio_music_loop_check(music);
+}
+EngineResult rohr_audio_music_playback_rate_set(
+        Music music,
+        float playback_rate) {
+    return audio_music_playback_rate_set(music, playback_rate);
+}
+AudioValueResult rohr_audio_music_playback_rate_get(Music music) {
+    return audio_music_playback_rate_get(music);
+}
+bool rohr_audio_music_playing_check(Music music) {
+    return audio_music_playing_check(music);
+}
+bool rohr_audio_music_paused_check(Music music) {
+    return audio_music_paused_check(music);
+}
 const char *rohr_directory_base_get(void) { return SDL_GetBasePath(); }
 EngineResult rohr_directory_working_set(const char *directory) {
     int error_number;
