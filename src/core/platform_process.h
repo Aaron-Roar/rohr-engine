@@ -17,5 +17,6 @@
 bool platform_process_command_check(const char *command);
 FILE *platform_process_open_write(const char *command);
 int platform_process_close(FILE *process);
+bool platform_process_working_directory_set(const char *directory);
 
 #endif

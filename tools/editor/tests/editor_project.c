@@ -466,8 +466,10 @@ int main(void) {
         }
         snprintf(path, sizeof(path), "%s/src/main.c", fixture);
         if(!SDL_GetPathInfo(path, &info) || info.type != SDL_PATHTYPE_FILE ||
-                !file_contains(path, "project_use_executable_directory()") ||
-                !file_contains(path, "SDL_GetBasePath()") ||
+                !file_contains(path, "rohr_directory_working_set(") ||
+                !file_contains(path, "rohr_directory_base_get()") ||
+                file_contains(path, "project_chdir") ||
+                file_contains(path, "SDL_GetBasePath()") ||
                 !file_contains(path, "project_objects_create_all(&objects") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||

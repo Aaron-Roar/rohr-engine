@@ -3,7 +3,6 @@
  */
 
 #include "rohr.h"
-#include "example_runtime.h"
 #include "example_viewport.h"
 #include "example_input.h"
 
@@ -465,7 +464,8 @@ int main(void) {
     bool broadphase_debug = true;
     ViewportId viewport = VIEWPORT_INVALID;
 
-    if(!example_use_executable_directory() || !result_ok(rohr_engine_init())) return 1;
+    if(!result_ok(rohr_directory_working_set(rohr_directory_base_get())) ||
+            !result_ok(rohr_engine_init())) return 1;
     {
         InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
             1.0f, (Vec2D){0});

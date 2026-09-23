@@ -404,6 +404,12 @@ if(ROHR_BUILD_TESTS)
 
     add_test(NAME engine_lifecycle COMMAND engine_lifecycle_test)
 
+    add_executable(directory_test tests/directory.c)
+    target_link_libraries(directory_test PRIVATE rohr_engine)
+    set_target_properties(directory_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME directory COMMAND directory_test)
+
     add_executable(input_actions_test tests/input_actions.c)
     target_link_libraries(input_actions_test PRIVATE rohr_engine)
     set_target_properties(input_actions_test PROPERTIES
@@ -603,6 +609,7 @@ if(ROHR_BUILD_TESTS)
 
     set_tests_properties(
         engine_lifecycle
+        directory
         input_actions
         cameras
         ui_instance_isolation
@@ -630,6 +637,7 @@ if(ROHR_BUILD_TESTS)
     add_dependencies(
         rohr_tests
         engine_lifecycle_test
+        directory_test
         input_actions_test
         cameras_test
         ui_instance_isolation_test

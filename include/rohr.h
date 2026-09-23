@@ -71,6 +71,18 @@ EngineResult rohr_engine_time_per_tick_set(Time time_per_tick);
 Time rohr_engine_time_per_tick_get(void);
 
 /**
+ * Returns the platform application base directory.
+ * The returned path is SDL-owned and must not be freed.
+ */
+const char *rohr_directory_base_get(void);
+/**
+ * Sets the process-wide working directory to a non-empty path.
+ * Returns an error without changing the directory when the path is invalid or
+ * the platform rejects it.
+ */
+EngineResult rohr_directory_working_set(const char *directory);
+
+/**
  * @brief Polls one SDL event.
  * @return SDL event value returned by the engine event poller.
  */

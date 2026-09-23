@@ -168,6 +168,8 @@ const char *error_code_message_get(EngineError error) {
             return "input operation failed";
         case ERROR_ENGINE_INPUT_CONFIGURATION_INVALID:
             return "input configuration invalid";
+        case ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED:
+            return "working directory could not be set";
         default:
             return "unknown error";
     }

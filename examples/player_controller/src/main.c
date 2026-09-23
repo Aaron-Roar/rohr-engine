@@ -8,25 +8,12 @@
 #include <math.h>
 #include <stdio.h>
 
-#if defined(_WIN32)
-#include <direct.h>
-#define project_chdir _chdir
-#else
-#include <unistd.h>
-#define project_chdir chdir
-#endif
-
 #define PLAYER_CONTACT_LIMIT 32
 
 static const float player_move_force = 7500.0f;
 static const float player_jump_force = 250000.0f;
 static const float player_horizontal_speed_maximum = 260.0f;
 static const float player_vertical_speed_maximum = 700.0f;
-
-static bool project_use_executable_directory(void) {
-    const char *base_path = SDL_GetBasePath();
-    return base_path != NULL && project_chdir(base_path) == 0;
-}
 
 static bool ok(EngineResult result) {
     if(!rohr_error_check(result)) return true;
@@ -75,10 +62,7 @@ int main(void) {
     ProjectViewports viewports = {0};
     bool jump_queued = false;
 
-    if(!project_use_executable_directory()) {
-        fprintf(stderr, "Could not use the executable directory\n");
-        return 1;
-    }
+    if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;
     if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start())) goto fail;
     if(!ok(project_objects_create_all(&objects)) ||
             !ok(project_viewports_create(&viewports, &objects))) goto fail;

@@ -3,7 +3,11 @@
  */
 
 #include "rohr.h"
+#include "platform_process.h"
+
+#include <errno.h>
 #include <stdarg.h>
+#include <string.h>
 
 void console_vwrite(LogSourceType source, const char *fmt, va_list args);
 void console_debug_vwrite(LogSourceType source, const char *fmt, va_list args);
@@ -17,6 +21,20 @@ void rohr_engine_pause(void) { engine_pause(); }
 void rohr_engine_resume(void) { engine_resume(); }
 EngineResult rohr_engine_time_per_tick_set(Time value) { return engine_time_per_tick_set(value); }
 Time rohr_engine_time_per_tick_get(void) { return engine_time_per_tick_get(); }
+const char *rohr_directory_base_get(void) { return SDL_GetBasePath(); }
+EngineResult rohr_directory_working_set(const char *directory) {
+    int error_number;
+    if(directory == NULL || directory[0] == '\0')
+        return error_result_error_detail(
+            ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED,
+            "directory path is null or empty");
+    if(platform_process_working_directory_set(directory))
+        return error_result_value(true);
+    error_number = errno;
+    return error_result_error_detail(
+        ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED,
+        strerror(error_number));
+}
 SDL_Event rohr_engine_event_poll(void) { return engine_event_poll(); }
 bool rohr_engine_paused_get(void) { return engine_paused_get(); }
 void rohr_engine_clock_reset(void) { engine_clock_reset(); }

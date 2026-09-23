@@ -133,6 +133,8 @@ typedef enum EngineError {
     ERROR_ENGINE_INPUT_OPERATION_FAILED,
     /** An input action configuration contains an unsupported value. */
     ERROR_ENGINE_INPUT_CONFIGURATION_INVALID,
+    /** The process working directory could not be changed. */
+    ERROR_ENGINE_DIRECTORY_WORKING_SET_FAILED,
 } EngineError;
 
 /**

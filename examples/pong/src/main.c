@@ -4,7 +4,6 @@
 
 #include "rohr.h"
 #include "game_components.h"
-#include "example_runtime.h"
 #include "example_input.h"
 #include <stdio.h>
 
@@ -201,7 +200,8 @@ static EngineResult pong_constrain_paddle(
 }
 
 int main(void) {
-    if(!example_use_executable_directory()) return 1;
+    if(rohr_error_check(rohr_directory_working_set(
+            rohr_directory_base_get()))) return 1;
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, left_move_action, right_move_action;
     Entity wall_bottom;

@@ -3995,6 +3995,28 @@ Returns a random float in a range.
 
 ## Other
 
+### `rohr_directory_base_get`
+
+```c
+const char *rohr_directory_base_get(void);
+```
+
+Returns the platform application base directory.
+
+The returned path is SDL-owned and must not be freed.
+
+### `rohr_directory_working_set`
+
+```c
+EngineResult rohr_directory_working_set(const char *directory);
+```
+
+Sets the process-wide working directory to a non-empty path.
+
+Returns an error without changing the directory when the path is invalid or
+
+the platform rejects it.
+
 ### `rohr_game_state_file_load`
 
 ```c
@@ -4222,6 +4244,22 @@ void rohr_ui_scroll_region_end(void);
 ```
 
  @brief Ends the current UI scroll region.
+
+### `rohr_ui_translation_y_push`
+
+```c
+void rohr_ui_translation_y_push(float offset);
+```
+
+ @brief Adds a scoped vertical translation for subsequent UI controls.
+
+### `rohr_ui_translation_y_pop`
+
+```c
+void rohr_ui_translation_y_pop(void);
+```
+
+ @brief Restores the vertical translation active before the last push.
 
 ### `rohr_ui_interaction`
 

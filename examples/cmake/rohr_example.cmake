@@ -15,7 +15,6 @@ endfunction()
 
 function(rohr_add_example_runtime target)
     target_sources(${target} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/example_runtime.c
         ${ROHR_EXAMPLES_SOURCE_DIR}/cmake/example_viewport.c)
     target_include_directories(${target} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src

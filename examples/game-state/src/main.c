@@ -4,14 +4,14 @@
 
 #include <stdio.h>
 #include "rohr.h"
-#include "example_runtime.h"
 
 #define PRINT_ENGINE_ERROR(result_value) \
     fprintf(stderr, "error %d: %s\n", (int)(result_value).result.error, \
         rohr_error_message_get(result_value))
 
 int main(void) {
-    if(!example_use_executable_directory()) return 1;
+    if(rohr_error_check(rohr_directory_working_set(
+            rohr_directory_base_get()))) return 1;
     const char *paths[] = {
         "assets/game-state/world.json",
         "assets/game-state/relationships.json"

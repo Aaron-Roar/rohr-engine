@@ -3,7 +3,6 @@
  */
 
 #include "rohr.h"
-#include "example_runtime.h"
 #include "example_viewport.h"
 #include "example_input.h"
 #include <stdio.h>
@@ -44,7 +43,8 @@ static void render_scene(CameraId camera, void *context_value) {
 }
 
 int main(void) {
-    if(!example_use_executable_directory()) return 1;
+    if(rohr_error_check(rohr_directory_working_set(
+            rohr_directory_base_get()))) return 1;
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, move_action, turn_action;
     ViewportId viewport = VIEWPORT_INVALID;
