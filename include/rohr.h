@@ -2235,15 +2235,15 @@ UIButtonResult rohr_ui_button(
 /**
  * @brief Draws a dropdown and returns selection and hover-preview state.
  *
- * At most three option rows are visible; longer lists scroll.
+ * Set config.visible_row_limit to zero to display every option; limited lists scroll.
  */
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options,
-    size_t option_count, size_t selected_index, UIRect bounds,
-    const UIButtonStyle *style);
+    size_t option_count, size_t selected_index, UIDropdownConfig config,
+    UIRect bounds, const UIButtonStyle *style);
 UIDropdownResult rohr_ui_dropdown_actions(const char *id,
     const TextAsset *const *options, size_t option_count, size_t selected_index,
-    const TextAsset *action, size_t first_action_index, UIRect bounds,
-    const UIButtonStyle *style);
+    const TextAsset *action, size_t first_action_index, UIDropdownConfig config,
+    UIRect bounds, const UIButtonStyle *style);
 bool rohr_ui_key_pressed_check(SDL_Keycode key);
 bool rohr_ui_primary_pressed_check(void);
 /**

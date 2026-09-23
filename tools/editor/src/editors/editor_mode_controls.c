@@ -3,6 +3,7 @@
  */
 
 #include "editor_mode_controls.h"
+#include "editor_layout.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -552,7 +553,9 @@ UIDropdownResult editor_mode_dropdown(const char *id,
         style = &baseline;
     }
     return rohr_ui_dropdown(id, options, option_count, selected_index,
-        bounds, style);
+        (UIDropdownConfig){
+            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT
+        }, bounds, style);
 }
 
 void editor_mode_numeric_disabled_draw(TextAsset *display,
@@ -855,7 +858,9 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
     snprintf(dropdown_id, sizeof(dropdown_id), "%s.layer", id_prefix);
     UIDropdownResult selected_result = rohr_ui_dropdown_actions(dropdown_id, options,
         project->graphics_layer_count + 2, selected, &control->edit_label, 2,
-        (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);
+        (UIDropdownConfig){
+            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT
+        }, (UIRect){x + 104.0f, y, width - 114.0f, 28.0f}, &field_style);
     if(selected_result.changed && selected_result.selected_index == 0) {
         binding->layer = 0;
         control->adding = false;

@@ -4408,12 +4408,12 @@ Draws and updates one button identified by a stable string.
 ### `rohr_ui_dropdown`
 
 ```c
-UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, UIRect bounds, const UIButtonStyle *style);
+UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options, size_t option_count, size_t selected_index, UIDropdownConfig config, UIRect bounds, const UIButtonStyle *style);
 ```
 
 Draws a dropdown and returns selection and hover-preview state.
 
-At most three option rows are visible; longer lists scroll.
+Set config.visible_row_limit to zero to display every option; limited lists scroll.
 
 ### `rohr_ui_menu`
 

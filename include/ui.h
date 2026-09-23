@@ -90,6 +90,12 @@ typedef enum UINavigationDirection {
     UI_NAVIGATION_RIGHT
 } UINavigationDirection;
 
+/** Runtime layout policy for a dropdown option list. */
+typedef struct UIDropdownConfig {
+    /** Zero shows every option; positive values limit the visible rows. */
+    size_t visible_row_limit;
+} UIDropdownConfig;
+
 typedef struct UIDropdownResult {
     bool hovered;
     bool button_hovered;
@@ -248,15 +254,15 @@ UIButtonResult ui_button(
 
 /**
  * Draw a caller-owned dropdown. Options and text assets remain caller-owned.
- * At most three option rows are visible; longer lists scroll.
+ * A zero visible-row limit displays every option. Limited lists scroll.
  */
 UIDropdownResult ui_dropdown(const char *id, const TextAsset *const *options,
-    size_t option_count, size_t selected_index, UIRect bounds,
-    const UIButtonStyle *style);
+    size_t option_count, size_t selected_index, UIDropdownConfig config,
+    UIRect bounds, const UIButtonStyle *style);
 UIDropdownResult ui_dropdown_actions(const char *id,
     const TextAsset *const *options, size_t option_count, size_t selected_index,
-    const TextAsset *action, size_t first_action_index, UIRect bounds,
-    const UIButtonStyle *style);
+    const TextAsset *action, size_t first_action_index, UIDropdownConfig config,
+    UIRect bounds, const UIButtonStyle *style);
 /** Draw a menu with every option visible and no dropdown scrollbar. */
 UIDropdownResult ui_menu(const char *id, const TextAsset *label,
     const TextAsset *const *options, size_t option_count, UIRect bounds,

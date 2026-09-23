@@ -36,6 +36,8 @@ int main(void) {
     char string[32] = "a";
     const TextAsset *dropdown_options[2] = {NULL, NULL};
     const TextAsset *long_dropdown_options[10] = {0};
+    UIDropdownConfig dropdown_config = {0};
+    UIDropdownConfig limited_dropdown_config = {.visible_row_limit = 3};
     TextAsset sizing_text = {.size = {40.0f, 12.0f}};
     const TextAsset *sizing_texts[] = {&sizing_text};
     UIRect sized = rohr_ui_component_bounds_get((UIRect){2.0f, 3.0f, 1.0f, 1.0f},
@@ -299,29 +301,32 @@ int main(void) {
 
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
-    (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0, bounds, NULL);
+    (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
+        dropdown_config, bounds, NULL);
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
-    if(!rohr_ui_dropdown("dropdown", dropdown_options, 2, 0, bounds, NULL).open) return 1;
+    if(!rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
+            dropdown_config, bounds, NULL).open) return 1;
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_UP});
     {
         UIDropdownResult result = rohr_ui_dropdown(
-            "dropdown", dropdown_options, 2, 0, bounds, NULL);
+            "dropdown", dropdown_options, 2, 0, dropdown_config, bounds, NULL);
         if(!result.open || result.hovered_index != 1) return 1;
     }
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
-    (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0, bounds, NULL);
+    (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
+        dropdown_config, bounds, NULL);
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     {
         UIDropdownResult result = rohr_ui_dropdown(
-            "dropdown", dropdown_options, 2, 0, bounds, NULL);
+            "dropdown", dropdown_options, 2, 0, dropdown_config, bounds, NULL);
         if(!result.changed || result.selected_index != 1 || result.open) return 1;
     }
     rohr_ui_frame_end();
@@ -329,12 +334,13 @@ int main(void) {
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown(
-        "keyboard-dropdown", dropdown_options, 2, 0, bounds, NULL);
+        "keyboard-dropdown", dropdown_options, 2, 0,
+        dropdown_config, bounds, NULL);
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_dropdown("keyboard-dropdown", dropdown_options,
-            2, 0, bounds, NULL).open) return 1;
+            2, 0, dropdown_config, bounds, NULL).open) return 1;
     rohr_ui_frame_end();
     if(!rohr_ui_navigation_move(UI_NAVIGATION_DOWN) ||
             !rohr_ui_navigation_move(UI_NAVIGATION_DOWN) ||
@@ -342,19 +348,21 @@ int main(void) {
     rohr_ui_frame_begin((UIInput){0});
     {
         UIDropdownResult result = rohr_ui_dropdown(
-            "keyboard-dropdown", dropdown_options, 2, 0, bounds, NULL);
+            "keyboard-dropdown", dropdown_options, 2, 0,
+            dropdown_config, bounds, NULL);
         if(result.open || !result.changed || result.selected_index != 1) return 1;
     }
     rohr_ui_frame_end();
 
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
-    (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+    (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0,
+        limited_dropdown_config, bounds, NULL);
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_dropdown("long-dropdown", long_dropdown_options,
-            10, 0, bounds, NULL).open) return 1;
+            10, 0, limited_dropdown_config, bounds, NULL).open) return 1;
     rohr_ui_frame_end();
     {
         SDL_Event wheel = {0};
@@ -364,19 +372,21 @@ int main(void) {
         rohr_ui_field_event_add(&wheel);
         rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f}});
         result = rohr_ui_dropdown("long-dropdown", long_dropdown_options,
-            10, 0, bounds, NULL);
+            10, 0, limited_dropdown_config, bounds, NULL);
         if(!result.open || result.hovered_index != 1) return 1;
         rohr_ui_frame_end();
     }
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
-    (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+    (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0,
+        limited_dropdown_config, bounds, NULL);
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     {
         UIDropdownResult result = rohr_ui_dropdown(
-            "long-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+            "long-dropdown", long_dropdown_options, 10, 0,
+            limited_dropdown_config, bounds, NULL);
         if(result.open || !result.changed || result.selected_index != 1) return 1;
     }
     rohr_ui_frame_end();
@@ -435,7 +445,8 @@ int main(void) {
     (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
         100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
     (void)rohr_ui_dropdown(
-        "nested-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+        "nested-dropdown", long_dropdown_options, 10, 0,
+        limited_dropdown_config, bounds, NULL);
     rohr_ui_scroll_region_end();
     rohr_ui_frame_end();
     rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
@@ -443,7 +454,7 @@ int main(void) {
     (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
         100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
     if(!rohr_ui_dropdown("nested-dropdown", long_dropdown_options,
-            10, 0, bounds, NULL).open) return 1;
+            10, 0, limited_dropdown_config, bounds, NULL).open) return 1;
     rohr_ui_scroll_region_end();
     rohr_ui_frame_end();
     {
@@ -457,7 +468,8 @@ int main(void) {
         parent = rohr_ui_scroll_region_begin("dropdown-parent",
             (UIRect){0.0f, 0.0f, 100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
         dropdown = rohr_ui_dropdown(
-            "nested-dropdown", long_dropdown_options, 10, 0, bounds, NULL);
+            "nested-dropdown", long_dropdown_options, 10, 0,
+            limited_dropdown_config, bounds, NULL);
         rohr_ui_scroll_region_end();
         if(parent.changed || fabsf(parent.offset) > 0.001f ||
                 !dropdown.open || dropdown.hovered_index != 1) return 1;
