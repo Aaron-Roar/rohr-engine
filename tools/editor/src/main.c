@@ -2532,7 +2532,7 @@ int main(void) {
     startup_stage = "editor executable directory selection";
     if(!editor_use_executable_directory()) goto fail;
     startup_stage = "engine initialization";
-    if(!editor_result_ok(rohr_engine_init())) goto fail;
+    if(!editor_result_ok(rohr_engine_start())) goto fail;
     {
         startup_stage = "GUI state loading";
         EditorResult result = editor_gui_state_resolve(&gui_state,
@@ -4884,8 +4884,8 @@ int main(void) {
     rohr_graphics_font_destroy(&notification_font);
     rohr_graphics_font_destroy(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 
 fail:
@@ -4984,7 +4984,7 @@ fail:
     rohr_graphics_font_destroy(&notification_font);
     rohr_graphics_font_destroy(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

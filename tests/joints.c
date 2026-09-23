@@ -16,7 +16,7 @@ int main(void) {
     EntityIndexResult index_a;
     EntityIndexResult index_b;
 
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
 
     /* Anchor placement is body-origin-relative and must not depend on hitbox geometry. */
     {
@@ -117,10 +117,10 @@ int main(void) {
     if(rohr_error_check(rohr_entity_delete(body_a.result.value)) ||
             rohr_entity_alive_check(joint.result.value) ||
             !rohr_error_check(rohr_physics_joint_anchor_local_position_get(anchor_a.result.value))) goto fail;
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 
 fail:
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

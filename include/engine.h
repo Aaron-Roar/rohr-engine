@@ -18,17 +18,17 @@ typedef double Time;
 typedef uint64_t Tick;
 
 /**
- * Initialize SDL and all engine-owned subsystem tables.
+ * Start SDL and all engine-owned subsystem services.
  *
  * @return EngineResult containing true on success, or an error describing the
  * failing subsystem.
  */
-EngineResult engine_init(void);
+EngineResult engine_start(void);
 
 /**
- * Shut down all engine subsystems and SDL.
+ * Stop all engine subsystem services and SDL.
  */
-void engine_shutdown(void);
+void engine_stop(void);
 
 /**
  * Update engine time and delta time from SDL's performance counter.

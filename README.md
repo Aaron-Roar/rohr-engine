@@ -103,7 +103,7 @@ Applications include the facade rather than internal module headers:
 #include <stdio.h>
 
 int main(void) {
-    EngineResult result = rohr_engine_init();
+    EngineResult result = rohr_engine_start();
     if(rohr_error_check(result)) {
         fprintf(stderr, "error %d: %s\n",
             result.result.error,
@@ -116,11 +116,11 @@ int main(void) {
         fprintf(stderr, "error %d: %s\n",
             entity.result.error,
             rohr_error_message_get(entity));
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
 
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 }
 ```

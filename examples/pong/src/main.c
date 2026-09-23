@@ -228,7 +228,7 @@ int main(void) {
     Time fire_expires_at = 0.0;
 
     {
-        EngineResult init_result = rohr_engine_init();
+        EngineResult init_result = rohr_engine_start();
         if(rohr_error_check(init_result)) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
@@ -264,7 +264,7 @@ int main(void) {
         EngineResult tick_result = rohr_engine_time_per_tick_set(1.0 / 120.0);
         if(rohr_error_check(tick_result)) {
             PRINT_ENGINE_ERROR(tick_result);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -272,13 +272,13 @@ int main(void) {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
             PRINT_ENGINE_ERROR(graphics_result);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
-    if(!game_components_init()) {
+    if(!game_components_start()) {
         goto fail;
     }
     EngineResult load_result = rohr_game_state_file_load("assets/pong/pong.json");
@@ -601,11 +601,11 @@ int main(void) {
     (void)rohr_camera_active_set(left_camera);
     (void)rohr_camera_destroy(right_camera);
     game_components_clear(ball);
-    game_components_shutdown();
+    game_components_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 
 fail:
@@ -615,10 +615,10 @@ fail:
     if(left_screen != SCREEN_INVALID) (void)rohr_screen_destroy(left_screen);
     if(left_camera != CAMERA_INVALID) (void)rohr_camera_active_set(left_camera);
     if(right_camera != CAMERA_INVALID) (void)rohr_camera_destroy(right_camera);
-    game_components_shutdown();
+    game_components_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

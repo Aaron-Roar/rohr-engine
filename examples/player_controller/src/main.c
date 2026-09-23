@@ -63,7 +63,7 @@ int main(void) {
     bool jump_queued = false;
 
     if(!ok(rohr_directory_working_set(rohr_directory_base_get()))) return 1;
-    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start())) goto fail;
+    if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;
     if(!ok(project_objects_create_all(&objects)) ||
             !ok(project_viewports_create(&viewports, &objects))) goto fail;
 
@@ -113,14 +113,14 @@ int main(void) {
 done:
     project_viewports_destroy(&viewports);
     project_objects_destroy_all(&objects);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 fail:
     fprintf(stderr, "Player controller example failed\n");
     project_viewports_destroy(&viewports);
     project_objects_destroy_all(&objects);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

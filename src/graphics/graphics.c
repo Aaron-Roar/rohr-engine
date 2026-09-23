@@ -2752,7 +2752,7 @@ void graphics_window_end(void) {
     console_write(LOG_ENGINE, "Window terminated\n");
 }
 
-void graphics_end(void) {
+void graphics_stop(void) {
     console_write(LOG_ENGINE, "---Graphics Termination---\n");
     graphics_recording_stop();
     graphics_renderer_end();

@@ -39,7 +39,7 @@ EngineResult engine_tables_ensure_capacity(size_t capacity) {
     return result;
 }
 
-EngineResult engine_init(void) {
+EngineResult engine_start(void) {
     EngineResult result;
 
     if(engine_running) {
@@ -87,7 +87,7 @@ EngineResult engine_init(void) {
     engine_tick_accumulator = 0.0;
     engine_tick_count = 0;
 
-    input_init();
+    input_start();
     engine_paused = false;
     engine_running = true;
     return error_result_value(true);
@@ -158,8 +158,8 @@ EngineResult engine_time_per_tick_set(Time value) {
 
 Time engine_time_per_tick_get(void) { return engine_time_per_tick; }
 
-void engine_shutdown(void) {
-    input_shutdown();
+void engine_stop(void) {
+    input_stop();
     game_state_runtime_reset();
     physics_broadphase_destroy();
     graphics_tables_destroy();

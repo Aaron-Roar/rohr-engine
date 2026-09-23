@@ -18,7 +18,7 @@ int main(void) {
     HitboxIdResult first_id, second_id;
     HitboxIndexResult active;
 
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     added = rohr_entity_add();
     if(rohr_error_check(added)) goto fail;
     entity = added.result.value;
@@ -72,10 +72,10 @@ int main(void) {
     if(rohr_error_check(rohr_physics_hitbox_remove(entity)) ||
             rohr_entity_components_check(entity,
                 ROHR_HITBOX_ANIMATION_BINDING)) goto fail;
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 fail:
     fprintf(stderr, "hitbox animation binding test failed\n");
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

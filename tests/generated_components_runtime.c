@@ -25,7 +25,7 @@ int main(void) {
     Health *health_addr;
     Inventory inventory = {0};
 
-    if(rohr_error_check(rohr_engine_init()) || !game_components_init()) {
+    if(rohr_error_check(rohr_engine_start()) || !game_components_start()) {
         return 1;
     }
 
@@ -34,8 +34,8 @@ int main(void) {
     third_result = rohr_entity_add();
     if(rohr_error_check(first_result) || rohr_error_check(second_result) ||
             rohr_error_check(third_result)) {
-        game_components_shutdown();
-        rohr_engine_shutdown();
+        game_components_stop();
+        rohr_engine_stop();
         return 1;
     }
     first = first_result.result.value;
@@ -91,7 +91,7 @@ int main(void) {
     }
 
     game_components_clear(third);
-    game_components_shutdown();
-    rohr_engine_shutdown();
+    game_components_stop();
+    rohr_engine_stop();
     return 0;
 }

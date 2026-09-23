@@ -2199,7 +2199,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "    ProjectObjects objects = {0};\n"
         "    ProjectViewports viewports = {0};\n");
     fprintf(file,
-        "    if(!ok(rohr_engine_init()) || !ok(rohr_graphics_start())) goto fail;\n");
+        "    if(!ok(rohr_engine_start()) || !ok(rohr_graphics_start())) goto fail;\n");
     fprintf(file, "    if(!ok(project_objects_create_all(&objects)) ||\n"
         "            !ok(project_viewports_create(&viewports, &objects))) goto fail;\n");
     fprintf(file,
@@ -2218,15 +2218,15 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "done:\n"
         "    project_viewports_destroy(&viewports);\n"
         "    project_objects_destroy_all(&objects);\n"
-        "    rohr_graphics_end();\n"
-        "    rohr_engine_shutdown();\n"
+        "    rohr_graphics_stop();\n"
+        "    rohr_engine_stop();\n"
         "    return 0;\n"
         "fail:\n"
         "    fprintf(stderr, \"Game initialization failed\\n\");\n"
         "    project_viewports_destroy(&viewports);\n"
         "    project_objects_destroy_all(&objects);\n"
-        "    rohr_graphics_end();\n"
-        "    rohr_engine_shutdown();\n"
+        "    rohr_graphics_stop();\n"
+        "    rohr_engine_stop();\n"
         "    return 1;\n"
         "}\n");
     return fclose(file) == 0;

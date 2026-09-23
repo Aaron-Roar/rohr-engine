@@ -46,7 +46,7 @@ int main(void) {
     PositionResult position;
     ContactInfo resting_contact;
     float settled_x;
-    EngineResult result = rohr_engine_init();
+    EngineResult result = rohr_engine_start();
 
     if(rohr_error_check(result)) {
         fprintf(stderr, "%s\n", rohr_error_message_get(result));
@@ -60,7 +60,7 @@ int main(void) {
                 (Position){0.0f, 100.0f}, false) ||
             !entity_configure(body_result.result.value,
                 concave_body_shape_get(), (Position){0.0f, 20.0f}, true)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 2;
     }
 
@@ -68,7 +68,7 @@ int main(void) {
         rohr_system_physics_update(1.0 / 60.0);
     position = rohr_physics_position_get(body_result.result.value);
     if(rohr_error_check(position)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 3;
     }
     settled_x = position.result.value.x;
@@ -93,12 +93,12 @@ int main(void) {
                 velocities[body_index.result.value].x,
                 velocities[body_index.result.value].y,
                 angular_velocities[body_index.result.value]);
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 4;
     }
     if(rohr_error_check(rohr_physics_impulse_apply(
             body_result.result.value, (Vec2D){20.0f, 0.0f}))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 5;
     }
     for(size_t tick = 0; tick < 180; tick += 1)
@@ -106,9 +106,9 @@ int main(void) {
     if(fabsf(velocities[body_index.result.value].x) > 0.2f) {
         fprintf(stderr, "friction failed to stop body: vx=%f\n",
             velocities[body_index.result.value].x);
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 6;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 }

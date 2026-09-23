@@ -69,7 +69,7 @@ int main(void) {
                 yellow.green != 255 || yellow.blue != 0 || orange.red != 255 ||
                 orange.green != 128 || orange.blue != 0 || orange.alpha != 128) return 1;
     }
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     body = rohr_physics_soft_body_create();
     if(rohr_error_check(body)) goto fail;
     node_a = rohr_physics_soft_body_node_create(body.result.value, (Position){-10.0f, 0.0f}, 1.0f, 2.0f);
@@ -553,10 +553,10 @@ int main(void) {
                     reverse_contact.points[0].normal_impulse.y) > 0.0001f)
             goto fail;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 
 fail:
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

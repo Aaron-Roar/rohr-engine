@@ -465,7 +465,7 @@ int main(void) {
     ViewportId viewport = VIEWPORT_INVALID;
 
     if(!result_ok(rohr_directory_working_set(rohr_directory_base_get())) ||
-            !result_ok(rohr_engine_init())) return 1;
+            !result_ok(rohr_engine_start())) return 1;
     {
         InputBinding exit_binding = example_input_key_binding(SDL_SCANCODE_ESCAPE,
             1.0f, (Vec2D){0});
@@ -627,8 +627,8 @@ int main(void) {
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 
 fail:
@@ -636,7 +636,7 @@ fail:
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

@@ -175,8 +175,8 @@ static bool component_codegen_header_generate(
     }
 
     if(fprintf(header,
-            "\nbool game_components_init(void);\n"
-            "void game_components_shutdown(void);\n"
+            "\nbool game_components_start(void);\n"
+            "void game_components_stop(void);\n"
             "void game_components_clear(Entity entity);\n\n") < 0) {
         return false;
     }
@@ -540,8 +540,8 @@ static bool component_codegen_source_epilogue_generate(
     char lower_name[128];
 
     if(fprintf(source,
-            "bool game_components_init(void) {\n"
-            "    game_components_shutdown();\n"
+            "bool game_components_start(void) {\n"
+            "    game_components_stop();\n"
             "    return true;\n"
             "}\n\n"
             "void game_components_clear(Entity entity) {\n") < 0) {
@@ -559,7 +559,7 @@ static bool component_codegen_source_epilogue_generate(
             return false;
         }
     }
-    if(fprintf(source, "}\n\nvoid game_components_shutdown(void) {\n") < 0) {
+    if(fprintf(source, "}\n\nvoid game_components_stop(void) {\n") < 0) {
         return false;
     }
     for(i = 0; i < registry->component_count; i += 1) {

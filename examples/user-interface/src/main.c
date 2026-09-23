@@ -89,7 +89,7 @@ int main(void) {
     RenderContext render_context = {0};
 
     {
-        EngineResult init_result = rohr_engine_init();
+        EngineResult init_result = rohr_engine_start();
         if(rohr_error_check(init_result)) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
@@ -107,7 +107,7 @@ int main(void) {
         if(rohr_error_check(graphics_result)) {
             PRINT_ENGINE_ERROR(graphics_result);
             (void)rohr_input_controller_destroy(input_controller);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -327,10 +327,10 @@ int main(void) {
     rohr_graphics_text_destroy(&play_label);
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
-    rohr_graphics_end();
+    rohr_graphics_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 
 fail:
@@ -345,9 +345,9 @@ fail:
     rohr_graphics_text_destroy(&play_label);
     rohr_graphics_text_destroy(&title);
     rohr_graphics_font_destroy(&font);
-    rohr_graphics_end();
+    rohr_graphics_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

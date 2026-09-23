@@ -22,7 +22,7 @@ int main(void) {
     EntityInteraction public_interaction;
     EntityContact public_contact;
 
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     body_result = rohr_entity_add();
     sensor_result = rohr_entity_add();
     if(rohr_error_check(body_result) || rohr_error_check(sensor_result)) goto fail;
@@ -135,10 +135,10 @@ int main(void) {
             rohr_physics_contact_stayed_check(body, sensor) ||
             rohr_physics_contact_exited_check(body, sensor)) goto fail;
 
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 
 fail:
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

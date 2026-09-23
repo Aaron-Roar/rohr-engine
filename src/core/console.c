@@ -69,11 +69,11 @@ void console_logs_print(void) {
     }
 }
 
-void console_init(void) {
+void console_start(void) {
     console_active = true;
 }
 
-void console_shutdown(void) {
+void console_stop(void) {
     console_active = false;
 }
 

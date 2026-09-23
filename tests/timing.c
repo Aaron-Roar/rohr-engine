@@ -12,7 +12,7 @@ int main(void) {
     AnimatedSprite preview;
     Sprite static_sprite;
 
-    if(rohr_error_check(rohr_engine_init()) ||
+    if(rohr_error_check(rohr_engine_start()) ||
             rohr_error_check(rohr_engine_time_per_tick_set(0.01))) {
         return 1;
     }
@@ -21,12 +21,12 @@ int main(void) {
         .texture_list.amount = 3, .ticks_per_frame = 2}, (Scale){1.0f, 1.0f});
     rohr_graphics_animated_sprite_update(&preview, 1, 0.0);
     if(preview.animation_frame != 0) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_graphics_animated_sprite_update(&preview, 2, 0.0);
     if(preview.animation_frame != 1) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     transient = rohr_entity_add();
@@ -37,14 +37,14 @@ int main(void) {
             rohr_error_check(rohr_graphics_sprite_add(
                 transient.result.value, static_sprite)) ||
             !rohr_entity_components_check(transient.result.value, ROHR_SPRITE)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_graphics_sprite_body_offset_set(
                 transient.result.value, (Position){3.0f, 4.0f})) ||
             rohr_error_check(rohr_graphics_sprite_orientation_offset_set(
                 transient.result.value, 0.5f))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     {
@@ -55,7 +55,7 @@ int main(void) {
         if(rohr_error_check(offset) || rohr_error_check(rotation) ||
                 offset.result.value.x != 3.0f || offset.result.value.y != 4.0f ||
                 rotation.result.value != 0.5f) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -65,7 +65,7 @@ int main(void) {
                 transient.result.value, (Position){-2.0f, 6.0f})) ||
             rohr_error_check(rohr_graphics_animated_sprite_orientation_offset_set(
                 transient.result.value, -0.25f))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     {
@@ -77,45 +77,45 @@ int main(void) {
         if(rohr_error_check(offset) || rohr_error_check(rotation) ||
                 offset.result.value.x != -2.0f || offset.result.value.y != 6.0f ||
                 rotation.result.value != -0.25f) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
     (void)rohr_entity_delete(transient.result.value);
     if(rohr_system_tick_update() != 0) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     transient = rohr_entity_add();
     if(rohr_error_check(transient) ||
             rohr_error_check(rohr_entity_life_time_set(
                 transient.result.value, 0.0, rohr_engine_tick_get() + 1))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     SDL_Delay(30);
     ticks = rohr_system_tick_update();
     if(ticks < 2 || rohr_physics_dt_per_tick_get() != 0.01 ||
             rohr_entity_alive_check(transient.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_physics_dt_per_tick_set(0.5))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_engine_clock_reset();
     SDL_Delay(25);
     ticks = rohr_system_tick_update();
     if(ticks < 2 || rohr_physics_dt_per_tick_get() != 0.5) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_physics_engine_time_per_tick_use();
     if(rohr_physics_dt_per_tick_get() != rohr_engine_time_per_tick_get()) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 }

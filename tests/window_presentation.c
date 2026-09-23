@@ -23,13 +23,13 @@ int main(void) {
     GraphicsWindowPresentationConfig config =
         rohr_graphics_window_presentation_default_get();
     GraphicsWindowPresentationConfig active;
-    if(rohr_error_check(rohr_engine_init()) ||
+    if(rohr_error_check(rohr_engine_start()) ||
             rohr_error_check(rohr_graphics_start())) return 1;
     if(!presentation_set(&config, GRAPHICS_WINDOW_MODE_WINDOWED)) goto fail;
     if(SDL_GetCurrentVideoDriver() != NULL &&
             strcmp(SDL_GetCurrentVideoDriver(), "dummy") == 0) {
-        rohr_graphics_end();
-        rohr_engine_shutdown();
+        rohr_graphics_stop();
+        rohr_engine_stop();
         return 0;
     }
     if(!presentation_set(&config, GRAPHICS_WINDOW_MODE_BORDERLESS_FULLSCREEN))
@@ -41,11 +41,11 @@ int main(void) {
     config.logical_height = active.window_height;
     if(!presentation_set(&config, GRAPHICS_WINDOW_MODE_FULLSCREEN) ||
             !presentation_set(&config, GRAPHICS_WINDOW_MODE_WINDOWED)) goto fail;
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 fail:
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

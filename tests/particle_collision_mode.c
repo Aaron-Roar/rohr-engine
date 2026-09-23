@@ -35,7 +35,7 @@ int main(void) {
         fprintf(stderr, "test polygons unexpectedly overlap\n");
         return 1;
     }
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     first_result = rohr_entity_add();
     second_result = rohr_entity_add();
     if(rohr_error_check(first_result) || rohr_error_check(second_result)) goto fail;
@@ -107,10 +107,10 @@ int main(void) {
         goto fail;
     }
 
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 
 fail:
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

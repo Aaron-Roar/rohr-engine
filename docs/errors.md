@@ -5,7 +5,7 @@ Fallible public APIs return explicit result types generated with
 so the generic public helpers accept any Rohr result value.
 
 ```c
-EngineResult result = rohr_engine_init();
+EngineResult result = rohr_engine_start();
 if(rohr_error_check(result)) {
     fprintf(stderr, "error %d: %s\n",
         result.result.error,

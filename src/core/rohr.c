@@ -12,8 +12,8 @@
 void console_vwrite(LogSourceType source, const char *fmt, va_list args);
 void console_debug_vwrite(LogSourceType source, const char *fmt, va_list args);
 
-EngineResult rohr_engine_init(void) { return engine_init(); }
-void rohr_engine_shutdown(void) { engine_shutdown(); }
+EngineResult rohr_engine_start(void) { return engine_start(); }
+void rohr_engine_stop(void) { engine_stop(); }
 void rohr_engine_time_update(void) { engine_time_update(); }
 Time rohr_engine_time_get(void) { return engine_time_get(); }
 Tick rohr_engine_tick_get(void) { return engine_tick_get(); }
@@ -176,8 +176,8 @@ EngineResult rohr_error_result_error(EngineError error) { return error_result_er
 const char *rohr_error_code_message_get(EngineError error) { return error_code_message_get(error); }
 
 void rohr_console_logs_print(void) { console_logs_print(); }
-void rohr_console_init(void) { console_init(); }
-void rohr_console_shutdown(void) { console_shutdown(); }
+void rohr_console_start(void) { console_start(); }
+void rohr_console_stop(void) { console_stop(); }
 bool rohr_console_read(ConsoleLogString *input) { return console_read(input); }
 void rohr_console_write(LogSourceType source, const char *fmt, ...) {
     va_list args;
@@ -461,7 +461,7 @@ size_t rohr_physics_contacts_get(Entity entity, EntityContact *results, size_t c
 
 Color rohr_graphics_color_hex_create(uint32_t hex_color_code) { return graphics_color_hex_create(hex_color_code); }
 EngineResult rohr_graphics_start(void) { return graphics_start(); }
-void rohr_graphics_end(void) { graphics_end(); }
+void rohr_graphics_stop(void) { graphics_stop(); }
 bool rohr_graphics_events_poll(SDL_Event *event) { return graphics_events_poll(event); }
 void rohr_graphics_background_draw(Color color) { graphics_background_draw(color); }
 GraphicsLayerIdResult rohr_graphics_layer_create(const char *name, int value) { return graphics_layer_create(name, value); }
@@ -666,6 +666,7 @@ void rohr_graphics_contacts_debug_set(bool enabled) { graphics_contacts_debug_se
 bool rohr_graphics_contacts_debug_check(void) { return graphics_contacts_debug_check(); }
 void rohr_graphics_contacts_draw(void) { graphics_contacts_draw(); }
 bool rohr_graphics_recording_start(const char *output_path, int fps) { return graphics_recording_start(output_path, fps); }
+void rohr_graphics_recording_stop(void) { graphics_recording_stop(); }
 void rohr_graphics_particle_draw(Entity entity, Fill fill_type) { graphics_particle_draw(entity, fill_type); }
 void rohr_graphics_particles_draw(void) { graphics_particles_draw(); }
 void rohr_graphics_local_origins_draw(void) { graphics_local_origins_draw(); }

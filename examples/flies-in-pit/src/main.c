@@ -52,7 +52,7 @@ int main(void) {
     bool broadphase_debug = true;
 
     {
-        EngineResult init_result = rohr_engine_init();
+        EngineResult init_result = rohr_engine_start();
         if(rohr_error_check(init_result)) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
@@ -85,7 +85,7 @@ int main(void) {
         EngineResult tick_result = rohr_engine_time_per_tick_set(1.0 / 120.0);
         if(rohr_error_check(tick_result)) {
             PRINT_ENGINE_ERROR(tick_result);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -93,7 +93,7 @@ int main(void) {
         EngineResult graphics_result = rohr_graphics_start();
         if(rohr_error_check(graphics_result)) {
             PRINT_ENGINE_ERROR(graphics_result);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -212,15 +212,15 @@ int main(void) {
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 0;
 
 fail:
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return 1;
 }

@@ -20,7 +20,7 @@ int main(void) {
     CameraAttachment camera_attachment;
 
     {
-        EngineResult init_result = rohr_engine_init();
+        EngineResult init_result = rohr_engine_start();
         if(rohr_error_check(init_result)) {
             PRINT_ENGINE_ERROR(init_result);
             return 1;
@@ -31,7 +31,7 @@ int main(void) {
         EngineResult load_result = rohr_game_state_files_load(paths, 2);
         if(rohr_error_check(load_result)) {
             PRINT_ENGINE_ERROR(load_result);
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -39,7 +39,7 @@ int main(void) {
     EntityResult seeker_result = rohr_entity_by_name_get("seeker");
     EntityResult player_result = rohr_entity_by_name_get("player");
     if(rohr_error_check(seeker_result) || rohr_error_check(player_result)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     Entity seeker = seeker_result.result.value;
@@ -53,7 +53,7 @@ int main(void) {
         if(rohr_error_check(attachment_result)) {
             PRINT_ENGINE_ERROR(attachment_result);
         }
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     seeker_index = index_result.result.value;
@@ -64,14 +64,14 @@ int main(void) {
             || camera_attachment.position_offset.y != -20.0f
             || camera_attachment.orientation_offset != 0.25f) {
         fprintf(stderr, "Loaded entity relationships do not match\n");
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
 
     EngineResult save_result = rohr_game_state_file_save("saved_game_state.json");
     if(rohr_error_check(save_result)) {
         PRINT_ENGINE_ERROR(save_result);
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     EngineResult template_result = rohr_game_state_template_file_save(
@@ -80,6 +80,6 @@ int main(void) {
     if(rohr_error_check(template_result)) {
         PRINT_ENGINE_ERROR(template_result);
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return rohr_error_check(template_result) ? 1 : 0;
 }

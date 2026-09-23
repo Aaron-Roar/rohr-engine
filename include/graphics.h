@@ -427,7 +427,7 @@ EngineResult graphics_start(void);
 /**
  * Destroy graphics resources and stop SDL video.
  */
-void graphics_end(void);
+void graphics_stop(void);
 
 /**
  * Poll graphics events and report whether the window should remain open.
@@ -772,6 +772,8 @@ bool graphics_recording_start(
     const char *output_path,
     int fps
 );
+/** Stop recording frames and close the active ffmpeg process. */
+void graphics_recording_stop(void);
 
 /** Draw one particle entity using its collision circle. */
 void graphics_particle_draw(Entity entity, Fill fill_type);

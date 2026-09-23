@@ -17,9 +17,9 @@ int main(void) {
     GraphicsUiIdResult text_2;
     int failed = 0;
 
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     if(rohr_error_check(rohr_graphics_start())) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     instance_1 = rohr_graphics_ui_slider_create(definition);
@@ -74,7 +74,7 @@ int main(void) {
             rohr_error_check(rohr_graphics_ui_destroy(text_1.result.value)) ||
             rohr_error_check(rohr_graphics_ui_destroy(text_2.result.value)))
         failed = 1;
-    rohr_graphics_end();
-    rohr_engine_shutdown();
+    rohr_graphics_stop();
+    rohr_engine_stop();
     return failed;
 }

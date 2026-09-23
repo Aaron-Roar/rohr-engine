@@ -23,7 +23,7 @@ int main(void) {
     EntityResult nodes[4];
     ShapeResult hitbox;
 
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     entity = rohr_entity_add();
     if(rohr_error_check(entity) ||
             rohr_error_check(rohr_physics_hitbox_set(entity.result.value, valid)) ||
@@ -51,9 +51,9 @@ int main(void) {
                 !position_check(first.result.value, -4.0f, -2.0f) ||
                 !position_check(second.result.value, 4.0f, -2.0f)) goto fail;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 fail:
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 1;
 }

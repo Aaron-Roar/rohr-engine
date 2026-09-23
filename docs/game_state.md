@@ -228,7 +228,7 @@ Supported value keys are:
 - `groups`: an array of named generic groups
 
 Animations are named once in the top-level asset catalog. State loading must
-occur after `graphics_start()` when a file contains animation assets, because
+occur after `rohr_graphics_start()` when a file contains animation assets, because
 the engine creates SDL textures while connecting the state.
 
 ```json
@@ -305,7 +305,7 @@ animation assets, and entity descriptions while preserving `count`,
 mutations or entities created only through C APIs.
 
 Retained template documents are owned by the engine state module and released
-by `engine_shutdown()`. Template saving returns an error when no state document
+by `rohr_engine_stop()`. Template saving returns an error when no state document
 has been loaded. Loading more than 64 retained documents in one engine session
 returns `ERROR_ENGINE_STATE_TEMPLATE_DOCUMENT_LIMIT_EXCEEDED`. The public
 `GAME_STATE_MAX_TEMPLATE_DOCUMENTS` constant exposes this capacity.

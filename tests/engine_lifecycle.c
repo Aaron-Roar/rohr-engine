@@ -45,7 +45,7 @@ int main(void) {
             rohr_error_code_message_get(result.result.error)) != 0) {
         return 1;
     }
-    result = rohr_engine_init();
+    result = rohr_engine_start();
     if(rohr_error_check(result)) {
         fprintf(stderr, "%s\n", rohr_error_message_get(result));
         return 1;
@@ -58,7 +58,7 @@ int main(void) {
             !rohr_error_check(rohr_physics_substeps_set(0)) ||
             rohr_error_check(rohr_physics_substeps_set(4)) ||
             rohr_physics_substeps_get() != 4) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
 
@@ -67,13 +67,13 @@ int main(void) {
             rohr_error_check(rohr_physics_dynamic_set(kinematic_entity.result.value)) ||
             rohr_error_check(rohr_physics_velocity_set(
                 kinematic_entity.result.value, (Velocity){10.0f, 0.0f}))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(!rohr_physics_kinematic_driven_check(kinematic_entity.result.value) ||
             rohr_error_check(rohr_physics_impulse_apply(
                 kinematic_entity.result.value, (Vec2D){0.0f, 100.0f}))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_physics_pipeline_accelerations_clear();
@@ -84,7 +84,7 @@ int main(void) {
                 fabsf(positions[index.result.value].x - 1.0f) > 0.0001f ||
                 fabsf(velocities[index.result.value].y) > 0.0001f ||
                 rohr_error_check(rohr_entity_delete(kinematic_entity.result.value))) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -114,7 +114,7 @@ int main(void) {
                 !rohr_error_check(rohr_physics_acceleration_toward_position_set(
                     runaway.result.value, 1.0f, (Position){NAN, 0.0f})) ||
                 !rohr_error_check(rohr_physics_pipeline_update(0.2))) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
         report = rohr_physics_update_report_get();
@@ -126,7 +126,7 @@ int main(void) {
                 report.quarantined_entity_count != 1 ||
                 report.simulated_entity_count == 0 || report.total_ms < 0.0 ||
                 rohr_error_check(rohr_entity_delete(runaway.result.value))) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -141,19 +141,19 @@ int main(void) {
             rohr_error_check(rohr_physics_gravity_set((Acceleration){0.0f, 10.0f})) ||
             rohr_error_check(rohr_physics_gravity_enable(gravity_entity.result.value)) ||
             !rohr_physics_gravity_check(gravity_entity.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(!rohr_physics_kinematic_driven_check(gravity_entity.result.value) ||
             rohr_error_check(rohr_physics_mass_set(
                 gravity_entity.result.value, 1.0f))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_physics_kinematic_driven_check(gravity_entity.result.value) ||
             rohr_error_check(rohr_physics_kinematic_driven_set(
                 gravity_entity.result.value))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(!rohr_physics_kinematic_driven_check(gravity_entity.result.value) ||
@@ -161,13 +161,13 @@ int main(void) {
                 gravity_entity.result.value)) ||
             rohr_error_check(rohr_physics_mass_remove(gravity_entity.result.value)) ||
             rohr_physics_mass_check(gravity_entity.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(!rohr_physics_kinematic_driven_check(gravity_entity.result.value) ||
             !rohr_error_check(rohr_physics_kinematic_driven_remove(
                 gravity_entity.result.value))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_physics_pipeline_substep_begin();
@@ -180,7 +180,7 @@ int main(void) {
                 fabsf(velocities[gravity_index.result.value].y) > 0.0001f ||
                 rohr_error_check(rohr_physics_mass_set(
                     gravity_entity.result.value, 0.0f))) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
         rohr_physics_pipeline_accelerations_clear();
@@ -189,7 +189,7 @@ int main(void) {
         if(fabsf(velocities[gravity_index.result.value].y) > 0.0001f ||
                 rohr_error_check(rohr_physics_mass_set(
                     gravity_entity.result.value, 1.0f))) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
         rohr_physics_pipeline_accelerations_clear();
@@ -198,7 +198,7 @@ int main(void) {
         if(fabsf(velocities[gravity_index.result.value].y - 1.0f) > 0.0001f ||
                 rohr_error_check(rohr_physics_gravity_disable(gravity_entity.result.value)) ||
                 rohr_physics_gravity_check(gravity_entity.result.value)) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -208,7 +208,7 @@ int main(void) {
     if(first.kind == ERROR_RESULT_ERROR || second.kind == ERROR_RESULT_ERROR ||
             rohr_error_check(rohr_physics_hitbox_set(first.result.value, rohr_math_square_create(1.0f, 1.0f))) ||
             rohr_error_check(rohr_physics_hitbox_set(second.result.value, rohr_math_square_create(1.0f, 1.0f)))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     filter = rohr_physics_collision_filter_get(first.result.value);
@@ -216,7 +216,7 @@ int main(void) {
             filter.result.value.category != ROHR_COLLISION_CATEGORY_DEFAULT ||
             filter.result.value.collides_with != ROHR_COLLISION_CATEGORY_ALL ||
             !rohr_physics_collision_between_check(first.result.value, second.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_physics_collision_category_set(first.result.value, player)) ||
@@ -224,14 +224,14 @@ int main(void) {
             rohr_error_check(rohr_physics_collision_with_set(first.result.value, enemy)) ||
             rohr_error_check(rohr_physics_collision_with_none_set(second.result.value)) ||
             rohr_physics_collision_between_check(first.result.value, second.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_physics_collision_with_set(second.result.value, player)) ||
             !rohr_physics_collision_between_check(first.result.value, second.result.value) ||
             rohr_error_check(rohr_physics_collision_with_all_set(first.result.value)) ||
             !rohr_physics_collision_between_check(first.result.value, second.result.value)) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     if(rohr_error_check(rohr_physics_position_set(first.result.value, (Position){-0.25f, 0.0f})) ||
@@ -245,7 +245,7 @@ int main(void) {
             rohr_error_check(rohr_physics_restitution_set(second.result.value, 0.0f)) ||
             rohr_error_check(rohr_entity_components_add(first.result.value, ROHR_COLLISION)) ||
             rohr_error_check(rohr_entity_components_add(second.result.value, ROHR_COLLISION))) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
     rohr_system_physics_update(0.0);
@@ -255,7 +255,7 @@ int main(void) {
         physics_interaction_current_visit(
             PHYSICS_INTERACTION_CONTACT, contact_visit, &visit);
         if(visit.count != 1 || visit.point_count == 0) {
-            rohr_engine_shutdown();
+            rohr_engine_stop();
             return 1;
         }
     }
@@ -277,9 +277,9 @@ int main(void) {
                 second.result.value,
                 PHYSICS_INTERACTION_CONTACT
             )) {
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 }

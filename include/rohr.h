@@ -28,15 +28,15 @@
  */
 
 /**
- * @brief Initializes core engine state.
+ * @brief Starts the core engine service.
  * @return EngineResult containing true on success, or an engine error.
  */
-EngineResult rohr_engine_init(void);
+EngineResult rohr_engine_start(void);
 
 /**
- * @brief Releases core engine state.
+ * @brief Stops the core engine service and releases its state.
  */
-void rohr_engine_shutdown(void);
+void rohr_engine_stop(void);
 
 /**
  * @brief Updates accumulated engine time from the platform clock.
@@ -248,14 +248,14 @@ const char *rohr_error_code_message_get(EngineError error);
 void rohr_console_logs_print(void);
 
 /**
- * @brief Initializes the engine console.
+ * @brief Starts the engine console service.
  */
-void rohr_console_init(void);
+void rohr_console_start(void);
 
 /**
- * @brief Shuts down the engine console.
+ * @brief Stops the engine console service.
  */
-void rohr_console_shutdown(void);
+void rohr_console_stop(void);
 
 /**
  * @brief Reads one console log string.
@@ -1413,9 +1413,9 @@ Color rohr_graphics_color_hex_create(uint32_t hex_color_code);
 EngineResult rohr_graphics_start(void);
 
 /**
- * @brief Shuts down the graphics system.
+ * @brief Stops the graphics service.
  */
-void rohr_graphics_end(void);
+void rohr_graphics_stop(void);
 
 /**
  * @brief Polls graphics/window events.
@@ -1866,6 +1866,11 @@ void rohr_graphics_contacts_draw(void);
  * @return true when recording starts successfully, false otherwise.
  */
 bool rohr_graphics_recording_start(const char *output_path, int fps);
+
+/**
+ * @brief Stops recording rendered frames.
+ */
+void rohr_graphics_recording_stop(void);
 
 /**
  * @brief Draws one particle entity using its collision circle.

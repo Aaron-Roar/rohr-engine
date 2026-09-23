@@ -315,7 +315,7 @@ static void input_text_append(const char *source) {
     if(copy_length < source_length) input_snapshot.text.committed_truncated = true;
 }
 
-void input_init(void) {
+void input_start(void) {
     memset(&input_snapshot, 0, sizeof(input_snapshot));
     memset(input_controllers, 0, sizeof(input_controllers));
     memset(input_controller_generations, 0, sizeof(input_controller_generations));
@@ -324,10 +324,10 @@ void input_init(void) {
     input_snapshot.text.selected_candidate = -1;
 }
 
-void input_shutdown(void) {
+void input_stop(void) {
     SDL_Window *window = SDL_GetKeyboardFocus();
     if(window != NULL && SDL_TextInputActive(window)) (void)SDL_StopTextInput(window);
-    input_init();
+    input_start();
 }
 
 void input_frame_begin(void) {

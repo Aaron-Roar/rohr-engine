@@ -27,23 +27,23 @@ Entity values are stable ids, not component table indexes. Use the public entity
 
 ## Engine
 
-### `rohr_engine_init`
+### `rohr_engine_start`
 
 ```c
-EngineResult rohr_engine_init(void);
+EngineResult rohr_engine_start(void);
 ```
 
-Initializes core engine state.
+Starts the core engine service.
 
 **Returns:** EngineResult containing true on success, or an engine error.
 
-### `rohr_engine_shutdown`
+### `rohr_engine_stop`
 
 ```c
-void rohr_engine_shutdown(void);
+void rohr_engine_stop(void);
 ```
 
-Releases core engine state.
+Stops the core engine service and releases its state.
 
 ### `rohr_engine_time_update`
 
@@ -219,21 +219,21 @@ void rohr_console_logs_print(void);
 
 Prints buffered console log messages.
 
-### `rohr_console_init`
+### `rohr_console_start`
 
 ```c
-void rohr_console_init(void);
+void rohr_console_start(void);
 ```
 
-Initializes the engine console.
+Starts the engine console service.
 
-### `rohr_console_shutdown`
+### `rohr_console_stop`
 
 ```c
-void rohr_console_shutdown(void);
+void rohr_console_stop(void);
 ```
 
-Shuts down the engine console.
+Stops the engine console service.
 
 ### `rohr_console_read`
 
@@ -2497,13 +2497,13 @@ Starts the graphics system.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_graphics_end`
+### `rohr_graphics_stop`
 
 ```c
-void rohr_graphics_end(void);
+void rohr_graphics_stop(void);
 ```
 
-Shuts down the graphics system.
+Stops the graphics service.
 
 ### `rohr_graphics_events_poll`
 
@@ -3110,6 +3110,14 @@ Starts recording rendered frames to a video file.
 | `fps` | Recording frame rate. |
 
 **Returns:** true when recording starts successfully, false otherwise.
+
+### `rohr_graphics_recording_stop`
+
+```c
+void rohr_graphics_recording_stop(void);
+```
+
+Stops recording rendered frames.
 
 ### `rohr_graphics_particle_draw`
 

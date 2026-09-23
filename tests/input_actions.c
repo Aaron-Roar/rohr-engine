@@ -547,10 +547,12 @@ static bool input_window_mode_test(void) {
     if(rohr_error_check(result) || !rohr_input_mouse_relative_mode_check()) goto fail;
     result = rohr_input_mouse_relative_mode_set(false);
     if(rohr_error_check(result) || rohr_input_mouse_relative_mode_check()) goto fail;
-    rohr_graphics_end();
+    rohr_graphics_recording_stop();
+    rohr_graphics_stop();
     return true;
 fail:
-    rohr_graphics_end();
+    rohr_graphics_recording_stop();
+    rohr_graphics_stop();
     return false;
 }
 
@@ -570,15 +572,15 @@ static bool input_focus_release_test(void) {
 }
 
 int main(void) {
-    if(rohr_error_check(rohr_engine_init())) return 1;
+    if(rohr_error_check(rohr_engine_start())) return 1;
     if(!input_raw_snapshot_test() || !input_action_test() ||
             !input_persistent_button_test() || !input_focus_release_test() ||
             !input_capacity_test() ||
             !input_window_mode_test()) {
         fprintf(stderr, "input action test failed\n");
-        rohr_engine_shutdown();
+        rohr_engine_stop();
         return 1;
     }
-    rohr_engine_shutdown();
+    rohr_engine_stop();
     return 0;
 }

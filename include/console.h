@@ -40,10 +40,10 @@ typedef enum LogSourceType {
 
 /** Print stored logs. */
 void console_logs_print(void);
-/** Initialize console state. */
-void console_init(void);
-/** Shut down console state. */
-void console_shutdown(void);
+/** Start the console service. */
+void console_start(void);
+/** Stop the console service. */
+void console_stop(void);
 /** Read one console input line.
  *
  * The portable stdout console does not provide live input and always returns
