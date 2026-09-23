@@ -213,7 +213,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/soft_body/soft_body_solver.c
     src/state/game_state.c
     src/tools/tools.c
-    lib/yyjson.c
+    lib/yyjson/yyjson.c
 )
 
 add_library(rohr_engine STATIC ${ROHR_ENGINE_SOURCES})
@@ -317,9 +317,12 @@ install(FILES
     lib/SDL_ttf/external/freetype/LICENSE.TXT
     lib/SDL_ttf/external/freetype/docs/FTL.TXT
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rohr/freetype)
-install(FILES lib/yyjson.LICENSE
+install(FILES lib/yyjson/LICENSE
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rohr
     RENAME yyjson-LICENSE)
+install(FILES lib/vorbis/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rohr
+    RENAME stb_vorbis-LICENSE)
 install(FILES third_party_licenses/jetbrains_mono_ofl.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/rohr
     RENAME JetBrains-Mono-OFL.txt)

@@ -16,7 +16,7 @@
 #include "graphics.h"
 #include "physics.h"
 #include "physics/collision/shape_decomposition.h"
-#include "yyjson.h"
+#include "yyjson/yyjson.h"
 
 #define STATE_MAX_ANIMATIONS MAX_TEXTURES
 #define STATE_MAX_UI_BUTTONS 256

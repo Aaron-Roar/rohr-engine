@@ -5,7 +5,7 @@
 #include "editor_project.h"
 #include "editor_array.h"
 
-#include "yyjson.h"
+#include "yyjson/yyjson.h"
 
 #include <math.h>
 #include <limits.h>

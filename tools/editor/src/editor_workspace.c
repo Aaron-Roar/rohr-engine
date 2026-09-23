@@ -6,7 +6,7 @@
 
 #include "editor_config.h"
 
-#include "yyjson.h"
+#include "yyjson/yyjson.h"
 
 #include <math.h>
 #include <stdio.h>

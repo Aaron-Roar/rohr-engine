@@ -10,7 +10,9 @@ its own license:
   `lib/SDL_ttf/external/freetype/LICENSE.TXT` and
   `lib/SDL_ttf/external/freetype/docs/FTL.TXT`.
 - Lua: MIT license, `lib/lua/LICENSE`.
-- yyjson: MIT license, `lib/yyjson.LICENSE`.
+- yyjson: MIT license, `lib/yyjson/LICENSE`.
+- stb_vorbis: MIT license or public domain, `lib/vorbis/LICENSE`; both
+  alternatives remain in `lib/vorbis/stb_vorbis.c`.
 - JetBrains Mono font: SIL Open Font License 1.1,
   `third_party_licenses/jetbrains_mono_ofl.txt`.
 
