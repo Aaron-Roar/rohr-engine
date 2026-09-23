@@ -185,6 +185,48 @@ done:
     return result;
 }
 
+static bool hitbox_vertex_zoom_pick_check(void) {
+    EditorProject project;
+    EditorViewportState state = {0};
+    EditorObject *object;
+    EditorRigidBody *body;
+    EditorHitbox *hitbox;
+    Position view_center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT +
+            (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    Position vertex;
+    Position pointer;
+    bool result = false;
+
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    object = editor_project_object_add(&project, (Position){0});
+    body = object == NULL ? NULL : editor_project_rigid_body_add(&project, object);
+    hitbox = body == NULL || body->hitbox_count == 0 ? NULL : &body->hitboxes[0];
+    if(hitbox == NULL || hitbox->vertex_count == 0) goto done;
+    project.viewport_camera_zoom = 0.1f;
+    project.viewport_camera_offset = (Vec2D){0};
+    project.viewport_local_view = false;
+    state.mode = EDITOR_VIEWPORT_HITBOX;
+    state.selection = EDITOR_SELECTION_HITBOX;
+    state.selected_rigid_body = body->id;
+    state.selected_hitbox = hitbox->id;
+    vertex = hitbox->vertices[0].position;
+    pointer = (Position){view_center.x + vertex.x * project.viewport_camera_zoom +
+            9.0f,
+        view_center.y - vertex.y * project.viewport_camera_zoom};
+    if(!editor_viewport_update(&state, &project, pointer,
+            MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+            false, 0.0f, false) || state.mode != EDITOR_VIEWPORT_VERTEX ||
+            state.selection != EDITOR_SELECTION_VERTEX ||
+            state.selected_vertex != 0) goto done;
+    result = true;
+done:
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    return result;
+}
+
 static bool navigation_mode_open_check(EditorProject *project,
         EditorViewportState *state, EditorHierarchySelection selection,
         EditorViewportMode expected) {
@@ -216,7 +258,8 @@ int main(void) {
     if(!accordion_layout_metrics_check() ||
             !created_name_focus_mapping_check() ||
             !created_name_focus_replacement_check() ||
-            !input_key_capture_check()) return 1;
+            !input_key_capture_check() ||
+            !hitbox_vertex_zoom_pick_check()) return 1;
     static EditorProject project;
     EditorObject *object;
     EditorRigidBody *body;

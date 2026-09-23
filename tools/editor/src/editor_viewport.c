@@ -4963,10 +4963,14 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
 
     if(hitbox != NULL && hitbox->visible && body != NULL && body->visible) {
+        float vertex_pick_radius = 10.0f / editor_view_scale;
+        float vertex_pick_radius_squared =
+            vertex_pick_radius * vertex_pick_radius;
         for(uint32_t i = 0; i < hitbox->vertex_count; i += 1) {
             Position vertex = editor_hitbox_vertex_world_get(object, body, hitbox, i);
             Vec2D delta = {pointer.x - vertex.x, pointer.y - vertex.y};
-            if(delta.x * delta.x + delta.y * delta.y > 100.0f) continue;
+            if(delta.x * delta.x + delta.y * delta.y >
+                    vertex_pick_radius_squared) continue;
             if(state->selection_modifier) {
                 (void)editor_viewport_selection_set(project, state,
                     (EditorSelectionRef){EDITOR_SELECTION_VERTEX, object->id,
