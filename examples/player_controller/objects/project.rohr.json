@@ -1,21 +1,43 @@
 {
     "format_version": 2,
     "physics_settings": {
-        "engine_time_per_tick": 0.008333333333333333,
+        "engine_time_per_tick": 0.008333333767950535,
         "timestep_override": true,
-        "dt_per_tick": 0.008333333333333333,
+        "dt_per_tick": 0.008333333767950535,
         "substeps": 2,
         "gravity_x": 0.0,
         "gravity_y": -900.0,
         "solver_iterations": 12
     },
     "viewport_camera_offset": {
-        "x": 0.0,
-        "y": -60.0
+        "x": 155.5577392578125,
+        "y": -159.25289916992188
     },
-    "viewport_camera_zoom": 1.0,
+    "viewport_camera_zoom": 0.4114832580089569,
     "viewport_local_view": false,
-    "selected": 1,
+    "navigation": {
+        "mode": 0,
+        "selection": 18,
+        "object": 0,
+        "line": 0,
+        "vertex": 0,
+        "rigid_body": 0,
+        "hitbox": 0,
+        "joint": 0,
+        "anchor": 0,
+        "soft_body": 0,
+        "soft_node": 0,
+        "soft_beam": 0,
+        "sprite": 0,
+        "animated_sprite": 0,
+        "animation_frame": 0,
+        "camera": 0,
+        "input_controller": 0,
+        "input_action": 0,
+        "input_binding": 0,
+        "origin_kind": 0
+    },
+    "selected": 0,
     "next_object_id": 2,
     "next_vertex_id": 9,
     "next_rigid_body_id": 3,
@@ -38,6 +60,9 @@
     "next_input_controller_id": 2,
     "next_input_action_id": 3,
     "next_input_binding_id": 4,
+    "ui_fonts": [],
+    "graphics_layers": [],
+    "ui_definitions": [],
     "input_controllers": [
         {
             "id": 1,
@@ -99,12 +124,12 @@
         }
     ],
     "collision_masks": [
-        "default"
+        "item_default"
     ],
     "objects": [
         {
             "id": 1,
-            "name": "player_world",
+            "name": "PlayerWorld",
             "position": {
                 "x": 0.0,
                 "y": 0.0
@@ -136,8 +161,8 @@
                     },
                     "initial_angular_velocity": 0.0,
                     "mass": 1.0,
-                    "friction": 0.8,
-                    "restitution": 0.15,
+                    "friction": 0.800000011920929,
+                    "restitution": 0.15000000596046448,
                     "static": true,
                     "rotation_locked": false,
                     "gravity_enabled": false,
@@ -168,29 +193,46 @@
                                 {
                                     "id": 1,
                                     "name": "top_right",
-                                    "position": {"x": 450.0, "y": 30.0},
+                                    "position": {
+                                        "x": 450.0,
+                                        "y": 30.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 2,
                                     "name": "bottom_right",
-                                    "position": {"x": 450.0, "y": -30.0},
+                                    "position": {
+                                        "x": 450.0,
+                                        "y": -30.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 3,
                                     "name": "bottom_left",
-                                    "position": {"x": -450.0, "y": -30.0},
+                                    "position": {
+                                        "x": -450.0,
+                                        "y": -30.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 4,
                                     "name": "top_left",
-                                    "position": {"x": -450.0, "y": 30.0},
+                                    "position": {
+                                        "x": -450.0,
+                                        "y": 30.0
+                                    },
                                     "position_locked": false
                                 }
                             ],
-                            "lines": ["right", "bottom", "left", "top"]
+                            "lines": [
+                                "right",
+                                "bottom",
+                                "left",
+                                "top"
+                            ]
                         }
                     ],
                     "hitbox_animation_bindings": []
@@ -216,7 +258,7 @@
                     },
                     "initial_angular_velocity": 0.0,
                     "mass": 5.0,
-                    "friction": 0.35,
+                    "friction": 0.3499999940395355,
                     "restitution": 0.0,
                     "static": false,
                     "rotation_locked": true,
@@ -248,29 +290,46 @@
                                 {
                                     "id": 5,
                                     "name": "top_right",
-                                    "position": {"x": 30.0, "y": 40.0},
+                                    "position": {
+                                        "x": 30.0,
+                                        "y": 40.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 6,
                                     "name": "bottom_right",
-                                    "position": {"x": 30.0, "y": -40.0},
+                                    "position": {
+                                        "x": 30.0,
+                                        "y": -40.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 7,
                                     "name": "bottom_left",
-                                    "position": {"x": -30.0, "y": -40.0},
+                                    "position": {
+                                        "x": -30.0,
+                                        "y": -40.0
+                                    },
                                     "position_locked": false
                                 },
                                 {
                                     "id": 8,
                                     "name": "top_left",
-                                    "position": {"x": -30.0, "y": 40.0},
+                                    "position": {
+                                        "x": -30.0,
+                                        "y": 40.0
+                                    },
                                     "position_locked": false
                                 }
                             ],
-                            "lines": ["right", "bottom", "left", "top"]
+                            "lines": [
+                                "right",
+                                "bottom",
+                                "left",
+                                "top"
+                            ]
                         }
                     ],
                     "hitbox_animation_bindings": []
@@ -285,7 +344,10 @@
                 {
                     "id": 1,
                     "name": "main_camera",
-                    "position": {"x": 0.0, "y": 0.0},
+                    "position": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
                     "rotation": 0.0,
                     "width": 1280.0,
                     "height": 720.0,
@@ -298,17 +360,29 @@
                 }
             ],
             "hierarchy": [
-                {"kind": 5, "id": 1},
-                {"kind": 0, "id": 1},
-                {"kind": 0, "id": 2}
+                {
+                    "kind": 5,
+                    "id": 1
+                },
+                {
+                    "kind": 0,
+                    "id": 1
+                },
+                {
+                    "kind": 0,
+                    "id": 2
+                }
             ]
         }
     ],
     "layout_viewports": [
         {
             "id": 1,
-            "name": "game_viewport",
-            "overview_position": {"x": 0.0, "y": 0.0},
+            "name": "GameViewport",
+            "overview_position": {
+                "x": -609.233154296875,
+                "y": -455.3680419921875
+            },
             "x": 0.0,
             "y": 0.0,
             "width": 1280.0,
@@ -343,8 +417,17 @@
         }
     ],
     "hierarchy": [
-        {"kind": 0, "id": 1},
-        {"kind": 1, "id": 1},
-        {"kind": 2, "id": 1}
+        {
+            "kind": 0,
+            "id": 1
+        },
+        {
+            "kind": 1,
+            "id": 1
+        },
+        {
+            "kind": 2,
+            "id": 1
+        }
     ]
 }
