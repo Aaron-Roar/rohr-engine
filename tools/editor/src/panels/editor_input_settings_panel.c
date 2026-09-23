@@ -410,6 +410,8 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
         changed = true;
     y += 36.0f;
     {
+        float content_x = x + 8.0f;
+        float content_width = width - 16.0f;
         const float input_rows[] = {52.0f, 76.0f, 76.0f};
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(x - 8.0f,
@@ -426,10 +428,11 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             float modifiers_y = editor_mode_accordion_layout_row_y(
                 &input_section, input_rows, 2, 8.0f);
             rohr_ui_label(&panel->source_label,
-                (UIRect){x, source_y, width, 22.0f});
+                (UIRect){content_x, source_y, content_width, 22.0f});
             selected = editor_mode_dropdown("editor.input.binding.source",
                 source_options, action->type == INPUT_ACTION_BUTTON ? 2 : 4,
-                source, (UIRect){x, source_y + 24.0f, width, 28.0f}, NULL);
+                source, (UIRect){content_x, source_y + 24.0f,
+                    content_width, 28.0f}, NULL);
             if(selected.changed) {
                 source = selected.selected_index;
                 changed = true;
@@ -439,7 +442,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                 panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
             }
             rohr_ui_label(&panel->input_label,
-                (UIRect){x, input_y, width, 22.0f});
+                (UIRect){content_x, input_y, content_width, 22.0f});
             input_y += 24.0f;
             if(source == INPUT_BINDING_MOUSE_BUTTON) {
                 const TextAsset *options[5];
@@ -449,7 +452,8 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     options[i] = &panel->mouse_button_options[i];
                 selected = editor_mode_dropdown(
                     "editor.input.binding.mouse_button", options, 5,
-                    selected_button, (UIRect){x, input_y, width, 28.0f}, NULL);
+                    selected_button,
+                    (UIRect){content_x, input_y, content_width, 28.0f}, NULL);
                 if(selected.changed) {
                     input = selected.selected_index + 1;
                     changed = true;
@@ -465,7 +469,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     options[i] = &panel->axis_component_options[i];
                 selected = editor_mode_dropdown("editor.input.binding.axis",
                     options, count, component,
-                    (UIRect){x, input_y, width, 28.0f}, NULL);
+                    (UIRect){content_x, input_y, content_width, 28.0f}, NULL);
                 if(selected.changed) {
                     input = selected.selected_index;
                     changed = true;
@@ -473,7 +477,8 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             } else if(panel->input_numeric) {
                 UIFieldResult numeric = input_number_field(
                     "editor.input.binding.key.numeric", &panel->input_field,
-                    &input, (UIRect){x, input_y, width, 28.0f});
+                    &input,
+                    (UIRect){content_x, input_y, content_width, 28.0f});
                 if(numeric.changed) changed = true;
             } else {
                 const char *displayed = SDL_GetScancodeName(
@@ -485,7 +490,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                 else snprintf(key_name, sizeof(key_name), "%s", displayed);
                 capture = input_text_field("editor.input.binding.key",
                     &panel->input_field, key_name, sizeof(key_name),
-                    (UIRect){x, input_y, width, 28.0f});
+                    (UIRect){content_x, input_y, content_width, 28.0f});
                 panel->key_capture_active = capture.active;
                 if(capture.active && editor_input_key_capture_apply(
                         input_key_transition_get(true),
@@ -504,20 +509,22 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             if(source == INPUT_BINDING_KEY &&
                     input_representation_toggle_draw(panel,
                         "editor.input.binding.key.representation",
-                        panel->input_numeric, x, input_y, width)) {
+                        panel->input_numeric, content_x, input_y,
+                        content_width)) {
                 panel->input_numeric = !panel->input_numeric;
                 panel->key_capture_active = false;
                 panel->pending_modifier = SDL_SCANCODE_UNKNOWN;
                 rohr_ui_field_focus_clear();
             }
             rohr_ui_label(&panel->modifiers_label,
-                (UIRect){x, modifiers_y, width, 22.0f});
+                (UIRect){content_x, modifiers_y, content_width, 22.0f});
             modifiers_y += 24.0f;
             if(panel->modifiers_numeric) {
                 if(input_number_field(
                         "editor.input.binding.modifiers.numeric",
                         &panel->modifiers_field, &modifiers,
-                        (UIRect){x, modifiers_y, width, 28.0f}).changed)
+                        (UIRect){content_x, modifiers_y,
+                            content_width, 28.0f}).changed)
                     changed = true;
             } else {
                 char modifier_symbols[64];
@@ -528,7 +535,7 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     "editor.input.binding.modifiers.symbols",
                     &panel->modifiers_field, modifier_symbols,
                     sizeof(modifier_symbols),
-                    (UIRect){x, modifiers_y, width, 28.0f});
+                    (UIRect){content_x, modifiers_y, content_width, 28.0f});
                 panel->key_capture_active = panel->key_capture_active ||
                     capture.active;
                 if(capture.active && input_modifier_capture_apply(
@@ -541,7 +548,8 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
             }
             if(input_representation_toggle_draw(panel,
                     "editor.input.binding.modifiers.representation",
-                    panel->modifiers_numeric, x, modifiers_y, width)) {
+                    panel->modifiers_numeric, content_x, modifiers_y,
+                    content_width)) {
                 panel->modifiers_numeric = !panel->modifiers_numeric;
                 panel->key_capture_active = false;
                 rohr_ui_field_focus_clear();
@@ -560,16 +568,18 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     editor_mode_accordion_layout_row_y(&axis_section,
                         axis_rows, 1, 8.0f);
                 rohr_ui_label(&panel->scale_label,
-                    (UIRect){x, scale_position, width, 22.0f});
+                    (UIRect){content_x, scale_position,
+                        content_width, 22.0f});
                 if(input_number_field("editor.input.binding.scale",
                         &panel->scale_x_field, &scale_x,
-                        (UIRect){x, scale_position + 24.0f,
-                            width, 28.0f}).changed)
+                        (UIRect){content_x, scale_position + 24.0f,
+                            content_width, 28.0f}).changed)
                     changed = true;
                 if(editor_mode_checkbox_left(
                         "editor.input.binding.inverted",
                         &panel->inverted_label,
-                        (UIRect){x, inverted_position, width, 28.0f},
+                        (UIRect){content_x, inverted_position,
+                            content_width, 28.0f},
                         &inverted_x))
                     changed = true;
             }
@@ -598,12 +608,13 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                         editor_mode_accordion_layout_row_y(&x_axis,
                             axis_rows, 0, 8.0f);
                     rohr_ui_label(&panel->direction_x_label,
-                        (UIRect){x, direction_position, width, 22.0f});
+                        (UIRect){content_x, direction_position,
+                            content_width, 22.0f});
                     if(input_number_field(
                             "editor.input.binding.direction_x",
                             &panel->direction_x_field, &direction_x,
-                            (UIRect){x, direction_position + 24.0f,
-                                width, 28.0f}).changed)
+                            (UIRect){content_x, direction_position + 24.0f,
+                                content_width, 28.0f}).changed)
                         changed = true;
                 }
                 float scale_position = editor_mode_accordion_layout_row_y(
@@ -612,16 +623,18 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     editor_mode_accordion_layout_row_y(&x_axis,
                         axis_rows, inverted_row, 8.0f);
                 rohr_ui_label(&panel->scale_x_label,
-                    (UIRect){x, scale_position, width, 22.0f});
+                    (UIRect){content_x, scale_position,
+                        content_width, 22.0f});
                 if(input_number_field("editor.input.binding.scale_x",
                         &panel->scale_x_field, &scale_x,
-                        (UIRect){x, scale_position + 24.0f,
-                            width, 28.0f}).changed)
+                        (UIRect){content_x, scale_position + 24.0f,
+                            content_width, 28.0f}).changed)
                     changed = true;
                 if(editor_mode_checkbox_left(
                         "editor.input.binding.inverted_x",
                         &panel->inverted_x_label,
-                        (UIRect){x, inverted_position, width, 28.0f},
+                        (UIRect){content_x, inverted_position,
+                            content_width, 28.0f},
                         &inverted_x))
                     changed = true;
             }
@@ -633,12 +646,13 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                         editor_mode_accordion_layout_row_y(&y_axis,
                             axis_rows, 0, 8.0f);
                     rohr_ui_label(&panel->direction_y_label,
-                        (UIRect){x, direction_position, width, 22.0f});
+                        (UIRect){content_x, direction_position,
+                            content_width, 22.0f});
                     if(input_number_field(
                             "editor.input.binding.direction_y",
                             &panel->direction_y_field, &direction_y,
-                            (UIRect){x, direction_position + 24.0f,
-                                width, 28.0f}).changed)
+                            (UIRect){content_x, direction_position + 24.0f,
+                                content_width, 28.0f}).changed)
                         changed = true;
                 }
                 float scale_position = editor_mode_accordion_layout_row_y(
@@ -647,16 +661,18 @@ static void input_binding_properties_draw(EditorInputSettingsPanel *panel,
                     editor_mode_accordion_layout_row_y(&y_axis,
                         axis_rows, inverted_row, 8.0f);
                 rohr_ui_label(&panel->scale_y_label,
-                    (UIRect){x, scale_position, width, 22.0f});
+                    (UIRect){content_x, scale_position,
+                        content_width, 22.0f});
                 if(input_number_field("editor.input.binding.scale_y",
                         &panel->scale_y_field, &scale_y,
-                        (UIRect){x, scale_position + 24.0f,
-                            width, 28.0f}).changed)
+                        (UIRect){content_x, scale_position + 24.0f,
+                            content_width, 28.0f}).changed)
                     changed = true;
                 if(editor_mode_checkbox_left(
                         "editor.input.binding.inverted_y",
                         &panel->inverted_y_label,
-                        (UIRect){x, inverted_position, width, 28.0f},
+                        (UIRect){content_x, inverted_position,
+                            content_width, 28.0f},
                         &inverted_y))
                     changed = true;
             }
