@@ -2296,6 +2296,26 @@ Creates a joint between two entities.
 
 **Returns:** EntityResult containing the joint entity, or an error.
 
+### `rohr_physics_particle_config_default_get`
+
+```c
+ParticleConfig rohr_physics_particle_config_default_get(void);
+```
+
+Returns a valid standalone particle configuration with a unit radius, default
+material values, default collision filtering, and
+`ROHR_PARTICLE_RIGID_VERTICES_DEFAULT` polygon vertices.
+
+### `rohr_physics_particle_create`
+
+```c
+EntityResult rohr_physics_particle_create(ParticleConfig config);
+```
+
+Creates one translation-only particle entity. Its particle circle and circular
+polygon hitbox share `config.radius`. Zero `rigid_vertices` selects the engine
+default.
+
 ### `rohr_physics_particle_overlap_get`
 
 ```c

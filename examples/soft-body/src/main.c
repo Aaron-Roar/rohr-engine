@@ -169,29 +169,12 @@ static Entity static_triangle_create(Position a, Position b, Position c) {
     return entity;
 }
 
-static Entity particle_create(Position position) {
-    EntityResult result = rohr_entity_add();
-    Entity particle;
+static Entity particle_create(ParticleConfig config, Position position) {
+    EntityResult result;
 
-    if(rohr_error_check(result)) return ENTITY_INVALID;
-    particle = result.result.value;
-    if(!result_ok(rohr_physics_position_set(particle, position)) ||
-            !result_ok(rohr_physics_hitbox_set(
-                particle, rohr_math_circle_create(particle_radius, 8))) ||
-            !result_ok(rohr_physics_mass_set(particle, particle_mass)) ||
-            !result_ok(rohr_physics_velocity_set(particle, (Velocity){0})) ||
-            !result_ok(rohr_physics_acceleration_set(particle, gravity)) ||
-            !result_ok(rohr_physics_dynamic_set(particle)) ||
-            !result_ok(rohr_physics_friction_set(particle, rigid_friction)) ||
-            !result_ok(rohr_physics_restitution_set(
-                particle, collision_restitution)) ||
-            !result_ok(rohr_physics_collision_category_set(
-                particle, particle_category)) ||
-            !result_ok(rohr_physics_collision_with_all_set(particle)) ||
-            !result_ok(rohr_entity_components_add(particle, ROHR_PARTICLE))) {
-        return ENTITY_INVALID;
-    }
-    return particle;
+    config.position = position;
+    result = rohr_physics_particle_create(config);
+    return rohr_error_check(result) ? ENTITY_INVALID : result.result.value;
 }
 
 static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_b,
@@ -453,6 +436,7 @@ int main(void) {
     Entity particles[PIT_PARTICLE_COUNT];
     Entity chassis;
     Entity cabin;
+    ParticleConfig particle_config;
     Wheel wheels[WHEEL_COUNT] = {0};
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, torque_action;
@@ -486,6 +470,16 @@ int main(void) {
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
             !result_ok(rohr_physics_substeps_set(4)) ||
             !result_ok(rohr_graphics_start())) goto fail;
+    particle_config = rohr_physics_particle_config_default_get();
+    particle_config.acceleration = gravity;
+    particle_config.radius = particle_radius;
+    particle_config.rigid_vertices = 8;
+    particle_config.mass_value = particle_mass;
+    particle_config.friction = rigid_friction;
+    particle_config.restitution = collision_restitution;
+    particle_config.collision_filter.category = particle_category;
+    particle_config.collision_filter.collides_with =
+        ROHR_COLLISION_CATEGORY_ALL;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
     for(uint32_t i = 0; i < LEVEL_WALL_COUNT; i += 1) {
@@ -530,7 +524,7 @@ int main(void) {
     for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
         uint32_t column = i % PIT_PARTICLE_COLUMNS;
         uint32_t row = i / PIT_PARTICLE_COLUMNS;
-        particles[i] = particle_create((Position){
+        particles[i] = particle_create(particle_config, (Position){
             particle_spawn_origin.x + (float)column * particle_spacing,
             particle_spawn_origin.y + (float)row * particle_spacing
         });

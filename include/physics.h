@@ -233,6 +233,24 @@ typedef float Mass;
 /** Torque value. */
 typedef Orientation Torque;
 
+/** Default polygon vertex count used to approximate a particle circle. */
+#define ROHR_PARTICLE_RIGID_VERTICES_DEFAULT 16u
+
+/** Complete configuration used to create one standalone particle entity. */
+typedef struct ParticleConfig {
+    Position position;
+    Velocity velocity;
+    Acceleration acceleration;
+    float radius;
+    uint32_t rigid_vertices;
+    Mass mass_value;
+    Friction friction;
+    Restitution restitution;
+    CollisionFilterConfig collision_filter;
+    bool gravity_enabled;
+    bool collision_enabled;
+} ParticleConfig;
+
 ERROR_DECLARE_RESULT_TYPE(PositionResult, Position);
 ERROR_DECLARE_RESULT_TYPE(AngularVelocityResult, AngularVelocity);
 
@@ -843,6 +861,10 @@ EntityResult physics_joint_create(
  * Run particle collision detection between two circle-like shapes.
  */
 OverlapInfo physics_particle_overlap_get(Shape shape_1, Shape shape_2);
+/** Return a valid standalone particle configuration with engine defaults. */
+ParticleConfig physics_particle_config_default_get(void);
+/** Create one translation-only particle entity from a reusable configuration. */
+EntityResult physics_particle_create(ParticleConfig config);
 EngineResult physics_particle_origin_set(Entity entity, Position local_origin);
 PositionResult physics_particle_origin_get(Entity entity);
 EngineResult physics_particle_radius_set(Entity entity, float radius);

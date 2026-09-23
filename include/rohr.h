@@ -1350,6 +1350,22 @@ EntityResult rohr_physics_joint_create(
  * @return Geometric overlap information.
  */
 OverlapInfo rohr_physics_particle_overlap_get(Shape shape_1, Shape shape_2);
+/**
+ * @brief Returns a valid standalone particle configuration with engine defaults.
+ * @return ParticleConfig with a unit radius, default material and collision.
+ */
+ParticleConfig rohr_physics_particle_config_default_get(void);
+/**
+ * @brief Creates one translation-only particle entity.
+ *
+ * The particle radius drives both its circle geometry and circular polygon
+ * hitbox. A rigid_vertices value of zero uses
+ * ROHR_PARTICLE_RIGID_VERTICES_DEFAULT.
+ *
+ * @param config Reusable particle configuration and initial instance state.
+ * @return EntityResult containing the created particle, or an error.
+ */
+EntityResult rohr_physics_particle_create(ParticleConfig config);
 /** Set a particle circle's origin relative to its rigid-body origin. */
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin);
 /** Get a particle circle's origin relative to its rigid-body origin. */

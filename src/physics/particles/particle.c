@@ -7,6 +7,68 @@
 
 #include <math.h>
 
+ParticleConfig physics_particle_config_default_get(void) {
+    return (ParticleConfig){
+        .radius = 1.0f,
+        .rigid_vertices = ROHR_PARTICLE_RIGID_VERTICES_DEFAULT,
+        .mass_value = 1.0f,
+        .friction = 0.5f,
+        .collision_filter = physics_collision_filter_config_default_get(),
+        .collision_enabled = true
+    };
+}
+
+EntityResult physics_particle_create(ParticleConfig config) {
+    uint32_t rigid_vertices = config.rigid_vertices == 0 ?
+        ROHR_PARTICLE_RIGID_VERTICES_DEFAULT : config.rigid_vertices;
+    EntityResult added;
+    EngineResult result;
+    Entity particle;
+
+    if(!physics_world_position_check(config.position) ||
+            !isfinite(config.velocity.x) || !isfinite(config.velocity.y) ||
+            !isfinite(config.acceleration.x) ||
+            !isfinite(config.acceleration.y) ||
+            !isfinite(config.radius) || config.radius <= 0.0f ||
+            rigid_vertices < MIN_VERTICIES || rigid_vertices > MAX_VERTICIES ||
+            !isfinite(config.mass_value) || config.mass_value < 0.0f ||
+            !isfinite(config.friction) || config.friction < 0.0f ||
+            !isfinite(config.restitution) || config.restitution < 0.0f ||
+            config.restitution > 1.0f)
+        return ERROR_RESULT_MAKE_ERROR(
+            EntityResult, ERROR_ENGINE_STATE_INVALID);
+    added = entity_add();
+    if(error_check(added)) return added;
+    particle = added.result.value;
+#define PARTICLE_APPLY(call) do { \
+    result = (call); \
+    if(error_check(result)) goto fail; \
+} while(0)
+    PARTICLE_APPLY(physics_position_set(particle, config.position));
+    PARTICLE_APPLY(physics_hitbox_set(particle,
+        math_circle_create(config.radius, (uint8_t)rigid_vertices)));
+    PARTICLE_APPLY(physics_particle_radius_set(particle, config.radius));
+    PARTICLE_APPLY(physics_mass_set(particle, config.mass_value));
+    PARTICLE_APPLY(physics_velocity_set(particle, config.velocity));
+    PARTICLE_APPLY(physics_acceleration_set(particle, config.acceleration));
+    PARTICLE_APPLY(physics_dynamic_set(particle));
+    PARTICLE_APPLY(physics_friction_set(particle, config.friction));
+    PARTICLE_APPLY(physics_restitution_set(particle, config.restitution));
+    PARTICLE_APPLY(physics_collision_filter_set(
+        particle, config.collision_filter));
+    if(!config.collision_enabled)
+        PARTICLE_APPLY(entity_components_delete(particle, ROHR_COLLISION));
+    if(config.gravity_enabled)
+        PARTICLE_APPLY(physics_gravity_enable(particle));
+#undef PARTICLE_APPLY
+    return added;
+
+fail:
+#undef PARTICLE_APPLY
+    (void)entity_delete(particle);
+    return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+}
+
 static ParticleGeometry physics_particle_geometry_effective_get(EntityIndex index) {
     ParticleGeometry geometry = {0};
 

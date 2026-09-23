@@ -90,6 +90,29 @@ polygon hitbox:
 - particle versus particle uses the configured circles;
 - particle versus ordinary rigid body uses both entities' polygon hitboxes.
 
+Create reusable standalone particles through `ParticleConfig`. The default
+configuration is valid as-is; copy it and change instance state when manually
+emitting multiple particles:
+
+```c
+ParticleConfig dust = rohr_physics_particle_config_default_get();
+dust.radius = 3.0f;
+dust.mass_value = 0.3f;
+
+for(size_t i = 0; i < amount; i += 1) {
+    ParticleConfig particle = dust;
+    particle.position = positions[i];
+    particle.velocity = velocities[i];
+    EntityResult created = rohr_physics_particle_create(particle);
+}
+```
+
+Creation derives the circular polygon hitbox from `radius`. A
+`rigid_vertices` value of zero selects
+`ROHR_PARTICLE_RIGID_VERTICES_DEFAULT`; an explicit value changes only the
+polygon approximation quality. The particle circle and initial polygon radius
+therefore cannot disagree.
+
 Particle origin is a local offset from the rigid-body origin and rotates with
 the body. Particle radius and origin have dedicated APIs:
 
