@@ -564,6 +564,13 @@ int main(void) {
         overview_camera->position = (Position){80.0f, 0.0f};
         overview_camera->dimensions = (Scale){20.0f, 20.0f};
         camera_overview_state.mode = EDITOR_VIEWPORT_HIERARCHY;
+        camera_overview_state.project_elements_hidden = true;
+        if(editor_viewport_update(&camera_overview_state,
+                &camera_overview_project, grab, MOUSE_BUTTON_STATE_PRESSED,
+                MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
+                !camera_overview_object->visible ||
+                camera_overview_state.dragged_project_object) return 1;
+        camera_overview_state.project_elements_hidden = false;
         if(!editor_viewport_update(&camera_overview_state,
                 &camera_overview_project, grab, MOUSE_BUTTON_STATE_PRESSED,
                 MOUSE_BUTTON_STATE_UP, false, 0.0f, false) ||
@@ -614,6 +621,12 @@ int main(void) {
         camera->attachment = camera_body->id;
         camera_state.mode = EDITOR_VIEWPORT_OBJECT;
         grab = (Position){center.x + 5.0f, center.y - 20.0f};
+        camera_state.object_elements_hidden = true;
+        if(editor_viewport_update(&camera_state, &camera_project, grab,
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false) || !camera->visible ||
+                camera_state.dragged_camera_entity) return 1;
+        camera_state.object_elements_hidden = false;
         if(!editor_viewport_update(&camera_state, &camera_project, grab,
                 MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false) || !camera_state.dragged_camera_entity) return 1;
@@ -666,6 +679,38 @@ int main(void) {
                 dragged_viewport->config.rectangle.y != 0.0f) return 1;
         editor_viewport_state_destroy(&viewport_drag_state);
         editor_project_destroy(&viewport_drag_project);
+    }
+    {
+        EditorProject hidden_layout_project;
+        EditorViewportState hidden_layout_state = {0};
+        EditorLayoutViewport *hidden_layout;
+        EditorViewportUiItem *hidden_ui;
+        EditorSelectionRef selection;
+        Position origin = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+
+        editor_project_init(&hidden_layout_project);
+        editor_viewport_state_init(&hidden_layout_state);
+        hidden_layout = editor_project_layout_viewport_add(
+            &hidden_layout_project);
+        hidden_ui = hidden_layout == NULL ? NULL : editor_viewport_ui_add(
+            &hidden_layout_project, hidden_layout, EDITOR_VIEWPORT_UI_SHAPE);
+        if(hidden_layout == NULL || hidden_ui == NULL) return 1;
+        hidden_layout_state.mode = EDITOR_VIEWPORT_LAYOUT;
+        hidden_layout_state.selected_layout_viewport = hidden_layout->id;
+        if(!editor_viewport_selection_at_get(&hidden_layout_project,
+                &hidden_layout_state,
+                (Position){origin.x + 100.0f, origin.y + 30.0f},
+                &selection) || selection.kind != EDITOR_SELECTION_UI_SHAPE)
+            return 1;
+        hidden_layout_state.layout_elements_hidden = true;
+        if(editor_viewport_selection_at_get(&hidden_layout_project,
+                &hidden_layout_state,
+                (Position){origin.x + 100.0f, origin.y + 30.0f},
+                &selection) || !hidden_ui->visible) return 1;
+        editor_viewport_state_destroy(&hidden_layout_state);
+        editor_project_destroy(&hidden_layout_project);
     }
     {
         EditorProject area_project;

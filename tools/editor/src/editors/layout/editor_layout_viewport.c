@@ -327,10 +327,15 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     rohr_ui_label(&editor->cameras_label,
-        (UIRect){context->x + 94.0f, contents_y,
-            context->width - 102.0f, 28.0f});
-    rohr_ui_label(&editor->visible_label,
-        (UIRect){context->x + 8.0f, contents_y, 80.0f, 28.0f});
+        (UIRect){context->x + 42.0f, contents_y,
+            context->width - 50.0f, 28.0f});
+    if(editor_mode_visibility_button("editor.layout.elements.visibility",
+            !context->viewport->layout_elements_hidden, false,
+            (UIRect){context->x + 8.0f, contents_y, 28.0f, 28.0f}).clicked) {
+        context->viewport->layout_elements_hidden =
+            !context->viewport->layout_elements_hidden;
+        editor_viewport_transform_cancel(context->viewport);
+    }
     y = contents_y + 34.0f;
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
         EditorViewportCameraItem *item = &viewport->camera_items[i];
@@ -343,18 +348,20 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         char visibility_id[88];
         snprintf(visibility_id, sizeof(visibility_id),
             "editor.layout.camera.%u.visibility", item->id);
-        if(rohr_ui_button(visibility_id, item->placement.visible ?
-                &editor->visible_icon : &editor->hidden_icon,
-                (UIRect){context->x + 8.0f, y, 80.0f, 28.0f}, NULL).clicked)
+        if(editor_mode_visibility_button(visibility_id, item->placement.visible,
+                context->viewport->layout_elements_hidden,
+                (UIRect){context->x + 8.0f, y, 28.0f, 28.0f}).clicked)
             item->placement.visible = !item->placement.visible;
         UIButtonStyle selected_style = rohr_ui_button_style_default_get();
         selected_style.idle = (Color){118, 96, 35, 255};
         selected_style.hovered = (Color){145, 119, 45, 255};
         UIButtonResult camera_result = rohr_ui_button(id, &editor->camera_names[i],
-                (UIRect){context->x + 94.0f, y,
-                    context->width - 102.0f, 28.0f},
+                (UIRect){context->x + 42.0f, y,
+                    context->width - 50.0f, 28.0f},
                 context->viewport->selected_viewport_camera_item == item->id ?
                     &selected_style : NULL);
+        editor_mode_element_icon_draw(EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            (UIRect){context->x + 46.0f, y + 4.0f, 20.0f, 20.0f});
         if(camera_result.clicked) {
             context->viewport->selected_viewport_camera_item = item->id,
             context->viewport->selected_viewport_ui_item = 0;
@@ -375,31 +382,34 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         snprintf(id, sizeof(id), "editor.layout.ui.%u", item->id);
         snprintf(visibility_id, sizeof(visibility_id),
             "editor.layout.ui.%u.visibility", item->id);
-        if(rohr_ui_button(visibility_id, item->visible ? &editor->visible_icon :
-                &editor->hidden_icon, (UIRect){context->x + 8.0f, y,
-                    80.0f, 28.0f}, NULL).clicked) item->visible = !item->visible;
+        if(editor_mode_visibility_button(visibility_id, item->visible,
+                context->viewport->layout_elements_hidden,
+                (UIRect){context->x + 8.0f, y, 28.0f, 28.0f}).clicked)
+            item->visible = !item->visible;
         UIButtonResult ui_result = rohr_ui_button(id, &editor->ui_names[i],
-                (UIRect){context->x + 94.0f, y,
-                    context->width - 102.0f, 28.0f},
+                (UIRect){context->x + 42.0f, y,
+                    context->width - 50.0f, 28.0f},
                 NULL);
+        EditorHierarchySelection ui_selection =
+            item->kind == EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
+            item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
+                EDITOR_SELECTION_UI_SLIDER;
+        editor_mode_element_icon_draw(ui_selection,
+            (UIRect){context->x + 46.0f, y + 4.0f, 20.0f, 20.0f});
         if(context->hierarchy_row != NULL) {
             EditorSelectionRef ref = {
-                item->kind == EDITOR_VIEWPORT_UI_SHAPE ? EDITOR_SELECTION_UI_SHAPE :
-                item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
-                    EDITOR_SELECTION_UI_SLIDER,
+                ui_selection,
                 viewport->id, 0, 0, item->id};
             context->hierarchy_row(context->hierarchy_context,
                 context->viewport, ref,
-                (UIRect){context->x + 94.0f, y,
-                    context->width - 102.0f, 28.0f}, ui_result,
+                (UIRect){context->x + 42.0f, y,
+                    context->width - 50.0f, 28.0f}, ui_result,
                 i + 1 == viewport->ui_item_count);
         }
         if(ui_result.clicked) {
             context->viewport->selected_viewport_ui_item = item->id;
             context->viewport->selected_viewport_camera_item = 0;
-            context->viewport->selection = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-                EDITOR_SELECTION_UI_SHAPE : item->kind == EDITOR_VIEWPORT_UI_TEXT ?
-                    EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER;
+            context->viewport->selection = ui_selection;
         }
         if(ui_result.double_clicked) {
             context->viewport->mode = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?

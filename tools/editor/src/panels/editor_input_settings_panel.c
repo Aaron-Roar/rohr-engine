@@ -182,6 +182,9 @@ void editor_input_controller_editor_draw(EditorInputSettingsPanel *panel,
                 context->viewport->selected_input_controller == controller->id &&
                 context->viewport->selected_input_action == action->id ?
                     &style : NULL);
+        editor_mode_element_icon_draw(EDITOR_SELECTION_INPUT_ACTION,
+            (UIRect){row_bounds.x + 4.0f, row_bounds.y + 5.0f,
+                20.0f, 20.0f});
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 (EditorSelectionRef){EDITOR_SELECTION_INPUT_ACTION,
@@ -598,6 +601,9 @@ void editor_input_action_editor_draw(EditorInputSettingsPanel *panel,
         result = rohr_ui_button(id, &panel->binding_names[i], row_bounds,
             editor_viewport_selection_contains(context->viewport, ref) ?
                 &style : NULL);
+        editor_mode_element_icon_draw(EDITOR_SELECTION_INPUT_BINDING,
+            (UIRect){row_bounds.x + 4.0f, row_bounds.y + 5.0f,
+                20.0f, 20.0f});
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 ref, row_bounds, result, i + 1 == action->binding_count);

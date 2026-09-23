@@ -307,9 +307,9 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             snprintf(id, sizeof(id), "editor.anchor.%u", anchor->id);
             snprintf(visibility_id, sizeof(visibility_id),
                 "editor.anchor.%u.visibility", anchor->id);
-            if(rohr_ui_button(visibility_id, anchor->visible ? &editor->visible_label :
-                    &editor->hidden_label,
-                    (UIRect){context->x + 10.0f, y, 23.0f, 23.0f}, NULL).clicked) {
+            if(editor_mode_visibility_button(visibility_id, anchor->visible,
+                    false, (UIRect){context->x + 10.0f, y,
+                        23.0f, 23.0f}).clicked) {
                 EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
                     .data.visibility = {EDITOR_VISIBILITY_ANCHOR, object->id,
                         0, anchor->id, !anchor->visible}};
@@ -321,6 +321,8 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
                     editor_viewport_selection_contains(context->viewport,
                         (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
                             object->id, 0, 0, anchor->id})) ? &style : NULL);
+            editor_mode_element_icon_draw(EDITOR_SELECTION_ANCHOR,
+                (UIRect){context->x + 42.0f, y + 1.5f, 20.0f, 20.0f});
             if(context->hierarchy_row != NULL)
                 context->hierarchy_row(context->hierarchy_context, context->viewport,
                     (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,

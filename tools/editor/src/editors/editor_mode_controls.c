@@ -4,6 +4,7 @@
 
 #include "editor_mode_controls.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -216,6 +217,308 @@ void editor_mode_divider_draw(float x, float y, float width) {
         width - inset * 2.0f, 1.0f}, (Color){184, 190, 202, 255});
 }
 
+static void editor_mode_icon_line(Position start,
+        Position end,
+        float thickness,
+        Color color) {
+    Vec2D delta = {end.x - start.x, end.y - start.y};
+    float length = hypotf(delta.x, delta.y);
+    if(length <= 0.0f) return;
+    rohr_ui_quad((Position){(start.x + end.x) * 0.5f,
+        (start.y + end.y) * 0.5f}, length, thickness,
+        -atan2f(delta.y, delta.x), color);
+}
+
+UIButtonResult editor_mode_visibility_button(const char *id,
+        bool visible,
+        bool disabled,
+        UIRect bounds) {
+    UIButtonResult result = {0};
+    Color color = disabled ? (Color){121, 126, 136, 180} :
+        (Color){225, 230, 240, 255};
+    Position center = {bounds.x + bounds.width * 0.5f,
+        bounds.y + bounds.height * 0.5f};
+    float scale = fminf(bounds.width, bounds.height) / 28.0f;
+    if(id == NULL || bounds.width <= 0.0f || bounds.height <= 0.0f)
+        return result;
+    if(disabled) rohr_ui_button_disabled(bounds, NULL);
+    else result = rohr_ui_button(id, NULL, bounds, NULL);
+    if(visible) {
+        Position left = {center.x - 8.0f * scale, center.y};
+        Position upper_left = {center.x - 4.0f * scale,
+            center.y - 3.0f * scale};
+        Position upper = {center.x, center.y - 4.0f * scale};
+        Position upper_right = {center.x + 4.0f * scale,
+            center.y - 3.0f * scale};
+        Position right = {center.x + 8.0f * scale, center.y};
+        Position lower_right = {center.x + 4.0f * scale,
+            center.y + 3.0f * scale};
+        Position lower = {center.x, center.y + 4.0f * scale};
+        Position lower_left = {center.x - 4.0f * scale,
+            center.y + 3.0f * scale};
+        editor_mode_icon_line(left, upper_left, 1.5f * scale, color);
+        editor_mode_icon_line(upper_left, upper, 1.5f * scale, color);
+        editor_mode_icon_line(upper, upper_right, 1.5f * scale, color);
+        editor_mode_icon_line(upper_right, right, 1.5f * scale, color);
+        editor_mode_icon_line(right, lower_right, 1.5f * scale, color);
+        editor_mode_icon_line(lower_right, lower, 1.5f * scale, color);
+        editor_mode_icon_line(lower, lower_left, 1.5f * scale, color);
+        editor_mode_icon_line(lower_left, left, 1.5f * scale, color);
+        rohr_ui_quad(center, 4.5f * scale, 4.5f * scale, 0.78539816339f,
+            color);
+    } else {
+        Position left = {center.x - 8.0f * scale,
+            center.y - 1.0f * scale};
+        Position left_lid = {center.x - 4.0f * scale,
+            center.y + 2.0f * scale};
+        Position lid = {center.x, center.y + 3.0f * scale};
+        Position right_lid = {center.x + 4.0f * scale,
+            center.y + 2.0f * scale};
+        Position right = {center.x + 8.0f * scale,
+            center.y - 1.0f * scale};
+        editor_mode_icon_line(left, left_lid, 1.8f * scale, color);
+        editor_mode_icon_line(left_lid, lid, 1.8f * scale, color);
+        editor_mode_icon_line(lid, right_lid, 1.8f * scale, color);
+        editor_mode_icon_line(right_lid, right, 1.8f * scale, color);
+        editor_mode_icon_line((Position){center.x - 5.0f * scale,
+                center.y + 1.0f * scale},
+            (Position){center.x - 6.0f * scale,
+                center.y + 5.0f * scale}, 1.5f * scale, color);
+        editor_mode_icon_line(lid,
+            (Position){center.x, center.y + 6.0f * scale},
+            1.5f * scale, color);
+        editor_mode_icon_line((Position){center.x + 5.0f * scale,
+                center.y + 1.0f * scale},
+            (Position){center.x + 6.0f * scale,
+                center.y + 5.0f * scale}, 1.5f * scale, color);
+    }
+    return result;
+}
+
+static Color editor_mode_element_category_color_get(
+        EditorHierarchySelection kind) {
+    switch(kind) {
+        case EDITOR_SELECTION_LAYOUT_VIEWPORT:
+        case EDITOR_SELECTION_UI_SHAPE:
+        case EDITOR_SELECTION_UI_TEXT:
+        case EDITOR_SELECTION_UI_SLIDER:
+        case EDITOR_SELECTION_UI_VERTEX:
+        case EDITOR_SELECTION_UI_LINE:
+            return (Color){190, 132, 245, 255};
+        case EDITOR_SELECTION_INPUT_CONTROLLER:
+        case EDITOR_SELECTION_INPUT_ACTION:
+        case EDITOR_SELECTION_INPUT_BINDING:
+            return (Color){245, 166, 78, 255};
+        default:
+            return (Color){86, 184, 235, 255};
+    }
+}
+
+void editor_mode_element_icon_draw(EditorHierarchySelection kind,
+        UIRect bounds) {
+    Color color;
+    Position center;
+    float scale;
+    float half;
+    UIRect box;
+    if(kind == EDITOR_SELECTION_NONE || bounds.width <= 0.0f ||
+            bounds.height <= 0.0f) return;
+    color = editor_mode_element_category_color_get(kind);
+    center = (Position){bounds.x + bounds.width * 0.5f,
+        bounds.y + bounds.height * 0.5f};
+    scale = fminf(bounds.width, bounds.height) / 20.0f;
+    half = 7.0f * scale;
+    box = (UIRect){center.x - half, center.y - half, half * 2.0f,
+        half * 2.0f};
+    switch(kind) {
+        case EDITOR_SELECTION_OBJECT:
+            rohr_ui_border(box, 1.5f * scale, color);
+            rohr_ui_border((UIRect){box.x + 4.0f * scale,
+                box.y + 4.0f * scale, box.width - 8.0f * scale,
+                box.height - 8.0f * scale}, 1.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_RIGID_BODY:
+            rohr_ui_surface((UIRect){center.x - 5.0f * scale,
+                center.y - 5.0f * scale, 10.0f * scale, 10.0f * scale},
+                color);
+            break;
+        case EDITOR_SELECTION_PARTICLE:
+        case EDITOR_SELECTION_SOFT_NODE:
+        case EDITOR_SELECTION_VERTEX:
+        case EDITOR_SELECTION_UI_VERTEX:
+            rohr_ui_quad(center,
+                kind == EDITOR_SELECTION_PARTICLE ? 10.0f * scale :
+                    7.0f * scale,
+                kind == EDITOR_SELECTION_PARTICLE ? 10.0f * scale :
+                    7.0f * scale,
+                0.78539816339f, color);
+            break;
+        case EDITOR_SELECTION_HITBOX:
+            rohr_ui_border(box, 1.0f * scale, color);
+            for(size_t corner = 0; corner < 4; corner += 1)
+                rohr_ui_surface((UIRect){
+                    corner % 2 == 0 ? box.x - scale :
+                        box.x + box.width - scale,
+                    corner < 2 ? box.y - scale : box.y + box.height - scale,
+                    2.0f * scale, 2.0f * scale}, color);
+            break;
+        case EDITOR_SELECTION_JOINT:
+            editor_mode_icon_line((Position){center.x - 5.0f * scale,
+                center.y + 4.0f * scale},
+                (Position){center.x + 5.0f * scale,
+                    center.y - 4.0f * scale}, 2.0f * scale, color);
+            rohr_ui_quad((Position){center.x - 5.0f * scale,
+                center.y + 4.0f * scale}, 5.0f * scale, 5.0f * scale,
+                0.78539816339f, color);
+            rohr_ui_quad((Position){center.x + 5.0f * scale,
+                center.y - 4.0f * scale}, 5.0f * scale, 5.0f * scale,
+                0.78539816339f, color);
+            break;
+        case EDITOR_SELECTION_ANCHOR:
+        case EDITOR_SELECTION_ORIGIN:
+            editor_mode_icon_line((Position){center.x - half, center.y},
+                (Position){center.x + half, center.y}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x, center.y - half},
+                (Position){center.x, center.y + half}, 2.0f * scale, color);
+            if(kind == EDITOR_SELECTION_ANCHOR)
+                rohr_ui_quad(center, 5.0f * scale, 5.0f * scale,
+                    0.78539816339f, color);
+            break;
+        case EDITOR_SELECTION_SOFT_BODY:
+            editor_mode_icon_line((Position){center.x, center.y - half},
+                (Position){center.x + half, center.y}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x + half, center.y},
+                (Position){center.x, center.y + half}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x, center.y + half},
+                (Position){center.x - half, center.y}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x - half, center.y},
+                (Position){center.x, center.y - half}, 2.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_SOFT_BEAM:
+        case EDITOR_SELECTION_LINE:
+        case EDITOR_SELECTION_UI_LINE:
+            editor_mode_icon_line((Position){center.x - 6.0f * scale,
+                center.y + 5.0f * scale},
+                (Position){center.x + 6.0f * scale,
+                    center.y - 5.0f * scale}, 2.5f * scale, color);
+            break;
+        case EDITOR_SELECTION_SOFT_AREA:
+        case EDITOR_SELECTION_UI_SHAPE:
+            editor_mode_icon_line((Position){center.x, center.y - half},
+                (Position){center.x + half, center.y + half},
+                2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x + half,
+                center.y + half}, (Position){center.x - half,
+                center.y + half}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x - half,
+                center.y + half}, (Position){center.x,
+                center.y - half}, 2.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_SPRITE:
+        case EDITOR_SELECTION_ANIMATED_SPRITE:
+        case EDITOR_SELECTION_ANIMATION_FRAME:
+            if(kind == EDITOR_SELECTION_ANIMATED_SPRITE)
+                rohr_ui_border((UIRect){box.x - 2.0f * scale,
+                    box.y - 2.0f * scale, box.width, box.height},
+                    1.0f * scale, color);
+            rohr_ui_border(box, 1.5f * scale, color);
+            if(kind == EDITOR_SELECTION_ANIMATION_FRAME) {
+                for(int side = -1; side <= 1; side += 2)
+                    for(int row = -1; row <= 1; row += 2)
+                        rohr_ui_surface((UIRect){center.x +
+                                (float)side * 5.0f * scale - scale,
+                            center.y + (float)row * 4.0f * scale - scale,
+                            2.0f * scale, 2.0f * scale}, color);
+            } else {
+                editor_mode_icon_line((Position){box.x + 2.0f * scale,
+                    box.y + box.height - 3.0f * scale},
+                    (Position){center.x - scale, center.y},
+                    1.5f * scale, color);
+                editor_mode_icon_line((Position){center.x - scale, center.y},
+                    (Position){box.x + box.width - 2.0f * scale,
+                        box.y + box.height - 3.0f * scale},
+                    1.5f * scale, color);
+            }
+            break;
+        case EDITOR_SELECTION_CAMERA:
+            rohr_ui_surface((UIRect){center.x - 7.0f * scale,
+                center.y - 4.0f * scale, 9.0f * scale, 8.0f * scale},
+                color);
+            editor_mode_icon_line((Position){center.x + 2.0f * scale,
+                center.y - 3.0f * scale},
+                (Position){center.x + 7.0f * scale,
+                    center.y - 6.0f * scale}, 3.0f * scale, color);
+            editor_mode_icon_line((Position){center.x + 2.0f * scale,
+                center.y + 3.0f * scale},
+                (Position){center.x + 7.0f * scale,
+                    center.y + 6.0f * scale}, 3.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_LAYOUT_VIEWPORT:
+            editor_mode_icon_line((Position){box.x, box.y},
+                (Position){box.x + 5.0f * scale, box.y}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){box.x, box.y},
+                (Position){box.x, box.y + 5.0f * scale}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){box.x + box.width, box.y},
+                (Position){box.x + box.width - 5.0f * scale, box.y},
+                2.0f * scale, color);
+            editor_mode_icon_line((Position){box.x + box.width, box.y},
+                (Position){box.x + box.width, box.y + 5.0f * scale},
+                2.0f * scale, color);
+            editor_mode_icon_line((Position){box.x, box.y + box.height},
+                (Position){box.x + 5.0f * scale, box.y + box.height},
+                2.0f * scale, color);
+            editor_mode_icon_line((Position){box.x + box.width,
+                box.y + box.height}, (Position){box.x + box.width -
+                    5.0f * scale, box.y + box.height}, 2.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_UI_TEXT:
+            editor_mode_icon_line((Position){center.x - 6.0f * scale,
+                center.y - 6.0f * scale},
+                (Position){center.x + 6.0f * scale,
+                    center.y - 6.0f * scale}, 2.0f * scale, color);
+            editor_mode_icon_line((Position){center.x,
+                center.y - 6.0f * scale},
+                (Position){center.x, center.y + 6.0f * scale},
+                2.0f * scale, color);
+            break;
+        case EDITOR_SELECTION_UI_SLIDER:
+            editor_mode_icon_line((Position){center.x - half, center.y},
+                (Position){center.x + half, center.y}, 2.0f * scale, color);
+            rohr_ui_quad(center, 6.0f * scale, 10.0f * scale, 0.0f, color);
+            break;
+        case EDITOR_SELECTION_INPUT_CONTROLLER:
+            rohr_ui_surface((UIRect){center.x - 2.0f * scale,
+                center.y - 7.0f * scale, 4.0f * scale, 14.0f * scale},
+                color);
+            rohr_ui_surface((UIRect){center.x - 7.0f * scale,
+                center.y - 2.0f * scale, 14.0f * scale, 4.0f * scale},
+                color);
+            break;
+        case EDITOR_SELECTION_INPUT_ACTION:
+            editor_mode_icon_line((Position){center.x - 3.0f * scale,
+                center.y - 7.0f * scale},
+                (Position){center.x + 2.0f * scale, center.y - scale},
+                2.5f * scale, color);
+            editor_mode_icon_line((Position){center.x + 2.0f * scale,
+                center.y - scale},
+                (Position){center.x - 2.0f * scale,
+                    center.y + 2.0f * scale}, 2.5f * scale, color);
+            editor_mode_icon_line((Position){center.x - 2.0f * scale,
+                center.y + 2.0f * scale},
+                (Position){center.x + 3.0f * scale,
+                    center.y + 7.0f * scale}, 2.5f * scale, color);
+            break;
+        case EDITOR_SELECTION_INPUT_BINDING:
+            rohr_ui_border(box, 1.5f * scale, color);
+            rohr_ui_surface((UIRect){center.x - 3.0f * scale,
+                center.y + 3.0f * scale, 6.0f * scale, 2.0f * scale},
+                color);
+            break;
+        case EDITOR_SELECTION_NONE:
+            break;
+    }
+}
+
 UIButtonStyle editor_mode_section_field_style_get(void) {
     return (UIButtonStyle){
         .idle = {36, 40, 48, 255},
@@ -300,8 +603,11 @@ bool editor_mode_visibility_field(const char *id,
     if(id == NULL || label == NULL || visible_icon == NULL ||
             hidden_icon == NULL || visible == NULL) return false;
     icon_bounds = (UIRect){bounds.x, bounds.y, bounds.height, bounds.height};
-    bool clicked = rohr_ui_button(id, *visible ? visible_icon : hidden_icon,
-        icon_bounds, NULL).clicked;
+    bool clicked;
+    (void)visible_icon;
+    (void)hidden_icon;
+    clicked = editor_mode_visibility_button(id, *visible, false,
+        icon_bounds).clicked;
     if(clicked) *visible = !*visible;
     rohr_ui_label(label, (UIRect){bounds.x + bounds.height + 6.0f, bounds.y,
         bounds.width - bounds.height - 6.0f, bounds.height});

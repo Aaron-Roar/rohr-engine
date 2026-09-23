@@ -349,6 +349,8 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         UIButtonResult result = rohr_ui_button(id, &editor->frame_names[asset_index],
             bounds, editor_viewport_selection_contains(context->viewport, ref) ?
                 &style : NULL);
+        editor_mode_element_icon_draw(EDITOR_SELECTION_ANIMATION_FRAME,
+            (UIRect){bounds.x + 3.0f, bounds.y + 3.0f, 20.0f, 20.0f});
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 ref, bounds, result, frame + 1 == sprite->frame_count);

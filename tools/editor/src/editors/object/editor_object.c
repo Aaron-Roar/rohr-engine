@@ -137,9 +137,10 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
 static void item_visibility_toggle(EditorObjectEditor *editor,
         EditorProject *project, EditorObject *object, EditorHierarchyItem item,
         EditorHierarchySelection selection, EditorVisibilityKind visibility,
-        bool visible, const char *id, UIRect bounds) {
-    if(!rohr_ui_button(id, visible ? &editor->visible_label :
-            &editor->hidden_label, bounds, NULL).clicked) return;
+        bool visible, bool disabled, const char *id, UIRect bounds) {
+    (void)editor;
+    if(!editor_mode_visibility_button(id, visible, disabled, bounds).clicked)
+        return;
     if(selection == EDITOR_SELECTION_SPRITE) {
         EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_VISIBILITY_SET,
             .data.sprite_visibility_set = {object->id, item.id, !visible}};
@@ -268,9 +269,14 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     editor_mode_divider_draw(context->x, y, context->width);
     y += 10.0f;
     rohr_ui_label(&editor->elements_label,
-        (UIRect){context->x + 96.0f, y, context->width - 106.0f, 28.0f});
-    rohr_ui_label(&editor->visibility_label,
-        (UIRect){context->x + 10.0f, y, 80.0f, 28.0f});
+        (UIRect){context->x + 44.0f, y, context->width - 54.0f, 28.0f});
+    if(editor_mode_visibility_button("editor.object.elements.visibility",
+            !context->viewport->object_elements_hidden, false,
+            (UIRect){context->x + 10.0f, y, 28.0f, 28.0f}).clicked) {
+        context->viewport->object_elements_hidden =
+            !context->viewport->object_elements_hidden;
+        editor_viewport_transform_cancel(context->viewport);
+    }
     elements_y = y + 34.0f;
     for(size_t i = 0; i < object->hierarchy_count; i += 1) {
         EditorHierarchyItem item = object->hierarchy[i];
@@ -290,14 +296,17 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         snprintf(visibility_id, sizeof(visibility_id),
             "editor.object.item.%u.%u.visibility", selection, item.id);
         item_visibility_toggle(editor, context->project, object, item, selection,
-            visibility, visible, visibility_id,
-            (UIRect){context->x + 10.0f, y, 80.0f, 26.0f});
-        UIRect bounds = {context->x + 96.0f, y,
-            context->width - 106.0f, 26.0f};
+            visibility, visible, context->viewport->object_elements_hidden,
+            visibility_id,
+            (UIRect){context->x + 10.0f, y, 26.0f, 26.0f});
+        UIRect bounds = {context->x + 42.0f, y,
+            context->width - 52.0f, 26.0f};
         EditorSelectionRef ref = {selection, object->id, 0, 0, item.id};
         UIButtonStyle style = selected_style_get();
         UIButtonResult result = rohr_ui_button(id, label, bounds,
             editor_viewport_selection_contains(context->viewport, ref) ? &style : NULL);
+        editor_mode_element_icon_draw(selection,
+            (UIRect){bounds.x + 3.0f, bounds.y + 3.0f, 20.0f, 20.0f});
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 ref, bounds, result, i + 1 == object->hierarchy_count);

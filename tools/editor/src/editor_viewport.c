@@ -3177,6 +3177,12 @@ bool editor_viewport_selection_at_get(EditorProject *project,
     Position world_pointer;
     if(project == NULL || state == NULL || selection == NULL) return false;
     *selection = (EditorSelectionRef){0};
+    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
+            state->project_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_OBJECT &&
+                state->object_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_LAYOUT &&
+                state->layout_elements_hidden)) return false;
     world_pointer = editor_view_screen_to_world(pointer);
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
         for(size_t i = project->object_count; i > 0; i -= 1) {
@@ -3432,6 +3438,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->camera_pointer = pointer;
             return true;
         }
+        if(state->mode == EDITOR_VIEWPORT_LAYOUT &&
+                state->layout_elements_hidden) return false;
         {
             EditorLayoutViewport *viewport = editor_project_layout_viewport_get(
                 project, state->selected_layout_viewport);
@@ -3856,6 +3864,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         state->camera_pointer = pointer;
         return true;
     }
+    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
+            state->project_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_OBJECT &&
+                state->object_elements_hidden)) return false;
     pointer = editor_view_screen_to_world(pointer);
     if(state->group_dragging && primary_button == MOUSE_BUTTON_STATE_DOWN) {
         Vec2D delta = {pointer.x - state->group_pointer.x,
@@ -5875,7 +5887,8 @@ void editor_viewport_draw(const EditorProject *project,
     if(project == NULL || state == NULL) return;
     editor_animation_preview_tick += 1;
     editor_animation_preview_time = (Time)SDL_GetTicksNS() / 1000000000.0;
-    if(state->mode == EDITOR_VIEWPORT_HIERARCHY ||
+    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
+                !state->project_elements_hidden) ||
             state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
@@ -5941,6 +5954,8 @@ void editor_viewport_draw(const EditorProject *project,
                     rectangle.x + rectangle.width - fmaxf(1.0f, 2.0f * zoom),
                     rectangle.y + y, fmaxf(1.0f, 2.0f * zoom), length, border);
             }
+            if(state->mode == EDITOR_VIEWPORT_LAYOUT &&
+                    state->layout_elements_hidden) continue;
             for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
                 if(!item->placement.visible) continue;
@@ -6270,6 +6285,10 @@ void editor_viewport_draw(const EditorProject *project,
     }
     editor_view_transform_set(project, state, selected);
     if(grid_visible) editor_viewport_grid_draw();
+    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
+            state->project_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_OBJECT &&
+                state->object_elements_hidden)) return;
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
         for(size_t i = project->hierarchy_count; i > 0; i -= 1) {
             EditorProjectHierarchyItem item = project->hierarchy[i - 1];

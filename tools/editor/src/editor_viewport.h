@@ -117,6 +117,9 @@ typedef struct EditorViewportState {
     bool camera_pan_with_primary;
     bool marquee_active;
     bool selection_modifier;
+    bool project_elements_hidden;
+    bool object_elements_hidden;
+    bool layout_elements_hidden;
     Vec2D drag_offset;
     Position camera_pointer;
     Position marquee_start;

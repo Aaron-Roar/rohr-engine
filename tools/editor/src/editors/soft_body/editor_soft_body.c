@@ -164,9 +164,8 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
     if(name == NULL || label == NULL || cache == NULL) return true;
     if(!editor_mode_named_text_sync(editor->font, name, label, cache,
             EDITOR_OBJECT_NAME_MAX)) return false;
-    if(rohr_ui_button(visibility_id, shown ? &editor->visible_label :
-            &editor->hidden_label,
-            (UIRect){context->x + 10.0f, y, 24.0f, 24.0f}, NULL).clicked) {
+    if(editor_mode_visibility_button(visibility_id, shown, false,
+            (UIRect){context->x + 10.0f, y, 24.0f, 24.0f}).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
             .data.visibility = {visibility, object->id, body->id, item.id, !shown}};
         (void)editor_command_execute(context->project, &command);
@@ -178,6 +177,8 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
             selected || editor_viewport_selection_contains(context->viewport,
                 (EditorSelectionRef){selection, object->id, body->id, 0, item.id}) ?
                 &style : NULL);
+        editor_mode_element_icon_draw(selection,
+            (UIRect){bounds.x + 2.0f, bounds.y + 2.0f, 20.0f, 20.0f});
         if(context->hierarchy_row != NULL)
             context->hierarchy_row(context->hierarchy_context, context->viewport,
                 (EditorSelectionRef){selection, object->id, body->id, 0, item.id},

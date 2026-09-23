@@ -101,6 +101,10 @@ void editor_mode_accordion_layout_measure_reset(void);
 void editor_mode_accordion_layout_measure_include(float bottom);
 float editor_mode_accordion_layout_measure_get(void);
 void editor_mode_divider_draw(float x, float y, float width);
+UIButtonResult editor_mode_visibility_button(const char *id, bool visible,
+    bool disabled, UIRect bounds);
+void editor_mode_element_icon_draw(EditorHierarchySelection kind,
+    UIRect bounds);
 UIButtonStyle editor_mode_section_field_style_get(void);
 UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);

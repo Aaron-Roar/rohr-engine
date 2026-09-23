@@ -158,9 +158,14 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                 &editor->vertex_names.labels[i], editor->vertex_names.values[i],
                 EDITOR_OBJECT_NAME_MAX)) return field_active;
         snprintf(id, sizeof(id), "editor.vertex.%u", hitbox->vertices[i].id);
+        UIRect row_bounds = {context->x + 18.0f,
+            176.0f + (float)i * 27.0f,
+            context->width - 26.0f, 23.0f};
         result = rohr_ui_button(id, &editor->vertex_names.labels[i],
-            (UIRect){context->x + 18.0f, 176.0f + (float)i * 27.0f,
-                context->width - 26.0f, 23.0f}, selected ? &style : NULL);
+            row_bounds, selected ? &style : NULL);
+        editor_mode_element_icon_draw(EDITOR_SELECTION_VERTEX,
+            (UIRect){row_bounds.x + 2.0f, row_bounds.y + 1.5f,
+                20.0f, 20.0f});
         if(result.clicked || result.focus_changed) {
             SDL_Keymod modifiers = SDL_GetModState();
             if(result.clicked && (modifiers & (SDL_KMOD_CTRL | SDL_KMOD_SHIFT))) {
@@ -195,9 +200,14 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                     &editor->line_names.labels[i], editor->line_names.values[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
             snprintf(id, sizeof(id), "editor.line.%u", i);
+            UIRect row_bounds = {context->x + 18.0f,
+                base + 28.0f + (float)i * 27.0f,
+                context->width - 26.0f, 23.0f};
             result = rohr_ui_button(id, &editor->line_names.labels[i],
-                (UIRect){context->x + 18.0f, base + 28.0f + (float)i * 27.0f,
-                    context->width - 26.0f, 23.0f}, selected ? &style : NULL);
+                row_bounds, selected ? &style : NULL);
+            editor_mode_element_icon_draw(EDITOR_SELECTION_LINE,
+                (UIRect){row_bounds.x + 2.0f, row_bounds.y + 1.5f,
+                    20.0f, 20.0f});
             if(result.clicked || result.focus_changed) {
                 context->viewport->selection = EDITOR_SELECTION_LINE;
                 context->viewport->selected_line = i;

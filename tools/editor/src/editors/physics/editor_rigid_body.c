@@ -787,9 +787,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                     "editor.hitbox.%u.visibility", hitbox->id);
                 snprintf(binding_id, sizeof(binding_id),
                     "editor.hitbox.%u.bind_frames", hitbox->id);
-                if(rohr_ui_button(visibility_id, hitbox->visible ?
-                        &editor->visible_label : &editor->hidden_label,
-                        (UIRect){row_x, y, 26.0f, 26.0f}, NULL).clicked) {
+                if(editor_mode_visibility_button(visibility_id, hitbox->visible,
+                        false, (UIRect){row_x, y, 26.0f, 26.0f}).clicked) {
                     EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
                         .data.visibility = {EDITOR_VISIBILITY_HITBOX, object->id,
                             body->id, hitbox->id, !hitbox->visible}};
@@ -803,6 +802,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                             (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
                                 object->id, body->id, 0, hitbox->id})) ?
                         &selected_style : NULL);
+                editor_mode_element_icon_draw(EDITOR_SELECTION_HITBOX,
+                    (UIRect){row_x + 35.0f, y + 3.0f, 20.0f, 20.0f});
                 if(context->hierarchy_row != NULL)
                     context->hierarchy_row(context->hierarchy_context,
                         context->viewport,
