@@ -10,5 +10,5 @@ rohr_example_bootstrap()
 
 add_executable(game_state src/main.c)
 rohr_add_example_runtime(game_state)
-target_link_libraries(game_state PRIVATE rohr_engine)
+target_link_libraries(game_state PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(game_state game-state)

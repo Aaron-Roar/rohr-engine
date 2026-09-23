@@ -10,5 +10,5 @@ rohr_example_bootstrap()
 
 add_executable(fly_to_finish src/main.c)
 rohr_add_example_runtime(fly_to_finish)
-target_link_libraries(fly_to_finish PRIVATE rohr_engine)
+target_link_libraries(fly_to_finish PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(fly_to_finish fly-to-finish)

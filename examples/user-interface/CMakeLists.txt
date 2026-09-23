@@ -10,5 +10,5 @@ rohr_example_bootstrap()
 
 add_executable(user_interface src/main.c)
 rohr_add_example_runtime(user_interface)
-target_link_libraries(user_interface PRIVATE rohr_engine)
+target_link_libraries(user_interface PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(user_interface user-interface)

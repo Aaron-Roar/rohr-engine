@@ -10,5 +10,5 @@ rohr_example_bootstrap()
 
 add_executable(soft_body src/main.c)
 rohr_add_example_runtime(soft_body)
-target_link_libraries(soft_body PRIVATE rohr_engine)
+target_link_libraries(soft_body PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(soft_body soft-body)

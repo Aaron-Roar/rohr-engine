@@ -202,12 +202,19 @@ cd rohr-engine
 
 ```text
 build/
+├── example-build/       # independent CMake build tree for each example
+├── example-sdk/         # locally staged Rohr SDK consumed by examples
 ├── examples/
 ├── tests/
 └── tools/
     ├── rohr-cli/rohr-cli
     └── rohr-gui/rohr-gui
 ```
+
+The engine is built once and installed into `build/example-sdk/`. Each example
+is then configured independently through its own `CMakeLists.txt` and resolves
+`Rohr::Engine` from that staged SDK. This validates the standalone consumer
+configuration without recompiling the engine for every example.
 
 Run development binaries from the repository root:
 

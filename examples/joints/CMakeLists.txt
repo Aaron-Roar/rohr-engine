@@ -10,5 +10,5 @@ rohr_example_bootstrap()
 
 add_executable(joints src/main.c)
 rohr_add_example_runtime(joints)
-target_link_libraries(joints PRIVATE rohr_engine)
+target_link_libraries(joints PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(joints joints)

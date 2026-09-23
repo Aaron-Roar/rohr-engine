@@ -27,7 +27,7 @@ From this directory, generate, build, and run against the source checkout:
 
 ```sh
 ../../build/tools/rohr-cli/rohr-cli --project . generate-c
-cmake -S . -B build -DROHR_ENGINE_SOURCE_ROOT=../..
+cmake -S . -B build -DCMAKE_PREFIX_PATH=../../build/example-sdk
 cmake --build build
 ./build/PlayerController
 ```

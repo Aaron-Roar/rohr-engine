@@ -6,6 +6,9 @@ set -eu
 
 project_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 build_directory="$project_root/build"
+example_build_root="$build_directory/example-build"
+example_output_directory="$build_directory/examples"
+example_sdk_directory="$build_directory/example-sdk"
 operation=${1:-build}
 
 needs_dev_shell=true
@@ -26,12 +29,25 @@ if [ "$needs_dev_shell" = true ] && [ -z "${ROHR_DEV_SHELL:-}" ]; then
 fi
 
 configure() {
-    cmake -S "$project_root" -B "$build_directory"
+    cmake -S "$project_root" -B "$build_directory" \
+        -DROHR_BUILD_EXAMPLES=OFF
+}
+
+build_examples() {
+    cmake -E remove_directory "$example_sdk_directory"
+    cmake --install "$build_directory" --prefix "$example_sdk_directory"
+    cmake \
+        -DROHR_ROOT="$project_root" \
+        -DROHR_EXAMPLE_BUILD_ROOT="$example_build_root" \
+        -DROHR_EXAMPLE_OUTPUT_DIRECTORY="$example_output_directory" \
+        -DROHR_SDK_PREFIX="$example_sdk_directory" \
+        -P "$project_root/cmake/build_examples.cmake"
 }
 
 build() {
     configure
     cmake --build "$build_directory"
+    build_examples
 }
 
 sdk_build() {

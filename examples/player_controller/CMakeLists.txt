@@ -28,9 +28,15 @@ endif()
 file(GLOB ROHR_GENERATED_SOURCES CONFIGURE_DEPENDS src/generated/*.c)
 add_executable(player_controller src/main.c ${ROHR_GENERATED_SOURCES})
 set_target_properties(player_controller PROPERTIES OUTPUT_NAME PlayerController)
-if(ROHR_PLAYER_CONTROLLER_IN_TREE)
+if(DEFINED ROHR_EXAMPLE_OUTPUT_DIRECTORY AND
+        NOT "${ROHR_EXAMPLE_OUTPUT_DIRECTORY}" STREQUAL "")
     set_target_properties(player_controller PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${ROHR_BUILD_OUTPUT_DIRECTORY}/examples")
+        RUNTIME_OUTPUT_DIRECTORY
+            "${ROHR_EXAMPLE_OUTPUT_DIRECTORY}/$<0:>")
+elseif(ROHR_PLAYER_CONTROLLER_IN_TREE)
+    set_target_properties(player_controller PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY
+            "${ROHR_BUILD_OUTPUT_DIRECTORY}/examples/$<0:>")
 endif()
 target_include_directories(player_controller PRIVATE src/generated)
 target_link_libraries(player_controller PRIVATE ${ROHR_ENGINE_TARGET})

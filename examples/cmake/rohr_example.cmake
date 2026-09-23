@@ -2,13 +2,14 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 
 set(ROHR_EXAMPLES_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
+include(${ROHR_EXAMPLES_SOURCE_DIR}/../cmake/rohr_host_tools.cmake)
 
 function(rohr_example_bootstrap)
-    if(NOT TARGET rohr_engine)
-        set(ROHR_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-        set(ROHR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        set(ROHR_ENABLE_DOCUMENTATION OFF CACHE BOOL "" FORCE)
-        add_subdirectory(${ROHR_EXAMPLES_SOURCE_DIR}/.. ${CMAKE_BINARY_DIR}/rohr-engine)
+    if(TARGET rohr_engine)
+        set(ROHR_ENGINE_TARGET rohr_engine PARENT_SCOPE)
+    else()
+        find_package(Rohr CONFIG REQUIRED)
+        set(ROHR_ENGINE_TARGET Rohr::Engine PARENT_SCOPE)
         set(ROHR_EXAMPLE_STANDALONE ON PARENT_SCOPE)
     endif()
 endfunction()
@@ -22,7 +23,10 @@ function(rohr_add_example_runtime target)
 endfunction()
 
 function(rohr_example_runtime_dir output project_dir)
-    if(ROHR_EXAMPLE_STANDALONE)
+    if(DEFINED ROHR_EXAMPLE_OUTPUT_DIRECTORY AND
+            NOT "${ROHR_EXAMPLE_OUTPUT_DIRECTORY}" STREQUAL "")
+        set(${output} ${ROHR_EXAMPLE_OUTPUT_DIRECTORY} PARENT_SCOPE)
+    elseif(ROHR_EXAMPLE_STANDALONE)
         set(${output} ${CMAKE_BINARY_DIR} PARENT_SCOPE)
     else()
         set(${output} ${ROHR_BUILD_OUTPUT_DIRECTORY}/examples PARENT_SCOPE)
@@ -32,7 +36,8 @@ endfunction()
 function(rohr_stage_example_assets target project_dir)
     rohr_example_runtime_dir(runtime_dir ${project_dir})
     get_filename_component(project_name ${project_dir} NAME)
-    set_target_properties(${target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${runtime_dir})
+    set_target_properties(${target} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${runtime_dir}/$<0:>")
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${runtime_dir}/assets/debug
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
