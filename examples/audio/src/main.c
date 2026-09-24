@@ -19,7 +19,7 @@ static const char *audio_music_paths[AUDIO_MUSIC_COUNT] = {
 
 static const char *audio_music_names[AUDIO_MUSIC_COUNT] = {
     "Golem Gaurder",
-    "Farwell",
+    "Farewell",
     "Tug Of War",
 };
 
