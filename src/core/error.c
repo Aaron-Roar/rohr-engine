@@ -104,6 +104,10 @@ const char *error_code_message_get(EngineError error) {
             return "physics position is outside the supported world range";
         case ERROR_ENGINE_TEXTURE_LOAD_FAILED:
             return "texture load failed";
+        case ERROR_ENGINE_TEXTURE_NOT_FOUND:
+            return "texture asset not found";
+        case ERROR_ENGINE_TEXTURE_CAPACITY_EXCEEDED:
+            return "texture asset capacity exceeded";
         case ERROR_ENGINE_FONT_LOAD_FAILED:
             return "font load failed";
         case ERROR_ENGINE_TEXT_CREATE_FAILED:

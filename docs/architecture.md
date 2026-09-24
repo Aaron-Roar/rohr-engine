@@ -80,6 +80,23 @@ the sparse active-layer list; layers are ordered before execution, while calls
 within one layer retain submission order. Buffers retain capacity between
 frames.
 
+Loaded texture pixels are owned by the graphics texture registry and addressed
+through generation-checked handles rather than public SDL pointers. Loading the
+same resolved path shares one GPU texture while each `TextureAsset` retains its
+own logical drawing size. A successful load returns one owning reference;
+sprite components and queued draw commands retain their own references. Release
+caller references with `rohr_graphics_texture_release`. Entity/component
+deletion releases sprite references, queued references keep a texture alive
+through command execution, and graphics shutdown invalidates all remaining
+handles. Copying a `TextureAsset` value does not create a new owning reference;
+call `rohr_graphics_texture_retain` for every independently owned copy.
+
+Animations remain value-based during the texture-ownership migration. Their
+frame textures follow the same reference rules, and callers release a loaded
+animation value with `rohr_graphics_animation_destroy`. A later animation asset
+milestone will replace these copied values with shared animation handles and
+separate playback state.
+
 The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same
 public primitives available to applications.

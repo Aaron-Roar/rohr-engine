@@ -626,6 +626,9 @@ EngineResult rohr_graphics_soft_body_node_color_set(Entity soft_body, Entity nod
 EngineResult rohr_graphics_soft_body_beam_color_set(Entity soft_body, Entity node_a, Entity node_b, Color color) { return graphics_soft_body_beam_color_set(soft_body, node_a, node_b, color); }
 EngineResult rohr_graphics_soft_body_area_color_set(Entity soft_body, Entity node_a, Entity node_b, Entity node_c, Color color) { return graphics_soft_body_area_color_set(soft_body, node_a, node_b, node_c, color); }
 TextureAssetResult rohr_graphics_texture_load(TextureDescriptor text_desc) { return graphics_texture_load(text_desc); }
+EngineResult rohr_graphics_texture_retain(TextureAsset asset) { return graphics_texture_retain(asset); }
+EngineResult rohr_graphics_texture_release(TextureAsset *asset) { return graphics_texture_release(asset); }
+bool rohr_graphics_texture_valid_check(TextureAsset asset) { return graphics_texture_valid_check(asset); }
 void rohr_graphics_texture_draw(TextureAsset texture, Position position,
     Orientation orientation) { graphics_texture_draw(texture, position, orientation); }
 void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
@@ -645,6 +648,7 @@ bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     return graphics_screen_text_scaled_rotated_draw(text, center, scale, orientation);
 }
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc) { return graphics_animation_load(anim_desc); }
+void rohr_graphics_animation_destroy(AnimationAsset *asset) { graphics_animation_destroy(asset); }
 AnimatedSprite rohr_graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) { return graphics_animated_sprite_create(asset_ptr, scale); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }
 EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) { return graphics_animated_sprite_add(entity, sprite); }

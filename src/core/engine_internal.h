@@ -99,6 +99,10 @@ EngineResult graphics_tables_init(void);
 EngineResult graphics_tables_ensure_capacity(size_t capacity);
 /** Destroy graphics tables. */
 void graphics_tables_destroy(void);
+/** Clear graphics components and their asset references for a deleted entity. */
+void graphics_entity_clear(EntityIndex index);
+/** Clear selected graphics components and their asset references. */
+void graphics_entity_components_clear(EntityIndex index, RohrComponentMask mask);
 
 /** Current physics broad-phase hierarchy retained for debug drawing. */
 extern AABBTree physics_broadphase_tree;

@@ -173,6 +173,10 @@ void editor_viewport_assets_destroy(void) {
     memset(editor_preview_fonts, 0, sizeof(editor_preview_fonts));
     editor_preview_font_count = 0;
     editor_viewport_ui_font = NULL;
+    for(size_t i = 0; i < editor_preview_texture_count; i += 1)
+        if(!editor_preview_textures[i].failed)
+            (void)rohr_graphics_texture_release(
+                &editor_preview_textures[i].texture);
     free(editor_preview_textures);
     editor_preview_textures = NULL;
     editor_preview_texture_count = 0;

@@ -73,6 +73,10 @@ typedef enum EngineError {
     ERROR_ENGINE_POSITION_OUT_OF_RANGE,
     /** A texture asset could not be loaded. */
     ERROR_ENGINE_TEXTURE_LOAD_FAILED,
+    /** A texture handle is invalid, stale, or no longer owned. */
+    ERROR_ENGINE_TEXTURE_NOT_FOUND,
+    /** The engine texture-resource table is full. */
+    ERROR_ENGINE_TEXTURE_CAPACITY_EXCEEDED,
     /** A font asset could not be loaded. */
     ERROR_ENGINE_FONT_LOAD_FAILED,
     /** A reusable text asset could not be created. */

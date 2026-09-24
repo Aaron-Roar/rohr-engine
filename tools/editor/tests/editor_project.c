@@ -843,6 +843,8 @@ int main(void) {
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_soft_body_area_color_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
+                !file_contains(path, "rohr_graphics_animation_destroy") ||
+                !file_contains(path, "rohr_graphics_texture_release") ||
                 !file_contains(path,
                     "rohr_physics_hitbox_animation_binding_set") ||
                 !file_contains(path, "loaded.result.value.id = UINT32_C(") ||

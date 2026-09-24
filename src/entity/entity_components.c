@@ -726,6 +726,7 @@ EngineResult entity_delete(Entity entity) {
         return result;
     }
     physics_entity_clear(entity, index);
+    graphics_entity_clear(index);
     entity_index_clear(index);
     slot = entity_slot(entity);
     removed_alive_position = entity_alive_positions[slot];
@@ -780,6 +781,7 @@ EngineResult entity_components_delete(Entity entity, RohrComponentMask mask) {
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
     }
+    graphics_entity_components_clear(index, mask);
     (void)EntityMaskPool_store_at(&entity_mask_pool, index, entity_mask[index] & ~mask);
     return error_result_value(true);
 }

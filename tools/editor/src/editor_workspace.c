@@ -753,7 +753,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    Position position, const char *path, Scale size, bool follow_rotation,\n"
         "    Orientation rotation, bool visible) {\n"
         "    EntityResult added = {.kind = ERROR_RESULT_VALUE};\n"
-        "    TextureAssetResult loaded;\n"
+        "    TextureAssetResult loaded = {0};\n"
         "    Sprite sprite;\n"
         "    EngineResult result;\n"
         "    bool owned = target == ENTITY_INVALID;\n"
@@ -775,8 +775,11 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    sprite.visible = visible;\n"
         "    result = rohr_graphics_sprite_add(*output, sprite);\n"
         "    if(rohr_error_check(result)) goto fail;\n"
+        "    (void)rohr_graphics_texture_release(&loaded.result.value);\n"
         "    return rohr_error_result_value(true);\n"
         "fail:\n"
+        "    if(loaded.kind == ERROR_RESULT_VALUE)\n"
+        "        (void)rohr_graphics_texture_release(&loaded.result.value);\n"
         "    if(owned) (void)rohr_entity_delete(*output);\n"
         "    *output = ENTITY_INVALID;\n"
         "    return result;\n"
@@ -1072,6 +1075,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "      animated.follow_entity_rotation = %s;\n"
                 "      animated.visible = %s;\n"
                 "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
+                "      rohr_graphics_animation_destroy(&loaded.result.value);\n"
                 "      if(rohr_error_check(result)) goto fail; }\n",
                 sprite->scale.x, sprite->scale.y, sprite->starting_frame,
                 body == NULL ? 0.0f : sprite->editor_position.x,

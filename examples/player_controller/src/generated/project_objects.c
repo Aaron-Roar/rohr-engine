@@ -58,7 +58,7 @@ static EngineResult generated_sprite_create(Entity *output, Entity target,
     Position position, const char *path, Scale size, bool follow_rotation,
     Orientation rotation, bool visible) {
     EntityResult added = {.kind = ERROR_RESULT_VALUE};
-    TextureAssetResult loaded;
+    TextureAssetResult loaded = {0};
     Sprite sprite;
     EngineResult result;
     bool owned = target == ENTITY_INVALID;
@@ -80,8 +80,11 @@ static EngineResult generated_sprite_create(Entity *output, Entity target,
     sprite.visible = visible;
     result = rohr_graphics_sprite_add(*output, sprite);
     if(rohr_error_check(result)) goto fail;
+    (void)rohr_graphics_texture_release(&loaded.result.value);
     return rohr_error_result_value(true);
 fail:
+    if(loaded.kind == ERROR_RESULT_VALUE)
+        (void)rohr_graphics_texture_release(&loaded.result.value);
     if(owned) (void)rohr_entity_delete(*output);
     *output = ENTITY_INVALID;
     return result;

@@ -19,6 +19,7 @@
 #define WINDOW_HEIGHT 720
 #define MAX_TEXTURES 50
 #define MAX_ANIMATIONS_FRAMES 20
+#define MAX_TEXTURE_ASSETS 1024
 #define MAX_ANIMATION_SETS 10
 #define MAX_CAMERAS 16
 #define MAX_SCREENS 16
@@ -268,14 +269,17 @@ typedef struct {
   Time time_per_frame;
 } AnimationDescriptor;
 
-/** SDL texture handle owned by the graphics module. */
-typedef SDL_Texture* Texture;
+/** Generation-checked handle for an engine-owned texture resource. */
+typedef uint32_t TextureHandle;
 
-/** Loaded texture and its size metadata. */
+/** Invalid texture-resource handle. */
+#define TEXTURE_HANDLE_INVALID UINT32_C(0)
+
+/** Shared texture resource and per-use logical size metadata. */
 typedef struct {
-    /** SDL texture handle. */
-    Texture texture;
-    /** Texture size metadata. */
+    /** Engine-owned shared texture resource. */
+    TextureHandle handle;
+    /** Logical drawing size, independent from the shared GPU resource. */
     Scale size;
 } TextureAsset;
 
@@ -509,8 +513,18 @@ void graphics_hit_box_colored_draw(Entity entity, Fill fill_type, Color color);
 /** Draw every live entity hitbox. */
 void graphics_hit_boxes_draw(void);
 
-/** Load a texture from a descriptor. */
+/** Load or share a texture and return one caller-owned reference. */
 TextureAssetResult graphics_texture_load(TextureDescriptor text_desc);
+/** Add one owning reference to a loaded texture asset. */
+EngineResult graphics_texture_retain(TextureAsset asset);
+/**
+ * Release one owning reference and clear the caller's asset value. Copying a
+ * TextureAsset does not retain it; explicitly retain every independently
+ * owned copy.
+ */
+EngineResult graphics_texture_release(TextureAsset *asset);
+/** Return whether a texture asset currently names a live owned resource. */
+bool graphics_texture_valid_check(TextureAsset asset);
 void graphics_texture_draw(TextureAsset texture, Position position,
     Orientation orientation);
 void graphics_screen_texture_draw(TextureAsset texture, Position center,
@@ -538,8 +552,10 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
 bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
-/** Load an animation from texture descriptors. */
+/** Load a caller-owned animation value and its shared frame references. */
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);
+/** Release the texture references owned by a value-based animation asset. */
+void graphics_animation_destroy(AnimationAsset *asset);
 
 /** Create sprite runtime state from an animation asset. */
 AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale);

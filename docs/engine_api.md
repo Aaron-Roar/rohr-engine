@@ -2784,13 +2784,39 @@ EngineResult rohr_graphics_soft_body_area_color_set( Entity soft_body, Entity no
 TextureAssetResult rohr_graphics_texture_load(TextureDescriptor text_desc);
 ```
 
-Loads a texture asset.
+Loads or shares a texture and returns one caller-owned reference.
 
 | Parameter | Description |
 | --- | --- |
 | `text_desc` | Texture descriptor containing load settings. |
 
 **Returns:** TextureAssetResult containing the asset, or an error.
+
+### `rohr_graphics_texture_retain`
+
+```c
+EngineResult rohr_graphics_texture_retain(TextureAsset asset);
+```
+
+ @brief Adds one owning reference to a loaded texture asset.
+
+### `rohr_graphics_texture_release`
+
+```c
+EngineResult rohr_graphics_texture_release(TextureAsset *asset);
+```
+
+Releases one owning reference and clears the asset value.
+
+Copying a TextureAsset does not retain it; retain independently owned copies.
+
+### `rohr_graphics_texture_valid_check`
+
+```c
+bool rohr_graphics_texture_valid_check(TextureAsset asset);
+```
+
+ @brief Returns whether a texture asset names a live resource.
 
 ### `rohr_graphics_texture_draw`
 
@@ -2854,13 +2880,21 @@ bool rohr_graphics_text_draw(const TextAsset *text, Position position);
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 ```
 
-Loads an animation asset.
+Loads a caller-owned animation and its shared frame references.
 
 | Parameter | Description |
 | --- | --- |
 | `anim_desc` | Animation descriptor containing load settings. |
 
 **Returns:** AnimationAssetResult containing the asset, or an error.
+
+### `rohr_graphics_animation_destroy`
+
+```c
+void rohr_graphics_animation_destroy(AnimationAsset *asset);
+```
+
+ @brief Releases the texture references owned by an animation asset value.
 
 ### `rohr_graphics_animated_sprite_create`
 

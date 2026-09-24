@@ -13,6 +13,7 @@
 #include "core/platform_process.h"
 #include "window_presentation.h"
 #include "graphics_layer_order.h"
+#include "graphics/texture_assets.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,8 @@ typedef struct GraphicsCommand {
         } shape;
         struct { TTF_Text *text; Position position; Scale scale; } text;
         struct {
-            SDL_Texture *texture;
+            SDL_Texture *unmanaged_texture;
+            TextureHandle asset;
             SDL_FRect destination;
             SDL_FPoint center;
             double degrees;
@@ -229,6 +231,7 @@ static ViewportItemId graphics_viewport_item_next_id = 1;
 static ScreenId drawing_screen = SCREEN_INVALID;
 static CameraId camera_before_screen = CAMERA_INVALID;
 EngineResult graphics_screen_destroy(ScreenId id);
+static void graphics_commands_discard(void);
 
 static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
     GraphicsLayer *layer = NULL;
@@ -631,6 +634,9 @@ EngineResult graphics_tables_init(void) {
     camera_before_screen = CAMERA_INVALID;
     graphics_aabb_tree_debug_enabled = false;
     graphics_contacts_debug_enabled = false;
+    if(graphics_texture_assets_init().kind == ERROR_RESULT_ERROR) {
+        return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
+    }
     if(AnimatedSpritePool_init(&animated_sprites_pool, 0).kind == ERROR_RESULT_ERROR) {
         graphics_tables_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
@@ -671,8 +677,46 @@ EngineResult graphics_tables_ensure_capacity(size_t capacity) {
 }
 
 void graphics_tables_destroy(void) {
+    for(size_t i = 0; i < sprites_pool.capacity; i += 1) {
+        if(sprites_pool.used[i])
+            (void)graphics_texture_release(&sprite_components[i].texture);
+    }
+    for(size_t i = 0; i < animated_sprites_pool.capacity; i += 1) {
+        if(animated_sprites_pool.used[i])
+            graphics_animation_destroy(&animated_sprites[i].animation);
+    }
     (void)AnimatedSpritePool_destroy(&animated_sprites_pool);
     (void)SpritePool_destroy(&sprites_pool);
+    graphics_texture_assets_destroy();
+}
+
+void graphics_entity_components_clear(EntityIndex index, RohrComponentMask mask) {
+    if((mask & ROHR_SPRITE) != 0 && index < sprites_pool.capacity &&
+            sprites_pool.used[index]) {
+        (void)graphics_texture_release(&sprite_components[index].texture);
+        (void)SpritePool_release_at(&sprites_pool, index);
+        if(index < MAX_ENTITIES)
+            graphics_sprite_layer_bindings[index] =
+                (GraphicsEntityLayerBinding){0};
+    }
+    if((mask & ROHR_ANIMATED_SPRITE) != 0 &&
+            index < animated_sprites_pool.capacity &&
+            animated_sprites_pool.used[index]) {
+        graphics_animation_destroy(&animated_sprites[index].animation);
+        (void)AnimatedSpritePool_release_at(&animated_sprites_pool, index);
+        if(index < MAX_ENTITIES)
+            graphics_animation_layer_bindings[index] =
+                (GraphicsEntityLayerBinding){0};
+    }
+}
+
+void graphics_entity_clear(EntityIndex index) {
+    graphics_entity_components_clear(index,
+        ROHR_SPRITE | ROHR_ANIMATED_SPRITE);
+    if(index < MAX_ENTITIES) {
+        graphics_entity_layer_bindings[index] =
+            (GraphicsEntityLayerBinding){0};
+    }
 }
 
 bool graphics_recording_start(const char *output_path, int fps) {
@@ -2703,6 +2747,7 @@ EngineResult graphics_start(void) {
         return error_result_error_detail(ERROR_ENGINE_GRAPHICS_INIT_FAILED,
             detail);
     }
+    graphics_texture_assets_renderer_set(sdl_renderer);
     (void)graphics_camera_active_set(active_camera);
 
     console_write(LOG_ENGINE, "Graphics initialization complete\n");
@@ -2712,6 +2757,8 @@ EngineResult graphics_start(void) {
 
 void graphics_renderer_end(void) {
     size_t screen_slot;
+    graphics_commands_discard();
+    graphics_texture_assets_clear();
     for(screen_slot = 0; screen_slot < MAX_SCREENS; screen_slot += 1) {
         if(screens_used[screen_slot]) {
             SDL_DestroyTexture(screens[screen_slot].texture);
@@ -2732,6 +2779,7 @@ void graphics_renderer_end(void) {
     }
     SDL_DestroyRenderer(sdl_renderer);
     sdl_renderer = NULL;
+    graphics_texture_assets_renderer_set(NULL);
     graphics_vsync_enabled = true;
     graphics_frame_limit = 0;
     graphics_frame_start_ns = 0;
@@ -3612,6 +3660,27 @@ static void graphics_viewports_draw(void) {
     (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
 }
 
+static void graphics_commands_discard(void) {
+    for(size_t layer_index = 0; layer_index < graphics_layer_count;
+            layer_index += 1) {
+        GraphicsLayer *layer = &graphics_layers[layer_index];
+        for(size_t command_index = 0; command_index < layer->count;
+                command_index += 1) {
+            GraphicsCommand *command = &layer->commands[command_index];
+            if(command->type == GRAPHICS_COMMAND_TEXTURE &&
+                    command->data.texture.asset != TEXTURE_HANDLE_INVALID)
+                graphics_texture_command_reference_remove(
+                    command->data.texture.asset);
+        }
+        layer->count = 0;
+    }
+    graphics_layer_count = 0;
+    graphics_active_layer = 0;
+    graphics_active_layer_index = SIZE_MAX;
+    graphics_clip_state = (GraphicsClipState){0};
+    graphics_clip_stack_count = 0;
+}
+
 static void graphics_commands_execute(void) {
     ScreenId target = UINT32_MAX;
     GraphicsClipState clip = {0};
@@ -3720,13 +3789,23 @@ static void graphics_commands_execute(void) {
                         command->data.text.position.y / command->data.text.scale.y);
                     (void)SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f);
                     break;
-                case GRAPHICS_COMMAND_TEXTURE:
-                    (void)SDL_RenderTextureRotated(
-                        sdl_renderer, command->data.texture.texture, NULL,
-                        &command->data.texture.destination,
-                        command->data.texture.degrees, &command->data.texture.center,
-                        command->data.texture.flip);
+                case GRAPHICS_COMMAND_TEXTURE: {
+                    SDL_Texture *texture = command->data.texture.asset !=
+                            TEXTURE_HANDLE_INVALID
+                        ? graphics_texture_native_get(command->data.texture.asset)
+                        : command->data.texture.unmanaged_texture;
+                    if(texture != NULL)
+                        (void)SDL_RenderTextureRotated(
+                            sdl_renderer, texture, NULL,
+                            &command->data.texture.destination,
+                            command->data.texture.degrees,
+                            &command->data.texture.center,
+                            command->data.texture.flip);
+                    if(command->data.texture.asset != TEXTURE_HANDLE_INVALID)
+                        graphics_texture_command_reference_remove(
+                            command->data.texture.asset);
                     break;
+                }
             }
         }
     }
@@ -3956,33 +4035,6 @@ void graphics_particles_draw(void) {
     }
   }
 }
-TextureAssetResult graphics_texture_load(TextureDescriptor text_desc) {
-        SDL_Surface *surface = NULL;
-        char *png_path = NULL;
-        TextureAsset asset = {0};
-        asset.size = (Scale){
-            .x = text_desc.size.x,
-            .y = text_desc.size.y,
-        };
-
-        SDL_asprintf(&png_path, "%s", text_desc.file);
-        surface = SDL_LoadPNG(png_path);
-        SDL_free(png_path);
-        if(surface == NULL) {
-            error_detail_set(ERROR_ENGINE_TEXTURE_LOAD_FAILED, SDL_GetError());
-            return ERROR_RESULT_MAKE_ERROR(TextureAssetResult, ERROR_ENGINE_TEXTURE_LOAD_FAILED);
-        }
-
-        asset.texture = SDL_CreateTextureFromSurface(sdl_renderer, surface);
-        SDL_DestroySurface(surface);  /* done with this, the texture has a copy of the pixels now. */
-        if(asset.texture == NULL) {
-            error_detail_set(ERROR_ENGINE_TEXTURE_LOAD_FAILED, SDL_GetError());
-            return ERROR_RESULT_MAKE_ERROR(TextureAssetResult, ERROR_ENGINE_TEXTURE_LOAD_FAILED);
-        }
-
-        return ERROR_RESULT_MAKE_VALUE(TextureAssetResult, asset);
-}
-
 FontAssetResult graphics_font_load(FontDescriptor descriptor) {
     FontAsset asset = {0};
     char detail[256];
@@ -4168,7 +4220,7 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
         if(text->texture == NULL) return true;
         command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
         if(command == NULL) return false;
-        command->data.texture.texture = text->texture;
+        command->data.texture.unmanaged_texture = text->texture;
         command->data.texture.destination = (SDL_FRect){position.x, position.y,
             text->size.x * scale.x, text->size.y * scale.y};
         command->data.texture.center = (SDL_FPoint){0};
@@ -4191,7 +4243,7 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
             scale.y <= 0.0f) return false;
     command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
     if(command == NULL) return false;
-    command->data.texture.texture = text->texture;
+    command->data.texture.unmanaged_texture = text->texture;
     command->data.texture.destination = (SDL_FRect){
         center.x - text->size.x * scale.x * 0.5f,
         center.y - text->size.y * scale.y * 0.5f,
@@ -4206,21 +4258,50 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
 
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc) {
     AnimationAsset asset = {0};
+    if(anim_desc.amount_of_descriptors > MAX_ANIMATIONS_FRAMES)
+        return ERROR_RESULT_MAKE_ERROR(
+            AnimationAssetResult, ERROR_ENGINE_ANIMATION_LOAD_FAILED);
     asset.id = 1;
-    asset.texture_list.amount = anim_desc.amount_of_descriptors;
     asset.ticks_per_frame = anim_desc.ticks_per_frame;
     asset.time_per_frame = anim_desc.time_per_frame;
 
     for(int i = 0; i < anim_desc.amount_of_descriptors; i += 1) {
         TextureAssetResult texture_result = graphics_texture_load(anim_desc.texture_descriptors[i]);
         if(texture_result.kind == ERROR_RESULT_ERROR) {
+            graphics_animation_destroy(&asset);
             return ERROR_RESULT_MAKE_ERROR(AnimationAssetResult, texture_result.result.error);
         }
         asset.texture_list.textures[i] = texture_result.result.value;
         asset.texture_list.frame_ids[i] = (AnimationFrameId)i + 1;
+        asset.texture_list.amount += 1;
     }
 
     return ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, asset);
+}
+
+void graphics_animation_destroy(AnimationAsset *asset) {
+    if(asset == NULL) return;
+    for(int i = 0; i < asset->texture_list.amount; i += 1)
+        (void)graphics_texture_release(&asset->texture_list.textures[i]);
+    *asset = (AnimationAsset){0};
+}
+
+static EngineResult graphics_animation_textures_retain(AnimationAsset asset) {
+    for(int i = 0; i < asset.texture_list.amount; i += 1) {
+        if(asset.texture_list.textures[i].handle == TEXTURE_HANDLE_INVALID)
+            continue;
+        EngineResult result = graphics_texture_retain(
+            asset.texture_list.textures[i]);
+        if(result.kind == ERROR_RESULT_ERROR) {
+            for(int release = 0; release < i; release += 1) {
+                TextureAsset texture = asset.texture_list.textures[release];
+                if(texture.handle != TEXTURE_HANDLE_INVALID)
+                    (void)graphics_texture_release(&texture);
+            }
+            return result;
+        }
+    }
+    return error_result_value(true);
 }
 
 AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) {
@@ -4274,9 +4355,14 @@ static void graphics_texture_draw_flipped(TextureAsset texture_asset, Position p
         .y = dst_rect.h * 0.5f
     };
     double degrees = -(double)(ort - camera.orientation) * 180.0 / (double)PI_F;
-    GraphicsCommand *command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
-    if(command == NULL) return;
-    command->data.texture.texture = texture_asset.texture;
+    GraphicsCommand *command;
+    if(!graphics_texture_command_reference_add(texture_asset.handle)) return;
+    command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
+    if(command == NULL) {
+        graphics_texture_command_reference_remove(texture_asset.handle);
+        return;
+    }
+    command->data.texture.asset = texture_asset.handle;
     command->data.texture.destination = dst_rect;
     command->data.texture.center = center;
     command->data.texture.degrees = degrees;
@@ -4294,10 +4380,14 @@ void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
         center.y - size.y * 0.5f, size.x, size.y};
     SDL_FPoint rotation_center = {size.x * 0.5f, size.y * 0.5f};
 
-    if(texture_asset.texture == NULL || size.x <= 0.0f || size.y <= 0.0f) return;
+    if(size.x <= 0.0f || size.y <= 0.0f ||
+            !graphics_texture_command_reference_add(texture_asset.handle)) return;
     command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
-    if(command == NULL) return;
-    command->data.texture.texture = texture_asset.texture;
+    if(command == NULL) {
+        graphics_texture_command_reference_remove(texture_asset.handle);
+        return;
+    }
+    command->data.texture.asset = texture_asset.handle;
     command->data.texture.destination = destination;
     command->data.texture.center = rotation_center;
     command->data.texture.degrees = -(double)orientation * 180.0 / (double)PI_F;
@@ -4323,11 +4413,33 @@ Sprite graphics_sprite_create(TextureAsset asset, Scale scale) {
 EngineResult graphics_sprite_add(Entity entity, Sprite sprite) {
     EntityIndex index;
     EngineResult result;
+    bool replacing;
+    Sprite previous = {0};
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
-    (void)SpritePool_store_at(&sprites_pool, index, sprite);
+    if(sprite.texture.handle != TEXTURE_HANDLE_INVALID) {
+        result = graphics_texture_retain(sprite.texture);
+        if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
+    replacing = index < sprites_pool.capacity && sprites_pool.used[index];
+    if(replacing) previous = sprite_components[index];
+    if(SpritePool_store_at(&sprites_pool, index, sprite).kind ==
+            ERROR_RESULT_ERROR) {
+        if(sprite.texture.handle != TEXTURE_HANDLE_INVALID)
+            (void)graphics_texture_release(&sprite.texture);
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    }
     result = entity_components_add(entity, ROHR_SPRITE);
-    return result.kind == ERROR_RESULT_ERROR ? result : error_result_value(true);
+    if(result.kind == ERROR_RESULT_ERROR) {
+        if(replacing) (void)SpritePool_store_at(&sprites_pool, index, previous);
+        else (void)SpritePool_release_at(&sprites_pool, index);
+        if(sprite.texture.handle != TEXTURE_HANDLE_INVALID)
+            (void)graphics_texture_release(&sprite.texture);
+        return result;
+    }
+    if(replacing && previous.texture.handle != TEXTURE_HANDLE_INVALID)
+        (void)graphics_texture_release(&previous.texture);
+    return error_result_value(true);
 }
 
 EngineResult graphics_sprite_body_offset_set(Entity entity, Position offset) {
@@ -4426,15 +4538,32 @@ void graphics_sprites_draw(void) {
 EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) {
     EntityIndex index;
     EngineResult result;
+    bool replacing;
+    AnimatedSprite previous = {0};
 
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     }
-    (void)AnimatedSpritePool_store_at(&animated_sprites_pool, index, sprite);
+    result = graphics_animation_textures_retain(sprite.animation);
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    replacing = index < animated_sprites_pool.capacity &&
+        animated_sprites_pool.used[index];
+    if(replacing) previous = animated_sprites[index];
+    if(AnimatedSpritePool_store_at(&animated_sprites_pool, index, sprite).kind ==
+            ERROR_RESULT_ERROR) {
+        graphics_animation_destroy(&sprite.animation);
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    }
     result = entity_components_add(entity, ROHR_ANIMATED_SPRITE);
     if(result.kind == ERROR_RESULT_ERROR) {
+        if(replacing)
+            (void)AnimatedSpritePool_store_at(
+                &animated_sprites_pool, index, previous);
+        else (void)AnimatedSpritePool_release_at(&animated_sprites_pool, index);
+        graphics_animation_destroy(&sprite.animation);
         return result;
     }
+    if(replacing) graphics_animation_destroy(&previous.animation);
     return error_result_value(true);
 }
 

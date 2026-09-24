@@ -62,7 +62,9 @@ items; when they conflict with this order, follow this list.
 2. **Asset and resource ownership** — Define handles, sharing, caching,
    reference/lifetime rules, failure cleanup, and destruction for textures,
    sounds, animations, fonts, and other shared resources before expanding
-   asset-heavy features.
+   asset-heavy features. Texture resources now have generation-checked handles,
+   resolved-path sharing, explicit references, deferred draw-command lifetime,
+   and shutdown cleanup; shared animation handles and playback separation remain.
 3. **COM, inertia, and origin semantics** — Specify and implement the exact
    relationship between entity origin, collision geometry, center of mass,
    moment of inertia, torque, forces, and joint anchors. Preserve automatic
@@ -215,8 +217,9 @@ semantics are stable.
 
 These runtime foundations should precede broad asset-heavy example authoring.
 
-- Add engine-owned texture and animation handles with explicit sharing,
-  unloading, failure cleanup, and shutdown behavior.
+- Engine-owned texture handles now provide explicit sharing, unloading, failure
+  cleanup, deferred command lifetime, and shutdown behavior. Add equivalent
+  animation handles and separate immutable animation data from playback state.
 - The SDL-backed audio API is complete for in-memory WAV sounds and one
   streamed Ogg Vorbis music track, including looping, mixing, volume, playback
   rate, pause/freeze behavior, and explicit destruction.

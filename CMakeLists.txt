@@ -171,6 +171,7 @@ set(ROHR_ENGINE_SOURCES
     src/entity/entity_components.c
     src/entity/entity_pair_set.c
     src/graphics/graphics.c
+    src/graphics/texture_assets.c
     src/graphics/graphics_layer_order.c
     src/graphics/window_presentation.c
     src/graphics/ui.c
@@ -454,6 +455,12 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME window_presentation COMMAND window_presentation_test)
 
+    add_executable(texture_assets_test tests/texture_assets.c)
+    target_link_libraries(texture_assets_test PRIVATE rohr_engine)
+    set_target_properties(texture_assets_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME texture_assets COMMAND texture_assets_test)
+
     add_executable(timing_test tests/timing.c)
     target_link_libraries(timing_test PRIVATE rohr_engine)
     set_target_properties(timing_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -628,6 +635,7 @@ if(ROHR_BUILD_TESTS)
         ui_instance_isolation
         graphics_layer_order
         window_presentation
+        texture_assets
         timing
         ui_field
         ui_dropdown
@@ -657,6 +665,7 @@ if(ROHR_BUILD_TESTS)
         ui_instance_isolation_test
         graphics_layer_order_test
         window_presentation_test
+        texture_assets_test
         timing_test
         ui_field_test
         ui_dropdown_test

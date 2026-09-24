@@ -106,6 +106,9 @@ void game_state_runtime_reset(void) {
             document_index += 1) {
         yyjson_doc_free(state_template_documents[document_index]);
     }
+    for(size_t animation_index = 0;
+            animation_index < state_animation_count; animation_index += 1)
+        graphics_animation_destroy(&state_animations[animation_index].asset);
     memset(state_animations, 0, sizeof(state_animations));
     memset(state_sprite_references, 0, sizeof(state_sprite_references));
     memset(state_ui_buttons, 0, sizeof(state_ui_buttons));
@@ -1908,6 +1911,8 @@ cleanup:
     if(result.kind == ERROR_RESULT_ERROR) {
         while(state_animation_count > initial_animation_count) {
             state_animation_count -= 1;
+            graphics_animation_destroy(
+                &state_animations[state_animation_count].asset);
             state_animations[state_animation_count] = (StateAnimation){0};
         }
     }

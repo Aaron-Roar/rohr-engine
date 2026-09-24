@@ -129,6 +129,7 @@ int main(void) {
     animation_elderfly = animation_result.result.value;
     sprite_elderfly = rohr_graphics_animated_sprite_create(animation_elderfly, (Scale){10,10});
     rohr_graphics_animated_sprite_add(water_smash, sprite_elderfly);
+    rohr_graphics_animation_destroy(&animation_elderfly);
     if(!example_viewport_create(render_scene, NULL, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
@@ -206,6 +207,7 @@ int main(void) {
     return 0;
 
 fail:
+    rohr_graphics_animation_destroy(&animation_elderfly);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);

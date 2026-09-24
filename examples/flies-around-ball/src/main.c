@@ -158,6 +158,7 @@ int main(void) {
         rohr_graphics_animated_sprite_add(small_fly, sprite);
         rohr_entity_components_add(small_fly, ROHR_PARTICLE);
     }
+    rohr_graphics_animation_destroy(&animation);
 
     ChildrenResult children_result = rohr_entity_children_get(ball);
     if(rohr_error_check(children_result)) {
@@ -255,6 +256,7 @@ int main(void) {
     return 0;
 
 fail:
+    rohr_graphics_animation_destroy(&animation);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
