@@ -2880,7 +2880,7 @@ bool rohr_graphics_text_draw(const TextAsset *text, Position position);
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 ```
 
-Loads a caller-owned animation and its shared frame references.
+Loads or shares an immutable animation resource.
 
 | Parameter | Description |
 | --- | --- |
@@ -2888,13 +2888,67 @@ Loads a caller-owned animation and its shared frame references.
 
 **Returns:** AnimationAssetResult containing the asset, or an error.
 
-### `rohr_graphics_animation_destroy`
+### `rohr_graphics_animation_retain`
 
 ```c
-void rohr_graphics_animation_destroy(AnimationAsset *asset);
+EngineResult rohr_graphics_animation_retain(AnimationAsset asset);
 ```
 
- @brief Releases the texture references owned by an animation asset value.
+ @brief Adds one owning reference to a loaded animation asset.
+
+### `rohr_graphics_animation_release`
+
+```c
+EngineResult rohr_graphics_animation_release(AnimationAsset *asset);
+```
+
+Releases one owning reference and clears the animation asset.
+
+Copying an AnimationAsset does not retain it; retain independently owned
+
+copies explicitly.
+
+### `rohr_graphics_animation_valid_check`
+
+```c
+bool rohr_graphics_animation_valid_check(AnimationAsset asset);
+```
+
+ @brief Returns whether an animation asset names a live resource.
+
+### `rohr_graphics_animation_info_get`
+
+```c
+AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
+```
+
+ @brief Returns immutable metadata for a loaded animation.
+
+### `rohr_graphics_animation_frame_get`
+
+```c
+AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index);
+```
+
+ @brief Returns one immutable frame with a borrowed texture value.
+
+### `rohr_graphics_animation_player_create`
+
+```c
+AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset);
+```
+
+Creates independent mutable playback state for an animation.
+
+The player borrows the animation; its owner must keep the asset alive.
+
+### `rohr_graphics_animation_player_update`
+
+```c
+void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current_tick, Time current_time);
+```
+
+ @brief Advances one animation player's frame state.
 
 ### `rohr_graphics_animated_sprite_create`
 

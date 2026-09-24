@@ -154,11 +154,11 @@ int main(void) {
             goto fail;
         }
         sprite = rohr_graphics_animated_sprite_create(animation, (Scale){size/10, size/10});
-        sprite.animation.time_per_frame = rohr_tools_random_range_float(0.005, 0.5);
+        sprite.player.time_per_frame = rohr_tools_random_range_float(0.005, 0.5);
         rohr_graphics_animated_sprite_add(small_fly, sprite);
         rohr_entity_components_add(small_fly, ROHR_PARTICLE);
     }
-    rohr_graphics_animation_destroy(&animation);
+    (void)rohr_graphics_animation_release(&animation);
 
     ChildrenResult children_result = rohr_entity_children_get(ball);
     if(rohr_error_check(children_result)) {
@@ -256,7 +256,7 @@ int main(void) {
     return 0;
 
 fail:
-    rohr_graphics_animation_destroy(&animation);
+    (void)rohr_graphics_animation_release(&animation);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);

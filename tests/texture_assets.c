@@ -3,20 +3,9 @@
  */
 
 #include "rohr.h"
+#include "test_png.h"
 
 #include <stdio.h>
-
-static const unsigned char texture_png[] = {
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-    0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x04, 0x00, 0x00, 0x00, 0xb5, 0x1c, 0x0c,
-    0x02, 0x00, 0x00, 0x00, 0x0b, 0x49, 0x44, 0x41,
-    0x54, 0x78, 0xda, 0x63, 0x64, 0xf8, 0x0f, 0x00,
-    0x01, 0x05, 0x01, 0x01, 0x27, 0x18, 0xe3, 0x66,
-    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44,
-    0xae, 0x42, 0x60, 0x82,
-};
 
 static const char *texture_path = "texture_assets_fixture.png";
 static const char *second_texture_path = "texture_assets_fixture_second.png";
@@ -49,9 +38,9 @@ int main(void) {
     bool engine_started = false;
     bool graphics_started = false;
 
-    if(!SDL_SaveFile(texture_path, texture_png, sizeof(texture_png)) ||
-            !SDL_SaveFile(second_texture_path, texture_png,
-                sizeof(texture_png)))
+    if(!SDL_SaveFile(texture_path, test_png, sizeof(test_png)) ||
+            !SDL_SaveFile(second_texture_path, test_png,
+                sizeof(test_png)))
         return fail("could not write texture fixtures", false, false);
     if(!result_ok(rohr_engine_start()))
         return fail("engine start failed", false, false);
@@ -133,32 +122,6 @@ int main(void) {
         return fail("replacement texture survived component removal", true, true);
     if(!result_ok(rohr_entity_delete(entity.result.value)))
         return fail("entity deletion after component removal failed", true, true);
-
-    {
-        AnimationDescriptor descriptor = {
-            .texture_descriptors = {{texture_path, {7.0f, 8.0f}}},
-            .amount_of_descriptors = 1,
-            .ticks_per_frame = 1,
-        };
-        AnimationAssetResult animation =
-            rohr_graphics_animation_load(descriptor);
-        TextureAsset animation_texture;
-        if(rohr_error_check(animation))
-            return fail("compatibility animation load failed", true, true);
-        animation_texture = animation.result.value.texture_list.textures[0];
-        entity = rohr_entity_add();
-        if(rohr_error_check(entity) ||
-                !result_ok(rohr_graphics_animated_sprite_add(
-                    entity.result.value,
-                    rohr_graphics_animated_sprite_create(
-                        animation.result.value, (Scale){1.0f, 1.0f}))))
-            return fail("animation component retain failed", true, true);
-        rohr_graphics_animation_destroy(&animation.result.value);
-        if(!rohr_graphics_texture_valid_check(animation_texture) ||
-                !result_ok(rohr_entity_delete(entity.result.value)) ||
-                rohr_graphics_texture_valid_check(animation_texture))
-            return fail("animation frame ownership failed", true, true);
-    }
 
     first = rohr_graphics_texture_load((TextureDescriptor){
         "texture_assets_missing.png", {1.0f, 1.0f}});

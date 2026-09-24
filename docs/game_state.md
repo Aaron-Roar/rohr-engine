@@ -229,15 +229,20 @@ Supported value keys are:
 
 Animations are named once in the top-level asset catalog. State loading must
 occur after `rohr_graphics_start()` when a file contains animation assets, because
-the engine creates SDL textures while connecting the state.
+the engine creates SDL textures while connecting the state. Animation and frame
+`id` values are stable unsigned project identities used by cross-system bindings.
+Legacy definitions may omit them; animations then use their one-based catalog
+position and frames use their one-based frame position.
 
 ```json
 "assets": {
   "animations": [{
     "name": "elderfly_flying",
+    "id": 1,
     "ticks_per_frame": 0,
     "time_per_frame": 0.05,
     "frames": [{
+      "id": 1,
       "file": "assets/elderfly/flying/f1.png",
       "size": {"x": 50, "y": 50}
     }]

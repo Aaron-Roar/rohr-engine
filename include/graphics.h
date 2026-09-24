@@ -20,6 +20,7 @@
 #define MAX_TEXTURES 50
 #define MAX_ANIMATIONS_FRAMES 20
 #define MAX_TEXTURE_ASSETS 1024
+#define MAX_ANIMATION_ASSETS 1024
 #define MAX_ANIMATION_SETS 10
 #define MAX_CAMERAS 16
 #define MAX_SCREENS 16
@@ -259,8 +260,12 @@ typedef struct {
 
 /** Descriptor for loading an animation from texture descriptors. */
 typedef struct {
+  /** Stable project identity. Zero selects the compatibility default of one. */
+  AnimationId id;
   /** Texture descriptors for each animation frame. */
   TextureDescriptor texture_descriptors[MAX_ANIMATIONS_FRAMES];
+  /** Stable frame IDs. Zero entries default to their one-based frame index. */
+  AnimationFrameId frame_ids[MAX_ANIMATIONS_FRAMES];
   /** Number of valid descriptors. */
   uint8_t amount_of_descriptors;
   /** Frame duration measured in engine ticks. */
@@ -323,30 +328,51 @@ typedef struct TextAsset {
 /** Result type for functions that return a TextAsset. */
 ERROR_DECLARE_RESULT_TYPE(TextAssetResult, TextAsset);
 
-/** Fixed list of loaded textures for an animation. */
-typedef struct {
-    /** Loaded texture assets. */
-    TextureAsset textures[MAX_TEXTURES];
-    /** Stable IDs parallel to textures. */
-    AnimationFrameId frame_ids[MAX_TEXTURES];
-    /** Number of valid textures. */
-    int amount;
-} TextureList;
+/** Generation-checked handle for an engine-owned animation resource. */
+typedef uint32_t AnimationHandle;
 
-/** Loaded animation asset. */
+/** Invalid animation-resource handle. */
+#define ANIMATION_HANDLE_INVALID UINT32_C(0)
+
+/**
+ * Opaque shared animation resource. Copying this value does not retain it;
+ * explicitly retain every independently owned copy.
+ */
 typedef struct {
-    /** Stable animation identity used by independent adapter systems. */
-    AnimationId id;
-    /** Textures used as animation frames. */
-    TextureList texture_list;
-    /** Frame duration measured in engine ticks. */
-    Tick ticks_per_frame;
-    /** Frame duration measured in engine time. */
-    Time time_per_frame;
+    AnimationHandle handle;
 } AnimationAsset;
+
+/** Immutable animation metadata. */
+typedef struct {
+    AnimationId id;
+    size_t frame_count;
+    Tick ticks_per_frame;
+    Time time_per_frame;
+} AnimationInfo;
+
+/** One immutable animation frame. The texture value is borrowed. */
+typedef struct {
+    AnimationFrameId id;
+    TextureAsset texture;
+} AnimationFrame;
 
 /** Result type for functions that return an AnimationAsset. */
 ERROR_DECLARE_RESULT_TYPE(AnimationAssetResult, AnimationAsset);
+ERROR_DECLARE_RESULT_TYPE(AnimationInfoResult, AnimationInfo);
+ERROR_DECLARE_RESULT_TYPE(AnimationFrameResult, AnimationFrame);
+
+/**
+ * Mutable playback state owned independently by each consumer. Creating a
+ * player does not retain its animation; its owner must keep the asset alive.
+ */
+typedef struct AnimationPlayer {
+    AnimationAsset animation;
+    size_t frame_index;
+    Tick last_update_tick;
+    Time last_update_time;
+    Tick ticks_per_frame;
+    Time time_per_frame;
+} AnimationPlayer;
 
 /** Horizontal facing direction for sprite drawing. */
 typedef enum {DIRECTION_LEFT, DIRECTION_RIGHT} Direction;
@@ -368,14 +394,8 @@ extern SpritePool sprites_pool;
 
 /** Runtime animated sprite state. */
 typedef struct {
-    /** Animation asset used by this sprite. */
-    AnimationAsset animation;
-    /** Current animation frame index. */
-    int animation_frame;
-    /** Tick when the frame last advanced. */
-    Tick last_update_tick;
-    /** Time when the frame last advanced. */
-    Time last_update_time;
+    /** Per-sprite playback state for a shared animation asset. */
+    AnimationPlayer player;
     /** Current draw direction. */
     Direction direction;
     /** Draw scale. */
@@ -552,10 +572,25 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
 bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
-/** Load a caller-owned animation value and its shared frame references. */
+/** Load or share an immutable animation and return one owning reference. */
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);
-/** Release the texture references owned by a value-based animation asset. */
-void graphics_animation_destroy(AnimationAsset *asset);
+/** Add one owning reference to a loaded animation asset. */
+EngineResult graphics_animation_retain(AnimationAsset asset);
+/** Release one owning reference and clear the caller's asset value. */
+EngineResult graphics_animation_release(AnimationAsset *asset);
+/** Return whether an animation asset names a live owned resource. */
+bool graphics_animation_valid_check(AnimationAsset asset);
+/** Return immutable metadata stored for an animation asset. */
+AnimationInfoResult graphics_animation_info_get(AnimationAsset asset);
+/** Return one immutable frame whose texture value is borrowed. */
+AnimationFrameResult graphics_animation_frame_get(AnimationAsset asset,
+    size_t frame_index);
+
+/** Create independent mutable playback state for a shared animation. */
+AnimationPlayer graphics_animation_player_create(AnimationAsset asset);
+/** Advance one player's frame state. */
+void graphics_animation_player_update(AnimationPlayer *player,
+    Tick current_tick, Time current_time);
 
 /** Create sprite runtime state from an animation asset. */
 AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale);

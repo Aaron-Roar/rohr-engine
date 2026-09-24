@@ -170,6 +170,7 @@ set(ROHR_ENGINE_SOURCES
     src/core/systems.c
     src/entity/entity_components.c
     src/entity/entity_pair_set.c
+    src/graphics/animation_assets.c
     src/graphics/graphics.c
     src/graphics/texture_assets.c
     src/graphics/graphics_layer_order.c
@@ -461,6 +462,12 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME texture_assets COMMAND texture_assets_test)
 
+    add_executable(animation_assets_test tests/animation_assets.c)
+    target_link_libraries(animation_assets_test PRIVATE rohr_engine)
+    set_target_properties(animation_assets_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME animation_assets COMMAND animation_assets_test)
+
     add_executable(timing_test tests/timing.c)
     target_link_libraries(timing_test PRIVATE rohr_engine)
     set_target_properties(timing_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -636,6 +643,7 @@ if(ROHR_BUILD_TESTS)
         graphics_layer_order
         window_presentation
         texture_assets
+        animation_assets
         timing
         ui_field
         ui_dropdown
@@ -643,6 +651,7 @@ if(ROHR_BUILD_TESTS)
         soft_body
         collision_sensor
         particle_collision_mode
+        hitbox_animation_binding
         entity_pair_set
         aabb_tree
         physics_interaction_set
@@ -666,6 +675,7 @@ if(ROHR_BUILD_TESTS)
         graphics_layer_order_test
         window_presentation_test
         texture_assets_test
+        animation_assets_test
         timing_test
         ui_field_test
         ui_dropdown_test
@@ -673,6 +683,7 @@ if(ROHR_BUILD_TESTS)
         soft_body_test
         collision_sensor_test
         particle_collision_mode_test
+        hitbox_animation_binding_test
         entity_pair_set_test
         aabb_tree_test
         physics_interaction_set_test

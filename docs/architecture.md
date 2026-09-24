@@ -91,11 +91,20 @@ through command execution, and graphics shutdown invalidates all remaining
 handles. Copying a `TextureAsset` value does not create a new owning reference;
 call `rohr_graphics_texture_retain` for every independently owned copy.
 
-Animations remain value-based during the texture-ownership migration. Their
-frame textures follow the same reference rules, and callers release a loaded
-animation value with `rohr_graphics_animation_destroy`. A later animation asset
-milestone will replace these copied values with shared animation handles and
-separate playback state.
+Animations are immutable registry resources addressed through generation-checked
+`AnimationAsset` handles. Identical definitions share ordered frame textures,
+stable project and frame IDs, and default frame timing. The registry owns its
+frame-texture references until the final animation reference is released.
+Callers explicitly retain and release independently owned animation handles;
+animated-sprite components retain their own references and entity/component
+deletion releases them.
+
+Mutable playback lives in `AnimationPlayer`, separate from shared animation
+data. Every animated sprite has an independent frame index, update timestamps,
+and effective tick/time durations initialized from the asset defaults. Gameplay
+may vary player timing without changing other users of the shared animation.
+Queued frame drawing remains safe after an animation is released because the
+texture command owns a deferred texture reference through execution.
 
 The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same

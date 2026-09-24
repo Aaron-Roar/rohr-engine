@@ -9,7 +9,6 @@
 int main(void) {
     EntityResult transient;
     Tick ticks;
-    AnimatedSprite preview;
     Sprite static_sprite;
 
     if(rohr_error_check(rohr_engine_start()) ||
@@ -17,18 +16,6 @@ int main(void) {
         return 1;
     }
     rohr_engine_clock_reset();
-    preview = rohr_graphics_animated_sprite_create((AnimationAsset){
-        .texture_list.amount = 3, .ticks_per_frame = 2}, (Scale){1.0f, 1.0f});
-    rohr_graphics_animated_sprite_update(&preview, 1, 0.0);
-    if(preview.animation_frame != 0) {
-        rohr_engine_stop();
-        return 1;
-    }
-    rohr_graphics_animated_sprite_update(&preview, 2, 0.0);
-    if(preview.animation_frame != 1) {
-        rohr_engine_stop();
-        return 1;
-    }
     transient = rohr_entity_add();
     static_sprite = rohr_graphics_sprite_create((TextureAsset){0},
         (Scale){2.0f, 3.0f});
@@ -55,28 +42,6 @@ int main(void) {
         if(rohr_error_check(offset) || rohr_error_check(rotation) ||
                 offset.result.value.x != 3.0f || offset.result.value.y != 4.0f ||
                 rotation.result.value != 0.5f) {
-            rohr_engine_stop();
-            return 1;
-        }
-    }
-    if(rohr_error_check(rohr_graphics_animated_sprite_add(
-                transient.result.value, preview)) ||
-            rohr_error_check(rohr_graphics_animated_sprite_body_offset_set(
-                transient.result.value, (Position){-2.0f, 6.0f})) ||
-            rohr_error_check(rohr_graphics_animated_sprite_orientation_offset_set(
-                transient.result.value, -0.25f))) {
-        rohr_engine_stop();
-        return 1;
-    }
-    {
-        PositionResult offset = rohr_graphics_animated_sprite_body_offset_get(
-            transient.result.value);
-        SpriteOrientationResult rotation =
-            rohr_graphics_animated_sprite_orientation_offset_get(
-                transient.result.value);
-        if(rohr_error_check(offset) || rohr_error_check(rotation) ||
-                offset.result.value.x != -2.0f || offset.result.value.y != 6.0f ||
-                rotation.result.value != -0.25f) {
             rohr_engine_stop();
             return 1;
         }

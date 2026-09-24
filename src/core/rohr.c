@@ -648,7 +648,13 @@ bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     return graphics_screen_text_scaled_rotated_draw(text, center, scale, orientation);
 }
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc) { return graphics_animation_load(anim_desc); }
-void rohr_graphics_animation_destroy(AnimationAsset *asset) { graphics_animation_destroy(asset); }
+EngineResult rohr_graphics_animation_retain(AnimationAsset asset) { return graphics_animation_retain(asset); }
+EngineResult rohr_graphics_animation_release(AnimationAsset *asset) { return graphics_animation_release(asset); }
+bool rohr_graphics_animation_valid_check(AnimationAsset asset) { return graphics_animation_valid_check(asset); }
+AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset) { return graphics_animation_info_get(asset); }
+AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index) { return graphics_animation_frame_get(asset, frame_index); }
+AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset) { return graphics_animation_player_create(asset); }
+void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current_tick, Time current_time) { graphics_animation_player_update(player, current_tick, current_time); }
 AnimatedSprite rohr_graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) { return graphics_animated_sprite_create(asset_ptr, scale); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }
 EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) { return graphics_animated_sprite_add(entity, sprite); }

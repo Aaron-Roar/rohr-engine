@@ -3,6 +3,7 @@
  */
 
 #include "rohr.h"
+#include "test_png.h"
 
 #include <stdio.h>
 
@@ -15,10 +16,27 @@ int main(void) {
     EntityResult added;
     Entity entity;
     AnimatedSprite sprite = {0};
+    AnimationAsset animation = {0};
+    AnimationAssetResult animation_result;
     HitboxIdResult first_id, second_id;
     HitboxIndexResult active;
 
-    if(rohr_error_check(rohr_engine_start())) return 1;
+    if(!SDL_SaveFile("hitbox_animation_binding.png", test_png,
+            sizeof(test_png))) return 1;
+    if(rohr_error_check(rohr_engine_start())) goto fail_without_engine;
+    if(rohr_error_check(rohr_graphics_start())) goto fail;
+    animation_result = rohr_graphics_animation_load((AnimationDescriptor){
+        .id = 41,
+        .texture_descriptors = {
+            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
+            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
+            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
+        },
+        .frame_ids = {101, 102, 103},
+        .amount_of_descriptors = 3,
+    });
+    if(rohr_error_check(animation_result)) goto fail;
+    animation = animation_result.result.value;
     added = rohr_entity_add();
     if(rohr_error_check(added)) goto fail;
     entity = added.result.value;
@@ -29,12 +47,8 @@ int main(void) {
     second_id = rohr_physics_hitbox_id_at_get(entity, 1);
     if(rohr_error_check(first_id) || rohr_error_check(second_id)) goto fail;
 
-    sprite.animation.id = 41;
-    sprite.animation.texture_list.amount = 3;
-    sprite.animation.texture_list.frame_ids[0] = 101;
-    sprite.animation.texture_list.frame_ids[1] = 102;
-    sprite.animation.texture_list.frame_ids[2] = 103;
-    sprite.animation_frame = 0;
+    sprite = rohr_graphics_animated_sprite_create(animation,
+        (Scale){1.0f, 1.0f});
     if(rohr_error_check(rohr_graphics_animated_sprite_add(entity, sprite)) ||
             rohr_error_check(rohr_physics_hitbox_animation_binding_set(
                 entity, 41, 101, second_id.result.value)) ||
@@ -42,6 +56,7 @@ int main(void) {
                 entity, 41, 102, second_id.result.value)) ||
             rohr_error_check(rohr_physics_hitbox_animation_binding_set(
                 entity, 41, 103, first_id.result.value))) goto fail;
+    if(rohr_error_check(rohr_graphics_animation_release(&animation))) goto fail;
     {
         HitboxIdResult by_id = rohr_physics_hitbox_animation_binding_get(
             entity, 41, 102);
@@ -72,10 +87,16 @@ int main(void) {
     if(rohr_error_check(rohr_physics_hitbox_remove(entity)) ||
             rohr_entity_components_check(entity,
                 ROHR_HITBOX_ANIMATION_BINDING)) goto fail;
+    rohr_graphics_stop();
     rohr_engine_stop();
+    (void)SDL_RemovePath("hitbox_animation_binding.png");
     return 0;
 fail:
     fprintf(stderr, "hitbox animation binding test failed\n");
+    (void)rohr_graphics_animation_release(&animation);
+    rohr_graphics_stop();
     rohr_engine_stop();
+fail_without_engine:
+    (void)SDL_RemovePath("hitbox_animation_binding.png");
     return 1;
 }

@@ -843,11 +843,14 @@ int main(void) {
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_soft_body_area_color_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
-                !file_contains(path, "rohr_graphics_animation_destroy") ||
+                !file_contains(path, "rohr_graphics_animation_release") ||
                 !file_contains(path, "rohr_graphics_texture_release") ||
                 !file_contains(path,
                     "rohr_physics_hitbox_animation_binding_set") ||
-                !file_contains(path, "loaded.result.value.id = UINT32_C(") ||
+                !file_contains(path,
+                    "AnimationDescriptor descriptor = {.id = UINT32_C(") ||
+                !file_contains(path, ".frame_ids = {UINT32_C(") ||
+                !file_contains(path, "animated.player.frame_index = ") ||
                 !file_contains(path, "assets/fly frame.png") ||
                 !file_contains(path, "animated.follow_entity_rotation = false") ||
                 !file_contains(path, "animated.body_offset = (Position){6.00000000f, 7.00000000f}") ||

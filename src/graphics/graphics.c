@@ -13,6 +13,7 @@
 #include "core/platform_process.h"
 #include "window_presentation.h"
 #include "graphics_layer_order.h"
+#include "graphics/animation_assets.h"
 #include "graphics/texture_assets.h"
 #include <math.h>
 #include <stdio.h>
@@ -637,6 +638,10 @@ EngineResult graphics_tables_init(void) {
     if(graphics_texture_assets_init().kind == ERROR_RESULT_ERROR) {
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
     }
+    if(graphics_animation_assets_init().kind == ERROR_RESULT_ERROR) {
+        graphics_texture_assets_destroy();
+        return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
+    }
     if(AnimatedSpritePool_init(&animated_sprites_pool, 0).kind == ERROR_RESULT_ERROR) {
         graphics_tables_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
@@ -683,10 +688,12 @@ void graphics_tables_destroy(void) {
     }
     for(size_t i = 0; i < animated_sprites_pool.capacity; i += 1) {
         if(animated_sprites_pool.used[i])
-            graphics_animation_destroy(&animated_sprites[i].animation);
+            (void)graphics_animation_release(
+                &animated_sprites[i].player.animation);
     }
     (void)AnimatedSpritePool_destroy(&animated_sprites_pool);
     (void)SpritePool_destroy(&sprites_pool);
+    graphics_animation_assets_destroy();
     graphics_texture_assets_destroy();
 }
 
@@ -702,7 +709,8 @@ void graphics_entity_components_clear(EntityIndex index, RohrComponentMask mask)
     if((mask & ROHR_ANIMATED_SPRITE) != 0 &&
             index < animated_sprites_pool.capacity &&
             animated_sprites_pool.used[index]) {
-        graphics_animation_destroy(&animated_sprites[index].animation);
+        (void)graphics_animation_release(
+            &animated_sprites[index].player.animation);
         (void)AnimatedSpritePool_release_at(&animated_sprites_pool, index);
         if(index < MAX_ENTITIES)
             graphics_animation_layer_bindings[index] =
@@ -1054,10 +1062,8 @@ void graphics_textures_scale(Entity entity, Scale scale) {
     if(!entity_index_get(entity, &index) || !entity_components_check(entity, ROHR_ANIMATED_SPRITE)) {
         return;
     }
-    for(int i = 0; i < MAX_TEXTURES; i += 1) {
-        animated_sprites[index].animation.texture_list.textures[i].size.x *= scale.x;
-        animated_sprites[index].animation.texture_list.textures[i].size.y *= scale.y;
-    }
+    animated_sprites[index].scale.x *= scale.x;
+    animated_sprites[index].scale.y *= scale.y;
 }
 
 Color graphics_color_hex_create(uint32_t hex_color_code) {
@@ -2758,6 +2764,7 @@ EngineResult graphics_start(void) {
 void graphics_renderer_end(void) {
     size_t screen_slot;
     graphics_commands_discard();
+    graphics_animation_assets_clear();
     graphics_texture_assets_clear();
     for(screen_slot = 0; screen_slot < MAX_SCREENS; screen_slot += 1) {
         if(screens_used[screen_slot]) {
@@ -4256,79 +4263,55 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     return true;
 }
 
-AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc) {
-    AnimationAsset asset = {0};
-    if(anim_desc.amount_of_descriptors > MAX_ANIMATIONS_FRAMES)
-        return ERROR_RESULT_MAKE_ERROR(
-            AnimationAssetResult, ERROR_ENGINE_ANIMATION_LOAD_FAILED);
-    asset.id = 1;
-    asset.ticks_per_frame = anim_desc.ticks_per_frame;
-    asset.time_per_frame = anim_desc.time_per_frame;
-
-    for(int i = 0; i < anim_desc.amount_of_descriptors; i += 1) {
-        TextureAssetResult texture_result = graphics_texture_load(anim_desc.texture_descriptors[i]);
-        if(texture_result.kind == ERROR_RESULT_ERROR) {
-            graphics_animation_destroy(&asset);
-            return ERROR_RESULT_MAKE_ERROR(AnimationAssetResult, texture_result.result.error);
-        }
-        asset.texture_list.textures[i] = texture_result.result.value;
-        asset.texture_list.frame_ids[i] = (AnimationFrameId)i + 1;
-        asset.texture_list.amount += 1;
+AnimationPlayer graphics_animation_player_create(AnimationAsset asset) {
+    AnimationPlayer player = {.animation = asset};
+    AnimationInfoResult info = graphics_animation_info_get(asset);
+    if(info.kind == ERROR_RESULT_VALUE) {
+        player.ticks_per_frame = info.result.value.ticks_per_frame;
+        player.time_per_frame = info.result.value.time_per_frame;
     }
-
-    return ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, asset);
+    return player;
 }
 
-void graphics_animation_destroy(AnimationAsset *asset) {
-    if(asset == NULL) return;
-    for(int i = 0; i < asset->texture_list.amount; i += 1)
-        (void)graphics_texture_release(&asset->texture_list.textures[i]);
-    *asset = (AnimationAsset){0};
-}
+void graphics_animation_player_update(AnimationPlayer *player,
+        Tick current_tick, Time current_time) {
+    AnimationInfoResult info;
+    bool frame_need_update_tick;
+    bool frame_need_update_time;
 
-static EngineResult graphics_animation_textures_retain(AnimationAsset asset) {
-    for(int i = 0; i < asset.texture_list.amount; i += 1) {
-        if(asset.texture_list.textures[i].handle == TEXTURE_HANDLE_INVALID)
-            continue;
-        EngineResult result = graphics_texture_retain(
-            asset.texture_list.textures[i]);
-        if(result.kind == ERROR_RESULT_ERROR) {
-            for(int release = 0; release < i; release += 1) {
-                TextureAsset texture = asset.texture_list.textures[release];
-                if(texture.handle != TEXTURE_HANDLE_INVALID)
-                    (void)graphics_texture_release(&texture);
-            }
-            return result;
-        }
+    if(player == NULL) return;
+    info = graphics_animation_info_get(player->animation);
+    if(info.kind == ERROR_RESULT_ERROR || info.result.value.frame_count == 0)
+        return;
+    if(player->frame_index >= info.result.value.frame_count)
+        player->frame_index = 0;
+    frame_need_update_tick = player->ticks_per_frame != 0 &&
+        player->ticks_per_frame <= current_tick - player->last_update_tick;
+    frame_need_update_time = player->time_per_frame != 0 &&
+        player->time_per_frame <= current_time - player->last_update_time;
+    if(frame_need_update_tick || frame_need_update_time) {
+        player->frame_index = (player->frame_index + 1) %
+            info.result.value.frame_count;
+        player->last_update_tick = current_tick;
+        player->last_update_time = current_time;
     }
-    return error_result_value(true);
 }
 
 AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) {
     AnimatedSprite sprite = {0};
-    sprite.animation = asset_ptr;
-    sprite.animation_frame = 0;
+    sprite.player = graphics_animation_player_create(asset_ptr);
     sprite.direction = DIRECTION_RIGHT;
     sprite.scale = scale;
     sprite.follow_entity_rotation = true;
     sprite.visible = true;
-    sprite.last_update_tick = 0;
-    sprite.last_update_time = 0;
-
     return sprite;
 }
 
 void graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick,
         Time current_time) {
-    if(sprite == NULL || sprite->animation.texture_list.amount <= 0) return;
-    bool frame_need_update_tick = (sprite->animation.ticks_per_frame <= (current_tick - sprite->last_update_tick)) && (sprite->animation.ticks_per_frame != 0);
-    bool frame_need_update_time = (sprite->animation.time_per_frame <= (current_time - sprite->last_update_time) && (sprite->animation.time_per_frame != 0));
-
-    if(frame_need_update_tick || frame_need_update_time) {
-        sprite->animation_frame = (sprite->animation_frame + 1)%sprite->animation.texture_list.amount;
-        sprite->last_update_tick = current_tick;
-        sprite->last_update_time = current_time;
-    }
+    if(sprite != NULL)
+        graphics_animation_player_update(&sprite->player, current_tick,
+            current_time);
 }
 
 static void graphics_texture_draw_flipped(TextureAsset texture_asset, Position pos,
@@ -4396,8 +4379,11 @@ void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
 
 static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
         Position pos, Orientation ort) {
-    TextureAsset asset = {0};
-    asset = sprite.animation.texture_list.textures[sprite.animation_frame];
+    AnimationFrameResult frame = graphics_animation_frame_get(
+        sprite.player.animation, sprite.player.frame_index);
+    TextureAsset asset;
+    if(frame.kind == ERROR_RESULT_ERROR) return;
+    asset = frame.result.value.texture;
     asset.size.x = asset.size.x * sprite.scale.x;
     asset.size.y = asset.size.y * sprite.scale.y;
 
@@ -4544,14 +4530,14 @@ EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) 
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     }
-    result = graphics_animation_textures_retain(sprite.animation);
+    result = graphics_animation_retain(sprite.player.animation);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     replacing = index < animated_sprites_pool.capacity &&
         animated_sprites_pool.used[index];
     if(replacing) previous = animated_sprites[index];
     if(AnimatedSpritePool_store_at(&animated_sprites_pool, index, sprite).kind ==
             ERROR_RESULT_ERROR) {
-        graphics_animation_destroy(&sprite.animation);
+        (void)graphics_animation_release(&sprite.player.animation);
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     result = entity_components_add(entity, ROHR_ANIMATED_SPRITE);
@@ -4560,10 +4546,11 @@ EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) 
             (void)AnimatedSpritePool_store_at(
                 &animated_sprites_pool, index, previous);
         else (void)AnimatedSpritePool_release_at(&animated_sprites_pool, index);
-        graphics_animation_destroy(&sprite.animation);
+        (void)graphics_animation_release(&sprite.player.animation);
         return result;
     }
-    if(replacing) graphics_animation_destroy(&previous.animation);
+    if(replacing)
+        (void)graphics_animation_release(&previous.player.animation);
     return error_result_value(true);
 }
 
@@ -4575,9 +4562,13 @@ EngineResult graphics_animated_sprite_frame_index_set(Entity entity,
     if(index >= animated_sprites_pool.capacity ||
             !animated_sprites_pool.used[index])
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(frame_index >= (size_t)animated_sprites[index].animation.texture_list.amount)
+    AnimationInfoResult info = graphics_animation_info_get(
+        animated_sprites[index].player.animation);
+    if(info.kind == ERROR_RESULT_ERROR)
+        return error_result_error(info.result.error);
+    if(frame_index >= info.result.value.frame_count)
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
-    animated_sprites[index].animation_frame = (int)frame_index;
+    animated_sprites[index].player.frame_index = frame_index;
     return error_result_value(true);
 }
 
@@ -4592,7 +4583,7 @@ AnimationFrameIndexResult graphics_animated_sprite_frame_index_get(
         return ERROR_RESULT_MAKE_ERROR(AnimationFrameIndexResult,
             ERROR_ENGINE_COMPONENT_MISSING);
     return ERROR_RESULT_MAKE_VALUE(AnimationFrameIndexResult,
-        (size_t)animated_sprites[index].animation_frame);
+        animated_sprites[index].player.frame_index);
 }
 
 EngineResult graphics_animated_sprite_body_offset_set(Entity entity,

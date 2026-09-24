@@ -1706,14 +1706,41 @@ bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
 /**
- * @brief Loads a caller-owned animation and its shared frame references.
+ * @brief Loads or shares an immutable animation resource.
  * @param anim_desc Animation descriptor containing load settings.
  * @return AnimationAssetResult containing the asset, or an error.
  */
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 
-/** @brief Releases the texture references owned by an animation asset value. */
-void rohr_graphics_animation_destroy(AnimationAsset *asset);
+/** @brief Adds one owning reference to a loaded animation asset. */
+EngineResult rohr_graphics_animation_retain(AnimationAsset asset);
+
+/**
+ * @brief Releases one owning reference and clears the animation asset.
+ * Copying an AnimationAsset does not retain it; retain independently owned
+ * copies explicitly.
+ */
+EngineResult rohr_graphics_animation_release(AnimationAsset *asset);
+
+/** @brief Returns whether an animation asset names a live resource. */
+bool rohr_graphics_animation_valid_check(AnimationAsset asset);
+
+/** @brief Returns immutable metadata for a loaded animation. */
+AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
+
+/** @brief Returns one immutable frame with a borrowed texture value. */
+AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset,
+    size_t frame_index);
+
+/**
+ * @brief Creates independent mutable playback state for an animation.
+ * The player borrows the animation; its owner must keep the asset alive.
+ */
+AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset);
+
+/** @brief Advances one animation player's frame state. */
+void rohr_graphics_animation_player_update(AnimationPlayer *player,
+    Tick current_tick, Time current_time);
 
 /**
  * @brief Creates an animated sprite from an animation asset.

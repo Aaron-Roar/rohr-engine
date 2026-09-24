@@ -61,7 +61,9 @@ static size_t editor_preview_texture_capacity;
 typedef struct EditorAnimationPreview {
     EditorObjectId object;
     EditorAnimatedSpriteId animation;
-    AnimatedSprite runtime;
+    size_t frame_index;
+    Tick last_update_tick;
+    Time last_update_time;
     bool was_playing;
 } EditorAnimationPreview;
 
@@ -100,26 +102,29 @@ static size_t editor_animation_preview_frame_get(const EditorObject *object,
         *preview = (EditorAnimationPreview){.object = object->id,
             .animation = animation->id};
     }
-    preview->runtime.animation.texture_list.amount = (int)animation->frame_count;
-    preview->runtime.animation.ticks_per_frame = animation->ticks_per_frame;
-    preview->runtime.animation.time_per_frame = animation->time_per_frame;
     if(!animation->playing) {
-        preview->runtime.animation_frame = 0;
-        preview->runtime.last_update_tick = tick;
-        preview->runtime.last_update_time = time;
+        preview->frame_index = 0;
+        preview->last_update_tick = tick;
+        preview->last_update_time = time;
     } else {
         if(!preview->was_playing) {
-            preview->runtime.animation_frame = 0;
-            preview->runtime.last_update_tick = tick;
-            preview->runtime.last_update_time = time;
+            preview->frame_index = 0;
+            preview->last_update_tick = tick;
+            preview->last_update_time = time;
+        } else if((animation->ticks_per_frame != 0 &&
+                animation->ticks_per_frame <= tick - preview->last_update_tick) ||
+                (animation->time_per_frame != 0 &&
+                animation->time_per_frame <= time - preview->last_update_time)) {
+            preview->frame_index = (preview->frame_index + 1) %
+                animation->frame_count;
+            preview->last_update_tick = tick;
+            preview->last_update_time = time;
         }
-        rohr_graphics_animated_sprite_update(&preview->runtime, tick, time);
     }
     preview->was_playing = animation->playing;
-    if(preview->runtime.animation_frame < 0 ||
-            (size_t)preview->runtime.animation_frame >= animation->frame_count)
-        preview->runtime.animation_frame = 0;
-    return (size_t)preview->runtime.animation_frame;
+    if(preview->frame_index >= animation->frame_count)
+        preview->frame_index = 0;
+    return preview->frame_index;
 }
 
 static Position editor_sprite_world_get(const EditorObject *object,

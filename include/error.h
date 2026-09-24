@@ -81,8 +81,12 @@ typedef enum EngineError {
     ERROR_ENGINE_FONT_LOAD_FAILED,
     /** A reusable text asset could not be created. */
     ERROR_ENGINE_TEXT_CREATE_FAILED,
-    /** One or more animation texture frames could not be loaded. */
+    /** An animation definition or one of its texture frames could not load. */
     ERROR_ENGINE_ANIMATION_LOAD_FAILED,
+    /** An animation handle is invalid, stale, or no longer owned. */
+    ERROR_ENGINE_ANIMATION_NOT_FOUND,
+    /** The engine animation-resource table is full. */
+    ERROR_ENGINE_ANIMATION_CAPACITY_EXCEEDED,
     /** An entity name is null or empty. */
     ERROR_ENGINE_INVALID_ENTITY_NAME,
     /** An entity name exceeds ENTITY_NAME_MAX. */

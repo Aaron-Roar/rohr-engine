@@ -1041,11 +1041,17 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     sprite->editor_position.y);
             } else snprintf(target, sizeof(target), "%s", body->name);
             fprintf(source,
-                "    { AnimationDescriptor descriptor = {.amount_of_descriptors = %zu, "
+                "    { AnimationDescriptor descriptor = {.id = UINT32_C(%u), "
+                ".amount_of_descriptors = %zu, "
                 ".ticks_per_frame = UINT64_C(%llu), .time_per_frame = %.17g, "
-                ".texture_descriptors = {",
-                sprite->frame_count, (unsigned long long)sprite->ticks_per_frame,
+                ".frame_ids = {",
+                sprite->id, sprite->frame_count,
+                (unsigned long long)sprite->ticks_per_frame,
                 sprite->time_per_frame);
+            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
+                fprintf(source, "%sUINT32_C(%u)", frame == 0 ? "" : ", ",
+                    sprite->frames[frame].id);
+            fprintf(source, "}, .texture_descriptors = {");
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
                 const EditorAnimationFrame *asset = &sprite->frames[frame];
                 fprintf(source, "%s{.file = ", frame == 0 ? "" : ", ");
@@ -1058,24 +1064,18 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "      AnimationAssetResult loaded = rohr_graphics_animation_load(descriptor);\n"
                 "      AnimatedSprite animated;\n"
                 "      if(rohr_error_check(loaded)) { result = rohr_error_result_error("
-                "loaded.result.error); goto fail; }\n"
-                "      loaded.result.value.id = UINT32_C(%u);\n",
-                sprite->id);
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
-                fprintf(source,
-                    "      loaded.result.value.texture_list.frame_ids[%zu] = UINT32_C(%u);\n",
-                    frame, sprite->frames[frame].id);
+                "loaded.result.error); goto fail; }\n");
             fprintf(source,
                 "      animated = rohr_graphics_animated_sprite_create(loaded.result.value, "
                 "(Scale){%#.9gf, %#.9gf});\n"
-                "      animated.animation_frame = %u;\n"
+                "      animated.player.frame_index = %u;\n"
                 "      animated.body_offset = (Position){%#.9gf, %#.9gf};\n"
                 "      animated.orientation_offset = %#.9gf;\n"
                 "      animated.direction = %s;\n"
                 "      animated.follow_entity_rotation = %s;\n"
                 "      animated.visible = %s;\n"
                 "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
-                "      rohr_graphics_animation_destroy(&loaded.result.value);\n"
+                "      (void)rohr_graphics_animation_release(&loaded.result.value);\n"
                 "      if(rohr_error_check(result)) goto fail; }\n",
                 sprite->scale.x, sprite->scale.y, sprite->starting_frame,
                 body == NULL ? 0.0f : sprite->editor_position.x,

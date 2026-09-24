@@ -445,7 +445,8 @@ int main(void) {
         }
 
         if(animated_sprites_pool.used[player_index]) {
-            animated_sprites[player_index].animation.time_per_frame = fmaxf(0.015f, 0.09f - speed * 0.0002f);
+            animated_sprites[player_index].player.time_per_frame =
+                fmaxf(0.015f, 0.09f - speed * 0.0002f);
         }
 
         if(level_active) {

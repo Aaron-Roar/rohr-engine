@@ -108,7 +108,8 @@ void game_state_runtime_reset(void) {
     }
     for(size_t animation_index = 0;
             animation_index < state_animation_count; animation_index += 1)
-        graphics_animation_destroy(&state_animations[animation_index].asset);
+        (void)graphics_animation_release(
+            &state_animations[animation_index].asset);
     memset(state_animations, 0, sizeof(state_animations));
     memset(state_sprite_references, 0, sizeof(state_sprite_references));
     memset(state_ui_buttons, 0, sizeof(state_ui_buttons));
@@ -148,6 +149,7 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
     yyjson_val *name;
     yyjson_val *frames;
     yyjson_val *frame;
+    yyjson_val *id;
     yyjson_val *ticks;
     double time_per_frame;
     size_t frame_index;
@@ -155,6 +157,7 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
     AnimationAssetResult asset_result;
 
     name = yyjson_obj_get(definition, "name");
+    id = yyjson_obj_get(definition, "id");
     frames = yyjson_obj_get(definition, "frames");
     ticks = yyjson_obj_get(definition, "ticks_per_frame");
     if(!yyjson_is_obj(definition)
@@ -164,6 +167,8 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
             || !yyjson_is_arr(frames)
             || !state_number(definition, "time_per_frame", &time_per_frame)
             || !yyjson_is_uint(ticks)
+            || (id != NULL && (!yyjson_is_uint(id) ||
+                yyjson_get_uint(id) == 0 || yyjson_get_uint(id) > UINT32_MAX))
             || state_animation_count >= STATE_MAX_ANIMATIONS) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
@@ -180,16 +185,23 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
     animation = &state_animations[state_animation_count];
     *animation = (StateAnimation){0};
     memcpy(animation->name, yyjson_get_str(name), yyjson_get_len(name) + 1);
+    animation->descriptor.id = id == NULL ?
+        (AnimationId)state_animation_count + 1 :
+        (AnimationId)yyjson_get_uint(id);
     animation->descriptor.amount_of_descriptors = (uint8_t)frame_count;
     animation->descriptor.ticks_per_frame = yyjson_get_uint(ticks);
     animation->descriptor.time_per_frame = time_per_frame;
     yyjson_arr_foreach(frames, frame_index, frame_count, frame) {
         yyjson_val *file = yyjson_obj_get(frame, "file");
+        yyjson_val *frame_id = yyjson_obj_get(frame, "id");
         Vec2D size;
         size_t file_length;
         if(!yyjson_is_obj(frame)
                 || !yyjson_is_str(file)
-                || !state_vec2(yyjson_obj_get(frame, "size"), &size)) {
+                || !state_vec2(yyjson_obj_get(frame, "size"), &size)
+                || (frame_id != NULL && (!yyjson_is_uint(frame_id) ||
+                    yyjson_get_uint(frame_id) == 0 ||
+                    yyjson_get_uint(frame_id) > UINT32_MAX))) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         file_length = yyjson_get_len(file);
@@ -201,6 +213,9 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
             .file = animation->frame_paths[frame_index],
             .size = {size.x, size.y}
         };
+        animation->descriptor.frame_ids[frame_index] = frame_id == NULL ?
+            (AnimationFrameId)frame_index + 1 :
+            (AnimationFrameId)yyjson_get_uint(frame_id);
     }
     asset_result = graphics_animation_load(animation->descriptor);
     if(asset_result.kind == ERROR_RESULT_ERROR) {
@@ -1417,7 +1432,7 @@ static EngineResult state_components_load(
             }
             time_per_frame = yyjson_get_num(base_value);
         } else {
-            time_per_frame = animation->asset.time_per_frame;
+            time_per_frame = animation->descriptor.time_per_frame;
         }
         base_value = yyjson_obj_get(value, "ticks_per_frame");
         if(base_value != NULL) {
@@ -1426,7 +1441,7 @@ static EngineResult state_components_load(
             }
             ticks_per_frame = yyjson_get_uint(base_value);
         } else {
-            ticks_per_frame = animation->asset.ticks_per_frame;
+            ticks_per_frame = animation->descriptor.ticks_per_frame;
         }
         base_value = yyjson_obj_get(value, "start_frame");
         if(base_value != NULL) {
@@ -1519,14 +1534,14 @@ static EngineResult state_components_load(
                 || !isfinite(orientation_offset)
                 || time_per_frame < 0.0
                 || start_frame < 0
-                || start_frame >= animation->asset.texture_list.amount) {
+                || start_frame >= animation->descriptor.amount_of_descriptors) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         scale = (Scale){scale_value.x, scale_value.y};
         sprite = graphics_animated_sprite_create(animation->asset, scale);
-        sprite.animation.time_per_frame = time_per_frame;
-        sprite.animation.ticks_per_frame = ticks_per_frame;
-        sprite.animation_frame = start_frame;
+        sprite.player.time_per_frame = time_per_frame;
+        sprite.player.ticks_per_frame = ticks_per_frame;
+        sprite.player.frame_index = (size_t)start_frame;
         sprite.direction = (Direction)direction;
         sprite.body_offset = body_offset;
         sprite.orientation_offset = (Orientation)orientation_offset;
@@ -1911,7 +1926,7 @@ cleanup:
     if(result.kind == ERROR_RESULT_ERROR) {
         while(state_animation_count > initial_animation_count) {
             state_animation_count -= 1;
-            graphics_animation_destroy(
+            (void)graphics_animation_release(
                 &state_animations[state_animation_count].asset);
             state_animations[state_animation_count] = (StateAnimation){0};
         }
@@ -2216,6 +2231,8 @@ EngineResult game_state_file_save(const char *path) {
         uint8_t frame_index;
 
         yyjson_mut_obj_add_strcpy(document, definition, "name", animation->name);
+        yyjson_mut_obj_add_uint(document, definition, "id",
+            animation->descriptor.id);
         yyjson_mut_obj_add_uint(
             document,
             definition,
@@ -2234,6 +2251,8 @@ EngineResult game_state_file_save(const char *path) {
             TextureDescriptor *texture =
                 &animation->descriptor.texture_descriptors[frame_index];
             yyjson_mut_val *frame = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_uint(document, frame, "id",
+                animation->descriptor.frame_ids[frame_index]);
             yyjson_mut_obj_add_strcpy(document, frame, "file", texture->file);
             yyjson_mut_obj_add_val(
                 document,

@@ -114,6 +114,10 @@ const char *error_code_message_get(EngineError error) {
             return "text creation failed";
         case ERROR_ENGINE_ANIMATION_LOAD_FAILED:
             return "animation load failed";
+        case ERROR_ENGINE_ANIMATION_NOT_FOUND:
+            return "animation asset not found";
+        case ERROR_ENGINE_ANIMATION_CAPACITY_EXCEEDED:
+            return "animation asset capacity exceeded";
         case ERROR_ENGINE_INVALID_ENTITY_NAME:
             return "invalid entity name";
         case ERROR_ENGINE_ENTITY_NAME_TOO_LONG:
