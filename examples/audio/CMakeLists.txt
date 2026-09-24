@@ -10,6 +10,4 @@ rohr_example_bootstrap()
 
 add_executable(audio src/main.c)
 target_link_libraries(audio PRIVATE ${ROHR_ENGINE_TARGET})
-rohr_example_runtime_dir(runtime_dir audio)
-set_target_properties(audio PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${runtime_dir}/$<0:>")
+rohr_stage_example_assets(audio audio)

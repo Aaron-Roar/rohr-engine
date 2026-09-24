@@ -223,7 +223,7 @@ Run development binaries from the repository root:
 ./build/examples/pong
 ./build/examples/joints
 ./build/examples/soft_body
-./build/examples/audio path/to/effect.wav path/to/music.ogg
+./build/examples/audio
 ```
 
 Remove generated development and SDK output with:
