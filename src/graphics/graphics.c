@@ -15,6 +15,7 @@
 #include "graphics_layer_order.h"
 #include "graphics/animation_assets.h"
 #include "graphics/font_assets.h"
+#include "graphics/text_assets.h"
 #include "graphics/texture_assets.h"
 #include <math.h>
 #include <stdio.h>
@@ -74,7 +75,15 @@ typedef struct GraphicsCommand {
             int index_count;
             Color color;
         } shape;
-        struct { TTF_Text *text; Position position; Scale scale; } text;
+        struct {
+            GraphicsTextPayload *payload;
+            Position position;
+            Scale scale;
+            SDL_FRect destination;
+            SDL_FPoint center;
+            double degrees;
+            bool texture_draw;
+        } text;
         struct {
             SDL_Texture *unmanaged_texture;
             TextureHandle asset;
@@ -648,6 +657,12 @@ EngineResult graphics_tables_init(void) {
         graphics_texture_assets_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
     }
+    if(graphics_text_assets_init().kind == ERROR_RESULT_ERROR) {
+        graphics_font_assets_destroy();
+        graphics_animation_assets_destroy();
+        graphics_texture_assets_destroy();
+        return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
+    }
     if(AnimatedSpritePool_init(&animated_sprites_pool, 0).kind == ERROR_RESULT_ERROR) {
         graphics_tables_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
@@ -699,6 +714,7 @@ void graphics_tables_destroy(void) {
     }
     (void)AnimatedSpritePool_destroy(&animated_sprites_pool);
     (void)SpritePool_destroy(&sprites_pool);
+    graphics_text_assets_destroy();
     graphics_font_assets_destroy();
     graphics_animation_assets_destroy();
     graphics_texture_assets_destroy();
@@ -1775,6 +1791,32 @@ static bool graphics_ui_slot(GraphicsUiId id, size_t *slot) {
     return true;
 }
 
+static EngineResult graphics_ui_text_dependency_add(
+        ViewportUiTextConfig text) {
+    return graphics_text_dependency_add(text.text);
+}
+
+static void graphics_ui_element_text_dependency_remove(
+        GraphicsUiElement *element) {
+    if(element == NULL || !element->used) return;
+    if(element->kind == GRAPHICS_UI_SHAPE)
+        graphics_text_dependency_remove(
+            element->value.shape.text.text.handle);
+    else if(element->kind == GRAPHICS_UI_TEXT)
+        graphics_text_dependency_remove(element->value.text.text.handle);
+}
+
+static void graphics_ui_element_clear(GraphicsUiElement *element) {
+    if(element == NULL) return;
+    graphics_ui_element_text_dependency_remove(element);
+    *element = (GraphicsUiElement){0};
+}
+
+static void graphics_ui_elements_clear(void) {
+    for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1)
+        graphics_ui_element_clear(&graphics_ui_elements[slot]);
+}
+
 static bool graphics_viewport_item_slot(ViewportItemId id,
         size_t *viewport_slot, size_t *item_slot) {
     if(id == VIEWPORT_ITEM_INVALID || viewport_slot == NULL || item_slot == NULL)
@@ -1816,7 +1858,7 @@ static void graphics_viewport_item_release(GraphicsViewport *viewport,
     viewport->items[item_slot].used = false;
     if(owns_ui && graphics_ui_slot(ui, &ui_slot) &&
             graphics_ui_elements[ui_slot].mount_count == 0)
-        graphics_ui_elements[ui_slot] = (GraphicsUiElement){0};
+        graphics_ui_element_clear(&graphics_ui_elements[ui_slot]);
 }
 
 static ViewportItemId graphics_viewport_item_id_create(void) {
@@ -1872,6 +1914,7 @@ ViewportItemIdResult graphics_viewport_screen_add(ViewportId id, ScreenId screen
 }
 
 GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
+    EngineResult dependency;
     if(shape.shape.amount_of_vertices < 3 ||
             shape.shape.amount_of_vertices > MAX_VERTICIES)
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
@@ -1880,6 +1923,10 @@ GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
     if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
     if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
     if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
+    dependency = graphics_ui_text_dependency_add(shape.text);
+    if(error_check(dependency))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
+            dependency.result.error);
     for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1) {
         if(graphics_ui_elements[slot].used) continue;
         graphics_ui_generations[slot] += 1;
@@ -1893,12 +1940,18 @@ GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
         return ERROR_RESULT_MAKE_VALUE(GraphicsUiIdResult,
             graphics_resource_id(graphics_ui_generations[slot], slot));
     }
+    graphics_text_dependency_remove(shape.text.text.handle);
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
 GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
+    EngineResult dependency;
     if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
     if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    dependency = graphics_ui_text_dependency_add(text);
+    if(error_check(dependency))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
+            dependency.result.error);
     for(size_t slot = 0; slot < MAX_GRAPHICS_UI_ELEMENTS; slot += 1) {
         if(graphics_ui_elements[slot].used) continue;
         graphics_ui_generations[slot] += 1;
@@ -1912,6 +1965,7 @@ GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
         return ERROR_RESULT_MAKE_VALUE(GraphicsUiIdResult,
             graphics_resource_id(graphics_ui_generations[slot], slot));
     }
+    graphics_text_dependency_remove(text.text.handle);
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
@@ -1960,6 +2014,8 @@ GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider) {
 }
 
 EngineResult graphics_ui_shape_set(GraphicsUiId id, ViewportUiShapeConfig shape) {
+    EngineResult dependency;
+    TextHandle previous;
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SHAPE)
@@ -1971,7 +2027,11 @@ EngineResult graphics_ui_shape_set(GraphicsUiId id, ViewportUiShapeConfig shape)
     if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
     if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
     if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
+    dependency = graphics_ui_text_dependency_add(shape.text);
+    if(error_check(dependency)) return dependency;
+    previous = graphics_ui_elements[slot].value.shape.text.text.handle;
     graphics_ui_elements[slot].value.shape = shape;
+    graphics_text_dependency_remove(previous);
     return error_result_value(true);
 }
 
@@ -1987,12 +2047,18 @@ GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId id) {
 
 EngineResult graphics_ui_text_set(GraphicsUiId id, ViewportUiTextConfig text) {
     size_t slot;
+    EngineResult dependency;
+    TextHandle previous;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_TEXT)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
     if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    dependency = graphics_ui_text_dependency_add(text);
+    if(error_check(dependency)) return dependency;
+    previous = graphics_ui_elements[slot].value.text.text.handle;
     graphics_ui_elements[slot].value.text = text;
+    graphics_text_dependency_remove(previous);
     return error_result_value(true);
 }
 
@@ -2058,7 +2124,7 @@ EngineResult graphics_ui_destroy(GraphicsUiId id) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(graphics_ui_elements[slot].mount_count != 0)
         return error_result_error(ERROR_ENGINE_GRAPHICS_UI_IN_USE);
-    graphics_ui_elements[slot] = (GraphicsUiElement){0};
+    graphics_ui_element_clear(&graphics_ui_elements[slot]);
     return error_result_value(true);
 }
 
@@ -2774,6 +2840,7 @@ EngineResult graphics_start(void) {
             return error_result_error(ERROR_ENGINE_GRAPHICS_INIT_FAILED);
         }
     }
+    graphics_text_assets_renderer_set(sdl_renderer, ttf_text_engine);
     graphics_texture_assets_renderer_set(sdl_renderer);
     (void)graphics_camera_active_set(active_camera);
 
@@ -2785,6 +2852,8 @@ EngineResult graphics_start(void) {
 void graphics_renderer_end(void) {
     size_t screen_slot;
     graphics_commands_discard();
+    graphics_ui_elements_clear();
+    graphics_text_assets_clear();
     graphics_animation_assets_clear();
     graphics_texture_assets_clear();
     for(screen_slot = 0; screen_slot < MAX_SCREENS; screen_slot += 1) {
@@ -3247,12 +3316,17 @@ static bool graphics_viewport_ui_point_inside(Position point,
 static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
         const ViewportItemConfig *item, const ViewportUiTextConfig *text, Position anchor,
         Orientation inherited_orientation) {
-    const TextAsset *asset;
+    GraphicsTextPayload *payload;
+    SDL_Texture *texture;
+    Scale asset_size;
     Scale scale;
     SDL_FRect destination;
-    if(viewport == NULL || text == NULL || text->text == NULL ||
-            text->text->texture == NULL) return;
-    asset = text->text;
+    if(viewport == NULL || text == NULL || text->text.handle ==
+            TEXT_HANDLE_INVALID || !graphics_text_internal_size_get(
+                text->text.handle, &asset_size)) return;
+    payload = graphics_text_internal_payload_get(text->text.handle);
+    texture = graphics_text_payload_texture_get(payload);
+    if(texture == NULL) return;
     scale = text->scale;
     if(scale.x <= 0.0f) scale.x = 1.0f;
     if(scale.y <= 0.0f) scale.y = 1.0f;
@@ -3261,10 +3335,10 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
             anchor.y + text->position.y + text->offset.y});
     if(item->content_scale.x > 0.0f) scale.x *= item->content_scale.x;
     if(item->content_scale.y > 0.0f) scale.y *= item->content_scale.y;
-    destination = (SDL_FRect){anchor.x - asset->size.x * scale.x * 0.5f,
-        anchor.y - asset->size.y * scale.y * 0.5f,
-        asset->size.x * scale.x, asset->size.y * scale.y};
-    (void)SDL_RenderTextureRotated(sdl_renderer, asset->texture, NULL,
+    destination = (SDL_FRect){anchor.x - asset_size.x * scale.x * 0.5f,
+        anchor.y - asset_size.y * scale.y * 0.5f,
+        asset_size.x * scale.x, asset_size.y * scale.y};
+    (void)SDL_RenderTextureRotated(sdl_renderer, texture, NULL,
         &destination, (double)((item->orientation + item->content_orientation +
             inherited_orientation + text->orientation) *
             180.0f / PI_F), NULL, SDL_FLIP_NONE);
@@ -3273,15 +3347,15 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
 static bool graphics_viewport_ui_text_point_inside(
         const GraphicsViewport *viewport, const ViewportItemConfig *item,
         const ViewportUiTextConfig *text, Position pointer) {
-    const TextAsset *asset;
+    Scale asset_size;
     Scale scale;
     Position center;
     Vec2D relative;
     Vec2D local;
     Orientation orientation;
-    if(viewport == NULL || item == NULL || text == NULL || text->text == NULL)
+    if(viewport == NULL || item == NULL || text == NULL ||
+            !graphics_text_internal_size_get(text->text.handle, &asset_size))
         return false;
-    asset = text->text;
     scale = text->scale;
     if(scale.x <= 0.0f) scale.x = 1.0f;
     if(scale.y <= 0.0f) scale.y = 1.0f;
@@ -3294,8 +3368,8 @@ static bool graphics_viewport_ui_text_point_inside(
         text->orientation;
     relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
     local = math_vector_rotate(relative, -orientation);
-    return fabsf(local.x) <= asset->size.x * scale.x * 0.5f &&
-        fabsf(local.y) <= asset->size.y * scale.y * 0.5f;
+    return fabsf(local.x) <= asset_size.x * scale.x * 0.5f &&
+        fabsf(local.y) <= asset_size.y * scale.y * 0.5f;
 }
 
 static bool graphics_viewport_screen_point_inside(
@@ -3696,7 +3770,10 @@ static void graphics_commands_discard(void) {
         for(size_t command_index = 0; command_index < layer->count;
                 command_index += 1) {
             GraphicsCommand *command = &layer->commands[command_index];
-            if(command->type == GRAPHICS_COMMAND_TEXTURE &&
+            if(command->type == GRAPHICS_COMMAND_TEXT)
+                graphics_text_command_reference_remove(
+                    command->data.text.payload);
+            else if(command->type == GRAPHICS_COMMAND_TEXTURE &&
                     command->data.texture.asset != TEXTURE_HANDLE_INVALID)
                 graphics_texture_command_reference_remove(
                     command->data.texture.asset);
@@ -3810,14 +3887,36 @@ static void graphics_commands_execute(void) {
                                              command->data.shape.index_count);
                     break;
                 }
-                case GRAPHICS_COMMAND_TEXT:
-                    (void)SDL_SetRenderScale(sdl_renderer,
-                        command->data.text.scale.x, command->data.text.scale.y);
-                    (void)TTF_DrawRendererText(command->data.text.text,
-                        command->data.text.position.x / command->data.text.scale.x,
-                        command->data.text.position.y / command->data.text.scale.y);
-                    (void)SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f);
+                case GRAPHICS_COMMAND_TEXT: {
+                    if(command->data.text.texture_draw) {
+                        SDL_Texture *texture =
+                            graphics_text_payload_texture_get(
+                                command->data.text.payload);
+                        if(texture != NULL)
+                            (void)SDL_RenderTextureRotated(sdl_renderer,
+                                texture, NULL,
+                                &command->data.text.destination,
+                                command->data.text.degrees,
+                                &command->data.text.center, SDL_FLIP_NONE);
+                    } else {
+                        TTF_Text *text = graphics_text_payload_native_get(
+                            command->data.text.payload);
+                        if(text != NULL) {
+                            (void)SDL_SetRenderScale(sdl_renderer,
+                                command->data.text.scale.x,
+                                command->data.text.scale.y);
+                            (void)TTF_DrawRendererText(text,
+                                command->data.text.position.x /
+                                    command->data.text.scale.x,
+                                command->data.text.position.y /
+                                    command->data.text.scale.y);
+                            (void)SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f);
+                        }
+                    }
+                    graphics_text_command_reference_remove(
+                        command->data.text.payload);
                     break;
+                }
                 case GRAPHICS_COMMAND_TEXTURE: {
                     SDL_Texture *texture = command->data.texture.asset !=
                             TEXTURE_HANDLE_INVALID
@@ -4064,203 +4163,67 @@ void graphics_particles_draw(void) {
     }
   }
 }
-static SDL_Texture *graphics_builtin_text_texture_create(const char *value,
-        Color color, Scale *size) {
-    SDL_Texture *texture;
-    SDL_Texture *previous;
-    size_t length;
-    if(value == NULL || size == NULL || sdl_renderer == NULL) return NULL;
-    length = strlen(value);
-    *size = (Scale){(float)(length * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE),
-        length > 0 ? (float)SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE : 0.0f};
-    if(length == 0) return NULL;
-    texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET, (int)size->x, (int)size->y);
-    if(texture == NULL) return NULL;
-    (void)SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    previous = SDL_GetRenderTarget(sdl_renderer);
-    if(!SDL_SetRenderTarget(sdl_renderer, texture)) {
-        SDL_DestroyTexture(texture);
-        return NULL;
-    }
-    (void)SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, 0);
-    (void)SDL_RenderClear(sdl_renderer);
-    (void)SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
-        color.blue, color.alpha);
-    if(!SDL_RenderDebugText(sdl_renderer, 0.0f, 0.0f, value)) {
-        (void)SDL_SetRenderTarget(sdl_renderer, previous);
-        SDL_DestroyTexture(texture);
-        return NULL;
-    }
-    (void)SDL_SetRenderTarget(sdl_renderer, previous);
-    return texture;
-}
-
-TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color) {
-    TextAsset asset = {0};
-    SDL_Surface *surface;
-    TTF_Font *native_font;
-    int width;
-    int height;
-
-    if(font == NULL || value == NULL || !graphics_font_valid_check(*font)) {
-        error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
-        return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
-    }
-    if(graphics_font_builtin_check(*font)) {
-        asset.texture = graphics_builtin_text_texture_create(value, color,
-            &asset.size);
-        if(value[0] != '\0' && asset.texture == NULL)
-            return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
-                ERROR_ENGINE_TEXT_CREATE_FAILED);
-        asset.built_in = true;
-        asset.font = *font;
-        asset.color = color;
-        return ERROR_RESULT_MAKE_VALUE(TextAssetResult, asset);
-    }
-    native_font = graphics_font_native_get(*font);
-    if(native_font == NULL || ttf_text_engine == NULL ||
-            error_check(graphics_font_retain(*font))) {
-        error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
-        return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
-            ERROR_ENGINE_TEXT_CREATE_FAILED);
-    }
-    asset.font = *font;
-    asset.text = TTF_CreateText(ttf_text_engine, native_font, value, 0);
-    if(asset.text == NULL || !TTF_SetTextColor(
-            asset.text,
-            color.red,
-            color.green,
-            color.blue,
-            color.alpha) || !TTF_GetTextSize(asset.text, &width, &height)) {
-        char detail[256];
-        snprintf(detail, sizeof(detail), "%s", SDL_GetError());
-        if(asset.text != NULL) {
-            TTF_DestroyText(asset.text);
-        }
-        (void)graphics_font_release(&asset.font);
-        error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, detail);
-        return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
-    }
-    if(width > 0 && height > 0) {
-        surface = TTF_RenderText_Blended(native_font, value, 0,
-            (SDL_Color){color.red, color.green, color.blue, color.alpha});
-        asset.texture = surface == NULL ? NULL :
-            SDL_CreateTextureFromSurface(sdl_renderer, surface);
-        if(surface != NULL) SDL_DestroySurface(surface);
-        if(asset.texture == NULL) {
-            TTF_DestroyText(asset.text);
-            (void)graphics_font_release(&asset.font);
-            error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, SDL_GetError());
-            return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
-                ERROR_ENGINE_TEXT_CREATE_FAILED);
-        }
-    }
-    asset.color = color;
-    asset.size = (Scale){
-        .x = (float)width,
-        .y = (float)height,
-    };
-    return ERROR_RESULT_MAKE_VALUE(TextAssetResult, asset);
-}
-
-bool graphics_text_value_set(TextAsset *text, const char *value) {
-    int width;
-    int height;
-    SDL_Surface *surface;
-    SDL_Texture *texture;
-    TTF_Font *font;
-
-    if(text == NULL || value == NULL) return false;
-    if(text->built_in) {
-        Scale size;
-        texture = graphics_builtin_text_texture_create(value, text->color, &size);
-        if(value[0] != '\0' && texture == NULL) return false;
-        SDL_DestroyTexture(text->texture);
-        text->texture = texture;
-        text->size = size;
-        return true;
-    }
-    if(text->text == NULL ||
-            !TTF_SetTextString(text->text, value, 0) ||
-            !TTF_GetTextSize(text->text, &width, &height)) return false;
-    font = graphics_font_native_get(text->font);
-    if(font == NULL) return false;
-    texture = NULL;
-    if(width > 0 && height > 0) {
-        surface = TTF_RenderText_Blended(font, value, 0,
-            (SDL_Color){text->color.red, text->color.green, text->color.blue,
-                text->color.alpha});
-        texture = surface == NULL ? NULL : SDL_CreateTextureFromSurface(sdl_renderer,
-            surface);
-        if(surface != NULL) SDL_DestroySurface(surface);
-        if(texture == NULL) return false;
-    }
-    SDL_DestroyTexture(text->texture);
-    text->texture = texture;
-    text->size = (Scale){.x = (float)width, .y = (float)height};
-    return true;
-}
-
-void graphics_text_destroy(TextAsset *text) {
-    if(text == NULL) {
-        return;
-    }
-    if(text->text != NULL) {
-        TTF_DestroyText(text->text);
-    }
-    if(text->texture != NULL) SDL_DestroyTexture(text->texture);
-    (void)graphics_font_release(&text->font);
-    *text = (TextAsset){0};
-}
-
 bool graphics_text_draw(const TextAsset *text, Position position) {
     return graphics_text_scaled_draw(text, position, (Scale){1.0f, 1.0f});
 }
 
 bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) {
     GraphicsCommand *command;
+    GraphicsTextPayload *payload;
+    Scale current_size;
+    bool built_in;
     if(text == NULL || scale.x <= 0.0f || scale.y <= 0.0f ||
-            (text->text == NULL && !text->built_in)) {
+            !graphics_text_command_reference_add(*text, &payload)) return false;
+    if(payload == NULL) return true;
+    if(!graphics_text_internal_size_get(text->handle, &current_size)) {
+        graphics_text_command_reference_remove(payload);
         return false;
     }
-    if(text->built_in) {
-        if(text->texture == NULL) return true;
-        command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
-        if(command == NULL) return false;
-        command->data.texture.unmanaged_texture = text->texture;
-        command->data.texture.destination = (SDL_FRect){position.x, position.y,
-            text->size.x * scale.x, text->size.y * scale.y};
-        command->data.texture.center = (SDL_FPoint){0};
-        command->data.texture.degrees = 0.0;
-        command->data.texture.flip = SDL_FLIP_NONE;
-        return true;
-    }
+    built_in = graphics_text_payload_builtin_check(payload);
     command = graphics_command_append(GRAPHICS_COMMAND_TEXT);
-    if(command == NULL) return false;
-    command->data.text.text = text->text;
+    if(command == NULL) {
+        graphics_text_command_reference_remove(payload);
+        return false;
+    }
+    command->data.text.payload = payload;
     command->data.text.position = position;
     command->data.text.scale = scale;
+    command->data.text.texture_draw = built_in;
+    if(built_in) {
+        command->data.text.destination = (SDL_FRect){position.x, position.y,
+            current_size.x * scale.x, current_size.y * scale.y};
+        command->data.text.center = (SDL_FPoint){0};
+    }
     return true;
 }
 
 bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
         Position center, Scale scale, Orientation orientation) {
     GraphicsCommand *command;
-    if(text == NULL || text->texture == NULL || scale.x <= 0.0f ||
-            scale.y <= 0.0f) return false;
-    command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
-    if(command == NULL) return false;
-    command->data.texture.unmanaged_texture = text->texture;
-    command->data.texture.destination = (SDL_FRect){
-        center.x - text->size.x * scale.x * 0.5f,
-        center.y - text->size.y * scale.y * 0.5f,
-        text->size.x * scale.x, text->size.y * scale.y};
-    command->data.texture.center = (SDL_FPoint){
-        command->data.texture.destination.w * 0.5f,
-        command->data.texture.destination.h * 0.5f};
-    command->data.texture.degrees = -(double)orientation * 180.0 / (double)PI_F;
-    command->data.texture.flip = SDL_FLIP_NONE;
+    GraphicsTextPayload *payload;
+    Scale current_size;
+    if(text == NULL || scale.x <= 0.0f || scale.y <= 0.0f ||
+            !graphics_text_command_reference_add(*text, &payload)) return false;
+    if(payload == NULL) return true;
+    if(!graphics_text_internal_size_get(text->handle, &current_size)) {
+        graphics_text_command_reference_remove(payload);
+        return false;
+    }
+    command = graphics_command_append(GRAPHICS_COMMAND_TEXT);
+    if(command == NULL) {
+        graphics_text_command_reference_remove(payload);
+        return false;
+    }
+    command->data.text.payload = payload;
+    command->data.text.texture_draw = true;
+    command->data.text.destination = (SDL_FRect){
+        center.x - current_size.x * scale.x * 0.5f,
+        center.y - current_size.y * scale.y * 0.5f,
+        current_size.x * scale.x, current_size.y * scale.y};
+    command->data.text.center = (SDL_FPoint){
+        command->data.text.destination.w * 0.5f,
+        command->data.text.destination.h * 0.5f};
+    command->data.text.degrees = -(double)orientation * 180.0 / (double)PI_F;
     return true;
 }
 

@@ -190,6 +190,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/animation_assets.c
     src/graphics/font_assets.c
     src/graphics/graphics.c
+    src/graphics/text_assets.c
     src/graphics/texture_assets.c
     src/graphics/graphics_layer_order.c
     src/graphics/window_presentation.c
@@ -507,11 +508,22 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME font_assets COMMAND font_assets_test)
 
+    add_executable(text_assets_test tests/text_assets.c)
+    target_include_directories(text_assets_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(text_assets_test PRIVATE
+        ROHR_TEST_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/examples/user-interface/assets/jetbrains_mono_bold_italic.ttf")
+    target_link_libraries(text_assets_test PRIVATE rohr_engine)
+    set_target_properties(text_assets_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME text_assets COMMAND text_assets_test)
+
     if(ROHR_ENABLE_SANITIZERS)
         foreach(asset_sanitizer_target
                 texture_assets_test
                 animation_assets_test
-                font_assets_test)
+                font_assets_test
+                text_assets_test)
             target_compile_options(${asset_sanitizer_target} PRIVATE
                 ${ROHR_SANITIZER_COMPILE_OPTIONS})
         endforeach()
@@ -693,6 +705,8 @@ if(ROHR_BUILD_TESTS)
         window_presentation
         texture_assets
         animation_assets
+        font_assets
+        text_assets
         timing
         ui_field
         ui_dropdown
@@ -725,6 +739,8 @@ if(ROHR_BUILD_TESTS)
         window_presentation_test
         texture_assets_test
         animation_assets_test
+        font_assets_test
+        text_assets_test
         timing_test
         ui_field_test
         ui_dropdown_test

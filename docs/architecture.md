@@ -165,8 +165,8 @@ work follows these rules:
   generations survive subsystem restarts.
 
 These are binding contracts for the ownership implementation. Texture,
-animation, and font ownership now follow them; text and audio retain the
-remaining migration work described below.
+animation, font, and rendered-text ownership now follow them; audio retains
+the remaining migration work described below.
 
 #### Audit boundary
 
@@ -183,7 +183,7 @@ gaps:
 | --- | --- | --- |
 | Custom font | `FontAsset` is a generation-checked handle; resolved path and point size identify shared immutable registry resources with explicit owners. | Complete. |
 | Built-in font | The built-in font is an engine-pinned generation-checked entry for each graphics lifetime. | Complete. |
-| Rendered text | `TextAsset` still exposes `TTF_Text *` and `SDL_Texture *`, but owns a custom-font handle reference; deferred commands and persistent viewport UI still store borrowed native/public pointers. | Unique mutable handle-backed instance with safe internal UI/command dependencies. |
+| Rendered text | `TextAsset` is a unique generation-checked handle plus logical size; private payload revisions retain font, queued-command, and persistent-UI dependencies. | Complete. |
 | WAV sound | `Sound` is generation checked, but every player decodes and owns another copy of the same WAV. | Independent players backed by an internal shared decoded-sample cache. |
 | Streamed music | `Music` already owns a generation-checked decoder, buffer, cursor, and playback settings. | Remain unique and unshared, with explicit validity, destruction, failure, and shutdown rules. |
 
@@ -323,7 +323,7 @@ and project files store paths, sizes, colors, and playback settings rather than
 runtime handles; loading acquires owners and unwinds them in reverse dependency
 order.
 
-The planned public shape follows existing naming conventions:
+The public ownership shape follows existing naming conventions:
 
 - Fonts add `graphics_font_retain`, `graphics_font_release`, and
   `graphics_font_valid_check`, with matching `rohr_` wrappers. Release consumes
@@ -349,11 +349,12 @@ tests cover cache identity, independent instance state, internal dependencies,
 replacement, stale handles, partial failure, queued work, shutdown, and restart.
 Logical registry counters complement ASan, LeakSanitizer, and UBSan.
 
-The remaining implementation order is:
+The implementation order is:
 
 1. Add shared custom-font handles, adapting text only enough to own its font.
+   Complete.
 2. Add unique text handles, transactional mutation, persistent UI references,
-   safe command payloads, and editor/generated-project migration.
+   safe command payloads, and editor/generated-project migration. Complete.
 3. Add the decoded-WAV cache and harden sound/music destruction, validity,
    rollback, and shutdown without changing music playback policy.
 4. Extend deterministic ownership and Linux sanitizer coverage to fonts, text,

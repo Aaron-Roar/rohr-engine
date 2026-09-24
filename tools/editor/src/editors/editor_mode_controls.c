@@ -25,7 +25,8 @@ bool editor_mode_text_create(FontAsset *font, const char *value,
 
 static bool editor_mode_accordion_label_sync(EditorModeAccordionSection *section) {
     char value[EDITOR_OBJECT_NAME_MAX + 8];
-    if(section == NULL || section->label.text == NULL) return false;
+    if(section == NULL || !rohr_graphics_text_valid_check(section->label))
+        return false;
     snprintf(value, sizeof(value), "%s  %s",
         section->expanded ? "[-]" : "[+]", section->title);
     return rohr_graphics_text_value_set(&section->label, value);
@@ -56,7 +57,8 @@ bool editor_mode_accordion_section_draw(EditorModeAccordionSection *section,
         float content_height) {
     UIButtonStyle style;
     UIButtonResult result;
-    if(section == NULL || id == NULL || section->label.text == NULL) return false;
+    if(section == NULL || id == NULL ||
+            !rohr_graphics_text_valid_check(section->label)) return false;
     if(content_height < 0.0f) content_height = 0.0f;
     if(section->expanded) {
         UIRect panel = {bounds.x, bounds.y, bounds.width,
@@ -660,7 +662,7 @@ bool editor_mode_named_text_sync(FontAsset *font,
     if(font == NULL || name == NULL || label == NULL || cache == NULL ||
             cache_capacity == 0) return false;
     if(strncmp(cache, name, cache_capacity) == 0) return true;
-    if(label->text == NULL) {
+    if(!rohr_graphics_text_valid_check(*label)) {
         if(!editor_mode_text_create(font, name, label)) return false;
     } else if(!rohr_graphics_text_value_set(label, name)) return false;
     snprintf(cache, cache_capacity, "%s", name);

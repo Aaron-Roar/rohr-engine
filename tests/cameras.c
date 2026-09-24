@@ -345,7 +345,7 @@ int main(void) {
     default_text = rohr_graphics_text_create(&default_font, "Built-In 123!",
         (Color){255, 255, 255, 255});
     ui_shape.text = (ViewportUiTextConfig){.text =
-        rohr_error_check(default_text) ? NULL : &default_text.result.value,
+        rohr_error_check(default_text) ? (TextAsset){0} : default_text.result.value,
         .scale = {2.0f, 2.0f}};
     second_viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
     if(rohr_error_check(viewport_result) || rohr_error_check(second_viewport_result) ||

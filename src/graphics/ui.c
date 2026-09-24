@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <math.h>
 #include "ui.h"
+#include "graphics/text_assets.h"
 #include "physics.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -695,11 +696,14 @@ static bool ui_field_character_add(UIFieldBinding binding, char character,
 
 static float ui_field_text_width_get(const TextAsset *display, size_t length) {
     TTF_Font *font;
+    TTF_Text *text;
     int width = 0;
     int height = 0;
 
-    if(display == NULL || display->text == NULL || length == 0) return 0.0f;
-    font = TTF_GetTextFont(display->text);
+    if(display == NULL || length == 0) return 0.0f;
+    text = graphics_text_native_get(*display);
+    if(text == NULL) return 0.0f;
+    font = TTF_GetTextFont(text);
     if(font == NULL || !TTF_GetStringSize(font, ui_context.field_edit, length,
             &width, &height)) return 0.0f;
     return (float)width;
@@ -708,7 +712,9 @@ static float ui_field_text_width_get(const TextAsset *display, size_t length) {
 static void ui_field_cursor_from_pointer(const TextAsset *display, UIRect bounds,
         bool multiline) {
     size_t length = strlen(ui_context.field_edit);
-    if(display == NULL || display->text == NULL || length == 0) {
+    TTF_Text *text = display == NULL ? NULL :
+        graphics_text_native_get(*display);
+    if(text == NULL || length == 0) {
         ui_context.field_cursor = length;
         return;
     }
@@ -717,7 +723,7 @@ static void ui_field_cursor_from_pointer(const TextAsset *display, UIRect bounds
         int x = (int)(ui_context.input.pointer.x - bounds.x - 6.0f);
         int y = (int)(ui_context.input.pointer.y - bounds.y - 6.0f +
             ui_context.field_scroll_y);
-        if(TTF_GetTextSubStringForPoint(display->text, x, y, &substring))
+        if(TTF_GetTextSubStringForPoint(text, x, y, &substring))
             ui_context.field_cursor = (size_t)substring.offset;
     } else {
         float text_width = ui_field_text_width_get(display, length);
@@ -886,13 +892,8 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             (void)graphics_text_value_set(display, binding.string);
         }
     }
-    if(multiline && display != NULL && display->text != NULL) {
-        int text_width;
-        int text_height;
-        (void)TTF_SetTextWrapWidth(display->text,
-            (int)fmaxf(1.0f, resolved_bounds.width - 12.0f));
-        if(TTF_GetTextSize(display->text, &text_width, &text_height))
-            display->size = (Scale){(float)text_width, (float)text_height};
+    if(multiline && display != NULL && graphics_text_wrap_width_set(display,
+            (int)fmaxf(1.0f, resolved_bounds.width - 12.0f))) {
         if(result.active) {
             ui_context.field_scroll_y = ui_scrollbar_update(field_id, resolved_bounds,
                 resolved_bounds.height, display->size.y + 12.0f,
@@ -910,7 +911,9 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             ((result.hovered || interaction.focused) ? resolved.hovered : resolved.idle));
     if(result.active) {
         ui_border_raw(resolved_bounds, 2.0f, (Color){165, 195, 245, 255});
-        if(display != NULL && display->text != NULL) {
+        TTF_Text *native_text = display == NULL ? NULL :
+            graphics_text_native_get(*display);
+        if(native_text != NULL) {
             bool clipped = ui_clip_raw_begin(resolved_bounds);
             float text_width = ui_field_text_width_get(display,
                 strlen(ui_context.field_edit));
@@ -925,7 +928,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
             } else {
                 if(multiline) {
                     TTF_SubString substring;
-                    if(TTF_GetTextSubString(display->text,
+                    if(TTF_GetTextSubString(native_text,
                             (int)ui_context.field_cursor, &substring))
                         ui_surface_raw((UIRect){text_left + substring.rect.x,
                             text_top + substring.rect.y, 1.0f,
@@ -1421,7 +1424,7 @@ static void ui_label_raw(const TextAsset *text, UIRect bounds) {
     Position position;
     bool clipped;
 
-    if(text == NULL || (text->text == NULL && !text->built_in)) {
+    if(text == NULL || !graphics_text_valid_check(*text)) {
         return;
     }
     position = (Position){

@@ -642,7 +642,9 @@ EngineResult rohr_graphics_font_release(FontAsset *font) { return graphics_font_
 bool rohr_graphics_font_valid_check(FontAsset font) { return graphics_font_valid_check(font); }
 TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color) { return graphics_text_create(font, value, color); }
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return graphics_text_value_set(text, value); }
-void rohr_graphics_text_destroy(TextAsset *text) { graphics_text_destroy(text); }
+bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width) { return graphics_text_wrap_width_set(text, wrap_width); }
+EngineResult rohr_graphics_text_destroy(TextAsset *text) { return graphics_text_destroy(text); }
+bool rohr_graphics_text_valid_check(TextAsset text) { return graphics_text_valid_check(text); }
 bool rohr_graphics_text_draw(const TextAsset *text, Position position) { return graphics_text_draw(text, position); }
 bool rohr_graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) { return graphics_text_scaled_draw(text, position, scale); }
 bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,

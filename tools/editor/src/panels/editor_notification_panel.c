@@ -220,18 +220,13 @@ void editor_notification_panel_report_draw(EditorNotificationPanel *panel,
         bounds.width - 48.0f, bounds.height - 124.0f};
     rohr_ui_surface(detail_bounds, (Color){27, 31, 39, 255});
     rohr_ui_border(detail_bounds, 1.0f, (Color){10, 12, 16, 255});
-    if(panel->detail_text.text != NULL) {
-        int text_width;
-        int text_height;
-        (void)TTF_SetTextWrapWidth(panel->detail_text.text,
-            (int)(detail_bounds.width - 20.0f));
-        if(TTF_GetTextSize(panel->detail_text.text, &text_width, &text_height))
-            content_height = (float)text_height + 20.0f;
-    }
+    if(rohr_graphics_text_wrap_width_set(&panel->detail_text,
+            (int)(detail_bounds.width - 20.0f)))
+        content_height = panel->detail_text.size.y + 20.0f;
     panel->report_scroll_offset = rohr_ui_scroll_region_begin(
         "editor.notification.report.scroll", detail_bounds, content_height,
         panel->report_scroll_offset, EDITOR_NOTIFICATION_SCROLL_STEP).offset;
-    if(panel->detail_text.text != NULL)
+    if(rohr_graphics_text_valid_check(panel->detail_text))
         (void)rohr_graphics_text_draw(&panel->detail_text,
             (Position){detail_bounds.x + 10.0f,
                 detail_bounds.y + 10.0f - panel->report_scroll_offset});

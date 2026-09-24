@@ -65,8 +65,10 @@ items; when they conflict with this order, follow this list.
    asset-heavy features. Texture, animation, and font resources now have
    generation-checked handles, sharing, explicit references, failure and
    shutdown cleanup; animation also has separate mutable playback. The
-   remaining rendered-text, sound, and music ownership contracts are defined;
-   implementation and verification remain incomplete.
+   Rendered text now has unique generation-checked handles, transactional
+   payload revisions, and safe queued-draw and persistent-UI dependencies. The
+   remaining sound and music ownership implementation and final verification
+   are incomplete.
 3. **COM, inertia, and origin semantics** — Specify and implement the exact
    relationship between entity origin, collision geometry, center of mass,
    moment of inertia, torque, forces, and joint anchors. Preserve automatic
@@ -222,11 +224,11 @@ These runtime foundations should precede broad asset-heavy example authoring.
 - Engine-owned texture and animation handles now provide explicit sharing,
   unloading, failure cleanup, and shutdown behavior. Animation data is immutable
   and shared while playback state remains per consumer.
-- Complete the remaining ownership milestone in dependency order: unique
-  handle-backed rendered text with safe UI and queued-draw dependencies; cached
+- Complete the remaining ownership milestone in dependency order: cached
   decoded WAV data beneath independent sound players plus hardened unique
   streamed-music instances; then full logical and sanitizer verification.
-  Shared custom-font handles are complete. The binding contracts and audit
+  Shared custom-font handles and unique handle-backed rendered text with safe
+  UI and queued-draw dependencies are complete. The binding contracts and audit
   scope are recorded in the
   [architecture guide](docs/architecture.md#remaining-resource-ownership).
 - The SDL-backed audio API is complete for in-memory WAV sounds and one
@@ -234,8 +236,8 @@ These runtime foundations should precede broad asset-heavy example authoring.
   rate, pause/freeze behavior, and explicit destruction.
 - Extend the completed keyboard, pointer, text/IME, and action snapshot with
   SDL gamepad discovery, device lifetime, buttons, triggers, and sticks.
-- Keep the remaining font, text, audio-ownership, verification, and gamepad
-  changes as separate reviewable commits.
+- Keep the remaining audio-ownership, verification, and gamepad changes as
+  separate reviewable commits.
 
 ## 9. Remaining Example Authoring Coverage
 

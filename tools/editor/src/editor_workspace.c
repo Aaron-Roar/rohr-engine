@@ -2075,7 +2075,8 @@ static bool editor_workspace_generated_viewports_write(
                     shape->button_enabled ? "true" : "false",
                     definition->hover_border_color, definition->hover_fill_color,
                     definition->click_border_color, definition->click_fill_color,
-                    has_text ? "&resources->texts[resources->text_count - 1]" : "NULL",
+                    has_text ? "resources->texts[resources->text_count - 1]" :
+                        "(TextAsset){0}",
                     text->offset.x, text->offset.y,
                     text->width_scale * 2.0f, text->height_scale * 2.0f);
                 fprintf(source, "        ui.shape.amount_of_vertices = %zu;\n",
@@ -2139,8 +2140,8 @@ static bool editor_workspace_generated_viewports_write(
                     ".clip_rectangle={%.8ff, %.8ff, %.8ff, %.8ff}});\n"
                     "        if(rohr_error_check(added)) { result = "
                         "rohr_error_result_error(added.result.error); goto fail; }\n",
-                    has_text ? "&resources->texts[resources->text_count - 1]" :
-                        "NULL",
+                    has_text ? "resources->texts[resources->text_count - 1]" :
+                        "(TextAsset){0}",
                     text->box_width * 0.5f,
                     text->box_height * 0.5f,
                     text->offset.x, text->offset.y,

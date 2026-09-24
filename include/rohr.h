@@ -1700,9 +1700,14 @@ bool rohr_graphics_font_valid_check(FontAsset font);
 /** @brief Creates reusable caller-owned text. */
 TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color);
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value);
+/** @brief Sets text wrapping width; zero disables wrapping. */
+bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
 
-/** @brief Destroys reusable text. */
-void rohr_graphics_text_destroy(TextAsset *text);
+/** @brief Destroys the unique text owner and clears its value. */
+EngineResult rohr_graphics_text_destroy(TextAsset *text);
+
+/** @brief Returns whether a text asset names a live public owner. */
+bool rohr_graphics_text_valid_check(TextAsset text);
 
 /** @brief Draws text in logical screen coordinates. */
 bool rohr_graphics_text_draw(const TextAsset *text, Position position);

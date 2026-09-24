@@ -2877,10 +2877,26 @@ TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *val
 ### `rohr_graphics_text_destroy`
 
 ```c
-void rohr_graphics_text_destroy(TextAsset *text);
+EngineResult rohr_graphics_text_destroy(TextAsset *text);
 ```
 
- @brief Destroys reusable text.
+ @brief Destroys the unique text owner and clears its value.
+
+### `rohr_graphics_text_valid_check`
+
+```c
+bool rohr_graphics_text_valid_check(TextAsset text);
+```
+
+ @brief Returns whether a text asset names a live public owner.
+
+### `rohr_graphics_text_wrap_width_set`
+
+```c
+bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
+```
+
+ @brief Sets text wrapping width; zero disables wrapping.
 
 ### `rohr_graphics_text_draw`
 

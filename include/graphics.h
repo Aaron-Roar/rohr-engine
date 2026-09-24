@@ -22,6 +22,7 @@
 #define MAX_TEXTURE_ASSETS 1024
 #define MAX_ANIMATION_ASSETS 1024
 #define MAX_FONT_ASSETS 1024
+#define MAX_TEXT_ASSETS 1024
 #define MAX_ANIMATION_SETS 10
 #define MAX_CAMERAS 16
 #define MAX_SCREENS 16
@@ -186,8 +187,28 @@ typedef enum ViewportUiBorderType {
     VIEWPORT_UI_BORDER_HASHED,
 } ViewportUiBorderType;
 
+/** Generation-checked handle for an engine-owned rendered-text instance. */
+typedef uint32_t TextHandle;
+
+/** Invalid rendered-text handle. */
+#define TEXT_HANDLE_INVALID UINT32_C(0)
+
+/**
+ * Unique mutable rendered text. Copying this value creates a borrowed alias,
+ * not another owner.
+ */
+typedef struct TextAsset {
+    TextHandle handle;
+    /** Logical screen-space dimensions of the current rendered text. */
+    Scale size;
+} TextAsset;
+
+/** Result type for functions that return a TextAsset. */
+ERROR_DECLARE_RESULT_TYPE(TextAssetResult, TextAsset);
+
 typedef struct ViewportUiTextConfig {
-    const struct TextAsset *text;
+    /** Borrowed on input; persistent UI acquires an internal dependency. */
+    TextAsset text;
     Position position;
     Position offset;
     Scale scale;
@@ -316,23 +337,6 @@ typedef struct FontAsset {
 
 /** Result type for functions that return a FontAsset. */
 ERROR_DECLARE_RESULT_TYPE(FontAssetResult, FontAsset);
-
-/**
- * Reusable rendered text owned by the caller. Custom text retains its font;
- * destroy the text before graphics shutdown.
- */
-typedef struct TextAsset {
-    TTF_Text *text;
-    FontAsset font;
-    SDL_Texture *texture;
-    bool built_in;
-    Color color;
-    /** Logical screen-space dimensions of the rendered text. */
-    Scale size;
-} TextAsset;
-
-/** Result type for functions that return a TextAsset. */
-ERROR_DECLARE_RESULT_TYPE(TextAssetResult, TextAsset);
 
 /** Generation-checked handle for an engine-owned animation resource. */
 typedef uint32_t AnimationHandle;
@@ -572,9 +576,13 @@ bool graphics_font_valid_check(FontAsset asset);
 /** Create reusable text. An empty string produces an empty text asset. */
 TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color);
 bool graphics_text_value_set(TextAsset *text, const char *value);
+/** Set text wrapping width in logical pixels; zero disables wrapping. */
+bool graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
 
-/** Destroy reusable text. */
-void graphics_text_destroy(TextAsset *text);
+/** Destroy the unique text owner and clear its value. */
+EngineResult graphics_text_destroy(TextAsset *text);
+/** Return whether a text asset names a live publicly owned instance. */
+bool graphics_text_valid_check(TextAsset text);
 
 /** Draw reusable text with its top-left corner in logical screen space. */
 bool graphics_text_draw(const TextAsset *text, Position position);

@@ -576,6 +576,10 @@ int main(void) {
                 file_contains(path, "rohr_graphics_font_destroy") ||
                 !file_contains(path, "sample text") ||
                 !file_contains(path, "independent text") ||
+                !file_contains(path,
+                    ".text=resources->texts[resources->text_count - 1]") ||
+                file_contains(path,
+                    ".text=&resources->texts[resources->text_count - 1]") ||
                 file_occurrence_count(path,
                     "resources->ui_items[resources->ui_item_count++]") != 6 ||
                 !file_contains(path, "rohr_viewport_enable_set")) {
