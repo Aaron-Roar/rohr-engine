@@ -457,12 +457,16 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME window_presentation COMMAND window_presentation_test)
 
     add_executable(texture_assets_test tests/texture_assets.c)
+    target_include_directories(texture_assets_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(texture_assets_test PRIVATE rohr_engine)
     set_target_properties(texture_assets_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME texture_assets COMMAND texture_assets_test)
 
     add_executable(animation_assets_test tests/animation_assets.c)
+    target_include_directories(animation_assets_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(animation_assets_test PRIVATE rohr_engine)
     set_target_properties(animation_assets_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)

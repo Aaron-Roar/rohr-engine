@@ -165,6 +165,17 @@ void graphics_texture_assets_renderer_set(SDL_Renderer *renderer) {
     texture_renderer = renderer;
 }
 
+GraphicsTextureAssetStats graphics_texture_assets_stats_get(void) {
+    GraphicsTextureAssetStats stats = {0};
+    for(size_t slot = 0; slot < MAX_TEXTURE_ASSETS; slot += 1) {
+        if(!texture_resources[slot].used) continue;
+        stats.live_resources += 1;
+        stats.owner_references += texture_resources[slot].references;
+        stats.command_references += texture_resources[slot].command_references;
+    }
+    return stats;
+}
+
 TextureAssetResult graphics_texture_load(TextureDescriptor descriptor) {
     TextureAsset asset = {.size = descriptor.size};
     GraphicsTextureResource *resource;

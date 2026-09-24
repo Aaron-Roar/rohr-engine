@@ -92,6 +92,18 @@ void graphics_animation_assets_destroy(void) {
     animation_assets_initialized = false;
 }
 
+GraphicsAnimationAssetStats graphics_animation_assets_stats_get(void) {
+    GraphicsAnimationAssetStats stats = {0};
+    for(size_t slot = 0; slot < MAX_ANIMATION_ASSETS; slot += 1) {
+        if(!animation_resources[slot].used) continue;
+        stats.live_resources += 1;
+        stats.owner_references += animation_resources[slot].references;
+        stats.frame_texture_references +=
+            animation_resources[slot].info.frame_count;
+    }
+    return stats;
+}
+
 AnimationAssetResult graphics_animation_load(AnimationDescriptor descriptor) {
     AnimationFrame frames[MAX_ANIMATIONS_FRAMES] = {0};
     AnimationId id;
