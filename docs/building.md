@@ -211,6 +211,19 @@ build/
     └── rohr-gui/rohr-gui
 ```
 
+Run the focused texture and animation ownership tests with Linux address,
+leak, and undefined-behavior checks using:
+
+```sh
+./dev.sh test-assets-sanitized
+```
+
+This command uses the isolated `build/sanitizers/assets/` build tree and does
+not replace the normal test suite. It is supported on Linux with GCC or Clang.
+The tests' deterministic registry counters verify logical ownership transitions,
+while the sanitizers independently detect native memory leaks, invalid memory
+access, and undefined behavior.
+
 The engine is built once and installed into `build/example-sdk/`. Each example
 is then configured independently through its own `CMakeLists.txt` and resolves
 `Rohr::Engine` from that staged SDK. This validates the standalone consumer

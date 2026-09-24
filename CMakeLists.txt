@@ -23,8 +23,24 @@ option(ROHR_PORTABLE_SDK
     "Avoid development-package dependencies in installed Rohr SDKs" OFF)
 option(ROHR_BUILD_SDK_CONSUMER_TESTS
     "Test an external consumer against the installed Rohr SDK" OFF)
+option(ROHR_ENABLE_SANITIZERS
+    "Enable Linux address and undefined-behavior sanitizers" OFF)
 set(ROHR_SDK_INSTALL_PREFIX "" CACHE PATH
     "Installed SDK prefix used by external consumer tests")
+if(ROHR_ENABLE_SANITIZERS)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "ROHR_ENABLE_SANITIZERS is supported only on Linux")
+    endif()
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        message(FATAL_ERROR
+            "ROHR_ENABLE_SANITIZERS requires a GNU or Clang C compiler")
+    endif()
+    set(ROHR_SANITIZER_COMPILE_OPTIONS
+        -fsanitize=address,undefined
+        -fno-omit-frame-pointer)
+    set(ROHR_SANITIZER_LINK_OPTIONS
+        -fsanitize=address,undefined)
+endif()
 if(MSVC AND ROHR_PORTABLE_SDK)
     set(CMAKE_MSVC_RUNTIME_LIBRARY
         "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING
@@ -232,6 +248,12 @@ target_include_directories(rohr_engine
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 target_compile_definitions(rohr_engine PUBLIC SDL_MAIN_HANDLED)
+if(ROHR_ENABLE_SANITIZERS)
+    target_compile_options(rohr_engine PRIVATE
+        ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    target_link_options(rohr_engine INTERFACE
+        ${ROHR_SANITIZER_LINK_OPTIONS})
+endif()
 target_link_libraries(rohr_engine
     PUBLIC
         ${ROHR_SDL3_TARGET}
@@ -471,6 +493,15 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(animation_assets_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME animation_assets COMMAND animation_assets_test)
+
+    if(ROHR_ENABLE_SANITIZERS)
+        foreach(asset_sanitizer_target
+                texture_assets_test
+                animation_assets_test)
+            target_compile_options(${asset_sanitizer_target} PRIVATE
+                ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        endforeach()
+    endif()
 
     add_executable(timing_test tests/timing.c)
     target_link_libraries(timing_test PRIVATE rohr_engine)

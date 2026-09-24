@@ -9,6 +9,7 @@ build_directory="$project_root/build"
 example_build_root="$build_directory/example-build"
 example_output_directory="$build_directory/examples"
 example_sdk_directory="$build_directory/example-sdk"
+asset_sanitizer_build_directory="$build_directory/sanitizers/assets"
 operation=${1:-build}
 
 needs_dev_shell=true
@@ -48,6 +49,28 @@ build() {
     configure
     cmake --build "$build_directory"
     build_examples
+}
+
+test_assets_sanitized() {
+    cmake -S "$project_root" -B "$asset_sanitizer_build_directory" \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DROHR_BUILD_EXAMPLES=OFF \
+        -DROHR_BUILD_EDITOR=OFF \
+        -DROHR_BUILD_TERMINAL=OFF \
+        -DROHR_BUILD_CLI=OFF \
+        -DROHR_BUILD_TESTS=ON \
+        -DROHR_ENABLE_DOCUMENTATION=OFF \
+        -DROHR_ENABLE_SANITIZERS=ON
+    cmake --build "$asset_sanitizer_build_directory" --parallel \
+        --target texture_assets_test animation_assets_test
+    ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+        UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+        SDL_VIDEODRIVER=dummy \
+        SDL_AUDIODRIVER=dummy \
+        ctest --test-dir "$asset_sanitizer_build_directory" \
+            --output-on-failure \
+            --no-tests=error \
+            -R '^(texture_assets|animation_assets)$'
 }
 
 sdk_build() {
@@ -131,6 +154,9 @@ case "$operation" in
         build
         ctest --test-dir "$build_directory" --output-on-failure
         ;;
+    test-assets-sanitized)
+        test_assets_sanitized
+        ;;
     sdk)
         sdk_all
         ;;
@@ -148,7 +174,7 @@ case "$operation" in
         cmake -E remove_directory "$project_root/dist"
         ;;
     *)
-        echo "usage: ./dev.sh [build|test|sdk|sdk-linux|sdk-nix|sdk-windows|clean]" >&2
+        echo "usage: ./dev.sh [build|test|test-assets-sanitized|sdk|sdk-linux|sdk-nix|sdk-windows|clean]" >&2
         exit 1
         ;;
 esac
