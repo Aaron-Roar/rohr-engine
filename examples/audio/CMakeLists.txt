@@ -9,5 +9,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/../cmake/rohr_example.cmake)
 rohr_example_bootstrap()
 
 add_executable(audio src/main.c)
+rohr_add_example_runtime(audio)
 target_link_libraries(audio PRIVATE ${ROHR_ENGINE_TARGET})
 rohr_stage_example_assets(audio audio)

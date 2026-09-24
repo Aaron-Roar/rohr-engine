@@ -1421,7 +1421,7 @@ static void ui_label_raw(const TextAsset *text, UIRect bounds) {
     Position position;
     bool clipped;
 
-    if(text == NULL || text->text == NULL) {
+    if(text == NULL || (text->text == NULL && !text->built_in)) {
         return;
     }
     position = (Position){
