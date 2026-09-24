@@ -80,31 +80,67 @@ the sparse active-layer list; layers are ordered before execution, while calls
 within one layer retain submission order. Buffers retain capacity between
 frames.
 
-Loaded texture pixels are owned by the graphics texture registry and addressed
-through generation-checked handles rather than public SDL pointers. Loading the
-same resolved path shares one GPU texture while each `TextureAsset` retains its
-own logical drawing size. A successful load returns one owning reference;
-sprite components and queued draw commands retain their own references. Release
-caller references with `rohr_graphics_texture_release`. Entity/component
-deletion releases sprite references, queued references keep a texture alive
-through command execution, and graphics shutdown invalidates all remaining
-handles. Copying a `TextureAsset` value does not create a new owning reference;
-call `rohr_graphics_texture_retain` for every independently owned copy.
+### Texture ownership
 
-Animations are immutable registry resources addressed through generation-checked
-`AnimationAsset` handles. Identical definitions share ordered frame textures,
-stable project and frame IDs, and default frame timing. The registry owns its
-frame-texture references until the final animation reference is released.
-Callers explicitly retain and release independently owned animation handles;
-animated-sprite components retain their own references and entity/component
-deletion releases them.
+Loaded texture pixels are owned by the graphics texture registry and addressed
+through generation-checked handles rather than public SDL pointers. The
+resolved, normalized path identifies the registry resource: loading the same
+path shares one GPU texture while each returned `TextureAsset` keeps its own
+logical drawing size. A successful load returns one owning reference. Copying
+the value does not retain it, so every independently owned copy requires a
+successful `rohr_graphics_texture_retain` and one matching release.
+
+Successful release consumes one reference and clears the supplied asset.
+Releasing a zero handle is idempotent; null pointers and nonzero stale handles
+are rejected without changing registry ownership. A texture is publicly valid
+only while it has an owning reference. Sprite value construction is non-owning,
+while successful component insertion retains the texture. Replacement retains
+the new texture before releasing the old one, and component removal or entity
+deletion releases the component reference. Failed loading and failed component
+insertion leave no acquired reference behind.
+
+Queued drawing uses a separate internal command reference. It can keep the
+native texture alive after the final owning release, but it does not make the
+handle publicly valid and a later load cannot revive or share that unowned
+resource. Executing or discarding the command releases this deferred reference.
+Graphics renderer shutdown discards queued commands, destroys the animation
+and texture registries regardless of remaining public owners, and invalidates
+every prior texture handle. Engine-table teardown separately clears component
+ownership.
+
+### Animation ownership
+
+Animations are immutable registry resources addressed through
+generation-checked `AnimationAsset` handles. Registry identity includes the
+normalized stable animation ID, ordered stable frame IDs, resolved frame
+textures and their logical sizes, and tick/time timing. Zero IDs normalize to
+their documented compatibility defaults. Identical definitions share one
+resource; changing any identity input creates a distinct animation.
+
+Each animation resource owns one texture reference per ordered frame until its
+final animation reference is released. Loading an identical animation adds an
+animation owner without adding another persistent set of frame references.
+Animation information is returned by value, while each immutable frame value
+contains a borrowed texture. Callers must not release a borrowed frame texture
+unless they first retain their own copy. A successful animation load or
+explicit retain creates one owner, and a successful release consumes one owner
+and clears the supplied asset. Zero release is idempotent; null pointers and
+nonzero stale handles are rejected.
 
 Mutable playback lives in `AnimationPlayer`, separate from shared animation
-data. Every animated sprite has an independent frame index, update timestamps,
-and effective tick/time durations initialized from the asset defaults. Gameplay
-may vary player timing without changing other users of the shared animation.
-Queued frame drawing remains safe after an animation is released because the
-texture command owns a deferred texture reference through execution.
+data. Player and animated-sprite value construction are non-owning. Every player
+has an independent frame index, update timestamps, and effective tick/time
+durations initialized from the asset defaults. Successful animated-sprite
+component insertion retains the animation; replacement, removal, entity
+deletion, and graphics teardown release component ownership.
+
+Invalid definitions and partial frame-load failures release every texture
+acquired during the attempt. Releasing the final animation owner releases its
+frame textures. A queued draw may then defer a frame texture's native
+destruction according to the texture command contract, but it does not retain
+the animation. Graphics renderer shutdown destroys every remaining animation,
+releases its frame textures, and invalidates every prior animation handle.
+Engine-table teardown separately clears animated-sprite ownership.
 
 The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same
