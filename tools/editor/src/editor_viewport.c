@@ -174,7 +174,7 @@ void editor_viewport_assets_destroy(void) {
     memset(editor_viewport_ui_text_colors, 0, sizeof(editor_viewport_ui_text_colors));
     memset(editor_viewport_ui_text_fonts, 0, sizeof(editor_viewport_ui_text_fonts));
     for(size_t i = 0; i < editor_preview_font_count; i += 1)
-        rohr_graphics_font_destroy(&editor_preview_fonts[i].font);
+        (void)rohr_graphics_font_release(&editor_preview_fonts[i].font);
     memset(editor_preview_fonts, 0, sizeof(editor_preview_fonts));
     editor_preview_font_count = 0;
     editor_viewport_ui_font = NULL;

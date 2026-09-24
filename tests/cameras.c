@@ -453,7 +453,7 @@ int main(void) {
         return 1;
     }
     rohr_graphics_text_destroy(&default_text.result.value);
-    rohr_graphics_font_destroy(&default_font);
+    (void)rohr_graphics_font_release(&default_font);
     rohr_graphics_stop();
     rohr_engine_stop();
     return 0;

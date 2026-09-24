@@ -62,10 +62,10 @@ items; when they conflict with this order, follow this list.
 2. **Asset and resource ownership** — Define handles, sharing, caching,
    reference/lifetime rules, failure cleanup, and destruction for textures,
    sounds, animations, fonts, and other shared resources before expanding
-   asset-heavy features. Texture and animation resources now have
+   asset-heavy features. Texture, animation, and font resources now have
    generation-checked handles, sharing, explicit references, failure and
-   shutdown cleanup, and separate mutable animation playback. The remaining
-   font, rendered-text, sound, and music ownership contracts are defined;
+   shutdown cleanup; animation also has separate mutable playback. The
+   remaining rendered-text, sound, and music ownership contracts are defined;
    implementation and verification remain incomplete.
 3. **COM, inertia, and origin semantics** — Specify and implement the exact
    relationship between entity origin, collision geometry, center of mass,
@@ -222,11 +222,12 @@ These runtime foundations should precede broad asset-heavy example authoring.
 - Engine-owned texture and animation handles now provide explicit sharing,
   unloading, failure cleanup, and shutdown behavior. Animation data is immutable
   and shared while playback state remains per consumer.
-- Complete the remaining ownership milestone in dependency order: shared custom
-  font handles; unique handle-backed rendered text with safe UI and queued-draw
-  dependencies; cached decoded WAV data beneath independent sound players plus
-  hardened unique streamed-music instances; then full logical and sanitizer
-  verification. The binding contracts and audit scope are recorded in the
+- Complete the remaining ownership milestone in dependency order: unique
+  handle-backed rendered text with safe UI and queued-draw dependencies; cached
+  decoded WAV data beneath independent sound players plus hardened unique
+  streamed-music instances; then full logical and sanitizer verification.
+  Shared custom-font handles are complete. The binding contracts and audit
+  scope are recorded in the
   [architecture guide](docs/architecture.md#remaining-resource-ownership).
 - The SDL-backed audio API is complete for in-memory WAV sounds and one
   streamed Ogg Vorbis music track, including looping, mixing, volume, playback

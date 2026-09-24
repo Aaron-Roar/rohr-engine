@@ -110,6 +110,10 @@ const char *error_code_message_get(EngineError error) {
             return "texture asset capacity exceeded";
         case ERROR_ENGINE_FONT_LOAD_FAILED:
             return "font load failed";
+        case ERROR_ENGINE_FONT_NOT_FOUND:
+            return "font asset not found";
+        case ERROR_ENGINE_FONT_CAPACITY_EXCEEDED:
+            return "font asset capacity exceeded";
         case ERROR_ENGINE_TEXT_CREATE_FAILED:
             return "text creation failed";
         case ERROR_ENGINE_ANIMATION_LOAD_FAILED:

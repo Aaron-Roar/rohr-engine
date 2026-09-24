@@ -65,7 +65,7 @@ Fonts, standalone labels, and immediate-mode buttons can be authored under
 
 Font definitions provide a unique name, font-file path, and positive point
 size. They are retrieved with `ui_font_by_name_get()`; the game explicitly
-loads and owns the resulting `FontAsset`.
+loads, owns, and releases the resulting shared `FontAsset` reference.
 
 Standalone labels have a unique name, text, named font, color, and bounds. They
 are retrieved with `ui_label_by_name_get()`. This data is independent from

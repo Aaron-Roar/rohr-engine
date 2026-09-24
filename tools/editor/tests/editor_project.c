@@ -572,6 +572,8 @@ int main(void) {
                 !file_contains(path, ".drag_mode=2") ||
                 !file_contains(path, ".background_color=") ||
                 !file_contains(path, "rohr_graphics_font_default_get") ||
+                !file_contains(path, "rohr_graphics_font_release") ||
+                file_contains(path, "rohr_graphics_font_destroy") ||
                 !file_contains(path, "sample text") ||
                 !file_contains(path, "independent text") ||
                 file_occurrence_count(path,

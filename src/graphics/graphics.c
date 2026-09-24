@@ -14,6 +14,7 @@
 #include "window_presentation.h"
 #include "graphics_layer_order.h"
 #include "graphics/animation_assets.h"
+#include "graphics/font_assets.h"
 #include "graphics/texture_assets.h"
 #include <math.h>
 #include <stdio.h>
@@ -642,6 +643,11 @@ EngineResult graphics_tables_init(void) {
         graphics_texture_assets_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
     }
+    if(graphics_font_assets_init().kind == ERROR_RESULT_ERROR) {
+        graphics_animation_assets_destroy();
+        graphics_texture_assets_destroy();
+        return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
+    }
     if(AnimatedSpritePool_init(&animated_sprites_pool, 0).kind == ERROR_RESULT_ERROR) {
         graphics_tables_destroy();
         return error_result_error(ERROR_ENGINE_GRAPHICS_TABLES_INIT_FAILED);
@@ -693,6 +699,7 @@ void graphics_tables_destroy(void) {
     }
     (void)AnimatedSpritePool_destroy(&animated_sprites_pool);
     (void)SpritePool_destroy(&sprites_pool);
+    graphics_font_assets_destroy();
     graphics_animation_assets_destroy();
     graphics_texture_assets_destroy();
 }
@@ -2753,6 +2760,20 @@ EngineResult graphics_start(void) {
         return error_result_error_detail(ERROR_ENGINE_GRAPHICS_INIT_FAILED,
             detail);
     }
+    {
+        EngineResult result = graphics_font_assets_start();
+        if(error_check(result)) {
+            TTF_DestroyRendererTextEngine(ttf_text_engine);
+            ttf_text_engine = NULL;
+            SDL_DestroyRenderer(sdl_renderer);
+            SDL_DestroyWindow(sdl_window);
+            sdl_renderer = NULL;
+            sdl_window = NULL;
+            TTF_Quit();
+            ttf_initialized = false;
+            return error_result_error(ERROR_ENGINE_GRAPHICS_INIT_FAILED);
+        }
+    }
     graphics_texture_assets_renderer_set(sdl_renderer);
     (void)graphics_camera_active_set(active_camera);
 
@@ -2776,6 +2797,7 @@ void graphics_renderer_end(void) {
     memset(viewports, 0, sizeof(viewports));
     memset(viewports_used, 0, sizeof(viewports_used));
     drawing_screen = SCREEN_INVALID;
+    graphics_font_assets_clear();
     if(ttf_text_engine != NULL) {
         TTF_DestroyRendererTextEngine(ttf_text_engine);
         ttf_text_engine = NULL;
@@ -4042,41 +4064,6 @@ void graphics_particles_draw(void) {
     }
   }
 }
-FontAssetResult graphics_font_load(FontDescriptor descriptor) {
-    FontAsset asset = {0};
-    char detail[256];
-
-    if(descriptor.file == NULL) {
-        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, "font path is null");
-        return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
-    }
-    if(descriptor.point_size <= 0.0f || !ttf_initialized) {
-        snprintf(detail, sizeof(detail), "font path '%s': %s", descriptor.file,
-            descriptor.point_size <= 0.0f ? "point size must be positive" :
-                "SDL_ttf is not initialized");
-        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, detail);
-        return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
-    }
-    asset.font = TTF_OpenFont(descriptor.file, descriptor.point_size);
-    if(asset.font == NULL) {
-        snprintf(detail, sizeof(detail), "font path '%s': %s", descriptor.file,
-            SDL_GetError());
-        error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED, detail);
-        return ERROR_RESULT_MAKE_ERROR(FontAssetResult, ERROR_ENGINE_FONT_LOAD_FAILED);
-    }
-    return ERROR_RESULT_MAKE_VALUE(FontAssetResult, asset);
-}
-
-FontAsset graphics_font_default_get(void) {
-    return (FontAsset){.built_in = true};
-}
-
-void graphics_font_destroy(FontAsset *font) {
-    if(font == NULL) return;
-    if(font->font != NULL) TTF_CloseFont(font->font);
-    *font = (FontAsset){0};
-}
-
 static SDL_Texture *graphics_builtin_text_texture_create(const char *value,
         Color color, Scale *size) {
     SDL_Texture *texture;
@@ -4112,25 +4099,34 @@ static SDL_Texture *graphics_builtin_text_texture_create(const char *value,
 TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color) {
     TextAsset asset = {0};
     SDL_Surface *surface;
+    TTF_Font *native_font;
     int width;
     int height;
 
-    if(font == NULL || value == NULL || (!font->built_in &&
-            (font->font == NULL || ttf_text_engine == NULL))) {
+    if(font == NULL || value == NULL || !graphics_font_valid_check(*font)) {
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
         return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
     }
-    if(font->built_in) {
+    if(graphics_font_builtin_check(*font)) {
         asset.texture = graphics_builtin_text_texture_create(value, color,
             &asset.size);
         if(value[0] != '\0' && asset.texture == NULL)
             return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
                 ERROR_ENGINE_TEXT_CREATE_FAILED);
         asset.built_in = true;
+        asset.font = *font;
         asset.color = color;
         return ERROR_RESULT_MAKE_VALUE(TextAssetResult, asset);
     }
-    asset.text = TTF_CreateText(ttf_text_engine, font->font, value, 0);
+    native_font = graphics_font_native_get(*font);
+    if(native_font == NULL || ttf_text_engine == NULL ||
+            error_check(graphics_font_retain(*font))) {
+        error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
+        return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
+            ERROR_ENGINE_TEXT_CREATE_FAILED);
+    }
+    asset.font = *font;
+    asset.text = TTF_CreateText(ttf_text_engine, native_font, value, 0);
     if(asset.text == NULL || !TTF_SetTextColor(
             asset.text,
             color.red,
@@ -4142,23 +4138,24 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value, C
         if(asset.text != NULL) {
             TTF_DestroyText(asset.text);
         }
+        (void)graphics_font_release(&asset.font);
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, detail);
         return ERROR_RESULT_MAKE_ERROR(TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
     }
     if(width > 0 && height > 0) {
-        surface = TTF_RenderText_Blended(font->font, value, 0,
+        surface = TTF_RenderText_Blended(native_font, value, 0,
             (SDL_Color){color.red, color.green, color.blue, color.alpha});
         asset.texture = surface == NULL ? NULL :
             SDL_CreateTextureFromSurface(sdl_renderer, surface);
         if(surface != NULL) SDL_DestroySurface(surface);
         if(asset.texture == NULL) {
             TTF_DestroyText(asset.text);
+            (void)graphics_font_release(&asset.font);
             error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, SDL_GetError());
             return ERROR_RESULT_MAKE_ERROR(TextAssetResult,
                 ERROR_ENGINE_TEXT_CREATE_FAILED);
         }
     }
-    asset.font = font->font;
     asset.color = color;
     asset.size = (Scale){
         .x = (float)width,
@@ -4172,6 +4169,7 @@ bool graphics_text_value_set(TextAsset *text, const char *value) {
     int height;
     SDL_Surface *surface;
     SDL_Texture *texture;
+    TTF_Font *font;
 
     if(text == NULL || value == NULL) return false;
     if(text->built_in) {
@@ -4186,9 +4184,11 @@ bool graphics_text_value_set(TextAsset *text, const char *value) {
     if(text->text == NULL ||
             !TTF_SetTextString(text->text, value, 0) ||
             !TTF_GetTextSize(text->text, &width, &height)) return false;
+    font = graphics_font_native_get(text->font);
+    if(font == NULL) return false;
     texture = NULL;
     if(width > 0 && height > 0) {
-        surface = TTF_RenderText_Blended(text->font, value, 0,
+        surface = TTF_RenderText_Blended(font, value, 0,
             (SDL_Color){text->color.red, text->color.green, text->color.blue,
                 text->color.alpha});
         texture = surface == NULL ? NULL : SDL_CreateTextureFromSurface(sdl_renderer,
@@ -4210,6 +4210,7 @@ void graphics_text_destroy(TextAsset *text) {
         TTF_DestroyText(text->text);
     }
     if(text->texture != NULL) SDL_DestroyTexture(text->texture);
+    (void)graphics_font_release(&text->font);
     *text = (TextAsset){0};
 }
 

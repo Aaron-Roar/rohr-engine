@@ -21,6 +21,7 @@
 #define MAX_ANIMATIONS_FRAMES 20
 #define MAX_TEXTURE_ASSETS 1024
 #define MAX_ANIMATION_ASSETS 1024
+#define MAX_FONT_ASSETS 1024
 #define MAX_ANIMATION_SETS 10
 #define MAX_CAMERAS 16
 #define MAX_SCREENS 16
@@ -299,25 +300,30 @@ typedef struct FontDescriptor {
     float point_size;
 } FontDescriptor;
 
+/** Generation-checked handle for an engine-owned font resource. */
+typedef uint32_t FontHandle;
+
+/** Invalid font-resource handle. */
+#define FONT_HANDLE_INVALID UINT32_C(0)
+
 /**
- * Loaded font owned by the caller. Destroy all text created from this font
- * before destroying the font, and destroy the font before graphics shutdown.
+ * Opaque shared font resource. Copying this value does not retain it;
+ * explicitly retain every independently owned copy.
  */
 typedef struct FontAsset {
-    TTF_Font *font;
-    bool built_in;
+    FontHandle handle;
 } FontAsset;
 
 /** Result type for functions that return a FontAsset. */
 ERROR_DECLARE_RESULT_TYPE(FontAssetResult, FontAsset);
 
 /**
- * Reusable rendered text owned by the caller. Destroy it before its font and
- * before graphics shutdown.
+ * Reusable rendered text owned by the caller. Custom text retains its font;
+ * destroy the text before graphics shutdown.
  */
 typedef struct TextAsset {
     TTF_Text *text;
-    TTF_Font *font;
+    FontAsset font;
     SDL_Texture *texture;
     bool built_in;
     Color color;
@@ -550,14 +556,18 @@ void graphics_texture_draw(TextureAsset texture, Position position,
 void graphics_screen_texture_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation);
 
-/** Load a font. The caller must destroy successful assets. */
+/** Load or share a font and return one owning reference. */
 FontAssetResult graphics_font_load(FontDescriptor descriptor);
 
-/** Return the engine's file-free built-in font. It does not require destruction. */
+/** Return the engine-pinned built-in font for this graphics lifetime. */
 FontAsset graphics_font_default_get(void);
 
-/** Close a loaded font after all text assets using it are destroyed. */
-void graphics_font_destroy(FontAsset *font);
+/** Add one owning reference to a loaded custom font; built-in retains are no-ops. */
+EngineResult graphics_font_retain(FontAsset asset);
+/** Release one owning reference and clear the caller's asset value. */
+EngineResult graphics_font_release(FontAsset *asset);
+/** Return whether a font asset names a live resource. */
+bool graphics_font_valid_check(FontAsset asset);
 
 /** Create reusable text. An empty string produces an empty text asset. */
 TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color);

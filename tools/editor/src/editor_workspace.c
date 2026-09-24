@@ -2253,7 +2253,7 @@ static bool editor_workspace_generated_viewports_write(
         "    for(size_t i = resources->text_count; i > 0; i -= 1) "
             "rohr_graphics_text_destroy(&resources->texts[i - 1]);\n"
         "    for(size_t i = resources->font_count; i > 0; i -= 1) "
-            "rohr_graphics_font_destroy(&resources->fonts[i - 1]);\n"
+            "(void)rohr_graphics_font_release(&resources->fonts[i - 1]);\n"
         "    *resources = (ProjectViewports){0};\n"
         "}\n");
     {

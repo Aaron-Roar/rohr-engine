@@ -146,7 +146,7 @@ static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspa
                 "Unused custom font '%s' could not be loaded. %s", font->name,
                 rohr_error_message_get(loaded));
         }
-        rohr_graphics_font_destroy(&loaded.result.value);
+        (void)rohr_graphics_font_release(&loaded.result.value);
     }
     return editor_result_value(true);
 }
@@ -4453,7 +4453,8 @@ int main(void) {
                         load_result = editor_result_error(EDITOR_ERROR_NOT_FOUND,
                             "Could not load font: %s", browser_result.path);
                     } else {
-                        rohr_graphics_font_destroy(&loaded_font.result.value);
+                        (void)rohr_graphics_font_release(
+                            &loaded_font.result.value);
                         added_font = editor_project_ui_font_add(&project, font_path);
                         opened = added_font != NULL;
                         if(!opened) load_result = editor_result_error(
@@ -4881,8 +4882,8 @@ int main(void) {
     rohr_graphics_text_destroy(&edit_label);
     rohr_graphics_text_destroy(&file_browser_field);
     editor_file_browser_destroy(&file_browser);
-    rohr_graphics_font_destroy(&notification_font);
-    rohr_graphics_font_destroy(&font);
+    (void)rohr_graphics_font_release(&notification_font);
+    (void)rohr_graphics_font_release(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
     rohr_graphics_stop();
     rohr_engine_stop();
@@ -4981,8 +4982,8 @@ fail:
     rohr_graphics_text_destroy(&edit_label);
     rohr_graphics_text_destroy(&file_browser_field);
     editor_file_browser_destroy(&file_browser);
-    rohr_graphics_font_destroy(&notification_font);
-    rohr_graphics_font_destroy(&font);
+    (void)rohr_graphics_font_release(&notification_font);
+    (void)rohr_graphics_font_release(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
     rohr_graphics_stop();
     rohr_engine_stop();

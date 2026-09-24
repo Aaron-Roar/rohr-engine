@@ -326,7 +326,7 @@ int main(void) {
     rohr_graphics_text_destroy(&settings_label);
     rohr_graphics_text_destroy(&play_label);
     rohr_graphics_text_destroy(&title);
-    rohr_graphics_font_destroy(&font);
+    (void)rohr_graphics_font_release(&font);
     rohr_graphics_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
@@ -344,7 +344,7 @@ fail:
     rohr_graphics_text_destroy(&settings_label);
     rohr_graphics_text_destroy(&play_label);
     rohr_graphics_text_destroy(&title);
-    rohr_graphics_font_destroy(&font);
+    (void)rohr_graphics_font_release(&font);
     rohr_graphics_stop();
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);

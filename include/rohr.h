@@ -1682,14 +1682,20 @@ void rohr_graphics_texture_draw(TextureAsset texture, Position position,
 void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation);
 
-/** @brief Loads a caller-owned font asset. */
+/** @brief Loads or shares a font and returns one owning reference. */
 FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
 
-/** @brief Returns the engine's file-free built-in font. */
+/** @brief Returns the engine-pinned built-in font for this graphics lifetime. */
 FontAsset rohr_graphics_font_default_get(void);
 
-/** @brief Destroys a font after its text assets have been destroyed. */
-void rohr_graphics_font_destroy(FontAsset *font);
+/** @brief Adds one custom-font owner; built-in retains are no-ops. */
+EngineResult rohr_graphics_font_retain(FontAsset font);
+
+/** @brief Releases one font owner and clears the asset value. */
+EngineResult rohr_graphics_font_release(FontAsset *font);
+
+/** @brief Returns whether a font asset names a live resource. */
+bool rohr_graphics_font_valid_check(FontAsset font);
 
 /** @brief Creates reusable caller-owned text. */
 TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color);

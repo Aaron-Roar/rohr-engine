@@ -62,7 +62,7 @@ test_assets_sanitized() {
         -DROHR_ENABLE_DOCUMENTATION=OFF \
         -DROHR_ENABLE_SANITIZERS=ON
     cmake --build "$asset_sanitizer_build_directory" --parallel \
-        --target texture_assets_test animation_assets_test
+        --target texture_assets_test animation_assets_test font_assets_test
     ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
         UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
         SDL_VIDEODRIVER=dummy \
@@ -70,7 +70,7 @@ test_assets_sanitized() {
         ctest --test-dir "$asset_sanitizer_build_directory" \
             --output-on-failure \
             --no-tests=error \
-            -R '^(texture_assets|animation_assets)$'
+            -R '^(texture_assets|animation_assets|font_assets)$'
 }
 
 sdk_build() {

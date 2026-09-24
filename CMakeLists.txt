@@ -186,7 +186,9 @@ set(ROHR_ENGINE_SOURCES
     src/core/systems.c
     src/entity/entity_components.c
     src/entity/entity_pair_set.c
+    src/graphics/asset_path.c
     src/graphics/animation_assets.c
+    src/graphics/font_assets.c
     src/graphics/graphics.c
     src/graphics/texture_assets.c
     src/graphics/graphics_layer_order.c
@@ -494,10 +496,22 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME animation_assets COMMAND animation_assets_test)
 
+    add_executable(font_assets_test tests/font_assets.c)
+    target_include_directories(font_assets_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(font_assets_test PRIVATE
+        ROHR_TEST_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/examples/user-interface/assets/jetbrains_mono_bold_italic.ttf"
+        ROHR_TEST_FONT_ALIAS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/examples/user-interface/assets/../assets/jetbrains_mono_bold_italic.ttf")
+    target_link_libraries(font_assets_test PRIVATE rohr_engine)
+    set_target_properties(font_assets_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME font_assets COMMAND font_assets_test)
+
     if(ROHR_ENABLE_SANITIZERS)
         foreach(asset_sanitizer_target
                 texture_assets_test
-                animation_assets_test)
+                animation_assets_test
+                font_assets_test)
             target_compile_options(${asset_sanitizer_target} PRIVATE
                 ${ROHR_SANITIZER_COMPILE_OPTIONS})
         endforeach()

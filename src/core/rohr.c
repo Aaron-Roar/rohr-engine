@@ -637,7 +637,9 @@ void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
 }
 FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor) { return graphics_font_load(descriptor); }
 FontAsset rohr_graphics_font_default_get(void) { return graphics_font_default_get(); }
-void rohr_graphics_font_destroy(FontAsset *font) { graphics_font_destroy(font); }
+EngineResult rohr_graphics_font_retain(FontAsset font) { return graphics_font_retain(font); }
+EngineResult rohr_graphics_font_release(FontAsset *font) { return graphics_font_release(font); }
+bool rohr_graphics_font_valid_check(FontAsset font) { return graphics_font_valid_check(font); }
 TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color) { return graphics_text_create(font, value, color); }
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return graphics_text_value_set(text, value); }
 void rohr_graphics_text_destroy(TextAsset *text) { graphics_text_destroy(text); }

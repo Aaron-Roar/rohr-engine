@@ -164,8 +164,9 @@ work follows these rules:
   destroys remaining resources, and invalidates every prior handle. Handle
   generations survive subsystem restarts.
 
-These are binding contracts for the remaining ownership implementation, not a
-description of the current raw font and text API.
+These are binding contracts for the ownership implementation. Texture,
+animation, and font ownership now follow them; text and audio retain the
+remaining migration work described below.
 
 #### Audit boundary
 
@@ -180,9 +181,9 @@ gaps:
 
 | Resource | Current boundary | Required boundary |
 | --- | --- | --- |
-| Custom font | `FontAsset` exposes a caller-owned `TTF_Font *`; identical loads do not share and callers must destroy dependent text first. | Shared immutable registry asset keyed by resolved path and point size. |
-| Built-in font | A public boolean sentinel selects SDL debug text. | Engine-pinned generation-checked font value with no file dependency. |
-| Rendered text | `TextAsset` exposes `TTF_Text *`, `TTF_Font *`, and `SDL_Texture *`; deferred commands and persistent viewport UI store borrowed native/public pointers. | Unique mutable handle-backed instance with owned font and safe internal UI/command dependencies. |
+| Custom font | `FontAsset` is a generation-checked handle; resolved path and point size identify shared immutable registry resources with explicit owners. | Complete. |
+| Built-in font | The built-in font is an engine-pinned generation-checked entry for each graphics lifetime. | Complete. |
+| Rendered text | `TextAsset` still exposes `TTF_Text *` and `SDL_Texture *`, but owns a custom-font handle reference; deferred commands and persistent viewport UI still store borrowed native/public pointers. | Unique mutable handle-backed instance with safe internal UI/command dependencies. |
 | WAV sound | `Sound` is generation checked, but every player decodes and owns another copy of the same WAV. | Independent players backed by an internal shared decoded-sample cache. |
 | Streamed music | `Music` already owns a generation-checked decoder, buffer, cursor, and playback settings. | Remain unique and unshared, with explicit validity, destruction, failure, and shutdown rules. |
 
@@ -204,8 +205,8 @@ The following allocations do not need shared-asset registries:
 
 #### Font contract
 
-Public `FontAsset` values will contain a generation-checked handle rather than
-a native pointer. Only the font registry may access `TTF_Font`.
+Public `FontAsset` values contain a generation-checked handle rather than a
+native pointer. Only the font registry may access `TTF_Font`.
 
 A custom font is identified by its resolved normalized path and finite positive
 point size. Resolution and normalization follow texture asset rules. Identical

@@ -2832,7 +2832,7 @@ void rohr_graphics_texture_draw(TextureAsset texture, Position position, Orienta
 FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
 ```
 
- @brief Loads a caller-owned font asset.
+ @brief Loads or shares a font and returns one owning reference.
 
 ### `rohr_graphics_font_default_get`
 
@@ -2840,15 +2840,31 @@ FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
 FontAsset rohr_graphics_font_default_get(void);
 ```
 
- @brief Returns the engine's file-free built-in font.
+ @brief Returns the engine-pinned built-in font for this graphics lifetime.
 
-### `rohr_graphics_font_destroy`
+### `rohr_graphics_font_retain`
 
 ```c
-void rohr_graphics_font_destroy(FontAsset *font);
+EngineResult rohr_graphics_font_retain(FontAsset font);
 ```
 
- @brief Destroys a font after its text assets have been destroyed.
+ @brief Adds one custom-font owner; built-in retains are no-ops.
+
+### `rohr_graphics_font_release`
+
+```c
+EngineResult rohr_graphics_font_release(FontAsset *font);
+```
+
+ @brief Releases one font owner and clears the asset value.
+
+### `rohr_graphics_font_valid_check`
+
+```c
+bool rohr_graphics_font_valid_check(FontAsset font);
+```
+
+ @brief Returns whether a font asset names a live resource.
 
 ### `rohr_graphics_text_create`
 

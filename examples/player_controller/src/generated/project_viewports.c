@@ -43,6 +43,6 @@ void project_viewports_destroy(ProjectViewports *resources) {
     for(size_t i = resources->ui_element_count; i > 0; i -= 1) (void)rohr_graphics_ui_destroy(resources->ui_elements[i - 1]);
     for(size_t i = resources->layer_count; i > 0; i -= 1) (void)rohr_graphics_layer_destroy(resources->layers[i - 1]);
     for(size_t i = resources->text_count; i > 0; i -= 1) rohr_graphics_text_destroy(&resources->texts[i - 1]);
-    for(size_t i = resources->font_count; i > 0; i -= 1) rohr_graphics_font_destroy(&resources->fonts[i - 1]);
+    for(size_t i = resources->font_count; i > 0; i -= 1) (void)rohr_graphics_font_release(&resources->fonts[i - 1]);
     *resources = (ProjectViewports){0};
 }

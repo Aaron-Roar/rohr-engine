@@ -79,6 +79,10 @@ typedef enum EngineError {
     ERROR_ENGINE_TEXTURE_CAPACITY_EXCEEDED,
     /** A font asset could not be loaded. */
     ERROR_ENGINE_FONT_LOAD_FAILED,
+    /** A font handle is invalid, stale, or no longer owned. */
+    ERROR_ENGINE_FONT_NOT_FOUND,
+    /** The engine font-resource table is full. */
+    ERROR_ENGINE_FONT_CAPACITY_EXCEEDED,
     /** A reusable text asset could not be created. */
     ERROR_ENGINE_TEXT_CREATE_FAILED,
     /** An animation definition or one of its texture frames could not load. */
