@@ -142,6 +142,222 @@ the animation. Graphics renderer shutdown destroys every remaining animation,
 releases its frame textures, and invalidates every prior animation handle.
 Engine-table teardown separately clears animated-sprite ownership.
 
+### Remaining resource ownership {#remaining-resource-ownership}
+
+Texture and animation ownership establish the engine-wide distinction between
+immutable shared assets, mutable instances, borrowed values, internal
+dependencies, and subsystem infrastructure. The remaining font, text, and audio
+work follows these rules:
+
+- Shared assets use engine-owned registries, stable cache identities,
+  generation-checked handles, and explicit owning references.
+- Mutable instances use generation-checked handles with one public owner and
+  explicit destruction. Copying an instance handle creates only a borrowed
+  alias, not another owner.
+- Internal dependency and queued-command references may defer native-resource
+  destruction, but they do not transfer public ownership or make a stale caller
+  value reusable.
+- Successful release or destruction clears the supplied owner. Zero values are
+  idempotent; null pointers and nonzero stale handles are rejected without
+  changing the supplied value.
+- Forced subsystem shutdown discards queued work, releases dependencies,
+  destroys remaining resources, and invalidates every prior handle. Handle
+  generations survive subsystem restarts.
+
+These are binding contracts for the remaining ownership implementation, not a
+description of the current raw font and text API.
+
+#### Audit boundary
+
+The audit covers direct and `rohr_` font, text, sound, and music functions;
+state and project definitions; generated viewport resources; editor font
+validation and preview caches; examples; existing tests; and graphics/audio
+shutdown. Fonts and text already cross state, editor, and generated-project
+paths. Audio currently has no authored JSON, editor, or generated-C model, so
+its migration is limited to the direct API, wrappers, documentation, example,
+and tests unless that scope changes explicitly. The audit found these remaining
+gaps:
+
+| Resource | Current boundary | Required boundary |
+| --- | --- | --- |
+| Custom font | `FontAsset` exposes a caller-owned `TTF_Font *`; identical loads do not share and callers must destroy dependent text first. | Shared immutable registry asset keyed by resolved path and point size. |
+| Built-in font | A public boolean sentinel selects SDL debug text. | Engine-pinned generation-checked font value with no file dependency. |
+| Rendered text | `TextAsset` exposes `TTF_Text *`, `TTF_Font *`, and `SDL_Texture *`; deferred commands and persistent viewport UI store borrowed native/public pointers. | Unique mutable handle-backed instance with owned font and safe internal UI/command dependencies. |
+| WAV sound | `Sound` is generation checked, but every player decodes and owns another copy of the same WAV. | Independent players backed by an internal shared decoded-sample cache. |
+| Streamed music | `Music` already owns a generation-checked decoder, buffer, cursor, and playback settings. | Remain unique and unshared, with explicit validity, destruction, failure, and shutdown rules. |
+
+The following allocations do not need shared-asset registries:
+
+- The SDL window, renderer, SDL_ttf text engine, audio device stream, and audio
+  callback are private subsystem infrastructure. Their global isolation belongs
+  to the later global-state priority.
+- Screen render targets are unique mutable GPU resources already hidden behind
+  generation-checked `ScreenId` values. They are not cacheable file assets.
+- Graphics UI definitions remain unique generation-checked objects. Their text
+  dependencies are part of the text migration, not a new shared UI registry.
+- Frame-capture and font-rendering surfaces, WAV source and conversion buffers,
+  and similar scratch values are transient allocations owned by one operation.
+- The FFmpeg recording pipe is a singleton process resource closed by recording
+  stop and graphics shutdown, not a retainable asset.
+- Serialized UI definitions are plain authoring data. JSON documents, editor
+  arrays, input handles, and physics handles retain their subsystem ownership.
+
+#### Font contract
+
+Public `FontAsset` values will contain a generation-checked handle rather than
+a native pointer. Only the font registry may access `TTF_Font`.
+
+A custom font is identified by its resolved normalized path and finite positive
+point size. Resolution and normalization follow texture asset rules. Identical
+identities share one native font, while the same file at a different point size
+is a distinct resource. A successful load returns one owner; copying requires a
+successful retain for every independently owned copy and one matching release.
+Retain fails atomically for stale handles or reference overflow. Release clears
+the supplied value only after consuming a live reference. An explicit validity
+check distinguishes live, zero, and stale values.
+
+The built-in font is an engine-pinned registry entry for each graphics
+lifetime. Getting or copying it needs no caller reference and never depends on a
+path. Generic retain is a successful no-op; generic release may clear a caller
+value but cannot destroy the pin. Graphics shutdown invalidates that generation
+so a pre-shutdown built-in value cannot become valid after restart.
+
+Every custom-font text instance owns one font reference until the text and its
+internal dependents are gone. Releasing the caller's last font owner therefore
+cannot invalidate live text. Failed path resolution, loading, duplicate
+insertion, capacity reservation, or reference acquisition publishes no resource
+and frees every temporary allocation. Native font pointers and mutable font
+settings are never exposed through public information queries.
+
+#### Rendered-text contract
+
+`TextAsset` remains mutable per consumer and is never cached by content. Its
+public value contains a generation-checked text handle and logical size, never
+SDL or SDL_ttf pointers. Successful creation returns the unique public owner;
+copying creates only a borrowed alias, and there is no public retain operation
+for mutable text.
+
+Creation validates its font, acquires the custom-font dependency when needed,
+and publishes a slot only after the complete native payload is ready. Empty
+text is a valid zero-sized instance without a drawable payload. Value mutation
+is transactional: the new payload and dimensions are prepared before replacing
+the current revision, and failure preserves the previous string, payload, size,
+and font dependency. Built-in and custom text share this public contract even
+when their private rendering backends differ.
+
+Every deferred text draw captures the payload revision current when the draw is
+queued and adds an internal command reference. Later mutation or public
+destruction cannot change or invalidate that command. Execution or command
+discard releases the revision. This removes the current raw `TTF_Text *` and
+unmanaged `SDL_Texture *` command lifetime.
+
+Immediate-mode UI borrows text only for the call. Persistent graphics UI
+definitions store internal text references instead of public pointers. Creation
+and replacement acquire the new dependency before releasing the old one;
+destruction and failed insertion release anything acquired; getters return
+borrowed text values. Destroying the public text owner prevents further public
+mutation and clears its value, while UI and command references may defer native
+cleanup without reviving that public handle.
+
+Editor preview teardown and generated code destroy persistent UI definitions
+before text, and text before custom fonts, on success and failure paths. Missing
+custom fonts continue to identify the path, viewport, and UI element and block
+generation or building through an editor notification.
+
+#### Sound contract
+
+Decoded and converted WAV samples become immutable internal assets cached by
+resolved normalized path. The current mix format is fixed and need not join the
+key; a future option that changes decoded bytes must become part of that
+identity. The cache is not public and retains no unused entry after the final
+player releases it.
+
+Each `Sound` remains an independently controlled mutable player with its own
+generation-checked handle, cursor, volume, pan, loop setting, playback rate, and
+playing state. Successful creation acquires one cache reference. Repeated
+creation for the same path returns different players that overlap and advance
+independently while sharing decoded samples.
+
+Copying `Sound` creates a borrowed alias; sounds have no retain operation. A
+pointer-consuming destroy clears a successful owner, accepts zero
+idempotently, and rejects a stale nonzero handle without clearing it. A dedicated
+validity check distinguishes an invalid player from valid false playback or loop
+state.
+
+Creation reserves cache and player ownership transactionally. WAV load,
+conversion, allocation, capacity, reference-overflow, or audio-lock failure
+releases all temporary storage and references and publishes neither an entry nor
+a player. Cache changes, player mutation, destruction, and mixing remain
+synchronized with the callback. Audio shutdown destroys the stream before
+clearing players and cached samples, then invalidates all handles.
+
+#### Music contract
+
+`Music` remains a unique mutable generation-checked instance owning its resolved
+source path, Vorbis decoder, decode buffer, cursor/interpolation data, volume,
+loop setting, playback rate, playing state, and pause state. It is deliberately
+not cached or reference counted: decoder and file position are mutable, and a
+registry that shared only a path or small metadata record would not share the
+expensive state. Creating the same path twice opens independent decoders.
+
+Copying `Music` creates a borrowed alias. Pointer-consuming destruction clears a
+successful owner, accepts zero idempotently, and safely rejects stale nonzero
+handles. A dedicated validity check disambiguates invalid music from legitimate
+false playing or paused results.
+
+Starting a track seeks and prepares it before replacing the active track. The
+previous track is stopped only after the replacement succeeds. Configuration,
+open, validation, decode-buffer allocation, seek, and lock failures close and
+free partial state while leaving the slot and active track unchanged. Destroying
+active music removes it from the mixer before closing its decoder. Shutdown
+destroys the stream first, then all decoders and buffers, while preserving the
+single-active-track policy.
+
+#### Cross-path and verification contract
+
+Direct functions and `rohr_` wrappers expose the same ownership and errors.
+Boolean state queries may return false for invalid handles, but explicit
+validity checks and result-returning operations distinguish stale values. State
+and project files store paths, sizes, colors, and playback settings rather than
+runtime handles; loading acquires owners and unwinds them in reverse dependency
+order.
+
+The planned public shape follows existing naming conventions:
+
+- Fonts add `graphics_font_retain`, `graphics_font_release`, and
+  `graphics_font_valid_check`, with matching `rohr_` wrappers. Release consumes
+  and clears a `FontAsset *`.
+- Text keeps `graphics_text_create`, `graphics_text_value_set`, and
+  `graphics_text_destroy`, adds `graphics_text_valid_check`, and makes destroy a
+  result-returning, pointer-consuming operation. There is intentionally no text
+  retain API. Persistent `ViewportUiTextConfig` values carry a `TextAsset`
+  handle value instead of a caller-owned pointer; zero means no text, and UI
+  creation or replacement acquires the private dependency.
+- Sound and music keep their existing create, playback, mutation, and query
+  names. Their destroy functions consume `Sound *` and `Music *`, and explicit
+  `audio_sound_valid_check` and `audio_music_valid_check` functions are added.
+  There are intentionally no public decoded-sound, music-source, or player
+  retain APIs.
+- Boolean conditions continue using `_check`, stored values use `_get`, and
+  mutations use `_set`. Direct and `rohr_` declarations change together.
+
+Editor font validation and viewport previews use the same registries and release
+their owners when projects close or change. Generated projects create fonts
+before text and persistent UI, then destroy UI before text and fonts. Focused
+tests cover cache identity, independent instance state, internal dependencies,
+replacement, stale handles, partial failure, queued work, shutdown, and restart.
+Logical registry counters complement ASan, LeakSanitizer, and UBSan.
+
+The remaining implementation order is:
+
+1. Add shared custom-font handles, adapting text only enough to own its font.
+2. Add unique text handles, transactional mutation, persistent UI references,
+   safe command payloads, and editor/generated-project migration.
+3. Add the decoded-WAV cache and harden sound/music destruction, validity,
+   rollback, and shutdown without changing music playback policy.
+4. Extend deterministic ownership and Linux sanitizer coverage to fonts, text,
+   sound, and music; then complete the roadmap priority if no gaps remain.
+
 The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same
 public primitives available to applications.

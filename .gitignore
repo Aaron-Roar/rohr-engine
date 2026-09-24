@@ -10,6 +10,7 @@ a.out
 *.lock
 !flake.lock
 .cache/
+.agents/
 *.mp4
 !docs/assets/*.mp4
 AGENTS.md
