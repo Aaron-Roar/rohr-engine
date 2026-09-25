@@ -11,5 +11,5 @@ separate, dependency-ordered commit boundary.
 - [x] Goal 3 — Add unique handle-backed rendered text and safe UI/queued-draw
   dependencies.
 - [x] Goal 4 — Add cached decoded WAV ownership and harden music instances.
-- [ ] Goal 5 — Verify all remaining ownership contracts and update the
+- [x] Goal 5 — Verify all remaining ownership contracts and update the
   roadmap.

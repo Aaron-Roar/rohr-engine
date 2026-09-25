@@ -59,17 +59,18 @@ items; when they conflict with this order, follow this list.
    backend with reliable loading, playback, looping, mixing, volume control,
    playback-rate control, and unloading. Sounds decode WAV assets into memory;
    one active music track streams Ogg Vorbis.
-2. **Asset and resource ownership** — Define handles, sharing, caching,
-   reference/lifetime rules, failure cleanup, and destruction for textures,
-   sounds, animations, fonts, and other shared resources before expanding
-   asset-heavy features. Texture, animation, and font resources now have
+2. **Asset and resource ownership (complete)** — Define handles, sharing,
+   caching, reference/lifetime rules, failure cleanup, and destruction for
+   textures, sounds, animations, fonts, and other shared resources before
+   expanding asset-heavy features. Texture, animation, and font resources have
    generation-checked handles, sharing, explicit references, failure and
    shutdown cleanup; animation also has separate mutable playback. The
    Rendered text now has unique generation-checked handles, transactional
    payload revisions, and safe queued-draw and persistent-UI dependencies. The
    Sound players now share cached decoded WAV resources, while music instances
    remain unique with hardened validity, destruction, rollback, and shutdown.
-   Final cross-resource and sanitizer verification remains incomplete.
+   Direct and wrapper contracts have focused logical coverage, and the complete
+   resource set runs under the Linux ownership sanitizer workflow.
 3. **COM, inertia, and origin semantics** — Specify and implement the exact
    relationship between entity origin, collision geometry, center of mass,
    moment of inertia, torque, forces, and joint anchors. Preserve automatic
@@ -227,7 +228,8 @@ These runtime foundations should precede broad asset-heavy example authoring.
   and shared while playback state remains per consumer.
 - Cached decoded WAV data now backs independent sound players, and unique
   streamed-music instances have hardened validity, destruction, rollback, and
-  shutdown behavior. Full logical and sanitizer verification remains.
+  shutdown behavior. Focused logical and Linux sanitizer verification covers
+  the complete texture, animation, font, text, sound, and music ownership set.
   Shared custom-font handles and unique handle-backed rendered text with safe
   UI and queued-draw dependencies are complete. The binding contracts and audit
   scope are recorded in the
@@ -237,8 +239,7 @@ These runtime foundations should precede broad asset-heavy example authoring.
   rate, pause/freeze behavior, and explicit destruction.
 - Extend the completed keyboard, pointer, text/IME, and action snapshot with
   SDL gamepad discovery, device lifetime, buttons, triggers, and sticks.
-- Keep the remaining audio-ownership, verification, and gamepad changes as
-  separate reviewable commits.
+- Keep gamepad changes as separate reviewable commits.
 
 ## 9. Remaining Example Authoring Coverage
 

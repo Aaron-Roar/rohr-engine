@@ -211,8 +211,8 @@ build/
     └── rohr-gui/rohr-gui
 ```
 
-Run the focused texture and animation ownership tests with Linux address,
-leak, and undefined-behavior checks using:
+Run the focused texture, animation, font, text, and audio ownership tests with
+Linux address, leak, and undefined-behavior checks using:
 
 ```sh
 ./dev.sh test-assets-sanitized

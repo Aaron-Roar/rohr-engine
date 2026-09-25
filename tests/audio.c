@@ -150,9 +150,10 @@ int main(void) {
             first.result.error != ERROR_ENGINE_AUDIO_NOT_STARTED)
         return fail("sound creation before audio start was accepted");
     if(rohr_audio_sound_valid_check(SOUND_INVALID) ||
+            audio_sound_valid_check(SOUND_INVALID) ||
             error_check(rohr_audio_sound_destroy(&zero_sound)) ||
             zero_sound != SOUND_INVALID)
-        return fail("sound zero-owner contract failed before audio start");
+        return fail("direct or wrapper sound zero-owner contract failed");
     if(music_config.path != NULL || music_config.volume != 1.0f ||
             music_config.loop || music_config.playback_rate != 1.0f)
         return fail("unexpected music defaults");
@@ -161,9 +162,10 @@ int main(void) {
             first_music.result.error != ERROR_ENGINE_AUDIO_NOT_STARTED)
         return fail("music creation before audio start was accepted");
     if(rohr_audio_music_valid_check(MUSIC_INVALID) ||
+            audio_music_valid_check(MUSIC_INVALID) ||
             error_check(rohr_audio_music_destroy(&zero_music)) ||
             zero_music != MUSIC_INVALID)
-        return fail("music zero-owner contract failed before audio start");
+        return fail("direct or wrapper music zero-owner contract failed");
     if(!audio_test_wav_write()) return fail("could not create WAV fixture");
     if(!audio_test_ogg_write()) return fail("could not create Ogg fixture");
     (void)SDL_SetHint(SDL_HINT_AUDIO_DRIVER, "dummy");
@@ -240,17 +242,17 @@ int main(void) {
     config.volume = 1.0f;
     config.pan = -1.0f;
     config.playback_rate = 1.0f;
-    second = rohr_audio_sound_create(config);
+    second = audio_sound_create(config);
     if(error_check(second) || second.result.value == first.result.value ||
-            !rohr_audio_sound_valid_check(second.result.value) ||
+            !audio_sound_valid_check(second.result.value) ||
             !stats_check(2, 1, 2, 0, "shared decoded sound"))
         return fail("shared WAV did not create an independent sound player");
-    if(error_check(rohr_audio_sound_play(first.result.value)) ||
+    if(error_check(audio_sound_play(first.result.value)) ||
             error_check(rohr_audio_sound_play(second.result.value)))
         return fail("overlapping sound instances could not be started");
-    if(error_check(rohr_audio_sound_stop(first.result.value)) ||
+    if(error_check(audio_sound_stop(first.result.value)) ||
             rohr_audio_sound_playing_check(first.result.value) ||
-            !rohr_audio_sound_playing_check(second.result.value))
+            !audio_sound_playing_check(second.result.value))
         return fail("shared sounds did not retain independent player state");
     stale_sound = first.result.value;
     if(error_check(rohr_audio_sound_destroy(&first.result.value)) ||
@@ -269,10 +271,10 @@ int main(void) {
                 !stats_check(1, 1, 1, 0, "stale sound destruction"))
             return fail("stale sound ownership was accepted or cleared");
     }
-    if(error_check(rohr_audio_sound_destroy(&second.result.value)) ||
+    if(error_check(audio_sound_destroy(&second.result.value)) ||
             second.result.value != SOUND_INVALID ||
             !stats_check(0, 0, 0, 0, "final sound destruction"))
-        return fail("final sound owner did not release cached samples");
+        return fail("direct sound destruction did not release cached samples");
     config.path = AUDIO_TEST_PATH;
     second = rohr_audio_sound_create(config);
     if(error_check(second) || !stats_check(1, 1, 1, 0,
@@ -321,10 +323,10 @@ int main(void) {
 
     music_config.volume = 0.5f;
     music_config.playback_rate = 1.0f;
-    second_music = rohr_audio_music_create(music_config);
+    second_music = audio_music_create(music_config);
     if(error_check(second_music) ||
             second_music.result.value == first_music.result.value ||
-            !rohr_audio_music_valid_check(second_music.result.value) ||
+            !audio_music_valid_check(second_music.result.value) ||
             !stats_check(1, 1, 1, 2, "second music creation"))
         return fail("second music resource could not be opened");
     if(error_check(rohr_audio_music_play(second_music.result.value)) ||
@@ -353,7 +355,7 @@ int main(void) {
     if(rohr_audio_music_playing_check(second_music.result.value))
         return fail("finite music remained active after stream end");
     stale_music = first_music.result.value;
-    if(error_check(rohr_audio_music_destroy(&first_music.result.value)) ||
+    if(error_check(audio_music_destroy(&first_music.result.value)) ||
             first_music.result.value != MUSIC_INVALID ||
             rohr_audio_music_valid_check(stale_music) ||
             !rohr_audio_music_valid_check(second_music.result.value) ||

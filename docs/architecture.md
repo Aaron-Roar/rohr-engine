@@ -142,12 +142,12 @@ the animation. Graphics renderer shutdown destroys every remaining animation,
 releases its frame textures, and invalidates every prior animation handle.
 Engine-table teardown separately clears animated-sprite ownership.
 
-### Remaining resource ownership {#remaining-resource-ownership}
+### Shared resource ownership {#remaining-resource-ownership}
 
-Texture and animation ownership establish the engine-wide distinction between
+Texture and animation ownership established the engine-wide distinction between
 immutable shared assets, mutable instances, borrowed values, internal
-dependencies, and subsystem infrastructure. The remaining font, text, and audio
-work follows these rules:
+dependencies, and subsystem infrastructure. Font, text, and audio follow the
+same rules:
 
 - Shared assets use engine-owned registries, stable cache identities,
   generation-checked handles, and explicit owning references.
@@ -165,8 +165,7 @@ work follows these rules:
   generations survive subsystem restarts.
 
 These are binding contracts for the ownership implementation. Texture,
-animation, font, and rendered-text ownership now follow them; audio retains
-the remaining migration work described below.
+animation, font, rendered text, sound, and music ownership follow them.
 
 #### Audit boundary
 
@@ -175,9 +174,9 @@ state and project definitions; generated viewport resources; editor font
 validation and preview caches; examples; existing tests; and graphics/audio
 shutdown. Fonts and text already cross state, editor, and generated-project
 paths. Audio currently has no authored JSON, editor, or generated-C model, so
-its migration is limited to the direct API, wrappers, documentation, example,
-and tests unless that scope changes explicitly. The audit found these remaining
-gaps:
+its ownership scope is limited to the direct API, wrappers, documentation,
+example, and tests unless that scope changes explicitly. The completed audit
+verified these boundaries:
 
 | Resource | Current boundary | Required boundary |
 | --- | --- | --- |
@@ -359,6 +358,7 @@ The implementation order is:
    rollback, and shutdown without changing music playback policy. Complete.
 4. Extend deterministic ownership and Linux sanitizer coverage to fonts, text,
    sound, and music; then complete the roadmap priority if no gaps remain.
+   Complete.
 
 The UI is composed from primitive interactions, surfaces, clipping, text,
 fields, sliders, dropdowns, and scroll regions. Higher-level tools use the same

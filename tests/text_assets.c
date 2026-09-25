@@ -83,17 +83,18 @@ int main(void) {
 
     first = rohr_graphics_text_create(&default_font, "same",
         (Color){255, 255, 255, 255});
-    second = rohr_graphics_text_create(&default_font, "same",
+    second = graphics_text_create(&default_font, "same",
         (Color){255, 255, 255, 255});
     if(rohr_error_check(first) || rohr_error_check(second) ||
             first.result.value.handle == second.result.value.handle ||
             !rohr_graphics_text_valid_check(first.result.value) ||
+            !graphics_text_valid_check(second.result.value) ||
             !stats_check(2, 2, 0, 2, 0, "unique instances"))
         return fail("identical text did not create unique instances", true, true);
-    if(!result_ok(rohr_graphics_text_destroy(&first.result.value)) ||
+    if(!result_ok(graphics_text_destroy(&first.result.value)) ||
             !result_ok(rohr_graphics_text_destroy(&second.result.value)) ||
             !stats_check(0, 0, 0, 0, 0, "unique destruction"))
-        return fail("unique text destruction failed", true, true);
+        return fail("direct and wrapper text destruction failed", true, true);
 
     first = rohr_graphics_text_create(&default_font, "",
         (Color){255, 255, 255, 255});

@@ -521,6 +521,7 @@ if(ROHR_BUILD_TESTS)
 
     if(ROHR_ENABLE_SANITIZERS)
         foreach(asset_sanitizer_target
+                audio_test
                 texture_assets_test
                 animation_assets_test
                 font_assets_test
