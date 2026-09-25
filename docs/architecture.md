@@ -184,8 +184,8 @@ gaps:
 | Custom font | `FontAsset` is a generation-checked handle; resolved path and point size identify shared immutable registry resources with explicit owners. | Complete. |
 | Built-in font | The built-in font is an engine-pinned generation-checked entry for each graphics lifetime. | Complete. |
 | Rendered text | `TextAsset` is a unique generation-checked handle plus logical size; private payload revisions retain font, queued-command, and persistent-UI dependencies. | Complete. |
-| WAV sound | `Sound` is generation checked, but every player decodes and owns another copy of the same WAV. | Independent players backed by an internal shared decoded-sample cache. |
-| Streamed music | `Music` already owns a generation-checked decoder, buffer, cursor, and playback settings. | Remain unique and unshared, with explicit validity, destruction, failure, and shutdown rules. |
+| WAV sound | Independent generation-checked players share immutable decoded samples by normalized resolved path. | Complete. |
+| Streamed music | Unique generation-checked instances own independent paths, decoders, buffers, cursors, and playback settings. | Complete. |
 
 The following allocations do not need shared-asset registries:
 
@@ -356,7 +356,7 @@ The implementation order is:
 2. Add unique text handles, transactional mutation, persistent UI references,
    safe command payloads, and editor/generated-project migration. Complete.
 3. Add the decoded-WAV cache and harden sound/music destruction, validity,
-   rollback, and shutdown without changing music playback policy.
+   rollback, and shutdown without changing music playback policy. Complete.
 4. Extend deterministic ownership and Linux sanitizer coverage to fonts, text,
    sound, and music; then complete the roadmap priority if no gaps remain.
 

@@ -86,8 +86,10 @@ float rohr_audio_volume_get(void);
 SoundConfig rohr_audio_sound_config_default_get(void);
 /** Load a WAV and create one independently controlled playback instance. */
 SoundResult rohr_audio_sound_create(SoundConfig config);
-/** Stop and release one sound and its decoded samples. */
-EngineResult rohr_audio_sound_destroy(Sound sound);
+/** Stop and release one sound owner, clearing it on success. */
+EngineResult rohr_audio_sound_destroy(Sound *sound);
+/** Return whether a sound player handle is currently valid. */
+bool rohr_audio_sound_valid_check(Sound sound);
 /** Restart one sound from its beginning. */
 EngineResult rohr_audio_sound_play(Sound sound);
 /** Stop one sound and reset it to its beginning. */
@@ -121,8 +123,10 @@ bool rohr_audio_sound_playing_check(Sound sound);
 MusicConfig rohr_audio_music_config_default_get(void);
 /** Open an Ogg Vorbis file for incremental decoding during playback. */
 MusicResult rohr_audio_music_create(MusicConfig config);
-/** Stop and release one music decoder and its stream buffer. */
-EngineResult rohr_audio_music_destroy(Music music);
+/** Stop and release one music owner, clearing it on success. */
+EngineResult rohr_audio_music_destroy(Music *music);
+/** Return whether a streamed music handle is currently valid. */
+bool rohr_audio_music_valid_check(Music music);
 /** Start one track from the beginning, replacing any active track. */
 EngineResult rohr_audio_music_play(Music music);
 /** Pause the active track without changing its playback position. */

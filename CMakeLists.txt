@@ -428,6 +428,7 @@ endif()
 
 if(ROHR_BUILD_TESTS)
     add_executable(audio_test tests/audio.c)
+    target_include_directories(audio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(audio_test PRIVATE rohr_engine)
     set_target_properties(audio_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)

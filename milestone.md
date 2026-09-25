@@ -10,6 +10,6 @@ separate, dependency-ordered commit boundary.
 - [x] Goal 2 — Add shared custom-font handles and safe font references.
 - [x] Goal 3 — Add unique handle-backed rendered text and safe UI/queued-draw
   dependencies.
-- [ ] Goal 4 — Add cached decoded WAV ownership and harden music instances.
+- [x] Goal 4 — Add cached decoded WAV ownership and harden music instances.
 - [ ] Goal 5 — Verify all remaining ownership contracts and update the
   roadmap.

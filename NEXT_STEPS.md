@@ -67,8 +67,9 @@ items; when they conflict with this order, follow this list.
    shutdown cleanup; animation also has separate mutable playback. The
    Rendered text now has unique generation-checked handles, transactional
    payload revisions, and safe queued-draw and persistent-UI dependencies. The
-   remaining sound and music ownership implementation and final verification
-   are incomplete.
+   Sound players now share cached decoded WAV resources, while music instances
+   remain unique with hardened validity, destruction, rollback, and shutdown.
+   Final cross-resource and sanitizer verification remains incomplete.
 3. **COM, inertia, and origin semantics** — Specify and implement the exact
    relationship between entity origin, collision geometry, center of mass,
    moment of inertia, torque, forces, and joint anchors. Preserve automatic
@@ -224,9 +225,9 @@ These runtime foundations should precede broad asset-heavy example authoring.
 - Engine-owned texture and animation handles now provide explicit sharing,
   unloading, failure cleanup, and shutdown behavior. Animation data is immutable
   and shared while playback state remains per consumer.
-- Complete the remaining ownership milestone in dependency order: cached
-  decoded WAV data beneath independent sound players plus hardened unique
-  streamed-music instances; then full logical and sanitizer verification.
+- Cached decoded WAV data now backs independent sound players, and unique
+  streamed-music instances have hardened validity, destruction, rollback, and
+  shutdown behavior. Full logical and sanitizer verification remains.
   Shared custom-font handles and unique handle-backed rendered text with safe
   UI and queued-draw dependencies are complete. The binding contracts and audit
   scope are recorded in the

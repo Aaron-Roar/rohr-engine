@@ -4212,10 +4212,18 @@ SoundResult rohr_audio_sound_create(SoundConfig config);
 ### `rohr_audio_sound_destroy`
 
 ```c
-EngineResult rohr_audio_sound_destroy(Sound sound);
+EngineResult rohr_audio_sound_destroy(Sound *sound);
 ```
 
- Stop and release one sound and its decoded samples.
+ Stop and release one sound owner, clearing it on success.
+
+### `rohr_audio_sound_valid_check`
+
+```c
+bool rohr_audio_sound_valid_check(Sound sound);
+```
+
+ Return whether a sound player handle is currently valid.
 
 ### `rohr_audio_sound_play`
 
@@ -4326,10 +4334,18 @@ MusicResult rohr_audio_music_create(MusicConfig config);
 ### `rohr_audio_music_destroy`
 
 ```c
-EngineResult rohr_audio_music_destroy(Music music);
+EngineResult rohr_audio_music_destroy(Music *music);
 ```
 
- Stop and release one music decoder and its stream buffer.
+ Stop and release one music owner, clearing it on success.
+
+### `rohr_audio_music_valid_check`
+
+```c
+bool rohr_audio_music_valid_check(Music music);
+```
+
+ Return whether a streamed music handle is currently valid.
 
 ### `rohr_audio_music_play`
 

@@ -238,10 +238,10 @@ cleanup:
         rohr_graphics_text_destroy(&title);
     }
     if(audio_started) {
-        if(sound != SOUND_INVALID) (void)rohr_audio_sound_destroy(sound);
+        if(sound != SOUND_INVALID) (void)rohr_audio_sound_destroy(&sound);
         for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1)
             if(music[index] != MUSIC_INVALID)
-                (void)rohr_audio_music_destroy(music[index]);
+                (void)rohr_audio_music_destroy(&music[index]);
         rohr_audio_stop();
     }
     if(graphics_started) rohr_graphics_stop();

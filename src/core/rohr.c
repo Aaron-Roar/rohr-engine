@@ -34,8 +34,11 @@ SoundConfig rohr_audio_sound_config_default_get(void) {
 SoundResult rohr_audio_sound_create(SoundConfig config) {
     return audio_sound_create(config);
 }
-EngineResult rohr_audio_sound_destroy(Sound sound) {
+EngineResult rohr_audio_sound_destroy(Sound *sound) {
     return audio_sound_destroy(sound);
+}
+bool rohr_audio_sound_valid_check(Sound sound) {
+    return audio_sound_valid_check(sound);
 }
 EngineResult rohr_audio_sound_play(Sound sound) {
     return audio_sound_play(sound);
@@ -78,8 +81,11 @@ MusicConfig rohr_audio_music_config_default_get(void) {
 MusicResult rohr_audio_music_create(MusicConfig config) {
     return audio_music_create(config);
 }
-EngineResult rohr_audio_music_destroy(Music music) {
+EngineResult rohr_audio_music_destroy(Music *music) {
     return audio_music_destroy(music);
+}
+bool rohr_audio_music_valid_check(Music music) {
+    return audio_music_valid_check(music);
 }
 EngineResult rohr_audio_music_play(Music music) {
     return audio_music_play(music);
