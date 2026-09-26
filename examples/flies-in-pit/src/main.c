@@ -186,7 +186,7 @@ int main(void) {
         float turn_axis = rohr_error_check(turn_result) ? 0.0f :
             turn_result.result.value;
         if(ticks_advanced > 0 && (move_axis.x != 0.0f || move_axis.y != 0.0f)) {
-            EngineResult force_result = rohr_physics_force_for_one_tick_apply(large_fly, (Force){
+            EngineResult force_result = rohr_physics_force_apply(large_fly, (Force){
                 .x = move_axis.x * large_fly_mass * large_fly_control_acceleration,
                 .y = move_axis.y * large_fly_mass * large_fly_control_acceleration
             });
@@ -196,7 +196,7 @@ int main(void) {
             }
         }
         if(ticks_advanced > 0 && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(large_fly, -turn_axis * large_fly_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply(large_fly, -turn_axis * large_fly_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

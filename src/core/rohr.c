@@ -429,6 +429,7 @@ EngineResult rohr_physics_group_velocity_away_from_entity_set(GroupId group, flo
 EngineResult rohr_physics_entity_stop(Entity entity) { return physics_entity_stop(entity); }
 EngineResult rohr_physics_group_entities_stop(GroupId group) { return physics_group_entities_stop(group); }
 EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse) { return physics_impulse_apply(entity, impulse); }
+EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse) { return physics_angular_impulse_apply(entity, impulse); }
 EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position offset) { return physics_center_of_mass_local_position_set(entity, offset); }
 PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity) { return physics_center_of_mass_local_position_get(entity); }
 PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity) { return physics_center_of_mass_world_position_get(entity); }
@@ -445,15 +446,17 @@ EngineResult rohr_physics_kinematic_driven_set(Entity entity) { return physics_k
 EngineResult rohr_physics_kinematic_driven_remove(Entity entity) { return physics_kinematic_driven_remove(entity); }
 bool rohr_physics_kinematic_driven_check(Entity entity) { return physics_kinematic_driven_check(entity); }
 EntityResult rohr_physics_force_create(Entity entity, Force f) { return physics_force_create(entity, f); }
-EngineResult rohr_physics_force_component_set(Entity entity, Force force) {
-    return physics_force_component_set(entity, force);
+ForceResult rohr_physics_force_get(Entity entity) { return physics_force_get(entity); }
+EngineResult rohr_physics_force_set(Entity entity, Force force) {
+    return physics_force_set(entity, force);
 }
-EngineResult rohr_physics_force_for_one_tick_apply(Entity entity, Force f) { return physics_force_for_one_tick_apply(entity, f); }
+EngineResult rohr_physics_force_apply(Entity entity, Force f) { return physics_force_apply(entity, f); }
 EntityResult rohr_physics_torque_create(Entity entity, Torque t) { return physics_torque_create(entity, t); }
-EngineResult rohr_physics_torque_component_set(Entity entity, Torque torque) {
-    return physics_torque_component_set(entity, torque);
+TorqueResult rohr_physics_torque_get(Entity entity) { return physics_torque_get(entity); }
+EngineResult rohr_physics_torque_set(Entity entity, Torque torque) {
+    return physics_torque_set(entity, torque);
 }
-EngineResult rohr_physics_torque_for_one_tick_apply(Entity entity, Torque t) { return physics_torque_for_one_tick_apply(entity, t); }
+EngineResult rohr_physics_torque_apply(Entity entity, Torque t) { return physics_torque_apply(entity, t); }
 EngineResult rohr_physics_hitbox_set(Entity entity, Shape hitbox) { return physics_hitbox_set(entity, hitbox); }
 ShapeResult rohr_physics_hitbox_get(Entity entity) { return physics_hitbox_get(entity); }
 EngineResult rohr_physics_hitbox_remove(Entity entity) { return physics_hitbox_remove(entity); }
@@ -532,10 +535,10 @@ SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics
 PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
 EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
-EngineResult rohr_physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force) { return physics_soft_body_node_force_for_one_tick_apply(node, force); }
+EngineResult rohr_physics_soft_body_node_force_apply(Entity node, Force force) { return physics_soft_body_node_force_apply(node, force); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
-EngineResult rohr_physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force force) { return physics_soft_body_force_for_one_tick_apply(soft_body, force); }
-EngineResult rohr_physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torque torque) { return physics_soft_body_torque_for_one_tick_apply(soft_body, torque); }
+EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force) { return physics_soft_body_force_apply(soft_body, force); }
+EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque) { return physics_soft_body_torque_apply(soft_body, torque); }
 SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(Entity node, JointAnchorId anchor) { return physics_soft_body_node_to_anchor_pin_create(node, anchor); }
 EntityResult rohr_physics_soft_body_beam_create(Entity soft_body, Entity node_a, Entity node_b, float stiffness, float damping) { return physics_soft_body_beam_create(soft_body, node_a, node_b, stiffness, damping); }
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam) { return physics_soft_body_beam_get(beam); }

@@ -7,6 +7,7 @@
 #include "console.h"
 #include "physics/physics_internal.h"
 
+#include <float.h>
 #include <math.h>
 
 static Acceleration physics_gravity = {0.0f, 980.0f};
@@ -37,6 +38,28 @@ EngineResult physics_impulse_apply(Entity entity, Vec2D impulse) {
     return error_result_value(true);
 }
 
+EngineResult physics_angular_impulse_apply(Entity entity, float impulse) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    float inverse_inertia;
+    double velocity;
+
+    if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(impulse))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    inverse_inertia = physics_inverse_inertia_by_index_get(index);
+    if(inverse_inertia == 0.0f) return error_result_value(true);
+    velocity = (double)angular_velocities[index] +
+        (double)impulse * inverse_inertia;
+    if(!isfinite(velocity) || fabs(velocity) > FLT_MAX)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(AngularVelocityPool_store_at(
+            &angular_velocities_pool, index, (AngularVelocity)velocity).kind
+            == ERROR_RESULT_ERROR)
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    return error_result_value(true);
+}
+
 EntityResult physics_force_create(Entity entity, Force force) {
     EntityIndex index;
     EntityResult force_result;
@@ -61,7 +84,7 @@ EntityResult physics_force_create(Entity entity, Force force) {
     return ERROR_RESULT_MAKE_VALUE(EntityResult, force_entity);
 }
 
-EngineResult physics_force_component_set(Entity entity, Force force) {
+EngineResult physics_force_set(Entity entity, Force force) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);
 
@@ -73,7 +96,19 @@ EngineResult physics_force_component_set(Entity entity, Force force) {
     return error_result_value(true);
 }
 
-EngineResult physics_force_for_one_tick_apply(Entity entity, Force force) {
+ForceResult physics_force_get(Entity entity) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+
+    if(result.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(ForceResult, result.result.error);
+    if(!entity_index_components_check(index, ROHR_FORCE) ||
+            !forces_pool.used[index])
+        return ERROR_RESULT_MAKE_ERROR(ForceResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ForceResult, forces[index]);
+}
+
+EngineResult physics_force_apply(Entity entity, Force force) {
     EntityResult force_result = physics_force_create(entity, force);
     EngineResult result;
 
@@ -190,7 +225,7 @@ EntityResult physics_torque_create(Entity entity, Torque torque) {
     return ERROR_RESULT_MAKE_VALUE(EntityResult, torque_entity);
 }
 
-EngineResult physics_torque_component_set(Entity entity, Torque torque) {
+EngineResult physics_torque_set(Entity entity, Torque torque) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);
 
@@ -202,7 +237,19 @@ EngineResult physics_torque_component_set(Entity entity, Torque torque) {
     return error_result_value(true);
 }
 
-EngineResult physics_torque_for_one_tick_apply(Entity entity, Torque torque) {
+TorqueResult physics_torque_get(Entity entity) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+
+    if(result.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(TorqueResult, result.result.error);
+    if(!entity_index_components_check(index, ROHR_TORQUE) ||
+            !torques_pool.used[index])
+        return ERROR_RESULT_MAKE_ERROR(TorqueResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(TorqueResult, torques[index]);
+}
+
+EngineResult physics_torque_apply(Entity entity, Torque torque) {
     EntityResult torque_result = physics_torque_create(entity, torque);
     EngineResult result;
 

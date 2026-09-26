@@ -887,6 +887,18 @@ EngineResult rohr_physics_group_entities_stop(GroupId group);
 EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse);
 
 /**
+ * @brief Adds an immediate angular impulse about the effective COM.
+ * Adds impulse / derived inertia to angular velocity without changing motion
+ * type. Zero inverse inertia (including particles, static, held, kinematic,
+ * massless, geometryless, and fully rotation-locked bodies) is a successful
+ * no-op. Nonfinite input or resulting velocity is rejected without mutation.
+ * @param entity Body to modify.
+ * @param impulse Signed angular impulse in mass * distance squared / second.
+ * @return EngineResult describing success or failure.
+ */
+EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse);
+
+/**
  * @brief Sets the world origin while preserving local geometry and attachment offsets.
  * @param entity Entity to modify.
  * @param p Position value.
@@ -940,52 +952,76 @@ EngineResult rohr_physics_kinematic_driven_remove(Entity entity);
 bool rohr_physics_kinematic_driven_check(Entity entity);
 
 /**
- * @brief Sets an entity force component value.
- * @param entity Entity to modify.
+ * @brief Creates a persistent force source targeting an entity.
+ * The caller owns the returned source: entity_delete(source) stops its force
+ * without deleting the target. Setting its force to zero preserves the source.
+ * @param entity Target body.
  * @param f Force value.
- * @return EntityResult containing entity on success, or an error.
+ * @return EntityResult containing the new source on success, or an error.
  */
 EntityResult rohr_physics_force_create(Entity entity, Force f);
 
 /**
- * @brief Sets force component data directly on an existing entity.
- * @param entity Entity to modify.
+ * @brief Replaces or adds stored force on an existing source entity.
+ * Preserves its target; does not accumulate or create a source entity.
+ * @param entity Source entity to modify.
  * @param force Force component value.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_force_component_set(Entity entity, Force force);
+EngineResult rohr_physics_force_set(Entity entity, Force force);
 
 /**
- * @brief Applies force to an entity for one physics tick.
+ * @brief Returns a source's stored force, not the total force on its target.
+ * @param entity Source entity to read.
+ * @return ForceResult containing the force, or an invalid-entity/missing-component error.
+ */
+ForceResult rohr_physics_force_get(Entity entity);
+
+/**
+ * @brief Accumulates force on an entity for one engine physics tick.
+ * Includes every substep of that tick. Repeated calls add contributions.
+ * Uses the engine tick lifetime; manual physics updates do not advance expiry.
  * @param entity Entity to target.
  * @param f Force vector.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_force_for_one_tick_apply(Entity entity, Force f);
+EngineResult rohr_physics_force_apply(Entity entity, Force f);
 
 /**
- * @brief Sets an entity torque component value.
- * @param entity Entity to modify.
+ * @brief Creates a persistent torque source targeting an entity.
+ * The caller owns the returned source: entity_delete(source) stops its torque
+ * without deleting the target. Setting its torque to zero preserves the source.
+ * @param entity Target body.
  * @param t Torque value.
- * @return EntityResult containing entity on success, or an error.
+ * @return EntityResult containing the new source on success, or an error.
  */
 EntityResult rohr_physics_torque_create(Entity entity, Torque t);
 
 /**
- * @brief Sets torque component data directly on an existing entity.
- * @param entity Entity to modify.
+ * @brief Replaces or adds stored torque on an existing source entity.
+ * Preserves its target; does not accumulate or create a source entity.
+ * @param entity Source entity to modify.
  * @param torque Torque component value.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_torque_component_set(Entity entity, Torque torque);
+EngineResult rohr_physics_torque_set(Entity entity, Torque torque);
 
 /**
- * @brief Applies torque to an entity for one physics tick.
+ * @brief Returns a source's stored torque, not the total torque on its target.
+ * @param entity Source entity to read.
+ * @return TorqueResult containing the torque, or an invalid-entity/missing-component error.
+ */
+TorqueResult rohr_physics_torque_get(Entity entity);
+
+/**
+ * @brief Accumulates torque on an entity for one engine physics tick.
+ * Includes every substep of that tick. Repeated calls add contributions.
+ * Uses the engine tick lifetime; manual physics updates do not advance expiry.
  * @param entity Entity to target.
  * @param t Torque value.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_torque_for_one_tick_apply(Entity entity, Torque t);
+EngineResult rohr_physics_torque_apply(Entity entity, Torque t);
 
 /**
  * @brief Sets a simple polygon hitbox and prepares hidden convex decomposition when needed.
@@ -1353,7 +1389,7 @@ EngineResult rohr_physics_soft_body_node_collision_filter_set(
  * @param force Force to apply.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force);
+EngineResult rohr_physics_soft_body_node_force_apply(Entity node, Force force);
 /**
  * @brief Applies an immediate impulse to one soft-body node.
  * @param node Soft-body node entity.
@@ -1367,14 +1403,14 @@ EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impuls
  * @param force Total force to distribute by node mass.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force force);
+EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force);
 /**
  * @brief Applies body-level torque as balanced node forces for the next physics tick.
  * @param soft_body Soft-body owner entity.
  * @param torque Total torque to distribute around the center of mass.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torque torque);
+EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque);
 /**
  * @brief Pins a soft-body node to an existing anchor.
  * @param node Soft-body node entity.

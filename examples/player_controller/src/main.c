@@ -96,10 +96,10 @@ int main(void) {
                         velocity.x > -player_horizontal_speed_maximum) ||
                      (move_axis > 0.0f &&
                         velocity.x < player_horizontal_speed_maximum)) &&
-                    !ok(rohr_physics_force_for_one_tick_apply(
+                    !ok(rohr_physics_force_apply(
                         objects.player_world.player,
                         (Force){move_axis * player_move_force, 0.0f}))) goto fail;
-            if(jump_queued && !ok(rohr_physics_force_for_one_tick_apply(
+            if(jump_queued && !ok(rohr_physics_force_apply(
                     objects.player_world.player,
                     (Force){0.0f, player_jump_force}))) goto fail;
             jump_queued = false;

@@ -117,6 +117,26 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Completed Milestone: Consistent Force and Torque API
+
+Deliver the agreed force, torque, and impulse API as a breaking change before
+priority 4. Editor authoring and force-at-point remain separate future work.
+
+1. [x] **Implement and verify the force, torque, and impulse API** — Renamed
+   one-tick operations to `force_apply`/`torque_apply`, including soft-body
+   operations, and component setters to `force_set`/`torque_set`, without old
+   aliases. Added stored-value getters and immediate COM-based
+   `angular_impulse_apply` through both API layers. Preserved engine-tick
+   lifetimes and `entity_delete` ownership for persistent sources. Migrated
+   callers, examples, state loading, and public documentation. Direct/wrapper
+   tests verify accumulation, expiry across substeps, zero values, deletion,
+   stale handles, state round trips, inertia, nonrotating bodies, and invalid
+   angular impulses. Linux and Windows builds and all 12 installed-SDK example
+   builds pass; all 12 Linux examples launch headlessly outside their source
+   directories. Seven focused ASan/UBSan tests pass. Full Linux results are
+   49/51 with only the previously recorded cameras and ui_field failures.
+   Windows verification is cross-compilation, not runtime execution.
+
 ## Temporary Milestone: Render-Ordered Viewport Picking
 
 Make visible draw order govern viewport selection so selected items and their

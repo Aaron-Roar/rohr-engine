@@ -344,7 +344,7 @@ EngineResult physics_soft_body_node_collision_filter_set(Entity node,
     return result;
 }
 
-EngineResult physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force) {
+EngineResult physics_soft_body_node_force_apply(Entity node, Force force) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(node, &index);
 
@@ -352,7 +352,7 @@ EngineResult physics_soft_body_node_force_for_one_tick_apply(Entity node, Force 
     if(!entity_index_components_check(index, ROHR_SOFT_BODY_NODE)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    return physics_force_for_one_tick_apply(node, force);
+    return physics_force_apply(node, force);
 }
 
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) {
@@ -366,7 +366,7 @@ EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) {
     return physics_impulse_apply(node, impulse);
 }
 
-EngineResult physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force force) {
+EngineResult physics_soft_body_force_apply(Entity soft_body, Force force) {
     SoftBodyResult body_result = physics_soft_body_get(soft_body);
     SoftBody body;
     float total_mass = 0.0f;
@@ -385,7 +385,7 @@ EngineResult physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force 
         EntityIndex index;
         EngineResult result;
         (void)entity_index_get(body.nodes[i], &index);
-        result = physics_soft_body_node_force_for_one_tick_apply(body.nodes[i], (Force){
+        result = physics_soft_body_node_force_apply(body.nodes[i], (Force){
             .x = force.x * mass[index] / total_mass,
             .y = force.y * mass[index] / total_mass
         });
@@ -394,7 +394,7 @@ EngineResult physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force 
     return error_result_value(true);
 }
 
-EngineResult physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torque torque) {
+EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque) {
     SoftBodyResult body_result = physics_soft_body_get(soft_body);
     SoftBody body;
     Position center = {0};
@@ -431,7 +431,7 @@ EngineResult physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torqu
         (void)entity_index_get(body.nodes[i], &index);
         offset = math_vector_subtract(positions[index], center);
         scale = torque * mass[index] / weighted_radius_squared;
-        result = physics_soft_body_node_force_for_one_tick_apply(body.nodes[i], (Force){
+        result = physics_soft_body_node_force_apply(body.nodes[i], (Force){
             .x = -offset.y * scale,
             .y = offset.x * scale
         });

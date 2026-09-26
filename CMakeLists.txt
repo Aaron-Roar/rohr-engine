@@ -614,6 +614,12 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(contact_manifold_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME contact_manifold COMMAND contact_manifold_test)
 
+    add_executable(forces_test tests/forces.c)
+    target_link_libraries(forces_test PRIVATE rohr_engine)
+    set_target_properties(forces_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME forces COMMAND forces_test)
+
     add_executable(center_of_mass_test tests/center_of_mass.c)
     target_link_libraries(center_of_mass_test PRIVATE rohr_engine)
     set_target_properties(center_of_mass_test PROPERTIES
@@ -739,6 +745,7 @@ if(ROHR_BUILD_TESTS)
         contact_manifold
         origin_offsets
         center_of_mass
+        forces
         rigid_contact_stability
         component_registry
         generated_components
@@ -776,6 +783,7 @@ if(ROHR_BUILD_TESTS)
         contact_manifold_test
         origin_offsets_test
         center_of_mass_test
+        forces_test
         center_of_mass_persistence_test
         concave_collision_test
         rigid_contact_stability_test

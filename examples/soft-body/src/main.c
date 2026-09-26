@@ -593,7 +593,7 @@ int main(void) {
                     rohr_input_action_axis_1d_get(torque_action);
                 float torque_axis = rohr_error_check(torque_result) ? 0.0f :
                     torque_result.result.value;
-                if(!result_ok(rohr_physics_torque_for_one_tick_apply(
+                if(!result_ok(rohr_physics_torque_apply(
                             wheels[0].disk, -torque_axis * control_torque))) goto fail;
             }
             if(rohr_error_check(rohr_physics_update(ticks))) goto fail;

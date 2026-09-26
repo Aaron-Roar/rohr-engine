@@ -1296,6 +1296,29 @@ Applies an immediate linear impulse to an entity velocity.
 
 **Returns:** EngineResult describing success or failure.
 
+### `rohr_physics_angular_impulse_apply`
+
+```c
+EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse);
+```
+
+Adds an immediate angular impulse about the effective COM.
+
+Adds impulse / derived inertia to angular velocity without changing motion
+
+type. Zero inverse inertia (including particles, static, held, kinematic,
+
+massless, geometryless, and fully rotation-locked bodies) is a successful
+
+no-op. Nonfinite input or resulting velocity is rejected without mutation.
+
+| Parameter | Description |
+| --- | --- |
+| `entity` | Body to modify. |
+| `impulse` | Signed angular impulse in mass * distance squared / second. |
+
+**Returns:** EngineResult describing success or failure.
+
 ### `rohr_physics_position_set`
 
 ```c
@@ -1395,37 +1418,61 @@ EngineResult rohr_physics_mass_set(Entity entity, Mass m);
 EntityResult rohr_physics_force_create(Entity entity, Force f);
 ```
 
-Sets an entity force component value.
+Creates a persistent force source targeting an entity.
+
+The caller owns the returned source: entity_delete(source) stops its force
+
+without deleting the target. Setting its force to zero preserves the source.
 
 | Parameter | Description |
 | --- | --- |
-| `entity` | Entity to modify. |
+| `entity` | Target body. |
 | `f` | Force value. |
 
-**Returns:** EntityResult containing entity on success, or an error.
+**Returns:** EntityResult containing the new source on success, or an error.
 
-### `rohr_physics_force_component_set`
+### `rohr_physics_force_set`
 
 ```c
-EngineResult rohr_physics_force_component_set(Entity entity, Force force);
+EngineResult rohr_physics_force_set(Entity entity, Force force);
 ```
 
-Sets force component data directly on an existing entity.
+Replaces or adds stored force on an existing source entity.
+
+Preserves its target; does not accumulate or create a source entity.
 
 | Parameter | Description |
 | --- | --- |
-| `entity` | Entity to modify. |
+| `entity` | Source entity to modify. |
 | `force` | Force component value. |
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_force_for_one_tick_apply`
+### `rohr_physics_force_get`
 
 ```c
-EngineResult rohr_physics_force_for_one_tick_apply(Entity entity, Force f);
+ForceResult rohr_physics_force_get(Entity entity);
 ```
 
-Applies force to an entity for one physics tick.
+Returns a source's stored force, not the total force on its target.
+
+| Parameter | Description |
+| --- | --- |
+| `entity` | Source entity to read. |
+
+**Returns:** ForceResult containing the force, or an invalid-entity/missing-component error.
+
+### `rohr_physics_force_apply`
+
+```c
+EngineResult rohr_physics_force_apply(Entity entity, Force f);
+```
+
+Accumulates force on an entity for one engine physics tick.
+
+Includes every substep of that tick. Repeated calls add contributions.
+
+Uses the engine tick lifetime; manual physics updates do not advance expiry.
 
 | Parameter | Description |
 | --- | --- |
@@ -1440,37 +1487,61 @@ Applies force to an entity for one physics tick.
 EntityResult rohr_physics_torque_create(Entity entity, Torque t);
 ```
 
-Sets an entity torque component value.
+Creates a persistent torque source targeting an entity.
+
+The caller owns the returned source: entity_delete(source) stops its torque
+
+without deleting the target. Setting its torque to zero preserves the source.
 
 | Parameter | Description |
 | --- | --- |
-| `entity` | Entity to modify. |
+| `entity` | Target body. |
 | `t` | Torque value. |
 
-**Returns:** EntityResult containing entity on success, or an error.
+**Returns:** EntityResult containing the new source on success, or an error.
 
-### `rohr_physics_torque_component_set`
+### `rohr_physics_torque_set`
 
 ```c
-EngineResult rohr_physics_torque_component_set(Entity entity, Torque torque);
+EngineResult rohr_physics_torque_set(Entity entity, Torque torque);
 ```
 
-Sets torque component data directly on an existing entity.
+Replaces or adds stored torque on an existing source entity.
+
+Preserves its target; does not accumulate or create a source entity.
 
 | Parameter | Description |
 | --- | --- |
-| `entity` | Entity to modify. |
+| `entity` | Source entity to modify. |
 | `torque` | Torque component value. |
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_torque_for_one_tick_apply`
+### `rohr_physics_torque_get`
 
 ```c
-EngineResult rohr_physics_torque_for_one_tick_apply(Entity entity, Torque t);
+TorqueResult rohr_physics_torque_get(Entity entity);
 ```
 
-Applies torque to an entity for one physics tick.
+Returns a source's stored torque, not the total torque on its target.
+
+| Parameter | Description |
+| --- | --- |
+| `entity` | Source entity to read. |
+
+**Returns:** TorqueResult containing the torque, or an invalid-entity/missing-component error.
+
+### `rohr_physics_torque_apply`
+
+```c
+EngineResult rohr_physics_torque_apply(Entity entity, Torque t);
+```
+
+Accumulates torque on an entity for one engine physics tick.
+
+Includes every substep of that tick. Repeated calls add contributions.
+
+Uses the engine tick lifetime; manual physics updates do not advance expiry.
 
 | Parameter | Description |
 | --- | --- |
@@ -2164,10 +2235,10 @@ Sets node-versus-rigid collision filtering.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_node_force_for_one_tick_apply`
+### `rohr_physics_soft_body_node_force_apply`
 
 ```c
-EngineResult rohr_physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force);
+EngineResult rohr_physics_soft_body_node_force_apply(Entity node, Force force);
 ```
 
 Applies a force to one soft-body node for the next physics tick.
@@ -2194,10 +2265,10 @@ Applies an immediate impulse to one soft-body node.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_force_for_one_tick_apply`
+### `rohr_physics_soft_body_force_apply`
 
 ```c
-EngineResult rohr_physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force force);
+EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force);
 ```
 
 Distributes a total force across a soft body for the next physics tick.
@@ -2209,10 +2280,10 @@ Distributes a total force across a soft body for the next physics tick.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_torque_for_one_tick_apply`
+### `rohr_physics_soft_body_torque_apply`
 
 ```c
-EngineResult rohr_physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torque torque);
+EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque);
 ```
 
 Applies body-level torque as balanced node forces for the next physics tick.

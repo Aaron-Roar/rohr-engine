@@ -413,7 +413,7 @@ int main(void) {
         thrust_axis = player_forward(orientations[player_index]);
         if(ticks_advanced > 0 && player_control_enabled &&
                 rohr_input_action_button_down_check(thrust_action)) {
-            EngineResult thrust_result = rohr_physics_force_for_one_tick_apply(player, (Force){
+            EngineResult thrust_result = rohr_physics_force_apply(player, (Force){
                 .x = thrust_axis.x * player_mass * player_thrust_acceleration,
                 .y = thrust_axis.y * player_mass * player_thrust_acceleration
             });
@@ -424,7 +424,7 @@ int main(void) {
         }
         if(ticks_advanced > 0 && player_control_enabled &&
                 rohr_input_action_button_down_check(brake_action) && speed > 0.001f) {
-            EngineResult brake_result = rohr_physics_force_for_one_tick_apply(player, (Force){
+            EngineResult brake_result = rohr_physics_force_apply(player, (Force){
                 .x = -(player_velocity.x / speed) * player_mass * player_brake_acceleration,
                 .y = -(player_velocity.y / speed) * player_mass * player_brake_acceleration
             });
@@ -437,7 +437,7 @@ int main(void) {
         InputAxis1DResult turn_result = rohr_input_action_axis_1d_get(turn_action);
         turn_axis = rohr_error_check(turn_result) ? 0.0f : turn_result.result.value;
         if(ticks_advanced > 0 && player_control_enabled && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_for_one_tick_apply(player, -turn_axis * player_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply(player, -turn_axis * player_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

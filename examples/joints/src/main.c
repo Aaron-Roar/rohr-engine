@@ -210,8 +210,8 @@ int main(void) {
             Force force = throws[throw_index % (sizeof(throws) / sizeof(throws[0]))];
             force.x *= burst_force_scale;
             force.y *= burst_force_scale;
-            if(!result_ok(rohr_physics_force_for_one_tick_apply(body, force)) ||
-                    !result_ok(rohr_physics_torque_for_one_tick_apply(
+            if(!result_ok(rohr_physics_force_apply(body, force)) ||
+                    !result_ok(rohr_physics_torque_apply(
                         body,
                         (throw_index % 2 == 0 ? 1.0f : -1.0f) * 1800.0f
                     ))) goto fail;

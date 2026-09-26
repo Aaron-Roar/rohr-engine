@@ -1228,7 +1228,7 @@ static EngineResult state_components_load(
         if(!state_vec2(value, &vector)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
-        result = physics_force_component_set(entity, vector);
+        result = physics_force_set(entity, vector);
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
 
@@ -1266,7 +1266,7 @@ static EngineResult state_components_load(
         if(!yyjson_is_num(value)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
-        result = physics_torque_component_set(
+        result = physics_torque_set(
             entity,
             (Torque)yyjson_get_num(value)
         );

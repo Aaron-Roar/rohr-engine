@@ -269,6 +269,8 @@ ERROR_DECLARE_RESULT_TYPE(PositionResult, Position);
 ERROR_DECLARE_RESULT_TYPE(BoolResult, bool);
 ERROR_DECLARE_RESULT_TYPE(MomentOfInertiaResult, float);
 ERROR_DECLARE_RESULT_TYPE(AngularVelocityResult, AngularVelocity);
+ERROR_DECLARE_RESULT_TYPE(ForceResult, Force);
+ERROR_DECLARE_RESULT_TYPE(TorqueResult, Torque);
 
 /** Constraint that locks movement onto an axis through a point. */
 typedef struct AxisLock {
@@ -632,6 +634,13 @@ EngineResult physics_entity_stop(Entity entity);
 EngineResult physics_group_entities_stop(GroupId group);
 /** Apply an immediate linear impulse to an entity's velocity. */
 EngineResult physics_impulse_apply(Entity entity, Vec2D impulse);
+/**
+ * Apply an immediate angular impulse (mass * distance squared / second)
+ * about the effective COM. Adds impulse * inverse inertia to angular velocity
+ * without changing motion type. Zero inverse inertia is a successful no-op.
+ * Nonfinite input or resulting velocity is rejected without mutation.
+ */
+EngineResult physics_angular_impulse_apply(Entity entity, float impulse);
 /** Set the world origin, preserving local geometry and attachment offsets. */
 EngineResult physics_position_set(Entity entity, Position p);
 PositionResult physics_position_get(Entity entity);
@@ -672,18 +681,22 @@ bool physics_mass_check(Entity entity);
 EngineResult physics_kinematic_driven_set(Entity entity);
 EngineResult physics_kinematic_driven_remove(Entity entity);
 bool physics_kinematic_driven_check(Entity entity);
-/** Create a force entity targeting the given entity. */
+/** Create a persistent force source. The caller owns its entity_delete lifetime. */
 EntityResult physics_force_create(Entity entity, Force f);
-/** Set force component data directly on an existing entity. */
-EngineResult physics_force_component_set(Entity entity, Force force);
-/** Create a force entity that applies for one physics tick. */
-EngineResult physics_force_for_one_tick_apply(Entity entity, Force f);
-/** Create a torque entity targeting the given entity. */
+/** Replace/add stored force on an existing source entity; preserve its target. */
+EngineResult physics_force_set(Entity entity, Force force);
+/** Read stored force, or report an invalid entity/missing component. */
+ForceResult physics_force_get(Entity entity);
+/** Accumulate force for one engine physics tick, including all its substeps. */
+EngineResult physics_force_apply(Entity entity, Force f);
+/** Create a persistent torque source. The caller owns its entity_delete lifetime. */
 EntityResult physics_torque_create(Entity entity, Torque t);
-/** Set torque component data directly on an existing entity. */
-EngineResult physics_torque_component_set(Entity entity, Torque torque);
-/** Create a torque entity that applies for one physics tick. */
-EngineResult physics_torque_for_one_tick_apply(Entity entity, Torque t);
+/** Replace/add stored torque on an existing source entity; preserve its target. */
+EngineResult physics_torque_set(Entity entity, Torque torque);
+/** Read stored torque, or report an invalid entity/missing component. */
+TorqueResult physics_torque_get(Entity entity);
+/** Accumulate torque for one engine physics tick, including all its substeps. */
+EngineResult physics_torque_apply(Entity entity, Torque t);
 /**
  * Set an entity's simple polygon hitbox and prepare any required convex
  * decomposition. This rejects degenerate and self-intersecting outlines and
@@ -852,10 +865,10 @@ EngineResult physics_soft_body_node_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-EngineResult physics_soft_body_node_force_for_one_tick_apply(Entity node, Force force);
+EngineResult physics_soft_body_node_force_apply(Entity node, Force force);
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
-EngineResult physics_soft_body_force_for_one_tick_apply(Entity soft_body, Force force);
-EngineResult physics_soft_body_torque_for_one_tick_apply(Entity soft_body, Torque torque);
+EngineResult physics_soft_body_force_apply(Entity soft_body, Force force);
+EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque);
 SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     Entity node,
     JointAnchorId anchor
