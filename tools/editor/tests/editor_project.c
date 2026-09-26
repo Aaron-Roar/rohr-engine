@@ -1440,7 +1440,7 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 2") == NULL) return 1;
+                strstr(result.result.error.message, "requires 3") == NULL) return 1;
     }
 
     {

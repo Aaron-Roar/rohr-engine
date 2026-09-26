@@ -1,13 +1,13 @@
 # JSON game state
 
-Game state uses yyjson and schema version `1`. A state may be split across
+Game state uses yyjson and schema version `2`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "entities": [
     {
       "name": "player",
@@ -209,12 +209,33 @@ this schema.
 form for `static`, `dynamic`, `collision`, `targetable`, `particle`, and `hold`.
 When saving, both the numeric mask and readable flags are emitted.
 
+Version 1 files are rejected; rewrite them for the current origin/COM contract.
+COM is stored as `"center_of_mass": {"mode": "automatic"}` or
+`"center_of_mass": {"mode": "explicit", "offset": {"x": 3, "y": -2}}`.
+Omitting the field means automatic. Explicit mode requires two finite,
+in-range local coordinates. Unknown modes, missing coordinates, or an offset
+in automatic mode fail the load and preserve previously loaded state.
+Saves retain the mode and authored offset, never a calculated centroid or inertia.
+Runtime saves capture current COM settings; template saves preserve the original
+authored settings.
+
+Standalone particles have automatic COM at their circle centroid and reject
+explicit overrides. Their owned `particle_geometry` stores `standalone`,
+`origin` (local x/y), and `radius` so this restriction and circle geometry
+survive saving. For ordinary particle-collision bodies, omitted radius keeps
+radius derived from geometry and omitted origin keeps the default local zero;
+standalone particles require both. Ordinary rigid bodies with particle collision may still use
+explicit COM. Simulated particle rotation remains disabled.
+
 Supported value keys are:
 
 - `position`, `velocity`, `acceleration`, and `force`: `{ "x", "y" }`
 - `mass`, `orientation`, `angular_velocity`, `angular_acceleration`, `torque`,
   `friction`, and `restitution`: numbers
 - `hit_box`: an array of 3 to 50 `{ "x", "y" }` vertices
+- `center_of_mass`: automatic or explicit configuration described above
+- `particle_geometry`: `{ "standalone", "origin": {"x", "y"}, "radius" }`
+- `collision_filter`: `{ "category", "collides_with" }` unsigned 64-bit masks
 - `target` and `parent`: entity-name strings
 - `lifetime`: `{ "time", "tick" }`
 - `angle_lock`: `{ "min", "max" }`

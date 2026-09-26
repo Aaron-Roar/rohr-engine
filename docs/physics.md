@@ -5,8 +5,8 @@ that need custom orchestration. Most games should call
 `rohr_system_physics_update(dt)` or `rohr_physics_pipeline_update(dt)`.
 
 The [origin and COM contract](physics_origin_contract.md) specifies this
-milestone's behavior. Origin-relative geometry is implemented; explicit COM,
-COM integration, and the new COM/inertia APIs remain planned for later goals.
+milestone's behavior. Origin-relative geometry, automatic/explicit COM,
+derived inertia, COM integration, persistence, and generated APIs are implemented.
 
 ## Origin-relative geometry
 
@@ -77,7 +77,9 @@ COM and inertia queries still report missing components.
 
 Axis locks constrain the origin. Contacts, torque, and joint lever arms use COM.
 See the [origin contract](physics_origin_contract.md) for formulas and API error
-semantics. COM serialization and editor controls are separate milestone goals.
+semantics. Project JSON, CLI, generated C, and runtime state preserve COM mode
+and explicit offsets. Standalone particles use their circle centroid and reject
+explicit COM overrides. Editor COM controls are the next milestone goal.
 
 ## Body modes
 

@@ -52,6 +52,7 @@ EntityResult physics_particle_create(ParticleConfig config) {
     if(error_check(result)) goto fail; \
 } while(0)
     PARTICLE_APPLY(physics_position_set(particle, config.position));
+    PARTICLE_APPLY(physics_orientation_set(particle, 0.0f));
     PARTICLE_APPLY(physics_hitbox_set(particle, hitbox));
     PARTICLE_APPLY(physics_particle_origin_set(
         particle, config.local_origin));
@@ -73,6 +74,8 @@ EntityResult physics_particle_create(ParticleConfig config) {
     if(!config.collision_enabled)
         PARTICLE_APPLY(entity_components_delete(particle, ROHR_COLLISION));
 #undef PARTICLE_APPLY
+    EntityIndex index;
+    if(entity_index_get(particle, &index)) particle_geometries_pool.objects[index].standalone = true;
     return added;
 
 fail:

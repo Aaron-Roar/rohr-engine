@@ -32,7 +32,7 @@
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Pre-release project schemas remain version 1 until the editor format is stable. */
-#define EDITOR_PROJECT_FORMAT_VERSION 2
+#define EDITOR_PROJECT_FORMAT_VERSION 3
 #define EDITOR_NAVIGATION_MODE_MAX 29
 #define EDITOR_NAVIGATION_SELECTION_MAX 26
 
@@ -163,6 +163,8 @@ typedef struct EditorRigidBody {
     Acceleration initial_acceleration;
     AngularVelocity initial_angular_velocity;
     float mass_value;
+    bool center_of_mass_explicit;
+    Position center_of_mass_offset;
     float friction;
     float restitution;
     bool static_body;
@@ -649,6 +651,9 @@ typedef struct EditorProject {
     EditorInputBindingId next_input_binding_id;
     EditorObjectId selected;
 } EditorProject;
+
+/** Validate authored COM configuration before saving or generating. */
+bool editor_project_center_of_mass_check(const EditorProject *project);
 
 EditorInputController *editor_project_input_controller_add(EditorProject *project,
     const char *name);

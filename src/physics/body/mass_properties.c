@@ -93,6 +93,9 @@ static bool geometry_present_check(EntityIndex index) {
 Position physics_com_local_by_index_get(EntityIndex index) {
     if(index >= properties.capacity) return (Position){0};
     const BodyMassProperties *value = &properties.objects[index];
+    if(index < particle_geometries_pool.capacity && particle_geometries_pool.used[index] &&
+            particle_geometries_pool.objects[index].standalone)
+        return particle_geometries_pool.objects[index].local_origin;
     if(value->explicit_mode) return value->explicit_com;
     return geometry_present_check(index) ? value->centroid : (Position){0};
 }
@@ -146,6 +149,9 @@ EngineResult physics_center_of_mass_local_position_set(Entity entity, Position o
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(index < particle_geometries_pool.capacity && particle_geometries_pool.used[index] &&
+            particle_geometries_pool.objects[index].standalone)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!physics_world_position_check(offset))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     result = physics_mass_properties_reserve((size_t)index + 1);

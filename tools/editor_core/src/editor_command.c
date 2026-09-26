@@ -1002,7 +1002,19 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             if(set->kind == EDITOR_ITEM_RIGID_BODY) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("rigid body", set->item);
-                if(set->property == EDITOR_PROPERTY_MASS &&
+                if(set->property == EDITOR_PROPERTY_CENTER_OF_MASS &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_CENTER_OF_MASS) {
+                    bool explicit_mode = set->value.center_of_mass.explicit_mode;
+                    Position offset = set->value.center_of_mass.offset;
+                    if((explicit_mode && body->standalone_particle) ||
+                            !physics_world_position_check(offset) ||
+                            (!explicit_mode && (offset.x != 0 || offset.y != 0)))
+                        return editor_command_error(editor_result_error(
+                            EDITOR_ERROR_INVALID_ARGUMENT,
+                            "invalid center of mass configuration").result.error);
+                    body->center_of_mass_explicit = explicit_mode;
+                    body->center_of_mass_offset = offset;
+                } else if(set->property == EDITOR_PROPERTY_MASS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) body->mass_value = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_FRICTION &&
@@ -1024,10 +1036,8 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_COLLISION &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     body->collision_enabled = set->value.boolean;
-                    if(!body->collision_enabled) {
+                    if(!body->collision_enabled && !body->standalone_particle)
                         body->particle = false;
-                        body->standalone_particle = false;
-                    }
                 } else if(set->property == EDITOR_PROPERTY_PARTICLE &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL &&
                         (!set->value.boolean || body->collision_enabled)) {
@@ -2246,6 +2256,7 @@ static bool editor_command_property_parse(const char *name,
 
 static const char *editor_command_property_name_get(EditorPropertyKind property) {
     switch(property) {
+        case EDITOR_PROPERTY_CENTER_OF_MASS: return "center-of-mass";
         case EDITOR_PROPERTY_MASS: return "mass";
         case EDITOR_PROPERTY_FRICTION: return "friction";
         case EDITOR_PROPERTY_RESTITUTION: return "restitution";
@@ -2726,6 +2737,26 @@ collision_filter_invalid:
         bool indexed;
         int property_index;
         int value_index;
+        if(strcmp(domain, "rigid-body") == 0 && count >= 7 &&
+                strcmp(arguments[6], "center-of-mass") == 0) {
+            set->kind = EDITOR_ITEM_RIGID_BODY;
+            set->property = EDITOR_PROPERTY_CENTER_OF_MASS;
+            set->value_kind = EDITOR_PROPERTY_VALUE_CENTER_OF_MASS;
+            if(!editor_command_uint_parse(arguments[4], &set->object) ||
+                    !editor_command_uint_parse(arguments[5], &set->item))
+                goto property_parse_invalid;
+            if(count == 8 && strcmp(arguments[7], "automatic") == 0) {
+                set->value.center_of_mass.explicit_mode = false;
+                set->value.center_of_mass.offset = (Position){0};
+            } else if(count == 10 && strcmp(arguments[7], "explicit") == 0 &&
+                    editor_command_float_parse(arguments[8], &set->value.center_of_mass.offset.x) &&
+                    editor_command_float_parse(arguments[9], &set->value.center_of_mass.offset.y) &&
+                    physics_world_position_check(set->value.center_of_mass.offset))
+                set->value.center_of_mass.explicit_mode = true;
+            else goto property_parse_invalid;
+            command->type = EDITOR_COMMAND_PROPERTY_SET;
+            return editor_result_value(true);
+        }
         if(strcmp(domain, "rigid-body") == 0 && count == 10 &&
                 strcmp(arguments[8], "hitbox-frame-binding") == 0) {
             set->kind = EDITOR_ITEM_RIGID_BODY;
@@ -3844,7 +3875,12 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                     !editor_command_text_append(output, output_capacity, &used, property) ||
                     !editor_command_text_append(output, output_capacity, &used, " "))
                 goto capacity_error;
-            if(set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
+            if(set->value_kind == EDITOR_PROPERTY_VALUE_CENTER_OF_MASS) {
+                if(set->value.center_of_mass.explicit_mode)
+                    snprintf(value, sizeof(value), "explicit %.9g %.9g",
+                        set->value.center_of_mass.offset.x, set->value.center_of_mass.offset.y);
+                else snprintf(value, sizeof(value), "automatic");
+            } else if(set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
                 snprintf(value, sizeof(value), "%.9g", set->value.number);
             else if(set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                 boolean = set->value.boolean ? "true" : "false";

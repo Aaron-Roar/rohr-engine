@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <limits.h>
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -1278,6 +1279,62 @@ static EngineResult state_components_load(
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
 
+    value = yyjson_obj_get(components, "collision_filter");
+    if(value != NULL) {
+        yyjson_val *category = yyjson_obj_get(value, "category");
+        yyjson_val *with = yyjson_obj_get(value, "collides_with");
+        if(!yyjson_is_obj(value) || !yyjson_is_uint(category) || !yyjson_is_uint(with))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        result = physics_collision_filter_set(entity, (CollisionFilterConfig){
+            .category = yyjson_get_uint(category), .collides_with = yyjson_get_uint(with)});
+        if(error_check(result)) return result;
+    }
+    value = yyjson_obj_get(components, "particle_geometry");
+    if(value != NULL) {
+        yyjson_val *standalone = yyjson_obj_get(value, "standalone");
+        yyjson_val *origin_value = yyjson_obj_get(value, "origin");
+        yyjson_val *radius_value = yyjson_obj_get(value, "radius");
+        Position origin;
+        double radius;
+        if(!yyjson_is_obj(value) || !yyjson_is_bool(standalone) ||
+                (origin_value == NULL && radius_value == NULL) ||
+                (yyjson_get_bool(standalone) && (origin_value == NULL || radius_value == NULL)))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(origin_value != NULL) {
+            if(!state_vec2(origin_value, &origin))
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            result = physics_particle_origin_set(entity, origin);
+            if(error_check(result)) return result;
+        }
+        if(radius_value != NULL) {
+            if(!state_number(value, "radius", &radius) ||
+                    !isfinite(radius) || radius <= 0 || radius > FLT_MAX)
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            result = physics_particle_radius_set(entity, (float)radius);
+            if(error_check(result)) return result;
+        }
+        particle_geometries_pool.objects[index].standalone = yyjson_get_bool(standalone);
+    }
+    value = yyjson_obj_get(components, "center_of_mass");
+    if(value != NULL) {
+        yyjson_val *mode = yyjson_obj_get(value, "mode");
+        yyjson_val *offset = yyjson_obj_get(value, "offset");
+        Position local;
+        if(!yyjson_is_obj(value) || !yyjson_is_str(mode))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(strcmp(yyjson_get_str(mode), "automatic") == 0) {
+            if(offset != NULL || yyjson_obj_size(value) != 1)
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            result = physics_center_of_mass_automatic_set(entity);
+        } else if(strcmp(yyjson_get_str(mode), "explicit") == 0) {
+            if(yyjson_obj_size(value) != 2 || !state_vec2(offset, &local) ||
+                    yyjson_obj_size(offset) != 2)
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            result = physics_center_of_mass_local_position_set(entity, local);
+        } else return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(error_check(result)) return result;
+    }
+
     value = yyjson_obj_get(components, "target");
     if(value != NULL) {
         Entity target;
@@ -2330,6 +2387,33 @@ EngineResult game_state_file_save(const char *path) {
         if(mask & ROHR_HOLD) yyjson_mut_arr_add_str(document, flags, "hold");
         if(yyjson_mut_arr_size(flags) > 0) yyjson_mut_obj_add_val(document, components, "flags", flags);
 
+        if(collision_filters_pool.used[index]) {
+            yyjson_mut_val *filter = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_uint(document, filter, "category", collision_filters[index].category);
+            yyjson_mut_obj_add_uint(document, filter, "collides_with", collision_filters[index].collides_with);
+            yyjson_mut_obj_add_val(document, components, "collision_filter", filter);
+        }
+        yyjson_mut_val *com = yyjson_mut_obj(document);
+        BoolResult automatic = physics_center_of_mass_automatic_check(entity_result.result.value);
+        yyjson_mut_obj_add_str(document, com, "mode",
+            automatic.result.value ? "automatic" : "explicit");
+        if(!automatic.result.value) {
+            PositionResult offset = physics_center_of_mass_local_position_get(entity_result.result.value);
+            yyjson_mut_obj_add_val(document, com, "offset",
+                state_vec2_write(document, offset.result.value));
+        }
+        yyjson_mut_obj_add_val(document, components, "center_of_mass", com);
+        if(particle_geometries_pool.used[index]) {
+            ParticleGeometry geometry = particle_geometries_pool.objects[index];
+            yyjson_mut_val *particle = yyjson_mut_obj(document);
+            yyjson_mut_obj_add_bool(document, particle, "standalone", geometry.standalone);
+            if(geometry.origin_explicit)
+                yyjson_mut_obj_add_val(document, particle, "origin",
+                    state_vec2_write(document, geometry.local_origin));
+            if(geometry.radius_explicit)
+                yyjson_mut_obj_add_real(document, particle, "radius", geometry.radius);
+            yyjson_mut_obj_add_val(document, components, "particle_geometry", particle);
+        }
         if(positions_pool.used[index]) yyjson_mut_obj_add_val(document, components, "position", state_vec2_write(document, positions[index]));
         if(velocities_pool.used[index]) yyjson_mut_obj_add_val(document, components, "velocity", state_vec2_write(document, velocities[index]));
         if(accelerations_pool.used[index]) yyjson_mut_obj_add_val(document, components, "acceleration", state_vec2_write(document, accelerations[index]));

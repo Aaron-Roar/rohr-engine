@@ -715,7 +715,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "goto fail; } while(0)\n"
         "    GENERATED_APPLY(rohr_physics_position_set(*output, position));\n"
         "    GENERATED_APPLY(rohr_physics_orientation_set(*output, rotation));\n"
-        "    GENERATED_APPLY(rohr_physics_hitbox_set(*output, hitbox));\n"
+        "    if(hitbox.amount_of_vertices > 0)\n"
+        "        GENERATED_APPLY(rohr_physics_hitbox_set(*output, hitbox));\n"
         "    GENERATED_APPLY(rohr_physics_collision_category_set(*output,\n"
         "        collision_enabled ? collision_category : ROHR_COLLISION_CATEGORY_NONE));\n"
         "    GENERATED_APPLY(rohr_physics_collision_with_set(*output,\n"
@@ -932,7 +933,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         vertex == 0 ? "" : ", ",
                         initial_hitbox->vertices[vertex].position.x,
                         initial_hitbox->vertices[vertex].position.y);
-            }
+            } else fprintf(source, "{0}");
             fprintf(source,
                 "}}, %#.9gf, %#.9gf, %#.9gf, %s, %s, %s, %s, %s, "
                 "(Position){%#.9gf, %#.9gf}, %#.9gf, "
@@ -948,6 +949,17 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 particle_radius,
                 (unsigned long long)body->collision_category,
                 (unsigned long long)body->collision_with);
+            if(body->center_of_mass_explicit)
+                fprintf(source,
+                    "    result = rohr_physics_center_of_mass_local_position_set(object->%s, "
+                    "(Position){%#.9gf, %#.9gf});\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",
+                    body->name, body->center_of_mass_offset.x,
+                    body->center_of_mass_offset.y);
+            else
+                fprintf(source,
+                    "    result = rohr_physics_center_of_mass_automatic_set(object->%s);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n", body->name);
             if(initial_hitbox != NULL)
                 fprintf(source,
                     "    result = rohr_physics_hitbox_id_at_set(object->%s, 0, UINT32_C(%u));\n"
@@ -2455,7 +2467,8 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
 
 bool editor_workspace_c_generate(const EditorWorkspace *workspace,
     const EditorProject *project) {
-    return workspace != NULL && workspace->open && project != NULL &&
+    return workspace != NULL && workspace->open &&
+        editor_project_center_of_mass_check(project) &&
         editor_workspace_generated_objects_write(workspace, project) &&
         editor_workspace_generated_viewports_write(workspace, project) &&
         editor_workspace_legacy_main_upgrade(workspace, project);

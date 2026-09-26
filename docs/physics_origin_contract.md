@@ -2,11 +2,10 @@
 
 This is the agreed implementation contract for the **consistent origins,
 center of mass, and inertia** milestone in [the roadmap](../NEXT_STEPS.md).
-Goals 1 through 3 document the contract and implement origin-relative geometry,
-attachment preservation, runtime COM state, derived inertia, and COM-aware
-integration and constraints. Runtime transforms vertices directly from the
-origin without recentering. Persistence, generation, and editor COM controls
-remain the work of goals 4 and 5.
+Goals 1 through 4 implement origin-relative geometry, attachment preservation,
+runtime COM state, derived inertia, COM-aware integration and constraints,
+persistence, CLI commands, and generated C. Runtime transforms vertices directly
+from the origin without recentering. Editor COM controls remain the work of goal 5.
 
 ## Coordinates and mutation
 
@@ -48,7 +47,10 @@ COM defaults to automatic. Automatic COM is the area centroid of the active
 polygon hitbox under the supported uniform-density model. Explicit COM is a
 stored local offset; setting it selects explicit mode. Returning to automatic
 mode discards the override. The particle collision circle is not an additional
-mass contribution to its backing polygon. No compound mass distribution or
+mass contribution to its backing polygon. Pure standalone particles instead
+fix COM at their circle centroid, reject explicit overrides, and retain their
+existing restriction against simulated angular motion. Ordinary rigid bodies
+with particle collision still support explicit COM. No compound mass distribution or
 independently authored density is introduced.
 
 | Change | Automatic COM | Explicit COM | Inertia |
@@ -101,7 +103,9 @@ Prescribed angular velocity remains supported subject to body restrictions.
 Torque and angular solver response require valid derived inertia.
 
 Only validated geometry installs `ROHR_HIT_BOX`. A collision flag alone does
-not make an entity eligible for geometry or collision processing. Invalid
+not make an entity eligible for geometry or collision processing. Collision
+filters can be stored before geometry exists and take effect when valid geometry
+is attached. Runtime state saves preserve those filters. Invalid
 creation fails; invalid edits leave the previous hitbox, flags, and mass
 properties unchanged. Removing geometry clears the hitbox flag; assigning valid
 geometry restores eligibility. Generic component addition cannot install a
@@ -179,11 +183,15 @@ origin-position API or reinterpret local joint-anchor getters as COM-relative.
 
 ## Authoring, compatibility, and acceptance
 
-Goals 4 and 5 will persist automatic/explicit mode and the explicit local offset through project
-data, CLI, JSON, generated C, and applicable runtime state serialization.
+Goal 4 persists automatic/explicit mode and the explicit local offset through
+project data, CLI, JSON, generated C, and runtime state serialization.
+Project data format 3 and game-state schema 2 reject older versions without
+migration. Missing COM configuration means automatic; explicit mode requires
+both local coordinates. Automatic mode with an offset and other malformed COM
+input return an error without replacing the previous successful description.
 Automatic mode must remain automatic after a round trip; do not bake the
 calculated centroid into an explicit override. Runtime and generated creation
-must apply authored configuration before simulation. The editor provides mode
+apply authored configuration before simulation. Goal 5 adds editor mode
 and local-offset controls, derived inertia information, distinct origin/COM
 visualization, and normal duplication and undo/redo behavior.
 

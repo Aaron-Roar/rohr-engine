@@ -10,7 +10,7 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-#define GAME_STATE_VERSION 1
+#define GAME_STATE_VERSION 2
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

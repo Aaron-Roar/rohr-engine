@@ -45,7 +45,7 @@ static const CliHelpDomain cli_help_domains[] = {
     {"--object", "object", "position <x> <y>, visibility <true|false>",
         "--object car --property position 10 20", 0},
     {"--body", "rigid body",
-        "position <x> <y>, rotation <radians>, origin <x> <y>, mass <number>, "
+        "position <x> <y>, rotation <radians>, origin <x> <y>, center-of-mass automatic|explicit <x> <y>, mass <number>, "
         "friction <number>, restitution <0..1>, gravity <true|false>, "
         "static <true|false>, rotation-locked <true|false>, collision <true|false>, "
         "particle <true|false>, particle-radius <number>, "

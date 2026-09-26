@@ -172,10 +172,17 @@ projects and examples without legacy migration or automatic origin recentering.
    including focused ASan/UBSan tests, Linux/Windows compilation, and independent
    installed-SDK example builds and headless launches. The full Linux suite has
    only its pre-existing cameras and ui_field failures (45/47 passing).
-4. [ ] **Persist and generate COM configuration** — Extend project data, JSON,
-   CLI, applicable runtime state persistence, loading, and generated C. Verify
-   mode/offset round trips, invalid input, deterministic generation, and direct
-   versus generated runtime behavior.
+4. [x] **Persist and generate COM configuration** — Added COM mode/local-offset
+   persistence to project data, JSON, CLI, runtime saves/templates, loading, and
+   generated C. Invalid input preserves the previous successful description;
+   project format 3 and state schema 2 reject older versions. Standalone particles
+   retain centroid-only COM and their identity when collisions are disabled.
+   Geometryless bodies retain collision filters; particle saves preserve implicit
+   radius behavior. Fixed document ownership on reload/destruction. Round trips,
+   rollback, CLI edits, deterministic generation, and installed-SDK generated/direct
+   runtime parity pass. Linux and Windows builds, five focused ASan/UBSan tests,
+   and nine installed-SDK example builds/headless launches pass. The full Linux
+   suite has only its pre-existing cameras and ui_field failures (46/48 passing).
 5. [ ] **Expose COM authoring and visualization** — Add mode and local-offset
    controls, derived inertia information, distinct origin/COM visualization,
    undo/redo, duplication, persistence, and preview updates. Test interactions

@@ -28,6 +28,14 @@ target_include_directories(rohr_editor_core
 target_link_libraries(rohr_editor_core PUBLIC rohr_engine PRIVATE rohr_lua)
 
 if(ROHR_BUILD_TESTS)
+    add_executable(center_of_mass_persistence_test tests/center_of_mass_persistence.c)
+    target_link_libraries(center_of_mass_persistence_test PRIVATE rohr_editor_core)
+    set_target_properties(center_of_mass_persistence_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME center_of_mass_persistence COMMAND center_of_mass_persistence_test)
+    set_tests_properties(center_of_mass_persistence PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_core_test tests/editor_core.c)
     target_link_libraries(editor_core_test PRIVATE rohr_editor_core)
     set_target_properties(editor_core_test PROPERTIES

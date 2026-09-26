@@ -347,6 +347,13 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
         editor_json_position_write(document, body->initial_acceleration));
     yyjson_mut_obj_add_real(document, value, "initial_angular_velocity",
         body->initial_angular_velocity);
+    yyjson_mut_val *com = yyjson_mut_obj(document);
+    yyjson_mut_obj_add_str(document, com, "mode",
+        body->center_of_mass_explicit ? "explicit" : "automatic");
+    if(body->center_of_mass_explicit)
+        yyjson_mut_obj_add_val(document, com, "offset",
+            editor_json_position_write(document, body->center_of_mass_offset));
+    yyjson_mut_obj_add_val(document, value, "center_of_mass", com);
     yyjson_mut_obj_add_real(document, value, "mass", body->mass_value);
     yyjson_mut_obj_add_real(document, value, "friction", body->friction);
     yyjson_mut_obj_add_real(document, value, "restitution", body->restitution);
@@ -693,7 +700,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_val *ui_definitions;
     yyjson_mut_val *input_controllers;
     bool success;
-    if(project == NULL || path == NULL || path[0] == '\0') return false;
+    if(!editor_project_center_of_mass_check(project) || path == NULL || path[0] == '\0') return false;
     document = yyjson_mut_doc_new(NULL);
     if(document == NULL) return false;
     root = yyjson_mut_obj(document);
@@ -1162,14 +1169,29 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
                 "particle_rigid_vertices", &body->particle_rigid_vertices)) ||
             (particle_fill_color != NULL && !editor_json_uint(
                 value, "particle_fill_color", &body->particle_fill_color))) return false;
+    yyjson_val *com = yyjson_obj_get(value, "center_of_mass");
+    if(com != NULL) {
+        yyjson_val *mode = yyjson_obj_get(com, "mode");
+        yyjson_val *offset = yyjson_obj_get(com, "offset");
+        if(!yyjson_is_obj(com) || !yyjson_is_str(mode)) return false;
+        if(strcmp(yyjson_get_str(mode), "automatic") == 0) {
+            if(offset != NULL || yyjson_obj_size(com) != 1) return false;
+        } else if(strcmp(yyjson_get_str(mode), "explicit") == 0) {
+            if(body->standalone_particle || yyjson_obj_size(com) != 2 ||
+                    !editor_json_position_read(offset, &body->center_of_mass_offset) ||
+                    yyjson_obj_size(offset) != 2 ||
+                    !physics_world_position_check(body->center_of_mass_offset)) return false;
+            body->center_of_mass_explicit = true;
+        } else return false;
+    }
     body->particle_radius = fmaxf(0.0f, body->particle_radius);
     if(body->particle_rigid_vertices != 0 && (body->particle_rigid_vertices < 3 ||
             body->particle_rigid_vertices > EDITOR_HITBOX_VERTEX_MAX)) return false;
     if((border_color != NULL && !editor_json_uint(value, "border_color", &body->border_color)) ||
             (surface_color != NULL && !editor_json_uint(
                 value, "surface_color", &body->surface_color))) return false;
-    if(!body->collision_enabled) body->particle = false;
-    if(!body->particle) body->standalone_particle = false;
+    if(body->standalone_particle && !body->particle) return false;
+    if(!body->collision_enabled && !body->standalone_particle) body->particle = false;
     if(collision_enabled == NULL &&
             (collision_category != NULL || collision_with != NULL)) return false;
     editor_project_property_name_format(body->name, sizeof(body->name), body->name);

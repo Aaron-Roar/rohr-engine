@@ -1766,6 +1766,23 @@ void editor_project_selection_clear(EditorProject *project) {
     project->selected = EDITOR_OBJECT_INVALID;
 }
 
+bool editor_project_center_of_mass_check(const EditorProject *project) {
+    if(project == NULL) return false;
+    for(size_t i = 0; i < project->object_count; i += 1) {
+        const EditorObject *object = &project->objects[i];
+        for(size_t j = 0; j < object->rigid_body_count; j += 1) {
+            const EditorRigidBody *body = &object->rigid_bodies[j];
+            if((body->standalone_particle && !body->particle) ||
+                    !physics_world_position_check(body->center_of_mass_offset) ||
+                    (body->center_of_mass_explicit && body->standalone_particle) ||
+                    (!body->center_of_mass_explicit &&
+                     (body->center_of_mass_offset.x != 0 || body->center_of_mass_offset.y != 0)))
+                return false;
+        }
+    }
+    return true;
+}
+
 EditorRigidBody editor_project_rigid_body_default_get(void) {
     return (EditorRigidBody){
         .mass_value = 1.0f,

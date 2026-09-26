@@ -320,6 +320,28 @@ locking, colors, and collision filtering. Collision filtering has two sets:
 
 A pair responds only when both directional filters accept one another.
 
+## Center of mass persistence and CLI
+
+Project data uses format version 3; older project data must be rewritten.
+The workspace manifest version is unchanged. Rigid-body records store
+`center_of_mass` as `{"mode": "automatic"}` or
+`{"mode": "explicit", "offset": {"x": 3, "y": -2}}`.
+Omitting it selects automatic mode. Invalid COM input returns an error and
+preserves the previous successful project description.
+
+Use the existing body/property CLI selectors:
+
+```sh
+rohr-cli --project ./objects/project.rohr.json --object car --body chassis --property center-of-mass explicit 3 -2
+rohr-cli --project ./objects/project.rohr.json --object car --body chassis --property center-of-mass automatic
+```
+
+Selecting automatic discards the explicit offset. Generated C applies this
+configuration before simulation, including bodies without geometry. Inertia
+is always derived. Standalone particles reject explicit COM; their COM stays
+at the particle centroid, even when collision response is disabled. Editor COM controls and visualization follow in
+the next milestone goal.
+
 ## Particles
 
 **Add Particle** creates a standalone translation-only particle. Its authored

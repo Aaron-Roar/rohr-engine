@@ -153,6 +153,7 @@ typedef struct EditorItemRenameCommand {
 } EditorItemRenameCommand;
 
 typedef enum EditorPropertyKind {
+    EDITOR_PROPERTY_CENTER_OF_MASS,
     EDITOR_PROPERTY_MASS,
     EDITOR_PROPERTY_FRICTION,
     EDITOR_PROPERTY_RESTITUTION,
@@ -197,6 +198,7 @@ typedef enum EditorPropertyKind {
 } EditorPropertyKind;
 
 typedef enum EditorPropertyValueKind {
+    EDITOR_PROPERTY_VALUE_CENTER_OF_MASS,
     EDITOR_PROPERTY_VALUE_FLOAT,
     EDITOR_PROPERTY_VALUE_BOOL,
     EDITOR_PROPERTY_VALUE_UINT
@@ -211,6 +213,7 @@ typedef struct EditorPropertySetCommand {
     EditorPropertyKind property;
     EditorPropertyValueKind value_kind;
     union {
+        struct { bool explicit_mode; Position offset; } center_of_mass;
         float number;
         bool boolean;
         uint32_t integer;

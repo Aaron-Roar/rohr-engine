@@ -41,6 +41,7 @@ EditorResult editor_document_load(EditorDocument *document, const char *path) {
         free(project);
         return result;
     }
+    editor_project_destroy(document->project);
     *document->project = *project;
     free(project);
     snprintf(document->path, sizeof(document->path), "%s", path);
@@ -98,6 +99,7 @@ const EditorProject *editor_document_project_const_get(const EditorDocument *doc
 
 void editor_document_destroy(EditorDocument *document) {
     if(document == NULL) return;
+    editor_project_destroy(document->project);
     free(document->project);
     *document = (EditorDocument){0};
 }

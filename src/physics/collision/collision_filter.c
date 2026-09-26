@@ -19,8 +19,6 @@ EngineResult physics_collision_filter_set(Entity entity,
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(!entity_index_components_check(index, ROHR_HIT_BOX))
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(CollisionFilterConfigPool_store_at(
             &collision_filters_pool, index, config).kind == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
@@ -35,9 +33,6 @@ CollisionFilterConfigResult physics_collision_filter_get(Entity entity) {
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(
             CollisionFilterConfigResult, result.result.error);
-    if(!entity_index_components_check(index, ROHR_HIT_BOX))
-        return ERROR_RESULT_MAKE_ERROR(
-            CollisionFilterConfigResult, ERROR_ENGINE_COMPONENT_MISSING);
     if(!entity_index_components_check(index, ROHR_COLLISION_FILTER))
         return ERROR_RESULT_MAKE_VALUE(CollisionFilterConfigResult,
             physics_collision_filter_config_default_get());

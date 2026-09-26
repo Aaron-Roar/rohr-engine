@@ -775,6 +775,7 @@ if(ROHR_BUILD_TESTS)
         contact_manifold_test
         origin_offsets_test
         center_of_mass_test
+        center_of_mass_persistence_test
         concave_collision_test
         rigid_contact_stability_test
         component_registry_test

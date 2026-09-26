@@ -172,6 +172,8 @@ typedef struct ParticleGeometry {
     float radius;
     bool origin_explicit;
     bool radius_explicit;
+    /** Created as a standalone, nonrotating particle with automatic COM. */
+    bool standalone;
 } ParticleGeometry;
 ERROR_DECLARE_RESULT_TYPE(ParticleRadiusResult, float);
 #define PHYSICS_CONTACT_POINT_MAX 2
@@ -703,9 +705,9 @@ void physics_hitbox_animation_binding_hitbox_remove(EntityIndex index,
 void physics_hitbox_animation_bindings_entity_clear(EntityIndex index);
 /** Return the default collision filter: default category against all categories. */
 CollisionFilterConfig physics_collision_filter_config_default_get(void);
-/** Replace an entity's complete collision filter. */
+/** Replace an entity's complete collision filter, with or without geometry. */
 EngineResult physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
-/** Return an entity's collision filter. Colliders without an override use defaults. */
+/** Return an entity's collision filter. Entities without an override use defaults. */
 CollisionFilterConfigResult physics_collision_filter_get(Entity entity);
 /** Set the categories represented by an entity. */
 EngineResult physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category);

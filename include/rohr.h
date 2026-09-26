@@ -1021,7 +1021,7 @@ void rohr_physics_hitbox_animation_bindings_update(void);
 
 /** Return the default collision filtering configuration. */
 CollisionFilterConfig rohr_physics_collision_filter_config_default_get(void);
-/** Replace an entity's collision category and whitelist. */
+/** Replace an entity's collision category and whitelist, with or without geometry. */
 EngineResult rohr_physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
 /** Return an entity's collision filtering configuration. */
 CollisionFilterConfigResult rohr_physics_collision_filter_get(Entity entity);
