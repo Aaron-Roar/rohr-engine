@@ -116,6 +116,20 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Temporary Milestone: Particle-Enabled Rigid-Body Rotation Controls
+
+Restore editor rotation controls for ordinary rigid bodies with particle
+properties while preserving standalone-particle restrictions. This single-goal
+fix is explicitly selected before resuming the origin/COM milestone below;
+its remaining goals retain their existing order.
+
+1. [x] **Restore and verify rigid-body rotation controls** — Rotation handles
+   now display and respond for ordinary rigid bodies with Particle enabled in
+   both rigid-body and particle views. Regression coverage verifies
+   press/drag/release, one undo entry, undo/redo, unchanged local vertices, and
+   standalone-particle restrictions. Linux editor tests and Windows
+   cross-compilation pass; runtime physics is unchanged.
+
 ## Active Milestone: Consistent Origins, Center of Mass, and Inertia
 
 Make all origin-relative properties retain their local offsets. Support

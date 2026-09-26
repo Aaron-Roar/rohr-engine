@@ -326,6 +326,10 @@ shows a dotted particle ring with its fill behind rigid bodies. Single-clicking
 the ring selects it, double-clicking opens the particle editor, and dragging the
 ring translates its rigid body.
 
+Ordinary rigid bodies with Particle enabled retain their rotation handle in
+both the rigid-body and particle views. A rotation drag creates one undo/redo
+entry. Standalone particles do not expose this rotation handle.
+
 The particle editor provides local origin X/Y, radius, ring color, fill color,
 and **Auto Fit**. The origin is relative to the rigid-body origin and follows
 its rotation. Auto-fit is enabled by default and sets the radius to the largest

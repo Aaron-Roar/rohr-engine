@@ -366,11 +366,67 @@ int main(void) {
     assert(hitbox != NULL && hitbox->vertex_count > 0);
     EditorHitboxId radius_test_hitbox_id = hitbox->id;
     {
+        const EditorViewportMode modes[] = {
+            EDITOR_VIEWPORT_RIGID_BODY, EDITOR_VIEWPORT_PARTICLE};
+        EditorRigidBodyId body_id = body->id;
+        Position local_vertex = hitbox->vertices[0].position;
+        for(size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i += 1) {
+            Position center = {project.objects[0].position.x + body->position.x,
+                project.objects[0].position.y + body->position.y};
+            Position handle = test_world_to_screen((Position){center.x,
+                center.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            Position target = test_world_to_screen((Position){center.x +
+                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, center.y});
+            body->particle = true;
+            body->standalone_particle = false;
+            body->rotation = 0.0f;
+            editor_history_reset(&history);
+            editor_viewport_state_init(&viewport);
+            viewport.mode = modes[i];
+            viewport.selection = modes[i] == EDITOR_VIEWPORT_RIGID_BODY ?
+                EDITOR_SELECTION_RIGID_BODY : EDITOR_SELECTION_PARTICLE;
+            viewport.selected_rigid_body = body_id;
+            assert(viewport_pointer_update(&history, &viewport, &project,
+                handle, MOUSE_BUTTON_STATE_PRESSED));
+            assert(viewport.rotated_body && !viewport.dragged_body);
+            assert(viewport_pointer_update(&history, &viewport, &project,
+                target, MOUSE_BUTTON_STATE_DOWN));
+            assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+            assert(!viewport_pointer_update(&history, &viewport, &project,
+                target, MOUSE_BUTTON_STATE_RELEASED));
+            assert(history.undo_count == 1);
+            assert(editor_history_undo(&history));
+            body = editor_project_rigid_body_get(&project.objects[0], body_id);
+            assert(body != NULL && fabsf(body->rotation) < 0.001f);
+            assert(body->particle && !body->standalone_particle);
+            assert(editor_history_redo(&history));
+            body = editor_project_rigid_body_get(&project.objects[0], body_id);
+            assert(body != NULL && fabsf(body->rotation - 1.57079632679f) < 0.001f);
+            hitbox = editor_project_hitbox_get(body, radius_test_hitbox_id);
+            assert(hitbox != NULL &&
+                hitbox->vertices[0].position.x == local_vertex.x &&
+                hitbox->vertices[0].position.y == local_vertex.y);
+        }
+        body->rotation = 0.0f;
+    }
+    {
         Position rotation_handle = test_world_to_screen((Position){
             body->position.x,
             body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         body->particle = true;
         body->standalone_particle = true;
+        for(size_t i = 0; i < 2; i += 1) {
+            editor_viewport_state_init(&viewport);
+            viewport.mode = i == 0 ? EDITOR_VIEWPORT_RIGID_BODY :
+                EDITOR_VIEWPORT_PARTICLE;
+            viewport.selection = EDITOR_SELECTION_PARTICLE;
+            viewport.selected_rigid_body = body->id;
+            (void)editor_viewport_update(&viewport, &project, rotation_handle,
+                MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
+                false, 0.0f, false);
+            assert(!viewport.rotated_body && body->rotation == 0.0f);
+            editor_viewport_transform_cancel(&viewport);
+        }
         editor_viewport_state_init(&viewport);
         viewport.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
         viewport.selection = EDITOR_SELECTION_PARTICLE;

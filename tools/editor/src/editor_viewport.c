@@ -4743,7 +4743,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 (state->mode == EDITOR_VIEWPORT_PARTICLE &&
                     !body->standalone_particle))) {
         Position handle = editor_body_rotation_handle_get(object, body);
-        if(!body->particle &&
+        if(!body->standalone_particle &&
                 (pointer.x - handle.x) * (pointer.x - handle.x) +
                 (pointer.y - handle.y) * (pointer.y - handle.y) <= 144.0f) {
             Position center = {object->position.x + body->position.x,
@@ -5532,7 +5532,9 @@ static void editor_viewport_object_draw(const EditorObject *object,
             if(state->selection == EDITOR_SELECTION_ORIGIN &&
                     state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY)
                 editor_circle_draw(center, 7.0f, (Color){255, 215, 70, 255});
-            if(!selected->particle && state->mode == EDITOR_VIEWPORT_RIGID_BODY &&
+            if(!selected->standalone_particle &&
+                    (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
+                        state->mode == EDITOR_VIEWPORT_PARTICLE) &&
                     state->selected_item_count <= 1) {
                 Position handle = editor_body_rotation_handle_get(object, selected);
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});
