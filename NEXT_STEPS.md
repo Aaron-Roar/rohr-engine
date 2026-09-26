@@ -117,7 +117,7 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
-## Active Milestone: Clockwise Angles with Degrees by Default
+## Completed Milestone: Clockwise Angles with Degrees by Default
 
 Make angles clockwise-positive with zero heading up across engine APIs,
 physics, rendering, editor controls, persistence, and generated projects.
@@ -161,14 +161,22 @@ API/field inventory, conversion rules, format changes, and acceptance checks.
    installed-SDK generated fixture matches direct runtime motion and builds on
    Windows. All 12 installed-SDK examples build on both platforms and launch
    headlessly on Linux. Windows verification is cross-compilation only.
-5. [ ] **Finish example migration and verify parity** — Audit bundled projects
-   and remaining fixtures against the new formats, regenerate owned modules,
-   and finish public documentation, integrated tests, sanitizers, installed-SDK
-   example launches, and Linux/Windows builds.
+5. [x] **Finish example migration and verify parity** — Audited all bundled
+   formats and regenerated both editor projects with identical owned modules
+   and unchanged developer entry points. Repaired the standalone generated/direct
+   comparison and strengthened multi-turn field, state/template, and attachment
+   coverage. Published angular units and reproducible installed-SDK parity checks.
+   Linux and Windows builds pass without compiler warnings; native tests pass
+   52/54 with only the previously recorded cameras and ui_field failures.
+   All 17 focused ASan/UBSan tests pass. The installed-SDK parity fixture runs
+   successfully on Linux and cross-builds on Windows; all 12 examples build on
+   both platforms and launch headlessly outside their source directories on
+   Linux. Windows verification remains cross-compilation only.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. The runtime and editor now use clockwise degrees; the final integrated
-parity audit remains goal 5. Do not advance without explicit user instruction.
+commit. The angular-convention milestone is complete. Priority 4, cross-path
+feature parity, is the next unfinished roadmap priority; do not begin it
+without explicit user instruction.
 
 ## Completed Milestone: Consistent Force and Torque API
 

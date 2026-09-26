@@ -59,6 +59,7 @@ are generated from the Doxygen comments in the public headers under `include/`.
 - [Audio](audio.md)
 - [Input](input.md)
 - [Physics](physics.md)
+- [Angles and format migration](angle_convention_contract.md)
 - [Building and SDK usage](building.md)
 - [Using the editor](editor.md)
 - [Editor architecture](editor_architecture.md)

@@ -10,6 +10,24 @@ derived inertia, COM integration, persistence, generated APIs, and editor contro
 are implemented. The [center-of-mass example](../examples/center_of_mass/README.md)
 provides an editable project and generated runtime demonstration.
 
+## Angles and angular motion
+
+Angles are clockwise degrees, angular velocity is degrees/second, and angular
+acceleration is degrees/second squared. Zero heading is world up (+Y); 90 degrees
+points right. Zero orientation preserves the geometry as authored. Values such
+as -450 and 810 remain unwrapped, including angle-lock bounds and saved state.
+
+For example, `rohr_physics_orientation_set(body, 90)` turns local up toward
+world right. `rohr_physics_orientation_radians_set(body, PI_F / 2)` does the same
+through the explicit radians API. Structs and component pools always use
+degrees; radians variants apply only to the named scalar arguments/results.
+
+Torque, angular impulse, and inertia keep their physical units. Positive torque
+rotates clockwise; angular acceleration is `degrees(torque / inertia)`, and an
+angular impulse adds `degrees(impulse / inertia)` to angular velocity.
+See the [complete angle contract](angle_convention_contract.md) for conversion
+rules and the breaking project/state format versions.
+
 ## Origin-relative geometry
 
 Hitbox vertices are local offsets from the entity origin. World geometry is

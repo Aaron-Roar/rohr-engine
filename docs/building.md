@@ -229,6 +229,27 @@ is then configured independently through its own `CMakeLists.txt` and resolves
 `Rohr::Engine` from that staged SDK. This validates the standalone consumer
 configuration without recompiling the engine for every example.
 
+The independent generated-project fixture checks that editor/CLI-authored
+degrees survive JSON and C generation, then produce the same COM motion as
+direct API calls. With the development build configured in `build/`, run:
+
+```sh
+nix develop
+cmake --build build --parallel 4
+ctest --test-dir build --output-on-failure -R '^center_of_mass_persistence$'
+cmake --install build --prefix "$PWD/build/example-sdk"
+cmake -S tools/editor_core/tests/generated_com -B build/generated_com_sdk \
+  -DCMAKE_PREFIX_PATH="$PWD/build/example-sdk" \
+  -DCOM_GENERATED_DIR="$PWD/build/tools/editor_core/com_persistence_generated/src/generated"
+cmake --build build/generated_com_sdk --parallel 4
+ctest --test-dir build/generated_com_sdk --output-on-failure
+```
+
+The fixture verifies an initial -450-degree orientation, 810 degrees/second,
+and a full second of COM-based motion without wrapping. For Windows
+cross-compilation, use the Windows SDK prefix and toolchain file with the same
+generated directory; execute its test only on a compatible runtime.
+
 Run development binaries from the repository root:
 
 ```sh

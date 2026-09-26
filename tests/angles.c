@@ -280,9 +280,56 @@ static bool graphics_check(void) {
     return true;
 }
 
+static bool state_check(void) {
+    const char *path = "angles_state.json";
+    EntityResult driver = rohr_entity_add(), follower = rohr_entity_add(), joint = rohr_entity_add();
+    OK(driver); OK(follower); OK(joint);
+    OK(rohr_entity_name_set(driver.result.value, "angle_driver"));
+    OK(rohr_entity_name_set(follower.result.value, "angle_follower"));
+    OK(rohr_entity_name_set(joint.result.value, "angle_joint"));
+    OK(rohr_physics_position_set(driver.result.value, (Position){0}));
+    OK(rohr_physics_position_set(follower.result.value, (Position){10,0}));
+    OK(rohr_physics_orientation_set(driver.result.value, -450));
+    OK(rohr_physics_orientation_set(follower.result.value, 810));
+    OK(rohr_physics_angular_velocity_set(driver.result.value, 810));
+    OK(rohr_physics_angular_acceleration_set(driver.result.value, -450));
+    OK(rohr_physics_angle_lock_set(driver.result.value, -450, 810));
+    OK(rohr_physics_transform_lock_set(follower.result.value, driver.result.value,
+        (Vec2D){0,10}, 810, true, true, true));
+    OK(rohr_physics_joint_component_set(joint.result.value, (Joint){
+        .type=JOINT_WELD, .a=driver.result.value, .b=follower.result.value,
+        .rest_angle=-450, .lock_angle=true, .angular_stiffness=2, .angular_damping=3}));
+
+    /* Both live-state and authored-template paths retain unwrapped fields. */
+    for(int authored=0; authored<2; authored+=1) {
+        if(authored) OK(rohr_game_state_template_file_save(path));
+        else OK(rohr_game_state_file_save(path));
+        rohr_engine_stop();
+        OK(rohr_engine_start());
+        OK(rohr_game_state_file_load(path));
+        driver=rohr_entity_by_name_get("angle_driver");
+        follower=rohr_entity_by_name_get("angle_follower");
+        joint=rohr_entity_by_name_get("angle_joint");
+        OK(driver); OK(follower); OK(joint);
+        EntityIndex d=rohr_entity_index_get(driver.result.value).result.value;
+        EntityIndex f=rohr_entity_index_get(follower.result.value).result.value;
+        EntityIndex j=rohr_entity_index_get(joint.result.value).result.value;
+        CHECK(orientations[d] == -450 && orientations[f] == 810);
+        CHECK(angular_velocities[d] == 810 && angular_accelerations[d] == -450);
+        CHECK(angle_locks[d].min == -450 && angle_locks[d].max == 810);
+        CHECK(transform_locks[f].local_angle == 810 &&
+            transform_locks[f].driver == driver.result.value);
+        CHECK(joints[j].rest_angle == -450 && joints[j].a == driver.result.value &&
+            joints[j].b == follower.result.value);
+        CHECK(joints[j].angular_stiffness == 2 && joints[j].angular_damping == 3);
+    }
+    CHECK(SDL_RemovePath(path));
+    return true;
+}
+
 int main(void) {
     if(rohr_error_check(rohr_engine_start())) return 1;
-    bool passed=math_check() && physics_check() && graphics_check();
+    bool passed=math_check() && physics_check() && graphics_check() && state_check();
     rohr_engine_stop();
     return passed ? 0 : 1;
 }

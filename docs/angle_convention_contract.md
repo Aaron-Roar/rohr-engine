@@ -1,11 +1,12 @@
 # Clockwise angles and degree-default API contract
 
 This is the approved contract for the **clockwise angles with degrees by
-default** milestone in [the roadmap](../NEXT_STEPS.md). Goals 1 through 4 are
-implemented: the engine and editor use clockwise degrees, the engine exposes
+default** milestone in [the roadmap](../NEXT_STEPS.md). All five goals are
+complete: the engine and editor use clockwise degrees, the engine exposes
 the radians scalar APIs below, and project/state formats reject old versions.
-Bundled examples use the new units and formats. Goal 5 remains the final
-integrated parity and documentation audit.
+Bundled examples use the new units and formats. Integrated checks cover
+authoring, persistence, generated/direct runtime parity, example controls,
+Linux execution, Windows cross-compilation, and focused sanitizers.
 
 ## Coordinates, units, and zero
 
@@ -206,14 +207,13 @@ must agree. Continuous dragging accumulates signed pointer deltas across
 initial grab offset, one undo transaction, cancellation, and existing particle
 editing restrictions. Do not clamp rotation fields to one revolution.
 
-Goal 4 increments `EDITOR_PROJECT_FORMAT_VERSION` from 3 to 4 and
-`GAME_STATE_VERSION` from 2 to 3. Runtime saves and templates share the new
-state version. Reject previous versions clearly through the existing loader
+`EDITOR_PROJECT_FORMAT_VERSION` is 4 (previously 3) and `GAME_STATE_VERSION`
+is 3 (previously 2). Runtime saves and templates share the new state version.
+Reject previous versions clearly through the existing loader
 error paths without replacing the previous successful project description.
 Do not infer units from numeric magnitude, offer a compatibility switch, or
 silently convert old files. The workspace manifest version stays unchanged:
-it has no angular payload affected by this change. Remove the stale comment
-claiming that project schemas remain version 1 when updating that header.
+it has no angular payload affected by this change.
 
 Keep existing field names; their units are established by the format version.
 Project rotations, initial angular velocities, joint rest angles, camera and
@@ -268,7 +268,9 @@ points.
   cross-builds and relevant ASan/UBSan tests, distinguishing cross-compilation
   from Windows runtime execution. Request visual review of editor rotations.
 
-Goal 1 verification is documentation-only: compare the inventory to current
-headers and serializers, check links and diff whitespace, and confirm no
-runtime declarations or behavior changed. Builds and sanitizer runs belong to
-the implementation goals.
+The [installed-SDK verification instructions](building.md) include the
+generated/direct runtime fixture. The completed audit passed 17 focused
+ASan/UBSan tests and Linux/Windows builds. The full Linux suite passed 52/54;
+the previously recorded `cameras` and `ui_field` failures remain outside this
+milestone. Windows results are cross-compilation, not runtime execution.
+Headless launches do not replace visual review of editor handles and examples.

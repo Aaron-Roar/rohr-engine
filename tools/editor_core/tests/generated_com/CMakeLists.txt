@@ -10,3 +10,8 @@ endif()
 add_executable(generated_com main.c "${COM_GENERATED_DIR}/project_objects.c")
 target_include_directories(generated_com PRIVATE "${COM_GENERATED_DIR}")
 target_link_libraries(generated_com PRIVATE Rohr::Engine)
+
+enable_testing()
+add_test(NAME generated_com COMMAND generated_com)
+set_tests_properties(generated_com PROPERTIES
+    ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")

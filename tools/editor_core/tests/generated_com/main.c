@@ -36,23 +36,27 @@ static bool scenario(bool generated, Snapshot *snapshot) {
         EntityResult created = rohr_entity_add(); OK(created);
         body = created.result.value;
         OK(rohr_physics_position_set(body, (Position){10,20}));
-        OK(rohr_physics_orientation_set(body, 0.4f));
+        OK(rohr_physics_orientation_set(body, -450.0f));
         OK(rohr_physics_mass_set(body, 12));
         OK(rohr_physics_hitbox_set(body, ((Shape){.amount_of_vertices=4,
             .vertices={{2,3},{6,3},{6,5},{2,5}}})));
         OK(rohr_physics_velocity_set(body, (Velocity){2,-1}));
-        OK(rohr_physics_angular_velocity_set(body, 0.7f));
+        OK(rohr_physics_angular_velocity_set(body, 810.0f));
         OK(rohr_physics_dynamic_set(body));
         OK(rohr_physics_center_of_mass_local_position_set(body, (Position){3,-2}));
     }
     CHECK(!rohr_physics_center_of_mass_automatic_check(body).result.value);
+    EntityIndex index = rohr_entity_index_get(body).result.value;
+    CHECK(orientations[index] == -450.0f && angular_velocities[index] == 810.0f);
     Position initial = rohr_physics_center_of_mass_world_position_get(body).result.value;
+    CHECK(point_equal(initial, (Position){12,23}));
     for(int i=0;i<100;i+=1) OK(rohr_system_physics_update(0.01));
     snapshot->origin = rohr_physics_position_get(body).result.value;
     snapshot->com = rohr_physics_center_of_mass_world_position_get(body).result.value;
     snapshot->angle = orientations[rohr_entity_index_get(body).result.value];
     snapshot->inertia = rohr_physics_moment_of_inertia_get(body).result.value;
     CHECK(point_equal(snapshot->com, (Position){initial.x+2,initial.y-1}));
+    CHECK(fabsf(snapshot->angle - 360.0f) < 0.01f);
     CHECK(fabsf(snapshot->inertia-464) < 0.002f);
     if(generated) fleet_destroy(&fleet);
     rohr_engine_stop();

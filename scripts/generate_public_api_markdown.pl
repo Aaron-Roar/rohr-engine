@@ -148,6 +148,12 @@ push @lines, 'The source of truth is [`include/' . $facade . '`](../include/' . 
 push @lines, 'Application code should include the public facade:', '';
 push @lines, '```c', '#include "' . $facade . '"', '```', '';
 push @lines, 'Entity values are stable ids, not component table indexes. Use the public entity functions to validate ids and resolve indexes.', '' unless $is_tools;
+push @lines,
+    'Angles and stored angular fields use clockwise degrees, with rates in degrees/second and degrees/second squared.',
+    'Zero heading is world up (+Y); zero orientation preserves authored geometry and artwork. Negative angles and multiple revolutions are retained.',
+    'Only explicitly named `_radians` scalar APIs use radians. Torque, angular impulse, and inertia retain their physical units.',
+    'See the [angle convention and format migration contract](angle_convention_contract.md) for coordinate-space rules and breaking changes.',
+    '' unless $is_tools;
 push @lines, '## Contents', '';
 
 for my $group (@order) {

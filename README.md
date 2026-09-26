@@ -7,6 +7,10 @@ generated code remain visible instead of being hidden behind a large framework.
 The project is under active development. APIs and editor project formats may
 change before a stable release.
 
+Angles use **clockwise degrees**, with zero heading up. Negative values and
+multiple revolutions are preserved; explicitly named `_radians` APIs accept
+radians. See the [angle convention and migration contract](docs/angle_convention_contract.md).
+
 ## Demos
 
 ### Soft bodies

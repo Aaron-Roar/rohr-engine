@@ -665,15 +665,15 @@ int main(void) {
             EditorCamera *generated_camera = editor_project_camera_add(
                 &loaded_project, generated_object);
             if(generated_soft_body != NULL) {
-                generated_soft_body->rotation = 0.5f;
+                generated_soft_body->rotation = -450.0f;
                 generated_soft_body->initial_velocity = (Velocity){21.0f, 22.0f};
                 generated_soft_body->initial_acceleration =
                     (Acceleration){23.0f, 24.0f};
-                generated_soft_body->initial_angular_velocity = 2.0f;
+                generated_soft_body->initial_angular_velocity = 810.0f;
             }
             if(generated_camera != NULL) {
                 generated_camera->position = (Position){2.5f, -3.25f};
-                generated_camera->rotation = 0.125f;
+                generated_camera->rotation = 810.0f;
                 generated_camera->dimensions = (Scale){1280.0f, 720.0f};
                 generated_camera->attachment_kind =
                     EDITOR_CAMERA_ATTACHMENT_RIGID_BODY;
@@ -730,7 +730,7 @@ int main(void) {
             if(generated_sprite != NULL) {
                 generated_sprite->size = (Scale){32.0f, 24.0f};
                 generated_sprite->position = (Position){4.0f, 5.0f};
-                generated_sprite->rotation = 0.25f;
+                generated_sprite->rotation = 810.0f;
                 generated_sprite->graphics_layer.value = 44;
             }
             if(generated_animation != NULL && generated_sprite != NULL) {
@@ -738,7 +738,7 @@ int main(void) {
                 generated_animation->scale = (Scale){2.0f, 3.0f};
                 generated_animation->time_per_frame = 0.125;
                 generated_animation->editor_position = (Position){6.0f, 7.0f};
-                generated_animation->editor_rotation = -0.5f;
+                generated_animation->editor_rotation = -450.0f;
                 generated_animation->follow_body_rotation = false;
                 generated_animation->graphics_layer.value = 45;
                 (void)editor_project_animation_frame_add(&loaded_project,
@@ -860,9 +860,9 @@ int main(void) {
                 !file_contains(path, "assets/fly frame.png") ||
                 !file_contains(path, "animated.follow_entity_rotation = false") ||
                 !file_contains(path, "animated.body_offset = (Position){6.00000000f, 7.00000000f}") ||
-                !file_contains(path, "animated.orientation_offset = -0.500000000f") ||
+                !file_contains(path, "animated.orientation_offset = -450.000000f") ||
                 !file_contains(path,
-                    "(Scale){32.0000000f, 24.0000000f}, true, 0.250000000f, true") ||
+                    "(Scale){32.0000000f, 24.0000000f}, true, 810.000000f, true") ||
                 !file_contains(path, "(Scale){2.00000000f, 3.00000000f}") ||
                 !file_contains(path, "void starter_draw") ||
                 !file_contains(path, "EngineResult project_objects_create_all") ||
@@ -1099,7 +1099,7 @@ int main(void) {
     soft_body = editor_project_soft_body_add(&project, object);
     if(soft_body != NULL) {
         soft_body->position = (Position){3.0f, 4.0f};
-        soft_body->rotation = 0.75f;
+        soft_body->rotation = -450.0f;
     }
     node_a = editor_project_soft_node_add(&project, soft_body, (Position){0});
     node_b = editor_project_soft_node_add(&project, soft_body, (Position){20.0f, 0.0f});
@@ -1212,7 +1212,7 @@ int main(void) {
                         sizeof(object->soft_body_items[0].hierarchy[0])) != 0 ||
                 !position_equal(loaded_object->soft_body_items[0].position,
                     (Position){8.0f, 9.0f}) ||
-                fabsf(loaded_object->soft_body_items[0].rotation - 0.75f) > 0.001f ||
+                fabsf(loaded_object->soft_body_items[0].rotation + 450.0f) > 0.001f ||
                 loaded_object->soft_body_items[0].nodes[0].collision_category !=
                     (UINT64_C(1) | (UINT64_C(1) << 1)) ||
                 loaded_object->soft_body_items[0].nodes[0].collision_with != UINT64_C(1) ||
@@ -1827,13 +1827,14 @@ int main(void) {
         camera = editor_project_camera_add(&camera_project, camera_object);
         if(camera == NULL) return 1;
         camera->position = (Position){12.123456f, -9.654321f};
-        camera->rotation = 0.75f;
+        camera->rotation = 810.0f;
         camera->dimensions = (Scale){1920, 1080};
         if(!editor_project_save(&camera_project, camera_path) ||
                 editor_result_check(editor_project_load(&loaded_camera_project,
                     camera_path)) || loaded_camera_project.object_count != 1 ||
                 loaded_camera_project.objects[0].camera_count != 1 ||
-                loaded_camera_project.objects[0].cameras[0].dimensions.x != 1920)
+                loaded_camera_project.objects[0].cameras[0].dimensions.x != 1920 ||
+                loaded_camera_project.objects[0].cameras[0].rotation != 810.0f)
             return 1;
         editor_project_destroy(&camera_project);
         editor_project_destroy(&loaded_camera_project);
