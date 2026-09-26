@@ -117,6 +117,38 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Active Milestone: Clockwise Angles with Degrees by Default
+
+Make angles clockwise-positive with zero heading up across engine APIs,
+physics, rendering, editor controls, persistence, and generated projects.
+Degrees and degree-based rates are the default; explicit radians scalar APIs
+provide alternatives. Preserve authored zero geometry, relative-zero identity,
+coordinate axes, physical torque/inertia units, and multiple revolutions.
+This breaking change is explicitly selected before priority 4. The
+[angle convention contract](docs/angle_convention_contract.md) defines the
+API/field inventory, conversion rules, format changes, and acceptance checks.
+
+1. [x] **Document the contract and API inventory** — Recorded units, zero and
+   relative-angle semantics, exact radians sibling names, degree-based structs
+   and component storage, solver/rendering conversion boundaries, project/state
+   version changes, example rewrite rules, and verification expectations.
+   Documentation and inventory checks pass; runtime behavior is unchanged.
+2. [ ] **Implement engine conventions and API alternatives** — Update shared
+   math, angular physics, contacts, joints, soft bodies, attachments, cameras,
+   sprites, and viewport/UI rendering together. Add direct/public radians
+   siblings and conversion helpers, with focused behavior and platform checks.
+3. [ ] **Update authoring and persistence** — Update degree-based editor fields,
+   continuous rotation controls, picking, undo/redo, CLI, project/state formats,
+   and generated C. Reject old formats and verify round trips and runtime parity.
+4. [ ] **Rewrite examples and verify parity** — Rewrite bundled projects,
+   fixtures, and example code to preserve intended appearance and motion;
+   regenerate owned modules and finish public documentation, integrated tests,
+   sanitizers, installed-SDK example launches, and Linux/Windows builds.
+
+Complete and verify one goal at a time, then stop for review and a user-created
+commit. Existing runtime conventions remain until goal 2; engine/editor unit
+parity requires goal 3. Do not advance without explicit user instruction.
+
 ## Completed Milestone: Consistent Force and Torque API
 
 Deliver the agreed force, torque, and impulse API as a breaking change before
