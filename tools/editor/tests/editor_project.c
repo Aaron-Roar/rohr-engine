@@ -1077,13 +1077,13 @@ int main(void) {
             object, manual_anchor, false) || !editor_project_anchor_rotation_lock_set(
             object, manual_anchor, false)) return 1;
     chassis->position = (Position){10.0f, 0.0f};
-    chassis->rotation = 1.57079632679f;
+    chassis->rotation = -90.0f;
     if(!editor_project_anchor_position_lock_set(object, manual_anchor, true) ||
             !position_equal(manual_anchor->position, (Position){6.0f, 5.0f}) ||
             !editor_project_anchor_position_lock_set(object, manual_anchor, false) ||
             !position_equal(manual_anchor->position, (Position){5.0f, 6.0f}) ||
             !editor_project_anchor_rotation_lock_set(object, manual_anchor, true) ||
-            fabsf(manual_anchor->rotation + 1.57079632679f) > 0.001f ||
+            fabsf(manual_anchor->rotation - 90.0f) > 0.001f ||
             !editor_project_anchor_rotation_lock_set(object, manual_anchor, false) ||
             fabsf(manual_anchor->rotation) > 0.001f) return 1;
     joint = editor_project_joint_add(&project, object, EDITOR_JOINT_SPRING);
@@ -1112,8 +1112,8 @@ int main(void) {
     node_b->graphics_layer_inherited = false;
     node_b->graphics_layer.value = 71;
     {
-        float cosine = cosf(soft_body->rotation);
-        float sine = sinf(soft_body->rotation);
+        float cosine = cosf(math_degrees_to_radians(soft_body->rotation));
+        float sine = -sinf(math_degrees_to_radians(soft_body->rotation));
         Position world_before = {
             soft_body->position.x + node_b->position.x * cosine -
                 node_b->position.y * sine,
@@ -1440,7 +1440,7 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 3") == NULL) return 1;
+                strstr(result.result.error.message, "requires 4") == NULL) return 1;
     }
 
     {
@@ -1952,11 +1952,10 @@ int main(void) {
     }
 
     {
-        EditorProject input_project, input_clone;
+        EditorProject input_project, input_clone = {0};
         EditorInputController *controller;
         EditorInputAction *action;
         editor_project_init(&input_project);
-        editor_project_init(&input_clone);
         controller = editor_project_input_controller_add(&input_project, "gameplay");
         action = controller == NULL ? NULL : editor_project_input_action_add(
             &input_project, controller->id, "jump", INPUT_ACTION_BUTTON);

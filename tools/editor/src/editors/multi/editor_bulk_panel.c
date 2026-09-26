@@ -50,7 +50,7 @@ static const EditorBulkProperty rigid_body_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
-    {"Rotation", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
     {"Mass", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_MASS},
     {"Friction", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_FRICTION},
     {"Restitution", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_RESTITUTION},
@@ -93,7 +93,7 @@ static const EditorBulkProperty anchor_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
-    {"Rotation", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
     {"Position Follows Body", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX,
         EDITOR_PROPERTY_POSITION_FOLLOWS_BODY},
     {"Rotation Follows Body", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX,
@@ -103,7 +103,7 @@ static const EditorBulkProperty soft_body_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
-    {"Rotation", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
     {"Node Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR,
         EDITOR_PROPERTY_NODE_COLOR},
     {"Beam Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR,
@@ -155,7 +155,7 @@ static const EditorBulkProperty sprite_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
-    {"Rotation", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
 };
 static const EditorBulkProperty animation_frame_properties[] = {
     {"Width", EDITOR_BULK_FRAME_WIDTH, EDITOR_BULK_FLOAT, 0},
@@ -168,7 +168,7 @@ static const EditorBulkProperty mixed_position_properties[] = {
 static const EditorBulkProperty mixed_transform_properties[] = {
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
-    {"Rotation", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
 };
 
 static bool editor_bulk_text_create(FontAsset *font, const char *value,

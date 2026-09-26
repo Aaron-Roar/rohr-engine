@@ -39,7 +39,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Draggable", draggable_label); CREATE("Drag Axis", drag_axis_label);
     CREATE("Horizontal", drag_x_label); CREATE("Vertical", drag_y_label);
     CREATE("Horizontal + Vertical", drag_xy_label);
-    CREATE("Rotation", rotation_label);
+    CREATE("Rotation (deg)", rotation_label);
     CREATE("[X]", visible_icon); CREATE("[ ]", hidden_icon);
     CREATE("Border", border_label); CREATE("Border Type", border_type_label);
     CREATE("Line", border_line_label); CREATE("Hashed", border_hashed_label);
@@ -73,7 +73,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Text Offset X", text_offset_x_label);
     CREATE("Text Offset Y", text_offset_y_label);
     CREATE("Content X", content_x_label); CREATE("Content Y", content_y_label);
-    CREATE("Source Rotation", content_rotation_label);
+    CREATE("Source Rotation (deg)", content_rotation_label);
     CREATE("Content Width Scale", content_width_scale_label);
     CREATE("Content Height Scale", content_height_scale_label);
     CREATE("Source", source_label);
@@ -571,10 +571,8 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
                 context->viewport->selected_viewport_camera_item)
             item = &viewport->camera_items[i];
     if(item == NULL) return false;
-    rotation_degrees = item->placement.orientation *
-        180.0f / 3.14159265359f;
-    source_rotation_degrees = item->content_rotation *
-        180.0f / 3.14159265359f;
+    rotation_degrees = item->placement.orientation;
+    source_rotation_degrees = item->content_rotation;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
     UIFieldResult name_result = editor_mode_name_field(
@@ -683,10 +681,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             &editor->rotation_field, "editor.layout.screen.rotation",
             context->x, y, context->width, &rotation_degrees);
         if(rotation_result.changed) {
-            rotation_degrees = fmodf(rotation_degrees, 360.0f);
-            if(rotation_degrees < 0.0f) rotation_degrees += 360.0f;
-            item->placement.orientation = rotation_degrees *
-                3.14159265359f / 180.0f;
+            item->placement.orientation = rotation_degrees;
         }
         y += 38.0f;
         EditorGraphicsLayerBinding layer_binding = {
@@ -747,10 +742,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             "editor.layout.screen.content_rotation", context->x, y,
             context->width, &source_rotation_degrees);
         if(content_rotation_result.changed) {
-            source_rotation_degrees = fmodf(source_rotation_degrees, 360.0f);
-            if(source_rotation_degrees < 0.0f) source_rotation_degrees += 360.0f;
-            item->content_rotation = source_rotation_degrees *
-                3.14159265359f / 180.0f;
+            item->content_rotation = source_rotation_degrees;
         }
     }
     item->content_scale.x = fmaxf(0.01f, item->content_scale.x);

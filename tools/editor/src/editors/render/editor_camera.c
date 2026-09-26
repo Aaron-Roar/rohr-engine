@@ -12,7 +12,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     *editor = (EditorCameraEditor){.font = font};
 #define CREATE(value, member) if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Angle", angle_label); CREATE("Width", width_label);
+    CREATE("Angle (deg)", angle_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
     CREATE("Zoom", zoom_label);
     CREATE("Follow Orientation", inherit_label);

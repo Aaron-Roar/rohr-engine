@@ -31,9 +31,9 @@ static bool runtime_check(void) {
     const char *saved = "com_state_saved.json";
     const char *authored = "com_state_template.json";
     const char *invalid = "com_state_invalid.json";
-    const char *initial = "{\"version\":2,\"entities\":["
+    const char *initial = "{\"version\":3,\"entities\":["
         "{\"name\":\"explicit_body\",\"components\":{\"mass\":12,"
-        "\"position\":{\"x\":10,\"y\":20},\"orientation\":0,"
+        "\"position\":{\"x\":10,\"y\":20},\"orientation\":-450,\"angular_velocity\":810,"
         "\"hit_box\":[{\"x\":2,\"y\":3},{\"x\":6,\"y\":3},{\"x\":6,\"y\":5},{\"x\":2,\"y\":5}],"
         "\"center_of_mass\":{\"mode\":\"explicit\",\"offset\":{\"x\":3,\"y\":-2}}}},"
         "{\"name\":\"automatic_body\",\"components\":{\"mass\":12,"
@@ -45,6 +45,8 @@ static bool runtime_check(void) {
     OK(rohr_game_state_file_load(source));
     Entity body = named_entity("explicit_body");
     CHECK(body != ENTITY_INVALID);
+    CHECK(orientations[rohr_entity_index_get(body).result.value] == -450);
+    CHECK(rohr_physics_angular_velocity_get(body).result.value == 810);
     CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(body).result.value,
         (Position){3,-2}));
     OK(rohr_physics_center_of_mass_local_position_set(body, (Position){8,9}));
@@ -77,7 +79,7 @@ static bool runtime_check(void) {
     uint32_t count = entity_alive_count_get();
     for(size_t i=0; i<sizeof(bad)/sizeof(bad[0]); i+=1) {
         char json[1024];
-        snprintf(json, sizeof(json), "{\"version\":2,\"entities\":[{\"name\":\"failed_body\","
+        snprintf(json, sizeof(json), "{\"version\":3,\"entities\":[{\"name\":\"failed_body\","
             "\"components\":{\"center_of_mass\":%s}}]}", bad[i]);
         CHECK(write_file(invalid, json));
         CHECK(rohr_error_check(rohr_game_state_file_load(invalid)));
@@ -85,13 +87,17 @@ static bool runtime_check(void) {
         CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(body).result.value,
             (Position){8,9}));
     }
-    CHECK(write_file(invalid, "{\"version\":1,\"entities\":[]}"));
+    CHECK(write_file(invalid, "{\"version\":2,\"entities\":[]}"));
     CHECK(rohr_error_check(rohr_game_state_file_load(invalid)));
+    CHECK(entity_alive_count_get() == count &&
+        orientations[rohr_entity_index_get(body).result.value] == -450);
     OK(rohr_game_state_file_save(saved));
     OK(rohr_game_state_template_file_save(authored));
     rohr_engine_stop();
     OK(rohr_engine_start());
     OK(rohr_game_state_file_load(saved));
+    CHECK(orientations[rohr_entity_index_get(named_entity("explicit_body")).result.value] == -450);
+    CHECK(rohr_physics_angular_velocity_get(named_entity("explicit_body")).result.value == 810);
     CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(named_entity("explicit_body")).result.value,
         (Position){8,9}));
     CHECK(rohr_physics_center_of_mass_automatic_check(named_entity("automatic_body")).result.value);
@@ -123,11 +129,34 @@ static bool runtime_check(void) {
     rohr_engine_stop();
     OK(rohr_engine_start());
     OK(rohr_game_state_file_load(authored));
+    CHECK(orientations[rohr_entity_index_get(named_entity("explicit_body")).result.value] == -450);
+    CHECK(rohr_physics_angular_velocity_get(named_entity("explicit_body")).result.value == 810);
     CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(named_entity("explicit_body")).result.value,
         (Position){3,-2}));
     CHECK(named_entity("pure_particle") == ENTITY_INVALID);
     rohr_engine_stop();
     remove(source); remove(saved); remove(authored); remove(invalid);
+    return true;
+}
+
+static bool circle_placement_check(void) {
+    const float angles[] = {0, 90, 810, -450};
+    const Position expected[] = {{10,0}, {0,-10}, {0,-10}, {0,10}};
+    for(size_t i = 0; i < 4; i += 1) {
+        char json[512];
+        snprintf(json, sizeof(json), "{\"version\":%u,\"entities\":[{\"name\":\"ring\","
+            "\"count\":2,\"components\":{\"position\":{\"x\":0,\"y\":0}},"
+            "\"placement\":{\"type\":\"circle\",\"radius\":10,\"start_angle\":%g}}]}",
+            GAME_STATE_VERSION, angles[i]);
+        CHECK(write_file("angle_circle.json", json));
+        OK(rohr_engine_start());
+        OK(rohr_game_state_file_load("angle_circle.json"));
+        CHECK(point_equal(rohr_physics_position_get(named_entity("ring")).result.value, expected[i]));
+        CHECK(point_equal(rohr_physics_position_get(named_entity("ring_1")).result.value,
+            (Position){-expected[i].x, -expected[i].y}));
+        rohr_engine_stop();
+    }
+    remove("angle_circle.json");
     return true;
 }
 
@@ -145,8 +174,8 @@ static bool project_check(void) {
     EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
     CHECK(body != NULL);
     snprintf(body->name, sizeof(body->name), "offset_body");
-    body->position = (Position){10,20}; body->rotation = 0.4f;
-    body->initial_velocity = (Velocity){2,-1}; body->initial_angular_velocity = 0.7f;
+    body->position = (Position){10,20}; body->rotation = -450;
+    body->initial_velocity = (Velocity){2,-1}; body->initial_angular_velocity = 810;
     body->mass_value = 12;
     EditorHitbox *hitbox = &body->hitboxes[0];
     CHECK(editor_project_hitbox_vertex_insert(&project, hitbox, 0));
@@ -164,9 +193,30 @@ static bool project_check(void) {
     args[11] = "nan";
     CHECK(editor_result_check(editor_command_cli_standard_parse(&project, 12, args, &path, &command)));
     args[11] = "-2";
+    char *angle_args[] = {"rohr-cli", "--project", "com_project.json", "--object", "Fleet",
+        "--body", "offset_body", "--property", "rotation", "810"};
+    CHECK(!editor_result_check(editor_command_cli_standard_parse(&project, 10,
+        angle_args, &path, &command)));
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    CHECK(body->rotation == 810);
+    CHECK(!editor_result_check(editor_command_cli_write(&command, path, serialized, sizeof(serialized))));
+    CHECK(strstr(serialized, "810") != NULL);
+    angle_args[9] = "-450";
+    CHECK(!editor_result_check(editor_command_cli_standard_parse(&project, 10,
+        angle_args, &path, &command)));
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    CHECK(body->rotation == -450);
+    angle_args[8] = "initial-angular-velocity";
+    angle_args[9] = "810";
+    CHECK(!editor_result_check(editor_command_cli_standard_parse(&project, 10,
+        angle_args, &path, &command)));
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    CHECK(body->initial_angular_velocity == 810);
     CHECK(editor_project_save(&project, "com_project.json"));
     CHECK(!editor_result_check(editor_project_load(&loaded, "com_project.json")));
     CHECK(loaded.objects[0].rigid_bodies[0].center_of_mass_explicit);
+    CHECK(loaded.objects[0].rigid_bodies[0].rotation == -450 &&
+        loaded.objects[0].rigid_bodies[0].initial_angular_velocity == 810);
     CHECK(point_equal(loaded.objects[0].rigid_bodies[0].center_of_mass_offset, (Position){3,-2}));
 
     yyjson_doc *document = yyjson_read_file("com_project.json", 0, NULL, NULL);
@@ -186,9 +236,10 @@ static bool project_check(void) {
     CHECK(yyjson_mut_write_file("com_project_bad.json", copy, 0, NULL, NULL));
     CHECK(!editor_result_check(editor_project_load(&loaded, "com_project_bad.json")));
     CHECK(!loaded.objects[0].rigid_bodies[0].center_of_mass_explicit);
-    yyjson_mut_obj_put(root, yyjson_mut_str(copy, "format_version"), yyjson_mut_uint(copy, 2));
+    yyjson_mut_obj_put(root, yyjson_mut_str(copy, "format_version"), yyjson_mut_uint(copy, 3));
     CHECK(yyjson_mut_write_file("com_project_bad.json", copy, 0, NULL, NULL));
     CHECK(editor_result_check(editor_project_load(&loaded, "com_project_bad.json")));
+    CHECK(loaded.objects[0].rigid_bodies[0].rotation == -450);
     yyjson_mut_doc_free(copy); yyjson_doc_free(document);
     EditorDocument owned;
     CHECK(!editor_result_check(editor_document_create(&owned)));
@@ -263,5 +314,5 @@ static bool project_check(void) {
 }
 
 int main(void) {
-    return runtime_check() && project_check() ? 0 : 1;
+    return runtime_check() && circle_placement_check() && project_check() ? 0 : 1;
 }

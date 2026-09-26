@@ -15,7 +15,7 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Rigid Body", body_label);
-    CREATE("X", x_label); CREATE("Y", y_label); CREATE("Rotation", rotation_label);
+    CREATE("X", x_label); CREATE("Y", y_label); CREATE("Rotation (deg)", rotation_label);
     CREATE("Scale X", scale_x_label); CREATE("Scale Y", scale_y_label);
     CREATE("Ticks / Frame", ticks_label); CREATE("Time / Frame", time_label);
     CREATE("Starting Frame", starting_label); CREATE("Direction", direction_label);

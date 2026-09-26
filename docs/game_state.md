@@ -1,9 +1,15 @@
 # JSON game state
 
-Game state uses yyjson and schema version `2`. A state may be split across
+Game state uses yyjson and schema version `3`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
+
+Angles and offsets use clockwise degrees; angular rates use degrees/second
+and degrees/second squared. Negative values and multiple turns are preserved.
+Zero keeps authored geometry unchanged, with local +Y as the world heading.
+Torque and inertia keep their physical units. Versions before 3 are rejected
+without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
 polygon with explicit COM, checks that an origin teleport preserves local mass
@@ -13,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "entities": [
     {
       "name": "player",
@@ -127,7 +133,7 @@ may still pass a different runtime ID when reusing one definition for multiple
 live sliders.
 
 `center` and positive `length` are required. `angle` is optional and defaults
-to zero; it is measured counterclockwise in logical screen-space radians. The
+to zero; it is measured clockwise in logical screen-space degrees. The
 range defaults to `0..1` when omitted. Explicit endpoints may be positive,
 negative, or descending, but cannot be equal. `initial_value` defaults to the
 first range endpoint and must fall between the two endpoints.
@@ -179,8 +185,9 @@ Supported placement types are:
 - `line`: requires a `{ "x", "y" }` `step`; `centered` is optional
 - `grid`: requires positive `columns` and `{ "x", "y" }` `spacing`;
   `centered` is optional
-- `circle`: requires a non-negative `radius`; optional `start_angle` is in
-  radians
+- `circle`: requires a non-negative `radius`; optional `start_angle` is a
+  clockwise degree offset from the original +X layout. Zero preserves the
+  original layout and instance ordering.
 
 Placement requires the prototype to contain a `position`, except for `point`.
 It only determines initial transforms and does not change physics behavior.

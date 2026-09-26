@@ -15,9 +15,8 @@ anchors. During free rotation the COMs stay fixed while origins and anchors
 orbit. Collisions and gravity are disabled so the coordinate behavior is easy
 to observe. Escape closes the demo.
 
-The runtime uses clockwise degrees. Editor angle controls and format-version
-migration are the next milestone goal; use the standalone demo for now.
-Once that goal is complete, open this directory in the editor to change the body Physics properties.
+The runtime and editor use clockwise degrees. Open this directory in the
+editor to change the body Physics properties.
 Origin edits preserve all local offsets. Explicit COM edits move only COM;
 switching back to Automatic restores the geometry centroid. Editor orientation
 edits rotate around the origin; simulated rotation rotates around COM.

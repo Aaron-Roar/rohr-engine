@@ -2708,7 +2708,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 if(definition != NULL &&
                         definition->kind == EDITOR_VIEWPORT_UI_SLIDER &&
                         definition->value.slider.legacy_vertical)
-                    item->rotation += 1.57079632679f;
+                    item->rotation += 90.0f;
             }
             {
                 yyjson_val *clip_enabled = yyjson_obj_get(item_value, "clip_enabled");

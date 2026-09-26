@@ -1191,8 +1191,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 body->name);
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
                 const EditorSoftNode *node = &body->nodes[node_index];
-                float cosine = cosf(body->rotation);
-                float sine = sinf(body->rotation);
+                float cosine = cosf(math_degrees_to_radians(body->rotation));
+                float sine = (-sinf(math_degrees_to_radians(body->rotation)));
                 Position transformed = {
                     body->position.x + node->position.x * cosine - node->position.y * sine,
                     body->position.y + node->position.x * sine + node->position.y * cosine

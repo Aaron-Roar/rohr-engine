@@ -2143,8 +2143,8 @@ EditorAnchor *editor_project_anchor_add(EditorProject *project, EditorObject *ob
 }
 
 static Position editor_position_rotate(Position position, float rotation) {
-    float cosine = cosf(rotation);
-    float sine = sinf(rotation);
+    float cosine = cosf(math_degrees_to_radians(rotation));
+    float sine = (-sinf(math_degrees_to_radians(rotation)));
     return (Position){position.x * cosine - position.y * sine,
         position.x * sine + position.y * cosine};
 }
@@ -2490,7 +2490,7 @@ static Position editor_anchor_world_position_get(EditorObject *object,
             for(size_t n = 0; n < soft->node_count; n += 1) {
                 EditorSoftNode *node = &soft->nodes[n];
                 if(node->id != anchor->attachment_soft_node) continue;
-                float cosine = cosf(soft->rotation), sine = sinf(soft->rotation);
+                float cosine = cosf(math_degrees_to_radians(soft->rotation)), sine = (-sinf(math_degrees_to_radians(soft->rotation)));
                 return (Position){soft->position.x +
                     node->position.x * cosine - node->position.y * sine +
                     anchor->position.x,

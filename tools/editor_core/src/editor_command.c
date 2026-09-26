@@ -74,8 +74,8 @@ static bool editor_command_world_position_get(const EditorCommand *command,
 
 static Position editor_command_position_rotate(Position position,
         Orientation rotation) {
-    float cosine = cosf(rotation);
-    float sine = sinf(rotation);
+    float cosine = cosf(math_degrees_to_radians(rotation));
+    float sine = (-sinf(math_degrees_to_radians(rotation)));
     return (Position){position.x * cosine - position.y * sine,
         position.x * sine + position.y * cosine};
 }

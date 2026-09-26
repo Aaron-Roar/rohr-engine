@@ -48,7 +48,7 @@ static void icon_line_draw(Position start, Position end, Color color) {
     if(length <= 0.0f) return;
     rohr_ui_quad(
         (Position){(start.x + end.x) * 0.5f, (start.y + end.y) * 0.5f},
-        length, 1.5f, -atan2f(delta.y, delta.x), color);
+        length, 1.5f, math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
 }
 
 static void icon_draw(UIRect bounds, EditorAutoShapeKind kind, Color color) {

@@ -15,7 +15,7 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Path", path_label);
     CREATE("Rigid Body", body_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Rotation", rotation_label); CREATE("Width", width_label);
+    CREATE("Rotation (deg)", rotation_label); CREATE("Width", width_label);
     CREATE("Height", height_label); CREATE("Visibility", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Follow Rotation", follow_label); CREATE("None", none_label);

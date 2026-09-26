@@ -137,6 +137,10 @@ static Orientation editor_sprite_world_rotation_get(const EditorObject *object,
 bool editor_viewport_selection_primary_set(EditorProject *project,
     EditorViewportState *state, EditorSelectionRef selection);
 
+static Vec2D editor_screen_vector_rotate(Vec2D vector, float degrees) {
+    return math_vector_rotate(vector, -degrees);
+}
+
 static Position editor_sprite_rotation_handle_get(Position center,
         Orientation rotation) {
     float length = EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / editor_view_scale;
@@ -269,7 +273,7 @@ static Position editor_view_world_to_screen(Position world) {
             -editor_view_preview_camera_rotation);
         relative = (Vec2D){relative.x * editor_view_preview_scale.x,
             -relative.y * editor_view_preview_scale.y};
-        relative = math_vector_rotate(relative,
+        relative = editor_screen_vector_rotate(relative,
             editor_view_preview_content_rotation);
         return (Position){editor_view_origin.x + relative.x,
             editor_view_origin.y + relative.y};
@@ -280,10 +284,8 @@ static Position editor_view_world_to_screen(Position world) {
 
 static Orientation editor_view_preview_texture_rotation_get(
         Orientation world_rotation) {
-    /* Screen textures negate their supplied angle for SDL. Geometry has
-     * already applied the Screen rotation in screen space, so compensate for
-     * that second sign conversion here. */
-    return world_rotation - editor_view_preview_camera_rotation -
+    /* Camera inverse in world space, followed by clockwise screen placement. */
+    return world_rotation - editor_view_preview_camera_rotation +
         editor_view_preview_content_rotation;
 }
 
@@ -330,8 +332,8 @@ static void editor_viewport_grid_draw(void) {
 
 static Position editor_hitbox_vertex_world_get(const EditorObject *object,
     const EditorRigidBody *body, const EditorHitbox *hitbox, uint32_t vertex) {
-    float cosine = cosf(body->rotation);
-    float sine = sinf(body->rotation);
+    float cosine = cosf(math_degrees_to_radians(body->rotation));
+    float sine = (-sinf(math_degrees_to_radians(body->rotation)));
     Position local = hitbox->vertices[vertex].position;
     return (Position){
         object->position.x + body->position.x + local.x * cosine - local.y * sine,
@@ -342,8 +344,8 @@ static Position editor_hitbox_vertex_world_get(const EditorObject *object,
 static Position editor_particle_center_world_get(const EditorObject *object,
     const EditorRigidBody *body) {
     Position local = editor_project_particle_center_get(body);
-    float cosine = cosf(body->rotation);
-    float sine = sinf(body->rotation);
+    float cosine = cosf(math_degrees_to_radians(body->rotation));
+    float sine = (-sinf(math_degrees_to_radians(body->rotation)));
     return (Position){object->position.x + body->position.x +
             local.x * cosine - local.y * sine,
         object->position.y + body->position.y +
@@ -352,8 +354,8 @@ static Position editor_particle_center_world_get(const EditorObject *object,
 
 static Position editor_soft_node_world_get(const EditorObject *object,
     const EditorSoftBody *body, const EditorSoftNode *node) {
-    float cosine = cosf(body->rotation);
-    float sine = sinf(body->rotation);
+    float cosine = cosf(math_degrees_to_radians(body->rotation));
+    float sine = (-sinf(math_degrees_to_radians(body->rotation)));
     return (Position){object->position.x + body->position.x +
             node->position.x * cosine - node->position.y * sine,
         object->position.y + body->position.y +
@@ -382,8 +384,8 @@ static Position editor_anchor_world_get(const EditorObject *object,
         if(object->rigid_bodies[i].id == anchor->rigid_body) body = &object->rigid_bodies[i];
     }
     if(body != NULL && anchor->position_follows_body) {
-        float cosine = cosf(body->rotation);
-        float sine = sinf(body->rotation);
+        float cosine = cosf(math_degrees_to_radians(body->rotation));
+        float sine = (-sinf(math_degrees_to_radians(body->rotation)));
         return (Position){object->position.x + body->position.x +
                 anchor->position.x * cosine - anchor->position.y * sine,
             object->position.y + body->position.y +
@@ -411,8 +413,8 @@ static Position editor_anchor_world_local_get(const EditorObject *object,
         }
     }
     if(body != NULL && anchor->position_follows_body) {
-        float cosine = cosf(-body->rotation);
-        float sine = sinf(-body->rotation);
+        float cosine = cosf(math_degrees_to_radians(-body->rotation));
+        float sine = (-sinf(math_degrees_to_radians(-body->rotation)));
         local.x -= body->position.x;
         local.y -= body->position.y;
         return (Position){local.x * cosine - local.y * sine,
@@ -493,7 +495,7 @@ static void editor_line_draw(Position start, Position end, Color color) {
     if(length <= 0.0f) return;
     (void)rohr_graphics_screen_quad_draw(
         (Position){(start.x + end.x) * 0.5f, (start.y + end.y) * 0.5f},
-        length, 2.0f, -atan2f(delta.y, delta.x), color);
+        length, 2.0f, math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
 }
 
 static void editor_triangle_filled_draw(Position a, Position b, Position c, Color color) {
@@ -627,7 +629,7 @@ static void editor_hitbox_filled_draw(const EditorObject *object,
 static void editor_quad_draw(Position center, float width, float height,
     float rotation, Color color) {
     (void)rohr_graphics_screen_quad_draw(editor_view_world_to_screen(center),
-        width, height, -rotation, color);
+        width, height, rotation, color);
 }
 
 static void editor_circle_draw(Position center, float radius, Color color) {
@@ -719,10 +721,10 @@ static void editor_body_origin_draw(const EditorObject *object,
     if(object == NULL || body == NULL) return;
     center = (Position){object->position.x + body->position.x,
         object->position.y + body->position.y};
-    x_end = (Position){center.x + cosf(body->rotation) * axis_length,
-        center.y + sinf(body->rotation) * axis_length};
-    y_end = (Position){center.x - sinf(body->rotation) * axis_length,
-        center.y + cosf(body->rotation) * axis_length};
+    x_end = (Position){center.x + cosf(math_degrees_to_radians(body->rotation)) * axis_length,
+        center.y + (-sinf(math_degrees_to_radians(body->rotation))) * axis_length};
+    y_end = (Position){center.x - (-sinf(math_degrees_to_radians(body->rotation))) * axis_length,
+        center.y + cosf(math_degrees_to_radians(body->rotation)) * axis_length};
     editor_line_draw(center, x_end, (Color){235, 95, 95, 255});
     editor_line_draw(center, y_end, (Color){95, 220, 135, 255});
     editor_circle_draw(center, 5.0f, (Color){245, 245, 250, 255});
@@ -1968,8 +1970,8 @@ static Position editor_auto_shape_rigid_local_get(const EditorObject *object,
         const EditorRigidBody *body, Position world) {
     Position local = {world.x - object->position.x - body->position.x,
         world.y - object->position.y - body->position.y};
-    float cosine = cosf(-body->rotation);
-    float sine = sinf(-body->rotation);
+    float cosine = cosf(math_degrees_to_radians(-body->rotation));
+    float sine = (-sinf(math_degrees_to_radians(-body->rotation)));
     return (Position){local.x * cosine - local.y * sine,
         local.x * sine + local.y * cosine};
 }
@@ -1978,8 +1980,8 @@ static Position editor_auto_shape_soft_local_get(const EditorObject *object,
         const EditorSoftBody *body, Position world) {
     Position local = {world.x - object->position.x - body->position.x,
         world.y - object->position.y - body->position.y};
-    float cosine = cosf(-body->rotation);
-    float sine = sinf(-body->rotation);
+    float cosine = cosf(math_degrees_to_radians(-body->rotation));
+    float sine = (-sinf(math_degrees_to_radians(-body->rotation)));
     return (Position){local.x * cosine - local.y * sine,
         local.x * sine + local.y * cosine};
 }
@@ -2227,7 +2229,7 @@ static bool editor_viewport_ui_slider_hit_check(
     slider = &item->value.slider;
     relative = (Vec2D){pointer.x - item->position.x,
         pointer.y - item->position.y};
-    local = math_vector_rotate(relative, -item->rotation);
+    local = editor_screen_vector_rotate(relative, -item->rotation);
     along = local.x;
     across = local.y;
     track_hit_half = fmaxf(slider->track_thickness * 0.5f,
@@ -2258,7 +2260,7 @@ static bool editor_viewport_ui_slider_thumb_hit_check(
     slider = &item->value.slider;
     relative = (Vec2D){pointer.x - item->position.x,
         pointer.y - item->position.y};
-    local = math_vector_rotate(relative, -item->rotation);
+    local = editor_screen_vector_rotate(relative, -item->rotation);
     amount = (slider->value - slider->minimum) /
         (slider->maximum - slider->minimum);
     along = -slider->length * 0.5f + slider->length * amount +
@@ -2281,7 +2283,7 @@ static void editor_viewport_ui_slider_value_from_pointer_set(
     slider = &item->value.slider;
     relative = (Vec2D){pointer.x - item->position.x,
         pointer.y - item->position.y};
-    local = math_vector_rotate(relative, -item->rotation);
+    local = editor_screen_vector_rotate(relative, -item->rotation);
     amount = (local.x - slider->thumb_offset + slider->length * 0.5f) /
         slider->length;
     amount = fminf(1.0f, fmaxf(0.0f, amount));
@@ -2366,12 +2368,11 @@ static bool editor_layout_rotation_apply(EditorLayoutRotationTarget *target,
         Position pointer, float pointer_offset) {
     Orientation orientation;
     if(target == NULL || target->kind == EDITOR_LAYOUT_ROTATION_NONE) return false;
-    orientation = editor_rotation_control_orientation_get(target->center,
-        pointer, pointer_offset);
+    orientation = editor_rotation_control_orientation_get(
+        (Position){target->center.x, -target->center.y},
+        (Position){pointer.x, -pointer.y}, pointer_offset, target->orientation);
     if(target->kind == EDITOR_LAYOUT_ROTATION_SCREEN) {
-        target->screen->placement.orientation = fmodf(orientation, 6.28318530718f);
-        if(target->screen->placement.orientation < 0.0f)
-            target->screen->placement.orientation += 6.28318530718f;
+        target->screen->placement.orientation = orientation;
     } else if(target->kind == EDITOR_LAYOUT_ROTATION_UI_SHAPE)
         target->ui->value.shape.rotation = orientation;
     else target->ui->rotation = orientation;
@@ -2394,7 +2395,7 @@ static Position editor_viewport_ui_shape_point_get(
         const EditorViewportUiItem *item, Position local) {
     Position centroid = editor_viewport_ui_shape_centroid_get(item);
     Vec2D relative = {local.x - centroid.x, local.y - centroid.y};
-    Vec2D rotated = math_vector_rotate(relative, item->value.shape.rotation);
+    Vec2D rotated = editor_screen_vector_rotate(relative, item->value.shape.rotation);
     return (Position){item->position.x + centroid.x + rotated.x,
         item->position.y + centroid.y + rotated.y};
 }
@@ -2415,7 +2416,7 @@ static bool editor_viewport_ui_vertex_press(EditorViewportState *state,
             Position centroid = editor_viewport_ui_shape_centroid_get(item);
             Vec2D relative = {local.x - item->position.x - centroid.x,
                 local.y - item->position.y - centroid.y};
-            Vec2D unrotated = math_vector_rotate(relative,
+            Vec2D unrotated = editor_screen_vector_rotate(relative,
                 -item->value.shape.rotation);
             state->drag_offset = (Vec2D){
                 centroid.x + unrotated.x - item->value.shape.vertices[vertex].x,
@@ -2453,7 +2454,7 @@ static void editor_viewport_screen_line_draw(Position first, Position second,
     (void)rohr_graphics_screen_quad_draw(
         (Position){(first.x + second.x) * 0.5f,
             (first.y + second.y) * 0.5f},
-        length, 2.0f, -atan2f(delta.y, delta.x), color);
+        length, 2.0f, math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
 }
 
 static void editor_viewport_screen_hashed_line_draw(Position first,
@@ -2477,7 +2478,7 @@ static void editor_viewport_screen_hashed_line_draw(Position first,
             (Position){(start.x + finish.x) * 0.5f,
                 (start.y + finish.y) * 0.5f},
             hypotf(segment.x, segment.y), thickness,
-            -atan2f(segment.y, segment.x), color);
+            math_radians_to_degrees(atan2f(segment.y, segment.x)), color);
     }
 }
 
@@ -2505,7 +2506,7 @@ static void editor_viewport_slider_thumb_outline_draw(Position center,
     const float signs[4][2] = {
         {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     for(size_t corner = 0; corner < 4; corner += 1) {
-        Vec2D delta = math_vector_rotate((Vec2D){
+        Vec2D delta = editor_screen_vector_rotate((Vec2D){
             signs[corner][0] *
                 (slider->thumb_width * zoom * 0.5f + expansion),
             signs[corner][1] *
@@ -2614,7 +2615,7 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
             anchor = editor_viewport_ui_shape_point_get(item,
                 (Position){centroid.x + offset.x, centroid.y + offset.y});
         else {
-            Vec2D rotated = math_vector_rotate(
+            Vec2D rotated = editor_screen_vector_rotate(
                 (Vec2D){centroid.x + offset.x, centroid.y + offset.y},
                 item->rotation);
             anchor = (Position){item->position.x + rotated.x,
@@ -2630,10 +2631,10 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     if(item->kind == EDITOR_VIEWPORT_UI_SHAPE)
         (void)rohr_graphics_screen_text_scaled_rotated_draw(
             &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
-            -item->value.shape.rotation);
+            item->value.shape.rotation);
     else (void)rohr_graphics_screen_text_scaled_rotated_draw(
         &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
-        -item->rotation);
+        item->rotation);
     if(selected) {
         float width = editor_viewport_ui_text_assets[slot].size.x * text_scale.x;
         float height = editor_viewport_ui_text_assets[slot].size.y * text_scale.y;
@@ -2644,7 +2645,7 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
             for(size_t corner = 0; corner < 4; corner += 1) {
                 Vec2D relative = {corners[corner].x - screen_anchor.x,
                     corners[corner].y - screen_anchor.y};
-                Vec2D rotated = math_vector_rotate(relative,
+                Vec2D rotated = editor_screen_vector_rotate(relative,
                     item->value.shape.rotation);
                 corners[corner] = (Position){screen_anchor.x + rotated.x,
                     screen_anchor.y + rotated.y};
@@ -2652,7 +2653,7 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
         else for(size_t corner = 0; corner < 4; corner += 1) {
             Vec2D relative = {corners[corner].x - screen_anchor.x,
                 corners[corner].y - screen_anchor.y};
-            Vec2D rotated = math_vector_rotate(relative, item->rotation);
+            Vec2D rotated = editor_screen_vector_rotate(relative, item->rotation);
             corners[corner] = (Position){screen_anchor.x + rotated.x,
                 screen_anchor.y + rotated.y};
         }
@@ -2946,8 +2947,8 @@ static bool editor_group_point_hit(EditorProject *project,
 
 static Position editor_group_rotate_point(Position point, Position pivot,
         float angle) {
-    float cosine = cosf(angle);
-    float sine = sinf(angle);
+    float cosine = cosf(math_degrees_to_radians(angle));
+    float sine = -sinf(math_degrees_to_radians(angle));
     Position local = {point.x - pivot.x, point.y - pivot.y};
     return (Position){pivot.x + local.x * cosine - local.y * sine,
         pivot.y + local.x * sine + local.y * cosine};
@@ -3106,8 +3107,8 @@ static bool editor_group_transform_apply(EditorProject *project,
             if(attached != NULL) {
                 local.x -= attached->position.x;
                 local.y -= attached->position.y;
-                float cosine = cosf(-attached->rotation);
-                float sine = sinf(-attached->rotation);
+                float cosine = cosf(math_degrees_to_radians(-attached->rotation));
+                float sine = (-sinf(math_degrees_to_radians(-attached->rotation)));
                 local = (Position){local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine};
             }
@@ -3132,8 +3133,8 @@ static bool editor_group_transform_apply(EditorProject *project,
             if(attached != NULL) {
                 local.x -= attached->position.x;
                 local.y -= attached->position.y;
-                float cosine = cosf(-attached->rotation);
-                float sine = sinf(-attached->rotation);
+                float cosine = cosf(math_degrees_to_radians(-attached->rotation));
+                float sine = (-sinf(math_degrees_to_radians(-attached->rotation)));
                 local = (Position){local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine};
             }
@@ -3185,8 +3186,8 @@ static bool editor_group_transform_apply(EditorProject *project,
                     vertex->position_locked) continue;
             local = (Position){desired.x - object->position.x - body->position.x,
                 desired.y - object->position.y - body->position.y};
-            cosine = cosf(-body->rotation);
-            sine = sinf(-body->rotation);
+            cosine = cosf(math_degrees_to_radians(-body->rotation));
+            sine = (-sinf(math_degrees_to_radians(-body->rotation)));
             command = (EditorCommand){.type = EDITOR_COMMAND_VERTEX_POSITION,
                 .data.vertex_position = {object->id, body->id, hitbox->id,
                     vertex->id, {local.x * cosine - local.y * sine,
@@ -3574,14 +3575,14 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 Position centroid = editor_viewport_ui_shape_centroid_get(item);
                 Vec2D relative = {local.x - item->position.x - centroid.x,
                     local.y - item->position.y - centroid.y};
-                Vec2D unrotated = math_vector_rotate(relative,
+                Vec2D unrotated = editor_screen_vector_rotate(relative,
                     -item->value.shape.rotation);
                 hit = (Position){item->position.x + centroid.x + unrotated.x,
                     item->position.y + centroid.y + unrotated.y};
             } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
                 Vec2D relative = {local.x - item->position.x,
                     local.y - item->position.y};
-                Vec2D unrotated = math_vector_rotate(relative, -item->rotation);
+                Vec2D unrotated = editor_screen_vector_rotate(relative, -item->rotation);
                 hit = (Position){item->position.x + unrotated.x,
                     item->position.y + unrotated.y};
             }
@@ -3609,7 +3610,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
             Vec2D relative = {local.x - center.x, local.y - center.y};
             Vec2D unrotated;
             if(!item->placement.visible) continue;
-            unrotated = math_vector_rotate(relative, -item->placement.orientation);
+            unrotated = editor_screen_vector_rotate(relative, -item->placement.orientation);
             if(fabsf(unrotated.x) > fabsf(rectangle.width) * 0.5f ||
                     fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
             int layer = editor_viewport_item_layer_base_get(viewport,
@@ -3789,7 +3790,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                         Vec2D relative = {local.x - item->position.x - centroid.x,
                             local.y - item->position.y - centroid.y};
-                        Vec2D unrotated = math_vector_rotate(relative,
+                        Vec2D unrotated = editor_screen_vector_rotate(relative,
                             -item->value.shape.rotation);
                         text->offset = (Position){
                             unrotated.x - state->drag_offset.x,
@@ -3812,7 +3813,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         Position centroid = editor_viewport_ui_shape_centroid_get(item);
                         Vec2D world_relative = {local.x - item->position.x - centroid.x,
                             local.y - item->position.y - centroid.y};
-                        Vec2D local_relative = math_vector_rotate(world_relative,
+                        Vec2D local_relative = editor_screen_vector_rotate(world_relative,
                             -item->value.shape.rotation);
                         Position desired = {
                             centroid.x + local_relative.x - state->drag_offset.x,
@@ -3874,7 +3875,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         front.item == state->selected_viewport_ui_item);
                 if(selected_in_front && editor_layout_rotation_target_get(viewport, state,
                         project->viewport_camera_zoom, &rotation_target) &&
-                        editor_rotation_control_begin(rotation_target.center,
+                        editor_rotation_control_screen_begin(rotation_target.center,
                             rotation_target.orientation,
                             rotation_target.arm_length, local,
                             10.0f / project->viewport_camera_zoom,
@@ -3931,7 +3932,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                         Vec2D relative = {local.x - item->position.x - centroid.x,
                             local.y - item->position.y - centroid.y};
-                        Vec2D unrotated = math_vector_rotate(relative,
+                        Vec2D unrotated = editor_screen_vector_rotate(relative,
                             -item->value.shape.rotation);
                         text_hit = (Position){item->position.x + centroid.x +
                                 unrotated.x,
@@ -3947,7 +3948,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                         Vec2D relative = {local.x - item->position.x - centroid.x,
                             local.y - item->position.y - centroid.y};
-                        Vec2D unrotated = math_vector_rotate(relative,
+                        Vec2D unrotated = editor_screen_vector_rotate(relative,
                             -item->value.shape.rotation);
                         state->drag_offset = (Vec2D){
                             unrotated.x - text->offset.x,
@@ -4012,14 +4013,14 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         Position centroid = editor_viewport_ui_shape_centroid_get(item);
                         Vec2D relative = {local.x - item->position.x - centroid.x,
                             local.y - item->position.y - centroid.y};
-                        Vec2D unrotated = math_vector_rotate(relative,
+                        Vec2D unrotated = editor_screen_vector_rotate(relative,
                             -item->value.shape.rotation);
                         hit = (Position){item->position.x + centroid.x + unrotated.x,
                             item->position.y + centroid.y + unrotated.y};
                     } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
                         Vec2D relative = {local.x - item->position.x,
                             local.y - item->position.y};
-                        Vec2D unrotated = math_vector_rotate(relative,
+                        Vec2D unrotated = editor_screen_vector_rotate(relative,
                             -item->rotation);
                         hit = (Position){item->position.x + unrotated.x,
                             item->position.y + unrotated.y};
@@ -4084,7 +4085,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         rectangle.y + rectangle.height * 0.5f};
                     Vec2D relative = {local.x - screen_center.x,
                         local.y - screen_center.y};
-                    Vec2D unrotated = math_vector_rotate(relative,
+                    Vec2D unrotated = editor_screen_vector_rotate(relative,
                         -item->placement.orientation);
                     Position hit = {screen_center.x + unrotated.x,
                         screen_center.y + unrotated.y};
@@ -4191,11 +4192,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         return true;
     }
     if(state->group_rotating && primary_button == MOUSE_BUTTON_STATE_DOWN) {
-        float pointer_angle = atan2f(pointer.y - state->group_pivot.y,
-            pointer.x - state->group_pivot.x);
+        float pointer_angle = editor_rotation_control_pointer_angle_get(state->group_pivot, pointer);
         float delta = pointer_angle - state->group_pointer_angle;
-        while(delta > 3.14159265359f) delta -= 6.28318530718f;
-        while(delta < -3.14159265359f) delta += 6.28318530718f;
+        while(delta > 180.0f) delta -= 360.0f;
+        while(delta < -180.0f) delta += 360.0f;
         if(delta != 0.0f) {
             (void)editor_group_transform_apply(project, state,
                 (Vec2D){0}, delta, true);
@@ -4206,17 +4206,29 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED &&
             state->selected_item_count >= 2 && !state->selection_modifier) {
         Position rotation_handle;
+        bool group_handle_closest = true;
         if(editor_group_pivot_get(project, state, &state->group_pivot)) {
             rotation_handle = (Position){state->group_pivot.x,
                 state->group_pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
+            float group_distance = hypotf(pointer.x - rotation_handle.x,
+                pointer.y - rotation_handle.y);
+            for(size_t i = 0; i < state->selected_item_count; i += 1) {
+                EditorSelectionRef ref = state->selected_items[i];
+                EditorObject *selected_object = editor_group_object_get(project, ref.object);
+                Position center, handle;
+                float rotation;
+                if(selected_object != NULL && editor_group_rotation_control_get(
+                        project, ref, &center, &handle, &rotation) &&
+                        hypotf(pointer.x - handle.x, pointer.y - handle.y) <= group_distance)
+                    group_handle_closest = false;
+            }
         }
-        if(editor_group_pivot_get(project, state, &state->group_pivot) &&
+        if(group_handle_closest && editor_group_pivot_get(project, state, &state->group_pivot) &&
                 hypotf(pointer.x - rotation_handle.x,
                     pointer.y - rotation_handle.y) <=
                         12.0f / editor_view_scale) {
             state->group_rotating = true;
-            state->group_pointer_angle = atan2f(pointer.y - state->group_pivot.y,
-                pointer.x - state->group_pivot.x);
+            state->group_pointer_angle = editor_rotation_control_pointer_angle_get(state->group_pivot, pointer);
             return true;
         }
         for(size_t i = state->selected_item_count; i > 0; i -= 1) {
@@ -4402,12 +4414,14 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->selected_camera_entity);
         if(camera != NULL) {
             Position center = editor_camera_world_get(object, camera, NULL);
+            Orientation inherited = camera->inherit_orientation ?
+                editor_camera_attachment_rotation_get(object, camera) : 0.0f;
             Orientation rotation = editor_rotation_control_orientation_get(center,
-                pointer, state->rotation_pointer_offset);
+                pointer, state->rotation_pointer_offset, camera->rotation + inherited) - inherited;
             if(state->selected_item_count >= 2) {
                 float delta = rotation - camera->rotation;
-                while(delta > 3.14159265359f) delta -= 6.28318530718f;
-                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                while(delta > 180.0f) delta -= 360.0f;
+                while(delta < -180.0f) delta += 360.0f;
                 if(delta != 0.0f) (void)editor_group_transform_apply(project,
                     state, (Vec2D){0}, delta, false);
                 return true;
@@ -4433,8 +4447,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(attached != NULL) {
                 local.x -= attached->position.x;
                 local.y -= attached->position.y;
-                float cosine = cosf(-attached->rotation);
-                float sine = sinf(-attached->rotation);
+                float cosine = cosf(math_degrees_to_radians(-attached->rotation));
+                float sine = (-sinf(math_degrees_to_radians(-attached->rotation)));
                 local = (Position){local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine};
             }
@@ -4453,14 +4467,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorRigidBody *attached = editor_project_rigid_body_get(object,
                 sprite->rigid_body);
             Orientation world_rotation = editor_rotation_control_orientation_get(
-                center, pointer, state->rotation_pointer_offset);
+                center, pointer, state->rotation_pointer_offset,
+                sprite->rotation + (attached != NULL && sprite->follow_body_rotation ?
+                    attached->rotation : 0.0f));
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
             if(state->selected_item_count >= 2) {
                 float delta = rotation - sprite->rotation;
-                while(delta > 3.14159265359f) delta -= 6.28318530718f;
-                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                while(delta > 180.0f) delta -= 360.0f;
+                while(delta < -180.0f) delta += 360.0f;
                 if(delta != 0.0f)
                     (void)editor_group_transform_apply(project, state,
                         (Vec2D){0}, delta, false);
@@ -4487,8 +4503,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(attached != NULL) {
                 local.x -= attached->position.x;
                 local.y -= attached->position.y;
-                float cosine = cosf(-attached->rotation);
-                float sine = sinf(-attached->rotation);
+                float cosine = cosf(math_degrees_to_radians(-attached->rotation));
+                float sine = (-sinf(math_degrees_to_radians(-attached->rotation)));
                 local = (Position){local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine};
             }
@@ -4511,14 +4527,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorRigidBody *attached = editor_project_rigid_body_get(object,
                 sprite->rigid_body);
             Orientation world_rotation = editor_rotation_control_orientation_get(
-                center, pointer, state->rotation_pointer_offset);
+                center, pointer, state->rotation_pointer_offset,
+                sprite->editor_rotation + (attached != NULL && sprite->follow_body_rotation ?
+                    attached->rotation : 0.0f));
             Orientation rotation = world_rotation -
                 (attached != NULL && sprite->follow_body_rotation ?
                     attached->rotation : 0.0f);
             if(state->selected_item_count >= 2) {
                 float delta = rotation - sprite->editor_rotation;
-                while(delta > 3.14159265359f) delta -= 6.28318530718f;
-                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                while(delta > 180.0f) delta -= 360.0f;
+                while(delta < -180.0f) delta += 360.0f;
                 if(delta != 0.0f)
                     (void)editor_group_transform_apply(project, state,
                         (Vec2D){0}, delta, false);
@@ -4566,8 +4584,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     pointer.y - object->position.y - soft_body->position.y -
                         state->drag_offset.y
                 };
-                float cosine = cosf(-soft_body->rotation);
-                float sine = sinf(-soft_body->rotation);
+                float cosine = cosf(math_degrees_to_radians(-soft_body->rotation));
+                float sine = (-sinf(math_degrees_to_radians(-soft_body->rotation)));
                 Position position = {
                     local.x * cosine - local.y * sine,
                     local.x * sine + local.y * cosine
@@ -4657,11 +4675,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             center = (Position){object->position.x + soft_body->position.x,
                 object->position.y + soft_body->position.y};
             rotation = editor_rotation_control_orientation_get(center, pointer,
-                state->rotation_pointer_offset);
+                state->rotation_pointer_offset, soft_body->rotation);
             if(state->selected_item_count >= 2) {
                 float delta = rotation - soft_body->rotation;
-                while(delta > 3.14159265359f) delta -= 6.28318530718f;
-                while(delta < -3.14159265359f) delta += 6.28318530718f;
+                while(delta > 180.0f) delta -= 360.0f;
+                while(delta < -180.0f) delta += 360.0f;
                 if(delta != 0.0f)
                     (void)editor_group_transform_apply(project, state,
                         (Vec2D){0}, delta, false);
@@ -4705,11 +4723,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         Position center = {object->position.x + body->position.x,
             object->position.y + body->position.y};
         float rotation = editor_rotation_control_orientation_get(center, pointer,
-            state->rotation_pointer_offset);
+            state->rotation_pointer_offset, body->rotation);
         if(state->selected_item_count >= 2) {
             float delta = rotation - body->rotation;
-            while(delta > 3.14159265359f) delta -= 6.28318530718f;
-            while(delta < -3.14159265359f) delta += 6.28318530718f;
+            while(delta > 180.0f) delta -= 360.0f;
+            while(delta < -180.0f) delta += 360.0f;
             if(delta != 0.0f)
                 (void)editor_group_transform_apply(project, state,
                     (Vec2D){0}, delta, false);
@@ -4732,8 +4750,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 pointer.y - state->drag_offset.y - object->position.y -
                     body->position.y
             };
-            float cosine = cosf(-body->rotation);
-            float sine = sinf(-body->rotation);
+            float cosine = cosf(math_degrees_to_radians(-body->rotation));
+            float sine = (-sinf(math_degrees_to_radians(-body->rotation)));
             EditorVertex *vertex = &hitbox->vertices[state->dragged_vertex];
             EditorCommand command = {.type = EDITOR_COMMAND_VERTEX_POSITION,
                 .data.vertex_position = {object->id, body->id, hitbox->id,
@@ -4875,7 +4893,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 object->position.y + soft_body->position.y};
             state->rotated_soft_body = true;
             state->rotation_pointer_offset = soft_body->rotation -
-                atan2f(pointer.y - center.y, pointer.x - center.x);
+                editor_rotation_control_pointer_angle_get(center, pointer);
             return true;
         }
     }
@@ -4892,7 +4910,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     12.0f / editor_view_scale) {
                 state->rotated_sprite = true;
                 state->rotation_pointer_offset = rotation -
-                    atan2f(pointer.y - center.y, pointer.x - center.x);
+                    editor_rotation_control_pointer_angle_get(center, pointer);
                 return true;
             }
         }
@@ -4911,7 +4929,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     12.0f / editor_view_scale) {
                 state->rotated_animated_sprite = true;
                 state->rotation_pointer_offset = rotation -
-                    atan2f(pointer.y - center.y, pointer.x - center.x);
+                    editor_rotation_control_pointer_angle_get(center, pointer);
                 return true;
             }
         }
@@ -4930,7 +4948,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     12.0f / editor_view_scale) {
                 state->rotated_camera_entity = true;
                 state->rotation_pointer_offset = rotation -
-                    atan2f(pointer.y - center.y, pointer.x - center.x);
+                    editor_rotation_control_pointer_angle_get(center, pointer);
                 return true;
             }
         }
@@ -5115,7 +5133,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->rotated_body = true;
             state->selection = EDITOR_SELECTION_RIGID_BODY;
             state->rotation_pointer_offset = body->rotation -
-                atan2f(pointer.y - center.y, pointer.x - center.x);
+                editor_rotation_control_pointer_angle_get(center, pointer);
             return true;
         }
         for(size_t i = 0; i < body->hitbox_count; i += 1) {
@@ -5538,8 +5556,8 @@ static Position editor_sprite_world_get(const EditorObject *object,
         const EditorRigidBody *body = &object->rigid_bodies[i];
         if(body->id == sprite->rigid_body) {
             Position offset = sprite->position;
-            float cosine = cosf(body->rotation);
-            float sine = sinf(body->rotation);
+            float cosine = cosf(math_degrees_to_radians(body->rotation));
+            float sine = (-sinf(math_degrees_to_radians(body->rotation)));
             offset = (Position){offset.x * cosine - offset.y * sine,
                 offset.x * sine + offset.y * cosine};
             return (Position){object->position.x + body->position.x + offset.x,
@@ -5559,8 +5577,8 @@ static Position editor_animated_sprite_world_get(const EditorObject *object,
             body = &object->rigid_bodies[i];
     if(body != NULL) {
         Position offset = sprite->editor_position;
-        float cosine = cosf(body->rotation);
-        float sine = sinf(body->rotation);
+        float cosine = cosf(math_degrees_to_radians(body->rotation));
+        float sine = (-sinf(math_degrees_to_radians(body->rotation)));
         offset = (Position){offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
         if(rotation != NULL) *rotation = sprite->editor_rotation +
@@ -5578,8 +5596,8 @@ static void editor_sprite_outline_draw(Position center, Scale size,
     Position corners[4] = {{-size.x * 0.5f, -size.y * 0.5f},
         {size.x * 0.5f, -size.y * 0.5f}, {size.x * 0.5f, size.y * 0.5f},
         {-size.x * 0.5f, size.y * 0.5f}};
-    float cosine = cosf(rotation);
-    float sine = sinf(rotation);
+    float cosine = cosf(math_degrees_to_radians(rotation));
+    float sine = (-sinf(math_degrees_to_radians(rotation)));
     for(size_t i = 0; i < 4; i += 1) corners[i] = (Position){
         center.x + corners[i].x * cosine - corners[i].y * sine,
         center.y + corners[i].x * sine + corners[i].y * cosine};
@@ -5621,7 +5639,7 @@ static Position editor_camera_world_get(const EditorObject *object,
     }
     Position offset = camera->position;
     if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) {
-        float cosine = cosf(inherited), sine = sinf(inherited);
+        float cosine = cosf(math_degrees_to_radians(inherited)), sine = (-sinf(math_degrees_to_radians(inherited)));
         offset = (Position){offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
     }
@@ -5713,8 +5731,8 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
             camera->dimensions.y / zoom * .5f};
         for(size_t i = 0; i < 4; i += 1) {
             float x = corners[i].x, y = corners[i].y;
-            corners[i] = (Position){center.x + x * cosf(rotation) - y * sinf(rotation),
-                center.y + x * sinf(rotation) + y * cosf(rotation)};
+            corners[i] = (Position){center.x + x * cosf(math_degrees_to_radians(rotation)) - y * (-sinf(math_degrees_to_radians(rotation))),
+                center.y + x * (-sinf(math_degrees_to_radians(rotation))) + y * cosf(math_degrees_to_radians(rotation))};
         }
         selected = (state->selection == EDITOR_SELECTION_CAMERA &&
             state->selected_camera_entity == camera->id) ||
@@ -6133,7 +6151,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             rotation += anchor_body->rotation;
         }
         editor_quad_draw(editor_anchor_world_get(object, anchor),
-            9.0f, 9.0f, rotation + 0.78539816339f,
+            9.0f, 9.0f, rotation + 45.0f,
             object_highlighted || (state->selection == EDITOR_SELECTION_ANCHOR &&
                 state->selected_anchor == anchor->id) ||
                 editor_viewport_path_selected(state, EDITOR_SELECTION_ANCHOR,
@@ -6284,7 +6302,7 @@ static void editor_viewport_screen_camera_preview_draw(
         fit_y * fmaxf(0.01f, screen->content_scale.y)};
     editor_view_scale = (editor_view_preview_scale.x +
         editor_view_preview_scale.y) * 0.5f;
-    offset = math_vector_rotate((Vec2D){screen->content_offset.x * editor_zoom,
+    offset = editor_screen_vector_rotate((Vec2D){screen->content_offset.x * editor_zoom,
         screen->content_offset.y * editor_zoom}, screen->placement.orientation);
     editor_view_origin = (Position){bounds.x + bounds.width * 0.5f + offset.x,
         bounds.y + bounds.height * 0.5f + offset.y};
@@ -6402,7 +6420,7 @@ void editor_viewport_draw(const EditorProject *project,
                 for(size_t corner = 0; corner < 4; corner += 1) {
                     Vec2D relative = {corners[corner].x - screen_center.x,
                         corners[corner].y - screen_center.y};
-                    Vec2D rotated = math_vector_rotate(relative,
+                    Vec2D rotated = editor_screen_vector_rotate(relative,
                         item->placement.orientation);
                     corners[corner] = (Position){screen_center.x + rotated.x,
                         screen_center.y + rotated.y};
@@ -6412,7 +6430,7 @@ void editor_viewport_draw(const EditorProject *project,
                     editor_viewport_screen_hashed_line_draw(corners[edge],
                         corners[(edge + 1) % 4], color, zoom);
                 if(item->id == state->selected_viewport_camera_item) {
-                    Position handle = editor_rotation_control_position_get(
+                    Position handle = editor_rotation_control_screen_position_get(
                         screen_center, item->placement.orientation,
                         camera.height * 0.5f + 30.0f);
                     editor_viewport_screen_line_draw(screen_center, handle, color);
@@ -6463,11 +6481,11 @@ void editor_viewport_draw(const EditorProject *project,
                         local_start.x + (local_end.x - local_start.x) * amount +
                             slider->thumb_offset,
                         local_start.y + (local_end.y - local_start.y) * amount};
-                    Vec2D start_delta = math_vector_rotate(
+                    Vec2D start_delta = editor_screen_vector_rotate(
                         (Vec2D){local_start.x, local_start.y}, item->rotation);
-                    Vec2D end_delta = math_vector_rotate(
+                    Vec2D end_delta = editor_screen_vector_rotate(
                         (Vec2D){local_end.x, local_end.y}, item->rotation);
-                    Vec2D thumb_delta = math_vector_rotate(
+                    Vec2D thumb_delta = editor_screen_vector_rotate(
                         (Vec2D){local_thumb.x, local_thumb.y}, item->rotation);
                     Position start = {rectangle.x +
                             (item->position.x + start_delta.x) * zoom,
@@ -6505,7 +6523,7 @@ void editor_viewport_draw(const EditorProject *project,
                     if(whole_selected) {
                         Position center = {rectangle.x + item->position.x * zoom,
                             rectangle.y + item->position.y * zoom};
-                        Position handle = editor_rotation_control_position_get(
+                        Position handle = editor_rotation_control_screen_position_get(
                             center, item->rotation,
                             EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
                         editor_viewport_screen_line_draw(center, handle,
@@ -6656,7 +6674,7 @@ void editor_viewport_draw(const EditorProject *project,
                         Position center = {rectangle.x +
                                 (item->position.x + centroid.x) * zoom,
                             rectangle.y + (item->position.y + centroid.y) * zoom};
-                        Position handle = editor_rotation_control_position_get(center,
+                        Position handle = editor_rotation_control_screen_position_get(center,
                             item->value.shape.rotation,
                             EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
                         editor_viewport_screen_line_draw(center, handle,
@@ -6687,7 +6705,7 @@ void editor_viewport_draw(const EditorProject *project,
                 if(item->kind == EDITOR_VIEWPORT_UI_TEXT && text_selected) {
                     Position center = {rectangle.x + item->position.x * zoom,
                         rectangle.y + item->position.y * zoom};
-                    Position handle = editor_rotation_control_position_get(center,
+                    Position handle = editor_rotation_control_screen_position_get(center,
                         item->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
                     editor_viewport_screen_line_draw(center, handle,
                         (Color){255, 210, 70, 255});
@@ -6757,7 +6775,7 @@ void editor_viewport_draw(const EditorProject *project,
             editor_line_draw(pivot, handle, (Color){255, 215, 70, 255});
             editor_quad_draw(pivot, 7.0f, 7.0f, 0.0f,
                 (Color){255, 215, 70, 255});
-            editor_quad_draw(handle, 12.0f, 12.0f, 0.78539816339f,
+            editor_quad_draw(handle, 12.0f, 12.0f, 45.0f,
                 (Color){255, 215, 70, 255});
         }
     }
@@ -6806,8 +6824,8 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
     }
     if(state->selection == EDITOR_SELECTION_VERTEX && body != NULL) {
         EditorHitbox *hitbox = editor_selected_hitbox_get(object, state);
-        float cosine = cosf(-body->rotation);
-        float sine = sinf(-body->rotation);
+        float cosine = cosf(math_degrees_to_radians(-body->rotation));
+        float sine = (-sinf(math_degrees_to_radians(-body->rotation)));
         if(hitbox == NULL || state->selected_vertex >= hitbox->vertex_count ||
                 hitbox->vertices[state->selected_vertex].position_locked) return false;
         {

@@ -1,12 +1,11 @@
 # Clockwise angles and degree-default API contract
 
 This is the approved contract for the **clockwise angles with degrees by
-default** milestone in [the roadmap](../NEXT_STEPS.md). Goals 1 through 3 are
-implemented: the engine uses clockwise degrees and exposes the radians scalar
-APIs below. Goal 3 repaired bundled example angles and controls before
-authoring/persistence conversion in goal 4 and integrated parity in goal 5.
-Engine/editor unit parity is not yet ready
-for general project use.
+default** milestone in [the roadmap](../NEXT_STEPS.md). Goals 1 through 4 are
+implemented: the engine and editor use clockwise degrees, the engine exposes
+the radians scalar APIs below, and project/state formats reject old versions.
+Bundled examples use the new units and formats. Goal 5 remains the final
+integrated parity and documentation audit.
 
 ## Coordinates, units, and zero
 
@@ -236,15 +235,13 @@ apply a global text substitution to all numbers or all trigonometric calls.
 
 Goal 2 verifies the engine behavior and radians siblings with focused runtime
 fixtures. Goal 3 repairs example runtime angles, rates, and controls, with
-matching bundled data and generated modules. Existing bundled format numbers
-remain temporarily unchanged until the format-breaking authoring goal; these
-intermediate files target the new runtime and are not old-engine compatible.
-Goal 4 verifies authoring, formats, and generated-code fixtures.
-Goal 5 finishes bundled format migration and integrated parity. Migrate
-tests needed to verify each current goal rather than deferring its failures.
-Until goals 2 and 4 are both complete, engine/editor unit parity is not ready
-for general project use; report that boundary explicitly. Regenerate owned
-modules without overwriting developer-owned entry points.
+matching bundled data and generated modules. Goal 4 verifies authoring,
+formats, and generated-code fixtures, and updates bundled format numbers so
+the examples remain loadable after the breaking change. Goal 5 audits remaining
+fixtures, owned generated modules, public documentation, and integrated parity.
+Migrate tests needed to verify each current goal rather than deferring its
+failures. Regenerate owned modules without overwriting developer-owned entry
+points.
 
 ## Acceptance and verification
 

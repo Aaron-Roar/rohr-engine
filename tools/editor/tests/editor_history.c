@@ -86,6 +86,76 @@ static void shortcut_apply(EditorHistory *history, SDL_Keycode key) {
     assert(result.consumed && result.restored);
 }
 
+static void angular_history_check(void) {
+    Position up = editor_rotation_control_position_get((Position){0}, 0, 80);
+    Position right = editor_rotation_control_position_get((Position){0}, 90, 80);
+    assert(fabsf(up.x) < 0.001f && fabsf(up.y - 80) < 0.001f);
+    assert(fabsf(right.x - 80) < 0.001f && fabsf(right.y) < 0.001f);
+    float grab_offset;
+    Position grabbed = {right.x + 2, right.y + 3};
+    assert(editor_rotation_control_begin((Position){0}, 810, 80, grabbed, 10, &grab_offset));
+    assert(fabsf(editor_rotation_control_orientation_get((Position){0}, grabbed,
+        grab_offset, 810) - 810) < 0.001f);
+    assert(editor_rotation_control_orientation_get((Position){0}, (Position){0},
+        grab_offset, 810) == 810);
+    EditorProject project;
+    EditorHistory history;
+    EditorViewportState viewport;
+    editor_project_init(&project);
+    project.viewport_local_view = false;
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+    assert(body != NULL);
+    body->position = (Position){0};
+    body->rotation = -450;
+    EditorRigidBodyId id = body->id;
+    assert(editor_history_init(&history, &project));
+    callback_history = &history;
+    editor_command_executing_callback_set(history_begin, NULL);
+    editor_command_finished_callback_set(history_finish, NULL);
+    editor_viewport_state_init(&viewport);
+    viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    viewport.selection = EDITOR_SELECTION_RIGID_BODY;
+    viewport.selected_rigid_body = id;
+    Position pointer = editor_rotation_control_position_get((Position){0}, -450,
+        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+    assert(viewport_pointer_update(&history, &viewport, &project,
+        test_world_to_screen(pointer), MOUSE_BUTTON_STATE_PRESSED));
+    assert(viewport.rotated_body);
+    for(int step = 0; step <= 14; step += 1) {
+        float angle = -450 + step * 90;
+        pointer = editor_rotation_control_position_get((Position){0}, angle,
+            EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+        assert(viewport_pointer_update(&history, &viewport, &project,
+            test_world_to_screen(pointer), MOUSE_BUTTON_STATE_DOWN));
+        assert(fabsf(body->rotation - angle) < 0.001f);
+    }
+    (void)viewport_pointer_update(&history, &viewport, &project,
+        test_world_to_screen(pointer), MOUSE_BUTTON_STATE_RELEASED);
+    assert(history.undo_count == 1);
+    assert(editor_history_undo(&history));
+    body = editor_project_rigid_body_get(&project.objects[0], id);
+    assert(fabsf(body->rotation + 450) < 0.001f);
+    assert(editor_history_redo(&history));
+    body = editor_project_rigid_body_get(&project.objects[0], id);
+    assert(fabsf(body->rotation - 810) < 0.001f);
+    assert(viewport_pointer_update(&history, &viewport, &project,
+        test_world_to_screen(pointer), MOUSE_BUTTON_STATE_PRESSED));
+    pointer = editor_rotation_control_position_get((Position){0}, 900,
+        EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+    assert(viewport_pointer_update(&history, &viewport, &project,
+        test_world_to_screen(pointer), MOUSE_BUTTON_STATE_DOWN));
+    editor_history_transaction_cancel(&history);
+    editor_viewport_transform_cancel(&viewport);
+    body = editor_project_rigid_body_get(&project.objects[0], id);
+    assert(fabsf(body->rotation - 810) < 0.001f && history.undo_count == 1);
+    editor_command_executing_callback_set(NULL, NULL);
+    editor_command_finished_callback_set(NULL, NULL);
+    callback_history = NULL;
+    editor_history_destroy(&history);
+    editor_project_destroy(&project);
+}
+
 static void center_of_mass_interaction_check(void) {
     EditorProject project;
     EditorHistory history;
@@ -97,7 +167,7 @@ static void center_of_mass_interaction_check(void) {
     assert(body != NULL);
     project.viewport_local_view = false;
     body->position = (Position){40, -30};
-    body->rotation = 1.57079632679f;
+    body->rotation = -90.0f;
     EditorRigidBodyId id = body->id;
     EditorHitboxId hitbox_id = body->hitboxes[0].id;
     Position original_vertex = body->hitboxes[0].vertices[0].position;
@@ -243,6 +313,7 @@ static void center_of_mass_interaction_check(void) {
 }
 
 int main(void) {
+    angular_history_check();
     center_of_mass_interaction_check();
     static EditorProject project;
     EditorHistory history;
@@ -413,7 +484,7 @@ int main(void) {
                 viewport.selected_layout_viewport =
                     project.layout_viewports[0].id;
                 viewport.selected_viewport_ui_item = item->id;
-                Position handle = editor_rotation_control_position_get(pivot,
+                Position handle = editor_rotation_control_screen_position_get(pivot,
                     *orientation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
                 assert(editor_viewport_update(&viewport, &project,
                     test_layout_to_screen(&project,
@@ -428,7 +499,15 @@ int main(void) {
                         &project.layout_viewports[0], rotated_pointer),
                     MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
                     false, 0.0f, false));
-                assert(fabsf(*orientation - 1.57079632679f) < 0.001f);
+                assert(fabsf(*orientation - 90.0f) < 0.001f);
+                for(int step = 2; step <= 9; step += 1) {
+                    rotated_pointer = editor_rotation_control_screen_position_get(pivot,
+                        step * 90.0f, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+                    assert(editor_viewport_update(&viewport, &project,
+                        test_layout_to_screen(&project, &project.layout_viewports[0], rotated_pointer),
+                        MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP, false, 0, false));
+                    assert(fabsf(*orientation - step * 90.0f) < 0.001f);
+                }
                 (void)editor_viewport_update(&viewport, &project,
                     test_layout_to_screen(&project,
                         &project.layout_viewports[0], rotated_pointer),
@@ -533,7 +612,7 @@ int main(void) {
             Position center = {project.objects[0].position.x + body->position.x,
                 project.objects[0].position.y + body->position.y};
             Position handle = test_world_to_screen((Position){center.x,
-                center.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+                center.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
             Position target = test_world_to_screen((Position){center.x +
                 EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, center.y});
             body->particle = true;
@@ -550,7 +629,7 @@ int main(void) {
             assert(viewport.rotated_body && !viewport.dragged_body);
             assert(viewport_pointer_update(&history, &viewport, &project,
                 target, MOUSE_BUTTON_STATE_DOWN));
-            assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
+            assert(fabsf(body->rotation - 90.0f) < 0.001f);
             assert(!viewport_pointer_update(&history, &viewport, &project,
                 target, MOUSE_BUTTON_STATE_RELEASED));
             assert(history.undo_count == 1);
@@ -560,7 +639,7 @@ int main(void) {
             assert(body->particle && !body->standalone_particle);
             assert(editor_history_redo(&history));
             body = editor_project_rigid_body_get(&project.objects[0], body_id);
-            assert(body != NULL && fabsf(body->rotation - 1.57079632679f) < 0.001f);
+            assert(body != NULL && fabsf(body->rotation - 90.0f) < 0.001f);
             hitbox = editor_project_hitbox_get(body, radius_test_hitbox_id);
             assert(hitbox != NULL &&
                 hitbox->vertices[0].position.x == local_vertex.x &&
@@ -571,7 +650,7 @@ int main(void) {
     {
         Position rotation_handle = test_world_to_screen((Position){
             body->position.x,
-            body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            body->position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         body->particle = true;
         body->standalone_particle = true;
         for(size_t i = 0; i < 2; i += 1) {
@@ -590,9 +669,9 @@ int main(void) {
         viewport.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
         viewport.selection = EDITOR_SELECTION_PARTICLE;
         viewport.selected_rigid_body = body->id;
-        assert(editor_viewport_update(&viewport, &project, rotation_handle,
+        (void)editor_viewport_update(&viewport, &project, rotation_handle,
             MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
-            false, 0.0f, false));
+            false, 0.0f, false);
         assert(!viewport.rotated_body);
         editor_viewport_transform_cancel(&viewport);
         viewport.mode = EDITOR_VIEWPORT_PARTICLE_RADIUS;
@@ -952,8 +1031,8 @@ int main(void) {
             fabsf(body->position.y - 10.0f) < 0.001f);
         assert(fabsf(soft_body->position.x) < 0.001f &&
             fabsf(soft_body->position.y + 10.0f) < 0.001f);
-        assert(fabsf(body->rotation + 1.57079632679f) < 0.001f);
-        assert(fabsf(soft_body->rotation + 1.57079632679f) < 0.001f);
+        assert(fabsf(body->rotation - 90.0f) < 0.001f);
+        assert(fabsf(soft_body->rotation - 90.0f) < 0.001f);
         assert(history.undo_count == 1);
         assert(editor_history_undo(&history));
         body = editor_project_rigid_body_get(&project.objects[0], rigid.item);
@@ -972,7 +1051,7 @@ int main(void) {
         assert(editor_viewport_selection_set(&project, &viewport, soft, false));
         assert(editor_viewport_selection_set(&project, &viewport, rigid, true));
         handle = test_world_to_screen((Position){body->position.x,
-            body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            body->position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         target = test_world_to_screen((Position){body->position.x +
             EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, body->position.y});
         assert(viewport_pointer_update(&history, &viewport, &project, handle,
@@ -980,8 +1059,8 @@ int main(void) {
         assert(viewport.rotated_body && !viewport.group_rotating);
         assert(viewport_pointer_update(&history, &viewport, &project, target,
             MOUSE_BUTTON_STATE_DOWN));
-        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
-        assert(fabsf(soft_body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(body->rotation - 90.0f) < 0.001f);
+        assert(fabsf(soft_body->rotation - 90.0f) < 0.001f);
         assert(!viewport_pointer_update(&history, &viewport, &project, target,
             MOUSE_BUTTON_STATE_RELEASED));
         body->rotation = 0.0f;
@@ -992,7 +1071,7 @@ int main(void) {
         assert(editor_viewport_selection_set(&project, &viewport, rigid, false));
         assert(editor_viewport_selection_set(&project, &viewport, soft, true));
         handle = test_world_to_screen((Position){soft_body->position.x,
-            soft_body->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            soft_body->position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         target = test_world_to_screen((Position){soft_body->position.x +
             EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, soft_body->position.y});
         assert(viewport_pointer_update(&history, &viewport, &project, handle,
@@ -1000,8 +1079,8 @@ int main(void) {
         assert(viewport.rotated_soft_body && !viewport.group_rotating);
         assert(viewport_pointer_update(&history, &viewport, &project, target,
             MOUSE_BUTTON_STATE_DOWN));
-        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
-        assert(fabsf(soft_body->rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(body->rotation - 90.0f) < 0.001f);
+        assert(fabsf(soft_body->rotation - 90.0f) < 0.001f);
         assert(!viewport_pointer_update(&history, &viewport, &project, target,
             MOUSE_BUTTON_STATE_RELEASED));
         body->rotation = 0.0f;
@@ -1056,8 +1135,8 @@ int main(void) {
             assert(editor_viewport_update(&viewport, &project, shared_target,
                 MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false));
-            assert(fabsf(body->rotation + 1.57079632679f) < 0.001f);
-            assert(fabsf(connected_body->rotation + 1.57079632679f) < 0.001f);
+            assert(fabsf(body->rotation - 90.0f) < 0.001f);
+            assert(fabsf(connected_body->rotation - 90.0f) < 0.001f);
             assert(!editor_viewport_update(&viewport, &project, shared_target,
                 MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false));
@@ -1078,8 +1157,7 @@ int main(void) {
             assert(rotation_body != NULL);
             rotation_center = rotation_body->position;
             Position own_handle = test_world_to_screen(
-                (Position){rotation_center.x, rotation_center.y -
-                    EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+                (Position){rotation_center.x, rotation_center.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
             Position own_target = test_world_to_screen(
                 (Position){rotation_center.x +
                     EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, rotation_center.y});
@@ -1090,8 +1168,8 @@ int main(void) {
             assert(editor_viewport_update(&viewport, &project, own_target,
                 MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false));
-            assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
-            assert(fabsf(connected_body->rotation - 1.57079632679f) < 0.001f);
+            assert(fabsf(body->rotation - 90.0f) < 0.001f);
+            assert(fabsf(connected_body->rotation - 90.0f) < 0.001f);
         }
     }
 
@@ -1137,7 +1215,7 @@ int main(void) {
         viewport.selection = EDITOR_SELECTION_SPRITE;
         viewport.selected_sprite = sprite_id;
         grab = test_world_to_screen((Position){sprite->position.x,
-            sprite->position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            sprite->position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         moved = test_world_to_screen((Position){
             sprite->position.x + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
             sprite->position.y});
@@ -1157,7 +1235,7 @@ int main(void) {
         object = &project.objects[0];
         sprite = editor_project_sprite_get(object, sprite_id);
         assert(sprite != NULL &&
-            fabsf(sprite->rotation - 1.57079632679f) < 0.001f);
+            fabsf(sprite->rotation - 90.0f) < 0.001f);
         assert(editor_project_sprite_remove(object, sprite_id));
     }
 
@@ -1171,10 +1249,12 @@ int main(void) {
         assert(body != NULL);
         local_vertex = body->hitboxes[0].vertices[0].position;
         body->position = (Position){100.0f, -150.0f};
-        /* Attached anchors render above the origin. Hide them to expose the
+        /* Attached anchors and joints render above the origin. Hide them to expose the
          * origin for this transform-history test. */
         for(size_t i = 0; i < object->anchor_count; i += 1)
             object->anchors[i].visible = false;
+        for(size_t i = 0; i < object->joint_count; i += 1)
+            object->joint_items[i].visible = false;
         editor_history_reset(&history);
         editor_viewport_state_init(&viewport);
         viewport.mode = EDITOR_VIEWPORT_ORIGIN;
@@ -1299,7 +1379,7 @@ int main(void) {
         viewport.selection = EDITOR_SELECTION_ANIMATED_SPRITE;
         viewport.selected_animated_sprite = animation_id;
         grab = test_world_to_screen((Position){animation->editor_position.x,
-            animation->editor_position.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            animation->editor_position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         moved = test_world_to_screen((Position){
             animation->editor_position.x + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
             animation->editor_position.y});
@@ -1319,7 +1399,7 @@ int main(void) {
         object = &project.objects[0];
         animation = editor_project_animated_sprite_get(object, animation_id);
         assert(animation != NULL &&
-            fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+            fabsf(animation->editor_rotation - 90.0f) < 0.001f);
 
         body = editor_project_rigid_body_get(object, body->id);
         assert(body != NULL);
@@ -1338,8 +1418,7 @@ int main(void) {
                 object->id, 0, 0, animation->id}, true));
         grab = test_world_to_screen((Position){object->position.x +
             body->position.x + animation->editor_position.x,
-            object->position.y + body->position.y + animation->editor_position.y -
-                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            object->position.y + body->position.y + animation->editor_position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         moved = test_world_to_screen((Position){object->position.x +
             body->position.x + animation->editor_position.x +
                 EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
@@ -1349,8 +1428,8 @@ int main(void) {
         assert(viewport.rotated_animated_sprite);
         assert(viewport_pointer_update(&history, &viewport, &project, moved,
             MOUSE_BUTTON_STATE_DOWN));
-        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
-        assert(fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(body->rotation - 90.0f) < 0.001f);
+        assert(fabsf(animation->editor_rotation - 90.0f) < 0.001f);
         assert(!viewport_pointer_update(&history, &viewport, &project, moved,
             MOUSE_BUTTON_STATE_RELEASED));
         body->rotation = 0.0f;
@@ -1364,8 +1443,7 @@ int main(void) {
             (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
                 object->id, 0, 0, body->id}, true));
         grab = test_world_to_screen((Position){object->position.x + body->position.x,
-            object->position.y + body->position.y -
-                EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
+            object->position.y + body->position.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH});
         moved = test_world_to_screen((Position){object->position.x + body->position.x +
             EDITOR_VIEWPORT_ROTATION_ARM_LENGTH,
             object->position.y + body->position.y});
@@ -1374,8 +1452,8 @@ int main(void) {
         assert(viewport.rotated_body && !viewport.group_rotating);
         assert(viewport_pointer_update(&history, &viewport, &project, moved,
             MOUSE_BUTTON_STATE_DOWN));
-        assert(fabsf(body->rotation - 1.57079632679f) < 0.001f);
-        assert(fabsf(animation->editor_rotation - 1.57079632679f) < 0.001f);
+        assert(fabsf(body->rotation - 90.0f) < 0.001f);
+        assert(fabsf(animation->editor_rotation - 90.0f) < 0.001f);
         assert(!viewport_pointer_update(&history, &viewport, &project, moved,
             MOUSE_BUTTON_STATE_RELEASED));
         assert(editor_project_animated_sprite_remove(object, animation_id));

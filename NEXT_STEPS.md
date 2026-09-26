@@ -151,17 +151,24 @@ API/field inventory, conversion rules, format changes, and acceptance checks.
    installed-SDK examples build on Linux and Windows and launch headlessly on
    Linux; Windows verification is cross-compilation only. Bundled data uses
    the new angular units while format-version changes remain goal 4.
-4. [ ] **Update authoring and persistence** — Update degree-based editor fields,
-   continuous rotation controls, picking, undo/redo, CLI, project/state formats,
-   and generated C. Reject old formats and verify round trips and runtime parity.
-5. [ ] **Finish example migration and verify parity** — Move bundled projects
-   and fixtures to the new formats, regenerate owned modules, and finish
-   public documentation, integrated tests, sanitizers, installed-SDK example
-   launches, and Linux/Windows builds.
+4. [x] **Update authoring and persistence** — Editor fields, transforms,
+   continuous rotation controls, picking, undo/redo, CLI, and generated C use
+   clockwise degrees without wrapping. Project format 4 and state format 3
+   reject old versions while preserving previously loaded data; bundled files
+   use the new versions. Linux and Windows builds pass without compiler
+   warnings. Native tests pass 52/54 with only the previously recorded cameras
+   and ui_field failures; all seven focused ASan/UBSan tests pass. An independent
+   installed-SDK generated fixture matches direct runtime motion and builds on
+   Windows. All 12 installed-SDK examples build on both platforms and launch
+   headlessly on Linux. Windows verification is cross-compilation only.
+5. [ ] **Finish example migration and verify parity** — Audit bundled projects
+   and remaining fixtures against the new formats, regenerate owned modules,
+   and finish public documentation, integrated tests, sanitizers, installed-SDK
+   example launches, and Linux/Windows builds.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. The runtime now uses clockwise degrees; engine/editor unit parity
-requires goal 4. Do not advance without explicit user instruction.
+commit. The runtime and editor now use clockwise degrees; the final integrated
+parity audit remains goal 5. Do not advance without explicit user instruction.
 
 ## Completed Milestone: Consistent Force and Torque API
 

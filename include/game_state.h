@@ -10,7 +10,8 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-#define GAME_STATE_VERSION 2
+/* Version 3 uses clockwise degrees and degree-based angular rates. */
+#define GAME_STATE_VERSION 3
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

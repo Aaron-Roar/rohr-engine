@@ -73,11 +73,11 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Rotation", rotation_label); CREATE("Mass", mass_label);
+    CREATE("Rotation (deg)", rotation_label); CREATE("Mass", mass_label);
     CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
     CREATE("Acceleration X", acceleration_x_label);
     CREATE("Acceleration Y", acceleration_y_label);
-    CREATE("Angular Velocity", angular_velocity_label);
+    CREATE("Angular Velocity (deg/s)", angular_velocity_label);
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
     CREATE("Border Color", border_color_label); CREATE("Surface Color", surface_color_label);
     CREATE("Parent", parent_label); CREATE("None", none_label);

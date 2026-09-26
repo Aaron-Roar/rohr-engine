@@ -45,7 +45,7 @@ static const CliHelpDomain cli_help_domains[] = {
     {"--object", "object", "position <x> <y>, visibility <true|false>",
         "--object car --property position 10 20", 0},
     {"--body", "rigid body",
-        "position <x> <y>, rotation <radians>, origin <x> <y>, center-of-mass automatic|explicit <x> <y>, mass <number>, "
+        "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, origin <x> <y>, center-of-mass automatic|explicit <x> <y>, mass <number>, "
         "friction <number>, restitution <0..1>, gravity <true|false>, "
         "static <true|false>, rotation-locked <true|false>, collision <true|false>, "
         "particle <true|false>, particle-radius <number>, "
@@ -61,11 +61,11 @@ static const CliHelpDomain cli_help_domains[] = {
         "visual-size <0.25..3>, rest-length <number>, stiffness <number>, "
         "damping <number>, anchor-a <anchor|none>, anchor-b <anchor|none>",
         "--joint suspension --property stiffness 40", 1},
-    {"--anchor", "anchor", "position <x> <y>, rotation <radians>, "
+    {"--anchor", "anchor", "position <x> <y>, rotation <degrees>, "
         "position-follows-body <true|false>, rotation-follows-body <true|false>, "
         "rigid-body <body|none>, visibility <true|false>",
         "--anchor wheel_anchor --property position 12 8", 1},
-    {"--soft-body", "soft body", "position <x> <y>, rotation <radians>, "
+    {"--soft-body", "soft body", "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, "
         "origin <x> <y>, node-color <hex>, beam-color <hex>, area-color <hex>, "
         "visibility <true|false>, auto-shape <shape> <triangle-kind> <width> "
         "<height> <radius> <apex-offset>",
@@ -84,12 +84,12 @@ static const CliHelpDomain cli_help_domains[] = {
         "--body chassis --vertex vertex_1 --property position 4 8", 3},
     {"--line", "hitbox line", "length <number>",
         "--body chassis --line line_1 --property length 20", 3},
-    {"--sprite", "sprite", "path <file>, position <x> <y>, rotation <radians>, "
+    {"--sprite", "sprite", "path <file>, position <x> <y>, rotation <degrees>, "
         "size <width> <height>, body <body|none>, "
         "follow-body-rotation <true|false>, visibility <true|false>",
         "--object car --sprite wheel --property path assets/wheel.png", 1},
     {"--animated-sprite", "animated sprite", "body <body|none>, "
-        "position <x> <y>, rotation <radians>, scale <x> <y>, "
+        "position <x> <y>, rotation <degrees>, scale <x> <y>, "
         "timing <ticks> <seconds>, starting-frame <index>, "
         "direction <left|right>, follow-body-rotation <true|false>, "
         "visibility <true|false>",

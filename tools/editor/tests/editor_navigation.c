@@ -176,8 +176,18 @@ static bool screen_rotation_pointer_check(float width, float height, float zoom)
         view_center.y + (viewport->config.rectangle.y + screen_center.y) * zoom};
     if(!editor_viewport_update(&state, &project, target,
             MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP, false, 0.0f,
-            false) || fabsf(screen->placement.orientation - 1.57079632679f) >
+            false) || fabsf(screen->placement.orientation - 90.0f) >
                 0.001f) goto done;
+    for(int step = 2; step <= 9; step += 1) {
+        float radians = math_degrees_to_radians(step * 90.0f);
+        target = (Position){view_center.x + (viewport->config.rectangle.x +
+                screen_center.x + sinf(radians) * arm) * zoom,
+            view_center.y + (viewport->config.rectangle.y + screen_center.y -
+                cosf(radians) * arm) * zoom};
+        if(!editor_viewport_update(&state, &project, target,
+                MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP, false, 0, false) ||
+                fabsf(screen->placement.orientation - step * 90.0f) > 0.001f) goto done;
+    }
     result = true;
 done:
     editor_viewport_state_destroy(&state);
@@ -981,7 +991,7 @@ int main(void) {
         if(camera_object == NULL || camera_body == NULL || camera == NULL ||
                 !editor_project_object_select(
                     &camera_project, camera_object->id)) return 1;
-        camera_body->rotation = 1.57079632679f;
+        camera_body->rotation = -90.0f;
         camera->position = (Position){20.0f, 0.0f};
         camera->dimensions = (Scale){100.0f, 100.0f};
         camera->attachment_kind = EDITOR_CAMERA_ATTACHMENT_RIGID_BODY;
@@ -1143,7 +1153,7 @@ int main(void) {
             false, 0.0f, false);
         if(!editor_viewport_update(&area_state, &area_project,
                 (Position){center.x + 20.0f,
-                    center.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH},
+                    center.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH},
                 MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP,
                 false, 0.0f, false) || !area_state.rotated_soft_body) return 1;
         editor_viewport_state_destroy(&area_state);
@@ -1590,9 +1600,9 @@ int main(void) {
                     "frame", "frame.png", (Scale){20.0f, 80.0f})) return 1;
         sprite->position = (Position){-100.0f, 0.0f};
         sprite->size = (Scale){80.0f, 20.0f};
-        sprite->rotation = 0.78539816339f;
+        sprite->rotation = -45.0f;
         animation->editor_position = (Position){100.0f, 0.0f};
-        animation->editor_rotation = 0.78539816339f;
+        animation->editor_rotation = -45.0f;
         project.viewport_local_view = false;
         project.viewport_camera_offset = (Vec2D){0};
         project.viewport_camera_zoom = 1.0f;

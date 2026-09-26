@@ -22,7 +22,7 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Attachment", attachment_label); CREATE("Rotation", rotation_label);
+    CREATE("Attachment", attachment_label); CREATE("Rotation (deg)", rotation_label);
     CREATE("None", none_label); CREATE("Global Position", position_global_label);
     CREATE("Follow Position", position_body_label);
     CREATE("Global Rotation", rotation_global_label);

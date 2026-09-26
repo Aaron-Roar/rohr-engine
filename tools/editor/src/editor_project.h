@@ -31,8 +31,8 @@
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Pre-release project schemas remain version 1 until the editor format is stable. */
-#define EDITOR_PROJECT_FORMAT_VERSION 3
+/* Version 4 stores clockwise degrees and degree-based angular rates. */
+#define EDITOR_PROJECT_FORMAT_VERSION 4
 #define EDITOR_NAVIGATION_MODE_MAX 29
 #define EDITOR_NAVIGATION_SELECTION_MAX 26
 

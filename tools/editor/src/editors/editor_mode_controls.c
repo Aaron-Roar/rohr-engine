@@ -268,7 +268,7 @@ static void editor_mode_icon_line(Position start,
     if(length <= 0.0f) return;
     rohr_ui_quad((Position){(start.x + end.x) * 0.5f,
         (start.y + end.y) * 0.5f}, length, thickness,
-        -atan2f(delta.y, delta.x), color);
+        math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
 }
 
 UIButtonResult editor_mode_visibility_button(const char *id,
@@ -306,7 +306,7 @@ UIButtonResult editor_mode_visibility_button(const char *id,
         editor_mode_icon_line(lower_right, lower, 1.5f * scale, color);
         editor_mode_icon_line(lower, lower_left, 1.5f * scale, color);
         editor_mode_icon_line(lower_left, left, 1.5f * scale, color);
-        rohr_ui_quad(center, 4.5f * scale, 4.5f * scale, 0.78539816339f,
+        rohr_ui_quad(center, 4.5f * scale, 4.5f * scale, 45.0f,
             color);
     } else {
         Position left = {center.x - 8.0f * scale,
@@ -393,7 +393,7 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                     7.0f * scale,
                 kind == EDITOR_SELECTION_PARTICLE ? 10.0f * scale :
                     7.0f * scale,
-                0.78539816339f, color);
+                45.0f, color);
             break;
         case EDITOR_SELECTION_HITBOX:
             rohr_ui_border(box, 1.0f * scale, color);
@@ -411,10 +411,10 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                     center.y - 4.0f * scale}, 2.0f * scale, color);
             rohr_ui_quad((Position){center.x - 5.0f * scale,
                 center.y + 4.0f * scale}, 5.0f * scale, 5.0f * scale,
-                0.78539816339f, color);
+                45.0f, color);
             rohr_ui_quad((Position){center.x + 5.0f * scale,
                 center.y - 4.0f * scale}, 5.0f * scale, 5.0f * scale,
-                0.78539816339f, color);
+                45.0f, color);
             break;
         case EDITOR_SELECTION_ANCHOR:
         case EDITOR_SELECTION_ORIGIN:
@@ -424,7 +424,7 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                 (Position){center.x, center.y + half}, 2.0f * scale, color);
             if(kind == EDITOR_SELECTION_ANCHOR)
                 rohr_ui_quad(center, 5.0f * scale, 5.0f * scale,
-                    0.78539816339f, color);
+                    45.0f, color);
             break;
         case EDITOR_SELECTION_SOFT_BODY:
             editor_mode_icon_line((Position){center.x, center.y - half},

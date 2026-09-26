@@ -803,7 +803,8 @@ static EngineResult state_placement_apply(
                 && !state_number(placement, "start_angle", &start_angle)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
-        angle = start_angle
+        /* Zero preserves the authored circle layout; positive offsets turn clockwise. */
+        angle = -start_angle * (double)PI_F / 180.0
             + 2.0 * (double)PI_F
                 * (double)loaded->instance
                 / (double)loaded->instance_count;

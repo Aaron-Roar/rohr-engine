@@ -322,7 +322,12 @@ A pair responds only when both directional filters accept one another.
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 3; older project data must be rewritten.
+Project data uses format version 4; older project data must be rewritten.
+All authored rotations use clockwise degrees, with zero heading up and no
+automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
+preserves the grab offset and multiple turns in one undoable edit. CLI and
+generated C use the same units. Runtime state and templates use version 3;
+old project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or
 `{"mode": "explicit", "offset": {"x": 3, "y": -2}}`.

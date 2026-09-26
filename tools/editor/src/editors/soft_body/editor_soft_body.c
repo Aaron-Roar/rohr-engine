@@ -47,11 +47,11 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
-    CREATE("Rotation", rotation_label); CREATE("Node Color", node_color_label);
+    CREATE("Rotation (deg)", rotation_label); CREATE("Node Color", node_color_label);
     CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
     CREATE("Acceleration X", acceleration_x_label);
     CREATE("Acceleration Y", acceleration_y_label);
-    CREATE("Angular Velocity", angular_velocity_label);
+    CREATE("Angular Velocity (deg/s)", angular_velocity_label);
     CREATE("Beam Color", beam_color_label); CREATE("Area Color", area_color_label);
     CREATE("Origin", origin_label); CREATE("Auto Shape", auto_shape_label);
     CREATE("Add Node", add_node_label); CREATE("Add Beam", add_beam_label);
