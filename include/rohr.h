@@ -896,13 +896,32 @@ EngineResult rohr_physics_position_set(Entity entity, Position p);
 /** Returns an entity's world position. */
 PositionResult rohr_physics_position_get(Entity entity);
 
-/** COM offsets use the body's local origin axes. No geometry is needed to set
- * an override. Getters require geometry for automatic COM and inertia. */
+/**
+ * @brief Selects explicit COM using a finite origin-relative offset.
+ * Geometry is optional. Standalone particles reject overrides.
+ * Failure preserves configuration; success preserves origin, geometry, and velocities.
+ */
 EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
+/**
+ * @brief Returns the effective COM in local origin axes.
+ * Automatic COM requires valid active geometry; an explicit offset does not.
+ * Standalone particles use their circle centroid.
+ */
 PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity);
+/**
+ * @brief Returns origin plus rotated local COM.
+ * Requires a transform and an available local COM.
+ */
 PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity);
+/** Discards the explicit offset and selects automatic geometry-derived COM. */
 EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
+/** Returns the COM mode, or an error for an invalid entity. */
 BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
+/**
+ * @brief Returns derived inertia about the effective COM.
+ * Requires valid geometry and stored mass, including zero mass.
+ * Static and locked bodies may report inertia without enabling angular response.
+ */
 MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity);
 
 

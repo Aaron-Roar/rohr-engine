@@ -1,0 +1,9 @@
+{
+    "format_version": 1,
+    "name": "CenterOfMass",
+    "source_directory": "src",
+    "generated_directory": "src/generated",
+    "asset_directory": "assets",
+    "object_directory": "objects",
+    "editor_state_file": "objects/project.rohr.json"
+}

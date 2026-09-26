@@ -10,20 +10,19 @@
 #include "rohr.h"
 
 
-typedef struct PlayerWorld {
-    Entity floor;
-    Entity player;
+typedef struct MassDemo {
+    Entity automatic_body;
+    Entity explicit_body;
+    JointAnchorId anchor_automatic_tip;
+    JointAnchorId anchor_explicit_tip;
     CameraId camera_main_camera;
-} PlayerWorld;
+} MassDemo;
 
-EngineResult player_world_create(PlayerWorld *object, Position position);
-void player_world_draw(const PlayerWorld *object);
-void player_world_destroy(PlayerWorld *object);
+EngineResult mass_demo_create(MassDemo *object, Position position);
+void mass_demo_draw(const MassDemo *object);
+void mass_demo_destroy(MassDemo *object);
 
 typedef struct ProjectControllers {
-    InputControllerId controller_player_1;
-    InputActionId action_player_move_1;
-    InputActionId action_player_jump_2;
     bool created;
 } ProjectControllers;
 
@@ -31,7 +30,7 @@ EngineResult project_controllers_create(ProjectControllers *controllers);
 void project_controllers_destroy(ProjectControllers *controllers);
 
 typedef struct ProjectObjects {
-    PlayerWorld player_world;
+    MassDemo mass_demo;
     ProjectControllers controllers;
     bool created;
 } ProjectObjects;

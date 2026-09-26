@@ -71,10 +71,11 @@ items; when they conflict with this order, follow this list.
    remain unique with hardened validity, destruction, rollback, and shutdown.
    Direct and wrapper contracts have focused logical coverage, and the complete
    resource set runs under the Linux ownership sanitizer workflow.
-3. **COM, inertia, and origin semantics** — Specify and implement the exact
-   relationship between entity origin, collision geometry, center of mass,
-   moment of inertia, torque, forces, and joint anchors. Preserve automatic
-   defaults while allowing explicit authoring.
+3. **COM, inertia, and origin semantics (complete)** — Origin-relative geometry
+   and anchors, automatic/explicit COM, derived inertia, COM-based simulation,
+   editor authoring, persistence, CLI, and generated C now share the contract.
+   Editable examples and integrated native/sanitizer checks verify parity;
+   Linux and Windows builds and installed-SDK examples pass.
 4. **Cross-path feature parity** — Keep direct C APIs, JSON, generated C, CLI,
    editor tooling, project loading, and runtime behavior equivalent. Treat
    persistence, generation, loading, and round-trip tests as part of every new
@@ -144,13 +145,13 @@ its remaining goals retain their existing order.
    standalone-particle restrictions. Linux editor tests and Windows
    cross-compilation pass; runtime physics is unchanged.
 
-## Active Milestone: Consistent Origins, Center of Mass, and Inertia
+## Completed Milestone: Consistent Origins, Center of Mass, and Inertia
 
 Make all origin-relative properties retain their local offsets. Support
 automatic or explicit COM, derive inertia, and keep runtime and authoring
 behavior equivalent. This implements current priority 3. The
 [physics origin contract](docs/physics_origin_contract.md) defines the agreed
-behavior and planned public API. This is a breaking change: rewrite affected
+behavior and implemented public API. This is a breaking change: rewrite affected
 projects and examples without legacy migration or automatic origin recentering.
 
 1. [x] **Document the physics and API contract** — Record origin, rotation,
@@ -196,18 +197,26 @@ projects and examples without legacy migration or automatic origin recentering.
    joints build/headless launch, and generated/direct COM parity pass. Full
    Linux results are 47/49, with only the known cameras and ui_field failures.
    Visual verification of the marker and controls is requested at review.
-6. [ ] **Rewrite examples and verify milestone parity** — Rewrite affected
-   bundled projects/examples and regenerate runtime modules; demonstrate an
-   off-center body with explicit COM, rotation, and anchors. Complete integrated
-   regression and relevant sanitizer checks, Linux/Windows builds, installed-SDK
-   example build/run checks, and public documentation before marking priority 3
-   complete.
+6. [x] **Rewrite examples and verify milestone parity** — Added the editable
+   center_of_mass example with off-center automatic/explicit bodies, free rotation,
+   and local anchors; regenerated the player project with automatic COM.
+   Rewrote the game-state example to verify explicit COM, derived inertia,
+   teleport preservation, and runtime save/reload. Integrated tests verify analytic
+   editor values, project round trips, all four deterministic generated modules,
+   generated/direct rotation and anchor parity, and mutation behavior. Updated
+   the public API reference and removed obsolete staged-implementation claims.
+   Linux/Windows engine/editor builds and all 12 independent installed-SDK example
+   builds pass; all 12 Linux examples launch from outside their source directories.
+   Eleven focused native tests and eleven ASan/UBSan checks pass. Full Linux
+   results are 48/50; only the previously recorded cameras and ui_field failures
+   remain. Windows results are cross-compilation, not Windows runtime execution.
+   Visual review of the new demo is requested. Priority 3 is complete.
 
 Complete and verify one goal at a time, then stop for review and a user-created
 commit. Each goal includes focused tests and relevant example builds; update
 affected fixtures when behavior changes, without deferring known failures to
-goal 6. Cross-path authoring support is implemented; goal 6 completes bundled
-example rewrites and integrated milestone parity.
+goal 6. All six goals are complete, including bundled example rewrites and
+integrated milestone parity. The next priority requires a new user instruction.
 Manual inertia, force-emitter tooling, and the broader attachment API redesign
 are outside this milestone.
 

@@ -2,10 +2,12 @@
 
 This is the agreed implementation contract for the **consistent origins,
 center of mass, and inertia** milestone in [the roadmap](../NEXT_STEPS.md).
-Goals 1 through 4 implement origin-relative geometry, attachment preservation,
+The implementation includes origin-relative geometry, attachment preservation,
 runtime COM state, derived inertia, COM-aware integration and constraints,
-persistence, CLI commands, and generated C. Runtime transforms vertices directly
-from the origin without recentering. Editor COM controls remain the work of goal 5.
+persistence, CLI commands, generated C, and editor COM controls. Runtime
+transforms vertices directly from the origin without recentering. The
+[editable COM example](../examples/center_of_mass/README.md) demonstrates the
+contract with automatic and explicit COM, rotation, and local anchors.
 
 ## Coordinates and mutation
 
@@ -183,7 +185,7 @@ origin-position API or reinterpret local joint-anchor getters as COM-relative.
 
 ## Authoring, compatibility, and acceptance
 
-Goal 4 persists automatic/explicit mode and the explicit local offset through
+The implementation persists automatic/explicit mode and the explicit local offset through
 project data, CLI, JSON, generated C, and runtime state serialization.
 Project data format 3 and game-state schema 2 reject older versions without
 migration. Missing COM configuration means automatic; explicit mode requires
@@ -191,7 +193,7 @@ both local coordinates. Automatic mode with an offset and other malformed COM
 input return an error without replacing the previous successful description.
 Automatic mode must remain automatic after a round trip; do not bake the
 calculated centroid into an explicit override. Runtime and generated creation
-apply authored configuration before simulation. Goal 5 adds editor mode
+apply authored configuration before simulation. The editor provides mode
 and local-offset controls, derived inertia information, distinct origin/COM
 visualization, and normal duplication and undo/redo behavior.
 

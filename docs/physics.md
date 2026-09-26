@@ -6,7 +6,9 @@ that need custom orchestration. Most games should call
 
 The [origin and COM contract](physics_origin_contract.md) specifies this
 milestone's behavior. Origin-relative geometry, automatic/explicit COM,
-derived inertia, COM integration, persistence, and generated APIs are implemented.
+derived inertia, COM integration, persistence, generated APIs, and editor controls
+are implemented. The [center-of-mass example](../examples/center_of_mass/README.md)
+provides an editable project and generated runtime demonstration.
 
 ## Origin-relative geometry
 
@@ -25,9 +27,9 @@ Particles retain their restriction against simulated angular motion.
 
 This breaks the former implicit polygon recentering behavior. Rewrite authored
 vertices or placement explicitly where an existing project relied on it; there
-is no legacy compensation or origin-recentering operation. COM-based simulation
-and solver lever arms are separate work in Goal 3; off-center geometry alone
-does not yet change the runtime's origin-based integration.
+is no legacy compensation or origin-recentering operation. Simulated rigid-body
+rotation and solver lever arms use COM; direct orientation edits still hold the
+origin fixed.
 
 ## Standard pipeline
 
@@ -79,7 +81,8 @@ Axis locks constrain the origin. Contacts, torque, and joint lever arms use COM.
 See the [origin contract](physics_origin_contract.md) for formulas and API error
 semantics. Project JSON, CLI, generated C, and runtime state preserve COM mode
 and explicit offsets. Standalone particles use their circle centroid and reject
-explicit COM overrides. Editor COM controls are the next milestone goal.
+explicit COM overrides. The editor exposes mode and local-offset controls,
+derived inertia, and an explicit COM drag handle; see [editor authoring](editor.md#center-of-mass-authoring-and-persistence).
 
 ## Body modes
 

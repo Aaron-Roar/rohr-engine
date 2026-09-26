@@ -6,15 +6,17 @@
       "components": {
         "flags": ["dynamic", "collision"],
         "position": {"x": 40.0, "y": 60.0},
-        "orientation": 0.0,
+        "orientation": 0.35,
+        "angular_velocity": 0.8,
+        "center_of_mass": {"mode": "explicit", "offset": {"x": 3.0, "y": 1.0}},
         "velocity": {"x": 2.0, "y": 0.0},
         "mass": 4.0,
         "friction": 0.25,
         "hit_box": [
-          {"x": -5.0, "y": -5.0},
-          {"x": 5.0, "y": -5.0},
-          {"x": 5.0, "y": 5.0},
-          {"x": -5.0, "y": 5.0}
+          {"x": 0.0, "y": 0.0},
+          {"x": 10.0, "y": 0.0},
+          {"x": 10.0, "y": 10.0},
+          {"x": 0.0, "y": 10.0}
         ]
       }
     },

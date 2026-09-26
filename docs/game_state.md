@@ -5,6 +5,12 @@ multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
 
+The [game-state example](../examples/game-state/src/main.c) loads an off-center
+polygon with explicit COM, checks that an origin teleport preserves local mass
+properties, and verifies them again after saving and reloading. For an editable
+project with a visible rotation demonstration, see the
+[COM example](../examples/center_of_mass/README.md).
+
 ```json
 {
   "version": 2,

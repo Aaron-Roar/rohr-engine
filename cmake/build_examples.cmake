@@ -12,6 +12,7 @@ foreach(required_variable
 endforeach()
 
 set(example_directories
+    center_of_mass
     audio
     view-port
     flies-in-pit
@@ -36,6 +37,11 @@ foreach(example_directory IN LISTS example_directories)
         -B "${binary_directory}"
         "-DCMAKE_PREFIX_PATH=${ROHR_SDK_PREFIX}"
         "-DROHR_EXAMPLE_OUTPUT_DIRECTORY=${ROHR_EXAMPLE_OUTPUT_DIRECTORY}")
+    if(DEFINED ROHR_EXAMPLE_TOOLCHAIN_FILE AND
+            NOT "${ROHR_EXAMPLE_TOOLCHAIN_FILE}" STREQUAL "")
+        list(APPEND configure_command
+            "-DCMAKE_TOOLCHAIN_FILE=${ROHR_EXAMPLE_TOOLCHAIN_FILE}")
+    endif()
     if(DEFINED ROHR_BUILD_TYPE AND NOT "${ROHR_BUILD_TYPE}" STREQUAL "")
         list(APPEND configure_command "-DCMAKE_BUILD_TYPE=${ROHR_BUILD_TYPE}")
     endif()

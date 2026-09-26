@@ -1319,6 +1319,68 @@ PositionResult rohr_physics_position_get(Entity entity);
 
  Returns an entity's world position.
 
+### `rohr_physics_center_of_mass_local_position_set`
+
+```c
+EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
+```
+
+Selects explicit COM using a finite origin-relative offset.
+
+Geometry is optional. Standalone particles reject overrides.
+
+Failure preserves configuration; success preserves origin, geometry, and velocities.
+
+### `rohr_physics_center_of_mass_local_position_get`
+
+```c
+PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity);
+```
+
+Returns the effective COM in local origin axes.
+
+Automatic COM requires valid active geometry; an explicit offset does not.
+
+Standalone particles use their circle centroid.
+
+### `rohr_physics_center_of_mass_world_position_get`
+
+```c
+PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity);
+```
+
+Returns origin plus rotated local COM.
+
+Requires a transform and an available local COM.
+
+### `rohr_physics_center_of_mass_automatic_set`
+
+```c
+EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
+```
+
+ Discards the explicit offset and selects automatic geometry-derived COM.
+
+### `rohr_physics_center_of_mass_automatic_check`
+
+```c
+BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
+```
+
+ Returns the COM mode, or an error for an invalid entity.
+
+### `rohr_physics_moment_of_inertia_get`
+
+```c
+MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity);
+```
+
+Returns derived inertia about the effective COM.
+
+Requires valid geometry and stored mass, including zero mass.
+
+Static and locked bodies may report inertia without enabling angular response.
+
 ### `rohr_physics_mass_set`
 
 ```c
@@ -1522,7 +1584,7 @@ CollisionFilterConfig rohr_physics_collision_filter_config_default_get(void);
 EngineResult rohr_physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
 ```
 
- Replace an entity's collision category and whitelist.
+ Replace an entity's collision category and whitelist, with or without geometry.
 
 ### `rohr_physics_collision_filter_get`
 

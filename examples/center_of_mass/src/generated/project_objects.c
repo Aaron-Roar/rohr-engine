@@ -116,90 +116,63 @@ fail:
     return result;
 }
 
-EngineResult player_world_create(PlayerWorld *object, Position position) {
+EngineResult mass_demo_create(MassDemo *object, Position position) {
     EngineResult result;
     if(object == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
-    *object = (PlayerWorld){0};
-    result = generated_body_create(&object->floor, (Position){position.x + 0.00000000f, position.y + -240.000000f}, 0.00000000f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.00000000f, (Shape){.amount_of_vertices = 4, .vertices = {{450.000000f, 30.0000000f}, {450.000000f, -30.0000000f}, {-450.000000f, -30.0000000f}, {-450.000000f, 30.0000000f}}}, 1.00000000f, 0.800000012f, 0.150000006f, true, false, false, true, false, (Position){0.00000000f, 0.00000000f}, 450.998901f, UINT64_C(1), UINT64_C(1));
+    *object = (MassDemo){0};
+    result = generated_body_create(&object->automatic_body, (Position){position.x + -200.000000f, position.y + -30.0000000f}, 0.349999994f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.800000012f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.800000012f, 0.150000006f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_center_of_mass_automatic_set(object->floor);
+    result = rohr_physics_center_of_mass_automatic_set(object->automatic_body);
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_hitbox_id_at_set(object->floor, 0, UINT32_C(1));
+    result = rohr_physics_hitbox_id_at_set(object->automatic_body, 0, UINT32_C(1));
     if(rohr_error_check(result)) goto fail;
-    result = generated_body_create(&object->player, (Position){position.x + 0.00000000f, position.y + -100.000000f}, 0.00000000f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.00000000f, (Shape){.amount_of_vertices = 4, .vertices = {{30.0000000f, 40.0000000f}, {30.0000000f, -40.0000000f}, {-30.0000000f, -40.0000000f}, {-30.0000000f, 40.0000000f}}}, 5.00000000f, 0.349999994f, 0.00000000f, false, true, true, true, false, (Position){0.00000000f, 0.00000000f}, 50.0000000f, UINT64_C(1), UINT64_C(1));
+    result = generated_body_create(&object->explicit_body, (Position){position.x + 120.000000f, position.y + -30.0000000f}, 0.349999994f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.800000012f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.349999994f, 0.00000000f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_center_of_mass_automatic_set(object->player);
+    result = rohr_physics_center_of_mass_local_position_set(object->explicit_body, (Position){30.0000000f, 15.0000000f});
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_hitbox_id_at_set(object->player, 0, UINT32_C(2));
+    result = rohr_physics_hitbox_id_at_set(object->explicit_body, 0, UINT32_C(2));
     if(rohr_error_check(result)) goto fail;
+    { JointAnchorIdResult created = rohr_physics_joint_anchor_create(object->automatic_body, (Vec2D){100.000000f, 30.0000000f});
+      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
+      object->anchor_automatic_tip = created.result.value; }
+    { JointAnchorIdResult created = rohr_physics_joint_anchor_create(object->explicit_body, (Vec2D){100.000000f, 30.0000000f});
+      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
+      object->anchor_explicit_tip = created.result.value; }
     { CameraIdResult created = rohr_camera_create((CameraConfig){.position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->camera_main_camera = created.result.value;
     }
     return rohr_error_result_value(true);
 fail:
-    player_world_destroy(object);
+    mass_demo_destroy(object);
     return result;
 }
 
-void player_world_draw(const PlayerWorld *object) {
+void mass_demo_draw(const MassDemo *object) {
     if(object == NULL) return;
-    (void)rohr_graphics_hit_box_colored_draw(object->floor, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x5a648cff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->floor, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->player, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x46ab17ff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->player, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
+    (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x477fbfff)));
+    (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
+    (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0xd29f37ff)));
+    (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
 }
 
-void player_world_destroy(PlayerWorld *object) {
+void mass_demo_destroy(MassDemo *object) {
     if(object == NULL) return;
     if(object->camera_main_camera != CAMERA_INVALID) (void)rohr_camera_destroy(object->camera_main_camera);
-    if(object->floor != ENTITY_INVALID) (void)rohr_entity_delete(object->floor);
-    if(object->player != ENTITY_INVALID) (void)rohr_entity_delete(object->player);
-    *object = (PlayerWorld){0};
+    if(object->automatic_body != ENTITY_INVALID) (void)rohr_entity_delete(object->automatic_body);
+    if(object->explicit_body != ENTITY_INVALID) (void)rohr_entity_delete(object->explicit_body);
+    *object = (MassDemo){0};
 }
 
 EngineResult project_controllers_create(ProjectControllers *controllers) {
-    InputControllerIdResult controller_result;
-    InputActionIdResult action_result;
-    EngineResult result;
     if(controllers == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
     *controllers = (ProjectControllers){0};
-    controller_result = rohr_input_controller_create("player");
-    if(rohr_error_check(controller_result)) { result = rohr_error_result_error(controller_result.result.error); goto fail; }
-    controllers->controller_player_1 = controller_result.result.value;
-    result = rohr_input_controller_enabled_set(controllers->controller_player_1, true);
-    if(rohr_error_check(result)) goto fail;
-    action_result = rohr_input_action_create(controllers->controller_player_1, "move", INPUT_ACTION_AXIS_1D);
-    if(rohr_error_check(action_result)) { result = rohr_error_result_error(action_result.result.error); goto fail; }
-    controllers->action_player_move_1 = action_result.result.value;
-    const InputBinding action_player_move_1_bindings[] = {
-        {.name = "move_left", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)4, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {-1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}},
-        {.name = "move_right", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)7, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
-    };
-    result = rohr_input_action_bindings_default_set(controllers->action_player_move_1, action_player_move_1_bindings, sizeof(action_player_move_1_bindings) / sizeof(action_player_move_1_bindings[0]));
-    if(rohr_error_check(result)) goto fail;
-    action_result = rohr_input_action_create(controllers->controller_player_1, "jump", INPUT_ACTION_BUTTON);
-    if(rohr_error_check(action_result)) { result = rohr_error_result_error(action_result.result.error); goto fail; }
-    controllers->action_player_jump_2 = action_result.result.value;
-    result = rohr_input_action_button_mode_set(controllers->action_player_jump_2, INPUT_BUTTON_MOMENTARY);
-    if(rohr_error_check(result)) goto fail;
-    result = rohr_input_action_button_initial_state_set(controllers->action_player_jump_2, false);
-    if(rohr_error_check(result)) goto fail;
-    const InputBinding action_player_jump_2_bindings[] = {
-        {.name = "jump_space", .source = INPUT_BINDING_KEY, .input.key = (SDL_Scancode)44, .modifiers = (SDL_Keymod)0, .affects_x = true, .affects_y = true, .scale = {1.00000000f, 1.00000000f}, .inverted_x = false, .inverted_y = false, .direction = {0.00000000f, 0.00000000f}}
-    };
-    result = rohr_input_action_bindings_default_set(controllers->action_player_jump_2, action_player_jump_2_bindings, sizeof(action_player_jump_2_bindings) / sizeof(action_player_jump_2_bindings[0]));
-    if(rohr_error_check(result)) goto fail;
     controllers->created = true;
     return rohr_error_result_value(true);
-fail:
-    project_controllers_destroy(controllers);
-    return result;
 }
 
 void project_controllers_destroy(ProjectControllers *controllers) {
     if(controllers == NULL) return;
-    if(controllers->controller_player_1 != INPUT_CONTROLLER_INVALID) (void)rohr_input_controller_destroy(controllers->controller_player_1);
     *controllers = (ProjectControllers){0};
 }
 
@@ -213,13 +186,13 @@ EngineResult project_objects_create_all(ProjectObjects *objects) {
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_substeps_set(2);
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_gravity_set((Acceleration){0.000000000f, -900.000000000f});
+    result = rohr_physics_gravity_set((Acceleration){0.000000000f, 0.000000000f});
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_solver_iterations_set(12);
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_dt_per_tick_set(0.0083333337679505348);
     if(rohr_error_check(result)) goto fail;
-    result = player_world_create(&objects->player_world, (Position){0.00000000f, 0.00000000f});
+    result = mass_demo_create(&objects->mass_demo, (Position){0.00000000f, 0.00000000f});
     if(rohr_error_check(result)) goto fail;
     objects->created = true;
     return rohr_error_result_value(true);
@@ -230,14 +203,14 @@ fail:
 
 void project_objects_draw_all(const ProjectObjects *objects) {
     if(objects == NULL) return;
-    player_world_draw(&objects->player_world);
+    mass_demo_draw(&objects->mass_demo);
     rohr_graphics_sprites_draw();
     rohr_graphics_animated_sprites_draw();
 }
 
 void project_objects_destroy_all(ProjectObjects *objects) {
     if(objects == NULL) return;
-    player_world_destroy(&objects->player_world);
+    mass_demo_destroy(&objects->mass_demo);
     project_controllers_destroy(&objects->controllers);
     *objects = (ProjectObjects){0};
 }

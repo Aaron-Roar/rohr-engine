@@ -207,6 +207,8 @@ Generated HTML is written to `build/docs/html/index.html` and is not committed.
 - `fly-to-finish`: input, obstacles, animation, and collision.
 - `game-state`: JSON-authored runtime state.
 - `joints`: pin, weld, and spring constraints.
+- [`center_of_mass`](examples/center_of_mass/README.md): editor-authored off-center
+  geometry, automatic/explicit COM, free rotation, and local anchors.
 - `soft-body`: node/beam wheels, boundary contacts, particles, and vehicle input.
 - `user-interface`: UI primitives and interactions.
 - `view-port`: camera/viewport and sprite movement.

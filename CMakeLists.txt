@@ -384,6 +384,7 @@ if(ROHR_BUILD_EXAMPLES)
 
     add_custom_target(examples)
     add_dependencies(examples
+        center_of_mass
         audio
         view_port
         flies_in_pit

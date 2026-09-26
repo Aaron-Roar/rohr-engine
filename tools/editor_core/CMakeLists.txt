@@ -30,6 +30,20 @@ target_include_directories(rohr_editor_core
 target_link_libraries(rohr_editor_core PUBLIC rohr_engine PRIVATE rohr_lua)
 
 if(ROHR_BUILD_TESTS)
+    set(COM_EXAMPLE_SOURCE ${PROJECT_SOURCE_DIR}/examples/center_of_mass)
+    add_executable(center_of_mass_example_test tests/center_of_mass_example.c
+        ${COM_EXAMPLE_SOURCE}/src/generated/project_objects.c)
+    target_include_directories(center_of_mass_example_test PRIVATE
+        ${COM_EXAMPLE_SOURCE}/src/generated)
+    target_compile_definitions(center_of_mass_example_test PRIVATE
+        COM_EXAMPLE_SOURCE="${COM_EXAMPLE_SOURCE}")
+    target_link_libraries(center_of_mass_example_test PRIVATE rohr_editor_core)
+    set_target_properties(center_of_mass_example_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME center_of_mass_example COMMAND center_of_mass_example_test)
+    set_tests_properties(center_of_mass_example PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_mass_properties_test tests/editor_mass_properties.c)
     target_link_libraries(editor_mass_properties_test PRIVATE rohr_editor_core)
     set_target_properties(editor_mass_properties_test PROPERTIES
