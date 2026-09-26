@@ -3179,121 +3179,28 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->group_rotating = false;
 }
 
-bool editor_viewport_selection_at_get(EditorProject *project,
-        const EditorViewportState *state, Position pointer,
-        EditorSelectionRef *selection) {
-    EditorObject *object;
-    Position world_pointer;
-    if(project == NULL || state == NULL || selection == NULL) return false;
-    *selection = (EditorSelectionRef){0};
-    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
-            state->project_elements_hidden) ||
-            (state->mode == EDITOR_VIEWPORT_OBJECT &&
-                state->object_elements_hidden) ||
-            (state->mode == EDITOR_VIEWPORT_LAYOUT &&
-                state->layout_elements_hidden)) return false;
-    world_pointer = editor_view_screen_to_world(pointer);
-    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        for(size_t i = project->object_count; i > 0; i -= 1) {
-            EditorObject *candidate = &project->objects[i - 1];
-            EditorObject overview = *candidate;
-            overview.position = candidate->overview_position;
-            if(candidate->visible && editor_object_visual_point_contains(
-                    &overview, world_pointer)) {
-                *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
-                    candidate->id, 0, 0, candidate->id};
-                return true;
-            }
-        }
-        return false;
+static bool editor_hitbox_pick_check(const EditorObject *object,
+        const EditorRigidBody *body, const EditorHitbox *box, Position pointer) {
+    if(editor_hitbox_point_contains(object, body, box, pointer)) return true;
+    float scale_squared = editor_view_scale * editor_view_scale;
+    for(size_t i = 0; i < box->vertex_count; i += 1) {
+        Position a = editor_hitbox_vertex_world_get(object, body, box, i);
+        Position b = editor_hitbox_vertex_world_get(object, body, box,
+            (i + 1) % box->vertex_count);
+        Vec2D delta = {pointer.x - a.x, pointer.y - a.y};
+        if(delta.x * delta.x + delta.y * delta.y <= 100.0f / scale_squared ||
+                editor_segment_distance_squared(pointer, a, b) <=
+                    36.0f / scale_squared) return true;
     }
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
-            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
-        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
-            state->selected_layout_viewport);
-        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-            EDITOR_MENU_HEIGHT +
-                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
-        Position origin = {center.x + project->viewport_camera_offset.x,
-            center.y + project->viewport_camera_offset.y};
-        Position local;
-        if(viewport == NULL) return false;
-        local = (Position){(pointer.x - origin.x) / project->viewport_camera_zoom -
-                viewport->config.rectangle.x,
-            (pointer.y - origin.y) / project->viewport_camera_zoom -
-                viewport->config.rectangle.y};
-        for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
-            EditorViewportUiItem *item = &viewport->ui_items[i - 1];
-            ViewportRectangle rectangle = editor_viewport_ui_rectangle_get(item);
-            Position hit = local;
-            bool item_hit;
-            if(!item->visible) continue;
-            if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
-                Position centroid = editor_viewport_ui_shape_centroid_get(item);
-                Vec2D relative = {local.x - item->position.x - centroid.x,
-                    local.y - item->position.y - centroid.y};
-                Vec2D unrotated = math_vector_rotate(relative,
-                    -item->value.shape.rotation);
-                hit = (Position){item->position.x + centroid.x + unrotated.x,
-                    item->position.y + centroid.y + unrotated.y};
-            } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
-                Vec2D relative = {local.x - item->position.x,
-                    local.y - item->position.y};
-                Vec2D unrotated = math_vector_rotate(relative, -item->rotation);
-                hit = (Position){item->position.x + unrotated.x,
-                    item->position.y + unrotated.y};
-            }
-            item_hit = item->kind == EDITOR_VIEWPORT_UI_SLIDER ?
-                editor_viewport_ui_slider_hit_check(item, local,
-                    project->viewport_camera_zoom) :
-                hit.x >= rectangle.x && hit.y >= rectangle.y &&
-                hit.x <= rectangle.x + rectangle.width &&
-                hit.y <= rectangle.y + rectangle.height;
-            if(!item_hit) continue;
-            *selection = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
-                    EDITOR_SELECTION_UI_SHAPE :
-                item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
-                    EDITOR_SELECTION_UI_SLIDER,
-                viewport->id, 0, 0, item->id};
-            return true;
-        }
-        for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
-            EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
-            ViewportRectangle rectangle = item->placement.rectangle;
-            Position center = {rectangle.x + rectangle.width * 0.5f,
-                rectangle.y + rectangle.height * 0.5f};
-            Vec2D relative = {local.x - center.x, local.y - center.y};
-            Vec2D unrotated;
-            if(!item->placement.visible) continue;
-            unrotated = math_vector_rotate(relative, -item->placement.orientation);
-            if(fabsf(unrotated.x) > fabsf(rectangle.width) * 0.5f ||
-                    fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
-                viewport->id, viewport->id, 0, item->id};
-            return true;
-        }
-        return false;
-    }
-    pointer = world_pointer;
-    object = editor_project_selected_get(project);
+    return false;
+}
+
+/* Resolve geometry front-to-back as object_draw queues its layers.
+ * Selection state may choose a child only after this occlusion test. */
+static bool editor_object_front_selection_get(EditorObject *object,
+        Position pointer, EditorSelectionRef *selection, int *layer) {
     if(object == NULL || !object->visible) return false;
-    {
-        EditorSelectionRef current;
-        if(editor_viewport_selection_ref_get(project, state, &current)) {
-            EditorViewportState one = *state;
-            one.selected_items = &current;
-            one.selected_item_count = 1;
-            if(editor_group_point_hit(project, &one, pointer)) {
-                *selection = current;
-                return true;
-            }
-        }
-    }
+    *layer = EDITOR_GRAPHICS_LAYER_ANIMATION;
     for(size_t i = object->camera_count; i > 0; i -= 1) {
         EditorCamera *camera = &object->cameras[i - 1];
         Orientation rotation;
@@ -3327,6 +3234,7 @@ bool editor_viewport_selection_at_get(EditorProject *project,
             object->id, 0, 0, sprite->id};
         return true;
     }
+    *layer = EDITOR_GRAPHICS_LAYER_SPRITE;
     for(size_t i = object->sprite_count; i > 0; i -= 1) {
         EditorSprite *sprite = &object->sprites[i - 1];
         if(!sprite->visible || !editor_sprite_point_contains(
@@ -3336,32 +3244,8 @@ bool editor_viewport_selection_at_get(EditorProject *project,
             object->id, 0, 0, sprite->id};
         return true;
     }
-    for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
-        EditorRigidBody *body = &object->rigid_bodies[i - 1];
-        if(!body->visible) continue;
-        if(body->standalone_particle) {
-            Position center = editor_particle_center_world_get(object, body);
-            if(hypotf(pointer.x - center.x, pointer.y - center.y) <=
-                    body->particle_radius) {
-                *selection = (EditorSelectionRef){EDITOR_SELECTION_PARTICLE,
-                    object->id, 0, 0, body->id};
-                return true;
-            }
-            continue;
-        }
-        for(size_t box = body->hitbox_count; box > 0; box -= 1) {
-            EditorHitbox *hitbox = &body->hitboxes[box - 1];
-            if(!hitbox->visible || !editor_hitbox_point_contains(
-                    object, body, hitbox, pointer)) continue;
-            if(state->mode == EDITOR_VIEWPORT_RIGID_BODY &&
-                    state->selected_rigid_body == body->id)
-                *selection = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
-                    object->id, body->id, 0, hitbox->id};
-            else *selection = (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,
-                object->id, 0, 0, body->id};
-            return true;
-        }
-    }
+
+    *layer = EDITOR_GRAPHICS_LAYER_JOINT;
     for(size_t i = object->anchor_count; i > 0; i -= 1) {
         EditorAnchor *anchor = &object->anchors[i - 1];
         Position world = editor_anchor_world_get(object, anchor);
@@ -3371,12 +3255,344 @@ bool editor_viewport_selection_at_get(EditorProject *project,
             return true;
         }
     }
-    if(editor_object_visual_point_contains(object, pointer)) {
-        *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
-            object->id, 0, 0, object->id};
+
+    for(size_t i = object->joint_count; i > 0; i -= 1) {
+        EditorJoint *joint = &object->joint_items[i - 1];
+        EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
+        EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
+        if(!joint->visible || a == NULL || b == NULL ||
+                editor_segment_distance_squared(pointer,
+                    editor_anchor_world_get(object, a),
+                    editor_anchor_world_get(object, b)) > 64.0f) continue;
+        *selection = (EditorSelectionRef){EDITOR_SELECTION_JOINT,
+            object->id, 0, 0, joint->id};
         return true;
     }
+    *layer = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
+    for(size_t i = object->soft_body_count; i > 0; i -= 1) {
+        EditorSoftBody *body = &object->soft_body_items[i - 1];
+        if(!body->visible) continue;
+        for(size_t j = body->node_count; j > 0; j -= 1) {
+            EditorSoftNode *node = &body->nodes[j - 1];
+            Position world = editor_soft_node_world_get(object, body, node);
+            if(!node->visible || hypotf(pointer.x - world.x,
+                    pointer.y - world.y) > 10.0f) continue;
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+                object->id, body->id, 0, node->id};
+            return true;
+        }
+        for(size_t j = body->beam_count; j > 0; j -= 1) {
+            EditorSoftBeam *beam = &body->beams[j - 1];
+            const EditorSoftNode *a = editor_soft_node_get(body, beam->node_a);
+            const EditorSoftNode *b = editor_soft_node_get(body, beam->node_b);
+            if(!beam->visible || a == NULL || b == NULL ||
+                    editor_segment_distance_squared(pointer,
+                        editor_soft_node_world_get(object, body, a),
+                        editor_soft_node_world_get(object, body, b)) > 36.0f)
+                continue;
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
+                object->id, body->id, 0, beam->id};
+            return true;
+        }
+        for(size_t j = body->area_count; j > 0; j -= 1) {
+            EditorSoftArea *area = &body->areas[j - 1];
+            if(!area->visible || !area->surface_enabled ||
+                    !editor_soft_area_point_contains(object, body, area, pointer))
+                continue;
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
+                object->id, body->id, 0, area->id};
+            return true;
+        }
+    }
+    *layer = EDITOR_GRAPHICS_LAYER_RIGID_BODY;
+    /* Particle outlines follow polygons; particle fills precede them. */
+    for(int pass = 0; pass < 3; pass += 1) {
+        /* In project view every object's fills are queued before any object's
+         * polygons, even when hierarchy order would otherwise break a tie. */
+        *layer = EDITOR_GRAPHICS_LAYER_RIGID_BODY - (pass == 2 ? 1 : 0);
+        for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
+            EditorRigidBody *body = &object->rigid_bodies[i - 1];
+            if(!body->visible) continue;
+            if(pass != 1) {
+                Position center = editor_particle_center_world_get(object, body);
+                float distance = hypotf(pointer.x - center.x, pointer.y - center.y);
+                if(!body->particle || body->particle_radius <= 0.0f || (pass == 0 ?
+                        fabsf(distance - body->particle_radius) >
+                            7.0f / editor_view_scale :
+                        distance > body->particle_radius)) continue;
+                *selection = (EditorSelectionRef){body->standalone_particle ?
+                        EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+                    object->id, 0, 0, body->id};
+                return true;
+            }
+            if(body->standalone_particle) continue;
+            for(size_t j = body->hitbox_count; j > 0; j -= 1) {
+                EditorHitbox *box = &body->hitboxes[j - 1];
+                if(!box->visible || !editor_hitbox_pick_check(
+                        object, body, box, pointer)) continue;
+                *selection = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
+                    object->id, body->id, 0, box->id};
+                return true;
+            }
+        }
+    }
     return false;
+}
+
+static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref) {
+    switch(ref.kind) {
+    case EDITOR_SELECTION_HITBOX:
+    case EDITOR_SELECTION_VERTEX:
+    case EDITOR_SELECTION_LINE:
+        ref.kind = EDITOR_SELECTION_RIGID_BODY;
+        ref.item = ref.parent;
+        break;
+    case EDITOR_SELECTION_SOFT_NODE:
+    case EDITOR_SELECTION_SOFT_BEAM:
+    case EDITOR_SELECTION_SOFT_AREA:
+        ref.kind = EDITOR_SELECTION_SOFT_BODY;
+        ref.item = ref.parent;
+        break;
+    case EDITOR_SELECTION_ORIGIN:
+        ref.kind = ref.parent == EDITOR_ORIGIN_RIGID_BODY ?
+            EDITOR_SELECTION_RIGID_BODY : EDITOR_SELECTION_SOFT_BODY;
+        break;
+    case EDITOR_SELECTION_ANIMATION_FRAME:
+        ref.kind = EDITOR_SELECTION_ANIMATED_SPRITE;
+        ref.item = ref.parent;
+        break;
+    default: break;
+    }
+    ref.parent = 0;
+    ref.container = 0;
+    return ref;
+}
+
+/* Empty geometry leaves exterior edit handles reachable. Covering geometry
+ * must belong to the same owner before any selected controls can receive it. */
+static bool editor_pick_owner_check(EditorSelectionRef front,
+        EditorHierarchySelection kind, uint32_t item) {
+    if(front.kind == EDITOR_SELECTION_NONE) return true;
+    front = editor_pick_owner_get(front);
+    return front.kind == kind && front.item == item;
+}
+
+static bool editor_pick_selection_visible_check(EditorSelectionRef front,
+        EditorSelectionRef selection) {
+    EditorSelectionRef owner = editor_pick_owner_get(selection);
+    if(front.kind == EDITOR_SELECTION_NONE || front.object != owner.object ||
+            !editor_pick_owner_check(front, owner.kind, owner.item)) return false;
+    if(selection.kind == EDITOR_SELECTION_HITBOX)
+        return front.kind == EDITOR_SELECTION_HITBOX && front.item == selection.item;
+    if(selection.kind == EDITOR_SELECTION_VERTEX ||
+            selection.kind == EDITOR_SELECTION_LINE)
+        return front.kind == EDITOR_SELECTION_HITBOX &&
+            front.item == selection.container;
+    if(selection.kind == EDITOR_SELECTION_SOFT_NODE ||
+            selection.kind == EDITOR_SELECTION_SOFT_BEAM ||
+            selection.kind == EDITOR_SELECTION_SOFT_AREA)
+        return front.kind == selection.kind && front.item == selection.item;
+    return true;
+}
+
+static int editor_viewport_item_layer_base_get(
+    const EditorLayoutViewport *viewport, int layer, size_t order);
+
+static bool editor_viewport_front_selection_get(EditorProject *project,
+        const EditorViewportState *state, Position pointer,
+        EditorSelectionRef *selection) {
+    EditorObject *object;
+    Position world_pointer;
+    if(project == NULL || state == NULL || selection == NULL) return false;
+    *selection = (EditorSelectionRef){0};
+    if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
+            state->project_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_OBJECT &&
+                state->object_elements_hidden) ||
+            (state->mode == EDITOR_VIEWPORT_LAYOUT &&
+                state->layout_elements_hidden)) return false;
+    editor_view_transform_set(project, state, editor_project_selected_get(project));
+    world_pointer = editor_view_screen_to_world(pointer);
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
+        int front_layer = -1;
+        editor_project_hierarchy_sync(project);
+        for(size_t i = 0; i < project->hierarchy_count; i += 1) {
+            EditorProjectHierarchyItem item = project->hierarchy[i];
+            if(item.kind == EDITOR_PROJECT_HIERARCHY_VIEWPORT) {
+                EditorLayoutViewport *viewport =
+                    editor_project_layout_viewport_get(project, item.id);
+                ViewportRectangle bounds;
+                EditorViewportState layout_state = *state;
+                EditorSelectionRef layout_hit;
+                int layer = -1;
+                if(viewport == NULL || !viewport->enabled) continue;
+                bounds = viewport->config.rectangle;
+                bounds.x = viewport->overview_position.x;
+                bounds.y = viewport->overview_position.y;
+                if(world_pointer.x >= bounds.x &&
+                        world_pointer.x <= bounds.x + bounds.width &&
+                        world_pointer.y <= bounds.y &&
+                        world_pointer.y >= bounds.y - bounds.height)
+                    layer = EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
+                layout_state.mode = EDITOR_VIEWPORT_LAYOUT;
+                layout_state.layout_elements_hidden = false;
+                layout_state.selected_layout_viewport = viewport->id;
+                /* Reuse layout-local hit testing at this overview placement. */
+                Position local_pointer = {
+                    pointer.x + (viewport->config.rectangle.x - bounds.x) *
+                        project->viewport_camera_zoom,
+                    pointer.y + (viewport->config.rectangle.y + bounds.y) *
+                        project->viewport_camera_zoom};
+                if(editor_viewport_front_selection_get(project, &layout_state,
+                        local_pointer, &layout_hit)) {
+                    if(layout_hit.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+                        for(size_t j = 0; j < viewport->camera_item_count; j += 1)
+                            if(viewport->camera_items[j].id == layout_hit.item)
+                                layer = editor_viewport_item_layer_base_get(viewport,
+                                    viewport->camera_items[j].placement.layer, j);
+                    } else {
+                        for(size_t j = 0; j < viewport->ui_item_count; j += 1)
+                            if(viewport->ui_items[j].id == layout_hit.item)
+                                layer = editor_viewport_item_layer_base_get(viewport,
+                                    viewport->ui_items[j].layer,
+                                    viewport->camera_item_count + j);
+                    }
+                }
+                editor_view_transform_set(project, state,
+                    editor_project_selected_get(project));
+                if(layer > front_layer) {
+                    front_layer = layer;
+                    *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+                        viewport->id, 0, 0, viewport->id};
+                }
+            } else {
+                EditorObject *candidate = editor_object_query_get(project, item.id);
+                EditorObject overview;
+                EditorSelectionRef hit;
+                int layer;
+                if(candidate == NULL) continue;
+                overview = *candidate;
+                overview.position = candidate->overview_position;
+                if(editor_object_front_selection_get(&overview, world_pointer,
+                        &hit, &layer) && layer > front_layer) {
+                    front_layer = layer;
+                    *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+                        candidate->id, 0, 0, candidate->id};
+                }
+            }
+        }
+        return selection->kind != EDITOR_SELECTION_NONE;
+    }
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            state->selected_layout_viewport);
+        Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+            EDITOR_MENU_HEIGHT +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        Position origin = {center.x + project->viewport_camera_offset.x,
+            center.y + project->viewport_camera_offset.y};
+        Position local;
+        int front_layer = -1;
+        if(viewport == NULL || !viewport->enabled) return false;
+        local = (Position){(pointer.x - origin.x) / project->viewport_camera_zoom -
+                viewport->config.rectangle.x,
+            (pointer.y - origin.y) / project->viewport_camera_zoom -
+                viewport->config.rectangle.y};
+        for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
+            EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+            ViewportRectangle rectangle = editor_viewport_ui_rectangle_get(item);
+            Position hit = local;
+            bool item_hit;
+            if(!item->visible) continue;
+            if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
+                Position centroid = editor_viewport_ui_shape_centroid_get(item);
+                Vec2D relative = {local.x - item->position.x - centroid.x,
+                    local.y - item->position.y - centroid.y};
+                Vec2D unrotated = math_vector_rotate(relative,
+                    -item->value.shape.rotation);
+                hit = (Position){item->position.x + centroid.x + unrotated.x,
+                    item->position.y + centroid.y + unrotated.y};
+            } else if(item->kind == EDITOR_VIEWPORT_UI_TEXT) {
+                Vec2D relative = {local.x - item->position.x,
+                    local.y - item->position.y};
+                Vec2D unrotated = math_vector_rotate(relative, -item->rotation);
+                hit = (Position){item->position.x + unrotated.x,
+                    item->position.y + unrotated.y};
+            }
+            item_hit = item->kind == EDITOR_VIEWPORT_UI_SLIDER ?
+                editor_viewport_ui_slider_hit_check(item, local,
+                    project->viewport_camera_zoom) :
+                hit.x >= rectangle.x && hit.y >= rectangle.y &&
+                hit.x <= rectangle.x + rectangle.width &&
+                hit.y <= rectangle.y + rectangle.height;
+            int layer = editor_viewport_item_layer_base_get(viewport,
+                item->layer, viewport->camera_item_count + i - 1);
+            if(!item_hit || layer <= front_layer) continue;
+            front_layer = layer;
+            *selection = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+                    EDITOR_SELECTION_UI_SHAPE :
+                item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
+                    EDITOR_SELECTION_UI_SLIDER,
+                viewport->id, 0, 0, item->id};
+        }
+        for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
+            EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
+            ViewportRectangle rectangle = item->placement.rectangle;
+            Position center = {rectangle.x + rectangle.width * 0.5f,
+                rectangle.y + rectangle.height * 0.5f};
+            Vec2D relative = {local.x - center.x, local.y - center.y};
+            Vec2D unrotated;
+            if(!item->placement.visible) continue;
+            unrotated = math_vector_rotate(relative, -item->placement.orientation);
+            if(fabsf(unrotated.x) > fabsf(rectangle.width) * 0.5f ||
+                    fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
+            int layer = editor_viewport_item_layer_base_get(viewport,
+                item->placement.layer, i - 1);
+            if(layer <= front_layer) continue;
+            front_layer = layer;
+            *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+                viewport->id, viewport->id, 0, item->id};
+        }
+        return selection->kind != EDITOR_SELECTION_NONE;
+    }
+    object = editor_project_selected_get(project);
+    int layer;
+    return editor_object_front_selection_get(object, world_pointer, selection, &layer);
+}
+
+bool editor_viewport_selection_at_get(EditorProject *project,
+        const EditorViewportState *state, Position pointer,
+        EditorSelectionRef *selection) {
+    EditorSelectionRef current;
+    if(!editor_viewport_front_selection_get(project, state, pointer, selection))
+        return false;
+    if(editor_viewport_selection_ref_get(project, state, &current)) {
+        if(editor_pick_selection_visible_check(*selection, current)) {
+            EditorViewportState one = *state;
+            one.selected_items = &current;
+            one.selected_item_count = 1;
+            if(editor_group_point_hit(project, &one,
+                    editor_view_screen_to_world(pointer))) {
+                *selection = current;
+                return true;
+            }
+        }
+    }
+    if(selection->kind == EDITOR_SELECTION_HITBOX &&
+            state->selected_rigid_body != selection->parent)
+        *selection = editor_pick_owner_get(*selection);
+    if((selection->kind == EDITOR_SELECTION_SOFT_NODE ||
+            selection->kind == EDITOR_SELECTION_SOFT_BEAM ||
+            selection->kind == EDITOR_SELECTION_SOFT_AREA) &&
+            state->selected_soft_body != selection->parent)
+        *selection = editor_pick_owner_get(*selection);
+    return true;
 }
 
 bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
@@ -3386,6 +3602,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     EditorObject *object;
     EditorRigidBody *body;
     EditorHitbox *hitbox;
+    EditorSelectionRef front = {0};
 
     if(state == NULL || project == NULL) return false;
     if(primary_button == MOUSE_BUTTON_STATE_RELEASED &&
@@ -3402,6 +3619,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
+    if(primary_button == MOUSE_BUTTON_STATE_PRESSED)
+        (void)editor_viewport_front_selection_get(project, state, pointer, &front);
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
@@ -3456,7 +3675,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 center.y + project->viewport_camera_offset.y};
             Position local = {(pointer.x - origin.x) / project->viewport_camera_zoom,
                 (pointer.y - origin.y) / project->viewport_camera_zoom};
-            if(viewport == NULL) return false;
+            if(viewport == NULL || !viewport->enabled) return false;
             local.x -= viewport->config.rectangle.x;
             local.y -= viewport->config.rectangle.y;
             if(primary_button == MOUSE_BUTTON_STATE_RELEASED) {
@@ -3585,7 +3804,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         state->selected_viewport_ui_item &&
                     click_now - state->last_viewport_click_at <= 400;
                 EditorLayoutRotationTarget rotation_target;
-                if(editor_layout_rotation_target_get(viewport, state,
+                bool selected_in_front = front.kind == EDITOR_SELECTION_NONE ||
+                    (front.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ?
+                        front.item == state->selected_viewport_camera_item :
+                        front.item == state->selected_viewport_ui_item);
+                if(selected_in_front && editor_layout_rotation_target_get(viewport, state,
                         project->viewport_camera_zoom, &rotation_target) &&
                         editor_rotation_control_begin(rotation_target.center,
                             rotation_target.orientation,
@@ -3597,6 +3820,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    if(front.kind != EDITOR_SELECTION_NONE &&
+                            (front.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                                front.item != item->id)) continue;
                     if(item->id != state->selected_viewport_ui_item ||
                             !item->visible ||
                             (state->mode != EDITOR_VIEWPORT_UI_SHAPE_EDITOR &&
@@ -3609,6 +3835,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    if(front.kind != EDITOR_SELECTION_NONE &&
+                            (front.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                                front.item != item->id)) continue;
                     EditorViewportUiText *text;
                     Position centroid;
                     if((state->mode != EDITOR_VIEWPORT_UI_TEXT_EDITOR &&
@@ -3668,6 +3897,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i];
+                    if(front.kind != EDITOR_SELECTION_NONE &&
+                            (front.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                                front.item != item->id)) continue;
                     if((state->mode != EDITOR_VIEWPORT_UI_LINE_EDITOR &&
                             !child_double_clicked) ||
                             item->id != state->selected_viewport_ui_item ||
@@ -3704,6 +3936,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = viewport->ui_item_count; i > 0; i -= 1) {
                     EditorViewportUiItem *item = &viewport->ui_items[i - 1];
+                    if(front.kind != EDITOR_SELECTION_NONE &&
+                            (front.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                                front.item != item->id)) continue;
                     ViewportRectangle rectangle = editor_viewport_ui_rectangle_get(item);
                     Uint64 now;
                     bool double_clicked;
@@ -3778,6 +4013,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 }
                 for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
                     EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
+                    if(front.kind != EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                            front.item != item->id) continue;
                     ViewportRectangle rectangle = item->placement.rectangle;
                     Position screen_center = {rectangle.x + rectangle.width * 0.5f,
                         rectangle.y + rectangle.height * 0.5f};
@@ -3950,7 +4187,12 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             } else continue;
             return true;
         }
-        if(editor_group_point_hit(project, state, pointer)) {
+        bool front_selected = false;
+        for(size_t i = 0; i < state->selected_item_count; i += 1) {
+            if(editor_pick_selection_visible_check(front, state->selected_items[i]))
+                front_selected = true;
+        }
+        if(front_selected && editor_group_point_hit(project, state, pointer)) {
             state->group_dragging = true;
             state->group_pointer = pointer;
             return true;
@@ -3996,7 +4238,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                         editor_project_layout_viewport_get(project, item.id);
                     ViewportRectangle bounds;
                     bool double_clicked;
-                    if(candidate == NULL || !candidate->enabled) continue;
+                    if(candidate == NULL || !candidate->enabled ||
+                            front.kind != EDITOR_SELECTION_LAYOUT_VIEWPORT ||
+                            front.item != candidate->id) continue;
                     bounds = candidate->config.rectangle;
                     bounds.x = candidate->overview_position.x;
                     bounds.y = candidate->overview_position.y;
@@ -4023,12 +4267,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     return true;
                 }
                 EditorObject *candidate = editor_object_query_get(project, item.id);
-                EditorObject overview;
                 bool double_clicked;
-                if(candidate == NULL || !candidate->visible) continue;
-                overview = *candidate;
-                overview.position = candidate->overview_position;
-                if(!editor_object_visual_point_contains(&overview, pointer)) continue;
+                if(candidate == NULL || !candidate->visible ||
+                        front.kind != EDITOR_SELECTION_OBJECT ||
+                        front.item != candidate->id) continue;
                 double_clicked = state->last_viewport_click_selection ==
                         EDITOR_SELECTION_OBJECT &&
                     state->last_viewport_click_object == candidate->id &&
@@ -4426,7 +4668,22 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
         return true;
     }
-    if(primary_button != MOUSE_BUTTON_STATE_PRESSED) return false;
+    if(primary_button != MOUSE_BUTTON_STATE_PRESSED || !object->visible) return false;
+    /* Capture is handled above. Only a new press consults occlusion. */
+    if(body != NULL && !editor_pick_owner_check(front,
+            body->standalone_particle ? EDITOR_SELECTION_PARTICLE :
+                EDITOR_SELECTION_RIGID_BODY, body->id)) {
+        body = NULL;
+        hitbox = NULL;
+    }
+    if(hitbox != NULL && front.kind == EDITOR_SELECTION_HITBOX &&
+            front.item != hitbox->id) hitbox = NULL;
+    if(front.kind == EDITOR_SELECTION_JOINT) {
+        (void)editor_viewport_selection_set(project, state, front,
+            state->selection_modifier);
+        if(!state->selection_modifier) state->mode = EDITOR_VIEWPORT_JOINT;
+        return true;
+    }
 
     if(body != NULL && body->visible &&
             (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
@@ -4474,6 +4731,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY))) {
         for(size_t i = 0; i < object->soft_body_count; i += 1) {
             EditorSoftBody *soft_body = &object->soft_body_items[i];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_SOFT_BODY,
+                    soft_body->id)) continue;
             Position center = {object->position.x + soft_body->position.x,
                 object->position.y + soft_body->position.y};
             Uint64 now;
@@ -4517,6 +4776,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->mode == EDITOR_VIEWPORT_SOFT_AREA)) {
         for(size_t i = 0; i < object->soft_body_count; i += 1) {
             EditorSoftBody *soft_body = &object->soft_body_items[i];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_SOFT_BODY,
+                    soft_body->id)) continue;
             Position handle;
             Position center;
             if(soft_body->id != state->selected_soft_body || !soft_body->visible) continue;
@@ -4532,7 +4793,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
-    if(object->visible && state->mode == EDITOR_VIEWPORT_SPRITE) {
+    if(object->visible && state->mode == EDITOR_VIEWPORT_SPRITE &&
+            editor_pick_owner_check(front, EDITOR_SELECTION_SPRITE,
+                state->selected_sprite)) {
         EditorSprite *sprite = editor_project_sprite_get(object, state->selected_sprite);
         if(sprite != NULL && sprite->visible) {
             Position center = editor_sprite_world_get(object, sprite);
@@ -4547,7 +4810,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             }
         }
     }
-    if(object->visible && state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
+    if(object->visible && state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
+            editor_pick_owner_check(front, EDITOR_SELECTION_ANIMATED_SPRITE,
+                state->selected_animated_sprite)) {
         EditorAnimatedSprite *sprite = editor_project_animated_sprite_get(object,
             state->selected_animated_sprite);
         if(sprite != NULL && sprite->visible) {
@@ -4565,7 +4830,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
-    if(object->visible && state->mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
+    if(object->visible && state->mode == EDITOR_VIEWPORT_CAMERA_ENTITY &&
+            editor_pick_owner_check(front, EDITOR_SELECTION_CAMERA,
+                state->selected_camera_entity)) {
         EditorCamera *camera = editor_project_camera_get(object,
             state->selected_camera_entity);
         if(camera != NULL && camera->visible) {
@@ -4585,6 +4852,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(object->visible) {
         for(size_t i = object->camera_count; i > 0; i -= 1) {
             EditorCamera *camera = &object->cameras[i - 1];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_CAMERA,
+                    camera->id)) continue;
             Orientation rotation;
             Position world;
             EditorSelectionRef selection;
@@ -4609,6 +4878,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
         for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
             EditorAnimatedSprite *animation = &object->animated_sprite_items[i - 1];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_ANIMATED_SPRITE,
+                    animation->id)) continue;
             size_t preview_frame = animation->frame_count == 0 ? 0 :
                 editor_animation_preview_frame_get(object, animation);
             EditorAnimationFrame *frame = animation->frame_count == 0 ? NULL :
@@ -4638,6 +4909,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
         for(size_t i = object->sprite_count; i > 0; i -= 1) {
             EditorSprite *sprite = &object->sprites[i - 1];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_SPRITE,
+                    sprite->id)) continue;
             Position world;
             Orientation rotation;
             EditorSelectionRef selection;
@@ -4664,6 +4937,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(object->visible) {
         for(size_t i = 0; i < object->anchor_count; i += 1) {
             EditorAnchor *anchor = &object->anchors[i];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_ANCHOR,
+                    anchor->id)) continue;
             Position world = editor_anchor_world_get(object, anchor);
             if(!anchor->visible || (pointer.x - world.x) * (pointer.x - world.x) +
                     (pointer.y - world.y) * (pointer.y - world.y) > 100.0f) continue;
@@ -4686,6 +4961,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(object->visible && primary_button == MOUSE_BUTTON_STATE_PRESSED) {
         for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
             EditorRigidBody *particle_body = &object->rigid_bodies[i - 1];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_PARTICLE,
+                    particle_body->id)) continue;
             Position center = editor_particle_center_world_get(object, particle_body);
             float distance = hypotf(pointer.x - center.x, pointer.y - center.y);
             float tolerance = 7.0f / editor_view_scale;
@@ -4755,7 +5032,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             return true;
         }
         for(size_t i = 0; i < body->hitbox_count; i += 1) {
-            if(body->hitboxes[i].visible && editor_hitbox_point_contains(
+            if(front.kind == EDITOR_SELECTION_HITBOX &&
+                    front.item != body->hitboxes[i].id) continue;
+            if(body->hitboxes[i].visible && editor_hitbox_pick_check(
                     object, body, &body->hitboxes[i], pointer)) {
                 Uint64 now = SDL_GetTicks();
                 bool double_clicked = state->last_viewport_click_selection ==
@@ -4782,9 +5061,32 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
+    if(front.kind == EDITOR_SELECTION_RIGID_BODY) {
+        EditorRigidBody *particle_body = editor_project_rigid_body_get(object,
+            front.item);
+        if(particle_body != NULL) {
+            if(state->selected_rigid_body == particle_body->id &&
+                    (state->mode == EDITOR_VIEWPORT_HITBOX ||
+                        state->mode == EDITOR_VIEWPORT_VERTEX ||
+                        state->mode == EDITOR_VIEWPORT_LINE)) return true;
+            (void)editor_viewport_selection_set(project, state, front,
+                state->selection_modifier);
+            if(!state->selection_modifier) {
+                state->mode = EDITOR_VIEWPORT_RIGID_BODY;
+                state->dragged_body = true;
+                state->drag_offset = (Vec2D){
+                    pointer.x - object->position.x - particle_body->position.x,
+                    pointer.y - object->position.y - particle_body->position.y};
+            }
+            return true;
+        }
+    }
+
     if(object->visible) {
         for(size_t soft_index = 0; soft_index < object->soft_body_count; soft_index += 1) {
             EditorSoftBody *soft_body = &object->soft_body_items[soft_index];
+            if(!editor_pick_owner_check(front, EDITOR_SELECTION_SOFT_BODY,
+                    soft_body->id)) continue;
             EditorSelectionRef body_selection = {EDITOR_SELECTION_SOFT_BODY,
                 object->id, 0, 0, soft_body->id};
             bool body_focused = (state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
@@ -4797,6 +5099,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(!soft_body->visible) continue;
             for(size_t i = 0; i < soft_body->node_count; i += 1) {
                 EditorSoftNode *node = &soft_body->nodes[i];
+                if(front.kind != EDITOR_SELECTION_NONE &&
+                        (front.kind != EDITOR_SELECTION_SOFT_NODE ||
+                            front.item != node->id)) continue;
                 Position world = editor_soft_node_world_get(object, soft_body, node);
                 if(!node->visible || (pointer.x - world.x) * (pointer.x - world.x) +
                         (pointer.y - world.y) * (pointer.y - world.y) > 100.0f) continue;
@@ -4847,6 +5152,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             }
             for(size_t i = 0; i < soft_body->beam_count; i += 1) {
                 EditorSoftBeam *beam = &soft_body->beams[i];
+                if(front.kind != EDITOR_SELECTION_NONE &&
+                        (front.kind != EDITOR_SELECTION_SOFT_BEAM ||
+                            front.item != beam->id)) continue;
                 EditorSoftNode *a = NULL;
                 EditorSoftNode *b = NULL;
                 if(!beam->visible) continue;
@@ -4902,7 +5210,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->soft_area_candidate_count = 0;
                 for(size_t i = 0; i < soft_body->area_count; i += 1) {
                     EditorSoftArea *area = &soft_body->areas[i];
-                    if(!area->visible || !editor_soft_area_point_contains(
+                    if(front.kind != EDITOR_SELECTION_SOFT_AREA ||
+                            front.item != area->id) continue;
+                    if(!area->visible || !area->surface_enabled ||
+                            !editor_soft_area_point_contains(
                             object, soft_body, area, pointer)) continue;
                     state->soft_area_candidates[state->soft_area_candidate_count++] = area->id;
                 }
@@ -4954,7 +5265,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     return true;
                 }
             }
-            if(editor_soft_body_area_contains(object, soft_body, pointer)) {
+            if(front.kind == EDITOR_SELECTION_SOFT_AREA &&
+                    editor_soft_body_area_contains(object, soft_body, pointer)) {
                 (void)editor_viewport_selection_set(project, state,
                     body_selection, state->selection_modifier);
                 if(!state->selection_modifier) {
@@ -5022,12 +5334,17 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
 
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         EditorRigidBody *candidate_body = &object->rigid_bodies[body_index];
+        if(!editor_pick_owner_check(front, candidate_body->standalone_particle ?
+                EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+                candidate_body->id)) continue;
         if(!object->visible || !candidate_body->visible) continue;
         for(size_t box_index = 0; box_index < candidate_body->hitbox_count; box_index += 1) {
             EditorHitbox *candidate = &candidate_body->hitboxes[box_index];
+            if(front.kind == EDITOR_SELECTION_HITBOX &&
+                    front.item != candidate->id) continue;
             bool body_selected_for_drag = false;
             if(!candidate->visible ||
-                    !editor_hitbox_point_contains(object, candidate_body, candidate, pointer)) {
+                    !editor_hitbox_pick_check(object, candidate_body, candidate, pointer)) {
                 continue;
             }
             if(candidate_body->standalone_particle) {

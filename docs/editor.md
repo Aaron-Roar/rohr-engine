@@ -264,6 +264,13 @@ accept six- or eight-digit hexadecimal colors.
 - **World/Local** changes only the camera reference; it does not modify project data.
 - Drag the divider between the viewport and tools column to resize the column.
 
+Viewport clicks and context menus target the frontmost visible item at the
+pointer, following the editor's draw layers and ordering. Selecting a body or
+opening its child editor does not let clicks pass through a covering item.
+Screens and UI follow their composition layers, including their order within
+the same layer. Hide a covering item to select what is behind it. A drag already
+in progress keeps its target until release or cancellation.
+
 Rigid-body and soft-body editors show an origin and rotation handle. Dragging a
 body interior translates it. Dragging the rotation handle rotates it. Opening an
 origin editor moves the body while preserving authored local offsets. Vertices,
@@ -278,7 +285,8 @@ at its midpoint without moving neighboring vertices. Locked vertices cannot be
 moved; line-length edits distribute movement only to unlocked endpoints.
 
 While a hitbox editor is open, clicks on its owning body or particle do not leave
-the editor or drag the body. Vertex and line handles retain priority. Clicking
+the editor or drag the body. Exposed vertex and line handles retain priority
+within that hitbox; covering items and sibling hitboxes still govern picking. Clicking
 outside deselects the hitbox while leaving its editor open.
 
 **Auto Shape** opens a three-column triangle, square, and circle picker. The

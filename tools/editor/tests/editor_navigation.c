@@ -254,7 +254,331 @@ static bool modifier_click_toggle_check(EditorProject *project,
     return true;
 }
 
+
+static bool picking_pointer_update(EditorProject *project, EditorViewportState *state,
+        Position pointer, MouseButtonState button) {
+    return editor_viewport_update(state, project, pointer, button,
+        MOUSE_BUTTON_STATE_UP, false, 0.0f, false);
+}
+
+#define PICK_REQUIRE(condition) do { if(!(condition)) { \
+    fprintf(stderr, "render-order picking failed at line %d: %s\n", \
+        __LINE__, #condition); return false; } } while(0)
+
+static bool render_order_picking_check(void) {
+    EditorProject project;
+    EditorViewportState state;
+    EditorSelectionRef hit;
+    EditorObject *object;
+    EditorRigidBody *back;
+    EditorRigidBody *front;
+    EditorHistory history;
+    Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    Position point = {center.x + 25.0f, center.y};
+    Position moved = {point.x + 15.0f, point.y};
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    object = editor_project_object_add(&project, (Position){0});
+    PICK_REQUIRE(object != NULL);
+    PICK_REQUIRE(editor_project_rigid_body_add(&project, object) != NULL);
+    PICK_REQUIRE(editor_project_rigid_body_add(&project, object) != NULL);
+    back = &object->rigid_bodies[0];
+    front = &object->rigid_bodies[1];
+    for(size_t i = 0; i < 2; i += 1) {
+        EditorHitbox *box = &object->rigid_bodies[i].hitboxes[0];
+        box->vertex_count = 4;
+        const Position vertices[] = {{-40, -40}, {40, -40}, {40, 40}, {-40, 40}};
+        for(size_t j = 0; j < 4; j += 1) {
+            box->vertices[j].position = vertices[j];
+            box->vertices[j].id = project.next_vertex_id++;
+        }
+    }
+    /* An already selected body and each of its child modes lose to the
+     * same foreground body, including at a covered edge and vertex. */
+    const EditorViewportMode modes[] = {EDITOR_VIEWPORT_OBJECT,
+        EDITOR_VIEWPORT_RIGID_BODY, EDITOR_VIEWPORT_HITBOX,
+        EDITOR_VIEWPORT_LINE, EDITOR_VIEWPORT_VERTEX, EDITOR_VIEWPORT_ORIGIN};
+    for(size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i += 1) {
+        state.mode = modes[i];
+        state.selection = EDITOR_SELECTION_RIGID_BODY;
+        state.selected_rigid_body = back->id;
+        state.selected_hitbox = back->hitboxes[0].id;
+        state.selected_origin_kind = EDITOR_ORIGIN_RIGID_BODY;
+        Position grab = i == 4 ? (Position){center.x + 40, center.y - 40} :
+            i == 5 ? center : point;
+        PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, grab, &hit));
+        PICK_REQUIRE(hit.kind == EDITOR_SELECTION_RIGID_BODY && hit.item == front->id);
+        PICK_REQUIRE(picking_pointer_update(&project, &state, grab,
+            MOUSE_BUTTON_STATE_PRESSED));
+        PICK_REQUIRE(state.selected_rigid_body == front->id &&
+            state.mode == EDITOR_VIEWPORT_RIGID_BODY && state.dragged_body &&
+            state.dragged_vertex < 0 && !state.dragged_origin);
+        (void)picking_pointer_update(&project, &state, grab, MOUSE_BUTTON_STATE_RELEASED);
+    }
+    /* Captured dragging remains a single undoable interaction. */
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    state.selected_rigid_body = back->id;
+    PICK_REQUIRE(editor_history_init(&history, &project));
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(editor_navigation_viewport_transform_history_update(
+        &project, &state, &history, false));
+    PICK_REQUIRE(picking_pointer_update(&project, &state, moved, MOUSE_BUTTON_STATE_DOWN));
+    PICK_REQUIRE(editor_navigation_viewport_transform_history_update(
+        &project, &state, &history, true));
+    PICK_REQUIRE(front->position.x == 15.0f && back->position.x == 0.0f);
+    (void)picking_pointer_update(&project, &state, moved, MOUSE_BUTTON_STATE_RELEASED);
+    PICK_REQUIRE(editor_navigation_viewport_transform_history_update(
+        &project, &state, &history, true));
+    PICK_REQUIRE(history.undo_count == 1 && editor_history_undo(&history));
+    object = &project.objects[0];
+    back = &object->rigid_bodies[0];
+    front = &object->rigid_bodies[1];
+    PICK_REQUIRE(front->position.x == 0.0f && editor_history_redo(&history));
+    object = &project.objects[0];
+    back = &object->rigid_bodies[0];
+    front = &object->rigid_bodies[1];
+    PICK_REQUIRE(front->position.x == 15.0f);
+    editor_history_destroy(&history);
+    front->position.x = 0.0f;
+
+    /* Hiding and reordering expose a different winner immediately. */
+    front->visible = false;
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    state.selected_rigid_body = front->id;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.item == back->id);
+    front->visible = true;
+    EditorRigidBody swap = *back;
+    *back = *front;
+    *front = swap;
+    state.selected_rigid_body = back->id;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.item == front->id);
+    /* A sibling hitbox also covers the selected hitbox's child controls. */
+    PICK_REQUIRE(editor_project_hitbox_add(&project, front) != NULL);
+    EditorHitbox *top_box = &front->hitboxes[1];
+    top_box->vertex_count = 4;
+    for(size_t i = 0; i < 4; i += 1)
+        top_box->vertices[i].position = front->hitboxes[0].vertices[i].position;
+    state.mode = EDITOR_VIEWPORT_VERTEX;
+    state.selected_rigid_body = front->id;
+    state.selected_hitbox = front->hitboxes[0].id;
+    PICK_REQUIRE(picking_pointer_update(&project, &state,
+        (Position){center.x + 40, center.y - 40}, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_HITBOX &&
+        state.selected_hitbox == top_box->id && state.dragged_vertex < 0);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+
+    /* A higher content layer wins over rigid-body selection and origin controls. */
+    EditorSprite *sprite = editor_project_sprite_add(&project, object,
+        "cover", "unused.png");
+    PICK_REQUIRE(sprite != NULL);
+    sprite->size = (Scale){100, 100};
+    state.mode = EDITOR_VIEWPORT_ORIGIN;
+    state.selection = EDITOR_SELECTION_ORIGIN;
+    state.selected_origin_kind = EDITOR_ORIGIN_RIGID_BODY;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_SPRITE && hit.item == sprite->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selection == EDITOR_SELECTION_SPRITE && state.dragged_sprite);
+    (void)picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_RELEASED);
+    sprite->visible = false;
+
+    /* Unselected foreground geometry cannot start a background group drag. */
+    EditorSelectionRef group_back = {EDITOR_SELECTION_RIGID_BODY, object->id,
+        0, 0, back->id};
+    EditorSelectionRef group_sprite = {EDITOR_SELECTION_SPRITE, object->id,
+        0, 0, sprite->id};
+    PICK_REQUIRE(editor_viewport_selection_set(&project, &state, group_back, false));
+    PICK_REQUIRE(editor_viewport_selection_set(&project, &state, group_sprite, true));
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(!state.group_dragging && state.selected_rigid_body == front->id);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+
+    /* Modifier presses obey the same winner and never toggle the obscured body. */
+    editor_viewport_selection_clear(&state);
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    state.selection = EDITOR_SELECTION_NONE;
+    state.selection_modifier = true;
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selected_item_count == 1 &&
+        state.selected_items[0].item == front->id);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    state.selection_modifier = false;
+    editor_viewport_selection_clear(&state);
+
+    /* Particle fills outside polygon geometry select their owner, while
+     * standalone particles retain their restricted editor mode. */
+    front->particle = true;
+    front->particle_radius = 80.0f;
+    Position particle_point = {center.x + 60, center.y};
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    state.selection = EDITOR_SELECTION_NONE;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, particle_point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_RIGID_BODY && hit.item == front->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, particle_point,
+        MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_RIGID_BODY && state.dragged_body);
+    (void)picking_pointer_update(&project, &state, particle_point, MOUSE_BUTTON_STATE_RELEASED);
+    front->standalone_particle = true;
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    state.selection = EDITOR_SELECTION_NONE;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, particle_point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_PARTICLE && hit.item == front->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, particle_point,
+        MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_PARTICLE && state.dragged_body);
+    (void)picking_pointer_update(&project, &state, particle_point, MOUSE_BUTTON_STATE_RELEASED);
+    front->particle = false;
+    front->standalone_particle = false;
+
+    /* Soft nodes and anchors use their rendered layers, including sibling order. */
+    EditorSoftBody *soft = editor_project_soft_body_add(&project, object);
+    PICK_REQUIRE(soft != NULL);
+    PICK_REQUIRE(editor_project_soft_node_add(&project, soft, (Position){25, 0}));
+    PICK_REQUIRE(editor_project_soft_node_add(&project, soft, (Position){25, 0}));
+    state.mode = EDITOR_VIEWPORT_SOFT_NODE;
+    state.selection = EDITOR_SELECTION_SOFT_NODE;
+    state.selected_soft_body = soft->id;
+    state.selected_soft_node = soft->nodes[0].id;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_SOFT_NODE && hit.item == soft->nodes[1].id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selected_soft_node == soft->nodes[1].id && state.dragged_soft_node);
+    editor_viewport_transform_cancel(&state);
+    PICK_REQUIRE(!editor_viewport_transform_active_check(&state));
+    EditorAnchor *anchor = editor_project_anchor_add(&project, object,
+        (Position){25, 0}, 0);
+    PICK_REQUIRE(anchor != NULL);
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_ANCHOR && hit.item == anchor->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selection == EDITOR_SELECTION_ANCHOR && state.dragged_anchor);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    anchor->visible = false;
+    soft->visible = false;
+
+    /* With the cover hidden, ordinary body-to-child double-click behavior remains. */
+    front->visible = false;
+    state.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    state.selection = EDITOR_SELECTION_RIGID_BODY;
+    state.selected_rigid_body = back->id;
+    state.last_viewport_click_selection = EDITOR_SELECTION_NONE;
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.dragged_body && state.mode == EDITOR_VIEWPORT_RIGID_BODY);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_HITBOX &&
+        state.selected_hitbox == back->hitboxes[0].id);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+
+    /* Project picking compares content layers first, hierarchy order second. */
+    front->visible = true;
+    EditorObjectId first_object = object->id;
+    EditorObject *second = editor_project_object_add(&project, (Position){0});
+    PICK_REQUIRE(second != NULL);
+    PICK_REQUIRE(editor_project_rigid_body_add(&project, second));
+    state.mode = EDITOR_VIEWPORT_HIERARCHY;
+    state.selection = EDITOR_SELECTION_OBJECT;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_OBJECT && hit.item == first_object);
+    PICK_REQUIRE(editor_project_sprite_add(&project, second, "front layer", "unused.png"));
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_OBJECT && hit.item == second->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(project.selected == second->id && state.dragged_project_object);
+    (void)picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_RELEASED);
+
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    return true;
+}
+
+static bool layout_render_order_picking_check(void) {
+    EditorProject project;
+    EditorViewportState state;
+    EditorSelectionRef hit;
+    Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorCamera *camera = editor_project_camera_add(&project, object);
+    EditorLayoutViewport *layout = editor_project_layout_viewport_add(&project);
+    PICK_REQUIRE(object != NULL && camera != NULL && layout != NULL);
+    PICK_REQUIRE(editor_viewport_camera_add(&project, layout, object->id, camera->id));
+    PICK_REQUIRE(editor_viewport_camera_add(&project, layout, object->id, camera->id));
+    EditorViewportUiItem *ui = editor_viewport_ui_add(&project, layout,
+        EDITOR_VIEWPORT_UI_SHAPE);
+    PICK_REQUIRE(ui != NULL);
+    layout->config.rectangle = (ViewportRectangle){0, 0, 200, 200};
+    layout->camera_items[0].placement.rectangle = (ViewportRectangle){-30, 10, 180, 100};
+    layout->camera_items[0].placement.layer = 10;
+    layout->camera_items[1].placement.rectangle = (ViewportRectangle){20, 0, 100, 160};
+    layout->camera_items[1].placement.orientation = 0.2f;
+    layout->camera_items[1].placement.layer = 30;
+    ui->position = (Position){40, 40};
+    ui->layer = 20;
+    Position point = {center.x + 60, center.y + 60};
+    state.mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
+    state.selected_layout_viewport = layout->id;
+    state.selected_viewport_ui_item = ui->id;
+    state.selection = EDITOR_SELECTION_UI_VERTEX;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+        hit.item == layout->camera_items[1].id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selected_viewport_camera_item == layout->camera_items[1].id &&
+        state.dragged_viewport_item && !state.dragged_viewport_vertex);
+    /* Capture stays with this screen when its layer changes while dragging. */
+    layout->camera_items[1].placement.layer = 0;
+    PICK_REQUIRE(picking_pointer_update(&project, &state,
+        (Position){point.x + 10, point.y}, MOUSE_BUTTON_STATE_DOWN));
+    PICK_REQUIRE(layout->camera_items[1].placement.rectangle.x == 30);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_UI_SHAPE && hit.item == ui->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selected_viewport_ui_item == ui->id && state.dragged_viewport_item);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    ui->visible = false;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.item == layout->camera_items[0].id);
+    layout->camera_items[0].placement.visible = false;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.item == layout->camera_items[1].id);
+    /* UI follows screens at equal layers; later UI siblings follow earlier ones. */
+    ui->visible = true;
+    ui->layer = 0;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_UI_SHAPE && hit.item == ui->id);
+    EditorViewportUiItem *second_ui = editor_viewport_ui_add(&project, layout,
+        EDITOR_VIEWPORT_UI_SHAPE);
+    PICK_REQUIRE(second_ui != NULL);
+    ui = &layout->ui_items[0];
+    second_ui->position = ui->position;
+    second_ui->layer = ui->layer;
+    state.mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
+    state.selected_viewport_ui_item = ui->id;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_UI_SHAPE && hit.item == second_ui->id);
+    PICK_REQUIRE(picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    PICK_REQUIRE(state.selected_viewport_ui_item == second_ui->id &&
+        !state.dragged_viewport_vertex && state.dragged_viewport_item);
+    (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
+    layout->enabled = false;
+    PICK_REQUIRE(!editor_viewport_selection_at_get(&project, &state, point, &hit));
+    PICK_REQUIRE(!picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_PRESSED));
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    return true;
+}
+#undef PICK_REQUIRE
+
 int main(void) {
+    if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
     if(!accordion_layout_metrics_check() ||
             !created_name_focus_mapping_check() ||
             !created_name_focus_replacement_check() ||

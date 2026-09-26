@@ -1012,6 +1012,10 @@ int main(void) {
         assert(body != NULL);
         local_vertex = body->hitboxes[0].vertices[0].position;
         body->position = (Position){100.0f, -150.0f};
+        /* Attached anchors render above the origin. Hide them to expose the
+         * origin for this transform-history test. */
+        for(size_t i = 0; i < object->anchor_count; i += 1)
+            object->anchors[i].visible = false;
         editor_history_reset(&history);
         editor_viewport_state_init(&viewport);
         viewport.mode = EDITOR_VIEWPORT_ORIGIN;
@@ -1041,6 +1045,8 @@ int main(void) {
         assert(body != NULL && body->position.x == 130.0f);
         assert(body->hitboxes[0].vertices[0].position.x == local_vertex.x &&
             body->hitboxes[0].vertices[0].position.y == local_vertex.y);
+        for(size_t i = 0; i < object->anchor_count; i += 1)
+            object->anchors[i].visible = true;
     }
 
     {

@@ -116,6 +116,20 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Temporary Milestone: Render-Ordered Viewport Picking
+
+Make visible draw order govern viewport selection so selected items and their
+children cannot capture clicks through covering content. This single-goal fix
+is explicitly selected before resuming the origin/COM milestone below.
+
+1. [x] **Resolve viewport input through the frontmost visible target** — Selection,
+   child editing, drag initiation, and context menus now share the frontmost
+   geometry check, honoring scene order and screen/UI composition layers.
+   Regression coverage verifies overlaps, hidden covers, sibling hitboxes and
+   soft nodes, modifier/group selection, particle restrictions, captured drags,
+   and undo/redo. Linux editor tests and Windows cross-compilation pass;
+   installed-SDK examples build and launch headlessly.
+
 ## Temporary Milestone: Particle-Enabled Rigid-Body Rotation Controls
 
 Restore editor rotation controls for ordinary rigid bodies with particle
