@@ -115,19 +115,6 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
                 "Appearance", false) ||
             !editor_mode_accordion_section_create(&editor->geometry_section, font,
                 "Geometry", false)) goto fail;
-    for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "body_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->body_names[i])) goto fail;
-        if(!editor_mode_text_create(font, name, &editor->parent_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_BODY_HITBOX_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "hitbox_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->hitbox_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < MAX_ANIMATIONS_FRAMES; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "frame_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->frame_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_rigid_body_editor_destroy(editor);

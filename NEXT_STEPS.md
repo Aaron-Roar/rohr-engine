@@ -116,6 +116,49 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Active Milestone: Consistent Origins, Center of Mass, and Inertia
+
+Make all origin-relative properties retain their local offsets. Support
+automatic or explicit COM, derive inertia, and keep runtime and authoring
+behavior equivalent. This implements current priority 3. The
+[physics origin contract](docs/physics_origin_contract.md) defines the agreed
+behavior and planned public API. This is a breaking change: rewrite affected
+projects and examples without legacy migration or automatic origin recentering.
+
+1. [x] **Document the physics and API contract** — Record origin, rotation,
+   COM, inertia, teleport, edit, and error semantics; specify matching direct
+   and public wrapper APIs; remove origin-to-centroid functionality from the
+   roadmap. Documentation only; runtime implementation remains pending.
+2. [ ] **Preserve origin-relative geometry and attachments** — Remove implicit
+   centroid subtraction; align collision, rendering, editor preview, and
+   attached points; retain particle and soft-body policies. Test off-center
+   shapes, rotation, anchors, and attachments; update affected fixtures.
+3. [ ] **Implement COM and inertia throughout runtime physics** — Add owned
+   automatic/explicit COM state and APIs, derive inertia, integrate COM motion,
+   and update contact, torque, and joint response together. Verify free motion,
+   geometry/mass edits, explicit offsets, body modes, locks, and solver response.
+4. [ ] **Persist and generate COM configuration** — Extend project data, JSON,
+   CLI, applicable runtime state persistence, loading, and generated C. Verify
+   mode/offset round trips, invalid input, deterministic generation, and direct
+   versus generated runtime behavior.
+5. [ ] **Expose COM authoring and visualization** — Add mode and local-offset
+   controls, derived inertia information, distinct origin/COM visualization,
+   undo/redo, duplication, persistence, and preview updates. Test interactions
+   and request visual verification without adding origin recentering.
+6. [ ] **Rewrite examples and verify milestone parity** — Rewrite affected
+   bundled projects/examples and regenerate runtime modules; demonstrate an
+   off-center body with explicit COM, rotation, and anchors. Complete integrated
+   regression and relevant sanitizer checks, Linux/Windows builds, installed-SDK
+   example build/run checks, and public documentation before marking priority 3
+   complete.
+
+Complete and verify one goal at a time, then stop for review and a user-created
+commit. Each goal includes focused tests and relevant example builds; update
+affected fixtures when behavior changes, without deferring known failures to
+goal 6. Cross-path implementation remains incomplete until goals 4 and 5 finish.
+Manual inertia, force-emitter tooling, and the broader attachment API redesign
+are outside this milestone.
+
 ## 1. Shared Render Attachment Model
 
 This is first because sprites already expose body-specific APIs, and the same
@@ -139,11 +182,16 @@ camera or debug visualization of physical bodies.
 
 - Add an explicit rigid-body center of mass used by integration, torque,
   contacts, joints, and debug rendering.
-- Author it relative to the stable local origin. When unspecified, calculate
-  the shape centroid as the automatic default.
-- Add an editor convenience action that moves the origin to the centroid.
-- Define how vertex, origin, and mass edits affect automatic versus explicit
-  centers of mass.
+- Author it as a local offset from the origin. When unspecified, calculate the
+  active shape centroid as the automatic default.
+- Keep local vertices, COM, and attached-point offsets unchanged when the
+  origin moves. Do not provide automatic origin recentering or an
+  origin-to-centroid action.
+- Recalculate automatic COM after active geometry edits; retain explicit COM
+  offsets. Derive inertia from supported geometry, mass, and effective COM,
+  without manual inertia authoring.
+- Follow the [physics origin contract](docs/physics_origin_contract.md) and the
+  active milestone above for public APIs, implementation order, and acceptance.
 - Test centroid defaults, explicit offsets, transformed bodies, and shape edits.
 
 ## 3. Force-at-Point and Torque Response

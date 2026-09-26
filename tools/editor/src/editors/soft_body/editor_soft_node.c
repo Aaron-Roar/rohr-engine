@@ -97,10 +97,6 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
                 "Collision", false) ||
             !editor_mode_accordion_section_create(&editor->appearance_section, font,
                 "Appearance", false)) goto fail;
-    for(size_t i = 0; i < EDITOR_SOFT_NODE_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "node_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->node_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_soft_node_editor_destroy(editor);

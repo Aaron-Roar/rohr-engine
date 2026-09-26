@@ -606,6 +606,39 @@ static void editor_operation_command_executing(const EditorProject *project,
     editor_history_command_begin(editor_operation_history, project, command);
 }
 
+static bool editor_command_named_text_invalidates(EditorCommandType type) {
+    switch(type) {
+        case EDITOR_COMMAND_OBJECT_ADD:
+        case EDITOR_COMMAND_OBJECT_RENAME:
+        case EDITOR_COMMAND_OBJECT_REMOVE:
+        case EDITOR_COMMAND_ITEM_ADD:
+        case EDITOR_COMMAND_ITEM_REMOVE:
+        case EDITOR_COMMAND_ITEM_RENAME:
+        case EDITOR_COMMAND_COLLISION_MASK_ADD:
+        case EDITOR_COMMAND_INPUT_CONTROLLER_ADD:
+        case EDITOR_COMMAND_INPUT_CONTROLLER_REMOVE:
+        case EDITOR_COMMAND_INPUT_CONTROLLER_SET:
+        case EDITOR_COMMAND_INPUT_ACTION_ADD:
+        case EDITOR_COMMAND_INPUT_ACTION_REMOVE:
+        case EDITOR_COMMAND_INPUT_ACTION_SET:
+        case EDITOR_COMMAND_INPUT_BINDING_ADD:
+        case EDITOR_COMMAND_INPUT_BINDING_REMOVE:
+        case EDITOR_COMMAND_INPUT_BINDING_SET:
+        case EDITOR_COMMAND_SPRITE_ADD:
+        case EDITOR_COMMAND_SPRITE_REMOVE:
+        case EDITOR_COMMAND_SPRITE_RENAME:
+        case EDITOR_COMMAND_ANIMATED_SPRITE_ADD:
+        case EDITOR_COMMAND_ANIMATED_SPRITE_REMOVE:
+        case EDITOR_COMMAND_ANIMATED_SPRITE_RENAME:
+        case EDITOR_COMMAND_ANIMATION_FRAME_ADD:
+        case EDITOR_COMMAND_ANIMATION_FRAME_REMOVE:
+        case EDITOR_COMMAND_ANIMATION_FRAME_RENAME:
+            return true;
+        default:
+            return false;
+    }
+}
+
 static void editor_operation_command_finished(const EditorCommand *command,
         const EditorCommandResult *result, void *context) {
     EditorNotificationPanel *notifications = context;
@@ -613,6 +646,9 @@ static void editor_operation_command_finished(const EditorCommand *command,
     if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
             command->type == EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET)
         editor_physics_settings_apply(editor_operation_project);
+    if(command != NULL && result != NULL && result->kind == ERROR_RESULT_VALUE &&
+            editor_command_named_text_invalidates(command->type))
+        editor_mode_named_text_clear_all();
     if(notifications != NULL && result != NULL &&
             result->kind == ERROR_RESULT_ERROR) {
         EditorResult error = {.kind = ERROR_RESULT_ERROR,
@@ -636,6 +672,10 @@ static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspac
             !editor_result_check(editor_workspace_command_cli_write(
                 workspace_command, command, sizeof(command))))
         editor_terminal_panel_operation_write(editor_operation_terminal, command);
+    if(!editor_result_check(result) &&
+            (workspace_command->type == EDITOR_WORKSPACE_COMMAND_CREATE ||
+                workspace_command->type == EDITOR_WORKSPACE_COMMAND_LOAD))
+        editor_mode_named_text_clear_all();
     return result;
 }
 
@@ -725,13 +765,21 @@ static bool editor_result_ok(EngineResult result) {
     return false;
 }
 
-static void editor_startup_failure_report(const char *stage) {
-    char message[512];
+static void editor_startup_failure_report(const char *stage, const char *detail) {
+    char message[1024];
     FILE *log;
     if(stage == NULL || stage[0] == '\0') stage = "unknown startup stage";
-    (void)snprintf(message, sizeof(message),
-        "Rohr GUI could not start during: %s\n"
-        "See rohr_gui_error.txt beside rohr-gui for details.", stage);
+    if(detail != NULL && detail[0] != '\0') {
+        (void)snprintf(message, sizeof(message),
+            "Rohr GUI could not start during: %s\n"
+            "Reason: %s\n"
+            "See rohr_gui_error.txt beside rohr-gui for details.", stage,
+            detail);
+    } else {
+        (void)snprintf(message, sizeof(message),
+            "Rohr GUI could not start during: %s\n"
+            "See rohr_gui_error.txt beside rohr-gui for details.", stage);
+    }
     fprintf(stderr, "%s\n", message);
     fflush(stderr);
     log = fopen("rohr_gui_error.txt", "wb");
@@ -1026,29 +1074,12 @@ static bool editor_text_create(
     const char *value,
     TextAsset *text
 ) {
-    TextAssetResult result;
-
-    if(font == NULL || value == NULL || text == NULL) return false;
-    result = rohr_graphics_text_create(font, value, (Color){230, 234, 242, 255});
-    if(rohr_error_check(result)) {
-        fprintf(stderr, "error %d: %s\n", (int)result.result.error,
-            rohr_error_message_get(result));
-        return false;
-    }
-    *text = result.result.value;
-    return true;
+    return editor_mode_text_create(font, value, text);
 }
 
 static bool editor_named_text_sync(FontAsset *font, const char *name,
     TextAsset *text, char *cache, size_t capacity) {
-    if(font == NULL || name == NULL || text == NULL || cache == NULL || capacity == 0) {
-        return false;
-    }
-    if(strcmp(cache, name) == 0) return true;
-    rohr_graphics_text_destroy(text);
-    if(!editor_text_create(font, name, text)) return false;
-    snprintf(cache, capacity, "%s", name);
-    return true;
+    return editor_mode_named_text_sync(font, name, text, cache, capacity);
 }
 
 static void editor_hex_color_format(char output[10], uint32_t color) {
@@ -2380,8 +2411,10 @@ static bool editor_open_item_delete(
     if(!editor_navigation_open_item_selection_set(viewport_state)) return false;
     return editor_selected_delete(project, viewport_state);
 }
-int main(void) {
+int main(int argc, char **argv) {
     const char *startup_stage = "editor history initialization";
+    bool startup_check = argc == 2 && argv != NULL &&
+        strcmp(argv[1], "--startup-check") == 0;
     UIPointerState pointer_state = {0};
     float viewport_wheel_y = 0.0f;
     FontAsset font = {0};
@@ -2488,7 +2521,7 @@ int main(void) {
     EditorObjectId sprite_browser_object = 0;
     EditorAnimatedSpriteId animation_browser_sprite = 0;
     char startup_directory[EDITOR_FILE_BROWSER_PATH_MAX] = {0};
-    bool running = true;
+    bool running = !startup_check;
     bool field_editing = false;
     bool panel_resizing = false;
     bool terminal_resizing = false;
@@ -2597,6 +2630,7 @@ int main(void) {
         notification_font = result.result.value;
     }
     startup_stage = "editor controls creation";
+    editor_mode_text_error_clear();
     if(!editor_text_create(&font, "File", &file_label) ||
             !editor_text_create(&font, "Edit", &edit_label) ||
             !editor_text_create(&font, "Undo    Ctrl+Z", &undo_label) ||
@@ -2687,7 +2721,9 @@ int main(void) {
     if(!editor_visual_settings_panel_state_set(&visual_settings_panel,
             &gui_state, gui_state_path)) goto fail;
     terminal_panel.visible = true;
-    if(!editor_terminal_panel_project_open(&terminal_panel, startup_directory)) {
+    if(!startup_check &&
+            !editor_terminal_panel_project_open(&terminal_panel,
+                startup_directory)) {
         terminal_panel.visible = false;
         editor_notification_panel_push(&notification_panel, "Terminal - FAIL",
             "The embedded terminal could not start. The editor remains usable. "
@@ -2723,6 +2759,7 @@ int main(void) {
                 if(shortcut.restored) {
                     rohr_ui_field_focus_clear();
                     field_editing = false;
+                    editor_mode_named_text_clear_all();
                     if(!editor_history_last_restore_ui_check(&history))
                         editor_navigation_state_apply(
                             &project, &viewport_state, &project.navigation);
@@ -4174,6 +4211,7 @@ int main(void) {
                 editor_hidden_build_cancel(&hidden_build_process,
                     &hidden_compile_pending);
                 editor_workspace_close(&workspace, &project);
+                editor_mode_named_text_clear_all();
                 editor_app_state_transition(&app_state,
                     EDITOR_APP_STATE_PROJECT_LAUNCHER);
                 (void)editor_terminal_panel_project_open(
@@ -4248,6 +4286,7 @@ int main(void) {
                         editor_hidden_build_cancel(&hidden_build_process,
                             &hidden_compile_pending);
                         editor_workspace_close(&workspace, &project);
+                        editor_mode_named_text_clear_all();
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_PROJECT_LAUNCHER);
                         (void)editor_terminal_panel_project_open(
@@ -4273,6 +4312,7 @@ int main(void) {
                     editor_hidden_build_cancel(&hidden_build_process,
                         &hidden_compile_pending);
                     editor_workspace_close(&workspace, &project);
+                    editor_mode_named_text_clear_all();
                     editor_app_state_transition(&app_state,
                         EDITOR_APP_STATE_PROJECT_LAUNCHER);
                     (void)editor_terminal_panel_project_open(
@@ -4795,6 +4835,7 @@ int main(void) {
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);
     editor_operation_history = NULL;
+    editor_mode_named_text_clear_all();
     editor_viewport_state_destroy(&viewport_state);
     editor_viewport_assets_destroy();
     editor_history_destroy(&history);
@@ -4890,7 +4931,8 @@ int main(void) {
     return 0;
 
 fail:
-    editor_startup_failure_report(startup_stage);
+    editor_startup_failure_report(startup_stage, editor_mode_text_error_get());
+    editor_mode_named_text_clear_all();
     editor_viewport_assets_destroy();
     editor_command_executed_callback_set(NULL, NULL);
     editor_command_executing_callback_set(NULL, NULL);

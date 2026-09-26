@@ -36,18 +36,6 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
             "Transform", true) ||
             !editor_mode_accordion_section_create(&editor->attachment_section, font,
                 "Attachment", false)) goto fail;
-    for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "anchor_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->anchor_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_RIGID_BODY_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "body_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->body_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "node_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->node_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_anchor_editor_destroy(editor);

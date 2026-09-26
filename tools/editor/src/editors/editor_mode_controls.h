@@ -66,8 +66,12 @@ typedef struct EditorModeLayerControl {
     bool adding;
 } EditorModeLayerControl;
 
-bool editor_mode_text_create(FontAsset *font, const char *value,
+bool editor_mode_text_create(const FontAsset *font, const char *value,
     TextAsset *output);
+bool editor_mode_text_create_color(const FontAsset *font, const char *value,
+    Color color, TextAsset *output);
+void editor_mode_text_error_clear(void);
+const char *editor_mode_text_error_get(void);
 bool editor_mode_accordion_section_create(EditorModeAccordionSection *section,
     FontAsset *font, const char *title, bool expanded);
 void editor_mode_accordion_section_destroy(EditorModeAccordionSection *section);
@@ -125,6 +129,9 @@ bool editor_mode_color_swatch(const char *id, uint32_t *color, bool disabled,
     EditorPropertyKind property);
 bool editor_mode_named_text_sync(FontAsset *font, const char *name,
     TextAsset *label, char *cache, size_t cache_capacity);
+void editor_mode_named_text_destroy(TextAsset *label, char *cache,
+    size_t cache_capacity);
+void editor_mode_named_text_clear_all(void);
 bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required);
 void editor_mode_text_cache_destroy(EditorModeTextCache *cache);
 UIFieldResult editor_mode_name_field(const char *id, char *name,

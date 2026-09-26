@@ -85,14 +85,6 @@ bool editor_soft_area_editor_create(EditorSoftAreaEditor *editor,
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label); CREATE("Surface", surface_label);
 #undef CREATE
-    for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "area_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->area_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "beam_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->beam_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_soft_area_editor_destroy(editor);

@@ -4,6 +4,11 @@ Rohr provides a standard 2D physics pipeline and exposes its stages for games
 that need custom orchestration. Most games should call
 `rohr_system_physics_update(dt)` or `rohr_physics_pipeline_update(dt)`.
 
+The planned breaking changes to origin-relative geometry, center of mass, and
+derived inertia are specified in the
+[origin and COM contract](physics_origin_contract.md). That contract describes
+the target behavior; its new APIs are not yet implemented.
+
 ## Standard pipeline
 
 Each configured substep executes:

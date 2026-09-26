@@ -81,14 +81,6 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
                 "Connections", false) ||
             !editor_mode_accordion_section_create(&editor->parameters_section, font,
                 "Parameters", false)) goto fail;
-    for(size_t i = 0; i < EDITOR_JOINT_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "joint_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->joint_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_ANCHOR_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "anchor_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->anchor_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_joint_editor_destroy(editor);

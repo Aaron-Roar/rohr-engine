@@ -68,14 +68,6 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
     CREATE("", damping_field); CREATE("", thickness_field);
 #undef CREATE
-    for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "beam_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->beam_names[i])) goto fail;
-    }
-    for(size_t i = 0; i < EDITOR_SOFT_NODE_MAX; i += 1) {
-        char name[32]; snprintf(name, sizeof(name), "node_%zu", i + 1);
-        if(!editor_mode_text_create(font, name, &editor->node_names[i])) goto fail;
-    }
     return true;
 fail:
     editor_soft_beam_editor_destroy(editor);

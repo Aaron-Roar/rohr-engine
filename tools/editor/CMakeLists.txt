@@ -69,6 +69,12 @@ install(TARGETS rohr_editor_gui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_BINDIR}/assets)
 
 if(ROHR_BUILD_TESTS)
+    add_test(NAME editor_gui_startup
+        COMMAND rohr_editor_gui --startup-check)
+    set_tests_properties(editor_gui_startup PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+        TIMEOUT 15)
+
     add_executable(editor_app_state_test
         tests/editor_app_state.c
         src/states/editor_app_state.c

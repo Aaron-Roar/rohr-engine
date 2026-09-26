@@ -12,15 +12,54 @@
 
 static float editor_mode_accordion_measured_bottom;
 static const char *editor_mode_pending_field_focus;
+static char editor_mode_text_error[512];
 
-bool editor_mode_text_create(FontAsset *font, const char *value,
-        TextAsset *output) {
+typedef struct EditorModeNamedTextEntry {
+    TextAsset *label;
+    char *cache;
+    size_t cache_capacity;
+} EditorModeNamedTextEntry;
+
+static EditorModeNamedTextEntry editor_mode_named_text_entries[MAX_TEXT_ASSETS];
+
+static void editor_mode_text_error_set(const char *message) {
+    snprintf(editor_mode_text_error, sizeof(editor_mode_text_error), "%s",
+        message == NULL || message[0] == '\0' ? "unknown text creation failure" :
+        message);
+}
+
+void editor_mode_text_error_clear(void) {
+    editor_mode_text_error[0] = '\0';
+}
+
+const char *editor_mode_text_error_get(void) {
+    return editor_mode_text_error[0] == '\0' ? NULL : editor_mode_text_error;
+}
+
+bool editor_mode_text_create_color(const FontAsset *font, const char *value,
+        Color color, TextAsset *output) {
     TextAssetResult result;
-    if(font == NULL || value == NULL || output == NULL) return false;
-    result = rohr_graphics_text_create(font, value, (Color){230, 234, 242, 255});
-    if(rohr_error_check(result)) return false;
+    char message[512];
+    if(font == NULL || value == NULL || output == NULL) {
+        editor_mode_text_error_set("invalid editor text creation arguments");
+        return false;
+    }
+    result = rohr_graphics_text_create(font, value, color);
+    if(rohr_error_check(result)) {
+        snprintf(message, sizeof(message), "error %d: %s",
+            (int)result.result.error, rohr_error_message_get(result));
+        editor_mode_text_error_set(message);
+        fprintf(stderr, "%s\n", message);
+        return false;
+    }
     *output = result.result.value;
     return true;
+}
+
+bool editor_mode_text_create(const FontAsset *font, const char *value,
+        TextAsset *output) {
+    return editor_mode_text_create_color(font, value,
+        (Color){230, 234, 242, 255}, output);
 }
 
 static bool editor_mode_accordion_label_sync(EditorModeAccordionSection *section) {
@@ -659,14 +698,57 @@ bool editor_mode_named_text_sync(FontAsset *font,
         TextAsset *label,
         char *cache,
         size_t cache_capacity) {
+    EditorModeNamedTextEntry *entry = NULL;
     if(font == NULL || name == NULL || label == NULL || cache == NULL ||
             cache_capacity == 0) return false;
-    if(strncmp(cache, name, cache_capacity) == 0) return true;
+    for(size_t i = 0; i < MAX_TEXT_ASSETS; i += 1) {
+        if(editor_mode_named_text_entries[i].label == label) {
+            entry = &editor_mode_named_text_entries[i];
+            break;
+        }
+        if(entry == NULL && editor_mode_named_text_entries[i].label == NULL)
+            entry = &editor_mode_named_text_entries[i];
+    }
+    if(entry == NULL) {
+        editor_mode_text_error_set("editor named-text cache capacity exceeded");
+        return false;
+    }
+    entry->label = label;
+    entry->cache = cache;
+    entry->cache_capacity = cache_capacity;
+    if(rohr_graphics_text_valid_check(*label) &&
+            strncmp(cache, name, cache_capacity) == 0) return true;
     if(!rohr_graphics_text_valid_check(*label)) {
         if(!editor_mode_text_create(font, name, label)) return false;
-    } else if(!rohr_graphics_text_value_set(label, name)) return false;
+    } else if(!rohr_graphics_text_value_set(label, name)) {
+        editor_mode_text_error_set("editor text value update failed");
+        return false;
+    }
     snprintf(cache, cache_capacity, "%s", name);
     return true;
+}
+
+void editor_mode_named_text_destroy(TextAsset *label, char *cache,
+        size_t cache_capacity) {
+    if(label == NULL || cache == NULL || cache_capacity == 0) return;
+    for(size_t i = 0; i < MAX_TEXT_ASSETS; i += 1) {
+        if(editor_mode_named_text_entries[i].label != label) continue;
+        editor_mode_named_text_entries[i] = (EditorModeNamedTextEntry){0};
+        break;
+    }
+    rohr_graphics_text_destroy(label);
+    memset(cache, 0, cache_capacity);
+}
+
+void editor_mode_named_text_clear_all(void) {
+    for(size_t i = 0; i < MAX_TEXT_ASSETS; i += 1) {
+        EditorModeNamedTextEntry *entry = &editor_mode_named_text_entries[i];
+        if(entry->label == NULL) continue;
+        rohr_graphics_text_destroy(entry->label);
+        if(entry->cache != NULL && entry->cache_capacity > 0)
+            memset(entry->cache, 0, entry->cache_capacity);
+        *entry = (EditorModeNamedTextEntry){0};
+    }
 }
 
 bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required) {
@@ -695,7 +777,8 @@ bool editor_mode_text_cache_reserve(EditorModeTextCache *cache, size_t required)
 void editor_mode_text_cache_destroy(EditorModeTextCache *cache) {
     if(cache == NULL) return;
     for(size_t i = 0; i < cache->capacity; i += 1)
-        rohr_graphics_text_destroy(&cache->labels[i]);
+        editor_mode_named_text_destroy(&cache->labels[i], cache->values[i],
+            EDITOR_OBJECT_NAME_MAX);
     free(cache->labels);
     free(cache->values);
     *cache = (EditorModeTextCache){0};
