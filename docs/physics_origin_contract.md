@@ -2,9 +2,10 @@
 
 This is the agreed implementation contract for the **consistent origins,
 center of mass, and inertia** milestone in [the roadmap](../NEXT_STEPS.md).
-Goal 1 documents the contract only. The new APIs and behavior below are planned;
-they are not available until the corresponding implementation goals complete.
-The current runtime still recenters polygon transforms on their centroid.
+Goals 1 and 2 document the contract and implement origin-relative geometry and
+attachment preservation. COM state, integration, and the new APIs below remain
+planned until their corresponding implementation goals complete. The current
+runtime transforms vertices directly from the origin without recentering.
 
 ## Coordinates and mutation
 

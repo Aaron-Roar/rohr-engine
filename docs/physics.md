@@ -4,10 +4,30 @@ Rohr provides a standard 2D physics pipeline and exposes its stages for games
 that need custom orchestration. Most games should call
 `rohr_system_physics_update(dt)` or `rohr_physics_pipeline_update(dt)`.
 
-The planned breaking changes to origin-relative geometry, center of mass, and
-derived inertia are specified in the
-[origin and COM contract](physics_origin_contract.md). That contract describes
-the target behavior; its new APIs are not yet implemented.
+The [origin and COM contract](physics_origin_contract.md) specifies this
+milestone's behavior. Origin-relative geometry is implemented; explicit COM,
+COM integration, and the new COM/inertia APIs remain planned for later goals.
+
+## Origin-relative geometry
+
+Hitbox vertices are local offsets from the entity origin. World geometry is
+`origin + rotated local vertex`, without implicit centroid subtraction. Moving
+the origin preserves local vertices, particle-center offsets, and attached
+anchor/visual offsets. Existing attachment inheritance settings still apply.
+Direct orientation edits rotate geometry around the origin. Position edits do
+not derive impulses or change stored linear/angular velocities.
+
+`rohr_physics_global_hit_box_get()` uses the current transform immediately,
+including before the next physics tick, so hitbox drawing reflects edits.
+Overlap/contact history still updates through the physics pipeline. Soft-body
+origin edits move the node group while retaining its current local offsets.
+Particles retain their restriction against simulated angular motion.
+
+This breaks the former implicit polygon recentering behavior. Rewrite authored
+vertices or placement explicitly where an existing project relied on it; there
+is no legacy compensation or origin-recentering operation. COM-based simulation
+and solver lever arms are separate work in Goal 3; off-center geometry alone
+does not yet change the runtime's origin-based integration.
 
 ## Standard pipeline
 

@@ -140,9 +140,9 @@ int main(void) {
     if(rohr_error_check(rohr_physics_hitbox_set(first, lower_triangle_get())) ||
             rohr_error_check(rohr_physics_hitbox_set(second, upper_triangle_get())) ||
             rohr_error_check(rohr_physics_position_set(
-                first, (Position){2.0f / 3.0f, 2.0f / 3.0f})) ||
+                first, (Position){0})) ||
             rohr_error_check(rohr_physics_position_set(
-                second, (Position){1.5f, 1.5f})) ||
+                second, (Position){0})) ||
             rohr_error_check(rohr_physics_static_set(first)) ||
             rohr_error_check(rohr_physics_static_set(second)) ||
             rohr_error_check(rohr_physics_particle_origin_set(

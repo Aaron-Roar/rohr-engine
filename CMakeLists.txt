@@ -612,6 +612,12 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(contact_manifold_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME contact_manifold COMMAND contact_manifold_test)
 
+    add_executable(origin_offsets_test tests/origin_offsets.c)
+    target_link_libraries(origin_offsets_test PRIVATE rohr_engine)
+    set_target_properties(origin_offsets_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME origin_offsets COMMAND origin_offsets_test)
+
     add_executable(concave_collision_test tests/concave_collision.c)
     target_include_directories(concave_collision_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -714,6 +720,7 @@ if(ROHR_BUILD_TESTS)
         ui_dropdown
         joints
         soft_body
+        auto_shape
         collision_sensor
         particle_collision_mode
         hitbox_animation_binding
@@ -722,6 +729,7 @@ if(ROHR_BUILD_TESTS)
         physics_interaction_set
         constraint_solver
         contact_manifold
+        origin_offsets
         rigid_contact_stability
         component_registry
         generated_components
@@ -748,6 +756,7 @@ if(ROHR_BUILD_TESTS)
         ui_dropdown_test
         joints_test
         soft_body_test
+        auto_shape_test
         collision_sensor_test
         particle_collision_mode_test
         hitbox_animation_binding_test
@@ -756,6 +765,7 @@ if(ROHR_BUILD_TESTS)
         physics_interaction_set_test
         constraint_solver_test
         contact_manifold_test
+        origin_offsets_test
         concave_collision_test
         rigid_contact_stability_test
         component_registry_test

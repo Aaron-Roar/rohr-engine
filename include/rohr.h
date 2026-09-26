@@ -676,8 +676,8 @@ EngineResult rohr_physics_dt_update(Time dt);
 
 /**
  * @brief Translates a local shape into world space.
- * @param shape Local shape to transform.
- * @param position World position.
+ * @param shape Shape with origin-relative local vertices; no recentering occurs.
+ * @param position World position of the local origin.
  * @param angle World orientation in radians.
  * @return World-space shape.
  */
@@ -887,7 +887,7 @@ EngineResult rohr_physics_group_entities_stop(GroupId group);
 EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse);
 
 /**
- * @brief Sets an entity position component value.
+ * @brief Sets the world origin while preserving local geometry and attachment offsets.
  * @param entity Entity to modify.
  * @param p Position value.
  * @return EngineResult describing success or failure.
@@ -1058,7 +1058,7 @@ EngineResult rohr_physics_angular_velocity_maximum_set(
 AngularVelocityResult rohr_physics_angular_velocity_maximum_get(Entity entity);
 
 /**
- * @brief Returns an entity hitbox transformed into world space.
+ * @brief Returns the active hitbox at the current origin and orientation, without waiting for a physics tick.
  * @param entity Entity to inspect.
  * @return ShapeResult containing the world-space hitbox, or an error.
  */

@@ -331,7 +331,9 @@ ShapeResult physics_global_hit_box_get(Entity entity) {
 
     if(entity_index_get(entity, &index) && entity_index_alive_check(index)) {
         if(entity_index_components_check(index, filter))
-            return ERROR_RESULT_MAKE_VALUE(ShapeResult, world_hit_boxes[index]);
+            return ERROR_RESULT_MAKE_VALUE(ShapeResult,
+                physics_shape_world_translate(hit_boxes[index],
+                    positions[index], orientations[index]));
         return ERROR_RESULT_MAKE_ERROR(ShapeResult, ERROR_ENGINE_COMPONENT_MISSING);
     }
     return ERROR_RESULT_MAKE_ERROR(ShapeResult, ERROR_ENGINE_INVALID_ENTITY);

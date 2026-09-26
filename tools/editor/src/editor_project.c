@@ -2091,31 +2091,8 @@ bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id
 
 bool editor_project_rigid_body_origin_set(EditorObject *object, EditorRigidBody *body,
     Position position) {
-    Vec2D world_delta;
-    Vec2D local_delta;
-    float cosine;
-    float sine;
-
     if(object == NULL || body == NULL) return false;
-    world_delta = (Vec2D){position.x - body->position.x,
-        position.y - body->position.y};
-    cosine = cosf(-body->rotation);
-    sine = sinf(-body->rotation);
-    local_delta = (Vec2D){world_delta.x * cosine - world_delta.y * sine,
-        world_delta.x * sine + world_delta.y * cosine};
     body->position = position;
-    for(size_t i = 0; i < body->hitbox_count; i += 1) {
-        for(uint32_t vertex = 0; vertex < body->hitboxes[i].vertex_count; vertex += 1) {
-            body->hitboxes[i].vertices[vertex].position.x -= local_delta.x;
-            body->hitboxes[i].vertices[vertex].position.y -= local_delta.y;
-        }
-    }
-    for(size_t i = 0; i < object->anchor_count; i += 1) {
-        EditorAnchor *anchor = &object->anchors[i];
-        if(anchor->rigid_body != body->id || !anchor->position_follows_body) continue;
-        anchor->position.x -= local_delta.x;
-        anchor->position.y -= local_delta.y;
-    }
     return true;
 }
 
@@ -2763,23 +2740,8 @@ bool editor_project_soft_body_remove(EditorObject *object, EditorSoftBodyId id) 
 }
 
 bool editor_project_soft_body_origin_set(EditorSoftBody *body, Position position) {
-    Vec2D world_delta;
-    Vec2D local_delta;
-    float cosine;
-    float sine;
-
     if(body == NULL) return false;
-    world_delta = (Vec2D){position.x - body->position.x,
-        position.y - body->position.y};
-    cosine = cosf(-body->rotation);
-    sine = sinf(-body->rotation);
-    local_delta = (Vec2D){world_delta.x * cosine - world_delta.y * sine,
-        world_delta.x * sine + world_delta.y * cosine};
     body->position = position;
-    for(size_t i = 0; i < body->node_count; i += 1) {
-        body->nodes[i].position.x -= local_delta.x;
-        body->nodes[i].position.y -= local_delta.y;
-    }
     return true;
 }
 

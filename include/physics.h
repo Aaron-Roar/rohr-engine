@@ -548,8 +548,8 @@ extern SoftBodyTrianglePool soft_body_triangles_pool;
 /**
  * Translate a local shape into world coordinates.
  *
- * @param shape Local-space shape.
- * @param position World position.
+ * @param shape Shape with origin-relative local vertices; no recentering occurs.
+ * @param position World position of the local origin.
  * @param angle World orientation in radians.
  * @return World-space shape.
  */
@@ -628,7 +628,7 @@ EngineResult physics_entity_stop(Entity entity);
 EngineResult physics_group_entities_stop(GroupId group);
 /** Apply an immediate linear impulse to an entity's velocity. */
 EngineResult physics_impulse_apply(Entity entity, Vec2D impulse);
-/** Set an entity's world position. */
+/** Set the world origin, preserving local geometry and attachment offsets. */
 EngineResult physics_position_set(Entity entity, Position p);
 PositionResult physics_position_get(Entity entity);
 /** Set an entity's mass and add the ROHR_MASS component. */
@@ -713,7 +713,7 @@ EngineResult physics_angular_velocity_set(Entity entity, AngularVelocity v);
 AngularVelocityResult physics_angular_velocity_get(Entity entity);
 EngineResult physics_angular_velocity_maximum_set(Entity entity, AngularVelocity maximum);
 AngularVelocityResult physics_angular_velocity_maximum_get(Entity entity);
-/** Get an entity's current world-space hitbox. */
+/** Return the active hitbox at the current origin and orientation. */
 ShapeResult physics_global_hit_box_get(Entity entity);
 /** Set an entity's collision restitution. */
 EngineResult physics_restitution_set(Entity entity, Restitution restitution);

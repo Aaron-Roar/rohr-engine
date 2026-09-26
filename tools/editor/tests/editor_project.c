@@ -1014,14 +1014,11 @@ int main(void) {
             strcmp(hitbox->line_names[0], "upper_edge") != 0) return 1;
     {
         Position local_before = hitbox->vertices[0].position;
-        Position world_before = {chassis->position.x + local_before.x,
-            chassis->position.y + local_before.y};
         if(!editor_project_rigid_body_origin_set(
                     object, chassis, (Position){5.0f, 7.0f}) ||
-                !position_equal((Position){chassis->position.x +
-                        hitbox->vertices[0].position.x,
-                    chassis->position.y + hitbox->vertices[0].position.y},
-                    world_before) || !editor_project_rigid_body_origin_set(
+                !position_equal(hitbox->vertices[0].position, local_before) ||
+                !position_equal(chassis->particle_origin, (Position){3, -4}) ||
+                !editor_project_rigid_body_origin_set(
                         object, chassis, (Position){0.0f, 0.0f})) return 1;
     }
     first = hitbox->vertices[0].position;
@@ -1128,7 +1125,9 @@ int main(void) {
         if(!position_equal((Position){soft_body->position.x +
                     node_b->position.x * cosine - node_b->position.y * sine,
                 soft_body->position.y + node_b->position.x * sine +
-                    node_b->position.y * cosine}, world_before)) return 1;
+                    node_b->position.y * cosine},
+                    (Position){world_before.x + 5, world_before.y + 5}) ||
+                !position_equal(node_b->position, (Position){20, 0})) return 1;
     }
     if(node_a->gravity_enabled || node_b->gravity_enabled) return 1;
     beam = editor_project_soft_beam_add(&project, soft_body, 0, 0);

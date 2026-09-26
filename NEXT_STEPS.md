@@ -128,11 +128,13 @@ projects and examples without legacy migration or automatic origin recentering.
 1. [x] **Document the physics and API contract** — Record origin, rotation,
    COM, inertia, teleport, edit, and error semantics; specify matching direct
    and public wrapper APIs; remove origin-to-centroid functionality from the
-   roadmap. Documentation only; runtime implementation remains pending.
-2. [ ] **Preserve origin-relative geometry and attachments** — Remove implicit
-   centroid subtraction; align collision, rendering, editor preview, and
-   attached points; retain particle and soft-body policies. Test off-center
-   shapes, rotation, anchors, and attachments; update affected fixtures.
+   roadmap. This goal changed documentation only.
+2. [x] **Preserve origin-relative geometry and attachments** — Removed implicit
+   centroid subtraction and editor origin compensation. Collision and rendering
+   now use origin-relative vertices; world-hitbox queries reflect edits before
+   the next tick. Local anchors, particle centers, attachments, and soft-body
+   node offsets are preserved. Off-center/rotated geometry, teleports, variants,
+   camera offsets, editor commands, and undo/redo have regression coverage.
 3. [ ] **Implement COM and inertia throughout runtime physics** — Add owned
    automatic/explicit COM state and APIs, derive inertia, integrate COM motion,
    and update contact, torque, and joint response together. Verify free motion,

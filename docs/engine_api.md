@@ -943,8 +943,8 @@ Translates a local shape into world space.
 
 | Parameter | Description |
 | --- | --- |
-| `shape` | Local shape to transform. |
-| `position` | World position. |
+| `shape` | Shape with origin-relative local vertices; no recentering occurs. |
+| `position` | World position of the local origin. |
 | `angle` | World orientation in radians. |
 
 **Returns:** World-space shape.
@@ -1302,7 +1302,7 @@ Applies an immediate linear impulse to an entity velocity.
 EngineResult rohr_physics_position_set(Entity entity, Position p);
 ```
 
-Sets an entity position component value.
+Sets the world origin while preserving local geometry and attachment offsets.
 
 | Parameter | Description |
 | --- | --- |
@@ -1638,7 +1638,7 @@ AngularVelocityResult rohr_physics_angular_velocity_maximum_get(Entity entity);
 ShapeResult rohr_physics_global_hit_box_get(Entity entity);
 ```
 
-Returns an entity hitbox transformed into world space.
+Returns the active hitbox at the current origin and orientation, without waiting for a physics tick.
 
 | Parameter | Description |
 | --- | --- |
@@ -2874,6 +2874,14 @@ TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *val
 
  @brief Creates reusable caller-owned text.
 
+### `rohr_graphics_text_wrap_width_set`
+
+```c
+bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
+```
+
+ @brief Sets text wrapping width; zero disables wrapping.
+
 ### `rohr_graphics_text_destroy`
 
 ```c
@@ -2889,14 +2897,6 @@ bool rohr_graphics_text_valid_check(TextAsset text);
 ```
 
  @brief Returns whether a text asset names a live public owner.
-
-### `rohr_graphics_text_wrap_width_set`
-
-```c
-bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
-```
-
- @brief Sets text wrapping width; zero disables wrapping.
 
 ### `rohr_graphics_text_draw`
 

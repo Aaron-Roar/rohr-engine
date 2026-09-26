@@ -266,7 +266,9 @@ accept six- or eight-digit hexadecimal colors.
 
 Rigid-body and soft-body editors show an origin and rotation handle. Dragging a
 body interior translates it. Dragging the rotation handle rotates it. Opening an
-origin editor allows moving the local origin without moving the authored shape.
+origin editor moves the body while preserving authored local offsets. Vertices,
+attached anchors, particle centers, and following visuals move with the new
+origin; soft-body nodes retain their local offsets as well.
 
 ## Hitboxes and rigid bodies
 

@@ -705,7 +705,8 @@ static int transform_commands_test(void) {
     object = editor_project_object_add(&project, (Position){0});
     rigid_body = editor_project_rigid_body_add(&project, object);
     hitbox = rigid_body == NULL ? NULL : &rigid_body->hitboxes[0];
-    anchor = editor_project_anchor_add(&project, object, (Position){0}, 0);
+    anchor = editor_project_anchor_add(&project, object, (Position){0},
+        rigid_body == NULL ? 0 : rigid_body->id);
     joint = editor_project_joint_add(&project, object, EDITOR_JOINT_SPRING);
     soft_body = editor_project_soft_body_add(&project, object);
     node = editor_project_soft_node_add(&project, soft_body, (Position){0});
@@ -746,7 +747,11 @@ static int transform_commands_test(void) {
                 strstr(cli_text, "rohr-cli ") != cli_text) return 1;
     }
     if(object->position.x != 1.0f || rigid_body->rotation != 0.5f ||
-            anchor->rotation != 0.75f || node->position.x == 0.0f ||
+            anchor->rotation != 0.75f ||
+            anchor->position.x != 7.0f || anchor->position.y != 8.0f ||
+            hitbox->vertices[0].position.x != 5.0f ||
+            hitbox->vertices[0].position.y != 6.0f ||
+            node->position.x != 11.0f || node->position.y != 12.0f ||
             project.viewport_camera_offset.x != 13.0f ||
             project.viewport_camera_zoom != 2.0f || !project.viewport_local_view) return 1;
     {

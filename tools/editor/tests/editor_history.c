@@ -951,8 +951,10 @@ int main(void) {
         EditorRigidBodyId body_id = body->id;
         Position grab;
         Position moved;
+        Position local_vertex;
         body = editor_project_rigid_body_get(object, body_id);
         assert(body != NULL);
+        local_vertex = body->hitboxes[0].vertices[0].position;
         body->position = (Position){100.0f, -150.0f};
         editor_history_reset(&history);
         editor_viewport_state_init(&viewport);
@@ -975,10 +977,14 @@ int main(void) {
         object = &project.objects[0];
         body = editor_project_rigid_body_get(object, body_id);
         assert(body != NULL && body->position.x == 100.0f);
+        assert(body->hitboxes[0].vertices[0].position.x == local_vertex.x &&
+            body->hitboxes[0].vertices[0].position.y == local_vertex.y);
         assert(editor_history_redo(&history));
         object = &project.objects[0];
         body = editor_project_rigid_body_get(object, body_id);
         assert(body != NULL && body->position.x == 130.0f);
+        assert(body->hitboxes[0].vertices[0].position.x == local_vertex.x &&
+            body->hitboxes[0].vertices[0].position.y == local_vertex.y);
     }
 
     {
@@ -986,11 +992,13 @@ int main(void) {
         EditorSoftBodyId body_id = soft_body->id;
         Position grab;
         Position moved;
+        Position local_node;
         soft_body = NULL;
         for(size_t i = 0; i < object->soft_body_count; i += 1)
             if(object->soft_body_items[i].id == body_id)
                 soft_body = &object->soft_body_items[i];
         assert(soft_body != NULL);
+        local_node = soft_body->nodes[0].position;
         soft_body->position = (Position){-100.0f, -150.0f};
         editor_history_reset(&history);
         editor_viewport_state_init(&viewport);
@@ -1016,6 +1024,8 @@ int main(void) {
             if(object->soft_body_items[i].id == body_id)
                 soft_body = &object->soft_body_items[i];
         assert(soft_body != NULL && soft_body->position.x == -100.0f);
+        assert(soft_body->nodes[0].position.x == local_node.x &&
+            soft_body->nodes[0].position.y == local_node.y);
         assert(editor_history_redo(&history));
         object = &project.objects[0];
         soft_body = NULL;
@@ -1023,6 +1033,8 @@ int main(void) {
             if(object->soft_body_items[i].id == body_id)
                 soft_body = &object->soft_body_items[i];
         assert(soft_body != NULL && soft_body->position.x == -70.0f);
+        assert(soft_body->nodes[0].position.x == local_node.x &&
+            soft_body->nodes[0].position.y == local_node.y);
     }
 
     {

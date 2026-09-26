@@ -12,13 +12,12 @@ Shape physics_shape_world_translate(
     Orientation angle
 ) {
     Shape world_shape = shape;
-    Position center = math_polygon_centroid(shape);
     float cosine = cosf(angle);
     float sine = sinf(angle);
 
     for(uint16_t i = 0; i < shape.amount_of_vertices; i += 1) {
-        float x = shape.vertices[i].x - center.x;
-        float y = shape.vertices[i].y - center.y;
+        float x = shape.vertices[i].x;
+        float y = shape.vertices[i].y;
 
         world_shape.vertices[i] = (Position){
             position.x + x * cosine - y * sine,
