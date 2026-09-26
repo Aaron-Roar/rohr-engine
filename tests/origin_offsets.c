@@ -19,7 +19,7 @@ static bool position_equal(Position a, Position b) {
 }
 
 static bool origin_offsets_test(void) {
-    const float quarter_turn = 1.57079632679f;
+    const float quarter_turn = -90.0f;
     Shape local = {.amount_of_vertices = 4,
         .vertices = {{2, 3}, {6, 3}, {6, 5}, {2, 5}}};
     const Position expected[] = {{7, 22}, {7, 26}, {5, 26}, {5, 22}};
@@ -142,9 +142,9 @@ static bool camera_offsets_test(void) {
     CHECK(!rohr_error_check(rohr_physics_position_set(body.result.value,
         (Position){10, 20})));
     CHECK(!rohr_error_check(rohr_physics_orientation_set(body.result.value,
-        1.57079632679f)));
+        -90.0f)));
     CHECK(!rohr_error_check(rohr_graphics_camera_attach(body.result.value,
-        (Position){2, 3}, 0.25f)));
+        (Position){2, 3}, -15.0f)));
     camera = rohr_camera_get(rohr_camera_active_get());
     CHECK(!rohr_error_check(camera) &&
         position_equal(camera.result.value.position, (Position){7, 22}));
@@ -156,7 +156,7 @@ static bool camera_offsets_test(void) {
         position_equal(camera.result.value.position, (Position){27, 42}));
     CHECK(!rohr_error_check(attachment) &&
         position_equal(attachment.result.value.position_offset, (Position){2, 3}));
-    CHECK(fabsf(camera.result.value.orientation - 1.82079632679f) < 0.001f);
+    CHECK(fabsf(camera.result.value.orientation + 105.0f) < 0.001f);
     rohr_graphics_camera_detach();
     return true;
 }

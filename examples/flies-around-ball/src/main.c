@@ -119,7 +119,6 @@ int main(void) {
     rohr_physics_orientation_set(ball, 0);
     rohr_physics_mass_set(ball, ball_mass);
     rohr_physics_velocity_set(ball, (Velocity){0, 0});
-    //set_angular_velocity(ball, 3);
     rohr_physics_acceleration_set(ball, (Acceleration){0, 0});
     rohr_physics_restitution_set(ball, 0.7);
     Shape ball_shape = rohr_math_circle_create(50, 4);
@@ -138,7 +137,9 @@ int main(void) {
         }
         Entity small_fly = small_fly_result.result.value;
         rohr_physics_position_set(small_fly, (Position){.x = rohr_tools_random_range(100, 400), .y = rohr_tools_random_range(0, 300)});
-        rohr_physics_orientation_set(small_fly, rohr_tools_random_range(0, 2*PI_F));
+        /* Keep the original discrete whole-radian headings, expressed in degrees. */
+        rohr_physics_orientation_set(small_fly,
+            -rohr_math_radians_to_degrees((float)rohr_tools_random_range(0, 6)));
         rohr_physics_mass_set(small_fly, 10);
         rohr_physics_velocity_set(small_fly, (Velocity){.x = rohr_tools_random_range(-10, 10), .y = rohr_tools_random_range(0, 100)});
         rohr_physics_acceleration_set(small_fly, (Acceleration){0, 0});
@@ -224,7 +225,7 @@ int main(void) {
             }
         }
         if(ticks_advanced > 0 && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_apply(ball, -turn_axis * ball_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply(ball, turn_axis * ball_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

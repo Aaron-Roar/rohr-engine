@@ -66,8 +66,8 @@ static void system_joint_torque_for_one_tick_add(Entity target, Torque torque) {
     if(!entity_index_components_check(target_index, ROHR_MASS) || mass[target_index] == 0.0f) {
         return;
     }
-    torque_angular_accelerations[target_index] += torque *
-        physics_inverse_inertia_by_index_get(target_index);
+    torque_angular_accelerations[target_index] += math_radians_to_degrees(torque *
+        physics_inverse_inertia_by_index_get(target_index));
     //Entity torque_entity = set_torque(target, torque);
 
     //if(torque_entity == 0) {
@@ -103,7 +103,7 @@ static void system_joint_force_at_point_for_one_tick_add(Entity target, Position
         .y = world_point.y - physics_com_world_by_index_get(target_index).y
     };
 
-    Torque torque = math_cross_2d(r, force);
+    Torque torque = -math_cross_2d(r, force);
 
     EntityResult torque_result = physics_torque_create(target, torque);
 
@@ -141,16 +141,16 @@ static void system_rigid_anchor_axis_solve(
     velocity_impulse = math_dot_product(velocity_error, axis) / effective_inverse_mass;
     positions[a].x += axis.x * position_impulse * inverse_mass_a;
     positions[a].y += axis.y * position_impulse * inverse_mass_a;
-    physics_com_orientation_set(a, orientations[a] + lever_a * position_impulse * inverse_inertia_a);
+    physics_com_orientation_set(a, orientations[a] - math_radians_to_degrees(lever_a * position_impulse * inverse_inertia_a));
     positions[b].x -= axis.x * position_impulse * inverse_mass_b;
     positions[b].y -= axis.y * position_impulse * inverse_mass_b;
-    physics_com_orientation_set(b, orientations[b] - lever_b * position_impulse * inverse_inertia_b);
+    physics_com_orientation_set(b, orientations[b] + math_radians_to_degrees(lever_b * position_impulse * inverse_inertia_b));
     velocities[a].x += axis.x * velocity_impulse * inverse_mass_a;
     velocities[a].y += axis.y * velocity_impulse * inverse_mass_a;
-    angular_velocities[a] += lever_a * velocity_impulse * inverse_inertia_a;
+    angular_velocities[a] -= math_radians_to_degrees(lever_a * velocity_impulse * inverse_inertia_a);
     velocities[b].x -= axis.x * velocity_impulse * inverse_mass_b;
     velocities[b].y -= axis.y * velocity_impulse * inverse_mass_b;
-    angular_velocities[b] -= lever_b * velocity_impulse * inverse_inertia_b;
+    angular_velocities[b] += math_radians_to_degrees(lever_b * velocity_impulse * inverse_inertia_b);
 }
 
 static void system_pin_joint_apply(Entity joint_entity) {
@@ -352,8 +352,8 @@ static void system_spring_joint_apply(Entity joint_entity) {
             .y = world_anchor_b.y - physics_com_world_by_index_get(b_index).y
         };
 
-        Torque torque_on_a = math_cross_2d(r_a, force_on_a);
-        Torque torque_on_b = math_cross_2d(r_b, force_on_b);
+        Torque torque_on_a = -math_cross_2d(r_a, force_on_a);
+        Torque torque_on_b = -math_cross_2d(r_b, force_on_b);
 
         system_joint_force_for_one_tick_add(a, force_on_a);
         system_joint_force_for_one_tick_add(b, force_on_b);

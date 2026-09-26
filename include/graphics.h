@@ -15,6 +15,11 @@
 #include "math2d.h"
 #include "math.h"
 
+/* All orientation fields and default scalar angles are clockwise degrees.
+ * World +Y points up; viewport/screen +Y points down. Zero preserves content.
+ * Explicit radians scalar APIs convert at their boundary; structs stay degrees.
+ */
+
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #define MAX_TEXTURES 50
@@ -78,7 +83,7 @@ typedef struct ViewportRectangle {
 typedef struct {
     /** World position shown at the center of the viewport. */
     Position position;
-    /** Counterclockwise world orientation in radians. */
+    /** Clockwise world orientation in degrees; zero keeps local +Y up. */
     Orientation orientation;
     /** Logical world-view dimensions before magnification. */
     Vec2D dimensions;
@@ -107,7 +112,7 @@ typedef struct {
      * or fixed position.
      */
     Vec2D position_offset;
-    /** Relative or fixed orientation in radians. */
+    /** Relative or fixed clockwise orientation in degrees. */
     Orientation orientation_offset;
     /** Whether the camera inherits the entity position. */
     bool follow_position;
@@ -528,6 +533,14 @@ bool graphics_screen_quad_draw(
     float angle,
     Color color
 );
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+bool graphics_screen_quad_radians_draw(
+    Position center,
+    float width,
+    float height,
+    float angle,
+    Color color
+);
 
 /** Present the current frame. */
 void graphics_show(void);
@@ -557,7 +570,13 @@ EngineResult graphics_texture_release(TextureAsset *asset);
 bool graphics_texture_valid_check(TextureAsset asset);
 void graphics_texture_draw(TextureAsset texture, Position position,
     Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void graphics_texture_radians_draw(TextureAsset texture, Position position,
+    Orientation orientation);
 void graphics_screen_texture_draw(TextureAsset texture, Position center,
+    Scale size, Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void graphics_screen_texture_radians_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation);
 
 /** Load or share a font and return one owning reference. */
@@ -588,6 +607,9 @@ bool graphics_text_valid_check(TextAsset text);
 bool graphics_text_draw(const TextAsset *text, Position position);
 bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale);
 bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+bool graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
 /** Load or share an immutable animation and return one owning reference. */
@@ -636,8 +658,13 @@ PositionResult graphics_sprite_body_offset_get(Entity entity);
 /** Set the orientation offset of an attached static sprite. */
 EngineResult graphics_sprite_orientation_offset_set(Entity entity,
     Orientation offset);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult graphics_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset);
 /** Get the orientation offset of an attached static sprite. */
 SpriteOrientationResult graphics_sprite_orientation_offset_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+SpriteOrientationResult graphics_sprite_orientation_offset_radians_get(Entity entity);
 
 /** Set the local position offset of an attached animated sprite. */
 EngineResult graphics_animated_sprite_body_offset_set(Entity entity,
@@ -647,8 +674,14 @@ PositionResult graphics_animated_sprite_body_offset_get(Entity entity);
 /** Set the orientation offset of an attached animated sprite. */
 EngineResult graphics_animated_sprite_orientation_offset_set(Entity entity,
     Orientation offset);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult graphics_animated_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset);
 /** Get the orientation offset of an attached animated sprite. */
 SpriteOrientationResult graphics_animated_sprite_orientation_offset_get(
+    Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+SpriteOrientationResult graphics_animated_sprite_orientation_offset_radians_get(
     Entity entity);
 
 /** Draw the static sprite attached to one entity. */
@@ -672,8 +705,10 @@ void graphics_textures_scale(Entity entity, Scale scale);
 /** Translate the active camera in world space. */
 void graphics_camera_move(Vec2D translation);
 
-/** Rotate the active camera counterclockwise by radians. */
-void graphics_camera_rotate(Orientation radians);
+/** Rotate the active camera clockwise by degrees. */
+void graphics_camera_rotate(Orientation degrees);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void graphics_camera_radians_rotate(Orientation radians);
 
 /**
  * Attach the camera to an entity transform.
@@ -686,9 +721,23 @@ EngineResult graphics_camera_attach(
     Vec2D position_offset,
     Orientation orientation_offset
 );
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult graphics_camera_radians_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset
+);
 
 /** Attach a camera with independent position and orientation following. */
 EngineResult graphics_camera_with_options_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult graphics_camera_with_options_radians_attach(
     Entity entity,
     Vec2D position_offset,
     Orientation orientation_offset,
@@ -713,6 +762,15 @@ CameraId graphics_camera_active_get(void);
 CameraResult graphics_camera_get(CameraId camera);
 EngineResult graphics_camera_set(CameraId camera, Camera value);
 EngineResult graphics_camera_attachment_set(
+    CameraId camera,
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult graphics_camera_attachment_radians_set(
     CameraId camera,
     Entity entity,
     Vec2D position_offset,

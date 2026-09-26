@@ -159,7 +159,7 @@ int main(void) {
     bodies[2] = body_create((Position){-55.0f, 30.0f}, (Vec2D){60.0f, 22.0f}, 2.0f, weld_category, true);
     bodies[3] = body_create((Position){-25.0f, 60.0f}, (Vec2D){60.0f, 22.0f}, 4.0f, weld_category, true);
     if(bodies[3] != ENTITY_INVALID &&
-            !result_ok(rohr_physics_orientation_set(bodies[3], PI_F * 0.5f))) goto fail;
+            !result_ok(rohr_physics_orientation_set(bodies[3], -90.0f))) goto fail;
     weld_joint = joint_entity_create();
     anchor_a = rohr_physics_joint_anchor_create(bodies[2], (Vec2D){30.0f, 0.0f});
     anchor_b = rohr_physics_joint_anchor_create(bodies[3], (Vec2D){-30.0f, 0.0f});
@@ -213,7 +213,7 @@ int main(void) {
             if(!result_ok(rohr_physics_force_apply(body, force)) ||
                     !result_ok(rohr_physics_torque_apply(
                         body,
-                        (throw_index % 2 == 0 ? 1.0f : -1.0f) * 1800.0f
+                        (throw_index % 2 == 0 ? -1.0f : 1.0f) * 1800.0f
                     ))) goto fail;
             throw_index += 1;
             next_throw += 1.5;

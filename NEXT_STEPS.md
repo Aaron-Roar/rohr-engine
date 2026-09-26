@@ -133,21 +133,35 @@ API/field inventory, conversion rules, format changes, and acceptance checks.
    and component storage, solver/rendering conversion boundaries, project/state
    version changes, example rewrite rules, and verification expectations.
    Documentation and inventory checks pass; runtime behavior is unchanged.
-2. [ ] **Implement engine conventions and API alternatives** — Update shared
-   math, angular physics, contacts, joints, soft bodies, attachments, cameras,
-   sprites, and viewport/UI rendering together. Add direct/public radians
-   siblings and conversion helpers, with focused behavior and platform checks.
-3. [ ] **Update authoring and persistence** — Update degree-based editor fields,
+2. [x] **Implement engine conventions and API alternatives** — Shared math,
+   angular physics, contacts, joints, soft bodies, attachments, cameras,
+   sprites, and viewport/UI rendering use clockwise degrees. Added all 24
+   direct/public radians siblings and conversion helpers, preserving physical
+   torque/inertia units and unwrapped angles. Linux and Windows engine/editor
+   builds and all 12 installed-SDK example builds pass; all 12 Linux examples
+   launch headlessly outside their source directories. Runtime tests pass
+   32/34 with the previously recorded cameras and ui_field failures unchanged;
+   all 10 focused ASan/UBSan tests pass. Windows verification is cross-compilation
+   only. Example appearance/motion repair follows in goal 3.
+3. [x] **Repair bundled example angles and controls** — Converted authored
+   runtime angles/rates and restored fly controls, wheel drive direction and
+   the 7 rad/s wheel limit. Repaired cameras, random headings, joint torques,
+   state assets, and the COM project's data/generated modules. Four focused
+   native tests pass; three example tests pass under ASan/UBSan. All 12
+   installed-SDK examples build on Linux and Windows and launch headlessly on
+   Linux; Windows verification is cross-compilation only. Bundled data uses
+   the new angular units while format-version changes remain goal 4.
+4. [ ] **Update authoring and persistence** — Update degree-based editor fields,
    continuous rotation controls, picking, undo/redo, CLI, project/state formats,
    and generated C. Reject old formats and verify round trips and runtime parity.
-4. [ ] **Rewrite examples and verify parity** — Rewrite bundled projects,
-   fixtures, and example code to preserve intended appearance and motion;
-   regenerate owned modules and finish public documentation, integrated tests,
-   sanitizers, installed-SDK example launches, and Linux/Windows builds.
+5. [ ] **Finish example migration and verify parity** — Move bundled projects
+   and fixtures to the new formats, regenerate owned modules, and finish
+   public documentation, integrated tests, sanitizers, installed-SDK example
+   launches, and Linux/Windows builds.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Existing runtime conventions remain until goal 2; engine/editor unit
-parity requires goal 3. Do not advance without explicit user instruction.
+commit. The runtime now uses clockwise degrees; engine/editor unit parity
+requires goal 4. Do not advance without explicit user instruction.
 
 ## Completed Milestone: Consistent Force and Torque API
 

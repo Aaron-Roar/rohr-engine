@@ -158,6 +158,7 @@ EngineResult physics_orientation_set(Entity entity, Orientation orientation) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(orientation)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
         result = physics_soft_body_origin_orientation_set(index, orientation);
         if(result.kind == ERROR_RESULT_ERROR) return result;
@@ -174,6 +175,7 @@ EngineResult physics_angular_velocity_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(velocity)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = physics_dynamic_set(entity);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     (void)AngularVelocityPool_store_at(
@@ -203,7 +205,7 @@ EngineResult physics_angular_velocity_maximum_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(maximum < 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!isfinite(maximum) || maximum < 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(AngularVelocityPool_store_at(
             &angular_velocity_maximums_pool, index, maximum).kind
             == ERROR_RESULT_ERROR)
@@ -231,6 +233,7 @@ EngineResult physics_angular_acceleration_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(acceleration)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = physics_dynamic_set(entity);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(AngularAccelerationPool_store_at(
@@ -238,4 +241,57 @@ EngineResult physics_angular_acceleration_set(
             == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     return error_result_value(true);
+}
+
+Shape physics_shape_world_radians_translate(Shape shape, Position position, Orientation angle) {
+    return physics_shape_world_translate(shape, position, math_radians_to_degrees(angle));
+}
+
+EngineResult physics_orientation_radians_set(Entity entity, Orientation angle) {
+    return physics_orientation_set(entity, math_radians_to_degrees(angle));
+}
+
+EngineResult physics_angular_velocity_radians_set(Entity entity, AngularVelocity v) {
+    return physics_angular_velocity_set(entity, math_radians_to_degrees(v));
+}
+
+AngularVelocityResult physics_angular_velocity_radians_get(Entity entity) {
+    AngularVelocityResult result = physics_angular_velocity_get(entity);
+    if(result.kind == ERROR_RESULT_VALUE)
+        result.result.value = math_degrees_to_radians(result.result.value);
+    return result;
+}
+
+EngineResult physics_angular_velocity_maximum_radians_set(Entity entity, AngularVelocity maximum) {
+    return physics_angular_velocity_maximum_set(entity, math_radians_to_degrees(maximum));
+}
+
+AngularVelocityResult physics_angular_velocity_maximum_radians_get(Entity entity) {
+    AngularVelocityResult result = physics_angular_velocity_maximum_get(entity);
+    if(result.kind == ERROR_RESULT_VALUE)
+        result.result.value = math_degrees_to_radians(result.result.value);
+    return result;
+}
+
+EngineResult physics_angular_acceleration_radians_set(
+        Entity entity,
+        AngularAcceleration acceleration
+) {
+    return physics_angular_acceleration_set(entity, math_radians_to_degrees(acceleration));
+}
+
+EngineResult physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max) {
+    return physics_angle_lock_set(entity, math_radians_to_degrees(min), math_radians_to_degrees(max));
+}
+
+EngineResult physics_transform_lock_radians_set(
+        Entity driven,
+        Entity driver,
+        Vec2D local_offset,
+        Orientation local_angle,
+        bool lock_position,
+        bool lock_orientation,
+        bool inherit_velocity
+) {
+    return physics_transform_lock_set(driven, driver, local_offset, math_radians_to_degrees(local_angle), lock_position, lock_orientation, inherit_velocity);
 }

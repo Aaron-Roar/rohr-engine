@@ -2,7 +2,7 @@
 
 An editable project comparing automatic COM (left) with explicit COM (right).
 Both bodies use the same rectangle, authored from local (20, 10) to (100, 50),
-mass 12, initial rotation 0.35 radians, angular velocity 0.8 radians/second,
+mass 12, initial rotation -20.053523 degrees, angular velocity -45.836624 degrees/second,
 zero linear velocity, and an anchor at local (100, 30).
 
 | Body | Local COM | Derived inertia |
@@ -15,7 +15,9 @@ anchors. During free rotation the COMs stay fixed while origins and anchors
 orbit. Collisions and gravity are disabled so the coordinate behavior is easy
 to observe. Escape closes the demo.
 
-Open this directory in the editor to change the body Physics properties.
+The runtime uses clockwise degrees. Editor angle controls and format-version
+migration are the next milestone goal; use the standalone demo for now.
+Once that goal is complete, open this directory in the editor to change the body Physics properties.
 Origin edits preserve all local offsets. Explicit COM edits move only COM;
 switching back to Automatic restores the geometry centroid. Editor orientation
 edits rotate around the origin; simulated rotation rotates around COM.

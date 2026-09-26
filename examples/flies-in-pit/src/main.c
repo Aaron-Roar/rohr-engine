@@ -12,6 +12,10 @@ const Mass large_fly_mass = 50.0f;
 const float large_fly_control_acceleration = 240.0f;
 const Torque large_fly_control_torque = 2000000.0f;
 
+static EngineResult fly_turn_apply(Entity fly, float turn_axis) {
+    return rohr_physics_torque_apply(fly, turn_axis * large_fly_control_torque);
+}
+
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
         rohr_error_message_get(engine_result))
@@ -196,7 +200,7 @@ int main(void) {
             }
         }
         if(ticks_advanced > 0 && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_apply(large_fly, -turn_axis * large_fly_control_torque);
+            EngineResult torque_result = fly_turn_apply(large_fly, turn_axis);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

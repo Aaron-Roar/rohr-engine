@@ -697,7 +697,7 @@ EngineResult rohr_graphics_animated_sprite_frame_index_set(Entity entity, size_t
 AnimationFrameIndexResult rohr_graphics_animated_sprite_frame_index_get(Entity entity) { return graphics_animated_sprite_frame_index_get(entity); }
 void rohr_graphics_textures_scale(Entity entity, Scale scale) { graphics_textures_scale(entity, scale); }
 void rohr_graphics_camera_move(Vec2D translation) { graphics_camera_move(translation); }
-void rohr_graphics_camera_rotate(Orientation radians) { graphics_camera_rotate(radians); }
+void rohr_graphics_camera_rotate(Orientation degrees) { graphics_camera_rotate(degrees); }
 EngineResult rohr_graphics_camera_attach(Entity entity, Vec2D position_offset, Orientation orientation_offset) { return graphics_camera_attach(entity, position_offset, orientation_offset); }
 EngineResult rohr_graphics_camera_with_options_attach(Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation) { return graphics_camera_with_options_attach(entity, position_offset, orientation_offset, follow_position, follow_orientation); }
 void rohr_graphics_camera_detach(void) { graphics_camera_detach(); }
@@ -876,3 +876,139 @@ UIButtonStyle rohr_ui_button_style_default_get(void) { return ui_button_style_de
 UISliderConfig rohr_ui_slider_config_default_get(void) { return ui_slider_config_default_get(); }
 UISliderResult rohr_ui_slider(const char *id, float value, const UISliderConfig *config) { return ui_slider(id, value, config); }
 UISliderResult rohr_ui_slider_with_text(const char *id, float value, const UISliderConfig *config, const UISliderText *text) { return ui_slider_with_text(id, value, config, text); }
+
+Vec2D rohr_math_vector_radians_rotate(Vec2D vector, float angle) {
+    return math_vector_radians_rotate(vector, angle);
+}
+
+Vec2D rohr_math_angular_velocity_radians_cross_vec(float omega, Vec2D r) {
+    return math_angular_velocity_radians_cross_vec(omega, r);
+}
+
+Shape rohr_physics_shape_world_radians_translate(Shape shape, Position position, Orientation angle) {
+    return physics_shape_world_radians_translate(shape, position, angle);
+}
+
+EngineResult rohr_physics_orientation_radians_set(Entity entity, Orientation angle) {
+    return physics_orientation_radians_set(entity, angle);
+}
+
+EngineResult rohr_physics_angular_velocity_radians_set(Entity entity, AngularVelocity v) {
+    return physics_angular_velocity_radians_set(entity, v);
+}
+
+AngularVelocityResult rohr_physics_angular_velocity_radians_get(Entity entity) {
+    return physics_angular_velocity_radians_get(entity);
+}
+
+EngineResult rohr_physics_angular_velocity_maximum_radians_set(
+    Entity entity,
+    AngularVelocity maximum
+) {
+    return physics_angular_velocity_maximum_radians_set(entity, maximum);
+}
+
+AngularVelocityResult rohr_physics_angular_velocity_maximum_radians_get(Entity entity) {
+    return physics_angular_velocity_maximum_radians_get(entity);
+}
+
+EngineResult rohr_physics_angular_acceleration_radians_set(
+    Entity entity,
+    AngularAcceleration acceleration
+) {
+    return physics_angular_acceleration_radians_set(entity, acceleration);
+}
+
+EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max) {
+    return physics_angle_lock_radians_set(entity, min, max);
+}
+
+EngineResult rohr_physics_transform_lock_radians_set(
+    Entity driven,
+    Entity driver,
+    Vec2D local_offset,
+    Orientation local_angle,
+    bool lock_position,
+    bool lock_orientation,
+    bool inherit_velocity
+) {
+    return physics_transform_lock_radians_set(driven, driver, local_offset, local_angle, lock_position, lock_orientation, inherit_velocity);
+}
+
+bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color) {
+    return graphics_screen_quad_radians_draw(center, width, height, angle, color);
+}
+
+void rohr_graphics_texture_radians_draw(TextureAsset texture, Position position,
+    Orientation orientation) {
+    graphics_texture_radians_draw(texture, position, orientation);
+}
+
+void rohr_graphics_screen_texture_radians_draw(TextureAsset texture, Position center,
+    Scale size, Orientation orientation) {
+    graphics_screen_texture_radians_draw(texture, center, size, orientation);
+}
+
+bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation) {
+    return graphics_screen_text_scaled_rotated_radians_draw(text, center, scale, orientation);
+}
+
+EngineResult rohr_graphics_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset) {
+    return graphics_sprite_orientation_offset_radians_set(entity, offset);
+}
+
+SpriteOrientationResult rohr_graphics_sprite_orientation_offset_radians_get(Entity entity) {
+    return graphics_sprite_orientation_offset_radians_get(entity);
+}
+
+EngineResult rohr_graphics_animated_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset) {
+    return graphics_animated_sprite_orientation_offset_radians_set(entity, offset);
+}
+
+SpriteOrientationResult rohr_graphics_animated_sprite_orientation_offset_radians_get(
+    Entity entity) {
+    return graphics_animated_sprite_orientation_offset_radians_get(entity);
+}
+
+void rohr_graphics_camera_radians_rotate(Orientation radians) {
+    graphics_camera_radians_rotate(radians);
+}
+
+EngineResult rohr_graphics_camera_radians_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset
+) {
+    return graphics_camera_radians_attach(entity, position_offset, orientation_offset);
+}
+
+EngineResult rohr_graphics_camera_with_options_radians_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+) {
+    return graphics_camera_with_options_radians_attach(entity, position_offset, orientation_offset, follow_position, follow_orientation);
+}
+
+EngineResult rohr_camera_radians_attach(
+    CameraId camera,
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+) {
+    return graphics_camera_attachment_radians_set(camera, entity, position_offset, orientation_offset, follow_position, follow_orientation);
+}
+
+void rohr_ui_radians_quad(Position center, float width, float height, float angle, Color color) {
+    ui_radians_quad(center, width, height, angle, color);
+}
+
+float rohr_math_degrees_to_radians(float degrees) { return math_degrees_to_radians(degrees); }
+float rohr_math_radians_to_degrees(float radians) { return math_radians_to_degrees(radians); }

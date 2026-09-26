@@ -120,13 +120,13 @@ EngineResult mass_demo_create(MassDemo *object, Position position) {
     EngineResult result;
     if(object == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
     *object = (MassDemo){0};
-    result = generated_body_create(&object->automatic_body, (Position){position.x + -200.000000f, position.y + -30.0000000f}, 0.349999994f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.800000012f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.800000012f, 0.150000006f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
+    result = generated_body_create(&object->automatic_body, (Position){position.x + -200.000000f, position.y + -30.0000000f}, -20.0535221f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, -45.8366241f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.800000012f, 0.150000006f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_center_of_mass_automatic_set(object->automatic_body);
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_hitbox_id_at_set(object->automatic_body, 0, UINT32_C(1));
     if(rohr_error_check(result)) goto fail;
-    result = generated_body_create(&object->explicit_body, (Position){position.x + 120.000000f, position.y + -30.0000000f}, 0.349999994f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, 0.800000012f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.349999994f, 0.00000000f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
+    result = generated_body_create(&object->explicit_body, (Position){position.x + 120.000000f, position.y + -30.0000000f}, -20.0535221f, (Velocity){0.00000000f, 0.00000000f}, (Acceleration){0.00000000f, 0.00000000f}, -45.8366241f, (Shape){.amount_of_vertices = 4, .vertices = {{100.000000f, 50.0000000f}, {100.000000f, 10.0000000f}, {20.0000000f, 10.0000000f}, {20.0000000f, 50.0000000f}}}, 12.0000000f, 0.349999994f, 0.00000000f, false, false, false, false, false, (Position){0.00000000f, 0.00000000f}, 44.7213593f, UINT64_C(1), UINT64_C(1));
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_center_of_mass_local_position_set(object->explicit_body, (Position){30.0000000f, 15.0000000f});
     if(rohr_error_check(result)) goto fail;

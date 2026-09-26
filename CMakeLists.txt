@@ -614,6 +614,31 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(contact_manifold_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME contact_manifold COMMAND contact_manifold_test)
 
+    add_executable(angles_test tests/angles.c)
+    target_link_libraries(angles_test PRIVATE rohr_engine)
+    set_target_properties(angles_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME angles COMMAND angles_test)
+
+    foreach(example_angle_case flies soft_body)
+        add_executable(example_${example_angle_case}_angles_test
+            tests/example_${example_angle_case}_angles.c
+            examples/cmake/example_viewport.c)
+        target_include_directories(example_${example_angle_case}_angles_test PRIVATE examples/cmake)
+        target_link_libraries(example_${example_angle_case}_angles_test PRIVATE rohr_engine)
+        set_target_properties(example_${example_angle_case}_angles_test PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+        add_test(NAME example_${example_angle_case}_angles
+            COMMAND example_${example_angle_case}_angles_test)
+        set_tests_properties(example_${example_angle_case}_angles PROPERTIES
+            WORKING_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    endforeach()
+    add_custom_command(TARGET example_flies_angles_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/flies-in-pit/assets
+            ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests/assets/flies-in-pit)
+
     add_executable(forces_test tests/forces.c)
     target_link_libraries(forces_test PRIVATE rohr_engine)
     set_target_properties(forces_test PROPERTIES
@@ -746,6 +771,7 @@ if(ROHR_BUILD_TESTS)
         origin_offsets
         center_of_mass
         forces
+        angles
         rigid_contact_stability
         component_registry
         generated_components
@@ -784,6 +810,9 @@ if(ROHR_BUILD_TESTS)
         origin_offsets_test
         center_of_mass_test
         forces_test
+        angles_test
+        example_flies_angles_test
+        example_soft_body_angles_test
         center_of_mass_persistence_test
         concave_collision_test
         rigid_contact_stability_test

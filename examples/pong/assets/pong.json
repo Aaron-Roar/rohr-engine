@@ -3,7 +3,7 @@
   "camera": {
     "transform": {
       "position": {"x": 0.0, "y": 0.0},
-      "orientation": -1.57079632679
+      "orientation": 90.0
     }
   },
   "entities": [

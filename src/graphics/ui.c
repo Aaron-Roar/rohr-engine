@@ -488,12 +488,12 @@ static float ui_clamp_unit(float value) {
 }
 
 static Vec2D ui_slider_axis(float angle) {
-    return (Vec2D){cosf(angle), -sinf(angle)};
+    return (Vec2D){cosf(math_degrees_to_radians(angle)), sinf(math_degrees_to_radians(angle))};
 }
 
 static bool ui_point_in_slider(Position point, const UISliderConfig *config) {
     Vec2D axis = ui_slider_axis(config->angle);
-    Vec2D perpendicular = {sinf(config->angle), cosf(config->angle)};
+    Vec2D perpendicular = {-sinf(math_degrees_to_radians(config->angle)), cosf(math_degrees_to_radians(config->angle))};
     Vec2D relative = {
         point.x - config->center.x,
         point.y - config->center.y,
@@ -523,7 +523,7 @@ static bool ui_point_in_oriented_square(
         float angle
 ) {
     Vec2D axis = ui_slider_axis(angle);
-    Vec2D perpendicular = {sinf(angle), cosf(angle)};
+    Vec2D perpendicular = {-sinf(math_degrees_to_radians(angle)), cosf(math_degrees_to_radians(angle))};
     Vec2D relative = {point.x - center.x, point.y - center.y};
     return fabsf(relative.x * axis.x + relative.y * axis.y) <= size * 0.5f
         && fabsf(relative.x * perpendicular.x + relative.y * perpendicular.y)
@@ -1536,4 +1536,8 @@ void ui_frame_end(void) {
     ui_context.field_text[0] = '\0';
     ui_context.wheel_y = 0.0f;
     ui_context.frame_active = false;
+}
+
+void ui_radians_quad(Position center, float width, float height, float angle, Color color) {
+    ui_quad(center, width, height, math_radians_to_degrees(angle), color);
 }

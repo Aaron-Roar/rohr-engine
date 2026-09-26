@@ -361,7 +361,7 @@ int main(void) {
     {
         Camera left_camera_value = {
             .position = {0.0f, field_camera_center_y},
-            .orientation = -PI_F * 0.5f,
+            .orientation = 90.0f,
             .dimensions = {field_camera_width, field_camera_height},
             .zoom = 1.0f,
         };
@@ -375,7 +375,7 @@ int main(void) {
         CameraConfig config = rohr_camera_config_default_get();
         CameraIdResult camera_result;
         config.position = (Position){0.0f, -field_camera_center_y};
-        config.orientation = -PI_F * 0.5f;
+        config.orientation = 90.0f;
         config.dimensions = (Vec2D){field_camera_width, field_camera_height};
         camera_result = rohr_camera_create(config);
         if(rohr_error_check(camera_result)) {

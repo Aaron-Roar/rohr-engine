@@ -184,7 +184,7 @@ typedef struct UISliderStyle {
 typedef struct UISliderConfig {
     Position center;
     float length;
-    /** Counterclockwise angle in logical screen-space radians. */
+    /** Clockwise angle in logical screen-space degrees. */
     float angle;
     float min_value;
     float max_value;
@@ -288,6 +288,8 @@ void ui_border(UIRect bounds, float thickness, Color color);
 void ui_content(const TextAsset *text, UIRect bounds);
 /** Draw an oriented rectangular primitive. */
 void ui_quad(Position center, float width, float height, float angle, Color color);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void ui_radians_quad(Position center, float width, float height, float angle, Color color);
 /** Begin and end a clipped UI component region. */
 bool ui_clip_begin(UIRect bounds);
 void ui_clip_end(void);

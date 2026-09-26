@@ -26,6 +26,11 @@
  * Include this header from application code to use the engine through the
  * stable `rohr_`-prefixed API. Entity ids are stable handles, not component
  * table indexes. Use the entity API to validate ids and resolve indexes.
+ * Angles and stored angular fields are clockwise degrees, with rates in
+ * degrees/second and degrees/second squared. Only explicitly named radians
+ * scalar APIs use radians. Zero preserves authored geometry and artwork;
+ * local +Y is the zero world heading. Values are not wrapped to one turn.
+ * Torque, angular impulse, and inertia retain their physical units.
  */
 
 /**
@@ -678,10 +683,12 @@ EngineResult rohr_physics_dt_update(Time dt);
  * @brief Translates a local shape into world space.
  * @param shape Shape with origin-relative local vertices; no recentering occurs.
  * @param position World position of the local origin.
- * @param angle World orientation in radians.
+ * @param angle World orientation in clockwise degrees.
  * @return World-space shape.
  */
 Shape rohr_physics_shape_world_translate(Shape shape, Position position, Orientation angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Shape rohr_physics_shape_world_radians_translate(Shape shape, Position position, Orientation angle);
 
 /**
  * @brief Calculates polygon moment of inertia.
@@ -729,6 +736,11 @@ EngineResult rohr_physics_acceleration_set(Entity entity, Acceleration a);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_angular_acceleration_set(
+    Entity entity,
+    AngularAcceleration acceleration
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_angular_acceleration_radians_set(
     Entity entity,
     AngularAcceleration acceleration
 );
@@ -888,8 +900,8 @@ EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse);
 
 /**
  * @brief Adds an immediate angular impulse about the effective COM.
- * Adds impulse / derived inertia to angular velocity without changing motion
- * type. Zero inverse inertia (including particles, static, held, kinematic,
+ * Adds degrees(impulse / derived inertia) to clockwise angular velocity without
+ * changing motion type. Zero inverse inertia (including particles, static, held, kinematic,
  * massless, geometryless, and fully rotation-locked bodies) is a successful
  * no-op. Nonfinite input or resulting velocity is rejected without mutation.
  * @param entity Body to modify.
@@ -1094,10 +1106,12 @@ bool rohr_physics_collision_between_check(Entity entity_1, Entity entity_2);
 /**
  * @brief Sets an entity orientation component value.
  * @param entity Entity to modify.
- * @param angle Orientation in radians.
+ * @param angle Orientation in clockwise degrees.
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_orientation_set(Entity entity, Orientation angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_orientation_radians_set(Entity entity, Orientation angle);
 
 /**
  * @brief Sets an entity angular velocity component value.
@@ -1106,21 +1120,32 @@ EngineResult rohr_physics_orientation_set(Entity entity, Orientation angle);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_angular_velocity_set(Entity entity, AngularVelocity v);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_angular_velocity_radians_set(Entity entity, AngularVelocity v);
 
 /**
  * @brief Returns an entity angular velocity.
  * @param entity Entity to inspect.
- * @return AngularVelocityResult containing radians per second, or an error.
+ * @return AngularVelocityResult containing clockwise degrees per second, or an error.
  */
 AngularVelocityResult rohr_physics_angular_velocity_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+AngularVelocityResult rohr_physics_angular_velocity_radians_get(Entity entity);
 
 /** Sets the absolute angular-velocity limit applied before orientation integration. */
 EngineResult rohr_physics_angular_velocity_maximum_set(
     Entity entity,
     AngularVelocity maximum
 );
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_angular_velocity_maximum_radians_set(
+    Entity entity,
+    AngularVelocity maximum
+);
 /** Returns an entity's configured absolute angular-velocity limit. */
 AngularVelocityResult rohr_physics_angular_velocity_maximum_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+AngularVelocityResult rohr_physics_angular_velocity_maximum_radians_get(Entity entity);
 
 /**
  * @brief Returns the active hitbox at the current origin and orientation, without waiting for a physics tick.
@@ -1182,11 +1207,13 @@ EngineResult rohr_physics_group_entities_unhold(GroupId group);
 /**
  * @brief Locks an entity orientation between minimum and maximum angles.
  * @param entity Entity to modify.
- * @param min Minimum orientation in radians.
- * @param max Maximum orientation in radians.
+ * @param min Minimum orientation in clockwise degrees.
+ * @param max Maximum orientation in clockwise degrees.
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_angle_lock_set(Entity entity, Orientation min, Orientation max);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max);
 
 /**
  * @brief Locks an entity position along an axis.
@@ -1217,6 +1244,16 @@ EngineResult rohr_physics_friction_set(Entity entity, float friction);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_transform_lock_set(
+    Entity driven,
+    Entity driver,
+    Vec2D local_offset,
+    Orientation local_angle,
+    bool lock_position,
+    bool lock_orientation,
+    bool inherit_velocity
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_physics_transform_lock_radians_set(
     Entity driven,
     Entity driver,
     Vec2D local_offset,
@@ -1662,6 +1699,8 @@ void rohr_graphics_screen_clip_pop(void);
 
 /** @brief Draws a centered rotated rectangle in logical screen space. */
 bool rohr_graphics_screen_quad_draw(Position center, float width, float height, float angle, Color color);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color);
 
 /**
  * @brief Presents the current graphics frame.
@@ -1748,7 +1787,13 @@ bool rohr_graphics_texture_valid_check(TextureAsset asset);
 /** Draws a loaded texture centered at a world position. */
 void rohr_graphics_texture_draw(TextureAsset texture, Position position,
     Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void rohr_graphics_texture_radians_draw(TextureAsset texture, Position position,
+    Orientation orientation);
 void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
+    Scale size, Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void rohr_graphics_screen_texture_radians_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation);
 
 /** @brief Loads or shares a font and returns one owning reference. */
@@ -1783,6 +1828,9 @@ bool rohr_graphics_text_draw(const TextAsset *text, Position position);
 bool rohr_graphics_text_scaled_draw(const TextAsset *text, Position position,
     Scale scale);
 bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
 /**
@@ -1851,13 +1899,24 @@ EngineResult rohr_graphics_sprite_body_offset_set(Entity entity, Position offset
 PositionResult rohr_graphics_sprite_body_offset_get(Entity entity);
 EngineResult rohr_graphics_sprite_orientation_offset_set(Entity entity,
     Orientation offset);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_graphics_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset);
 SpriteOrientationResult rohr_graphics_sprite_orientation_offset_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+SpriteOrientationResult rohr_graphics_sprite_orientation_offset_radians_get(Entity entity);
 EngineResult rohr_graphics_animated_sprite_body_offset_set(Entity entity,
     Position offset);
 PositionResult rohr_graphics_animated_sprite_body_offset_get(Entity entity);
 EngineResult rohr_graphics_animated_sprite_orientation_offset_set(Entity entity,
     Orientation offset);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_graphics_animated_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset);
 SpriteOrientationResult rohr_graphics_animated_sprite_orientation_offset_get(
+    Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+SpriteOrientationResult rohr_graphics_animated_sprite_orientation_offset_radians_get(
     Entity entity);
 bool rohr_graphics_sprite_draw(Entity entity);
 void rohr_graphics_sprites_draw(void);
@@ -1891,10 +1950,12 @@ void rohr_graphics_textures_scale(Entity entity, Scale scale);
 void rohr_graphics_camera_move(Vec2D translation);
 
 /**
- * @brief Rotates the active camera counterclockwise.
- * @param radians Rotation in radians to add.
+ * @brief Rotates the active camera clockwise.
+ * @param degrees Clockwise rotation in degrees to add.
  */
-void rohr_graphics_camera_rotate(Orientation radians);
+void rohr_graphics_camera_rotate(Orientation degrees);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void rohr_graphics_camera_radians_rotate(Orientation radians);
 
 /**
  * @brief Attaches the camera to an entity's position and orientation.
@@ -1904,10 +1965,16 @@ void rohr_graphics_camera_rotate(Orientation radians);
  *
  * @param entity Entity transform to follow.
  * @param position_offset Local-space position offset.
- * @param orientation_offset Orientation offset in radians.
+ * @param orientation_offset orientation offset in clockwise degrees.
  * @return EngineResult describing success or a missing transform.
  */
 EngineResult rohr_graphics_camera_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_graphics_camera_radians_attach(
     Entity entity,
     Vec2D position_offset,
     Orientation orientation_offset
@@ -1923,12 +1990,20 @@ EngineResult rohr_graphics_camera_attach(
  *
  * @param entity Entity to associate with the camera.
  * @param position_offset Relative offset or fixed world position.
- * @param orientation_offset Relative or fixed orientation in radians.
+ * @param orientation_offset Relative or fixed clockwise orientation in degrees.
  * @param follow_position Whether to inherit entity position.
  * @param follow_orientation Whether to inherit entity orientation.
  * @return EngineResult describing success or a missing required transform.
  */
 EngineResult rohr_graphics_camera_with_options_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_graphics_camera_with_options_radians_attach(
     Entity entity,
     Vec2D position_offset,
     Orientation orientation_offset,
@@ -1969,6 +2044,15 @@ CameraResult rohr_camera_get(CameraId camera);
 EngineResult rohr_camera_set(CameraId camera, Camera value);
 /** Attaches a camera to an entity transform. */
 EngineResult rohr_camera_attach(
+    CameraId camera,
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult rohr_camera_radians_attach(
     CameraId camera,
     Entity entity,
     Vec2D position_offset,
@@ -2176,6 +2260,12 @@ float rohr_math_cross_2d(Vec2D a, Vec2D b);
  * @return Tangential velocity vector.
  */
 Vec2D rohr_math_angular_velocity_cross_vec(float omega, Vec2D r);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Vec2D rohr_math_angular_velocity_radians_cross_vec(float omega, Vec2D r);
+/** Convert degrees to radians without sign changes or wrapping. */
+float rohr_math_degrees_to_radians(float degrees);
+/** Convert radians to degrees without sign changes or wrapping. */
+float rohr_math_radians_to_degrees(float radians);
 
 /**
  * @brief Projects a vector onto an axis.
@@ -2202,10 +2292,12 @@ float rohr_math_vector_magnitude(Vec2D vector);
 /**
  * @brief Rotates a vector by an angle.
  * @param vector Vector to rotate.
- * @param angle Angle in radians.
+ * @param angle Clockwise angle in degrees.
  * @return Rotated vector.
  */
 Vec2D rohr_math_vector_rotate(Vec2D vector, float angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Vec2D rohr_math_vector_radians_rotate(Vec2D vector, float angle);
 
 /**
  * @brief Calculates a circle radius from its shape and centroid.
@@ -2429,6 +2521,8 @@ void rohr_ui_border(UIRect bounds, float thickness, Color color);
 void rohr_ui_content(const TextAsset *text, UIRect bounds);
 /** @brief Draws an oriented UI rectangle primitive. */
 void rohr_ui_quad(Position center, float width, float height, float angle, Color color);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+void rohr_ui_radians_quad(Position center, float width, float height, float angle, Color color);
 /** @brief Begins and ends a clipped UI component region. */
 bool rohr_ui_clip_begin(UIRect bounds);
 void rohr_ui_clip_end(void);

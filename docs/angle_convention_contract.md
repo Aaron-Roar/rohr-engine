@@ -1,10 +1,12 @@
 # Clockwise angles and degree-default API contract
 
 This is the approved contract for the **clockwise angles with degrees by
-default** milestone in [the roadmap](../NEXT_STEPS.md). Goal 1 records the
-contract and inventory only. The runtime still uses its previous conventions
-until the implementation goals are completed; declarations below describe
-planned APIs, not functions already available.
+default** milestone in [the roadmap](../NEXT_STEPS.md). Goals 1 through 3 are
+implemented: the engine uses clockwise degrees and exposes the radians scalar
+APIs below. Goal 3 repaired bundled example angles and controls before
+authoring/persistence conversion in goal 4 and integrated parity in goal 5.
+Engine/editor unit parity is not yet ready
+for general project use.
 
 ## Coordinates, units, and zero
 
@@ -205,7 +207,7 @@ must agree. Continuous dragging accumulates signed pointer deltas across
 initial grab offset, one undo transaction, cancellation, and existing particle
 editing restrictions. Do not clamp rotation fields to one revolution.
 
-Goal 3 increments `EDITOR_PROJECT_FORMAT_VERSION` from 3 to 4 and
+Goal 4 increments `EDITOR_PROJECT_FORMAT_VERSION` from 3 to 4 and
 `GAME_STATE_VERSION` from 2 to 3. Runtime saves and templates share the new
 state version. Reject previous versions clearly through the existing loader
 error paths without replacing the previous successful project description.
@@ -233,10 +235,14 @@ since their coordinate-space adapters may already reverse the sign. Do not
 apply a global text substitution to all numbers or all trigonometric calls.
 
 Goal 2 verifies the engine behavior and radians siblings with focused runtime
-fixtures. Goal 3 verifies authoring, formats, and generated-code fixtures.
-Goal 4 completes bundled example rewrites and integrated parity. Migrate
+fixtures. Goal 3 repairs example runtime angles, rates, and controls, with
+matching bundled data and generated modules. Existing bundled format numbers
+remain temporarily unchanged until the format-breaking authoring goal; these
+intermediate files target the new runtime and are not old-engine compatible.
+Goal 4 verifies authoring, formats, and generated-code fixtures.
+Goal 5 finishes bundled format migration and integrated parity. Migrate
 tests needed to verify each current goal rather than deferring its failures.
-Until goals 2 and 3 are both complete, engine/editor unit parity is not ready
+Until goals 2 and 4 are both complete, engine/editor unit parity is not ready
 for general project use; report that boundary explicitly. Regenerate owned
 modules without overwriting developer-owned entry points.
 

@@ -50,7 +50,7 @@ EngineResult physics_angular_impulse_apply(Entity entity, float impulse) {
     inverse_inertia = physics_inverse_inertia_by_index_get(index);
     if(inverse_inertia == 0.0f) return error_result_value(true);
     velocity = (double)angular_velocities[index] +
-        (double)impulse * inverse_inertia;
+        (double)impulse * inverse_inertia * (180.0 / (double)PI_F);
     if(!isfinite(velocity) || fabs(velocity) > FLT_MAX)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(AngularVelocityPool_store_at(

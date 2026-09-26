@@ -107,16 +107,23 @@ Shape math_circle_create(float radius, uint8_t verticies);
 Projection math_project_shape_on_axis(Shape shape, Axis axis);
 /** Compute 2D scalar cross product. */
 float math_cross_2d(Vec2D a, Vec2D b);
-/** Compute angular velocity cross a radius vector. */
+/** Convert units without changing rotation sign or wrapping. */
+float math_degrees_to_radians(float degrees);
+float math_radians_to_degrees(float radians);
+/** Clockwise angular velocity in degrees/s crossed with a world radius vector. */
 Vec2D math_angular_velocity_cross_vec(float omega, Vec2D r);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Vec2D math_angular_velocity_radians_cross_vec(float omega, Vec2D r);
 /** Project a vector onto an axis. */
 Vec2D math_project_onto_axis(Vec2D v, Axis axis);
 /** Compute axis magnitude. */
 float math_axis_magnitude(Axis axis);
 /** Compute vector magnitude. */
 float math_vector_magnitude(Vec2D vector);
-/** Rotate a vector by an angle in radians. */
+/** Rotate a world vector clockwise by degrees; zero is identity. */
 Vec2D math_vector_rotate(Vec2D vector, float angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Vec2D math_vector_radians_rotate(Vec2D vector, float angle);
 /** Approximate circle radius from centroid to first vertex. */
 Vec1D math_circle_radius(Shape circle, Vec2D centroid);
 /** Subtract vector_b from vector_a. */

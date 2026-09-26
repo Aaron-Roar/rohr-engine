@@ -85,14 +85,14 @@ int main(void) {
                 rohr_error_check(rohr_physics_position_set(
                     body.result.value, (Position){5.0f, 5.0f})) ||
                 rohr_error_check(rohr_physics_orientation_set(
-                    body.result.value, 1.57079632679f))) goto fail;
+                    body.result.value, -90.0f))) goto fail;
         position = rohr_physics_position_get(node_a.result.value);
         body_index = rohr_entity_index_get(body.result.value);
         if(rohr_error_check(position) || rohr_error_check(body_index) ||
                 fabsf(position.result.value.x - 5.0f) > 0.0001f ||
                 fabsf(position.result.value.y + 5.0f) > 0.0001f ||
                 fabsf(orientations[body_index.result.value] -
-                    1.57079632679f) > 0.0001f ||
+                    -90.0f) > 0.0001f ||
                 rohr_error_check(rohr_physics_orientation_set(
                     body.result.value, 0.0f)) ||
                 rohr_error_check(rohr_physics_position_set(
@@ -330,8 +330,7 @@ int main(void) {
                 rohr_error_check(rohr_physics_mass_set(object.result.value, 1.0f)) ||
                 rohr_error_check(rohr_physics_velocity_set(
                     object.result.value, (Velocity){0.0f, 1.0f})) ||
-                rohr_error_check(rohr_physics_angular_velocity_set(
-                    object.result.value, 4.0f)) ||
+                rohr_error_check(rohr_physics_angular_velocity_radians_set(object.result.value, -4.0f)) ||
                 rohr_error_check(rohr_physics_dynamic_set(object.result.value)) ||
                 rohr_error_check(rohr_physics_restitution_set(
                     object.result.value, 0.0f)) ||
@@ -363,7 +362,7 @@ int main(void) {
         if(rohr_error_check(object_index) || rohr_error_check(object_position) ||
                 object_position.result.value.y >= -1.25f ||
                 velocities[object_index.result.value].x <= 0.0f ||
-                angular_velocities[object_index.result.value] >= 4.0f ||
+                -rohr_math_degrees_to_radians(angular_velocities[object_index.result.value]) >= 4.0f ||
                 !rohr_physics_contact_check(
                     boundary_beam.result.value, object.result.value) ||
                 rohr_physics_contact_check(
@@ -430,7 +429,7 @@ int main(void) {
                 rohr_error_check(rohr_physics_position_set(
                     local_body.result.value, (Position){10.0f, 20.0f})) ||
                 rohr_error_check(rohr_physics_orientation_set(
-                    local_body.result.value, 1.57079632679f))) goto fail;
+                    local_body.result.value, -90.0f))) goto fail;
         local_node = rohr_physics_soft_body_node_local_create(
             local_body.result.value, (Position){5.0f, 0.0f}, 1.0f, 2.0f);
         if(rohr_error_check(local_node)) goto fail;

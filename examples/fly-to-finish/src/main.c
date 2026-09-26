@@ -134,7 +134,7 @@ static EngineResult spawn_obstacle(ObstacleRecord records[], size_t *next_record
         .x = rohr_tools_random_range_float(screen_left + size, screen_right - size),
         .y = spawn_y
     });
-    rohr_physics_orientation_set(obstacle, rohr_tools_random_range_float(0.0f, 2.0f * PI_F));
+    rohr_physics_orientation_set(obstacle, -rohr_tools_random_range_float(0.0f, 360.0f));
     rohr_physics_mass_set(obstacle, mass_value);
     rohr_physics_velocity_set(obstacle, (Velocity){.x = 0.0f, .y = -speed});
     rohr_physics_acceleration_set(obstacle, (Acceleration){0});
@@ -437,7 +437,7 @@ int main(void) {
         InputAxis1DResult turn_result = rohr_input_action_axis_1d_get(turn_action);
         turn_axis = rohr_error_check(turn_result) ? 0.0f : turn_result.result.value;
         if(ticks_advanced > 0 && player_control_enabled && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_apply(player, -turn_axis * player_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply(player, turn_axis * player_control_torque);
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

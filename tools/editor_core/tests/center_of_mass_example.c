@@ -72,11 +72,11 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
     } else {
         EntityResult created = rohr_entity_add(); OK(created); body = created.result.value;
         OK(rohr_physics_position_set(body, (Position){120,-30}));
-        OK(rohr_physics_orientation_set(body, 0.35f));
+        OK(rohr_physics_orientation_radians_set(body, -0.35f));
         OK(rohr_physics_hitbox_set(body, shape));
         OK(rohr_physics_mass_set(body, 12));
         OK(rohr_physics_velocity_set(body, (Velocity){0}));
-        OK(rohr_physics_angular_velocity_set(body, 0.8f));
+        OK(rohr_physics_angular_velocity_radians_set(body, -0.8f));
         OK(rohr_physics_dynamic_set(body));
         OK(rohr_physics_center_of_mass_local_position_set(body, (Position){30,15}));
         JointAnchorIdResult created_anchor = rohr_physics_joint_anchor_create(body, (Position){100,30});
@@ -89,7 +89,7 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
     snapshot->anchor = rohr_physics_joint_anchor_world_position_get(anchor).result.value;
     snapshot->angle = orientations[rohr_entity_index_get(body).result.value];
     CHECK(near(initial, snapshot->com) && !near(snapshot->origin, (Position){120,-30}));
-    CHECK(fabsf(snapshot->angle - 1.15f) < 0.002f);
+    CHECK(fabsf(rohr_math_degrees_to_radians(snapshot->angle) + 1.15f) < 0.002f);
     Shape world = rohr_physics_shape_world_translate(shape, snapshot->origin, snapshot->angle);
     ShapeResult actual_world = rohr_physics_global_hit_box_get(body); OK(actual_world);
     CHECK(near(actual_world.result.value.vertices[0], world.vertices[0]));

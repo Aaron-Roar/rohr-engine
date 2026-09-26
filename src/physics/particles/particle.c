@@ -104,8 +104,8 @@ Position physics_particle_world_origin_by_index_get(EntityIndex index) {
         ? orientations[index] : 0.0f;
     Position body = index < positions_pool.capacity && positions_pool.used[index]
         ? positions[index] : (Position){0};
-    float cosine = cosf(angle);
-    float sine = sinf(angle);
+    float cosine = cosf(math_degrees_to_radians(angle));
+    float sine = -sinf(math_degrees_to_radians(angle));
 
     return (Position){
         body.x + geometry.local_origin.x * cosine - geometry.local_origin.y * sine,

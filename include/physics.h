@@ -146,7 +146,7 @@ typedef Vec1D Friction;
 /** Collision restitution coefficient. */
 typedef Vec1D Restitution;
 
-/** Entity orientation angle in radians. */
+/** Entity orientation angle in clockwise degrees. */
 typedef Vec1D Orientation;
 /** Entity world position. */
 typedef Vec2D Position;
@@ -212,9 +212,9 @@ typedef struct EntityContact {
     /** Contact data oriented from the queried entity toward target. */
     ContactInfo contact;
 } EntityContact;
-/** Entity angular velocity in radians per second. */
+/** Entity angular velocity in clockwise degrees per second. */
 typedef Orientation AngularVelocity;
-/** Entity angular acceleration. */
+/** Entity angular acceleration in clockwise degrees per second squared. */
 typedef Orientation AngularAcceleration;
 /** Entity linear acceleration. */
 typedef Vec2D Acceleration;
@@ -556,10 +556,12 @@ extern SoftBodyTrianglePool soft_body_triangles_pool;
  *
  * @param shape Shape with origin-relative local vertices; no recentering occurs.
  * @param position World position of the local origin.
- * @param angle World orientation in radians.
+ * @param angle World orientation in clockwise degrees.
  * @return World-space shape.
  */
 Shape physics_shape_world_translate(Shape shape, Position position, Orientation angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+Shape physics_shape_world_radians_translate(Shape shape, Position position, Orientation angle);
 
 /**
  * Approximate polygon moment of inertia.
@@ -602,6 +604,11 @@ EngineResult physics_angular_acceleration_set(
         Entity entity,
         AngularAcceleration acceleration
 );
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_angular_acceleration_radians_set(
+        Entity entity,
+        AngularAcceleration acceleration
+);
 /** Set acceleration toward a world position using a scalar magnitude. */
 EngineResult physics_acceleration_toward_position_set(Entity entity, float acceleration_magnitude, Position position);
 /** Set acceleration toward another entity's current world position. */
@@ -636,7 +643,7 @@ EngineResult physics_group_entities_stop(GroupId group);
 EngineResult physics_impulse_apply(Entity entity, Vec2D impulse);
 /**
  * Apply an immediate angular impulse (mass * distance squared / second)
- * about the effective COM. Adds impulse * inverse inertia to angular velocity
+ * about the effective COM. Adds degrees(impulse * inverse inertia) to clockwise angular velocity
  * without changing motion type. Zero inverse inertia is a successful no-op.
  * Nonfinite input or resulting velocity is rejected without mutation.
  */
@@ -751,14 +758,24 @@ EngineResult physics_collision_with_all_set(Entity entity);
 EngineResult physics_collision_with_none_set(Entity entity);
 /** Return whether two entities mutually permit collision checks. */
 bool physics_collision_between_check(Entity entity_1, Entity entity_2);
-/** Set an entity's orientation in radians. */
+/** Set an entity's orientation in clockwise degrees. */
 EngineResult physics_orientation_set(Entity entity, Orientation angle);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_orientation_radians_set(Entity entity, Orientation angle);
 /** Set an entity's angular velocity. */
 EngineResult physics_angular_velocity_set(Entity entity, AngularVelocity v);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_angular_velocity_radians_set(Entity entity, AngularVelocity v);
 /** Return an entity's angular velocity. */
 AngularVelocityResult physics_angular_velocity_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+AngularVelocityResult physics_angular_velocity_radians_get(Entity entity);
 EngineResult physics_angular_velocity_maximum_set(Entity entity, AngularVelocity maximum);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_angular_velocity_maximum_radians_set(Entity entity, AngularVelocity maximum);
 AngularVelocityResult physics_angular_velocity_maximum_get(Entity entity);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+AngularVelocityResult physics_angular_velocity_maximum_radians_get(Entity entity);
 /** Return the active hitbox at the current origin and orientation. */
 ShapeResult physics_global_hit_box_get(Entity entity);
 /** Set an entity's collision restitution. */
@@ -777,6 +794,8 @@ EngineResult physics_group_entities_hold(GroupId group);
 EngineResult physics_group_entities_unhold(GroupId group);
 /** Add or update an angle lock constraint. */
 EngineResult physics_angle_lock_set(Entity entity, Orientation min, Orientation max);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max);
 /** Add or update an axis lock constraint. */
 EngineResult physics_axis_lock_set(Entity entity, Axis axis, Position axis_point);
 /** Set an entity's friction value. */
@@ -795,6 +814,16 @@ EngineResult physics_friction_set(Entity entity, float friction);
  * @return EngineResult describing success or failure.
  */
 EngineResult physics_transform_lock_set(
+        Entity driven,
+        Entity driver,
+        Vec2D local_offset,
+        Orientation local_angle,
+        bool lock_position,
+        bool lock_orientation,
+        bool inherit_velocity
+);
+/** Clockwise-positive radians alternative; other parameters retain their units. */
+EngineResult physics_transform_lock_radians_set(
         Entity driven,
         Entity driver,
         Vec2D local_offset,

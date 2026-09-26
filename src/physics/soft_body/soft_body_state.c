@@ -432,8 +432,8 @@ EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque) {
         offset = math_vector_subtract(positions[index], center);
         scale = torque * mass[index] / weighted_radius_squared;
         result = physics_soft_body_node_force_apply(body.nodes[i], (Force){
-            .x = -offset.y * scale,
-            .y = offset.x * scale
+            .x = offset.y * scale,
+            .y = -offset.x * scale
         });
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }

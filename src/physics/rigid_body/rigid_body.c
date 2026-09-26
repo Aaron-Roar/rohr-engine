@@ -14,8 +14,8 @@ Shape physics_shape_world_translate(
     Orientation angle
 ) {
     Shape world_shape = shape;
-    float cosine = cosf(angle);
-    float sine = sinf(angle);
+    float cosine = cosf(math_degrees_to_radians(angle));
+    float sine = -sinf(math_degrees_to_radians(angle));
 
     for(uint16_t i = 0; i < shape.amount_of_vertices; i += 1) {
         float x = shape.vertices[i].x;

@@ -14,7 +14,7 @@ const Color background_color = {255,255,255,255};
 AnimationAsset animation_elderfly = {0};
 AnimatedSprite sprite_elderfly = {0};
 const float camera_move_speed = 100.0f;
-const float camera_turn_speed = PI_F * 0.5f;
+const float camera_turn_speed = 90.0f;
 
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
@@ -180,7 +180,7 @@ int main(void) {
             .y = camera_move_axis.y * camera_move_speed * tick_time
         });
         rohr_graphics_camera_rotate(
-            camera_turn_axis * camera_turn_speed * tick_time
+            -camera_turn_axis * camera_turn_speed * tick_time
         );
 
         if(rohr_input_action_button_down_check(drag_action)) {
@@ -193,7 +193,7 @@ int main(void) {
         if(rohr_input_action_button_down_check(rotate_action)) {
             EntityIndexResult index_result = rohr_entity_index_get(water_smash);
             if(!rohr_error_check(index_result)) {
-                rohr_physics_orientation_set(water_smash, orientations[index_result.result.value] + 10*(2*PI_F/360));
+                rohr_physics_orientation_set(water_smash, orientations[index_result.result.value] - 10.0f);
             }
         }
 

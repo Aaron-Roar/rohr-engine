@@ -91,7 +91,7 @@
                         "x": -200,
                         "y": -30
                     },
-                    "rotation": 0.35,
+                    "rotation": -20.05352283,
                     "initial_velocity": {
                         "x": 0,
                         "y": 0
@@ -100,7 +100,7 @@
                         "x": 0,
                         "y": 0
                     },
-                    "initial_angular_velocity": 0.8,
+                    "initial_angular_velocity": -45.83662361,
                     "mass": 12,
                     "friction": 0.800000011920929,
                     "restitution": 0.15000000596046448,
@@ -191,7 +191,7 @@
                         "x": 120,
                         "y": -30
                     },
-                    "rotation": 0.35,
+                    "rotation": -20.05352283,
                     "initial_velocity": {
                         "x": 0,
                         "y": 0
@@ -200,7 +200,7 @@
                         "x": 0,
                         "y": 0
                     },
-                    "initial_angular_velocity": 0.8,
+                    "initial_angular_velocity": -45.83662361,
                     "mass": 12,
                     "friction": 0.3499999940395355,
                     "restitution": 0,

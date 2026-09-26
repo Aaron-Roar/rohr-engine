@@ -209,9 +209,13 @@ float math_cross_2d(Vec2D a, Vec2D b) {
 }
 
 Vec2D math_angular_velocity_cross_vec(float omega, Vec2D r) {
+    return math_angular_velocity_radians_cross_vec(math_degrees_to_radians(omega), r);
+}
+
+Vec2D math_angular_velocity_radians_cross_vec(float omega, Vec2D r) {
     return (Vec2D){
-        .x = -omega * r.y,
-        .y =  omega * r.x
+        .x = omega * r.y,
+        .y = -omega * r.x
     };
 }
 
@@ -233,12 +237,24 @@ float math_axis_magnitude(Axis axis) {
 }
 
 Vec2D math_vector_rotate(Vec2D vector, float angle) {
+    return math_vector_radians_rotate(vector, math_degrees_to_radians(angle));
+}
+
+float math_degrees_to_radians(float degrees) {
+    return degrees * (PI_F / 180.0f);
+}
+
+float math_radians_to_degrees(float radians) {
+    return radians * (180.0f / PI_F);
+}
+
+Vec2D math_vector_radians_rotate(Vec2D vector, float angle) {
     float c = cosf(angle);
     float s = sinf(angle);
 
     return (Vec2D){
-        .x = vector.x * c - vector.y * s,
-        .y = vector.x * s + vector.y * c
+        .x = vector.x * c + vector.y * s,
+        .y = -vector.x * s + vector.y * c
     };
 }
 

@@ -945,9 +945,17 @@ Translates a local shape into world space.
 | --- | --- |
 | `shape` | Shape with origin-relative local vertices; no recentering occurs. |
 | `position` | World position of the local origin. |
-| `angle` | World orientation in radians. |
+| `angle` | World orientation in clockwise degrees. |
 
 **Returns:** World-space shape.
+
+### `rohr_physics_shape_world_radians_translate`
+
+```c
+Shape rohr_physics_shape_world_radians_translate(Shape shape, Position position, Orientation angle);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_polygon_moment_of_inertia`
 
@@ -1037,6 +1045,14 @@ Sets an entity angular acceleration component value.
 | `acceleration` | Angular acceleration value. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_physics_angular_acceleration_radians_set`
+
+```c
+EngineResult rohr_physics_angular_acceleration_radians_set( Entity entity, AngularAcceleration acceleration );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_acceleration_toward_position_set`
 
@@ -1304,9 +1320,9 @@ EngineResult rohr_physics_angular_impulse_apply(Entity entity, float impulse);
 
 Adds an immediate angular impulse about the effective COM.
 
-Adds impulse / derived inertia to angular velocity without changing motion
+Adds degrees(impulse / derived inertia) to clockwise angular velocity without
 
-type. Zero inverse inertia (including particles, static, held, kinematic,
+changing motion type. Zero inverse inertia (including particles, static, held, kinematic,
 
 massless, geometryless, and fully rotation-locked bodies) is a successful
 
@@ -1716,9 +1732,17 @@ Sets an entity orientation component value.
 | Parameter | Description |
 | --- | --- |
 | `entity` | Entity to modify. |
-| `angle` | Orientation in radians. |
+| `angle` | Orientation in clockwise degrees. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_physics_orientation_radians_set`
+
+```c
+EngineResult rohr_physics_orientation_radians_set(Entity entity, Orientation angle);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_angular_velocity_set`
 
@@ -1735,6 +1759,14 @@ Sets an entity angular velocity component value.
 
 **Returns:** EngineResult describing success or failure.
 
+### `rohr_physics_angular_velocity_radians_set`
+
+```c
+EngineResult rohr_physics_angular_velocity_radians_set(Entity entity, AngularVelocity v);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_physics_angular_velocity_get`
 
 ```c
@@ -1747,7 +1779,15 @@ Returns an entity angular velocity.
 | --- | --- |
 | `entity` | Entity to inspect. |
 
-**Returns:** AngularVelocityResult containing radians per second, or an error.
+**Returns:** AngularVelocityResult containing clockwise degrees per second, or an error.
+
+### `rohr_physics_angular_velocity_radians_get`
+
+```c
+AngularVelocityResult rohr_physics_angular_velocity_radians_get(Entity entity);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_angular_velocity_maximum_set`
 
@@ -1757,6 +1797,14 @@ EngineResult rohr_physics_angular_velocity_maximum_set( Entity entity, AngularVe
 
  Sets the absolute angular-velocity limit applied before orientation integration.
 
+### `rohr_physics_angular_velocity_maximum_radians_set`
+
+```c
+EngineResult rohr_physics_angular_velocity_maximum_radians_set( Entity entity, AngularVelocity maximum );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_physics_angular_velocity_maximum_get`
 
 ```c
@@ -1764,6 +1812,14 @@ AngularVelocityResult rohr_physics_angular_velocity_maximum_get(Entity entity);
 ```
 
  Returns an entity's configured absolute angular-velocity limit.
+
+### `rohr_physics_angular_velocity_maximum_radians_get`
+
+```c
+AngularVelocityResult rohr_physics_angular_velocity_maximum_radians_get(Entity entity);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_global_hit_box_get`
 
@@ -1889,10 +1945,18 @@ Locks an entity orientation between minimum and maximum angles.
 | Parameter | Description |
 | --- | --- |
 | `entity` | Entity to modify. |
-| `min` | Minimum orientation in radians. |
-| `max` | Maximum orientation in radians. |
+| `min` | Minimum orientation in clockwise degrees. |
+| `max` | Maximum orientation in clockwise degrees. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_physics_angle_lock_radians_set`
+
+```c
+EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_axis_lock_set`
 
@@ -1944,6 +2008,14 @@ Locks one entity transform to another entity.
 | `inherit_velocity` | true to inherit driver velocity. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_physics_transform_lock_radians_set`
+
+```c
+EngineResult rohr_physics_transform_lock_radians_set( Entity driven, Entity driver, Vec2D local_offset, Orientation local_angle, bool lock_position, bool lock_orientation, bool inherit_velocity );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_physics_transform_lock_remove`
 
@@ -2784,6 +2856,14 @@ bool rohr_graphics_screen_quad_draw(Position center, float width, float height, 
 
  @brief Draws a centered rotated rectangle in logical screen space.
 
+### `rohr_graphics_screen_quad_radians_draw`
+
+```c
+bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_graphics_show`
 
 ```c
@@ -2959,6 +3039,22 @@ void rohr_graphics_texture_draw(TextureAsset texture, Position position, Orienta
 
  Draws a loaded texture centered at a world position.
 
+### `rohr_graphics_texture_radians_draw`
+
+```c
+void rohr_graphics_texture_radians_draw(TextureAsset texture, Position position, Orientation orientation);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
+### `rohr_graphics_screen_texture_radians_draw`
+
+```c
+void rohr_graphics_screen_texture_radians_draw(TextureAsset texture, Position center, Scale size, Orientation orientation);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_graphics_font_load`
 
 ```c
@@ -3038,6 +3134,14 @@ bool rohr_graphics_text_draw(const TextAsset *text, Position position);
 ```
 
  @brief Draws text in logical screen coordinates.
+
+### `rohr_graphics_screen_text_scaled_rotated_radians_draw`
+
+```c
+bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text, Position center, Scale scale, Orientation orientation);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_graphics_animation_load`
 
@@ -3153,6 +3257,38 @@ Adds an animated sprite to an entity.
 
 **Returns:** EngineResult describing success or failure.
 
+### `rohr_graphics_sprite_orientation_offset_radians_set`
+
+```c
+EngineResult rohr_graphics_sprite_orientation_offset_radians_set(Entity entity, Orientation offset);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
+### `rohr_graphics_sprite_orientation_offset_radians_get`
+
+```c
+SpriteOrientationResult rohr_graphics_sprite_orientation_offset_radians_get(Entity entity);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
+### `rohr_graphics_animated_sprite_orientation_offset_radians_set`
+
+```c
+EngineResult rohr_graphics_animated_sprite_orientation_offset_radians_set(Entity entity, Orientation offset);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
+### `rohr_graphics_animated_sprite_orientation_offset_radians_get`
+
+```c
+SpriteOrientationResult rohr_graphics_animated_sprite_orientation_offset_radians_get( Entity entity);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_graphics_animated_sprite_draw`
 
 ```c
@@ -3210,14 +3346,22 @@ Translates the active camera in world space.
 ### `rohr_graphics_camera_rotate`
 
 ```c
-void rohr_graphics_camera_rotate(Orientation radians);
+void rohr_graphics_camera_rotate(Orientation degrees);
 ```
 
-Rotates the active camera counterclockwise.
+Rotates the active camera clockwise.
 
 | Parameter | Description |
 | --- | --- |
-| `radians` | Rotation in radians to add. |
+| `degrees` | Clockwise rotation in degrees to add. |
+
+### `rohr_graphics_camera_radians_rotate`
+
+```c
+void rohr_graphics_camera_radians_rotate(Orientation radians);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_graphics_camera_attach`
 
@@ -3235,9 +3379,17 @@ entity. The orientation offset is added to the entity's orientation.
 | --- | --- |
 | `entity` | Entity transform to follow. |
 | `position_offset` | Local-space position offset. |
-| `orientation_offset` | Orientation offset in radians. |
+| `orientation_offset` | orientation offset in clockwise degrees. |
 
 **Returns:** EngineResult describing success or a missing transform.
+
+### `rohr_graphics_camera_radians_attach`
+
+```c
+EngineResult rohr_graphics_camera_radians_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_graphics_camera_with_options_attach`
 
@@ -3259,11 +3411,19 @@ fixed camera orientation.
 | --- | --- |
 | `entity` | Entity to associate with the camera. |
 | `position_offset` | Relative offset or fixed world position. |
-| `orientation_offset` | Relative or fixed orientation in radians. |
+| `orientation_offset` | Relative or fixed clockwise orientation in degrees. |
 | `follow_position` | Whether to inherit entity position. |
 | `follow_orientation` | Whether to inherit entity orientation. |
 
 **Returns:** EngineResult describing success or a missing required transform.
+
+### `rohr_graphics_camera_with_options_radians_attach`
+
+```c
+EngineResult rohr_graphics_camera_with_options_radians_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_graphics_camera_detach`
 
@@ -3565,6 +3725,30 @@ Calculates angular velocity crossed with a vector.
 
 **Returns:** Tangential velocity vector.
 
+### `rohr_math_angular_velocity_radians_cross_vec`
+
+```c
+Vec2D rohr_math_angular_velocity_radians_cross_vec(float omega, Vec2D r);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
+### `rohr_math_degrees_to_radians`
+
+```c
+float rohr_math_degrees_to_radians(float degrees);
+```
+
+ Convert degrees to radians without sign changes or wrapping.
+
+### `rohr_math_radians_to_degrees`
+
+```c
+float rohr_math_radians_to_degrees(float radians);
+```
+
+ Convert radians to degrees without sign changes or wrapping.
+
 ### `rohr_math_project_onto_axis`
 
 ```c
@@ -3619,9 +3803,17 @@ Rotates a vector by an angle.
 | Parameter | Description |
 | --- | --- |
 | `vector` | Vector to rotate. |
-| `angle` | Angle in radians. |
+| `angle` | Clockwise angle in degrees. |
 
 **Returns:** Rotated vector.
+
+### `rohr_math_vector_radians_rotate`
+
+```c
+Vec2D rohr_math_vector_radians_rotate(Vec2D vector, float angle);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_math_circle_radius`
 
@@ -4726,6 +4918,14 @@ EngineResult rohr_camera_attach( CameraId camera, Entity entity, Vec2D position_
 
  Attaches a camera to an entity transform.
 
+### `rohr_camera_radians_attach`
+
+```c
+EngineResult rohr_camera_radians_attach( CameraId camera, Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
+
 ### `rohr_camera_detach`
 
 ```c
@@ -4885,6 +5085,14 @@ void rohr_ui_quad(Position center, float width, float height, float angle, Color
 ```
 
  @brief Draws an oriented UI rectangle primitive.
+
+### `rohr_ui_radians_quad`
+
+```c
+void rohr_ui_radians_quad(Position center, float width, float height, float angle, Color color);
+```
+
+ Clockwise-positive radians alternative; other parameters retain their units.
 
 ### `rohr_ui_clip_begin`
 

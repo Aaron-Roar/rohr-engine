@@ -21,6 +21,14 @@ static bool center_of_mass_check(Entity entity) {
         shape.result.value.vertices[0].x == 0 && shape.result.value.vertices[0].y == 0;
 }
 
+static bool angular_state_check(Entity entity) {
+    EntityIndexResult index = rohr_entity_index_get(entity);
+    AngularVelocityResult rate = rohr_physics_angular_velocity_radians_get(entity);
+    return !rohr_error_check(index) && !rohr_error_check(rate) &&
+        fabsf(rohr_math_degrees_to_radians(orientations[index.result.value]) + 0.35f) < 0.0001f &&
+        fabsf(rate.result.value + 0.8f) < 0.0001f;
+}
+
 int main(void) {
     if(rohr_error_check(rohr_directory_working_set(
             rohr_directory_base_get()))) return 1;
@@ -74,14 +82,15 @@ int main(void) {
             || camera_attachment.entity != player
             || camera_attachment.position_offset.x != 10.0f
             || camera_attachment.position_offset.y != -20.0f
-            || camera_attachment.orientation_offset != 0.25f) {
+            || fabsf(camera_attachment.orientation_offset +
+                rohr_math_radians_to_degrees(0.25f)) > 0.0001f) {
         fprintf(stderr, "Loaded entity relationships do not match\n");
         rohr_engine_stop();
         return 1;
     }
 
     /* Teleporting the origin retains authored geometry, COM, and inertia. */
-    if(!center_of_mass_check(player) ||
+    if(!angular_state_check(player) || !center_of_mass_check(player) ||
             rohr_error_check(rohr_physics_position_set(player, (Position){70,90})) ||
             !center_of_mass_check(player)) {
         fprintf(stderr, "Origin-relative mass properties do not match\n");
@@ -107,7 +116,7 @@ int main(void) {
     EngineResult reload = rohr_game_state_file_load("saved_game_state.json");
     EntityResult restored = rohr_entity_by_name_get("player");
     bool valid = !rohr_error_check(reload) && !rohr_error_check(restored) &&
-        center_of_mass_check(restored.result.value);
+        center_of_mass_check(restored.result.value) && angular_state_check(restored.result.value);
     rohr_engine_stop();
     return valid ? 0 : 1;
 }

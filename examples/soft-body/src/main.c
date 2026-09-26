@@ -294,7 +294,13 @@ static bool wheel_create(Wheel *wheel, Entity chassis, Position center,
                 (Vec2D){0}, JOINT_WELD) ||
             !anchored_joint_set(wheel->hub, (Vec2D){0}, wheel->disk,
                 (Vec2D){0}, JOINT_PIN)) return false;
+    if(!result_ok(rohr_physics_angular_velocity_maximum_set(
+                wheel->disk, maximum_wheel_angular_velocity))) return false;
     return wheel_soft_body_create(wheel, center);
+}
+
+static EngineResult wheel_drive_apply(Entity disk, float drive_axis) {
+    return rohr_physics_torque_apply(disk, drive_axis * control_torque);
 }
 
 static const Color background_color = {18, 22, 30, 255};
@@ -336,7 +342,8 @@ static const Mass hub_mass = 1.0f;
 static const float disk_radius = 15.0f;
 static const Mass disk_mass = 15.0f;
 static const Torque control_torque = 11111900000.0f;
-static const AngularVelocity maximum_wheel_angular_velocity = 7.0f;
+/* Preserve the physical limit of 7 radians/second in degree-based storage. */
+static const AngularVelocity maximum_wheel_angular_velocity = 7.0f * 180.0f / PI_F;
 static const Vec2D chassis_dimensions = {170.0f, 40.0f};
 static const Mass chassis_mass = 3.0f;
 static const Mass cabin_mass = 0.10f;
@@ -539,10 +546,6 @@ int main(void) {
             !wheel_create(&wheels[1], chassis,
                 (Position){wheel_horizontal_offset, wheel_center_y},
                 (Vec2D){wheel_horizontal_offset, -chassis_wheel_vertical_offset})) goto fail;
-    for(uint32_t i = 0; i < WHEEL_COUNT; i += 1) {
-        if(!result_ok(rohr_physics_angular_velocity_maximum_set(
-                    wheels[i].disk, maximum_wheel_angular_velocity))) goto fail;
-    }
     if(!result_ok(rohr_graphics_camera_with_options_attach(
                 chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
     if(!result_ok(rohr_camera_zoom_set(
@@ -593,8 +596,8 @@ int main(void) {
                     rohr_input_action_axis_1d_get(torque_action);
                 float torque_axis = rohr_error_check(torque_result) ? 0.0f :
                     torque_result.result.value;
-                if(!result_ok(rohr_physics_torque_apply(
-                            wheels[0].disk, -torque_axis * control_torque))) goto fail;
+                if(!result_ok(wheel_drive_apply(
+                            wheels[0].disk, torque_axis))) goto fail;
             }
             if(rohr_error_check(rohr_physics_update(ticks))) goto fail;
             if(!collision_zoom_started) {

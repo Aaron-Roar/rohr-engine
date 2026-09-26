@@ -4,7 +4,7 @@
     "attachment": {
       "entity": "player",
       "position_offset": {"x": 10.0, "y": -20.0},
-      "orientation_offset": 0.25
+      "orientation_offset": -14.32394488
     }
   },
   "entities": [

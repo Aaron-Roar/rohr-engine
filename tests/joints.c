@@ -30,7 +30,7 @@ int main(void) {
                 rohr_error_check(rohr_physics_position_set(
                     origin_body.result.value, (Position){10.0f, 20.0f})) ||
                 rohr_error_check(rohr_physics_orientation_set(
-                    origin_body.result.value, (Orientation){1.57079632679f}))) goto fail;
+                    origin_body.result.value, (Orientation){-90.0f}))) goto fail;
         origin_anchor = rohr_physics_joint_anchor_create(
             origin_body.result.value, (Vec2D){2.0f, 0.0f});
         if(rohr_error_check(origin_anchor)) goto fail;

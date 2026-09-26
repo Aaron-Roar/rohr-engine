@@ -1267,11 +1267,15 @@ void graphics_camera_move(Vec2D translation) {
     (void)graphics_camera_position_move(active_camera, translation, 0.0);
 }
 
-void graphics_camera_rotate(Orientation radians) {
+void graphics_camera_rotate(Orientation degrees) {
+    if(!isfinite(degrees)) return;
     if(graphics_resolve_camera_attachment()) {
-        camera_attachment.value.orientation_offset += radians;
+        if(!isfinite(camera_attachment.value.orientation_offset + degrees) ||
+                !isfinite(camera.orientation + degrees)) return;
+        camera_attachment.value.orientation_offset += degrees;
     }
-    camera.orientation += radians;
+    if(!isfinite(camera.orientation + degrees)) return;
+    camera.orientation += degrees;
     graphics_camera_store_active();
 }
 
@@ -1298,6 +1302,8 @@ EngineResult graphics_camera_with_options_attach(
 ) {
     EntityIndex index;
 
+    if(!isfinite(orientation_offset))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!entity_index_get(entity, &index)) {
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     }
@@ -1353,6 +1359,8 @@ EngineResult graphics_camera_attachment_set(
         ) {
     CameraId previous = active_camera;
     size_t slot;
+    if(!isfinite(orientation_offset))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!graphics_camera_slot(id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
@@ -3139,6 +3147,10 @@ static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
     return selected;
 }
 
+static Vec2D graphics_screen_vector_rotate(Vec2D vector, float degrees) {
+    return math_vector_rotate(vector, -degrees);
+}
+
 static Position graphics_viewport_ui_local_point_get(const GraphicsViewport *viewport,
         const ViewportItemConfig *item, Position point) {
     Scale scale = item->content_scale;
@@ -3146,7 +3158,7 @@ static Position graphics_viewport_ui_local_point_get(const GraphicsViewport *vie
     Vec2D transformed;
     if(scale.x <= 0.0f) scale.x = 1.0f;
     if(scale.y <= 0.0f) scale.y = 1.0f;
-    transformed = math_vector_rotate((Vec2D){point.x * scale.x, point.y * scale.y},
+    transformed = graphics_screen_vector_rotate((Vec2D){point.x * scale.x, point.y * scale.y},
         orientation);
     return (Position){viewport->rectangle.x + item->rectangle.x +
             item->content_offset.x + transformed.x,
@@ -3159,7 +3171,7 @@ static Position graphics_viewport_ui_point_get(const GraphicsViewport *viewport,
         Position point) {
     Position centroid = math_polygon_centroid(shape->shape);
     Vec2D relative = {point.x - centroid.x, point.y - centroid.y};
-    Vec2D rotated = math_vector_rotate(relative, shape->orientation);
+    Vec2D rotated = graphics_screen_vector_rotate(relative, shape->orientation);
     return graphics_viewport_ui_local_point_get(viewport, item,
         (Position){shape->position.x + centroid.x + rotated.x,
             shape->position.y + centroid.y + rotated.y});
@@ -3339,9 +3351,8 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
         anchor.y - asset_size.y * scale.y * 0.5f,
         asset_size.x * scale.x, asset_size.y * scale.y};
     (void)SDL_RenderTextureRotated(sdl_renderer, texture, NULL,
-        &destination, (double)((item->orientation + item->content_orientation +
-            inherited_orientation + text->orientation) *
-            180.0f / PI_F), NULL, SDL_FLIP_NONE);
+        &destination, (double)(item->orientation + item->content_orientation +
+            inherited_orientation + text->orientation), NULL, SDL_FLIP_NONE);
 }
 
 static bool graphics_viewport_ui_text_point_inside(
@@ -3367,7 +3378,7 @@ static bool graphics_viewport_ui_text_point_inside(
     orientation = item->orientation + item->content_orientation +
         text->orientation;
     relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
-    local = math_vector_rotate(relative, -orientation);
+    local = graphics_screen_vector_rotate(relative, -orientation);
     return fabsf(local.x) <= asset_size.x * scale.x * 0.5f &&
         fabsf(local.y) <= asset_size.y * scale.y * 0.5f;
 }
@@ -3385,7 +3396,7 @@ static bool graphics_viewport_screen_point_inside(
         viewport->rectangle.y + item->rectangle.y +
             item->rectangle.height * 0.5f};
     relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
-    local = math_vector_rotate(relative, -item->orientation);
+    local = graphics_screen_vector_rotate(relative, -item->orientation);
     if(fabsf(local.x) > item->rectangle.width * 0.5f ||
             fabsf(local.y) > item->rectangle.height * 0.5f) return false;
     if(item->clip_enabled &&
@@ -3456,7 +3467,7 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
     }
     {
         Position centroid = math_polygon_centroid(shape->shape);
-        Vec2D offset = math_vector_rotate((Vec2D){shape->text.offset.x,
+        Vec2D offset = graphics_screen_vector_rotate((Vec2D){shape->text.offset.x,
             shape->text.offset.y}, shape->orientation);
         ViewportUiTextConfig text = shape->text;
         text.offset = (Position){offset.x, offset.y};
@@ -3496,7 +3507,7 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     center = graphics_viewport_ui_local_point_get(viewport, item, (Position){0});
     orientation = item->orientation + item->content_orientation;
     relative = (Vec2D){pointer.x - center.x, pointer.y - center.y};
-    local = math_vector_rotate(relative, -orientation);
+    local = graphics_screen_vector_rotate(relative, -orientation);
     if(item->content_scale.x > 0.0f) local.x /= item->content_scale.x;
     if(item->content_scale.y > 0.0f) local.y /= item->content_scale.y;
     along = local.x;
@@ -3741,7 +3752,7 @@ static void graphics_viewports_draw(void) {
             if(config->content_scale.y > 0.0f)
                 destination.h *= config->content_scale.y;
             {
-                Vec2D content_offset = math_vector_rotate(
+                Vec2D content_offset = graphics_screen_vector_rotate(
                     (Vec2D){config->content_offset.x, config->content_offset.y},
                     config->orientation);
                 destination.x = viewport->rectangle.x + config->rectangle.x +
@@ -3752,8 +3763,7 @@ static void graphics_viewports_draw(void) {
                     destination.h * 0.5f;
             }
             (void)SDL_RenderTextureRotated(sdl_renderer, screen->texture, NULL,
-                &destination, (double)((config->orientation +
-                    config->content_orientation) * -180.0f / PI_F),
+                &destination, (double)(config->orientation + config->content_orientation),
                 NULL, SDL_FLIP_NONE);
         }
     }
@@ -3842,10 +3852,10 @@ static void graphics_commands_execute(void) {
                         {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
                     float half_width = command->data.quad.width * 0.5f;
                     float half_height = command->data.quad.height * 0.5f;
-                    Vec2D axis = {cosf(command->data.quad.angle),
-                                  -sinf(command->data.quad.angle)};
-                    Vec2D perpendicular = {sinf(command->data.quad.angle),
-                                           cosf(command->data.quad.angle)};
+                    Vec2D axis = {cosf(math_degrees_to_radians(command->data.quad.angle)),
+                                  sinf(math_degrees_to_radians(command->data.quad.angle))};
+                    Vec2D perpendicular = {-sinf(math_degrees_to_radians(command->data.quad.angle)),
+                                           cosf(math_degrees_to_radians(command->data.quad.angle))};
                     Color color = command->data.quad.color;
                     for(int i = 0; i < 4; i += 1) {
                         vertices[i].position.x =
@@ -4223,7 +4233,7 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     command->data.text.center = (SDL_FPoint){
         command->data.text.destination.w * 0.5f,
         command->data.text.destination.h * 0.5f};
-    command->data.text.degrees = -(double)orientation * 180.0 / (double)PI_F;
+    command->data.text.degrees = (double)orientation;
     return true;
 }
 
@@ -4301,7 +4311,7 @@ static void graphics_texture_draw_flipped(TextureAsset texture_asset, Position p
         .x = dst_rect.w * 0.5f,
         .y = dst_rect.h * 0.5f
     };
-    double degrees = -(double)(ort - camera.orientation) * 180.0 / (double)PI_F;
+    double degrees = (double)(ort - camera.orientation);
     GraphicsCommand *command;
     if(!graphics_texture_command_reference_add(texture_asset.handle)) return;
     command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
@@ -4337,7 +4347,7 @@ void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
     command->data.texture.asset = texture_asset.handle;
     command->data.texture.destination = destination;
     command->data.texture.center = rotation_center;
-    command->data.texture.degrees = -(double)orientation * 180.0 / (double)PI_F;
+    command->data.texture.degrees = (double)orientation;
     command->data.texture.flip = SDL_FLIP_NONE;
 }
 
@@ -4419,6 +4429,7 @@ PositionResult graphics_sprite_body_offset_get(Entity entity) {
 EngineResult graphics_sprite_orientation_offset_set(Entity entity,
         Orientation offset) {
     EntityIndex index;
+    if(!isfinite(offset)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     if(!entity_index_components_check(index, ROHR_SPRITE) ||
@@ -4443,8 +4454,8 @@ SpriteOrientationResult graphics_sprite_orientation_offset_get(Entity entity) {
 
 static Position graphics_sprite_world_position_get(Position entity_position,
         Orientation entity_orientation, Position offset) {
-    float cosine = cosf(entity_orientation);
-    float sine = sinf(entity_orientation);
+    float cosine = cosf(math_degrees_to_radians(entity_orientation));
+    float sine = -sinf(math_degrees_to_radians(entity_orientation));
     offset = (Position){offset.x * cosine - offset.y * sine,
         offset.x * sine + offset.y * cosine};
     return (Position){entity_position.x + offset.x,
@@ -4578,6 +4589,7 @@ PositionResult graphics_animated_sprite_body_offset_get(Entity entity) {
 EngineResult graphics_animated_sprite_orientation_offset_set(Entity entity,
         Orientation offset) {
     EntityIndex index;
+    if(!isfinite(offset)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     if(!entity_index_components_check(index, ROHR_ANIMATED_SPRITE) ||
@@ -4668,8 +4680,8 @@ void graphics_local_origin_draw(Entity entity) {
     Position origin = positions[index];
     Orientation angle = orientations[index];
 
-    float cos_angle = cosf(angle);
-    float sin_angle = sinf(angle);
+    float cos_angle = cosf(math_degrees_to_radians(angle));
+    float sin_angle = -sinf(math_degrees_to_radians(angle));
 
     Vec2D local_x_axis = {
         .x = cos_angle,
@@ -5029,4 +5041,87 @@ EngineResult graphics_soft_body_area_color_set(Entity soft_body, Entity node_a,
         }
     }
     return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+}
+
+bool graphics_screen_quad_radians_draw(
+    Position center,
+    float width,
+    float height,
+    float angle,
+    Color color
+) {
+    return graphics_screen_quad_draw(center, width, height, math_radians_to_degrees(angle), color);
+}
+
+void graphics_texture_radians_draw(TextureAsset texture, Position position,
+    Orientation orientation) {
+    graphics_texture_draw(texture, position, math_radians_to_degrees(orientation));
+}
+
+void graphics_screen_texture_radians_draw(TextureAsset texture, Position center,
+    Scale size, Orientation orientation) {
+    graphics_screen_texture_draw(texture, center, size, math_radians_to_degrees(orientation));
+}
+
+bool graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
+    Position center, Scale scale, Orientation orientation) {
+    return graphics_screen_text_scaled_rotated_draw(text, center, scale, math_radians_to_degrees(orientation));
+}
+
+EngineResult graphics_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset) {
+    return graphics_sprite_orientation_offset_set(entity, math_radians_to_degrees(offset));
+}
+
+SpriteOrientationResult graphics_sprite_orientation_offset_radians_get(Entity entity) {
+    SpriteOrientationResult result = graphics_sprite_orientation_offset_get(entity);
+    if(result.kind == ERROR_RESULT_VALUE)
+        result.result.value = math_degrees_to_radians(result.result.value);
+    return result;
+}
+
+EngineResult graphics_animated_sprite_orientation_offset_radians_set(Entity entity,
+    Orientation offset) {
+    return graphics_animated_sprite_orientation_offset_set(entity, math_radians_to_degrees(offset));
+}
+
+SpriteOrientationResult graphics_animated_sprite_orientation_offset_radians_get(
+    Entity entity) {
+    SpriteOrientationResult result = graphics_animated_sprite_orientation_offset_get(entity);
+    if(result.kind == ERROR_RESULT_VALUE)
+        result.result.value = math_degrees_to_radians(result.result.value);
+    return result;
+}
+
+void graphics_camera_radians_rotate(Orientation radians) {
+    graphics_camera_rotate(math_radians_to_degrees(radians));
+}
+
+EngineResult graphics_camera_radians_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset
+) {
+    return graphics_camera_attach(entity, position_offset, math_radians_to_degrees(orientation_offset));
+}
+
+EngineResult graphics_camera_with_options_radians_attach(
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+) {
+    return graphics_camera_with_options_attach(entity, position_offset, math_radians_to_degrees(orientation_offset), follow_position, follow_orientation);
+}
+
+EngineResult graphics_camera_attachment_radians_set(
+    CameraId camera,
+    Entity entity,
+    Vec2D position_offset,
+    Orientation orientation_offset,
+    bool follow_position,
+    bool follow_orientation
+) {
+    return graphics_camera_attachment_set(camera, entity, position_offset, math_radians_to_degrees(orientation_offset), follow_position, follow_orientation);
 }

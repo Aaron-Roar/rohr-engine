@@ -201,8 +201,8 @@ void system_torques_apply(void) {
             if(entity_index_get(targets[i], &target_index) && entity_index_alive_check(target_index)) { //Check if the target to the force exists
                 if(physics_entity_simulated_get(target_index) && entity_index_components_check(target_index, target_filter)) { //Check if the target is moveable
                     if(mass[target_index] != 0) {
-                        torque_angular_accelerations[target_index] += torques[i] *
-                            physics_inverse_inertia_by_index_get(target_index);
+                        torque_angular_accelerations[target_index] += math_radians_to_degrees(
+                            torques[i] * physics_inverse_inertia_by_index_get(target_index));
                     } else {
                         //Force on massless entity
                         console_write(
@@ -529,8 +529,8 @@ Vec2D system_friction_impulse_apply(
     velocities[entity_2].x += friction_impulse.x * inv_mass_2;
     velocities[entity_2].y += friction_impulse.y * inv_mass_2;
 
-    angular_velocities[entity_1] -= math_cross_2d(r1, friction_impulse) * inv_inertia_1;
-    angular_velocities[entity_2] += math_cross_2d(r2, friction_impulse) * inv_inertia_2;
+    angular_velocities[entity_1] += math_radians_to_degrees(math_cross_2d(r1, friction_impulse) * inv_inertia_1);
+    angular_velocities[entity_2] -= math_radians_to_degrees(math_cross_2d(r2, friction_impulse) * inv_inertia_2);
     return (Vec2D){
         tangent.x * impulse_magnitude,
         tangent.y * impulse_magnitude
@@ -609,10 +609,10 @@ static void system_contact_point_solve(
     velocities[first].y -= impulse.y * inverse_mass_first;
     velocities[second].x += impulse.x * inverse_mass_second;
     velocities[second].y += impulse.y * inverse_mass_second;
-    angular_velocities[first] -= math_cross_2d(first_offset, impulse) *
-        inverse_inertia_first;
-    angular_velocities[second] += math_cross_2d(second_offset, impulse) *
-        inverse_inertia_second;
+    angular_velocities[first] += math_radians_to_degrees(math_cross_2d(first_offset, impulse) *
+        inverse_inertia_first);
+    angular_velocities[second] -= math_radians_to_degrees(math_cross_2d(second_offset, impulse) *
+        inverse_inertia_second);
     if(normal_impulse != NULL) *normal_impulse = (Vec2D){
         overlap.normal.x * accumulated_impulse_magnitude,
         overlap.normal.y * accumulated_impulse_magnitude

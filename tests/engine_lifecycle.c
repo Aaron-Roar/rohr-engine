@@ -266,7 +266,8 @@ int main(void) {
             rohr_physics_overlap_exited_check(first.result.value, second.result.value) ||
             !rohr_physics_contact_check(first.result.value, second.result.value) ||
             !contact.detected || contact.point_count == 0 ||
-            contact.points[0].relative_velocity.x >= 0.0f ||
+            /* Solved contact velocity can round to either side of zero. */
+            contact.points[0].relative_velocity.x > 0.0001f ||
             contact.points[0].normal_impulse.x <= 0.0f ||
             rohr_physics_contact_total_impulse_get(contact).x <= 0.0f ||
             !rohr_physics_contact_entered_check(first.result.value, second.result.value) ||

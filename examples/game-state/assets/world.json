@@ -6,8 +6,8 @@
       "components": {
         "flags": ["dynamic", "collision"],
         "position": {"x": 40.0, "y": 60.0},
-        "orientation": 0.35,
-        "angular_velocity": 0.8,
+        "orientation": -20.05352283,
+        "angular_velocity": -45.83662361,
         "center_of_mass": {"mode": "explicit", "offset": {"x": 3.0, "y": 1.0}},
         "velocity": {"x": 2.0, "y": 0.0},
         "mass": 4.0,

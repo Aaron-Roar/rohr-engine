@@ -66,30 +66,30 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     OK(api->torque_apply(body, -10));
     OK(rohr_system_physics_update(0.1));
     CHECK(near(velocities[index].x, 0.3f) && near(velocities[index].y, 0.2f));
-    CHECK(near(angular_velocities[index], 0.25f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.25f));
     /* Direct physics updates do not advance engine tick lifetimes. */
     OK(rohr_system_physics_update(0.1));
     CHECK(near(velocities[index].x, 0.6f) && near(velocities[index].y, 0.4f));
-    CHECK(near(angular_velocities[index], 0.5f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.5f));
     SDL_Delay(2);
     CHECK(rohr_system_tick_update() > 0);
     OK(rohr_system_physics_update(0.1));
     CHECK(near(velocities[index].x, 0.8f) && near(velocities[index].y, 0.4f));
-    CHECK(near(angular_velocities[index], 0.7f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
     OK(api->force_set(f, (Force){0}));
     OK(api->torque_set(t, 0));
     OK(rohr_system_physics_update(0.1));
-    CHECK(near(velocities[index].x, 0.8f) && near(angular_velocities[index], 0.7f));
+    CHECK(near(velocities[index].x, 0.8f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
     OK(api->force_set(f, (Force){12,0}));
     OK(api->torque_set(t, 20));
     OK(rohr_system_physics_update(0.1));
-    CHECK(near(velocities[index].x, 0.9f) && near(angular_velocities[index], 0.8f));
+    CHECK(near(velocities[index].x, 0.9f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.8f));
     OK(rohr_entity_delete(f)); OK(rohr_entity_delete(t));
     OK(rohr_system_physics_update(0.1));
     CHECK(rohr_entity_alive_check(body));
-    CHECK(near(velocities[index].x, 0.9f) && near(angular_velocities[index], 0.8f));
+    CHECK(near(velocities[index].x, 0.9f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.8f));
 
     /* Stale handles remain invalid even after an entity slot is reused. */
     EntityResult plain = rohr_entity_add();
@@ -125,17 +125,17 @@ static bool impulses_check(const ForceApi *api) {
     CHECK(near(velocities[index].x, 1) && near(velocities[index].y, -1));
     /* Inertia is 20 at centroid, 80 at the explicit corner COM. */
     OK(api->angular_impulse_apply(body, 20));
-    CHECK(near(angular_velocities[index], 1));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 1));
     OK(api->angular_impulse_apply(body, -10));
-    CHECK(near(angular_velocities[index], 0.5f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.5f));
     OK(rohr_physics_center_of_mass_local_position_set(body, (Position){2,3}));
     OK(api->angular_impulse_apply(body, 80));
-    CHECK(near(angular_velocities[index], 1.5f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 1.5f));
     CHECK(near(velocities[index].x, 1) && near(velocities[index].y, -1));
     CHECK(orientations[index] == 0);
     ERROR(api->angular_impulse_apply(body, NAN), ERROR_ENGINE_STATE_INVALID);
     ERROR(api->angular_impulse_apply(body, INFINITY), ERROR_ENGINE_STATE_INVALID);
-    CHECK(near(angular_velocities[index], 1.5f));
+    CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 1.5f));
 
     OK(rohr_physics_angular_velocity_set(body, FLT_MAX));
     ERROR(api->angular_impulse_apply(body, FLT_MAX), ERROR_ENGINE_STATE_INVALID);
@@ -199,7 +199,7 @@ static bool persistence_check(const ForceApi *api) {
     CHECK(f.result.value.x == 24 && f.result.value.y == 0 && t.result.value == 40);
     index = rohr_entity_index_get(restored.result.value).result.value;
     OK(rohr_system_physics_update(0.1));
-    CHECK(near(velocities[index].x, 0.2f) && near(angular_velocities[index], 0.2f));
+    CHECK(near(velocities[index].x, 0.2f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.2f));
     CHECK(remove(path) == 0);
     return true;
 }

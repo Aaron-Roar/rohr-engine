@@ -5,6 +5,7 @@
 #include "physics.h"
 
 #include "physics/physics_internal.h"
+#include <math.h>
 
 EngineResult physics_angle_lock_set(
         Entity entity, Orientation min, Orientation max) {
@@ -12,6 +13,8 @@ EngineResult physics_angle_lock_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(min) || !isfinite(max))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = entity_components_add(entity, ROHR_ANGLE_LOCK);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     (void)AngleLockPool_store_at(&angle_locks_pool, index, (AngleLock){
@@ -61,6 +64,7 @@ EngineResult physics_transform_lock_set(
     if(result.kind == ERROR_RESULT_ERROR) return result;
     result = physics_live_index_get(driver, &driver_index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(local_angle)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = entity_components_add(driven, ROHR_TRANSFORM_LOCK);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     (void)TransformLockPool_store_at(
