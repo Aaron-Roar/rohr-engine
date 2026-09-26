@@ -23,6 +23,8 @@ static EngineResult physics_hitbox_active_cache_sync(
                 variants->values[variants->active_index].shape).kind == ERROR_RESULT_ERROR) {
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
+    physics_mass_properties_geometry_set(index,
+        &variants->values[variants->active_index].shape);
     entity_mask[index] |= ROHR_HIT_BOX;
     physics_step_hitbox_dirty_add(index);
     return error_result_value(true);
@@ -153,6 +155,7 @@ EngineResult physics_hitbox_remove(Entity entity) {
     if(index < world_hit_boxes_pool.capacity && world_hit_boxes_pool.used[index])
         (void)ShapePool_release_at(&world_hit_boxes_pool, index);
     entity_mask[index] &= ~ROHR_HIT_BOX;
+    physics_mass_properties_geometry_set(index, NULL);
     return error_result_value(true);
 }
 

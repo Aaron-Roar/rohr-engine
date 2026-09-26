@@ -2,10 +2,11 @@
 
 This is the agreed implementation contract for the **consistent origins,
 center of mass, and inertia** milestone in [the roadmap](../NEXT_STEPS.md).
-Goals 1 and 2 document the contract and implement origin-relative geometry and
-attachment preservation. COM state, integration, and the new APIs below remain
-planned until their corresponding implementation goals complete. The current
-runtime transforms vertices directly from the origin without recentering.
+Goals 1 through 3 document the contract and implement origin-relative geometry,
+attachment preservation, runtime COM state, derived inertia, and COM-aware
+integration and constraints. Runtime transforms vertices directly from the
+origin without recentering. Persistence, generation, and editor COM controls
+remain the work of goals 4 and 5.
 
 ## Coordinates and mutation
 
@@ -93,15 +94,35 @@ uses the same derived inertia throughout the pipeline. Solver rotation
 corrections also recover the origin from the corrected COM and orientation.
 Any applied force whose line of action passes through COM contributes no torque.
 
+Entities without geometry may move and receive an explicit COM. In automatic
+mode with no geometry, integration uses the origin as its temporary reference;
+automatic-COM and inertia queries still report missing required components.
+Prescribed angular velocity remains supported subject to body restrictions.
+Torque and angular solver response require valid derived inertia.
+
+Only validated geometry installs `ROHR_HIT_BOX`. A collision flag alone does
+not make an entity eligible for geometry or collision processing. Invalid
+creation fails; invalid edits leave the previous hitbox, flags, and mass
+properties unchanged. Removing geometry clears the hitbox flag; assigning valid
+geometry restores eligibility. Generic component addition cannot install a
+hitbox flag without prepared geometry; state loading derives that flag from
+validated geometry rather than accepting it from a serialized mask. Reject
+degenerate and non-finite polygons at
+the mutation boundary rather than revalidating vertices in the pipeline.
+
+Axis locks constrain the origin, not COM. Transform-lock local offsets remain
+origin-relative. Constraint velocity calculations must convert between COM
+velocity and origin/attachment point velocity, including rotation.
+
 Existing hold, static, kinematic, axis-lock, angle-lock, and attachment policies
 remain in force. The implementation must reconcile their coordinate handling
 with COM integration without silently enabling previously suppressed motion.
 Geometry bounds and world-space query results must reflect the current origin
 and orientation after edits and solver corrections.
 
-## Planned C API
+## Runtime C API
 
-Add these declarations to `physics.h` with identically typed wrappers in
+These declarations are available in `physics.h` with identically typed wrappers in
 `rohr.h` and `src/core/rohr.c`, formed by prefixing each function with `rohr_`:
 
 ```c
@@ -158,7 +179,7 @@ origin-position API or reinterpret local joint-anchor getters as COM-relative.
 
 ## Authoring, compatibility, and acceptance
 
-Persist automatic/explicit mode and the explicit local offset through project
+Goals 4 and 5 will persist automatic/explicit mode and the explicit local offset through project
 data, CLI, JSON, generated C, and applicable runtime state serialization.
 Automatic mode must remain automatic after a round trip; do not bake the
 calculated centroid into an explicit override. Runtime and generated creation

@@ -199,6 +199,7 @@ set(ROHR_ENGINE_SOURCES
     src/math/math2d.c
     src/physics/broadphase/aabb_tree.c
     src/physics/body/body_state.c
+    src/physics/body/mass_properties.c
     src/physics/body/force_state.c
     src/physics/body/motion_state.c
     src/physics/auto_shape.c
@@ -612,6 +613,12 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(contact_manifold_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME contact_manifold COMMAND contact_manifold_test)
 
+    add_executable(center_of_mass_test tests/center_of_mass.c)
+    target_link_libraries(center_of_mass_test PRIVATE rohr_engine)
+    set_target_properties(center_of_mass_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME center_of_mass COMMAND center_of_mass_test)
+
     add_executable(origin_offsets_test tests/origin_offsets.c)
     target_link_libraries(origin_offsets_test PRIVATE rohr_engine)
     set_target_properties(origin_offsets_test PROPERTIES
@@ -730,6 +737,7 @@ if(ROHR_BUILD_TESTS)
         constraint_solver
         contact_manifold
         origin_offsets
+        center_of_mass
         rigid_contact_stability
         component_registry
         generated_components
@@ -766,6 +774,7 @@ if(ROHR_BUILD_TESTS)
         constraint_solver_test
         contact_manifold_test
         origin_offsets_test
+        center_of_mass_test
         concave_collision_test
         rigid_contact_stability_test
         component_registry_test

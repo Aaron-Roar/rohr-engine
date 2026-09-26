@@ -896,6 +896,16 @@ EngineResult rohr_physics_position_set(Entity entity, Position p);
 /** Returns an entity's world position. */
 PositionResult rohr_physics_position_get(Entity entity);
 
+/** COM offsets use the body's local origin axes. No geometry is needed to set
+ * an override. Getters require geometry for automatic COM and inertia. */
+EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
+PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity);
+PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity);
+EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
+BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
+MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity);
+
+
 /**
  * @brief Sets an entity mass component value.
  * @param entity Entity to modify.

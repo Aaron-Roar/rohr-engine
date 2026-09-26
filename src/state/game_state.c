@@ -1192,7 +1192,8 @@ static EngineResult state_components_load(
     if(value != NULL) {
         if(!yyjson_is_uint(value) || yyjson_get_uint(value) > UINT32_MAX)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        entity_mask[index] |= (RohrComponentMask)yyjson_get_uint(value);
+        /* Geometry loading alone establishes the validated hitbox flag. */
+        entity_mask[index] |= (RohrComponentMask)yyjson_get_uint(value) & ~ROHR_HIT_BOX;
     }
 
     value = yyjson_obj_get(components, "flags");

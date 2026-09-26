@@ -117,6 +117,8 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > MAX_ENTITIES) {
         new_capacity = MAX_ENTITIES;
     }
+    if(error_check(physics_mass_properties_reserve(new_capacity)))
+        return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
     if(new_capacity > positions_pool.capacity && PositionPool_expand(&positions_pool, new_capacity - positions_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > particle_geometries_pool.capacity && ParticleGeometryPool_expand(&particle_geometries_pool, new_capacity - particle_geometries_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > orientations_pool.capacity && OrientationPool_expand(&orientations_pool, new_capacity - orientations_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
@@ -149,6 +151,7 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
 }
 
 void physics_tables_destroy(void) {
+    physics_mass_properties_destroy();
     physics_interaction_state_destroy();
     (void)PositionPool_destroy(&positions_pool);
     (void)ParticleGeometryPool_destroy(&particle_geometries_pool);
@@ -188,6 +191,7 @@ void physics_tables_destroy(void) {
 
 void physics_entity_clear(Entity entity, EntityIndex index) {
     physics_body_state_entity_clear(index);
+    physics_mass_properties_clear(index);
     physics_hitbox_animation_bindings_entity_clear(index);
     if(index < hitbox_variants_pool.capacity && hitbox_variants_pool.used[index]) {
         free(hitbox_variants_pool.objects[index].values);

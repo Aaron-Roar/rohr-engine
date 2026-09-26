@@ -3,6 +3,7 @@
  */
 
 #include "physics/physics_step_internal.h"
+#include "physics/physics_internal.h"
 #include "systems.h"
 #include "core/engine_internal.h"
 #include "math2d.h"
@@ -18,7 +19,7 @@ static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
         return (Velocity){0};
     }
     Vec2D angular_part = math_angular_velocity_cross_vec(
-        angular_velocities[index],
+        entity_index_components_check(index, ROHR_PARTICLE) ? 0.0f : angular_velocities[index],
         world_offset
     );
 
@@ -65,7 +66,8 @@ static void system_joint_torque_for_one_tick_add(Entity target, Torque torque) {
     if(!entity_index_components_check(target_index, ROHR_MASS) || mass[target_index] == 0.0f) {
         return;
     }
-    torque_angular_accelerations[target_index] += torque/physics_polygon_moment_of_inertia(hit_boxes[target_index], mass[target_index]);
+    torque_angular_accelerations[target_index] += torque *
+        physics_inverse_inertia_by_index_get(target_index);
     //Entity torque_entity = set_torque(target, torque);
 
     //if(torque_entity == 0) {
@@ -97,8 +99,8 @@ static void system_joint_force_at_point_for_one_tick_add(Entity target, Position
     }
 
     Vec2D r = {
-        .x = world_point.x - positions[target_index].x,
-        .y = world_point.y - positions[target_index].y
+        .x = world_point.x - physics_com_world_by_index_get(target_index).x,
+        .y = world_point.y - physics_com_world_by_index_get(target_index).y
     };
 
     Torque torque = math_cross_2d(r, force);
@@ -111,12 +113,7 @@ static void system_joint_force_at_point_for_one_tick_add(Entity target, Position
 }
 
 static float system_joint_inverse_inertia(EntityIndex index) {
-    float inertia;
-
-    if(!physics_entity_simulated_get(index) ||
-            !entity_index_components_check(index, ROHR_MASS | ROHR_HIT_BOX) || mass[index] <= 0.0f) return 0.0f;
-    inertia = physics_polygon_moment_of_inertia(hit_boxes[index], mass[index]);
-    return inertia > 0.0f ? 1.0f / inertia : 0.0f;
+    return physics_inverse_inertia_by_index_get(index);
 }
 
 static void system_rigid_anchor_axis_solve(
@@ -144,10 +141,10 @@ static void system_rigid_anchor_axis_solve(
     velocity_impulse = math_dot_product(velocity_error, axis) / effective_inverse_mass;
     positions[a].x += axis.x * position_impulse * inverse_mass_a;
     positions[a].y += axis.y * position_impulse * inverse_mass_a;
-    orientations[a] += lever_a * position_impulse * inverse_inertia_a;
+    physics_com_orientation_set(a, orientations[a] + lever_a * position_impulse * inverse_inertia_a);
     positions[b].x -= axis.x * position_impulse * inverse_mass_b;
     positions[b].y -= axis.y * position_impulse * inverse_mass_b;
-    orientations[b] -= lever_b * position_impulse * inverse_inertia_b;
+    physics_com_orientation_set(b, orientations[b] - lever_b * position_impulse * inverse_inertia_b);
     velocities[a].x += axis.x * velocity_impulse * inverse_mass_a;
     velocities[a].y += axis.y * velocity_impulse * inverse_mass_a;
     angular_velocities[a] += lever_a * velocity_impulse * inverse_inertia_a;
@@ -192,6 +189,8 @@ static void system_pin_joint_apply(Entity joint_entity) {
         world_anchor_b = (Position){positions[b_index].x + offset_b.x, positions[b_index].y + offset_b.y};
     }
 
+    offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));
+    offset_b = math_vector_subtract(world_anchor_b, physics_com_world_by_index_get(b_index));
     Vec2D error = {
         .x = world_anchor_b.x - world_anchor_a.x,
         .y = world_anchor_b.y - world_anchor_a.y
@@ -249,20 +248,14 @@ static void system_weld_joint_apply(Entity joint_entity) {
     system_pin_joint_apply(joint_entity);
     if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
             !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return;
-    if(physics_entity_simulated_get(a_index) && entity_index_components_check(a_index, ROHR_HIT_BOX)) {
-        float inertia = physics_polygon_moment_of_inertia(hit_boxes[a_index], mass[a_index]);
-        if(inertia > 0.0f) inverse_inertia_a = 1.0f / inertia;
-    }
-    if(physics_entity_simulated_get(b_index) && entity_index_components_check(b_index, ROHR_HIT_BOX)) {
-        float inertia = physics_polygon_moment_of_inertia(hit_boxes[b_index], mass[b_index]);
-        if(inertia > 0.0f) inverse_inertia_b = 1.0f / inertia;
-    }
+    inverse_inertia_a = physics_inverse_inertia_by_index_get(a_index);
+    inverse_inertia_b = physics_inverse_inertia_by_index_get(b_index);
     inverse_inertia_sum = inverse_inertia_a + inverse_inertia_b;
     if(inverse_inertia_sum <= 0.0f) return;
     angle_error = (orientations[b_index] - orientations[a_index]) - joint.rest_angle;
     angular_velocity_error = angular_velocities[b_index] - angular_velocities[a_index];
-    orientations[a_index] += angle_error * inverse_inertia_a / inverse_inertia_sum;
-    orientations[b_index] -= angle_error * inverse_inertia_b / inverse_inertia_sum;
+    physics_com_orientation_set(a_index, orientations[a_index] + angle_error * inverse_inertia_a / inverse_inertia_sum);
+    physics_com_orientation_set(b_index, orientations[b_index] - angle_error * inverse_inertia_b / inverse_inertia_sum);
     angular_velocities[a_index] += angular_velocity_error * inverse_inertia_a / inverse_inertia_sum;
     angular_velocities[b_index] -= angular_velocity_error * inverse_inertia_b / inverse_inertia_sum;
 }
@@ -305,6 +298,8 @@ static void system_spring_joint_apply(Entity joint_entity) {
             world_anchor_b = (Position){positions[b_index].x + offset_b.x, positions[b_index].y + offset_b.y};
         }
 
+        offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));
+        offset_b = math_vector_subtract(world_anchor_b, physics_com_world_by_index_get(b_index));
         Vec2D delta = {
             .x = world_anchor_b.x - world_anchor_a.x,
             .y = world_anchor_b.y - world_anchor_a.y
@@ -348,13 +343,13 @@ static void system_spring_joint_apply(Entity joint_entity) {
         };
 
         Vec2D r_a = {
-            .x = world_anchor_a.x - positions[a_index].x,
-            .y = world_anchor_a.y - positions[a_index].y
+            .x = world_anchor_a.x - physics_com_world_by_index_get(a_index).x,
+            .y = world_anchor_a.y - physics_com_world_by_index_get(a_index).y
         };
 
         Vec2D r_b = {
-            .x = world_anchor_b.x - positions[b_index].x,
-            .y = world_anchor_b.y - positions[b_index].y
+            .x = world_anchor_b.x - physics_com_world_by_index_get(b_index).x,
+            .y = world_anchor_b.y - physics_com_world_by_index_get(b_index).y
         };
 
         Torque torque_on_a = math_cross_2d(r_a, force_on_a);

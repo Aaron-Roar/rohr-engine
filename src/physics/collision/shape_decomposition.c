@@ -3,6 +3,7 @@
  */
 
 #include "shape_decomposition.h"
+#include "physics/physics_internal.h"
 
 #include <math.h>
 #include <stddef.h>
@@ -39,13 +40,15 @@ static bool shape_segments_intersect(Vec2D a, Vec2D b, Vec2D c, Vec2D d) {
 }
 
 static float shape_signed_area_get(const Shape *shape) {
-    float twice_area = 0.0f;
+    double twice_area = 0.0;
+    Position origin = shape->vertices[0];
     for(uint16_t i = 0; i < shape->amount_of_vertices; i += 1) {
         Vec2D first = shape->vertices[i];
         Vec2D second = shape->vertices[(i + 1) % shape->amount_of_vertices];
-        twice_area += first.x * second.y - second.x * first.y;
+        twice_area += ((double)first.x - origin.x) * ((double)second.y - origin.y) -
+            ((double)second.x - origin.x) * ((double)first.y - origin.y);
     }
-    return twice_area * 0.5f;
+    return (float)(twice_area * 0.5);
 }
 
 static bool shape_simple_check(const Shape *shape) {
@@ -132,6 +135,9 @@ static bool shape_concave_decompose(Shape *shape, float winding) {
 bool physics_shape_collision_prepare(Shape source, Shape *prepared) {
     float area;
     float winding;
+    Position centroid;
+    double unit_inertia;
+    if(!physics_shape_mass_properties_get(&source, &centroid, &unit_inertia)) return false;
     if(prepared == NULL || !shape_simple_check(&source)) return false;
     source.concave_piece_count = 0;
     source.collision_geometry_prepared = false;

@@ -768,6 +768,11 @@ EngineResult entity_components_add(Entity entity, RohrComponentMask mask) {
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
     }
+    if((mask & ROHR_HIT_BOX) != 0 &&
+            (index >= hit_boxes_pool.capacity || !hit_boxes_pool.used[index] ||
+             !hit_boxes[index].collision_geometry_prepared)) {
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    }
     (void)EntityMaskPool_store_at(&entity_mask_pool, index, entity_mask[index] | mask);
     return error_result_value(true);
 }

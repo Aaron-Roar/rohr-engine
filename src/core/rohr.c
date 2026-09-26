@@ -429,6 +429,13 @@ EngineResult rohr_physics_group_velocity_away_from_entity_set(GroupId group, flo
 EngineResult rohr_physics_entity_stop(Entity entity) { return physics_entity_stop(entity); }
 EngineResult rohr_physics_group_entities_stop(GroupId group) { return physics_group_entities_stop(group); }
 EngineResult rohr_physics_impulse_apply(Entity entity, Vec2D impulse) { return physics_impulse_apply(entity, impulse); }
+EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position offset) { return physics_center_of_mass_local_position_set(entity, offset); }
+PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity) { return physics_center_of_mass_local_position_get(entity); }
+PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity) { return physics_center_of_mass_world_position_get(entity); }
+EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity) { return physics_center_of_mass_automatic_set(entity); }
+BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity) { return physics_center_of_mass_automatic_check(entity); }
+MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity) { return physics_moment_of_inertia_get(entity); }
+
 EngineResult rohr_physics_position_set(Entity entity, Position p) { return physics_position_set(entity, p); }
 PositionResult rohr_physics_position_get(Entity entity) { return physics_position_get(entity); }
 EngineResult rohr_physics_mass_set(Entity entity, Mass m) { return physics_mass_set(entity, m); }

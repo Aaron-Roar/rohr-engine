@@ -3,6 +3,7 @@
  */
 
 #include "physics/physics_step_internal.h"
+#include "physics/physics_internal.h"
 #include "physics/soft_body/soft_body.h"
 #include "systems.h"
 #include "math2d.h"
@@ -222,10 +223,12 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
         query->position_fraction *
         inverse_mass_rigid / inverse_mass_sum;
 
+    Velocity rigid_point_velocity = physics_point_velocity_by_index_get(rigid,
+        query->contact_position);
     relative_velocity = (Vec2D){
-        velocities[rigid].x -
+        rigid_point_velocity.x -
             (velocities[query->a].x * weight_a + velocities[query->b].x * weight_b),
-        velocities[rigid].y -
+        rigid_point_velocity.y -
             (velocities[query->a].y * weight_a + velocities[query->b].y * weight_b)
     };
     normal_velocity = math_dot_product(relative_velocity, overlap.normal);
@@ -240,12 +243,13 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
         .point_count = 1
     };
     if(normal_velocity < 0.0f) {
-        Vec2D rigid_offset;
+        Vec2D rigid_offset = math_vector_subtract(query->contact_position,
+            physics_com_world_by_index_get(rigid));
         Vec2D rigid_angular_velocity = {0};
         Vec2D edge_velocity;
         Vec2D tangent;
         float tangent_length;
-        float inverse_inertia_rigid = 0.0f;
+        float inverse_inertia_rigid = physics_inverse_inertia_by_index_get(rigid);
         float edge_friction;
         float rigid_friction;
         float friction;
@@ -259,8 +263,10 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
             (restitutions_pool.used[query->b] ? restitutions[query->b] : 0.0f) *
                 weight_b,
             restitutions_pool.used[rigid] ? restitutions[rigid] : 0.0f);
+        float normal_lever = math_cross_2d(rigid_offset, overlap.normal);
         impulse_magnitude = -(1.0f + restitution) * normal_velocity /
-            inverse_mass_sum;
+            (inverse_mass_sum + normal_lever * normal_lever * inverse_inertia_rigid);
+        angular_velocities[rigid] += normal_lever * impulse_magnitude * inverse_inertia_rigid;
         contact.points[0].normal_impulse = (Vec2D){
             overlap.normal.x * impulse_magnitude,
             overlap.normal.y * impulse_magnitude
@@ -277,13 +283,11 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
         velocities[rigid].y += contact.points[0].normal_impulse.y * inverse_mass_rigid;
 
         rigid_offset = math_vector_subtract(
-            contact.points[0].position, positions[rigid]);
+            contact.points[0].position, physics_com_world_by_index_get(rigid));
         if(physics_entity_simulated_get(rigid) &&
                 !entity_index_components_check(rigid, ROHR_PARTICLE) &&
                 entity_index_components_check(rigid, ROHR_MASS | ROHR_HIT_BOX)) {
-            float inertia = physics_polygon_moment_of_inertia(
-                hit_boxes[rigid], mass[rigid]);
-            if(inertia > 0.0f) inverse_inertia_rigid = 1.0f / inertia;
+            inverse_inertia_rigid = physics_inverse_inertia_by_index_get(rigid);
             rigid_angular_velocity = math_angular_velocity_cross_vec(
                 angular_velocities[rigid], rigid_offset);
         }
@@ -418,7 +422,7 @@ static void system_soft_body_node_rigid_collisions_apply(void) {
         Shape node_shape;
 
         if(!soft_body_nodes_pool.used[node] || !entity_index_alive_check(node) ||
-                !entity_index_components_check(node, ROHR_SOFT_BODY_NODE)) continue;
+                !entity_index_components_check(node, ROHR_SOFT_BODY_NODE | ROHR_HIT_BOX)) continue;
         node_shape = physics_shape_world_translate(
             math_circle_create(soft_body_nodes[node].radius, 8),
             positions[node],
@@ -441,9 +445,14 @@ static void system_soft_body_node_rigid_collisions_apply(void) {
                     !system_soft_node_rigid_filter_allows(node, rigid)) continue;
             collision = physics_sat_overlap_get(node_shape, world_hit_boxes[rigid]);
             if(!collision.detected) continue;
+            Position contact_point = {positions[node].x + collision.normal.x * soft_body_nodes[node].radius,
+                positions[node].y + collision.normal.y * soft_body_nodes[node].radius};
+            Vec2D normal_offset = math_vector_subtract(contact_point,
+                physics_com_world_by_index_get(rigid));
+            float normal_inverse_inertia = physics_inverse_inertia_by_index_get(rigid);
             relative_velocity = math_vector_subtract(
-                velocities[rigid], velocities[node]
-            );
+                physics_point_velocity_by_index_get(rigid, contact_point),
+                physics_point_velocity_by_index_get(node, contact_point));
             contact_info = (ContactInfo){
                 .detected = true,
                 .normal = collision.normal,
@@ -480,7 +489,10 @@ static void system_soft_body_node_rigid_collisions_apply(void) {
                 restitutions_pool.used[node] ? restitutions[node] : 0.25f,
                 restitutions_pool.used[rigid] ? restitutions[rigid] : 0.25f
             );
-            impulse_magnitude = -(1.0f + restitution) * normal_velocity / inverse_mass_sum;
+            float normal_lever = math_cross_2d(normal_offset, collision.normal);
+            impulse_magnitude = -(1.0f + restitution) * normal_velocity /
+                (inverse_mass_sum + normal_lever * normal_lever * normal_inverse_inertia);
+            angular_velocities[rigid] += normal_lever * impulse_magnitude * normal_inverse_inertia;
             velocities[node].x -= collision.normal.x * impulse_magnitude * inverse_mass_node;
             velocities[node].y -= collision.normal.y * impulse_magnitude * inverse_mass_node;
             velocities[rigid].x += collision.normal.x * impulse_magnitude * inverse_mass_rigid;
@@ -502,8 +514,8 @@ static void system_soft_body_node_rigid_collisions_apply(void) {
                 float coefficient = sqrtf(node_friction * rigid_friction);
                 Vec2D tangent = {-collision.normal.y, collision.normal.x};
                 Vec2D rigid_offset = {
-                    positions[node].x + collision.normal.x * soft_body_nodes[node].radius - positions[rigid].x,
-                    positions[node].y + collision.normal.y * soft_body_nodes[node].radius - positions[rigid].y
+                    positions[node].x + collision.normal.x * soft_body_nodes[node].radius - physics_com_world_by_index_get(rigid).x,
+                    positions[node].y + collision.normal.y * soft_body_nodes[node].radius - physics_com_world_by_index_get(rigid).y
                 };
                 float inverse_inertia_rigid = 0.0f;
                 float tangent_speed;
@@ -513,9 +525,7 @@ static void system_soft_body_node_rigid_collisions_apply(void) {
 
                 if(physics_entity_simulated_get(rigid) &&
                         entity_index_components_check(rigid, ROHR_MASS | ROHR_HIT_BOX)) {
-                    float inertia = physics_polygon_moment_of_inertia(
-                        hit_boxes[rigid], mass[rigid]);
-                    if(inertia > 0.0f) inverse_inertia_rigid = 1.0f / inertia;
+                    inverse_inertia_rigid = physics_inverse_inertia_by_index_get(rigid);
                 }
                 {
                     Vec2D angular_velocity = math_angular_velocity_cross_vec(

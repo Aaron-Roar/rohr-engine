@@ -55,6 +55,30 @@ More substeps improve detection and integration for fast or light bodies but
 repeat broadphase and narrow-phase work. More solver iterations improve contact
 and joint convergence without increasing temporal sampling.
 
+## Center of mass and inertia
+
+Entity position remains the world origin. Rigid-body linear velocity and
+acceleration describe center-of-mass (COM) motion. Free rotation keeps world COM
+fixed when its linear velocity is zero; an offset origin moves around it.
+Direct orientation setters instead hold the origin fixed.
+
+Automatic COM is the active polygon's uniform-density centroid. Set an explicit
+origin-relative offset with `rohr_physics_center_of_mass_local_position_set()`,
+or discard the override with `rohr_physics_center_of_mass_automatic_set()`.
+Local/world COM getters and `rohr_physics_moment_of_inertia_get()` report derived
+properties without allocating. Inertia includes the parallel-axis contribution
+of an explicit COM; manual inertia is unsupported.
+
+Geometry and mass edits preserve origin, orientation, and velocities. Invalid
+geometry edits fail atomically. Entities without geometry may move and retain
+explicit COM, but cannot collide or receive angular response requiring inertia.
+Automatic motion temporarily uses the origin when geometry is absent; automatic
+COM and inertia queries still report missing components.
+
+Axis locks constrain the origin. Contacts, torque, and joint lever arms use COM.
+See the [origin contract](physics_origin_contract.md) for formulas and API error
+semantics. COM serialization and editor controls are separate milestone goals.
+
 ## Body modes
 
 - Static bodies do not move in response to simulation and need no mass.

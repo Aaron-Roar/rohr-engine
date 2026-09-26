@@ -3,6 +3,8 @@
  */
 
 #include "physics.h"
+#include "physics/physics_internal.h"
+#include <float.h>
 
 #include <math.h>
 
@@ -28,29 +30,10 @@ Shape physics_shape_world_translate(
 }
 
 float physics_polygon_moment_of_inertia(Shape shape, Mass mass_value) {
-    Position center = math_polygon_centroid(shape);
-    float area_sum = 0.0f;
-    float inertia_sum = 0.0f;
-
-    for(uint16_t i = 0; i < shape.amount_of_vertices; i += 1) {
-        uint16_t next = (uint16_t)((i + 1) % shape.amount_of_vertices);
-        float first_x = shape.vertices[i].x - center.x;
-        float first_y = shape.vertices[i].y - center.y;
-        float second_x = shape.vertices[next].x - center.x;
-        float second_y = shape.vertices[next].y - center.y;
-        float cross = first_x * second_y - second_x * first_y;
-        float squared_sum =
-            first_x * first_x + first_x * second_x + second_x * second_x +
-            first_y * first_y + first_y * second_y + second_y * second_y;
-
-        area_sum += cross;
-        inertia_sum += cross * squared_sum;
-    }
-    {
-        float area = 0.5f * area_sum;
-        float area_moment = inertia_sum / 12.0f;
-
-        if(fabsf(area) < 1e-8f) return 0.0f;
-        return mass_value / fabsf(area) * fabsf(area_moment);
-    }
+    Position centroid;
+    double unit_inertia;
+    if(!isfinite(mass_value) || mass_value < 0 ||
+            !physics_shape_mass_properties_get(&shape, &centroid, &unit_inertia)) return 0;
+    double inertia = unit_inertia * mass_value;
+    return isfinite(inertia) && inertia <= FLT_MAX ? (float)inertia : 0;
 }

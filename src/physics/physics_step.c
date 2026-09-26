@@ -188,6 +188,8 @@ void physics_pipeline_contact_constraints_finalize(
 void physics_pipeline_joint_constraints_solve(void *context) {
     (void)context;
     physics_joint_constraints_solve();
+    physics_rigid_transform_constraints_apply();
+    physics_step_hitbox_dirty_flush();
 }
 
 EngineResult system_physics_update(double dt) {

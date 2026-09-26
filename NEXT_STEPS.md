@@ -163,10 +163,15 @@ projects and examples without legacy migration or automatic origin recentering.
    the next tick. Local anchors, particle centers, attachments, and soft-body
    node offsets are preserved. Off-center/rotated geometry, teleports, variants,
    camera offsets, editor commands, and undo/redo have regression coverage.
-3. [ ] **Implement COM and inertia throughout runtime physics** — Add owned
-   automatic/explicit COM state and APIs, derive inertia, integrate COM motion,
-   and update contact, torque, and joint response together. Verify free motion,
-   geometry/mass edits, explicit offsets, body modes, locks, and solver response.
+3. [x] **Implement COM and inertia throughout runtime physics** — Added entity-owned
+   automatic/explicit COM state and matching direct/public APIs, derived inertia,
+   COM-based integration, and consistent contact, torque, joint, and soft-body
+   response. Origin-relative locks and geometryless motion are preserved;
+   invalid geometry edits preserve existing colliders and mass properties.
+   Analytic, mutation, body-mode, lock, and solver regression checks pass,
+   including focused ASan/UBSan tests, Linux/Windows compilation, and independent
+   installed-SDK example builds and headless launches. The full Linux suite has
+   only its pre-existing cameras and ui_field failures (45/47 passing).
 4. [ ] **Persist and generate COM configuration** — Extend project data, JSON,
    CLI, applicable runtime state persistence, loading, and generated C. Verify
    mode/offset round trips, invalid input, deterministic generation, and direct

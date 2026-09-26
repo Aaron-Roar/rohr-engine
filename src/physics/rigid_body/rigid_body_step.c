@@ -97,7 +97,7 @@ void system_orientations_update(double dt) {
         }
         if(physics_entity_movable_get(i) &&
                 !entity_index_components_check(i, ROHR_PARTICLE)) {
-            orientations[i] = orientations[i] + angular_velocities[i]*dt;
+            physics_com_orientation_set(i, orientations[i] + angular_velocities[i]*dt);
         }
     }
 }
@@ -187,7 +187,7 @@ void system_forces_apply(void) {
 }
 
 void system_torques_apply(void) {
-    //Apply force offset from centroid and torque applied directly
+    /* Targeted torque uses the same effective-COM inertia as constraints. */
   RohrComponentMask filter = ROHR_TORQUE | ROHR_TARGETABLE;
   RohrComponentMask target_filter = ROHR_MASS;
 
@@ -201,7 +201,8 @@ void system_torques_apply(void) {
             if(entity_index_get(targets[i], &target_index) && entity_index_alive_check(target_index)) { //Check if the target to the force exists
                 if(physics_entity_simulated_get(target_index) && entity_index_components_check(target_index, target_filter)) { //Check if the target is moveable
                     if(mass[target_index] != 0) {
-                        torque_angular_accelerations[target_index] += torques[i]/physics_polygon_moment_of_inertia(hit_boxes[target_index], mass[target_index]);
+                        torque_angular_accelerations[target_index] += torques[i] *
+                            physics_inverse_inertia_by_index_get(target_index);
                     } else {
                         //Force on massless entity
                         console_write(
@@ -248,6 +249,8 @@ void physics_rigid_gravity_apply(Acceleration gravity) {
 }
 
 OverlapInfo system_entity_overlap_get(Entity entity_1, Entity entity_2) {
+    if(!entity_index_components_check(entity_1, ROHR_HIT_BOX) ||
+            !entity_index_components_check(entity_2, ROHR_HIT_BOX)) return (OverlapInfo){0};
     Shape shape1 = world_hit_boxes[entity_1];
     Shape shape2 = world_hit_boxes[entity_2];
     if(entity_index_components_check(entity_1, ROHR_PARTICLE) && entity_index_components_check(entity_2, ROHR_PARTICLE)) {
@@ -551,8 +554,8 @@ static void system_contact_point_solve(
 ) {
     bool moving_first = physics_entity_movable_get(first);
     bool moving_second = physics_entity_movable_get(second);
-    Vec2D first_offset = math_vector_subtract(point, positions[first]);
-    Vec2D second_offset = math_vector_subtract(point, positions[second]);
+    Vec2D first_offset = math_vector_subtract(point, physics_com_world_by_index_get(first));
+    Vec2D second_offset = math_vector_subtract(point, physics_com_world_by_index_get(second));
     Vec2D first_angular_velocity = !moving_first ||
             entity_index_components_check(first, ROHR_PARTICLE)
         ? (Vec2D){0}
@@ -661,12 +664,10 @@ ContactInfo system_resolve_collision(
     }
     if(inverse_mass_first + inverse_mass_second <= 0.0f) return result;
     if(!first_particle && inverse_mass_first > 0.0f) {
-        float inertia = physics_polygon_moment_of_inertia(hit_boxes[first], mass[first]);
-        if(inertia > 0.0f) inverse_inertia_first = 1.0f / inertia;
+        inverse_inertia_first = physics_inverse_inertia_by_index_get(first);
     }
     if(!second_particle && inverse_mass_second > 0.0f) {
-        float inertia = physics_polygon_moment_of_inertia(hit_boxes[second], mass[second]);
-        if(inertia > 0.0f) inverse_inertia_second = 1.0f / inertia;
+        inverse_inertia_second = physics_inverse_inertia_by_index_get(second);
     }
     for(uint8_t i = 0; i < result.point_count; i += 1) {
         const ContactPointInfo *previous_point = NULL;
@@ -722,14 +723,10 @@ static ContactInfo system_resolve_collision_manifold(
         (void)first_particle;
         (void)second_particle;
         if(!first_particle && inverse_mass_first > 0.0f) {
-            float inertia = physics_polygon_moment_of_inertia(
-                hit_boxes[first], mass[first]);
-            if(inertia > 0.0f) inverse_inertia_first = 1.0f / inertia;
+            inverse_inertia_first = physics_inverse_inertia_by_index_get(first);
         }
         if(!second_particle && inverse_mass_second > 0.0f) {
-            float inertia = physics_polygon_moment_of_inertia(
-                hit_boxes[second], mass[second]);
-            if(inertia > 0.0f) inverse_inertia_second = 1.0f / inertia;
+            inverse_inertia_second = physics_inverse_inertia_by_index_get(second);
         }
         result = (ContactInfo){
             .detected = true,
@@ -1055,8 +1052,10 @@ void system_collisions_apply(void) {
 }
 
 void system_angle_locks_apply(void) {
-    for(Entity entity = 0; entity < MAX_ENTITIES; entity += 1) {
-        if(!entity_index_alive_check(entity)) {
+    for(uint32_t alive_position = 0; alive_position < entity_alive_count_get();
+            alive_position += 1) {
+        EntityIndex entity;
+        if(!physics_step_alive_index_at(alive_position, &entity)) {
             continue;
         }
 
@@ -1078,7 +1077,7 @@ void system_angle_locks_apply(void) {
         }
 
         if(fabsf(max - min) <= 0) {
-            orientations[entity] = min;
+            physics_com_orientation_set(entity, min);
             angular_velocities[entity] = 0.0f;
             angular_accelerations[entity] = 0.0f;
             torque_angular_accelerations[entity] = 0.0f;
@@ -1087,7 +1086,7 @@ void system_angle_locks_apply(void) {
         }
 
         if(orientations[entity] < min) {
-            orientations[entity] = min;
+            physics_com_orientation_set(entity, min);
 
             if(angular_velocities[entity] < 0.0f) {
                 angular_velocities[entity] = 0.0f;
@@ -1107,7 +1106,7 @@ void system_angle_locks_apply(void) {
         }
 
         if(orientations[entity] > max) {
-            orientations[entity] = max;
+            physics_com_orientation_set(entity, max);
 
             if(angular_velocities[entity] > 0.0f) {
                 angular_velocities[entity] = 0.0f;
@@ -1129,8 +1128,10 @@ void system_angle_locks_apply(void) {
 }
 
 void system_axis_locks_apply(void) {
-    for(Entity entity = 0; entity < MAX_ENTITIES; entity += 1) {
-        if(!entity_index_alive_check(entity)) {
+    for(uint32_t alive_position = 0; alive_position < entity_alive_count_get();
+            alive_position += 1) {
+        EntityIndex entity;
+        if(!physics_step_alive_index_at(alive_position, &entity)) {
             continue;
         }
 
@@ -1164,8 +1165,17 @@ void system_axis_locks_apply(void) {
 
         positions[entity].x = point_on_axis.x + axis.x * distance_along_axis;
         positions[entity].y = point_on_axis.y + axis.y * distance_along_axis;
+        physics_step_hitbox_dirty_add(entity);
 
-        velocities[entity] = math_project_onto_axis(velocities[entity], axis);
+        Vec2D radius = math_vector_rotate(physics_com_local_by_index_get(entity),
+            orientations[entity]);
+        float omega = entity_index_components_check(entity, ROHR_PARTICLE) ?
+            0.0f : angular_velocities[entity];
+        Vec2D rotational = math_angular_velocity_cross_vec(omega, radius);
+        Velocity origin_velocity = math_vector_subtract(velocities[entity], rotational);
+        origin_velocity = math_project_onto_axis(origin_velocity, axis);
+        velocities[entity] = (Velocity){origin_velocity.x + rotational.x,
+            origin_velocity.y + rotational.y};
 
         accelerations[entity] = math_project_onto_axis(accelerations[entity], axis);
         force_accelerations[entity] = math_project_onto_axis(force_accelerations[entity], axis);
@@ -1175,8 +1185,10 @@ void system_axis_locks_apply(void) {
 }
 
 void system_transform_locks_apply(void) {
-    for(Entity driven = 0; driven < MAX_ENTITIES; driven += 1) {
-        if(!entity_index_alive_check(driven)) {
+    for(uint32_t alive_position = 0; alive_position < entity_alive_count_get();
+            alive_position += 1) {
+        EntityIndex driven;
+        if(!physics_step_alive_index_at(alive_position, &driven)) {
             continue;
         }
 
@@ -1207,12 +1219,27 @@ void system_transform_locks_apply(void) {
         }
 
         if(transform_locks[driven].lock_orientation) {
-            orientations[driven] =
-                orientations[driver_index] + transform_locks[driven].local_angle;
+            float orientation = orientations[driver_index] + transform_locks[driven].local_angle;
+            if(transform_locks[driven].lock_position) orientations[driven] = orientation;
+            else physics_com_orientation_set(driven, orientation);
         }
 
+        physics_step_hitbox_dirty_add(driven);
         if(transform_locks[driven].inherit_velocity) {
-            velocities[driven] = velocities[driver_index];
+            if(transform_locks[driven].lock_orientation)
+                angular_velocities[driven] = entity_index_components_check(driven, ROHR_PARTICLE) ?
+                    0.0f : angular_velocities[driver_index];
+            Vec2D driver_com_offset = math_vector_rotate(
+                physics_com_local_by_index_get(driver_index), orientations[driver_index]);
+            Vec2D driven_com_offset = math_vector_rotate(
+                physics_com_local_by_index_get(driven), orientations[driven]);
+            Vec2D driver_origin_velocity = math_vector_subtract(velocities[driver_index],
+                math_angular_velocity_cross_vec(angular_velocities[driver_index],
+                    driver_com_offset));
+            Vec2D driven_rotational = math_angular_velocity_cross_vec(
+                angular_velocities[driven], driven_com_offset);
+            velocities[driven] = (Velocity){driver_origin_velocity.x + driven_rotational.x,
+                driver_origin_velocity.y + driven_rotational.y};
 
             Vec2D rotational_velocity = math_angular_velocity_cross_vec(
                 angular_velocities[driver_index],
@@ -1222,11 +1249,14 @@ void system_transform_locks_apply(void) {
             velocities[driven].x += rotational_velocity.x;
             velocities[driven].y += rotational_velocity.y;
 
-            if(transform_locks[driven].lock_orientation) {
-                angular_velocities[driven] = angular_velocities[driver_index];
-            }
         }
     }
+}
+
+void physics_rigid_transform_constraints_apply(void) {
+    system_angle_locks_apply();
+    system_axis_locks_apply();
+    system_transform_locks_apply();
 }
 
 EngineResult physics_rigid_integrate(double dt) {
@@ -1238,8 +1268,8 @@ EngineResult physics_rigid_integrate(double dt) {
     system_orientations_update(dt);
     if(!system_positions_update(dt))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
-    system_axis_locks_apply();
     system_angle_locks_apply();
+    system_axis_locks_apply();
     system_transform_locks_apply();
     return error_result_value(true);
 }

@@ -264,6 +264,8 @@ typedef struct ParticleConfig {
 } ParticleConfig;
 
 ERROR_DECLARE_RESULT_TYPE(PositionResult, Position);
+ERROR_DECLARE_RESULT_TYPE(BoolResult, bool);
+ERROR_DECLARE_RESULT_TYPE(MomentOfInertiaResult, float);
 ERROR_DECLARE_RESULT_TYPE(AngularVelocityResult, AngularVelocity);
 
 /** Constraint that locks movement onto an axis through a point. */
@@ -631,6 +633,16 @@ EngineResult physics_impulse_apply(Entity entity, Vec2D impulse);
 /** Set the world origin, preserving local geometry and attachment offsets. */
 EngineResult physics_position_set(Entity entity, Position p);
 PositionResult physics_position_get(Entity entity);
+
+/** COM offsets use the body's local origin axes. No geometry is needed to set
+ * an override. Getters require geometry for automatic COM and inertia. */
+EngineResult physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
+PositionResult physics_center_of_mass_local_position_get(Entity entity);
+PositionResult physics_center_of_mass_world_position_get(Entity entity);
+EngineResult physics_center_of_mass_automatic_set(Entity entity);
+BoolResult physics_center_of_mass_automatic_check(Entity entity);
+MomentOfInertiaResult physics_moment_of_inertia_get(Entity entity);
+
 /** Set an entity's mass and add the ROHR_MASS component. */
 /** Set finite, non-negative mass. Zero represents an explicitly massless entity. */
 EngineResult physics_mass_set(Entity entity, Mass m);
