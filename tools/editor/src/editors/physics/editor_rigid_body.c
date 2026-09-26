@@ -99,6 +99,7 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     CREATE("", mass_field); CREATE("", friction_field);
     CREATE("", restitution_field);
 #undef CREATE
+    if(!editor_center_of_mass_editor_create(&editor->center_of_mass, font)) goto fail;
     if(!editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(
@@ -123,6 +124,7 @@ fail:
 
 void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor) {
     if(editor == NULL) return;
+    editor_center_of_mass_editor_destroy(&editor->center_of_mass);
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(rotation_label);
     DESTROY(velocity_x_label); DESTROY(velocity_y_label);
@@ -189,7 +191,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     float geometry_active_label_y = 0.0f, geometry_active_field_y = 0.0f;
     float geometry_add_y = 0.0f, geometry_list_y = 0.0f;
     float geometry_list_stride = 0.0f;
-    float transform_row_y[5] = {0}, physics_row_y[3] = {0};
+    float transform_row_y[5] = {0}, physics_row_y[4] = {0};
     float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0}, appearance_row_y[2] = {0};
     bool transform_open, initial_motion_open, physics_open, material_open,
@@ -257,7 +259,9 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         const EditorModeAccordionLayoutGroup physics_groups[] = {
             {.row_count = 1, .row_height = 28.0f},
             {.row_count = 1, .row_height = 26.0f, .gap_before = 4.0f},
-            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f}};
+            {.row_count = 1, .row_height = 28.0f, .gap_before = 6.0f},
+            {.row_count = EDITOR_COM_ROW_COUNT, .row_height = EDITOR_COM_ROW_HEIGHT,
+                .gap_before = 6.0f}};
         const float initial_motion_rows[] = {
             26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         const float material_rows[] = {26.0f, 26.0f};
@@ -349,7 +353,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         EditorModeAccordionLayoutResult physics_layout =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->physics_section,
-                "editor.rigid_body.section.physics", physics_groups, 3);
+                "editor.rigid_body.section.physics", physics_groups, 4);
         physics_open = physics_layout.expanded;
         SECTION_LAYOUT(editor->material_section,
             "editor.rigid_body.section.material", material_rows, 2, 6.0f,
@@ -401,9 +405,9 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             &transform_layout, transform_groups, 3, 1, 0);
         transform_row_y[4] = editor_mode_accordion_layout_group_row_y(
             &transform_layout, transform_groups, 3, 2, 0);
-        for(size_t row = 0; row < 3; row += 1)
+        for(size_t row = 0; row < 4; row += 1)
             physics_row_y[row] = editor_mode_accordion_layout_group_row_y(
-                &physics_layout, physics_groups, 3, row, 0);
+                &physics_layout, physics_groups, 4, row, 0);
         for(size_t row = 0; row < 2; row += 1) {
             material_row_y[row] = editor_mode_accordion_layout_row_y(
                 &(EditorModeAccordionLayoutResult){
@@ -595,6 +599,8 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         }
     }
     if(physics_open) {
+        field_active = editor_center_of_mass_editor_draw(&editor->center_of_mass,
+            context, object, body, physics_row_y[3]) || field_active;
         bool value = body->gravity_enabled;
         if(checkbox("editor.rigid_body.gravity", &editor->gravity_label,
                 (UIRect){x + 10.0f, physics_row_y[2],

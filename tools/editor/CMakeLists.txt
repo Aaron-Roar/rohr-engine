@@ -26,6 +26,7 @@ add_executable(rohr_editor_gui
     src/editors/geometry/editor_line.c
     src/editors/geometry/editor_auto_shape.c
     src/editors/geometry/editor_hitbox.c
+    src/editors/physics/editor_center_of_mass.c
     src/editors/physics/editor_particle.c
     src/editors/physics/editor_anchor.c
     src/editors/physics/editor_rigid_body.c

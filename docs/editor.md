@@ -320,7 +320,7 @@ locking, colors, and collision filtering. Collision filtering has two sets:
 
 A pair responds only when both directional filters accept one another.
 
-## Center of mass persistence and CLI
+## Center of mass authoring and persistence
 
 Project data uses format version 3; older project data must be rewritten.
 The workspace manifest version is unchanged. Rigid-body records store
@@ -339,8 +339,28 @@ rohr-cli --project ./objects/project.rohr.json --object car --body chassis --pro
 Selecting automatic discards the explicit offset. Generated C applies this
 configuration before simulation, including bodies without geometry. Inertia
 is always derived. Standalone particles reject explicit COM; their COM stays
-at the particle centroid, even when collision response is disabled. Editor COM controls and visualization follow in
-the next milestone goal.
+at the particle centroid, even when collision response is disabled.
+
+The rigid-body **Physics** section exposes **COM: Automatic / Explicit**, local
+X/Y coordinates, and read-only derived inertia beside the mass controls.
+Automatic coordinates follow the active hitbox's area centroid. Switching to
+Explicit starts at that centroid (or zero when unavailable); switching back
+discards the override. Static, rotation-locked, and particle bodies report
+angular response disabled while still showing inertia from their authored mass
+and valid geometry. Missing values read **Unavailable**.
+
+With one body selected, including while editing its geometry, a larger COM
+circle containing an anvil is drawn after the origin. The circle and anvil are
+blue with white borders and turn yellow when selected. Explicit COM handles
+take priority over coincident origins; dragging changes only the local offset,
+with no origin or geometry movement. Layer/order occlusion applies to new
+presses, hidden bodies expose no handle, and a drag makes one undo entry.
+The marker and readouts update immediately after edits and undo/redo.
+COM configuration is retained by duplication, saving, and generated previews.
+
+Standalone particles expose centroid coordinates as read-only values in their
+particle panel and have no COM handle or mode control. Ordinary rigid bodies
+with particle properties retain COM authoring and visualization.
 
 ## Particles
 

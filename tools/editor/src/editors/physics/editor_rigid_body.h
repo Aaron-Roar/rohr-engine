@@ -6,6 +6,7 @@
 #define EDITOR_RIGID_BODY_H
 
 #include "editors/editor_mode_context.h"
+#include "editor_center_of_mass.h"
 #include "editors/editor_mode_controls.h"
 
 typedef bool (*EditorRigidBodyCollisionMenuFunction)(void *context,
@@ -16,6 +17,7 @@ typedef bool (*EditorRigidBodyCollisionMenuFunction)(void *context,
 
 typedef struct EditorRigidBodyEditor {
     FontAsset *font;
+    EditorCenterOfMassEditor center_of_mass;
     TextAsset name_label, x_label, y_label, rotation_label;
     TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
     TextAsset acceleration_y_label, angular_velocity_label;

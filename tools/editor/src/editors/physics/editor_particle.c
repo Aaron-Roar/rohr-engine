@@ -34,11 +34,16 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
         editor_particle_editor_destroy(editor);
         return false;
     }
+    if(!editor_center_of_mass_editor_create(&editor->center_of_mass, font)) {
+        editor_particle_editor_destroy(editor);
+        return false;
+    }
     return true;
 }
 
 void editor_particle_editor_destroy(EditorParticleEditor *editor) {
     if(editor == NULL) return;
+    editor_center_of_mass_editor_destroy(&editor->center_of_mass);
     rohr_graphics_text_destroy(&editor->title);
     rohr_graphics_text_destroy(&editor->visibility_label);
     rohr_graphics_text_destroy(&editor->visible_label);
@@ -185,11 +190,18 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
             context->width - 124.0f, 26.0f}, context,
         EDITOR_ITEM_RIGID_BODY, object->id, 0, body->id,
         EDITOR_PROPERTY_PARTICLE_FILL_COLOR);
+    bool com_active = editor_center_of_mass_editor_draw(&editor->center_of_mass,
+        context, object, body, 336.0f);
+    float layer_y = 336.0f + EDITOR_COM_ROW_COUNT * EDITOR_COM_ROW_HEIGHT + 6.0f;
     bool layer_active = context->layer_control != NULL &&
         editor_mode_layer_control_draw(context->layer_control,
             "editor.particle", context->project, &body->graphics_layer, NULL,
-            context->x, 336.0f, context->width);
-    return radius.active || rigid_vertices.active || origin_x.active ||
+            context->x, layer_y, context->width);
+    float layer_height = context->layer_control == NULL ? 0.0f :
+        body->graphics_layer.layer == 0 || context->layer_control->adding ||
+        context->layer_control->edited_layer != 0 ? 86.0f : 48.0f;
+    editor_mode_accordion_layout_measure_include(layer_y + layer_height);
+    return com_active || radius.active || rigid_vertices.active || origin_x.active ||
         origin_y.active || layer_active;
 }
 

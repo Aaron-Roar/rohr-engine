@@ -183,10 +183,19 @@ projects and examples without legacy migration or automatic origin recentering.
    runtime parity pass. Linux and Windows builds, five focused ASan/UBSan tests,
    and nine installed-SDK example builds/headless launches pass. The full Linux
    suite has only its pre-existing cameras and ui_field failures (46/48 passing).
-5. [ ] **Expose COM authoring and visualization** — Add mode and local-offset
-   controls, derived inertia information, distinct origin/COM visualization,
-   undo/redo, duplication, persistence, and preview updates. Test interactions
-   and request visual verification without adding origin recentering.
+5. [x] **Expose COM authoring and visualization** — Added automatic/explicit mode,
+   local-offset controls, derived inertia and angular-response readouts, and
+   Unavailable values. Selected rigid bodies (including particle-enabled bodies)
+   show a blue/white anvil-circle COM handle after their origin, yellow when
+   selected. Explicit dragging preserves geometry/origin, respects occlusion,
+   and creates one undo entry. Pure particles retain read-only centroid COM.
+   Mode seeding/reset, runtime numeric parity, active variants, independent
+   duplication, persistence, rotated dragging, cancellation, hidden controls,
+   coincident origin priority, and covering body/sprite picking pass.
+   Linux/Windows compilation, five focused ASan/UBSan checks, installed-SDK
+   joints build/headless launch, and generated/direct COM parity pass. Full
+   Linux results are 47/49, with only the known cameras and ui_field failures.
+   Visual verification of the marker and controls is requested at review.
 6. [ ] **Rewrite examples and verify milestone parity** — Rewrite affected
    bundled projects/examples and regenerate runtime modules; demonstrate an
    off-center body with explicit COM, rotation, and anchors. Complete integrated
@@ -197,7 +206,8 @@ projects and examples without legacy migration or automatic origin recentering.
 Complete and verify one goal at a time, then stop for review and a user-created
 commit. Each goal includes focused tests and relevant example builds; update
 affected fixtures when behavior changes, without deferring known failures to
-goal 6. Cross-path implementation remains incomplete until goals 4 and 5 finish.
+goal 6. Cross-path authoring support is implemented; goal 6 completes bundled
+example rewrites and integrated milestone parity.
 Manual inertia, force-emitter tooling, and the broader attachment API redesign
 are outside this milestone.
 

@@ -3,6 +3,7 @@
  */
 
 #include "editor_history.h"
+#include "editor_mass_properties.h"
 #include "viewport/controls/editor_rotation_control.h"
 #include "editor_layout.h"
 #include "editor_navigation.h"
@@ -85,7 +86,164 @@ static void shortcut_apply(EditorHistory *history, SDL_Keycode key) {
     assert(result.consumed && result.restored);
 }
 
+static void center_of_mass_interaction_check(void) {
+    EditorProject project;
+    EditorHistory history;
+    EditorViewportState viewport = {0};
+    editor_project_init(&project);
+    EditorObject *object = editor_project_object_add(&project, (Position){10, 20});
+    assert(object != NULL);
+    EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+    assert(body != NULL);
+    project.viewport_local_view = false;
+    body->position = (Position){40, -30};
+    body->rotation = 1.57079632679f;
+    EditorRigidBodyId id = body->id;
+    EditorHitboxId hitbox_id = body->hitboxes[0].id;
+    Position original_vertex = body->hitboxes[0].vertices[0].position;
+    assert(editor_center_of_mass_set(&project, object->id, id, true,
+        (Position){0}).kind == ERROR_RESULT_VALUE);
+    assert(editor_history_init(&history, &project));
+    callback_history = &history;
+    editor_command_executing_callback_set(history_begin, NULL);
+    editor_command_finished_callback_set(history_finish, NULL);
+    editor_viewport_state_init(&viewport);
+    viewport.mode = EDITOR_VIEWPORT_VERTEX;
+    viewport.selection = EDITOR_SELECTION_VERTEX;
+    viewport.selected_rigid_body = id;
+    viewport.selected_hitbox = hitbox_id;
+    Position origin = {object->position.x + body->position.x,
+        object->position.y + body->position.y};
+    Position press = test_world_to_screen((Position){origin.x + 3, origin.y + 2});
+    /* COM wins over the coincident origin, even while editing a child. */
+    assert(viewport_pointer_update(&history, &viewport, &project, press,
+        MOUSE_BUTTON_STATE_PRESSED));
+    assert(viewport.dragged_center_of_mass && !viewport.dragged_origin &&
+        !viewport.dragged_body && viewport.selected_center_of_mass);
+    Position drag = {press.x + 20, press.y - 30};
+    assert(viewport_pointer_update(&history, &viewport, &project, drag,
+        MOUSE_BUTTON_STATE_DOWN));
+    drag.x += 10;
+    assert(viewport_pointer_update(&history, &viewport, &project, drag,
+        MOUSE_BUTTON_STATE_DOWN));
+    assert(!viewport_pointer_update(&history, &viewport, &project, drag,
+        MOUSE_BUTTON_STATE_RELEASED));
+    assert(!editor_viewport_transform_active_check(&viewport));
+    assert(history.undo_count == 1);
+    assert(fabsf(body->center_of_mass_offset.x - 30) < 0.001f &&
+        fabsf(body->center_of_mass_offset.y + 30) < 0.001f);
+    assert(body->position.x == 40 && body->position.y == -30 &&
+        body->hitboxes[0].vertices[0].position.x == original_vertex.x &&
+        body->hitboxes[0].vertices[0].position.y == original_vertex.y);
+    assert(editor_history_undo(&history));
+    body = editor_project_rigid_body_get(&project.objects[0], id);
+    assert(body->center_of_mass_explicit && body->center_of_mass_offset.x == 0);
+    assert(viewport.mode == EDITOR_VIEWPORT_VERTEX);
+    assert(editor_history_redo(&history));
+    object = &project.objects[0];
+    body = editor_project_rigid_body_get(object, id);
+    assert(fabsf(body->center_of_mass_offset.y + 30) < 0.001f);
+    /* Cancel restores a continuous edit and leaves no extra history entry. */
+    Position center = test_world_to_screen((Position){origin.x + 30, origin.y + 30});
+    assert(viewport_pointer_update(&history, &viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED));
+    assert(viewport_pointer_update(&history, &viewport, &project,
+        (Position){center.x + 15, center.y}, MOUSE_BUTTON_STATE_DOWN));
+    editor_history_transaction_cancel(&history);
+    editor_viewport_transform_cancel(&viewport);
+    assert(history.undo_count == 1);
+    object = &project.objects[0];
+    body = editor_project_rigid_body_get(object, id);
+    assert(fabsf(body->center_of_mass_offset.y + 30) < 0.001f);
+    /* Automatic mode discards the override and is undoable. */
+    assert(editor_center_of_mass_mode_set(&project, object->id, id, false).kind ==
+        ERROR_RESULT_VALUE);
+    assert(!body->center_of_mass_explicit && body->center_of_mass_offset.x == 0);
+    assert(editor_history_undo(&history));
+    body = editor_project_rigid_body_get(&project.objects[0], id);
+    assert(body->center_of_mass_explicit && fabsf(body->center_of_mass_offset.x - 30) < 0.001f);
+    editor_command_executing_callback_set(NULL, NULL);
+    editor_command_finished_callback_set(NULL, NULL);
+    callback_history = NULL;
+    /* A covering body owns a new press; selected COM cannot click through it. */
+    object = &project.objects[0];
+    EditorRigidBody *front = editor_project_rigid_body_add(&project, object);
+    assert(front != NULL);
+    front->position = (Position){70, 0};
+    EditorRigidBodyId front_id = front->id;
+    viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    viewport.selection = EDITOR_SELECTION_RIGID_BODY;
+    viewport.selected_rigid_body = id;
+    assert(editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false));
+    assert(!viewport.dragged_center_of_mass && viewport.selected_rigid_body == front_id);
+    editor_viewport_transform_cancel(&viewport);
+    front->visible = false;
+    viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    viewport.selected_rigid_body = id;
+    assert(editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false));
+    assert(viewport.dragged_center_of_mass);
+    editor_viewport_transform_cancel(&viewport);
+    /* Modal capture must prevent a new handle drag. */
+    assert(!editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, true));
+    assert(!viewport.dragged_center_of_mass);
+    EditorSprite *cover = editor_project_sprite_add(&project, object, "cover", "unused.png");
+    assert(cover != NULL);
+    cover->position = (Position){70, 0};
+    cover->size = (Scale){40, 40};
+    cover->visible = true;
+    /* Sprites occupy a higher editor render layer than body controls. */
+    (void)editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    assert(!viewport.dragged_center_of_mass && viewport.selection == EDITOR_SELECTION_SPRITE);
+    editor_viewport_transform_cancel(&viewport);
+    cover->visible = false;
+    viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    viewport.selection = EDITOR_SELECTION_RIGID_BODY;
+    viewport.selected_rigid_body = id;
+    body = editor_project_rigid_body_get(object, id);
+    body->center_of_mass_explicit = false;
+    body->center_of_mass_offset = (Position){0};
+    Position automatic = editor_mass_properties_get(body).center;
+    Vec2D offset = math_vector_rotate(automatic, body->rotation);
+    center = test_world_to_screen((Position){origin.x + offset.x, origin.y + offset.y});
+    (void)editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    assert(!viewport.dragged_center_of_mass && !body->center_of_mass_explicit);
+    editor_viewport_transform_cancel(&viewport);
+    body->center_of_mass_explicit = true;
+    body->center_of_mass_offset = (Position){150, 120};
+    center = test_world_to_screen((Position){origin.x - 120, origin.y + 150});
+    viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    viewport.selected_rigid_body = id;
+    /* Exterior COM remains reachable without geometry under the handle. */
+    assert(editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false));
+    assert(viewport.dragged_center_of_mass);
+    (void)editor_viewport_update(&viewport, &project, (Position){-20, 20},
+        MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP, false, 0, true);
+    assert(!viewport.dragged_center_of_mass);
+    body->visible = false;
+    (void)editor_viewport_update(&viewport, &project, center,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    assert(!viewport.dragged_center_of_mass);
+    body->visible = true;
+    body->particle = body->standalone_particle = true;
+    body->center_of_mass_explicit = false;
+    body->center_of_mass_offset = (Position){0};
+    body->particle_origin = (Position){0};
+    (void)editor_viewport_update(&viewport, &project, test_world_to_screen(origin),
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    assert(!viewport.dragged_center_of_mass && viewport.mode == EDITOR_VIEWPORT_PARTICLE);
+    editor_history_destroy(&history);
+    editor_viewport_state_destroy(&viewport);
+    editor_project_destroy(&project);
+}
+
 int main(void) {
+    center_of_mass_interaction_check();
     static EditorProject project;
     EditorHistory history;
     EditorRigidBody *body;
@@ -119,6 +277,7 @@ int main(void) {
         TRANSFORM_FLAG_CHECK(rotated_animated_sprite);
         TRANSFORM_FLAG_CHECK(rotated_soft_body);
         TRANSFORM_FLAG_CHECK(dragged_origin);
+        TRANSFORM_FLAG_CHECK(dragged_center_of_mass);
         TRANSFORM_FLAG_CHECK(group_dragging);
         TRANSFORM_FLAG_CHECK(group_rotating);
         editor_viewport_state_init(&transform);

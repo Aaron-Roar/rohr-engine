@@ -4,6 +4,7 @@
 
 #include "editor_viewport.h"
 #include "editor_command.h"
+#include "editor_mass_properties.h"
 #include "editor_layout.h"
 #include "viewport/controls/editor_rotation_control.h"
 
@@ -728,6 +729,62 @@ static void editor_body_origin_draw(const EditorObject *object,
     editor_quad_draw(center, 3.0f, 3.0f, 0.0f, (Color){245, 245, 250, 255});
 }
 
+enum { EDITOR_COM_HANDLE_RADIUS = 13 };
+
+static bool editor_center_of_mass_visible_check(const EditorViewportState *state,
+        const EditorRigidBody *body) {
+    return body != NULL && body->visible && !body->standalone_particle &&
+        state->selected_item_count <= 1 &&
+        (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
+         state->mode == EDITOR_VIEWPORT_HITBOX ||
+         state->mode == EDITOR_VIEWPORT_LINE ||
+         state->mode == EDITOR_VIEWPORT_VERTEX ||
+         state->mode == EDITOR_VIEWPORT_PARTICLE ||
+         state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS ||
+         (state->mode == EDITOR_VIEWPORT_AUTO_SHAPE &&
+          state->auto_shape_parent_mode == EDITOR_VIEWPORT_HITBOX) ||
+         (state->mode == EDITOR_VIEWPORT_ORIGIN &&
+          state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY));
+}
+
+static bool editor_center_of_mass_world_get(const EditorObject *object,
+        const EditorRigidBody *body, Position *center) {
+    EditorMassProperties properties = editor_mass_properties_get(body);
+    if(!properties.center_available) return false;
+    Vec2D offset = math_vector_rotate(properties.center, body->rotation);
+    *center = (Position){object->position.x + body->position.x + offset.x,
+        object->position.y + body->position.y + offset.y};
+    return true;
+}
+
+static void editor_center_of_mass_draw(const EditorObject *object,
+        const EditorRigidBody *body, const EditorViewportState *state) {
+    Position center;
+    if(!editor_center_of_mass_visible_check(state, body) ||
+            !editor_center_of_mass_world_get(object, body, &center)) return;
+    Color color = state->selected_center_of_mass && body->center_of_mass_explicit ?
+        (Color){255, 215, 70, 255} : (Color){45, 140, 255, 255};
+    Color border = {245, 245, 250, 255};
+    /* Opaque backing covers the origin when both handles coincide. */
+    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS, border);
+    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS - 1, color);
+    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS - 3,
+        (Color){24, 30, 40, 255});
+    /* Upright anvil: horn, face, narrow waist, and flared foot. */
+    const Position points[] = {{-9, 4}, {-4, 4}, {-4, 6}, {8, 6},
+        {8, 2}, {4, 1}, {3, -3}, {7, -6}, {-5, -6}, {-2, -3}, {-3, 0}, {-6, 1}};
+    Shape anvil = {.amount_of_vertices = sizeof(points) / sizeof(points[0])};
+    for(size_t i = 0; i < anvil.amount_of_vertices; i += 1)
+        anvil.vertices[i] = editor_view_world_to_screen(
+            (Position){center.x + points[i].x, center.y + points[i].y});
+    (void)rohr_graphics_screen_shape_filled_draw(anvil, color);
+    for(size_t i = 0; i < anvil.amount_of_vertices; i += 1) {
+        Position a = points[i], b = points[(i + 1) % anvil.amount_of_vertices];
+        editor_line_draw((Position){center.x + a.x, center.y + a.y},
+            (Position){center.x + b.x, center.y + b.y}, border);
+    }
+}
+
 static bool editor_hitbox_point_contains(const EditorObject *object,
     const EditorRigidBody *body, const EditorHitbox *hitbox, Position point) {
     bool inside = false;
@@ -776,6 +833,7 @@ void editor_viewport_state_destroy(EditorViewportState *state) {
 void editor_viewport_selection_clear(EditorViewportState *state) {
     if(state == NULL) return;
     state->selected_item_count = 0;
+    state->selected_center_of_mass = false;
     state->multi_selection_return_valid = false;
 }
 
@@ -940,6 +998,7 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
         EditorViewportState *state, EditorSelectionRef selection) {
     EditorObject *object;
     if(project == NULL || state == NULL) return false;
+    state->selected_center_of_mass = false;
     if(selection.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
         if(editor_project_input_controller_get(project, selection.item) == NULL)
             return false;
@@ -3148,7 +3207,7 @@ bool editor_viewport_transform_active_check(const EditorViewportState *state) {
         state->dragged_sprite || state->dragged_animated_sprite ||
         state->dragged_camera_entity || state->rotated_camera_entity ||
         state->rotated_sprite || state->rotated_animated_sprite ||
-        state->rotated_soft_body || state->dragged_origin ||
+        state->rotated_soft_body || state->dragged_origin || state->dragged_center_of_mass ||
         state->group_dragging || state->group_rotating;
 }
 
@@ -3175,6 +3234,7 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->dragged_project_object = false;
     state->dragged_project_viewport = false;
     state->dragged_origin = false;
+    state->dragged_center_of_mass = false;
     state->group_dragging = false;
     state->group_rotating = false;
 }
@@ -3605,6 +3665,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     EditorSelectionRef front = {0};
 
     if(state == NULL || project == NULL) return false;
+    if(primary_button == MOUSE_BUTTON_STATE_RELEASED)
+        state->dragged_center_of_mass = false;
     if(primary_button == MOUSE_BUTTON_STATE_RELEASED &&
             (state->group_dragging || state->group_rotating)) {
         state->group_dragging = false;
@@ -3619,8 +3681,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
-    if(primary_button == MOUSE_BUTTON_STATE_PRESSED)
+    if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
+        state->selected_center_of_mass = false;
         (void)editor_viewport_front_selection_get(project, state, pointer, &front);
+    }
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
@@ -4546,6 +4610,17 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             return true;
         }
     }
+    if(state->dragged_center_of_mass && primary_button == MOUSE_BUTTON_STATE_DOWN) {
+        if(body == NULL || !body->center_of_mass_explicit || body->standalone_particle) {
+            state->dragged_center_of_mass = false;
+            return false;
+        }
+        Vec2D local = {pointer.x - object->position.x - body->position.x -
+                state->drag_offset.x,
+            pointer.y - object->position.y - body->position.y - state->drag_offset.y};
+        return editor_center_of_mass_set(project, object->id, body->id, true,
+            math_vector_rotate(local, -body->rotation)).kind == ERROR_RESULT_VALUE;
+    }
     if(state->dragged_origin && (primary_button == MOUSE_BUTTON_STATE_DOWN ||
             primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
         Position position = {pointer.x - object->position.x - state->drag_offset.x,
@@ -4678,6 +4753,18 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(hitbox != NULL && front.kind == EDITOR_SELECTION_HITBOX &&
             front.item != hitbox->id) hitbox = NULL;
+    if(editor_center_of_mass_visible_check(state, body) &&
+            body->center_of_mass_explicit && !state->selection_modifier) {
+        Position center;
+        if(editor_center_of_mass_world_get(object, body, &center) &&
+                hypotf(pointer.x - center.x, pointer.y - center.y) <=
+                    EDITOR_COM_HANDLE_RADIUS) {
+            state->selected_center_of_mass = true;
+            state->dragged_center_of_mass = true;
+            state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+            return true;
+        }
+    }
     if(front.kind == EDITOR_SELECTION_JOINT) {
         (void)editor_viewport_selection_set(project, state, front,
             state->selection_modifier);
@@ -5870,6 +5957,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                     handle.y + 7.0f}, color);
                 editor_circle_draw(handle, 10.0f, color);
             }
+            editor_center_of_mass_draw(object, selected, state);
         }
     }
 

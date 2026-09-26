@@ -111,6 +111,8 @@ typedef struct EditorViewportState {
     bool dragged_project_viewport;
     bool selected_viewport_ui_text_child;
     bool dragged_origin;
+    bool dragged_center_of_mass;
+    bool selected_center_of_mass;
     bool group_dragging;
     bool group_rotating;
     bool camera_panning;

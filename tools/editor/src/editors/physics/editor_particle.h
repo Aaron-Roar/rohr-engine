@@ -6,8 +6,10 @@
 #define ROHR_EDITOR_PARTICLE_H
 
 #include "editors/editor_mode_context.h"
+#include "editor_center_of_mass.h"
 
 typedef struct EditorParticleEditor {
+    EditorCenterOfMassEditor center_of_mass;
     TextAsset title;
     TextAsset visibility_label;
     TextAsset visible_label;
