@@ -55,6 +55,11 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Bugs Identified by Rohr User** milestone takes precedence
+over all other unfinished work. Complete its goals in the order below, one
+explicitly selected goal at a time. The proposed Editor Forces and Torques
+milestone follows it, before numbered priority 4.
+
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
    playback-rate control, and unloading. Sounds decode WAV assets into memory;
@@ -117,12 +122,50 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Active Milestone: Bugs Identified by Rohr User
+
+Resolve the reported editor selection, zoom, layering, text, auto-shape, and
+animation issues, and add animation origins with individual frame offsets.
+This milestone takes priority over all other unfinished work, including
+Editor Forces and Torques. Preserve the user's goal order; no goal has started.
+
+1. [ ] **Scale rigid-body line selection thickness with zoom** — Make the
+   selection thickness of rigid-body lines scale with screen zoom for better
+   selection.
+2. [ ] **Show layers in the editor** — Make the layer system affect the editor
+   view as well as the application.
+3. [ ] **Scale rotation handles, origins, and COM markers with zoom** — Correct
+   zoom scaling for these editor controls and markers.
+4. [ ] **Fix text selection interactions** — Support drag selection relative
+   to the current cursor position, and select all on double-click.
+5. [ ] **Fix auto-shape selection scope** — Apply auto-shape to all vertices
+   when none are selected, and only the selected vertices when multiple are
+   selected.
+6. [ ] **Fix Left/Right animation options** — Restore the options in the
+   editor and verify their behavior in the application, where the reported
+   issue has not yet been checked.
+7. [ ] **Add animation origins and individual frame offsets** — Give animations
+   an origin and each frame its own offset relative to that origin, with
+   matching authoring, persistence, generated C, and runtime behavior.
+8. [ ] **Fix unintended translation during frame scaling** — Investigate and
+   correct frames that move when scaled, using the animation-origin and
+   frame-offset model established in goal 7.
+9. [ ] **Default to rectangles instead of triangles** — Make rectangle the
+   default shape.
+
+Clarify material ambiguities when preparing the relevant goal, including the
+intended zoom/thickness relationship, text-selection context, auto-shape with
+one selected vertex, animation-origin/offset semantics, and where the default
+shape applies. Recording this milestone does not resolve those details or
+authorize starting a goal. Complete and verify only the goal the user selects,
+then stop for review and a user-created commit.
+
 ## Proposed Milestone: Editor Forces and Torques
 
 Author initial one-tick and persistent forces and torques as top-level items
 in the object editor, with dedicated property editors and the same interaction
-rules as other items. The user selected this work before priority 4,
-cross-path feature parity. This entry records planning; implementation goals
+rules as other items. This work follows **Bugs Identified by Rohr User** and
+precedes priority 4, cross-path feature parity. This entry records planning; implementation goals
 have not been started, and the decisions below still require clarification.
 
 1. [ ] **Finalize the authoring and runtime contract** — Resolve the open
@@ -275,8 +318,9 @@ API/field inventory, conversion rules, format changes, and acceptance checks.
 
 Complete and verify one goal at a time, then stop for review and a user-created
 commit. The angular-convention milestone is complete. Priority 4, cross-path
-feature parity, remains the next unfinished numbered priority, but the user
-has selected editor forces and torques first as recorded above.
+feature parity, remains the next unfinished numbered priority. The user has
+selected Bugs Identified by Rohr User first, followed by Editor Forces and
+Torques, as recorded above.
 
 ## Completed Milestone: Consistent Force and Torque API
 
