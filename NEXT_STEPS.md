@@ -117,6 +117,106 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Proposed Milestone: Editor Forces and Torques
+
+Author initial one-tick and persistent forces and torques as top-level items
+in the object editor, with dedicated property editors and the same interaction
+rules as other items. The user selected this work before priority 4,
+cross-path feature parity. This entry records planning; implementation goals
+have not been started, and the decisions below still require clarification.
+
+1. [ ] **Finalize the authoring and runtime contract** — Resolve the open
+   questions below, agree on public API/data additions and failure behavior,
+   and define acceptance checks before changing physics behavior.
+2. [ ] **Implement force-at-point and persistent source support** — Add the
+   agreed direct/public APIs, application-point and direction-following data,
+   COM-based torque response, lifecycle behavior, and runtime serialization.
+   Verify one-tick and persistent behavior across physics substeps and the
+   supported target types.
+3. [ ] **Add authored definitions, commands, and persistence** — Add object-owned
+   force/torque records, target references, CLI operations, project JSON,
+   validation, duplication/deletion rules, and undoable commands with round-trip
+   and invalid-edit coverage.
+4. [ ] **Generate runtime sources and initial applications** — Generate instance
+   creation/destruction and code-accessible source references. Apply initial
+   actions at the agreed lifecycle point, preserve developer-owned entry
+   points, and verify repeated instances and deterministic output.
+5. [ ] **Implement force editor interactions** — Add top-level object rows,
+   dedicated properties, contact-dot/arrow rendering, and the agreed position,
+   direction, and magnitude controls. Integrate selection, render-order picking,
+   visibility, context menus, multi-edit, clipboard, and transactional history.
+6. [ ] **Implement torque editor interactions** — Add top-level object rows,
+   dedicated properties, and a 270-degree curved arrow with a tangential
+   arrowhead. Reuse shared force/item interaction machinery and verify signed
+   direction, zero magnitude, marker placement, and history.
+7. [ ] **Verify integrated parity and examples** — Exercise editor, CLI, JSON,
+   generated C, direct APIs, and runtime changes together. Add an editable
+   demonstration, update public documentation, run focused sanitizers, build
+   Linux/Windows installed-SDK consumers, and request visual review.
+
+### Agreed behavior
+
+- Forces and torques are top-level object-editor items, each with its own
+  editor and the established editor interaction rules.
+- A force is drawn as an arrow pointing away from its contact/application dot.
+  A torque is drawn as a three-quarter-circle arrow whose head points along
+  the curve, continuing toward its tail if the circle were completed.
+- Support persistent sources and initial one-tick forces/torques. Runtime
+  changes remain developer-owned code; no delayed editor event system is added.
+- A persistent source may begin at zero magnitude and be increased later in
+  code. Existing `force_apply`/`torque_apply` operations last one engine physics
+  tick; immediate linear/angular impulses are separate operations.
+- Retain clockwise-positive degrees and physical force/torque units from the
+  completed conventions milestones.
+
+### Open decisions and recommendations
+
+These recommendations are recorded for discussion, not approved requirements.
+
+1. **Targets:** confirm rigid bodies, standalone particles, whole soft bodies,
+   and/or individual soft nodes. Suggested initial scope: rigid bodies plus
+   forces on standalone particles; particles retain their nonrotating behavior.
+2. **Application point:** confirm an origin-relative offset preserved on origin
+   mutation, and whether points may lie inside or outside geometry. Recommended:
+   permit either; the dot need not coincide with a collision surface. Off-centre
+   application derives torque about COM.
+3. **Rotation following:** confirm independent settings for the application
+   point and force direction, following existing attachment conventions.
+4. **Values:** recommend nonnegative force magnitude plus a clockwise degree
+   direction, retaining direction at zero magnitude. Torque uses signed
+   magnitude, reversing its arrow for negative values; settle its zero display.
+5. **Force manipulation:** decide arrow-length scaling and whether its tip edits
+   magnitude. Recommended: dot drag edits application point, the shared rotation
+   handle edits direction, and a tip handle edits magnitude. Zero sources must
+   remain visible and selectable.
+6. **Torque marker:** decide COM-centred placement versus a movable display-only
+   offset. Recommended: COM by default with an optional display offset so
+   multiple sources on one target remain accessible; this offset has no physics
+   meaning.
+7. **Initial timing:** confirm application during the first physics tick of
+   each newly created object instance, including later runtime spawns.
+8. **References and lifetime:** recommended target deletion removes its authored
+   sources, undo restores both, whole-object duplication remaps targets, and
+   duplicating a source alone preserves its target.
+
+### Existing support and remaining gaps
+
+The engine already supports persistent source creation, setters/getters,
+`entity_delete` lifetime, one-tick application, separate impulse APIs, COM and
+derived inertia, clockwise torque response, and basic runtime JSON storage for
+force/torque/target components. Soft bodies have dedicated one-tick distribution
+APIs, but their inclusion in this milestone is undecided.
+
+Ordinary force sources currently contain a vector and target, without an
+application point or automatic offset-induced torque. A private joint helper
+performs force-at-point calculations, but no general public force-at-point API
+or persistent attachment description exists. Editor definitions, panels,
+glyphs/handles, commands, project persistence, generated source ownership, and
+their parity tests remain to be implemented.
+
+Complete and verify one approved goal at a time. Resolve the open decisions
+before implementation, and wait for the user to select each goal.
+
 ## Completed Milestone: Clockwise Angles with Degrees by Default
 
 Make angles clockwise-positive with zero heading up across engine APIs,
@@ -175,8 +275,8 @@ API/field inventory, conversion rules, format changes, and acceptance checks.
 
 Complete and verify one goal at a time, then stop for review and a user-created
 commit. The angular-convention milestone is complete. Priority 4, cross-path
-feature parity, is the next unfinished roadmap priority; do not begin it
-without explicit user instruction.
+feature parity, remains the next unfinished numbered priority, but the user
+has selected editor forces and torques first as recorded above.
 
 ## Completed Milestone: Consistent Force and Torque API
 
@@ -348,19 +448,11 @@ camera or debug visualization of physical bodies.
 
 ## 4. Authored Motion, Forces, and Torques
 
-This editor work depends on the center-of-mass and force-at-point semantics
-being stable.
-
-- Expose initial velocity and acceleration for every movable ECS-backed item.
-- Add object-owned force definitions with a target body, local position,
-  direction, and magnitude. A body-locked force transforms its local position
-  and direction each tick before applying force-at-point.
-- Keep one-frame ECS force components separate from persistent authored force
-  emitters.
-- Add object-owned torque definitions with a target body, signed magnitude,
-  visibility, and circular-arrow representation. Torque has no position offset.
-- Give forces and torques hierarchy entries, editors, viewport handles,
-  visibility, multi-select, reorder, delete, and transactional undo/redo.
+Initial motion authoring and COM semantics are implemented. The proposed
+**Editor Forces and Torques** milestone above is authoritative for the next
+work, including initial one-tick applications, persistent sources, top-level
+editors, visual representations, and unresolved target/attachment decisions.
+Do not treat earlier force-emitter sketches as approval of those open choices.
 
 ## 5. Camera Authoring
 
