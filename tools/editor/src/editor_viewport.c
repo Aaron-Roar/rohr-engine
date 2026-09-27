@@ -13,6 +13,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Screen-space half-width shared by body and individual edge picking. */
+#define EDITOR_RIGID_BODY_LINE_PICK_RADIUS 6.0f
+
 static FontAsset *editor_viewport_ui_font = NULL;
 static TextAsset editor_viewport_ui_text_assets[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
 static EditorViewportUiItemId editor_viewport_ui_text_ids[
@@ -3251,7 +3254,8 @@ static bool editor_hitbox_pick_check(const EditorObject *object,
         Vec2D delta = {pointer.x - a.x, pointer.y - a.y};
         if(delta.x * delta.x + delta.y * delta.y <= 100.0f / scale_squared ||
                 editor_segment_distance_squared(pointer, a, b) <=
-                    36.0f / scale_squared) return true;
+                    EDITOR_RIGID_BODY_LINE_PICK_RADIUS *
+                        EDITOR_RIGID_BODY_LINE_PICK_RADIUS / scale_squared) return true;
     }
     return false;
 }
@@ -5389,6 +5393,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
 
     if(hitbox != NULL && hitbox->visible && body != NULL && body->visible) {
+        float line_pick_radius = EDITOR_RIGID_BODY_LINE_PICK_RADIUS / editor_view_scale;
         float vertex_pick_radius = 10.0f / editor_view_scale;
         float vertex_pick_radius_squared =
             vertex_pick_radius * vertex_pick_radius;
@@ -5429,7 +5434,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(amount > 1.0f) amount = 1.0f;
             nearest = (Position){start.x + edge.x * amount, start.y + edge.y * amount};
             distance = (Vec2D){pointer.x - nearest.x, pointer.y - nearest.y};
-            if(distance.x * distance.x + distance.y * distance.y > 36.0f) continue;
+            if(distance.x * distance.x + distance.y * distance.y >
+                    line_pick_radius * line_pick_radius) continue;
             state->selection = EDITOR_SELECTION_LINE;
             state->selected_line = i;
             editor_viewport_line_editor_enter(state, i);

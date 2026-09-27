@@ -127,11 +127,16 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; no goal has started.
+Editor Forces and Torques. Preserve the user's goal order; goal 1 is complete.
 
-1. [ ] **Scale rigid-body line selection thickness with zoom** — Make the
-   selection thickness of rigid-body lines scale with screen zoom for better
-   selection.
+1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
+   edge picking now converts the shared six-pixel screen tolerance to world
+   units, matching body picking at every zoom. A regression reproduced the
+   old failure at 10% zoom and now verifies both sides of horizontal/rotated
+   edges at five zoom levels, including clicks outside the tolerance. Linux
+   editor and Windows cross-builds pass without compiler warnings; navigation
+   and history tests pass natively and under ASan/UBSan. Windows verification
+   is cross-compilation only.
 2. [ ] **Show layers in the editor** — Make the layer system affect the editor
    view as well as the application.
 3. [ ] **Scale rotation handles, origins, and COM markers with zoom** — Correct
@@ -153,8 +158,8 @@ Editor Forces and Torques. Preserve the user's goal order; no goal has started.
 9. [ ] **Default to rectangles instead of triangles** — Make rectangle the
    default shape.
 
-Clarify material ambiguities when preparing the relevant goal, including the
-intended zoom/thickness relationship, text-selection context, auto-shape with
+Clarify material ambiguities when preparing the relevant goal, including
+handle/marker zoom behavior, text-selection context, auto-shape with
 one selected vertex, animation-origin/offset semantics, and where the default
 shape applies. Recording this milestone does not resolve those details or
 authorize starting a goal. Complete and verify only the goal the user selects,

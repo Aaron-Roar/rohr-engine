@@ -237,6 +237,62 @@ done:
     return result;
 }
 
+static bool hitbox_line_zoom_pick_check(void) {
+    const float zooms[] = {0.1f, 0.5f, 1.0f, 2.0f, 4.0f};
+    const float offsets[] = {-6.5f, -5.5f, 5.5f, 6.5f};
+    Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    for(size_t z = 0; z < sizeof(zooms) / sizeof(zooms[0]); z += 1) {
+        for(int rotated = 0; rotated < 2; rotated += 1) {
+            for(size_t p = 0; p < sizeof(offsets) / sizeof(offsets[0]); p += 1) {
+                EditorProject project;
+                EditorViewportState state;
+                bool selected = false;
+                editor_project_init(&project);
+                editor_viewport_state_init(&state);
+                EditorObject *object = editor_project_object_add(&project, (Position){0});
+                EditorRigidBody *body = object == NULL ? NULL :
+                    editor_project_rigid_body_add(&project, object);
+                if(body == NULL) {
+                    editor_viewport_state_destroy(&state);
+                    editor_project_destroy(&project);
+                    return false;
+                }
+                EditorHitbox *box = &body->hitboxes[0];
+                /* Keep endpoints well clear of the pointer in screen space. */
+                box->vertices[0].position = (Position){-100 / zooms[z], -60 / zooms[z]};
+                box->vertices[1].position = (Position){100 / zooms[z], -60 / zooms[z]};
+                box->vertices[2].position = (Position){0, 100 / zooms[z]};
+                body->rotation = rotated ? 45.0f : 0.0f;
+                project.viewport_camera_zoom = zooms[z];
+                project.viewport_camera_offset = (Vec2D){0};
+                project.viewport_local_view = false;
+                state.mode = EDITOR_VIEWPORT_HITBOX;
+                state.selection = EDITOR_SELECTION_HITBOX;
+                state.selected_rigid_body = body->id;
+                state.selected_hitbox = box->id;
+                Vec2D screen_offset = math_vector_rotate(
+                    (Vec2D){0, -60 + offsets[p]}, body->rotation);
+                Position pointer = {center.x + screen_offset.x, center.y - screen_offset.y};
+                (void)editor_viewport_update(&state, &project, pointer,
+                    MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+                selected = state.selection == EDITOR_SELECTION_LINE &&
+                    state.mode == EDITOR_VIEWPORT_LINE && state.selected_line == 0;
+                (void)editor_viewport_update(&state, &project, pointer,
+                    MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+                editor_viewport_state_destroy(&state);
+                editor_project_destroy(&project);
+                if(selected != (fabsf(offsets[p]) < 6.0f)) {
+                    fprintf(stderr, "line pick mismatch: zoom %g rotation %d offset %g\n",
+                        zooms[z], rotated * 45, offsets[p]);
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
 static bool navigation_mode_open_check(EditorProject *project,
         EditorViewportState *state, EditorHierarchySelection selection,
         EditorViewportMode expected) {
@@ -593,7 +649,7 @@ int main(void) {
             !created_name_focus_mapping_check() ||
             !created_name_focus_replacement_check() ||
             !input_key_capture_check() ||
-            !hitbox_vertex_zoom_pick_check()) return 1;
+            !hitbox_vertex_zoom_pick_check() || !hitbox_line_zoom_pick_check()) return 1;
     static EditorProject project;
     EditorObject *object;
     EditorRigidBody *body;
