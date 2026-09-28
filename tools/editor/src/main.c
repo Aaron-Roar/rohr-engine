@@ -3044,7 +3044,7 @@ int main(int argc, char **argv) {
                     primary == MOUSE_BUTTON_STATE_UP) terminal_resizing = false;
         }
 
-        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_CONTENT);
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
         rohr_graphics_background_draw((Color){18, 21, 27, 255});
         (void)rohr_graphics_screen_rect_draw(
             0.0f, 0.0f, EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM,
@@ -3052,6 +3052,7 @@ int main(int argc, char **argv) {
         (void)rohr_graphics_screen_rect_draw(
             EDITOR_VIEWPORT_WIDTH, 0.0f, EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT,
             (Color){38, 43, 53, 255});
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_CONTENT);
 
         (void)rohr_graphics_screen_clip_set(
             EDITOR_VIEWPORT_WIDTH, 0.0f, EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT);

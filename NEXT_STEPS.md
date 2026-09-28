@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goal 1 is complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1 and 2 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -137,8 +137,15 @@ Editor Forces and Torques. Preserve the user's goal order; goal 1 is complete.
    editor and Windows cross-builds pass without compiler warnings; navigation
    and history tests pass natively and under ASan/UBSan. Windows verification
    is cross-compilation only.
-2. [ ] **Show layers in the editor** — Make the layer system affect the editor
-   view as well as the application.
+2. [x] **Show layers in the editor** — Authored numeric and named layers now
+   govern scene drawing, camera previews, and frontmost selection. Soft-body
+   children respect inherited layers and individual overrides; screen/UI
+   composition resolves named layers immediately. Equal-layer ordering stays
+   stable, and authored layers cannot cover editor menus or overlays. Focused
+   Linux tests, ASan/UBSan with leak detection, and Windows cross-compilation
+   pass without compiler warnings. The installed-SDK center-of-mass example
+   builds and runs from outside its source directory. Windows execution and
+   interactive visual review remain manual verification.
 3. [ ] **Scale rotation handles, origins, and COM markers with zoom** — Correct
    zoom scaling for these editor controls and markers.
 4. [ ] **Fix text selection interactions** — Support drag selection relative

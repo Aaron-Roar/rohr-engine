@@ -9,12 +9,15 @@
 #include "viewport/controls/editor_rotation_control.h"
 
 #include <math.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /* Screen-space half-width shared by body and individual edge picking. */
 #define EDITOR_RIGID_BODY_LINE_PICK_RADIUS 6.0f
+/* Reserve room for the existing kind order within each authored layer. */
+#define EDITOR_SCENE_LAYER_STRIDE 64
 
 static FontAsset *editor_viewport_ui_font = NULL;
 static TextAsset editor_viewport_ui_text_assets[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
@@ -48,8 +51,99 @@ static Orientation editor_view_preview_camera_rotation;
 static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
 
+/* A draw owns this compact, sorted layer table until all commands are queued.
+ * Authored values never enter the editor's menu/control layer namespace. */
+static const EditorProject *editor_layer_project;
+static int *editor_scene_layers;
+static size_t editor_scene_layer_count;
+static int editor_scene_layer_span = EDITOR_SCENE_LAYER_STRIDE;
+
+static int editor_layer_value_get(const EditorProject *project,
+        EditorGraphicsLayerBinding binding) {
+    if(project != NULL && binding.layer != 0)
+        for(size_t i = 0; i < project->graphics_layer_count; i += 1)
+            if(project->graphics_layers[i].id == binding.layer)
+                return project->graphics_layers[i].value;
+    return binding.value;
+}
+
+static int editor_layer_compare(const void *a, const void *b) {
+    int left = *(const int *)a, right = *(const int *)b;
+    return (left > right) - (left < right);
+}
+
+static bool editor_scene_layers_create(const EditorProject *project) {
+    size_t count = 1, max_items = 0;
+    for(size_t i = 0; i < project->object_count; i += 1) {
+        const EditorObject *object = &project->objects[i];
+        count += object->rigid_body_count + object->joint_count +
+            object->sprite_count + object->animated_sprite_count + object->soft_body_count;
+        for(size_t j = 0; j < object->soft_body_count; j += 1) {
+            const EditorSoftBody *body = &object->soft_body_items[j];
+            count += body->node_count + body->beam_count + body->area_count;
+        }
+    }
+    if(count >= INT_MAX / EDITOR_SCENE_LAYER_STRIDE || count > SIZE_MAX / sizeof(int)) return false;
+    editor_scene_layers = malloc(count * sizeof(*editor_scene_layers));
+    if(editor_scene_layers == NULL) return false;
+    editor_layer_project = project;
+    editor_scene_layer_count = 0;
+    editor_scene_layers[editor_scene_layer_count++] = 0;
+#define ADD_LAYERS(Items, Count) \
+    for(size_t k = 0; k < (Count); k += 1) \
+        editor_scene_layers[editor_scene_layer_count++] = \
+            editor_layer_value_get(project, (Items)[k].graphics_layer)
+    for(size_t i = 0; i < project->object_count; i += 1) {
+        const EditorObject *object = &project->objects[i];
+        ADD_LAYERS(object->rigid_bodies, object->rigid_body_count);
+        ADD_LAYERS(object->joint_items, object->joint_count);
+        ADD_LAYERS(object->sprites, object->sprite_count);
+        ADD_LAYERS(object->animated_sprite_items, object->animated_sprite_count);
+        ADD_LAYERS(object->soft_body_items, object->soft_body_count);
+        for(size_t j = 0; j < object->soft_body_count; j += 1) {
+            const EditorSoftBody *body = &object->soft_body_items[j];
+            ADD_LAYERS(body->nodes, body->node_count);
+            ADD_LAYERS(body->beams, body->beam_count);
+            ADD_LAYERS(body->areas, body->area_count);
+        }
+    }
+#undef ADD_LAYERS
+    qsort(editor_scene_layers, editor_scene_layer_count, sizeof(int), editor_layer_compare);
+    size_t unique = 0;
+    for(size_t i = 0; i < editor_scene_layer_count; i += 1)
+        if(unique == 0 || editor_scene_layers[i] != editor_scene_layers[unique - 1])
+            editor_scene_layers[unique++] = editor_scene_layers[i];
+    editor_scene_layer_count = unique;
+    editor_scene_layer_span = (int)((unique + 1) * EDITOR_SCENE_LAYER_STRIDE);
+    for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
+        size_t items = project->layout_viewports[i].camera_item_count +
+            project->layout_viewports[i].ui_item_count;
+        if(items > max_items) max_items = items;
+    }
+    /* All content stays below zero, even with extreme signed authored layers. */
+    if((uint64_t)(max_items + 3) * editor_scene_layer_span > INT_MAX) {
+        free(editor_scene_layers);
+        editor_scene_layers = NULL;
+        editor_layer_project = NULL;
+        return false;
+    }
+    return true;
+}
+
 static void editor_view_content_layer_set(int layer) {
-    rohr_graphics_layer_active_set(editor_view_composition_layer_base + layer);
+    rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND +
+        editor_view_composition_layer_base + layer);
+}
+
+static void editor_view_scene_layer_set(EditorGraphicsLayerBinding binding, int kind) {
+    int value = editor_layer_value_get(editor_layer_project, binding);
+    size_t lo = 0, hi = editor_scene_layer_count;
+    while(lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        if(editor_scene_layers[mid] < value) lo = mid + 1;
+        else hi = mid;
+    }
+    editor_view_content_layer_set((int)((lo + 1) * EDITOR_SCENE_LAYER_STRIDE) + kind);
 }
 
 typedef struct EditorPreviewTexture {
@@ -542,7 +636,9 @@ static void editor_triangle_filled_draw(Position a, Position b, Position c, Colo
 static void editor_soft_area_filled_draw(const EditorObject *object,
         const EditorSoftBody *body, const EditorSoftArea *area, Color color) {
     uint32_t (*triangles)[3];
-    if(area == NULL || area->node_count < 3) return;
+    if(body == NULL || area == NULL || area->node_count < 3) return;
+    editor_view_scene_layer_set(area->graphics_layer_inherited ?
+        body->graphics_layer : area->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
     triangles = malloc((area->node_count - 2) * sizeof(*triangles));
     if(triangles == NULL) return;
     size_t count = editor_project_soft_area_triangulate(body, area, triangles,
@@ -3260,14 +3356,27 @@ static bool editor_hitbox_pick_check(const EditorObject *object,
     return false;
 }
 
+static void editor_pick_candidate_set(const EditorProject *project,
+        EditorGraphicsLayerBinding binding, int kind, EditorSelectionRef hit,
+        EditorSelectionRef *selection, int64_t *layer) {
+    int64_t key = (int64_t)editor_layer_value_get(project, binding) * EDITOR_SCENE_LAYER_STRIDE + kind;
+    if(key > *layer) {
+        *layer = key;
+        *selection = hit;
+    }
+}
+
 /* Resolve geometry front-to-back as object_draw queues its layers.
  * Selection state may choose a child only after this occlusion test. */
-static bool editor_object_front_selection_get(EditorObject *object,
-        Position pointer, EditorSelectionRef *selection, int *layer) {
+static bool editor_object_front_selection_get(const EditorProject *project, EditorObject *object,
+        Position pointer, EditorSelectionRef *selection, int64_t *layer) {
     if(object == NULL || !object->visible) return false;
-    *layer = EDITOR_GRAPHICS_LAYER_ANIMATION;
+    *layer = INT64_MIN;
+    int kind = EDITOR_GRAPHICS_LAYER_ANIMATION;
+    EditorGraphicsLayerBinding binding = {0};
     for(size_t i = object->camera_count; i > 0; i -= 1) {
         EditorCamera *camera = &object->cameras[i - 1];
+        binding = (EditorGraphicsLayerBinding){0};
         Orientation rotation;
         Position center;
         if(!camera->visible) continue;
@@ -3278,12 +3387,13 @@ static bool editor_object_front_selection_get(EditorObject *object,
                     camera->dimensions.y /
                     (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
                 rotation, pointer)) continue;
-        *selection = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
+        EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
             object->id, 0, 0, camera->id};
-        return true;
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
     }
     for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
         EditorAnimatedSprite *sprite = &object->animated_sprite_items[i - 1];
+        binding = sprite->graphics_layer;
         size_t frame_index;
         EditorAnimationFrame *frame;
         Position center;
@@ -3295,59 +3405,64 @@ static bool editor_object_front_selection_get(EditorObject *object,
         if(!editor_sprite_point_contains(center,
                 (Scale){frame->size.x * sprite->scale.x,
                     frame->size.y * sprite->scale.y}, rotation, pointer)) continue;
-        *selection = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
+        EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
             object->id, 0, 0, sprite->id};
-        return true;
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
     }
-    *layer = EDITOR_GRAPHICS_LAYER_SPRITE;
+    kind = EDITOR_GRAPHICS_LAYER_SPRITE;
     for(size_t i = object->sprite_count; i > 0; i -= 1) {
         EditorSprite *sprite = &object->sprites[i - 1];
+        binding = sprite->graphics_layer;
         if(!sprite->visible || !editor_sprite_point_contains(
                 editor_sprite_world_get(object, sprite), sprite->size,
                 editor_sprite_world_rotation_get(object, sprite), pointer)) continue;
-        *selection = (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
+        EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
             object->id, 0, 0, sprite->id};
-        return true;
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
     }
 
-    *layer = EDITOR_GRAPHICS_LAYER_JOINT;
+    kind = EDITOR_GRAPHICS_LAYER_JOINT;
     for(size_t i = object->anchor_count; i > 0; i -= 1) {
         EditorAnchor *anchor = &object->anchors[i - 1];
+        binding = (EditorGraphicsLayerBinding){0};
         Position world = editor_anchor_world_get(object, anchor);
         if(anchor->visible && hypotf(pointer.x - world.x, pointer.y - world.y) <= 10.0f) {
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
                 object->id, 0, 0, anchor->id};
-            return true;
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
     }
 
     for(size_t i = object->joint_count; i > 0; i -= 1) {
         EditorJoint *joint = &object->joint_items[i - 1];
+        binding = joint->graphics_layer;
         EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
         EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
         if(!joint->visible || a == NULL || b == NULL ||
                 editor_segment_distance_squared(pointer,
                     editor_anchor_world_get(object, a),
                     editor_anchor_world_get(object, b)) > 64.0f) continue;
-        *selection = (EditorSelectionRef){EDITOR_SELECTION_JOINT,
+        EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_JOINT,
             object->id, 0, 0, joint->id};
-        return true;
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
     }
-    *layer = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
+    kind = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
     for(size_t i = object->soft_body_count; i > 0; i -= 1) {
         EditorSoftBody *body = &object->soft_body_items[i - 1];
         if(!body->visible) continue;
         for(size_t j = body->node_count; j > 0; j -= 1) {
             EditorSoftNode *node = &body->nodes[j - 1];
+            binding = node->graphics_layer_inherited ? body->graphics_layer : node->graphics_layer;
             Position world = editor_soft_node_world_get(object, body, node);
             if(!node->visible || hypotf(pointer.x - world.x,
                     pointer.y - world.y) > 10.0f) continue;
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
                 object->id, body->id, 0, node->id};
-            return true;
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
         for(size_t j = body->beam_count; j > 0; j -= 1) {
             EditorSoftBeam *beam = &body->beams[j - 1];
+            binding = beam->graphics_layer_inherited ? body->graphics_layer : beam->graphics_layer;
             const EditorSoftNode *a = editor_soft_node_get(body, beam->node_a);
             const EditorSoftNode *b = editor_soft_node_get(body, beam->node_b);
             if(!beam->visible || a == NULL || b == NULL ||
@@ -3355,28 +3470,30 @@ static bool editor_object_front_selection_get(EditorObject *object,
                         editor_soft_node_world_get(object, body, a),
                         editor_soft_node_world_get(object, body, b)) > 36.0f)
                 continue;
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
                 object->id, body->id, 0, beam->id};
-            return true;
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
         for(size_t j = body->area_count; j > 0; j -= 1) {
             EditorSoftArea *area = &body->areas[j - 1];
+            binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
             if(!area->visible || !area->surface_enabled ||
                     !editor_soft_area_point_contains(object, body, area, pointer))
                 continue;
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
                 object->id, body->id, 0, area->id};
-            return true;
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
     }
-    *layer = EDITOR_GRAPHICS_LAYER_RIGID_BODY;
+    kind = EDITOR_GRAPHICS_LAYER_RIGID_BODY;
     /* Particle outlines follow polygons; particle fills precede them. */
     for(int pass = 0; pass < 3; pass += 1) {
         /* In project view every object's fills are queued before any object's
          * polygons, even when hierarchy order would otherwise break a tie. */
-        *layer = EDITOR_GRAPHICS_LAYER_RIGID_BODY - (pass == 2 ? 1 : 0);
+        kind = EDITOR_GRAPHICS_LAYER_RIGID_BODY - (pass == 2 ? 1 : 0);
         for(size_t i = object->rigid_body_count; i > 0; i -= 1) {
             EditorRigidBody *body = &object->rigid_bodies[i - 1];
+            binding = body->graphics_layer;
             if(!body->visible) continue;
             if(pass != 1) {
                 Position center = editor_particle_center_world_get(object, body);
@@ -3385,23 +3502,24 @@ static bool editor_object_front_selection_get(EditorObject *object,
                         fabsf(distance - body->particle_radius) >
                             7.0f / editor_view_scale :
                         distance > body->particle_radius)) continue;
-                *selection = (EditorSelectionRef){body->standalone_particle ?
+                EditorSelectionRef hit = (EditorSelectionRef){body->standalone_particle ?
                         EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
                     object->id, 0, 0, body->id};
-                return true;
+                editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+                continue;
             }
             if(body->standalone_particle) continue;
             for(size_t j = body->hitbox_count; j > 0; j -= 1) {
                 EditorHitbox *box = &body->hitboxes[j - 1];
                 if(!box->visible || !editor_hitbox_pick_check(
                         object, body, box, pointer)) continue;
-                *selection = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
+                EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
                     object->id, body->id, 0, box->id};
-                return true;
+                editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
             }
         }
     }
-    return false;
+    return *layer != INT64_MIN;
 }
 
 static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref) {
@@ -3461,7 +3579,7 @@ static bool editor_pick_selection_visible_check(EditorSelectionRef front,
 }
 
 static int editor_viewport_item_layer_base_get(
-    const EditorLayoutViewport *viewport, int layer, size_t order);
+    const EditorProject *project, const EditorLayoutViewport *viewport, size_t order);
 
 static bool editor_viewport_front_selection_get(EditorProject *project,
         const EditorViewportState *state, Position pointer,
@@ -3479,7 +3597,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
     editor_view_transform_set(project, state, editor_project_selected_get(project));
     world_pointer = editor_view_screen_to_world(pointer);
     if(state->mode == EDITOR_VIEWPORT_HIERARCHY) {
-        int front_layer = -1;
+        int64_t front_layer = INT64_MIN;
         editor_project_hierarchy_sync(project);
         for(size_t i = 0; i < project->hierarchy_count; i += 1) {
             EditorProjectHierarchyItem item = project->hierarchy[i];
@@ -3513,20 +3631,17 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                     if(layout_hit.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
                         for(size_t j = 0; j < viewport->camera_item_count; j += 1)
                             if(viewport->camera_items[j].id == layout_hit.item)
-                                layer = editor_viewport_item_layer_base_get(viewport,
-                                    viewport->camera_items[j].placement.layer, j);
+                                layer = editor_viewport_item_layer_base_get(project, viewport, j);
                     } else {
                         for(size_t j = 0; j < viewport->ui_item_count; j += 1)
                             if(viewport->ui_items[j].id == layout_hit.item)
-                                layer = editor_viewport_item_layer_base_get(viewport,
-                                    viewport->ui_items[j].layer,
-                                    viewport->camera_item_count + j);
+                                layer = editor_viewport_item_layer_base_get(project, viewport, viewport->camera_item_count + j);
                     }
                 }
                 editor_view_transform_set(project, state,
                     editor_project_selected_get(project));
-                if(layer > front_layer) {
-                    front_layer = layer;
+                if(layer >= 0 && (INT64_C(1) << 48) + layer > front_layer) {
+                    front_layer = (INT64_C(1) << 48) + layer;
                     *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
                         viewport->id, 0, 0, viewport->id};
                 }
@@ -3534,11 +3649,11 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 EditorObject *candidate = editor_object_query_get(project, item.id);
                 EditorObject overview;
                 EditorSelectionRef hit;
-                int layer;
+                int64_t layer;
                 if(candidate == NULL) continue;
                 overview = *candidate;
                 overview.position = candidate->overview_position;
-                if(editor_object_front_selection_get(&overview, world_pointer,
+                if(editor_object_front_selection_get(project, &overview, world_pointer,
                         &hit, &layer) && layer > front_layer) {
                     front_layer = layer;
                     *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
@@ -3596,8 +3711,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 hit.x >= rectangle.x && hit.y >= rectangle.y &&
                 hit.x <= rectangle.x + rectangle.width &&
                 hit.y <= rectangle.y + rectangle.height;
-            int layer = editor_viewport_item_layer_base_get(viewport,
-                item->layer, viewport->camera_item_count + i - 1);
+            int layer = editor_viewport_item_layer_base_get(project, viewport, viewport->camera_item_count + i - 1);
             if(!item_hit || layer <= front_layer) continue;
             front_layer = layer;
             *selection = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
@@ -3617,8 +3731,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
             unrotated = editor_screen_vector_rotate(relative, -item->placement.orientation);
             if(fabsf(unrotated.x) > fabsf(rectangle.width) * 0.5f ||
                     fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
-            int layer = editor_viewport_item_layer_base_get(viewport,
-                item->placement.layer, i - 1);
+            int layer = editor_viewport_item_layer_base_get(project, viewport, i - 1);
             if(layer <= front_layer) continue;
             front_layer = layer;
             *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
@@ -3627,8 +3740,8 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
         return selection->kind != EDITOR_SELECTION_NONE;
     }
     object = editor_project_selected_get(project);
-    int layer;
-    return editor_object_front_selection_get(object, world_pointer, selection, &layer);
+    int64_t layer;
+    return editor_object_front_selection_get(project, object, world_pointer, selection, &layer);
 }
 
 bool editor_viewport_selection_at_get(EditorProject *project,
@@ -5541,6 +5654,7 @@ static void editor_viewport_particle_fills_draw(const EditorObject *object) {
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY - 1);
         Position center;
         if(!body->visible || !body->particle || body->particle_radius <= 0.0f) continue;
         center = editor_particle_center_world_get(object, body);
@@ -5718,6 +5832,7 @@ static void editor_camera_attachment_icon_draw(Position center) {
 
 static void editor_viewport_cameras_draw(const EditorObject *object,
         const EditorViewportState *state, bool object_highlighted) {
+    editor_view_scene_layer_set((EditorGraphicsLayerBinding){0}, EDITOR_GRAPHICS_LAYER_ANIMATION);
     for(size_t c = 0; c < object->camera_count; c += 1) {
         const EditorCamera *camera = &object->cameras[c];
         Orientation rotation;
@@ -5767,6 +5882,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_SPRITE);
     for(size_t i = 0; i < object->sprite_count; i += 1) {
         const EditorSprite *sprite = &object->sprites[i];
+        editor_view_scene_layer_set(sprite->graphics_layer, EDITOR_GRAPHICS_LAYER_SPRITE);
         TextureAsset *texture;
         Position world;
         Scale screen_size;
@@ -5809,6 +5925,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
     for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
         const EditorAnimatedSprite *animation = &object->animated_sprite_items[i];
+        editor_view_scene_layer_set(animation->graphics_layer, EDITOR_GRAPHICS_LAYER_ANIMATION);
         const EditorAnimationFrame *frame;
         size_t preview_frame;
         TextureAsset *texture;
@@ -5869,6 +5986,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
         if(!body->visible) continue;
         for(size_t box_index = 0; box_index < body->hitbox_count; box_index += 1) {
             const EditorHitbox *hitbox = &body->hitboxes[box_index];
@@ -5921,6 +6039,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
 
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
         Position center;
         Color ring;
         if(!body->visible || !body->particle || body->particle_radius <= 0.0f) continue;
@@ -5956,6 +6075,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                     state->selection == EDITOR_SELECTION_RIGID_BODY)) {
             Position center = {object->position.x + selected->position.x,
                 object->position.y + selected->position.y};
+            editor_view_scene_layer_set(selected->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
             editor_body_origin_draw(object, selected);
             if(state->selection == EDITOR_SELECTION_ORIGIN &&
                     state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY)
@@ -5996,6 +6116,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
                         ref.kind != EDITOR_SELECTION_PARTICLE)) continue;
             body = editor_project_rigid_body_get((EditorObject *)object, ref.item);
             if(body == NULL || !body->visible) continue;
+            editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
             center = (Position){object->position.x + body->position.x,
                 object->position.y + body->position.y};
             handle = editor_body_rotation_handle_get(object, body);
@@ -6049,6 +6170,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
+            editor_view_scene_layer_set(beam->graphics_layer_inherited ?
+                body->graphics_layer : beam->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             const EditorSoftNode *a = NULL;
             const EditorSoftNode *b = NULL;
             if(!beam->visible) continue;
@@ -6075,6 +6198,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
         }
         for(size_t i = 0; i < body->node_count; i += 1) {
             const EditorSoftNode *node = &body->nodes[i];
+            editor_view_scene_layer_set(node->graphics_layer_inherited ?
+                body->graphics_layer : node->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             if(!node->visible) continue;
             editor_quad_draw(editor_soft_node_world_get(object, body, node),
                 8.0f, 8.0f, 0.0f,
@@ -6110,6 +6235,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             center = (Position){object->position.x + body->position.x,
                 object->position.y + body->position.y};
             handle = editor_soft_body_rotation_handle_get(object, body);
+            editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             editor_circle_draw(center, 5.0f, (Color){245, 245, 250, 255});
             editor_quad_draw(center, 3.0f, 3.0f, 0.0f,
                 (Color){245, 245, 250, 255});
@@ -6127,6 +6253,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
     for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
         const EditorJoint *joint = &object->joint_items[joint_index];
+        editor_view_scene_layer_set(joint->graphics_layer, EDITOR_GRAPHICS_LAYER_JOINT);
         const EditorAnchor *a = NULL;
         const EditorAnchor *b = NULL;
         if(!joint->visible) continue;
@@ -6145,6 +6272,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     }
     for(size_t i = 0; i < object->anchor_count; i += 1) {
         const EditorAnchor *anchor = &object->anchors[i];
+        editor_view_scene_layer_set((EditorGraphicsLayerBinding){0}, EDITOR_GRAPHICS_LAYER_JOINT);
         const EditorRigidBody *anchor_body = NULL;
         float rotation = anchor->rotation;
         if(!anchor->visible) continue;
@@ -6170,11 +6298,13 @@ static void editor_viewport_object_draw(const EditorObject *object,
 static void editor_viewport_camera_preview_object_draw(
         const EditorObject *object, const EditorViewportState *state) {
     if(object == NULL || state == NULL || !object->visible) return;
+    editor_viewport_particle_fills_draw(object);
     editor_viewport_sprites_draw(object, state, false);
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);
     for(size_t body_index = 0; body_index < object->rigid_body_count;
             body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
+        editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_RIGID_BODY);
         if(!body->visible) continue;
         for(size_t box_index = 0; box_index < body->hitbox_count; box_index += 1) {
             const EditorHitbox *hitbox = &body->hitboxes[box_index];
@@ -6202,6 +6332,8 @@ static void editor_viewport_camera_preview_object_draw(
         }
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
+            editor_view_scene_layer_set(beam->graphics_layer_inherited ?
+                body->graphics_layer : beam->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             const EditorSoftNode *a = NULL;
             const EditorSoftNode *b = NULL;
             if(!beam->visible) continue;
@@ -6217,6 +6349,8 @@ static void editor_viewport_camera_preview_object_draw(
         }
         for(size_t node = 0; node < body->node_count; node += 1) {
             const EditorSoftNode *item = &body->nodes[node];
+            editor_view_scene_layer_set(item->graphics_layer_inherited ?
+                body->graphics_layer : item->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
             if(item->visible) editor_quad_draw(
                 editor_soft_node_world_get(object, body, item), 8.0f, 8.0f,
                 0.0f, graphics_color_hex_create(item->color_overridden ?
@@ -6226,20 +6360,35 @@ static void editor_viewport_camera_preview_object_draw(
 }
 
 static int editor_viewport_item_layer_base_get(
-        const EditorLayoutViewport *viewport, int layer, size_t order) {
+    const EditorProject *project, const EditorLayoutViewport *viewport, size_t order) {
     size_t rank = 0;
     if(viewport == NULL) return 0;
+    EditorGraphicsLayerBinding target = order < viewport->camera_item_count ?
+        (EditorGraphicsLayerBinding){viewport->camera_items[order].placement.layer,
+            viewport->camera_items[order].graphics_layer} :
+        (EditorGraphicsLayerBinding){viewport->ui_items[order - viewport->camera_item_count].layer,
+            viewport->ui_items[order - viewport->camera_item_count].graphics_layer};
+    int layer = editor_layer_value_get(project, target);
     for(size_t i = 0; i < viewport->camera_item_count; i += 1) {
-        int candidate = viewport->camera_items[i].placement.layer;
+        int candidate = editor_layer_value_get(project, (EditorGraphicsLayerBinding){
+            viewport->camera_items[i].placement.layer, viewport->camera_items[i].graphics_layer});
         if(candidate < layer || (candidate == layer && i < order)) rank += 1;
     }
     for(size_t i = 0; i < viewport->ui_item_count; i += 1) {
-        int candidate = viewport->ui_items[i].layer;
+        int candidate = editor_layer_value_get(project, (EditorGraphicsLayerBinding){
+            viewport->ui_items[i].layer, viewport->ui_items[i].graphics_layer});
         size_t candidate_order = viewport->camera_item_count + i;
         if(candidate < layer ||
                 (candidate == layer && candidate_order < order)) rank += 1;
     }
-    return EDITOR_GRAPHICS_LAYER_COMPOSITION + (int)(rank * 64);
+    return EDITOR_GRAPHICS_LAYER_COMPOSITION + (int)(rank * EDITOR_SCENE_LAYER_STRIDE);
+}
+
+static int editor_viewport_item_draw_base_get(const EditorProject *project,
+        const EditorLayoutViewport *viewport, size_t order) {
+    int rank = (editor_viewport_item_layer_base_get(project, viewport, order) -
+        EDITOR_GRAPHICS_LAYER_COMPOSITION) / EDITOR_SCENE_LAYER_STRIDE;
+    return (rank + 2) * editor_scene_layer_span;
 }
 
 static void editor_viewport_empty_camera_background_draw(
@@ -6324,7 +6473,7 @@ static void editor_viewport_screen_camera_preview_draw(
     editor_view_scale = saved_scale;
 }
 
-void editor_viewport_draw(const EditorProject *project,
+static void editor_viewport_content_draw(const EditorProject *project,
         const EditorViewportState *state, bool grid_visible) {
     const EditorObject *selected;
 
@@ -6374,8 +6523,7 @@ void editor_viewport_draw(const EditorProject *project,
             rectangle.y = project_preview ?
                 origin.y - rectangle.y * zoom : origin.y + rectangle.y * zoom;
             rectangle.width *= zoom; rectangle.height *= zoom;
-            editor_view_composition_layer_base =
-                EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
+            editor_view_composition_layer_base = editor_scene_layer_span;
             editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
             (void)rohr_graphics_screen_rect_draw(rectangle.x, rectangle.y,
                 rectangle.width, rectangle.height,
@@ -6404,8 +6552,7 @@ void editor_viewport_draw(const EditorProject *project,
                 const EditorViewportCameraItem *item = &viewport->camera_items[i];
                 if(!item->placement.visible) continue;
                 editor_view_composition_layer_base =
-                    editor_viewport_item_layer_base_get(viewport,
-                        item->placement.layer, i);
+                    editor_viewport_item_draw_base_get(project, viewport, i);
                 ViewportRectangle camera = item->placement.rectangle;
                 bool selected = item->id == state->selected_viewport_camera_item &&
                     state->selection != EDITOR_SELECTION_NONE;
@@ -6447,8 +6594,7 @@ void editor_viewport_draw(const EditorProject *project,
                 const EditorViewportUiItem *item = &viewport->ui_items[i];
                 if(!item->visible) continue;
                 editor_view_composition_layer_base =
-                    editor_viewport_item_layer_base_get(viewport, item->layer,
-                        viewport->camera_item_count + i);
+                    editor_viewport_item_draw_base_get(project, viewport, viewport->camera_item_count + i);
                 editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
                 ViewportRectangle ui = editor_viewport_ui_rectangle_get(item);
                 bool whole_selected = item->id == state->selected_viewport_ui_item &&
@@ -6728,6 +6874,7 @@ void editor_viewport_draw(const EditorProject *project,
         if(project->objects[i].id == project->selected) selected = &project->objects[i];
     }
     editor_view_transform_set(project, state, selected);
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
     if(grid_visible) editor_viewport_grid_draw();
     if((state->mode == EDITOR_VIEWPORT_HIERARCHY &&
             state->project_elements_hidden) ||
@@ -6882,4 +7029,17 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
         }
     }
     return false;
+}
+
+void editor_viewport_draw(const EditorProject *project,
+        const EditorViewportState *state, bool grid_visible) {
+    if(project == NULL || state == NULL || !editor_scene_layers_create(project)) return;
+    editor_view_composition_layer_base = 0;
+    editor_viewport_content_draw(project, state, grid_visible);
+    free(editor_scene_layers);
+    editor_scene_layers = NULL;
+    editor_scene_layer_count = 0;
+    editor_layer_project = NULL;
+    editor_view_composition_layer_base = 0;
+    rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_CONTENT);
 }

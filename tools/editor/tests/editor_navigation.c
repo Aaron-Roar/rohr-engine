@@ -18,6 +18,8 @@ float editor_window_width = WINDOW_WIDTH;
 float editor_window_height = WINDOW_HEIGHT;
 float editor_viewport_bottom = WINDOW_HEIGHT;
 
+bool editor_layers_check(void);
+
 static bool accordion_layout_metrics_check(void) {
     const float fixed_rows[] = {28.0f, 28.0f, 48.0f};
     const float dynamic_rows[] = {28.0f, 86.0f};
@@ -246,7 +248,7 @@ static bool hitbox_line_zoom_pick_check(void) {
         for(int rotated = 0; rotated < 2; rotated += 1) {
             for(size_t p = 0; p < sizeof(offsets) / sizeof(offsets[0]); p += 1) {
                 EditorProject project;
-                EditorViewportState state;
+                EditorViewportState state = {0};
                 bool selected = false;
                 editor_project_init(&project);
                 editor_viewport_state_init(&state);
@@ -333,7 +335,7 @@ static bool picking_pointer_update(EditorProject *project, EditorViewportState *
 
 static bool render_order_picking_check(void) {
     EditorProject project;
-    EditorViewportState state;
+    EditorViewportState state = {0};
     EditorSelectionRef hit;
     EditorObject *object;
     EditorRigidBody *back;
@@ -556,6 +558,12 @@ static bool render_order_picking_check(void) {
     PICK_REQUIRE(picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_PRESSED));
     PICK_REQUIRE(project.selected == second->id && state.dragged_project_object);
     (void)picking_pointer_update(&project, &state, center, MOUSE_BUTTON_STATE_RELEASED);
+    second->sprites[0].graphics_layer.value = -1;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_OBJECT && hit.item == first_object);
+    second->rigid_bodies[0].graphics_layer.value = 1;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    PICK_REQUIRE(hit.kind == EDITOR_SELECTION_OBJECT && hit.item == second->id);
 
     editor_viewport_state_destroy(&state);
     editor_project_destroy(&project);
@@ -564,7 +572,7 @@ static bool render_order_picking_check(void) {
 
 static bool layout_render_order_picking_check(void) {
     EditorProject project;
-    EditorViewportState state;
+    EditorViewportState state = {0};
     EditorSelectionRef hit;
     Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
         EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
@@ -587,6 +595,11 @@ static bool layout_render_order_picking_check(void) {
     layout->camera_items[1].placement.layer = 30;
     ui->position = (Position){40, 40};
     ui->layer = 20;
+    EditorGraphicsLayer *screen_layer = editor_project_graphics_layer_add(
+        &project, "screen_front", 30);
+    PICK_REQUIRE(screen_layer != NULL);
+    layout->camera_items[1].graphics_layer = screen_layer->id;
+    layout->camera_items[1].placement.layer = -100;
     Position point = {center.x + 60, center.y + 60};
     state.mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
     state.selected_layout_viewport = layout->id;
@@ -599,6 +612,8 @@ static bool layout_render_order_picking_check(void) {
     PICK_REQUIRE(state.selected_viewport_camera_item == layout->camera_items[1].id &&
         state.dragged_viewport_item && !state.dragged_viewport_vertex);
     /* Capture stays with this screen when its layer changes while dragging. */
+    PICK_REQUIRE(editor_project_graphics_layer_set(&project,
+        screen_layer->id, "screen_front", 0));
     layout->camera_items[1].placement.layer = 0;
     PICK_REQUIRE(picking_pointer_update(&project, &state,
         (Position){point.x + 10, point.y}, MOUSE_BUTTON_STATE_DOWN));
@@ -618,6 +633,11 @@ static bool layout_render_order_picking_check(void) {
     /* UI follows screens at equal layers; later UI siblings follow earlier ones. */
     ui->visible = true;
     ui->layer = 0;
+    EditorGraphicsLayer *ui_layer = editor_project_graphics_layer_add(
+        &project, "ui_front", 0);
+    PICK_REQUIRE(ui_layer != NULL);
+    ui->graphics_layer = ui_layer->id;
+    ui->layer = -200;
     PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
     PICK_REQUIRE(hit.kind == EDITOR_SELECTION_UI_SHAPE && hit.item == ui->id);
     EditorViewportUiItem *second_ui = editor_viewport_ui_add(&project, layout,
@@ -625,7 +645,7 @@ static bool layout_render_order_picking_check(void) {
     PICK_REQUIRE(second_ui != NULL);
     ui = &layout->ui_items[0];
     second_ui->position = ui->position;
-    second_ui->layer = ui->layer;
+    second_ui->layer = 0;
     state.mode = EDITOR_VIEWPORT_UI_VERTEX_EDITOR;
     state.selected_viewport_ui_item = ui->id;
     PICK_REQUIRE(editor_viewport_selection_at_get(&project, &state, point, &hit));
@@ -644,6 +664,7 @@ static bool layout_render_order_picking_check(void) {
 #undef PICK_REQUIRE
 
 int main(void) {
+    if(!editor_layers_check()) return 1;
     if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
     if(!accordion_layout_metrics_check() ||
             !created_name_focus_mapping_check() ||

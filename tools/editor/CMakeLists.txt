@@ -98,6 +98,7 @@ if(ROHR_BUILD_TESTS)
 
     add_executable(editor_navigation_test
         tests/editor_navigation.c
+        tests/editor_layers.c
         src/browser/editor_file_browser.c
         src/editor_history.c
         src/editor_navigation.c
@@ -115,6 +116,8 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
     )
     add_test(NAME editor_navigation COMMAND editor_navigation_test)
+    set_tests_properties(editor_navigation PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_viewport_context_menu_test
         tests/editor_viewport_context_menu.c

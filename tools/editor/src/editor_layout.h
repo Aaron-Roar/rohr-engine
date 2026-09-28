@@ -6,6 +6,7 @@
 #define ROHR_EDITOR_LAYOUT_H
 
 #include "rohr.h"
+#include <limits.h>
 
 #define EDITOR_VIEWPORT_WIDTH editor_viewport_width
 #define EDITOR_TOOLS_WIDTH (editor_window_width - editor_viewport_width)
@@ -17,6 +18,7 @@
 #define EDITOR_VIEWPORT_BOTTOM editor_viewport_bottom
 
 enum {
+    EDITOR_GRAPHICS_LAYER_BACKGROUND = INT_MIN,
     EDITOR_GRAPHICS_LAYER_CONTENT = 0,
     EDITOR_GRAPHICS_LAYER_RIGID_BODY = 10,
     EDITOR_GRAPHICS_LAYER_SOFT_BODY = 20,
