@@ -3162,8 +3162,9 @@ Each sprite receives independent transform copies while sharing image resources.
 Frame scale multiplies the native pixel dimensions. Negative X/Y flips image
 content before rotation; Left XORs the horizontal flip. Zero collapses drawing
 and image selection. Frame offsets and centers never change when frame scale
-changes. Sprite scale affects the whole arrangement, including offsets, and
-sprite orientation rotates the arrangement. Rotation defaults to clockwise degrees;
+changes. Sprite scale multiplies frame dimensions without scaling offsets or
+moving frame centers; sprite orientation still rotates the arrangement around
+its origin. Rotation defaults to clockwise degrees;
 the `_radians_` setter/getter explicitly converts radians.
 
 Reusable values and post-creation mutation:

@@ -215,9 +215,24 @@ static bool direction_pixels_check(Position center, float rotation,
     return false;
 }
 
+static bool animation_extent_check(Position center, float rotation, Scale size,
+        Color color) {
+    /* The center stays fixed while each scaled edge moves outward/inward. */
+    Vec2D samples[] = {{size.x * .5f - 4, 0}, {size.x * .5f + 4, 0},
+        {size.x * .25f, size.y * .5f - 4},
+        {size.x * .25f, size.y * .5f + 4}};
+    for(size_t i = 0; i < 4; i += 1) {
+        Vec2D point = math_vector_rotate(samples[i], -rotation);
+        CHECK(pixel_check((Position){center.x + point.x, center.y + point.y},
+            i % 2 == 0 ? color : (Color){0,0,0,255}));
+    }
+    return true;
+}
+
 static bool animation_direction_check(void) {
     const char *paths[] = {"editor_direction_first.png", "editor_direction_second.png"};
     const Uint32 colors[2][2] = {{0xff0000ff, 0x0000ffff}, {0x00ff00ff, 0xffff00ff}};
+    const Scale scales[] = {{1,1}, {2,3}, {.5f,1.5f}};
     for(size_t frame = 0; frame < 2; frame += 1) {
         SDL_Surface *surface = SDL_CreateSurface(8, 8, SDL_PIXELFORMAT_RGBA8888);
         CHECK(surface != NULL);
@@ -260,9 +275,10 @@ static bool animation_direction_check(void) {
     OK(rohr_graphics_animation_release(&asset.result.value));
     asset = rohr_graphics_animation_load(descriptor);
     CHECK(!rohr_error_check(asset));
+    for(size_t scale_index = 0; scale_index < 3; scale_index += 1)
     for(int left = 0; left < 2; left += 1) {
         AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
-            (Scale){2,3});
+            scales[scale_index]);
         sprite.frames[0].offset = (Position){30,20};
         sprite.frames[0].rotation = 45;
         sprite.orientation_offset = 90;
@@ -277,7 +293,10 @@ static bool animation_direction_check(void) {
         CHECK(rohr_graphics_animated_sprite_draw(entity.result.value));
         rohr_graphics_show();
         unsigned seen = 0;
-        CHECK(direction_pixels_check((Position){700,420}, 135, sprite.direction, 1, &seen));
+        CHECK(direction_pixels_check((Position){660,390}, 135, sprite.direction, 1, &seen));
+        CHECK(animation_extent_check((Position){660,390}, 135,
+            (Scale){80 * scales[scale_index].x, 64 * scales[scale_index].y},
+            left ? (Color){255,0,0,255} : (Color){0,0,255,255}));
         OK(rohr_entity_delete(entity.result.value));
     }
     OK(rohr_graphics_animation_release(&asset.result.value));
@@ -351,15 +370,23 @@ static bool animation_direction_check(void) {
     animation->frames[1].offset = (Position){30,20};
     animation->frames[1].rotation = 45;
     animation->editor_rotation = 90;
-    animation->scale = (Scale){2,3};
     animation->playing = true;
+    for(size_t scale_index = 0; scale_index < 3; scale_index += 1)
     for(int left = 0; left < 2; left += 1) {
+        EditorCommand scale_command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET,
+            .data.animated_sprite_scale_set = {object->id, animation->id, scales[scale_index]}};
+        CHECK(editor_command_execute(&project, &scale_command).kind == ERROR_RESULT_VALUE);
+        CHECK(animation->frames[1].offset.x == 30 && animation->frames[1].offset.y == 20);
+        CHECK(animation->frames[1].scale.x == 10 && animation->frames[1].scale.y == 8);
         animation->direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         for(int repeat = 0; repeat < 3; repeat += 1) {
             draw(&project, &state);
             unsigned seen = 0;
-            CHECK(direction_pixels_check((Position){center.x+60,center.y+60}, 135,
+            CHECK(direction_pixels_check((Position){center.x+20,center.y+30}, 135,
                 animation->direction, 2, &seen));
+            CHECK(animation_extent_check((Position){center.x+20,center.y+30}, 135,
+                (Scale){80 * scales[scale_index].x, 64 * scales[scale_index].y},
+                left ? (Color){0,255,0,255} : (Color){255,255,0,255}));
         }
     }
     animation->scale = (Scale){1,1};
@@ -369,7 +396,9 @@ static bool animation_direction_check(void) {
     animation->frames[0].rotation = 90;
     state.mode = EDITOR_VIEWPORT_LAYOUT;
     state.selection = EDITOR_SELECTION_NONE;
+    for(size_t scale_index = 0; scale_index < 3; scale_index += 1)
     for(int left = 0; left < 2; left += 1) {
+        animation->scale = scales[scale_index];
         animation->direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         draw(&project, &state);
         unsigned seen = 0;

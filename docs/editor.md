@@ -29,7 +29,9 @@ containing a static floor and a gravity-enabled box.
 An animation's Origin X/Y controls place its shared origin. Each frame has
 Offset X/Y, Rotation, and Scale X/Y controls. Moving the animation preserves
 the offsets; rotating a frame turns it about its own center. Animation scale
-affects frame offsets and dimensions. Scale 1 uses the native image dimension;
+affects only frame dimensions, leaving offsets and frame centers unchanged.
+Animation rotation still rotates offsets around its origin.
+Scale 1 uses the native image dimension;
 negative X/Y mirrors that image axis before rotation without moving its center.
 Left/Right combines with the X sign (two horizontal flips cancel). Zero on either
 axis hides the image and removes its image selection bounds; the frame remains

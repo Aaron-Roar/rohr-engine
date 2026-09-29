@@ -179,7 +179,7 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–8 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -269,8 +269,8 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are compl
 7. [x] **Add animation origins and individual frame alignment** — Animation
    positions now serve as shared origins; frames retain local center offsets
    and clockwise degree rotations around their own centers. Animation scale
-   affects offsets and dimensions, and animation rotation transforms the
-   arrangement. Left/Right mirrors only image content. Numeric controls, frame
+   affects dimensions only (clarified in goal 8), and animation rotation
+   transforms the arrangement. Left/Right mirrors only image content. Numeric controls, frame
    dragging, rotation handles, origin markers, picking, context selection, and
    one-entry undo/cancellation use the authored transforms. Frame editing holds
    the selected frame; stopped previews honor the starting frame.
@@ -283,7 +283,7 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are compl
    metadata, independent playback, and shared asset lifetime. Flies-in-pit and
    viewport examples build against the Linux SDK and launch outside their source
    directories. Windows execution and interactive visual review remain manual
-   verification. Goal 8's frame-scaling investigation remains separate.
+   verification. Goal 8 subsequently corrects animation-scale offset handling.
    **Mutable frame values follow-up (complete):** Reusable frame values now hold
    scale, offset, and rotation independently of shared image catalogs. Each sprite
    owns copied transforms and image references; mutation preserves playback and
@@ -298,10 +298,21 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are compl
    build against the installed Linux SDK and launch outside their source folders.
    Generated code with signed/zero scale builds against both SDKs and runs on Linux,
    verifying independent transforms, playback, and shared image lifetime. Windows
-   execution and interactive editor review remain manual checks. Goal 8 is separate.
-8. [ ] **Fix unintended translation during frame scaling** — Investigate and
-   correct frames that move when scaled, using the animation-origin and
-   frame-offset model established in goal 7.
+   execution and interactive editor review remain manual checks.
+8. [x] **Fix unintended translation during frame scaling** — Animation scale
+   multiplies only child image dimensions, leaving offsets and centers unchanged.
+   Animation rotation still rotates offsets around the origin. Runtime drawing
+   and the shared editor center calculation use unscaled offsets; frame dragging
+   removes parent rotation without dividing by animation scale. Regression checks
+   cover shrinking/enlarging, nonuniform scales, rotated frames, Left/Right,
+   frame previews, two camera screens, picking, dragging at three zoom levels,
+   cancellation, and undo/redo. The regression fails with the unchanged runtime.
+   All 57 Linux tests and four ASan/LSan/UBSan checks pass. Linux and Windows
+   builds pass without compiler warnings; Windows verification is cross-compilation.
+   Flies-in-pit and viewport examples build against the updated installed SDK
+   and launch outside their source directories. Public signatures and saved
+   values/formats are unchanged; offset interpretation follows the clarified
+   contract. Desktop visual review remains recommended.
 9. [ ] **Default to rectangles instead of triangles** — Make rectangle the
    default shape.
 

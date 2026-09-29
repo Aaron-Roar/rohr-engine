@@ -96,7 +96,7 @@ static void animation_frame_history_check(void) {
         editor_project_init(&project);
         project.viewport_local_view = false;
         project.viewport_camera_zoom = zooms[zoom];
-        project.viewport_camera_offset = (Vec2D){-25 * zooms[zoom], -50 * zooms[zoom]};
+        project.viewport_camera_offset = (Vec2D){15 * zooms[zoom], -20 * zooms[zoom]};
         EditorObject *object = editor_project_object_add(&project, (Position){0});
         EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
         assert(body != NULL);
@@ -128,7 +128,7 @@ static void animation_frame_history_check(void) {
         Position screen_origin = test_world_to_screen((Position){0});
         screen_origin.x += project.viewport_camera_offset.x;
         screen_origin.y += project.viewport_camera_offset.y;
-        Position center = {25,-50};
+        Position center = {-15,-20};
         Position press = {screen_origin.x + center.x * zooms[zoom] + 1,
             screen_origin.y - center.y * zooms[zoom] + 1};
         Position moved = {press.x + 30 * zooms[zoom], press.y + 20 * zooms[zoom]};
@@ -144,16 +144,16 @@ static void animation_frame_history_check(void) {
         (void)viewport_pointer_update(&history, &viewport, &project, moved,
             MOUSE_BUTTON_STATE_RELEASED);
         assert(history.undo_count == 1);
-        assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
-        assert(fabsf(animation->frames[1].offset.y - 30) < 0.002f);
+        assert(fabsf(animation->frames[1].offset.x - 50) < 0.002f);
+        assert(fabsf(animation->frames[1].offset.y - 50) < 0.002f);
         assert(animation->frames[0].offset.x == 0 && animation->editor_position.x == 10);
         assert(editor_history_undo(&history));
         animation = editor_project_animated_sprite_get(&project.objects[0], id);
         assert(animation->frames[1].offset.x == 30);
         assert(editor_history_redo(&history));
         animation = editor_project_animated_sprite_get(&project.objects[0], id);
-        assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
-        center = (Position){55,-70};
+        assert(fabsf(animation->frames[1].offset.x - 50) < 0.002f);
+        center = (Position){15,-40};
         for(int step = 0; step <= 5; step += 1) {
             Position handle = editor_rotation_control_position_get(center,
                 540 + 90 * step, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / zooms[zoom]);
@@ -163,7 +163,7 @@ static void animation_frame_history_check(void) {
                 step == 0 ? MOUSE_BUTTON_STATE_PRESSED : MOUSE_BUTTON_STATE_DOWN));
             assert(viewport.rotated_animation_frame);
             assert(fabsf(animation->frames[1].rotation - (450 + 90 * step)) < 0.002f);
-            assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
+            assert(fabsf(animation->frames[1].offset.x - 50) < 0.002f);
         }
         editor_history_transaction_cancel(&history);
         editor_viewport_transform_cancel(&viewport);
@@ -185,8 +185,24 @@ static void animation_frame_history_check(void) {
             }
             assert(viewport.mode == EDITOR_VIEWPORT_ANIMATION_FRAME);
             assert(viewport.selected_animation_frame == animation->frames[0].id);
-            assert(animation->frames[1].offset.x > 39.99f);
+            assert(animation->frames[1].offset.x > 49.99f);
         }
+        size_t parent_undo_count = history.undo_count;
+        EditorCommand parent_scale = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_SCALE_SET,
+            .data.animated_sprite_scale_set = {project.objects[0].id, id, {.5f,1.5f}}};
+        assert(editor_command_execute(&project, &parent_scale).kind == ERROR_RESULT_VALUE);
+        assert(history.undo_count == parent_undo_count + 1);
+        assert(animation->frames[1].scale.x == 20 &&
+            fabsf(animation->frames[1].offset.x - 50) < 0.002f &&
+            fabsf(animation->frames[1].offset.y - 50) < 0.002f);
+        assert(editor_history_undo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->scale.x == 2 && animation->scale.y == 3);
+        assert(editor_history_redo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->scale.x == .5f && animation->scale.y == 1.5f &&
+            fabsf(animation->frames[1].offset.x - 50) < 0.002f &&
+            fabsf(animation->frames[1].offset.y - 50) < 0.002f);
         size_t undo_count = history.undo_count;
         EditorCommand scale_command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
             .data.animation_frame_scale_set = {project.objects[0].id, id, 1, {-2,0}}};

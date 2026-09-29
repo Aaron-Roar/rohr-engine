@@ -251,8 +251,8 @@ static Position editor_animation_frame_world_get(const EditorObject *object,
         Orientation *rotation) {
     Orientation angle;
     Position origin = editor_animated_sprite_world_get(object, animation, &angle);
-    Vec2D offset = math_vector_rotate((Vec2D){frame->offset.x * animation->scale.x,
-        frame->offset.y * animation->scale.y}, angle);
+    Vec2D offset = math_vector_rotate((Vec2D){frame->offset.x,
+        frame->offset.y}, angle);
     if(rotation != NULL) *rotation = angle + frame->rotation;
     return (Position){origin.x + offset.x, origin.y + offset.y};
 }
@@ -4702,8 +4702,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 Vec2D local = math_vector_rotate((Vec2D){
                     pointer.x - state->drag_offset.x - origin.x,
                     pointer.y - state->drag_offset.y - origin.y}, -parent_rotation);
-                offset = (Position){local.x / animation->scale.x,
-                    local.y / animation->scale.y};
+                offset = (Position){local.x, local.y};
             } else {
                 rotation = editor_rotation_control_orientation_get(center, pointer,
                     state->rotation_pointer_offset, world_rotation) - parent_rotation;

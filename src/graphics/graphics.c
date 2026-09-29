@@ -4382,8 +4382,7 @@ static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
     asset.size.x = fabsf(asset.size.x);
     asset.size.y = fabsf(asset.size.y);
     Vec2D offset = math_vector_rotate((Vec2D){
-        frame.offset.x * sprite.scale.x,
-        frame.offset.y * sprite.scale.y}, ort);
+        frame.offset.x, frame.offset.y}, ort);
     pos.x += offset.x;
     pos.y += offset.y;
     ort += frame.rotation;
