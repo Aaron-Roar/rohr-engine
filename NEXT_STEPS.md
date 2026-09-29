@@ -122,6 +122,20 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Single-Goal Milestone: Restore Rigid-Contact Stability Coverage
+
+Correct the stability fixture's gravity setup so it exercises resting contact
+and friction under negative gravity. This user-selected correction precedes
+the next Bugs Identified by Rohr User goal; engine behavior remains unchanged.
+
+1. [x] **Correct the stability test's gravity setup** — The fixture explicitly
+   configures `(0, -9.8)` gravity with error handling, places the floor at
+   `y = -100` and the body at `y = -20`, and preserves all geometry, timing,
+   contact, drift, velocity, and friction assertions. The full Linux suite now
+   passes 57/57 tests. The stability test passes ASan/LSan/UBSan with its own
+   test source instrumented. Linux and Windows builds pass without compiler
+   warnings; Windows verification is cross-compilation only.
+
 ## Single-Goal Milestone: Reliable Text Input Across the Editor
 
 Keep text entry usable through initial selection, repeated clicks, double-click
@@ -139,10 +153,10 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    focused tests and four ASan/LSan/UBSan checks pass. Linux and Windows builds
    pass without compiler warnings; Windows verification is cross-compilation.
    The installed-SDK UI example builds and launches outside its source directory.
-   The full Linux suite passes 56/57 tests: `rigid_contact_stability` also fails
-   identically with the unchanged baseline engine (body falls away from its
-   floor under the current negative default gravity). That separate physics
-   fixture issue remains outside this goal. Desktop interaction review remains
+   At this goal's completion the full Linux suite passed 56/57 tests, with a
+   pre-existing `rigid_contact_stability` fixture failure under negative gravity.
+   The Restore Rigid-Contact Stability Coverage milestone above resolves that
+   separate failure and restores 57/57 passing tests. Desktop interaction review remains
    recommended; automated editor interaction checks use SDL's dummy backend.
 
 ## Single-Goal Milestone: Default Gravity

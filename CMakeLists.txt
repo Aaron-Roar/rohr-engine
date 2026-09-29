@@ -680,6 +680,10 @@ if(ROHR_BUILD_TESTS)
     target_include_directories(rigid_contact_stability_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(rigid_contact_stability_test PRIVATE rohr_engine)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(rigid_contact_stability_test PRIVATE
+            ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
     set_target_properties(rigid_contact_stability_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME rigid_contact_stability COMMAND rigid_contact_stability_test)

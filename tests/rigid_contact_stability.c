@@ -52,14 +52,21 @@ int main(void) {
         fprintf(stderr, "%s\n", rohr_error_message_get(result));
         return 1;
     }
+    /* Keep this contact fixture independent of the engine's default gravity. */
+    result = rohr_physics_gravity_set((Acceleration){0.0f, -9.8f});
+    if(rohr_error_check(result)) {
+        fprintf(stderr, "%s\n", rohr_error_message_get(result));
+        rohr_engine_stop();
+        return 2;
+    }
     floor_result = rohr_entity_add();
     body_result = rohr_entity_add();
     if(rohr_error_check(floor_result) || rohr_error_check(body_result) ||
             !entity_configure(floor_result.result.value,
                 rohr_math_square_create(400.0f, 20.0f),
-                (Position){0.0f, 100.0f}, false) ||
+                (Position){0.0f, -100.0f}, false) ||
             !entity_configure(body_result.result.value,
-                concave_body_shape_get(), (Position){0.0f, 20.0f}, true)) {
+                concave_body_shape_get(), (Position){0.0f, -20.0f}, true)) {
         rohr_engine_stop();
         return 2;
     }
