@@ -1811,7 +1811,8 @@ property_invalid:
         case EDITOR_COMMAND_ANIMATION_FRAME_REMOVE:
         case EDITOR_COMMAND_ANIMATION_FRAME_RENAME:
         case EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET:
-        case EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET: {
+        case EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET:
+        case EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET: {
             EditorObjectId object_id;
             EditorAnimatedSpriteId sprite_id;
             EditorObject *object;
@@ -1844,6 +1845,8 @@ property_invalid:
                 ANIMATED_IDS(animation_frame_path_set);
             else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET)
                 ANIMATED_IDS(animation_frame_size_set);
+            else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET)
+                ANIMATED_IDS(animation_frame_transform_set);
             else ANIMATED_IDS(animated_sprite_boolean_set);
 #undef ANIMATED_IDS
             object = editor_object_query_get(project, object_id);
@@ -1980,7 +1983,9 @@ property_invalid:
                     command->data.animation_frame_rename.index :
                     command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET ?
                         command->data.animation_frame_path_set.index :
-                        command->data.animation_frame_size_set.index;
+                        command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET ?
+                            command->data.animation_frame_transform_set.index :
+                            command->data.animation_frame_size_set.index;
                 EditorAnimationFrame *frame;
                 if(index >= sprite->frame_count)
                     return editor_command_error(editor_result_error(
@@ -1997,6 +2002,15 @@ property_invalid:
                             "animation frame path cannot be empty").result.error);
                     snprintf(frame->path, sizeof(frame->path), "%s",
                         command->data.animation_frame_path_set.path);
+                } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
+                    Position offset = command->data.animation_frame_transform_set.offset;
+                    Orientation rotation = command->data.animation_frame_transform_set.rotation;
+                    if(!isfinite(offset.x) || !isfinite(offset.y) || !isfinite(rotation))
+                        return editor_command_error(editor_result_error(
+                            EDITOR_ERROR_INVALID_ARGUMENT,
+                            "animation frame transform must be finite").result.error);
+                    frame->offset = offset;
+                    frame->rotation = rotation;
                 } else {
                     Scale size = command->data.animation_frame_size_set.size;
                     if(size.x <= 0.0f || size.y <= 0.0f)
@@ -2498,6 +2512,24 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
             command->data.animation_frame_path_set.index = value;
             snprintf(command->data.animation_frame_path_set.path,
                 sizeof(command->data.animation_frame_path_set.path), "%s", arguments[7]);
+            return editor_result_value(true);
+        }
+        if(strcmp(action, "frame-transform-set") == 0 && count == 10 &&
+                editor_command_uint_parse(arguments[6], &value)) {
+            float values[3];
+            for(size_t i = 0; i < 3; i += 1) {
+                char *end;
+                values[i] = strtof(arguments[7 + i], &end);
+                if(end == arguments[7 + i] || *end != '\0' || !isfinite(values[i]))
+                    return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                        "animation frame transform must be finite numbers");
+            }
+            command->type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET;
+            command->data.animation_frame_transform_set.object = object;
+            command->data.animation_frame_transform_set.sprite = id;
+            command->data.animation_frame_transform_set.index = value;
+            command->data.animation_frame_transform_set.offset = (Position){values[0], values[1]};
+            command->data.animation_frame_transform_set.rotation = values[2];
             return editor_result_value(true);
         }
         if(strcmp(action, "frame-size-set") == 0 && count == 9 &&
@@ -3275,7 +3307,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
         if(!editor_command_text_append(output, output_capacity, &used,
                 "rohr-cli sprite ")) goto capacity_error;
     } else if(command->type >= EDITOR_COMMAND_ANIMATED_SPRITE_ADD &&
-            command->type <= EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET) {
+            command->type <= EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
         if(!editor_command_text_append(output, output_capacity, &used,
                 "rohr-cli animated-sprite ")) goto capacity_error;
     }
@@ -3365,7 +3397,8 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
         case EDITOR_COMMAND_ANIMATION_FRAME_REMOVE:
         case EDITOR_COMMAND_ANIMATION_FRAME_RENAME:
         case EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET:
-        case EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET: {
+        case EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET:
+        case EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET: {
             EditorObjectId object = command->data.animated_sprite_remove.object;
             EditorAnimatedSpriteId id = command->data.animated_sprite_remove.sprite;
             const char *action = command->type == EDITOR_COMMAND_ANIMATED_SPRITE_REMOVE ?
@@ -3374,7 +3407,8 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 "frame-add" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_REMOVE ?
                 "frame-delete" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME ?
                 "frame-rename" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET ?
-                "frame-path-set" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET ?
+                "frame-path-set" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET ?
+                "frame-transform-set" : command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET ?
                 "frame-size-set" : command->type == EDITOR_COMMAND_ANIMATED_SPRITE_BODY_SET ?
                 "connect" : "set";
             snprintf(values, sizeof(values), "%s ", action);
@@ -3449,6 +3483,14 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 if(!editor_command_text_append(output, output_capacity, &used, values) ||
                         !editor_command_shell_text_append(output, output_capacity, &used,
                             command->data.animation_frame_path_set.path)) goto capacity_error;
+            } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
+                snprintf(values, sizeof(values), " %zu %.9g %.9g %.9g",
+                    command->data.animation_frame_transform_set.index,
+                    command->data.animation_frame_transform_set.offset.x,
+                    command->data.animation_frame_transform_set.offset.y,
+                    command->data.animation_frame_transform_set.rotation);
+                if(!editor_command_text_append(output, output_capacity, &used, values))
+                    goto capacity_error;
             } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET) {
                 snprintf(values, sizeof(values), " %zu %.9g %.9g",
                     command->data.animation_frame_size_set.index,

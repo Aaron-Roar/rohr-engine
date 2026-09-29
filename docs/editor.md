@@ -24,6 +24,29 @@ For a new project, navigate to the parent directory, enter the new directory
 name, and choose **Create Project**. The editor creates a working starter scene
 containing a static floor and a gravity-enabled box.
 
+## Animation frame alignment
+
+An animation's Origin X/Y controls place its shared origin. Each frame has
+Offset X/Y, Rotation, and Width/Height controls. Moving the animation preserves
+the offsets; rotating a frame turns it about its own center. Animation scale
+affects frame offsets and dimensions. Left/Right mirrors only the image.
+
+Open a frame from the animation's frame list or double-click its viewport image.
+The selected frame stays visible while editing, even if animation playback is
+enabled. Drag its image to change its offset or use its rotation handle.
+Continuous drags produce one undo entry. Return to the animation editor to move
+its origin or rotate the full animation.
+
+The CLI uses the same command and history path:
+
+```sh
+rohr-cli --project objects/project.rohr.json --object character \
+  --animated-sprite walk --frame-index 0 frame-transform-set 12 -4 15
+```
+
+The final values are offset X, offset Y, and clockwise degrees. Existing project
+frames without transform fields default to zero offset and rotation.
+
 ## Generated project layout
 
 The default workspace is:

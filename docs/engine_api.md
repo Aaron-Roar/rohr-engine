@@ -3154,7 +3154,22 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 ```
 
-Loads or shares an immutable animation resource.
+Loads or shares an immutable animation resource. The descriptor's
+`frame_offsets[]` place frame centers relative to the animation origin;
+`frame_rotations[]` specify clockwise degrees around each frame's own center.
+Omitted entries are zero. Frame lookup returns these as `offset` and `rotation`.
+
+The animated sprite's existing position/body offset is its origin. Drawing
+scales each frame's offset and dimensions by sprite scale, rotates the offset
+by sprite orientation, and draws at the resulting center with sprite orientation
+plus frame rotation. Dimensions remain rectangular, including nonuniform scale.
+Moving the origin preserves all frame offsets. Left/Right mirrors only texture
+content before rotation and never changes a frame's transform.
+
+Alignment belongs to the immutable shared asset definition and participates in
+cache identity. Loading nonfinite offsets or rotations fails without acquiring
+a persistent asset reference. Replacing an animation uses the existing
+load/add/release ownership contract.
 
 | Parameter | Description |
 | --- | --- |

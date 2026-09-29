@@ -697,7 +697,8 @@ EditorResult editor_command_cli_named_parse(const EditorProject *project,
         } else if(strcmp(action, "frame-delete") == 0 ||
                 strcmp(action, "frame-rename") == 0 ||
                 strcmp(action, "frame-path-set") == 0 ||
-                strcmp(action, "frame-size-set") == 0) {
+                strcmp(action, "frame-size-set") == 0 ||
+                strcmp(action, "frame-transform-set") == 0) {
             if(!selectors.frame.id_set) return editor_result_error(
                 EDITOR_ERROR_INVALID_ARGUMENT,
                 "frame operation requires --frame-index <index>");

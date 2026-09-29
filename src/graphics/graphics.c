@@ -4368,7 +4368,12 @@ static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
     asset = frame.result.value.texture;
     asset.size.x = asset.size.x * sprite.scale.x;
     asset.size.y = asset.size.y * sprite.scale.y;
-
+    Vec2D offset = math_vector_rotate((Vec2D){
+        frame.result.value.offset.x * sprite.scale.x,
+        frame.result.value.offset.y * sprite.scale.y}, ort);
+    pos.x += offset.x;
+    pos.y += offset.y;
+    ort += frame.result.value.rotation;
     graphics_texture_draw_flipped(asset, pos, ort,
         sprite.direction == DIRECTION_LEFT ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE);
 }

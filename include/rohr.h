@@ -1835,6 +1835,10 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 
 /**
  * @brief Loads or shares an immutable animation resource.
+ * Frame offsets place centers relative to the sprite origin; frame rotations
+ * are clockwise degrees about those centers. Sprite scale affects offsets and
+ * dimensions; sprite orientation rotates offsets and adds to frame rotation.
+ * Direction mirrors image content only. Omitted frame transforms are zero.
  * @param anim_desc Animation descriptor containing load settings.
  * @return AnimationAssetResult containing the asset, or an error.
  */

@@ -182,11 +182,16 @@ static Orientation editor_camera_attachment_rotation_get(
     const EditorObject *object, const EditorCamera *camera);
 
 static size_t editor_animation_preview_frame_get(const EditorObject *object,
-        const EditorAnimatedSprite *animation) {
+        const EditorAnimatedSprite *animation, const EditorViewportState *state) {
     EditorAnimationPreview *preview = NULL;
     Tick tick = editor_animation_preview_tick;
     Time time = editor_animation_preview_time;
     if(object == NULL || animation == NULL || animation->frame_count == 0) return 0;
+    if(state != NULL && state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
+            state->selected_animated_sprite == animation->id) {
+        for(size_t i = 0; i < animation->frame_count; i += 1)
+            if(animation->frames[i].id == state->selected_animation_frame) return i;
+    }
     for(size_t i = 0; i < editor_animation_preview_count; i += 1)
         if(editor_animation_previews[i].object == object->id &&
                 editor_animation_previews[i].animation == animation->id)
@@ -206,12 +211,14 @@ static size_t editor_animation_preview_frame_get(const EditorObject *object,
             .animation = animation->id};
     }
     if(!animation->playing) {
-        preview->frame_index = 0;
+        preview->frame_index = animation->starting_frame < animation->frame_count ?
+            animation->starting_frame : 0;
         preview->last_update_tick = tick;
         preview->last_update_time = time;
     } else {
         if(!preview->was_playing) {
-            preview->frame_index = 0;
+            preview->frame_index = animation->starting_frame < animation->frame_count ?
+                animation->starting_frame : 0;
             preview->last_update_tick = tick;
             preview->last_update_time = time;
         } else if((animation->ticks_per_frame != 0 &&
@@ -226,7 +233,8 @@ static size_t editor_animation_preview_frame_get(const EditorObject *object,
     }
     preview->was_playing = animation->playing;
     if(preview->frame_index >= animation->frame_count)
-        preview->frame_index = 0;
+        preview->frame_index = animation->starting_frame < animation->frame_count ?
+            animation->starting_frame : 0;
     return preview->frame_index;
 }
 
@@ -236,6 +244,16 @@ static Position editor_animated_sprite_world_get(const EditorObject *object,
     const EditorAnimatedSprite *sprite, float *rotation);
 static Orientation editor_sprite_world_rotation_get(const EditorObject *object,
     const EditorSprite *sprite);
+static Position editor_animation_frame_world_get(const EditorObject *object,
+        const EditorAnimatedSprite *animation, const EditorAnimationFrame *frame,
+        Orientation *rotation) {
+    Orientation angle;
+    Position origin = editor_animated_sprite_world_get(object, animation, &angle);
+    Vec2D offset = math_vector_rotate((Vec2D){frame->offset.x * animation->scale.x,
+        frame->offset.y * animation->scale.y}, angle);
+    if(rotation != NULL) *rotation = angle + frame->rotation;
+    return (Position){origin.x + offset.x, origin.y + offset.y};
+}
 bool editor_viewport_selection_primary_set(EditorProject *project,
     EditorViewportState *state, EditorSelectionRef selection);
 
@@ -815,25 +833,27 @@ static void editor_joint_symbol_draw(EditorJointKind kind, Position start,
     }
 }
 
-static void editor_body_origin_draw(const EditorObject *object,
-    const EditorRigidBody *body) {
-    Position center;
+static void editor_origin_draw(Position center, Orientation rotation) {
     Position x_end;
     Position y_end;
     const float axis_length = 16.0f / editor_view_scale;
 
-    if(object == NULL || body == NULL) return;
-    center = (Position){object->position.x + body->position.x,
-        object->position.y + body->position.y};
-    x_end = (Position){center.x + cosf(math_degrees_to_radians(body->rotation)) * axis_length,
-        center.y + (-sinf(math_degrees_to_radians(body->rotation))) * axis_length};
-    y_end = (Position){center.x - (-sinf(math_degrees_to_radians(body->rotation))) * axis_length,
-        center.y + cosf(math_degrees_to_radians(body->rotation)) * axis_length};
+    x_end = (Position){center.x + cosf(math_degrees_to_radians(rotation)) * axis_length,
+        center.y + (-sinf(math_degrees_to_radians(rotation))) * axis_length};
+    y_end = (Position){center.x - (-sinf(math_degrees_to_radians(rotation))) * axis_length,
+        center.y + cosf(math_degrees_to_radians(rotation)) * axis_length};
     editor_line_draw(center, x_end, (Color){235, 95, 95, 255});
     editor_line_draw(center, y_end, (Color){95, 220, 135, 255});
     editor_circle_draw(center, 5.0f / editor_view_scale, (Color){245, 245, 250, 255});
     editor_quad_draw(center, 3.0f, 3.0f,
         0.0f, (Color){245, 245, 250, 255});
+}
+
+static void editor_body_origin_draw(const EditorObject *object,
+        const EditorRigidBody *body) {
+    if(object == NULL || body == NULL) return;
+    editor_origin_draw((Position){object->position.x + body->position.x,
+        object->position.y + body->position.y}, body->rotation);
 }
 
 enum { EDITOR_COM_HANDLE_RADIUS = 13 };
@@ -1495,16 +1515,20 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
     for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
         const EditorAnimatedSprite *animation = &object->animated_sprite_items[i];
         const EditorAnimationFrame *frame = animation->frame_count == 0 ? NULL :
-            &animation->frames[0];
+            &animation->frames[editor_animation_preview_frame_get(object, animation, state)];
         Position world;
+        Orientation rotation;
         EditorMarqueeBounds bounds;
         if(!animation->visible || frame == NULL) continue;
-        world = editor_animated_sprite_world_get(object, animation, NULL);
-        bounds = (EditorMarqueeBounds){
-            world.x - frame->size.x * animation->scale.x * 0.5f,
-            world.x + frame->size.x * animation->scale.x * 0.5f,
-            world.y - frame->size.y * animation->scale.y * 0.5f,
-            world.y + frame->size.y * animation->scale.y * 0.5f, true};
+        world = editor_animation_frame_world_get(object, animation, frame, &rotation);
+        Vec2D x = math_vector_rotate((Vec2D){
+            frame->size.x * animation->scale.x * 0.5f, 0}, rotation);
+        Vec2D y = math_vector_rotate((Vec2D){0,
+            frame->size.y * animation->scale.y * 0.5f}, rotation);
+        float half_width = fabsf(x.x) + fabsf(y.x);
+        float half_height = fabsf(x.y) + fabsf(y.y);
+        bounds = (EditorMarqueeBounds){world.x - half_width, world.x + half_width,
+            world.y - half_height, world.y + half_height, true};
         if(editor_marquee_bounds_overlap(marquee, bounds))
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
@@ -1978,7 +2002,7 @@ static bool editor_soft_area_beam_check(const EditorSoftArea *area,
 }
 
 static bool editor_object_visual_point_contains(const EditorObject *object,
-        Position point) {
+        const EditorViewportState *state, Position point) {
     if(object == NULL || !object->visible) return false;
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
@@ -2053,11 +2077,13 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
         Position center;
         Scale size;
         if(!sprite->visible || sprite->frame_count == 0) continue;
-        center = editor_animated_sprite_world_get(object, sprite, NULL);
-        size = (Scale){sprite->frames[0].size.x * sprite->scale.x,
-            sprite->frames[0].size.y * sprite->scale.y};
-        if(fabsf(point.x - center.x) <= size.x * 0.5f &&
-                fabsf(point.y - center.y) <= size.y * 0.5f) return true;
+        const EditorAnimationFrame *frame = &sprite->frames[
+            editor_animation_preview_frame_get(object, sprite, state)];
+        Orientation rotation;
+        center = editor_animation_frame_world_get(object, sprite, frame, &rotation);
+        size = (Scale){frame->size.x * sprite->scale.x,
+            frame->size.y * sprite->scale.y};
+        if(editor_sprite_point_contains(center, size, rotation, point)) return true;
     }
     for(size_t i = 0; i < object->camera_count; i += 1) {
         const EditorCamera *camera = &object->cameras[i];
@@ -3007,7 +3033,7 @@ static bool editor_group_point_hit(EditorProject *project,
         Position point;
         if(editor_group_parent_selected(project, state, ref) || object == NULL) continue;
         if(ref.kind == EDITOR_SELECTION_OBJECT &&
-                editor_object_visual_point_contains(object, pointer)) return true;
+                editor_object_visual_point_contains(object, state, pointer)) return true;
         if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
                 ref.kind == EDITOR_SELECTION_PARTICLE) {
             EditorRigidBody *body = editor_project_rigid_body_get(object, ref.item);
@@ -3030,12 +3056,15 @@ static bool editor_group_point_hit(EditorProject *project,
             EditorAnimatedSprite *animation = editor_project_animated_sprite_get(
                 object, ref.item);
             EditorAnimationFrame *frame = animation == NULL ||
-                animation->frame_count == 0 ? NULL : &animation->frames[0];
-            if(frame != NULL && editor_group_point_get(project, ref, &point) &&
-                    fabsf(pointer.x - point.x) <=
-                        frame->size.x * animation->scale.x * 0.5f &&
-                    fabsf(pointer.y - point.y) <=
-                        frame->size.y * animation->scale.y * 0.5f) return true;
+                animation->frame_count == 0 ? NULL : &animation->frames[
+                    editor_animation_preview_frame_get(object, animation, state)];
+            if(frame != NULL) {
+                Orientation rotation;
+                point = editor_animation_frame_world_get(object, animation, frame, &rotation);
+                if(editor_sprite_point_contains(point, (Scale){
+                        frame->size.x * animation->scale.x,
+                        frame->size.y * animation->scale.y}, rotation, pointer)) return true;
+            }
         } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
             EditorCamera *camera = editor_project_camera_get(object, ref.item);
             Orientation rotation;
@@ -3316,6 +3345,7 @@ bool editor_viewport_transform_active_check(const EditorViewportState *state) {
         state->rotated_body || state->dragged_anchor ||
         state->dragged_soft_node || state->dragged_soft_body ||
         state->dragged_sprite || state->dragged_animated_sprite ||
+        state->dragged_animation_frame || state->rotated_animation_frame ||
         state->dragged_camera_entity || state->rotated_camera_entity ||
         state->rotated_sprite || state->rotated_animated_sprite ||
         state->rotated_soft_body || state->dragged_origin || state->dragged_center_of_mass ||
@@ -3334,6 +3364,8 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->dragged_soft_body = false;
     state->dragged_sprite = false;
     state->dragged_animated_sprite = false;
+    state->dragged_animation_frame = false;
+    state->rotated_animation_frame = false;
     state->rotated_sprite = false;
     state->rotated_animated_sprite = false;
     state->rotated_soft_body = false;
@@ -3380,7 +3412,7 @@ static void editor_pick_candidate_set(const EditorProject *project,
 /* Resolve geometry front-to-back as object_draw queues its layers.
  * Selection state may choose a child only after this occlusion test. */
 static bool editor_object_front_selection_get(const EditorProject *project, EditorObject *object,
-        Position pointer, EditorSelectionRef *selection, int64_t *layer) {
+        const EditorViewportState *state, Position pointer, EditorSelectionRef *selection, int64_t *layer) {
     if(object == NULL || !object->visible) return false;
     *layer = INT64_MIN;
     int kind = EDITOR_GRAPHICS_LAYER_ANIMATION;
@@ -3410,9 +3442,9 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         Position center;
         Orientation rotation;
         if(!sprite->visible || sprite->frame_count == 0) continue;
-        frame_index = editor_animation_preview_frame_get(object, sprite);
+        frame_index = editor_animation_preview_frame_get(object, sprite, state);
         frame = &sprite->frames[frame_index];
-        center = editor_animated_sprite_world_get(object, sprite, &rotation);
+        center = editor_animation_frame_world_get(object, sprite, frame, &rotation);
         if(!editor_sprite_point_contains(center,
                 (Scale){frame->size.x * sprite->scale.x,
                     frame->size.y * sprite->scale.y}, rotation, pointer)) continue;
@@ -3664,7 +3696,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 if(candidate == NULL) continue;
                 overview = *candidate;
                 overview.position = candidate->overview_position;
-                if(editor_object_front_selection_get(project, &overview, world_pointer,
+                if(editor_object_front_selection_get(project, &overview, state, world_pointer,
                         &hit, &layer) && layer > front_layer) {
                     front_layer = layer;
                     *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
@@ -3752,7 +3784,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
     }
     object = editor_project_selected_get(project);
     int64_t layer;
-    return editor_object_front_selection_get(project, object, world_pointer, selection, &layer);
+    return editor_object_front_selection_get(project, object, state, world_pointer, selection, &layer);
 }
 
 bool editor_viewport_selection_at_get(EditorProject *project,
@@ -3761,6 +3793,20 @@ bool editor_viewport_selection_at_get(EditorProject *project,
     EditorSelectionRef current;
     if(!editor_viewport_front_selection_get(project, state, pointer, selection))
         return false;
+    if(state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
+            selection->kind == EDITOR_SELECTION_ANIMATED_SPRITE &&
+            selection->item == state->selected_animated_sprite &&
+            state->selected_animation_frame != 0) {
+        EditorObject *object = editor_project_selected_get(project);
+        EditorAnimatedSprite *animation = editor_project_animated_sprite_get(object,
+            state->selected_animated_sprite);
+        if(animation != NULL) for(size_t i = 0; i < animation->frame_count; i += 1)
+            if(animation->frames[i].id == state->selected_animation_frame) {
+                *selection = (EditorSelectionRef){EDITOR_SELECTION_ANIMATION_FRAME,
+                    object->id, animation->id, 0, animation->frames[i].id};
+                return true;
+            }
+    }
     if(editor_viewport_selection_ref_get(project, state, &current)) {
         if(editor_pick_selection_visible_check(*selection, current)) {
             EditorViewportState one = *state;
@@ -4616,6 +4662,39 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
         return true;
     }
+    if((state->dragged_animation_frame || state->rotated_animation_frame) &&
+            (primary_button == MOUSE_BUTTON_STATE_DOWN ||
+                primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
+        EditorAnimatedSprite *animation = editor_project_animated_sprite_get(object,
+            state->selected_animated_sprite);
+        if(animation != NULL) for(size_t i = 0; i < animation->frame_count; i += 1) {
+            EditorAnimationFrame *frame = &animation->frames[i];
+            if(frame->id != state->selected_animation_frame) continue;
+            Orientation parent_rotation, world_rotation;
+            Position origin = editor_animated_sprite_world_get(object, animation,
+                &parent_rotation);
+            Position center = editor_animation_frame_world_get(object, animation,
+                frame, &world_rotation);
+            Position offset = frame->offset;
+            Orientation rotation = frame->rotation;
+            if(state->dragged_animation_frame) {
+                Vec2D local = math_vector_rotate((Vec2D){
+                    pointer.x - state->drag_offset.x - origin.x,
+                    pointer.y - state->drag_offset.y - origin.y}, -parent_rotation);
+                offset = (Position){local.x / animation->scale.x,
+                    local.y / animation->scale.y};
+            } else {
+                rotation = editor_rotation_control_orientation_get(center, pointer,
+                    state->rotation_pointer_offset, world_rotation) - parent_rotation;
+            }
+            EditorCommand command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
+                .data.animation_frame_transform_set = {object->id, animation->id,
+                    i, offset, rotation}};
+            (void)editor_command_execute(project, &command);
+            break;
+        }
+        return true;
+    }
     if(state->dragged_animated_sprite &&
             (primary_button == MOUSE_BUTTON_STATE_DOWN ||
                 primary_button == MOUSE_BUTTON_STATE_PRESSED)) {
@@ -4911,6 +4990,36 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             return true;
         }
     }
+    if(state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
+            !state->selection_modifier &&
+            editor_pick_owner_check(front, EDITOR_SELECTION_ANIMATED_SPRITE,
+                state->selected_animated_sprite)) {
+        EditorAnimatedSprite *animation = editor_project_animated_sprite_get(object,
+            state->selected_animated_sprite);
+        if(animation != NULL && animation->visible)
+            for(size_t i = 0; i < animation->frame_count; i += 1) {
+                EditorAnimationFrame *frame = &animation->frames[i];
+                if(frame->id != state->selected_animation_frame) continue;
+                Orientation rotation;
+                Position center = editor_animation_frame_world_get(object, animation,
+                    frame, &rotation);
+                Position handle = editor_sprite_rotation_handle_get(center, rotation);
+                if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
+                        EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
+                    state->rotated_animation_frame = true;
+                    state->rotation_pointer_offset = rotation -
+                        editor_rotation_control_pointer_angle_get(center, pointer);
+                    return true;
+                }
+                if(editor_sprite_point_contains(center,
+                        (Scale){frame->size.x * animation->scale.x,
+                            frame->size.y * animation->scale.y}, rotation, pointer)) {
+                    state->dragged_animation_frame = true;
+                    state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+                    return true;
+                }
+            }
+    }
     if(front.kind == EDITOR_SELECTION_JOINT) {
         (void)editor_viewport_selection_set(project, state, front,
             state->selection_modifier);
@@ -5052,6 +5161,23 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Orientation rotation;
             Position center = editor_animated_sprite_world_get(object, sprite,
                 &rotation);
+            bool image_hit = false;
+            if(sprite->frame_count > 0) {
+                EditorAnimationFrame *frame = &sprite->frames[
+                    editor_animation_preview_frame_get(object, sprite, state)];
+                Orientation frame_rotation;
+                Position frame_center = editor_animation_frame_world_get(object,
+                    sprite, frame, &frame_rotation);
+                image_hit = editor_sprite_point_contains(frame_center,
+                    (Scale){frame->size.x * sprite->scale.x,
+                        frame->size.y * sprite->scale.y}, frame_rotation, pointer);
+            }
+            if(!image_hit && hypotf(pointer.x - center.x, pointer.y - center.y) <=
+                    EDITOR_ORIGIN_PICK_RADIUS / editor_view_scale) {
+                state->dragged_animated_sprite = true;
+                state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+                return true;
+            }
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
                     EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
@@ -5114,7 +5240,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(!editor_pick_owner_check(front, EDITOR_SELECTION_ANIMATED_SPRITE,
                     animation->id)) continue;
             size_t preview_frame = animation->frame_count == 0 ? 0 :
-                editor_animation_preview_frame_get(object, animation);
+                editor_animation_preview_frame_get(object, animation, state);
             EditorAnimationFrame *frame = animation->frame_count == 0 ? NULL :
                 &animation->frames[preview_frame];
             Position world;
@@ -5122,11 +5248,32 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Orientation rotation;
             EditorSelectionRef selection;
             if(!animation->visible || frame == NULL) continue;
-            world = editor_animated_sprite_world_get(object, animation, &rotation);
+            world = editor_animation_frame_world_get(object, animation, frame, &rotation);
             size = (Scale){frame->size.x * animation->scale.x,
                 frame->size.y * animation->scale.y};
             if(!editor_sprite_point_contains(
                     world, size, rotation, pointer)) continue;
+            Uint64 now = SDL_GetTicks();
+            bool frame_enter = state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
+                state->selected_animated_sprite == animation->id &&
+                state->last_viewport_click_selection == EDITOR_SELECTION_ANIMATED_SPRITE &&
+                state->last_viewport_click_object == object->id &&
+                state->last_viewport_click_index == animation->id &&
+                now - state->last_viewport_click_at <= 400;
+            if(frame_enter && !state->selection_modifier) {
+                selection = (EditorSelectionRef){EDITOR_SELECTION_ANIMATION_FRAME,
+                    object->id, animation->id, 0, frame->id};
+                (void)editor_viewport_selection_set(project, state, selection, false);
+                state->mode = EDITOR_VIEWPORT_ANIMATION_FRAME;
+                state->dragged_animation_frame = true;
+                state->drag_offset = (Vec2D){pointer.x - world.x, pointer.y - world.y};
+                state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+                return true;
+            }
+            state->last_viewport_click_selection = EDITOR_SELECTION_ANIMATED_SPRITE;
+            state->last_viewport_click_object = object->id;
+            state->last_viewport_click_index = animation->id;
+            state->last_viewport_click_at = now;
             selection = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
                 object->id, 0, 0, animation->id};
             (void)editor_viewport_selection_set(project, state, selection,
@@ -5136,6 +5283,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->selection = EDITOR_SELECTION_ANIMATED_SPRITE;
             state->selected_animated_sprite = animation->id;
             state->dragged_animated_sprite = true;
+            world = editor_animated_sprite_world_get(object, animation, NULL);
             state->drag_offset = (Vec2D){pointer.x - world.x,
                 pointer.y - world.y};
             return true;
@@ -5946,34 +6094,47 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
         float rotation;
         bool selected;
         if(!animation->visible || animation->frame_count == 0) continue;
-        preview_frame = editor_animation_preview_frame_get(object, animation);
+        preview_frame = editor_animation_preview_frame_get(object, animation, state);
         frame = &animation->frames[preview_frame];
         texture = editor_preview_texture_get(frame->path);
-        world = editor_animated_sprite_world_get(object, animation, &rotation);
+        world = editor_animation_frame_world_get(object, animation, frame, &rotation);
         size = (Scale){frame->size.x * animation->scale.x,
             frame->size.y * animation->scale.y};
         screen_size = (Scale){size.x * editor_view_scale,
             size.y * editor_view_scale};
+        Orientation draw_rotation = rotation;
         if(editor_view_camera_preview) {
             screen_size = (Scale){size.x * editor_view_preview_scale.x,
                 size.y * editor_view_preview_scale.y};
-            rotation = editor_view_preview_texture_rotation_get(rotation);
+            draw_rotation = editor_view_preview_texture_rotation_get(rotation);
         }
         if(texture != NULL) graphics_screen_texture_direction_draw(*texture,
-            editor_view_world_to_screen(world), screen_size, rotation,
+            editor_view_world_to_screen(world), screen_size, draw_rotation,
             animation->direction);
         selected = object_highlighted ||
-            (state->selection == EDITOR_SELECTION_ANIMATED_SPRITE &&
+            ((state->selection == EDITOR_SELECTION_ANIMATED_SPRITE ||
+                state->selection == EDITOR_SELECTION_ANIMATION_FRAME) &&
                 state->selected_animated_sprite == animation->id) ||
             editor_viewport_path_selected(state, EDITOR_SELECTION_ANIMATED_SPRITE,
                 object->id, 0, 0, animation->id);
         if(selected) editor_sprite_outline_draw(world, size, rotation,
             (Color){255, 215, 70, 255});
-        if((state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE &&
+        if(((state->mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
+                state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME) &&
                 state->selected_animated_sprite == animation->id) ||
                 (state->selected_item_count > 1 && editor_viewport_path_selected(
                     state, EDITOR_SELECTION_ANIMATED_SPRITE,
                     object->id, 0, 0, animation->id))) {
+            Orientation origin_rotation;
+            Position origin = editor_animated_sprite_world_get(object, animation,
+                &origin_rotation);
+            editor_origin_draw(origin, origin_rotation);
+            if(state->mode != EDITOR_VIEWPORT_ANIMATION_FRAME) {
+                world = origin;
+                rotation = origin_rotation;
+            } else {
+                world = editor_animation_frame_world_get(object, animation, frame, &rotation);
+            }
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
             editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,

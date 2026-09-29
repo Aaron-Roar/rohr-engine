@@ -293,6 +293,10 @@ typedef struct {
   TextureDescriptor texture_descriptors[MAX_ANIMATIONS_FRAMES];
   /** Stable frame IDs. Zero entries default to their one-based frame index. */
   AnimationFrameId frame_ids[MAX_ANIMATIONS_FRAMES];
+  /** Frame centers relative to the animation origin, before sprite scale/rotation. */
+  Position frame_offsets[MAX_ANIMATIONS_FRAMES];
+  /** Clockwise degrees around each frame's own center. Zero is unrotated. */
+  Orientation frame_rotations[MAX_ANIMATIONS_FRAMES];
   /** Number of valid descriptors. */
   uint8_t amount_of_descriptors;
   /** Frame duration measured in engine ticks. */
@@ -369,6 +373,8 @@ typedef struct {
 typedef struct {
     AnimationFrameId id;
     TextureAsset texture;
+    Position offset;
+    Orientation rotation;
 } AnimationFrame;
 
 /** Result type for functions that return an AnimationAsset. */

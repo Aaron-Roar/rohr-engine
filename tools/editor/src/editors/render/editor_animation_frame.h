@@ -13,6 +13,8 @@ typedef struct EditorAnimationFrameEditor {
     TextAsset path_label;
     TextAsset width_label;
     TextAsset height_label;
+    TextAsset offset_x_label, offset_y_label, rotation_label;
+    TextAsset offset_x_field, offset_y_field, rotation_field;
     TextAsset delete_label;
     TextAsset name_field;
     TextAsset path_field;

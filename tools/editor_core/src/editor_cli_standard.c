@@ -152,7 +152,7 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
     size_t used = 0; char number[64]; EditorObjectId object_id = 0;
     EditorAnimatedSpriteId animated_id = 0; const EditorObject *object;
     *handled = command->type >= EDITOR_COMMAND_SPRITE_ADD &&
-        command->type <= EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET;
+        command->type <= EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET;
     if(!*handled) return editor_result_value(true);
     output[0] = '\0';
 #define ADD(value) do { if(!cli_token_add(output, capacity, &used, (value))) goto full; } while(0)
@@ -267,18 +267,26 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
         ADD("frame-delete");
     } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME ||
             command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET ||
-            command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET) {
+            command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET ||
+            command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
         size_t index = command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME ?
             command->data.animation_frame_rename.index :
             command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET ?
                 command->data.animation_frame_path_set.index :
-                command->data.animation_frame_size_set.index;
+                command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET ?
+                    command->data.animation_frame_transform_set.index :
+                    command->data.animation_frame_size_set.index;
         ADD("--frame-index");
         snprintf(number, sizeof(number), "%zu", index); ADD(number);
         if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME) {
             ADD("frame-rename"); ADD(command->data.animation_frame_rename.name);
         } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET) {
             ADD("frame-path-set"); ADD(command->data.animation_frame_path_set.path);
+        } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
+            ADD("frame-transform-set");
+            snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_transform_set.offset.x); ADD(number);
+            snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_transform_set.offset.y); ADD(number);
+            snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_transform_set.rotation); ADD(number);
         } else {
             ADD("frame-size-set");
             snprintf(number, sizeof(number), "%.9g",

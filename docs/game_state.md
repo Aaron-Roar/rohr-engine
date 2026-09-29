@@ -265,7 +265,12 @@ Animations are named once in the top-level asset catalog. State loading must
 occur after `rohr_graphics_start()` when a file contains animation assets, because
 the engine creates SDL textures while connecting the state. Animation and frame
 `id` values are stable unsigned project identities used by cross-system bindings.
-Legacy definitions may omit them; animations then use their one-based catalog
+Each asset frame may also specify `"offset": {"x": 12, "y": -4}` and
+`"rotation": 15`. These default to zero, are finite, and describe the frame
+center relative to the animation origin and clockwise degrees around its own
+center. Both runtime saves and template saves preserve frame alignment.
+
+Legacy definitions may omit IDs; animations then use their one-based catalog
 position and frames use their one-based frame position.
 
 ```json

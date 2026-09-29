@@ -73,7 +73,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_ANIMATION_FRAME_REMOVE,
     EDITOR_COMMAND_ANIMATION_FRAME_RENAME,
     EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET,
-    EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET
+    EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET,
+    EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -429,6 +430,9 @@ typedef struct EditorCommand {
             char path[EDITOR_ASSET_PATH_MAX]; } animation_frame_path_set;
         struct { EditorObjectId object; EditorAnimatedSpriteId sprite; size_t index;
             Scale size; } animation_frame_size_set;
+        struct { EditorObjectId object; EditorAnimatedSpriteId sprite;
+            size_t index; Position offset; Orientation rotation;
+        } animation_frame_transform_set;
     } data;
 } EditorCommand;
 

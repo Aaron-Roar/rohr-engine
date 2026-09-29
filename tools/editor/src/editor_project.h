@@ -354,6 +354,8 @@ typedef struct EditorAnimationFrame {
     char name[EDITOR_OBJECT_NAME_MAX];
     char path[EDITOR_ASSET_PATH_MAX];
     Scale size;
+    Position offset;
+    Orientation rotation;
 } EditorAnimationFrame;
 
 typedef struct EditorAnimatedSprite {

@@ -113,7 +113,8 @@ ownership.
 Animations are immutable registry resources addressed through
 generation-checked `AnimationAsset` handles. Registry identity includes the
 normalized stable animation ID, ordered stable frame IDs, resolved frame
-textures and their logical sizes, and tick/time timing. Zero IDs normalize to
+textures and their logical sizes, frame center offsets and clockwise degree
+rotations, and tick/time timing. Zero IDs normalize to
 their documented compatibility defaults. Identical definitions share one
 resource; changing any identity input creates a distinct animation.
 

@@ -1400,6 +1400,30 @@ static int sprite_commands_test(void) {
             parsed.data.animation_frame_size_set.size.x != 48.0f ||
             parsed.data.animation_frame_size_set.size.y != 36.0f) return 1;
 
+    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
+        .data.animation_frame_transform_set = {object->id, animated->id, 0,
+            {13, -9}, 450}};
+    executed = editor_command_execute(&project, &command);
+    if(executed.kind != ERROR_RESULT_VALUE || animated->frames[0].offset.x != 13 ||
+            animated->frames[0].offset.y != -9 || animated->frames[0].rotation != 450)
+        return 1;
+    result = editor_command_cli_standard_write(&project, &command, &executed,
+        "project.rohr.json", text, sizeof(text));
+    if(editor_result_check(result) || strstr(text, "frame-transform-set 13 -9 450") == NULL)
+        return 1;
+    count = 0;
+    for(char *token = strtok(text, " "); token != NULL && count < 32;
+            token = strtok(NULL, " ")) arguments[count++] = token;
+    result = editor_command_cli_standard_parse(&project, count, arguments, &path, &parsed);
+    if(editor_result_check(result) || parsed.type != command.type ||
+            parsed.data.animation_frame_transform_set.offset.x != 13 ||
+            parsed.data.animation_frame_transform_set.offset.y != -9 ||
+            parsed.data.animation_frame_transform_set.rotation != 450) return 1;
+    command.data.animation_frame_transform_set.offset.x = INFINITY;
+    if(editor_command_execute(&project, &command).kind != ERROR_RESULT_ERROR ||
+            animated->frames[0].offset.x != 13 || animated->frames[0].rotation != 450)
+        return 1;
+
     command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATED_SPRITE_BODY_SET,
         .data.animated_sprite_body_set = {.object = object->id,
             .sprite = animated->id, .body = body->id}};

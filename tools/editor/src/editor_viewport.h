@@ -97,6 +97,8 @@ typedef struct EditorViewportState {
     bool dragged_soft_body;
     bool dragged_sprite;
     bool dragged_animated_sprite;
+    bool dragged_animation_frame;
+    bool rotated_animation_frame;
     bool rotated_sprite;
     bool rotated_animated_sprite;
     bool rotated_soft_body;

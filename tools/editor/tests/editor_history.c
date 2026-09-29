@@ -86,6 +86,115 @@ static void shortcut_apply(EditorHistory *history, SDL_Keycode key) {
     assert(result.consumed && result.restored);
 }
 
+static void animation_frame_history_check(void) {
+    const float zooms[] = {0.1f, 1.0f, 10.0f};
+    for(size_t zoom = 0; zoom < 3; zoom += 1) {
+        EditorProject project;
+        EditorHistory history;
+        EditorViewportState viewport;
+        editor_project_init(&project);
+        project.viewport_local_view = false;
+        project.viewport_camera_zoom = zooms[zoom];
+        project.viewport_camera_offset = (Vec2D){-25 * zooms[zoom], -50 * zooms[zoom]};
+        EditorObject *object = editor_project_object_add(&project, (Position){0});
+        EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+        assert(body != NULL);
+        body->position = (Position){-40,20};
+        body->rotation = 90;
+        body->visible = false;
+        EditorAnimatedSprite *animation = editor_project_animated_sprite_add(&project, object);
+        assert(animation != NULL);
+        animation->rigid_body = body->id;
+        animation->editor_position = (Position){10,5};
+        animation->follow_body_rotation = true;
+        animation->scale = (Scale){2,3};
+        assert(editor_project_animation_frame_add(&project, animation, "first", "first.png",
+            (Scale){20,20}));
+        assert(editor_project_animation_frame_add(&project, animation, "second", "second.png",
+            (Scale){20,20}));
+        animation->frames[1].offset = (Position){30,20};
+        animation->frames[1].rotation = 450;
+        EditorAnimatedSpriteId id = animation->id;
+        assert(editor_history_init(&history, &project));
+        callback_history = &history;
+        editor_command_executing_callback_set(history_begin, NULL);
+        editor_command_finished_callback_set(history_finish, NULL);
+        editor_viewport_state_init(&viewport);
+        viewport.mode = EDITOR_VIEWPORT_ANIMATION_FRAME;
+        viewport.selection = EDITOR_SELECTION_ANIMATION_FRAME;
+        viewport.selected_animated_sprite = id;
+        viewport.selected_animation_frame = animation->frames[1].id;
+        Position screen_origin = test_world_to_screen((Position){0});
+        screen_origin.x += project.viewport_camera_offset.x;
+        screen_origin.y += project.viewport_camera_offset.y;
+        Position center = {25,-50};
+        Position press = {screen_origin.x + center.x * zooms[zoom] + 1,
+            screen_origin.y - center.y * zooms[zoom] + 1};
+        Position moved = {press.x + 30 * zooms[zoom], press.y + 20 * zooms[zoom]};
+        EditorSelectionRef context_selection;
+        assert(editor_viewport_selection_at_get(&project, &viewport, press, &context_selection));
+        assert(context_selection.kind == EDITOR_SELECTION_ANIMATION_FRAME &&
+            context_selection.item == animation->frames[1].id);
+        assert(viewport_pointer_update(&history, &viewport, &project, press,
+            MOUSE_BUTTON_STATE_PRESSED));
+        assert(viewport.dragged_animation_frame && !viewport.dragged_animated_sprite);
+        assert(viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_DOWN));
+        (void)viewport_pointer_update(&history, &viewport, &project, moved,
+            MOUSE_BUTTON_STATE_RELEASED);
+        assert(history.undo_count == 1);
+        assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
+        assert(fabsf(animation->frames[1].offset.y - 30) < 0.002f);
+        assert(animation->frames[0].offset.x == 0 && animation->editor_position.x == 10);
+        assert(editor_history_undo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->frames[1].offset.x == 30);
+        assert(editor_history_redo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
+        center = (Position){55,-70};
+        for(int step = 0; step <= 5; step += 1) {
+            Position handle = editor_rotation_control_position_get(center,
+                540 + 90 * step, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / zooms[zoom]);
+            Position pointer = {screen_origin.x + handle.x * zooms[zoom],
+                screen_origin.y - handle.y * zooms[zoom]};
+            assert(viewport_pointer_update(&history, &viewport, &project, pointer,
+                step == 0 ? MOUSE_BUTTON_STATE_PRESSED : MOUSE_BUTTON_STATE_DOWN));
+            assert(viewport.rotated_animation_frame);
+            assert(fabsf(animation->frames[1].rotation - (450 + 90 * step)) < 0.002f);
+            assert(fabsf(animation->frames[1].offset.x - 40) < 0.002f);
+        }
+        editor_history_transaction_cancel(&history);
+        editor_viewport_transform_cancel(&viewport);
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->frames[1].rotation == 450 && history.undo_count == 1);
+        if(zoom == 1) {
+            /* The origin ring must not swallow double-clicks on a centered frame. */
+            animation->playing = false;
+            animation->starting_frame = 0;
+            editor_viewport_state_destroy(&viewport);
+            editor_viewport_state_init(&viewport);
+            viewport.mode = EDITOR_VIEWPORT_OBJECT;
+            Position origin = {screen_origin.x - 35, screen_origin.y - 10};
+            for(int click = 0; click < 2; click += 1) {
+                assert(viewport_pointer_update(&history, &viewport, &project, origin,
+                    MOUSE_BUTTON_STATE_PRESSED));
+                (void)viewport_pointer_update(&history, &viewport, &project, origin,
+                    MOUSE_BUTTON_STATE_RELEASED);
+            }
+            assert(viewport.mode == EDITOR_VIEWPORT_ANIMATION_FRAME);
+            assert(viewport.selected_animation_frame == animation->frames[0].id);
+            assert(animation->frames[1].offset.x > 39.99f);
+        }
+        editor_command_executing_callback_set(NULL, NULL);
+        editor_command_finished_callback_set(NULL, NULL);
+        callback_history = NULL;
+        editor_viewport_state_destroy(&viewport);
+        editor_history_destroy(&history);
+        editor_project_destroy(&project);
+    }
+}
+
 static void angular_history_check(void) {
     Position up = editor_rotation_control_position_get((Position){0}, 0, 80);
     Position right = editor_rotation_control_position_get((Position){0}, 90, 80);
@@ -314,6 +423,7 @@ static void center_of_mass_interaction_check(void) {
 
 int main(void) {
     angular_history_check();
+    animation_frame_history_check();
     center_of_mass_interaction_check();
     static EditorProject project;
     EditorHistory history;

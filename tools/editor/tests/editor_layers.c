@@ -256,6 +256,28 @@ static bool animation_direction_check(void) {
         OK(rohr_entity_delete(entity.result.value));
     }
     OK(rohr_graphics_animation_release(&asset.result.value));
+    descriptor.frame_offsets[0] = (Position){30,20};
+    descriptor.frame_rotations[0] = 45;
+    asset = rohr_graphics_animation_load(descriptor);
+    CHECK(!rohr_error_check(asset));
+    for(int left = 0; left < 2; left += 1) {
+        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
+            (Scale){2,3});
+        sprite.orientation_offset = 90;
+        sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
+        EntityResult entity = rohr_entity_add();
+        CHECK(!rohr_error_check(entity));
+        OK(rohr_graphics_animated_sprite_add(entity.result.value, sprite));
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
+        rohr_graphics_background_draw((Color){0,0,0,255});
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
+        CHECK(rohr_graphics_animated_sprite_draw(entity.result.value));
+        rohr_graphics_show();
+        unsigned seen = 0;
+        CHECK(direction_pixels_check((Position){700,420}, 135, sprite.direction, 1, &seen));
+        OK(rohr_entity_delete(entity.result.value));
+    }
+    OK(rohr_graphics_animation_release(&asset.result.value));
 
     EditorProject project;
     EditorViewportState state = {.mode = EDITOR_VIEWPORT_OBJECT};
@@ -313,11 +335,45 @@ static bool animation_direction_check(void) {
                         CHECK(direction_pixels_check((Position){center.x+310, center.y+120},
                             90, animation->direction, playing ? 3 : 1, &seen));
                     } else CHECK(direction_pixels_check(center, animation->editor_rotation,
-                        animation->direction, playing ? 3 : 1, &seen));
+                        animation->direction, playing && preview != 1 ? 3 : 1, &seen));
                 }
-                CHECK(seen == (playing ? 3u : 1u));
+                CHECK(seen == (playing && preview != 1 ? 3u : 1u));
             }
         }
+    }
+    /* Selecting a later frame freezes its preview and uses that frame's alignment. */
+    state.mode = EDITOR_VIEWPORT_ANIMATION_FRAME;
+    state.selection = EDITOR_SELECTION_ANIMATION_FRAME;
+    state.selected_animation_frame = animation->frames[1].id;
+    animation->frames[1].offset = (Position){30,20};
+    animation->frames[1].rotation = 45;
+    animation->editor_rotation = 90;
+    animation->scale = (Scale){2,3};
+    animation->playing = true;
+    for(int left = 0; left < 2; left += 1) {
+        animation->direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
+        for(int repeat = 0; repeat < 3; repeat += 1) {
+            draw(&project, &state);
+            unsigned seen = 0;
+            CHECK(direction_pixels_check((Position){center.x+60,center.y+60}, 135,
+                animation->direction, 2, &seen));
+        }
+    }
+    animation->scale = (Scale){1,1};
+    animation->editor_rotation = 0;
+    animation->playing = false;
+    animation->frames[0].offset = (Position){20,10};
+    animation->frames[0].rotation = 90;
+    state.mode = EDITOR_VIEWPORT_LAYOUT;
+    state.selection = EDITOR_SELECTION_NONE;
+    for(int left = 0; left < 2; left += 1) {
+        animation->direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
+        draw(&project, &state);
+        unsigned seen = 0;
+        CHECK(direction_pixels_check((Position){center.x+120,center.y+72}, 90,
+            animation->direction, 1, &seen));
+        CHECK(direction_pixels_check((Position){center.x+320,center.y+138}, 180,
+            animation->direction, 1, &seen));
     }
     editor_viewport_assets_destroy();
     editor_viewport_state_destroy(&state);

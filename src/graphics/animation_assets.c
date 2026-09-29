@@ -67,6 +67,9 @@ static bool graphics_animation_resource_matches(
             resource->info.time_per_frame != time_per_frame) return false;
     for(size_t i = 0; i < frame_count; i += 1) {
         if(resource->frames[i].id != frames[i].id ||
+                resource->frames[i].offset.x != frames[i].offset.x ||
+                resource->frames[i].offset.y != frames[i].offset.y ||
+                resource->frames[i].rotation != frames[i].rotation ||
                 resource->frames[i].texture.handle != frames[i].texture.handle ||
                 resource->frames[i].texture.size.x != frames[i].texture.size.x ||
                 resource->frames[i].texture.size.y != frames[i].texture.size.y)
@@ -119,6 +122,14 @@ AnimationAssetResult graphics_animation_load(AnimationDescriptor descriptor) {
     id = descriptor.id == 0 ? 1 : descriptor.id;
     for(size_t i = 0; i < frame_count; i += 1) {
         TextureAssetResult texture;
+        frames[i].offset = descriptor.frame_offsets[i];
+        frames[i].rotation = descriptor.frame_rotations[i];
+        if(!isfinite(frames[i].offset.x) || !isfinite(frames[i].offset.y) ||
+                !isfinite(frames[i].rotation)) {
+            graphics_animation_frames_release(frames, i);
+            return ERROR_RESULT_MAKE_ERROR(
+                AnimationAssetResult, ERROR_ENGINE_ANIMATION_LOAD_FAILED);
+        }
         frames[i].id = descriptor.frame_ids[i] == 0 ?
             (AnimationFrameId)i + 1 : descriptor.frame_ids[i];
         for(size_t previous = 0; previous < i; previous += 1) {

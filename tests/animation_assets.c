@@ -8,6 +8,8 @@
 #include "test_png.h"
 
 #include <stdio.h>
+#include <math.h>
+#include <string.h>
 
 static const char *first_path = "animation_assets_first.png";
 static const char *second_path = "animation_assets_second.png";
@@ -151,6 +153,35 @@ int main(void) {
                     "different animation release"))
             return fail("logical frame size did not affect animation identity",
                 true, true);
+    }
+
+    /* Alignment is immutable asset identity; texture ownership stays shared. */
+    for(int property = 0; property < 3; property += 1) {
+        AnimationDescriptor aligned = descriptor;
+        if(property == 0) aligned.frame_offsets[1].x = 13;
+        if(property == 1) aligned.frame_offsets[1].y = -9;
+        if(property == 2) aligned.frame_rotations[1] = 450;
+        AnimationAssetResult a = rohr_graphics_animation_load(aligned);
+        AnimationAssetResult b = rohr_graphics_animation_load(aligned);
+        if(rohr_error_check(a) || rohr_error_check(b) ||
+                a.result.value.handle == first.result.value.handle ||
+                a.result.value.handle != b.result.value.handle)
+            return fail("frame transform identity failed", true, true);
+        AnimationFrameResult value = rohr_graphics_animation_frame_get(a.result.value, 1);
+        if(rohr_error_check(value) ||
+                value.result.value.offset.x != aligned.frame_offsets[1].x ||
+                value.result.value.offset.y != aligned.frame_offsets[1].y ||
+                value.result.value.rotation != aligned.frame_rotations[1])
+            return fail("frame transform metadata failed", true, true);
+        if(!result_ok(rohr_graphics_animation_release(&a.result.value)) ||
+                !result_ok(rohr_graphics_animation_release(&b.result.value)))
+            return fail("aligned asset release failed", true, true);
+        if(property == 0) aligned.frame_offsets[1].x = NAN;
+        if(property == 1) aligned.frame_offsets[1].y = INFINITY;
+        if(property == 2) aligned.frame_rotations[1] = INFINITY;
+        if(!rohr_error_check(rohr_graphics_animation_load(aligned)) ||
+                !stats_check(1, 2, 2, 2, 2, 0, "invalid alignment rollback"))
+            return fail("invalid frame transform leaked resources", true, true);
     }
 
     player_a = rohr_graphics_animation_player_create(first.result.value);
@@ -391,6 +422,40 @@ int main(void) {
             !stats_check(0, 0, 0, 0, 0, 0, "restart release"))
         return fail("graphics restart reused a stale animation handle",
             true, true);
+    const char *state_path = "animation_alignment_state.json";
+    const char *saved_path = "animation_alignment_saved.json";
+    const char *template_path = "animation_alignment_template.json";
+    const char *json = "{\"version\":3,\"assets\":{\"animations\":["
+        "{\"name\":\"aligned\",\"ticks_per_frame\":0,\"time_per_frame\":0,"
+        "\"frames\":[{\"file\":\"animation_assets_first.png\","
+        "\"size\":{\"x\":32,\"y\":24},\"offset\":{\"x\":13,\"y\":-9},"
+        "\"rotation\":450}]}]},\"entities\":[{\"name\":\"aligned_body\","
+        "\"components\":{\"animated_sprite\":{\"animation\":\"aligned\","
+        "\"scale\":{\"x\":2,\"y\":3}}}}]}";
+    if(!SDL_SaveFile(state_path, json, strlen(json)) ||
+            !result_ok(rohr_game_state_file_load(state_path)) ||
+            !result_ok(rohr_game_state_file_save(saved_path)) ||
+            !result_ok(rohr_game_state_template_file_save(template_path)))
+        return fail("aligned animation persistence failed", true, true);
+    for(int pass = 0; pass < 2; pass += 1) {
+        rohr_graphics_stop();
+        rohr_engine_stop();
+        if(!result_ok(rohr_engine_start()) || !result_ok(rohr_graphics_start()) ||
+                !result_ok(rohr_game_state_file_load(pass == 0 ? saved_path : template_path)))
+            return fail("aligned animation reload failed", true, true);
+        EntityResult entity = rohr_entity_by_name_get("aligned_body");
+        if(rohr_error_check(entity)) return fail("aligned entity missing", true, true);
+        EntityIndexResult index = rohr_entity_index_get(entity.result.value);
+        if(rohr_error_check(index)) return fail("aligned entity index missing", true, true);
+        AnimationFrameResult loaded = rohr_graphics_animation_frame_get(
+            animated_sprites[index.result.value].player.animation, 0);
+        if(rohr_error_check(loaded) || loaded.result.value.offset.x != 13 ||
+                loaded.result.value.offset.y != -9 || loaded.result.value.rotation != 450)
+            return fail("aligned metadata did not survive reload", true, true);
+    }
+    (void)SDL_RemovePath(state_path);
+    (void)SDL_RemovePath(saved_path);
+    (void)SDL_RemovePath(template_path);
     rohr_graphics_stop();
     graphics_started = false;
     if(!stats_check(0, 0, 0, 0, 0, 0, "final graphics shutdown"))

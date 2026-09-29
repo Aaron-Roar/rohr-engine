@@ -16,6 +16,9 @@ bool editor_animation_frame_editor_create(EditorAnimationFrameEditor *editor,
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Path", path_label);
     CREATE("Width", width_label); CREATE("Height", height_label);
+    CREATE("Offset X", offset_x_label); CREATE("Offset Y", offset_y_label);
+    CREATE("Rotation", rotation_label);
+    CREATE("", offset_x_field); CREATE("", offset_y_field); CREATE("", rotation_field);
     CREATE("Delete Frame", delete_label); CREATE("frame", name_field);
     CREATE("", path_field); CREATE("", width_field); CREATE("", height_field);
 #undef CREATE
@@ -31,6 +34,12 @@ void editor_animation_frame_editor_destroy(EditorAnimationFrameEditor *editor) {
     rohr_graphics_text_destroy(&editor->path_label);
     rohr_graphics_text_destroy(&editor->width_label);
     rohr_graphics_text_destroy(&editor->height_label);
+    rohr_graphics_text_destroy(&editor->offset_x_label);
+    rohr_graphics_text_destroy(&editor->offset_y_label);
+    rohr_graphics_text_destroy(&editor->rotation_label);
+    rohr_graphics_text_destroy(&editor->offset_x_field);
+    rohr_graphics_text_destroy(&editor->offset_y_field);
+    rohr_graphics_text_destroy(&editor->rotation_field);
     rohr_graphics_text_destroy(&editor->delete_label);
     rohr_graphics_text_destroy(&editor->name_field);
     rohr_graphics_text_destroy(&editor->path_field);
@@ -92,6 +101,30 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &height},
         &editor->height_field, (UIRect){context->x + 82.0f, 156.0f,
             context->width - 92.0f, 28.0f}, NULL);
+    float transform[3] = {frame->offset.x, frame->offset.y, frame->rotation};
+    TextAsset *labels[3] = {&editor->offset_x_label, &editor->offset_y_label,
+        &editor->rotation_label};
+    TextAsset *fields[3] = {&editor->offset_x_field, &editor->offset_y_field,
+        &editor->rotation_field};
+    const char *ids[3] = {"editor.animation_frame.offset_x",
+        "editor.animation_frame.offset_y", "editor.animation_frame.rotation"};
+    bool transform_active = false, transform_changed = false;
+    for(size_t i = 0; i < 3; i += 1) {
+        float y = 194.0f + (float)i * 38.0f;
+        rohr_ui_label(labels[i], (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
+        UIFieldResult result = editor_mode_field(ids[i],
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &transform[i]},
+            fields[i], (UIRect){context->x + 82.0f, y,
+                context->width - 92.0f, 28.0f}, NULL);
+        transform_active |= result.active;
+        transform_changed |= result.changed;
+    }
+    if(transform_changed) {
+        EditorCommand command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
+            .data.animation_frame_transform_set = {object->id, animation->id,
+                frame_index, {transform[0], transform[1]}, transform[2]}};
+        (void)editor_command_execute(context->project, &command);
+    }
     if(name_result.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_RENAME,
             .data.animation_frame_rename = {.object = object->id,
@@ -129,5 +162,5 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
         }
     }
     return name_result.active || path_result.active || width_result.active ||
-        height_result.active;
+        height_result.active || transform_active;
 }

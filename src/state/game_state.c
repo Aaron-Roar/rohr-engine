@@ -196,10 +196,19 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
         yyjson_val *file = yyjson_obj_get(frame, "file");
         yyjson_val *frame_id = yyjson_obj_get(frame, "id");
         Vec2D size;
+        Vec2D offset = {0};
+        double rotation = 0.0;
+        yyjson_val *offset_value = yyjson_obj_get(frame, "offset");
+        yyjson_val *rotation_value = yyjson_obj_get(frame, "rotation");
         size_t file_length;
         if(!yyjson_is_obj(frame)
                 || !yyjson_is_str(file)
                 || !state_vec2(yyjson_obj_get(frame, "size"), &size)
+                || (offset_value != NULL && !state_vec2(offset_value, &offset))
+                || (rotation_value != NULL &&
+                    (!yyjson_is_num(rotation_value) ||
+                    !isfinite(rotation = yyjson_get_num(rotation_value)) ||
+                    !isfinite((float)rotation)))
                 || (frame_id != NULL && (!yyjson_is_uint(frame_id) ||
                     yyjson_get_uint(frame_id) == 0 ||
                     yyjson_get_uint(frame_id) > UINT32_MAX))) {
@@ -217,6 +226,9 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
         animation->descriptor.frame_ids[frame_index] = frame_id == NULL ?
             (AnimationFrameId)frame_index + 1 :
             (AnimationFrameId)yyjson_get_uint(frame_id);
+        animation->descriptor.frame_offsets[frame_index] =
+            (Position){offset.x, offset.y};
+        animation->descriptor.frame_rotations[frame_index] = (float)rotation;
     }
     asset_result = graphics_animation_load(animation->descriptor);
     if(asset_result.kind == ERROR_RESULT_ERROR) {
@@ -2313,6 +2325,11 @@ EngineResult game_state_file_save(const char *path) {
             yyjson_mut_obj_add_uint(document, frame, "id",
                 animation->descriptor.frame_ids[frame_index]);
             yyjson_mut_obj_add_strcpy(document, frame, "file", texture->file);
+            Position offset = animation->descriptor.frame_offsets[frame_index];
+            yyjson_mut_obj_add_val(document, frame, "offset",
+                state_vec2_write(document, (Vec2D){offset.x, offset.y}));
+            yyjson_mut_obj_add_real(document, frame, "rotation",
+                animation->descriptor.frame_rotations[frame_index]);
             yyjson_mut_obj_add_val(
                 document,
                 frame,

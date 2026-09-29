@@ -577,6 +577,9 @@ static yyjson_mut_val *editor_json_animated_sprite_write(yyjson_mut_doc *documen
         yyjson_mut_obj_add_strcpy(document, item, "path", frame->path);
         yyjson_mut_obj_add_real(document, item, "width", frame->size.x);
         yyjson_mut_obj_add_real(document, item, "height", frame->size.y);
+        yyjson_mut_obj_add_real(document, item, "offset_x", frame->offset.x);
+        yyjson_mut_obj_add_real(document, item, "offset_y", frame->offset.y);
+        yyjson_mut_obj_add_real(document, item, "rotation", frame->rotation);
         yyjson_mut_arr_add_val(frames, item);
     }
     yyjson_mut_obj_add_val(document, value, "frames", frames);
@@ -1570,6 +1573,11 @@ static bool editor_json_animated_sprite_read(yyjson_val *value,
                 yyjson_get_len(path) >= sizeof(sprite->frames[i].path) ||
                 !editor_json_real(frame, "width", &sprite->frames[i].size.x) ||
                 !editor_json_real(frame, "height", &sprite->frames[i].size.y) ||
+                !editor_json_optional_real(frame, "offset_x", &sprite->frames[i].offset.x, 0.0f) ||
+                !editor_json_optional_real(frame, "offset_y", &sprite->frames[i].offset.y, 0.0f) ||
+                !editor_json_optional_real(frame, "rotation", &sprite->frames[i].rotation, 0.0f) ||
+                !isfinite(sprite->frames[i].offset.x) || !isfinite(sprite->frames[i].offset.y) ||
+                !isfinite(sprite->frames[i].rotation) ||
                 sprite->frames[i].name[0] == '\0' ||
                 sprite->frames[i].size.x <= 0.0f || sprite->frames[i].size.y <= 0.0f)
             return false;
@@ -1850,6 +1858,11 @@ static bool editor_json_references_valid(EditorProject *project) {
                     (sprite->frame_count > 0 &&
                         sprite->starting_frame >= sprite->frame_count))
                 return false;
+            for(size_t frame_index = 0; frame_index < sprite->frame_count; frame_index += 1) {
+                const EditorAnimationFrame *frame = &sprite->frames[frame_index];
+                if(!isfinite(frame->offset.x) || !isfinite(frame->offset.y) ||
+                        !isfinite(frame->rotation)) return false;
+            }
             for(size_t other = 0; other < j; other += 1)
                 if(sprite->rigid_body != 0 &&
                         object->animated_sprite_items[other].rigid_body ==

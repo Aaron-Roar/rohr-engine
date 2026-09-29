@@ -744,6 +744,8 @@ int main(void) {
                 (void)editor_project_animation_frame_add(&loaded_project,
                     generated_animation, "first_frame", "assets/box.png",
                     generated_sprite->size);
+                generated_animation->frames[0].offset = (Position){13,-9};
+                generated_animation->frames[0].rotation = 450;
                 (void)editor_project_hitbox_animation_binding_set(
                     &generated_object->rigid_bodies[2], generated_animation->id,
                     generated_animation->frames[0].id,
@@ -856,6 +858,8 @@ int main(void) {
                 !file_contains(path,
                     "AnimationDescriptor descriptor = {.id = UINT32_C(") ||
                 !file_contains(path, ".frame_ids = {UINT32_C(") ||
+                !file_contains(path, ".frame_offsets = {{13.0000000f, -9.00000000f}}") ||
+                !file_contains(path, ".frame_rotations = {450.000000f}") ||
                 !file_contains(path, "animated.player.frame_index = ") ||
                 !file_contains(path, "assets/fly frame.png") ||
                 !file_contains(path, "animated.follow_entity_rotation = false") ||
@@ -1188,13 +1192,38 @@ int main(void) {
         const char *path = "editor_project_round_trip.json";
         EditorObject *loaded_object;
 
+        EditorAnimatedSprite *aligned = editor_project_animated_sprite_add(&project, object);
+        if(aligned == NULL || !editor_project_animation_frame_add(&project, aligned,
+                "aligned", "frame.png", (Scale){32,24})) return 1;
+        aligned->frames[0].offset = (Position){13,-9};
+        aligned->frames[0].rotation = 450;
+        EditorAnimatedSpriteId aligned_id = aligned->id;
         if(editor_project_hitbox_add(&project, chassis) == NULL) return 1;
         chassis->active_hitbox_index = 1;
 
         if(!editor_project_save(&project, path) ||
                 editor_result_check(editor_project_load(&loaded, path))) return 1;
-        (void)remove(path);
         loaded_object = editor_project_selected_get(&loaded);
+        EditorAnimatedSprite *loaded_animation =
+            editor_project_animated_sprite_get(loaded_object, aligned_id);
+        if(loaded_animation == NULL || loaded_animation->frames[0].offset.x != 13 ||
+                loaded_animation->frames[0].offset.y != -9 ||
+                loaded_animation->frames[0].rotation != 450) return 1;
+        if(!file_json_number_replace(path, "offset_x", "1e100") ||
+                !editor_result_check(editor_project_load(&loaded, path))) return 1;
+        loaded_object = editor_project_selected_get(&loaded);
+        loaded_animation = editor_project_animated_sprite_get(loaded_object, aligned_id);
+        if(loaded_animation == NULL || loaded_animation->frames[0].offset.x != 13)
+            return 1;
+        EditorProject cloned = {0};
+        if(!editor_project_clone(&cloned, &loaded)) return 1;
+        EditorAnimatedSprite *copied = editor_project_animated_sprite_get(
+            editor_project_selected_get(&cloned), aligned_id);
+        if(copied == NULL || copied->frames[0].rotation != 450) return 1;
+        copied->frames[0].offset.x = 100;
+        if(loaded_animation->frames[0].offset.x != 13) return 1;
+        editor_project_destroy(&cloned);
+        (void)remove(path);
         if(loaded_object == NULL || loaded.object_count != project.object_count ||
                 loaded_object->id != object->id ||
                 loaded_object->rigid_body_count != object->rigid_body_count ||

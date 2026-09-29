@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–6 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -214,9 +214,24 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–6 are compl
    viewport examples build against the updated installed SDK and launch outside
    their source directories. Windows execution and interactive visual review
    remain manual verification.
-7. [ ] **Add animation origins and individual frame offsets** — Give animations
-   an origin and each frame its own offset relative to that origin, with
-   matching authoring, persistence, generated C, and runtime behavior.
+7. [x] **Add animation origins and individual frame alignment** — Animation
+   positions now serve as shared origins; frames retain local center offsets
+   and clockwise degree rotations around their own centers. Animation scale
+   affects offsets and dimensions, and animation rotation transforms the
+   arrangement. Left/Right mirrors only image content. Numeric controls, frame
+   dragging, rotation handles, origin markers, picking, context selection, and
+   one-entry undo/cancellation use the authored transforms. Frame editing holds
+   the selected frame; stopped previews honor the starting frame.
+   Public descriptors/frame metadata, immutable cache identity, CLI, project
+   JSON, runtime saves/templates, duplication, and generated C preserve
+   alignment. Omitted transforms default to zero; nonfinite edits are rejected.
+   Six focused Linux tests and five ASan/UBSan tests with leak detection pass.
+   Linux/Windows builds have no compiler warnings. A deterministic generated
+   fixture builds against both installed SDKs and runs on Linux, checking
+   metadata, independent playback, and shared asset lifetime. Flies-in-pit and
+   viewport examples build against the Linux SDK and launch outside their source
+   directories. Windows execution and interactive visual review remain manual
+   verification. Goal 8's frame-scaling investigation remains separate.
 8. [ ] **Fix unintended translation during frame scaling** — Investigate and
    correct frames that move when scaled, using the animation-origin and
    frame-offset model established in goal 7.

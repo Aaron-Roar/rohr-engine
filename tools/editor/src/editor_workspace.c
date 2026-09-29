@@ -1063,6 +1063,14 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
                 fprintf(source, "%sUINT32_C(%u)", frame == 0 ? "" : ", ",
                     sprite->frames[frame].id);
+            fprintf(source, "}, .frame_offsets = {");
+            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
+                fprintf(source, "%s{%#.9gf, %#.9gf}", frame == 0 ? "" : ", ",
+                    sprite->frames[frame].offset.x, sprite->frames[frame].offset.y);
+            fprintf(source, "}, .frame_rotations = {");
+            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
+                fprintf(source, "%s%#.9gf", frame == 0 ? "" : ", ",
+                    sprite->frames[frame].rotation);
             fprintf(source, "}, .texture_descriptors = {");
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
                 const EditorAnimationFrame *asset = &sprite->frames[frame];
