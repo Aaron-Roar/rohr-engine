@@ -34,7 +34,7 @@ PhysicsUpdateReport physics_update_report_get(void);
 
 #define PHYSICS_SOLVER_ITERATIONS_DEFAULT 8u
 #define PHYSICS_SUBSTEPS_DEFAULT 1u
-#define ROHR_PHYSICS_GRAVITY_DEFAULT ((Acceleration){0.0f, 980.0f})
+#define ROHR_PHYSICS_GRAVITY_DEFAULT ((Acceleration){0.0f, -9.8f})
 #define ROHR_WORLD_COORDINATE_MAX 1000000.0f
 
 EngineResult physics_solver_iterations_set(uint32_t iterations);

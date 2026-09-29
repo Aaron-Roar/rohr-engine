@@ -122,6 +122,21 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Single-Goal Milestone: Default Gravity
+
+Use downward gravity of `(0, -9.8)` for engine initialization and new editor
+project settings. Existing explicitly authored gravity values remain intact.
+This user-selected correction precedes the next Bugs Identified by Rohr User goal.
+
+1. [x] **Set engine and editor default gravity to -9.8** — The shared default
+   and engine initial state now use `(0, -9.8)`, including new editor projects.
+   Five existing physics/editor tests pass. A generated-project check verifies
+   startup, restart, and generated settings application on Linux; engine/editor
+   and generated-project builds pass on Linux and Windows without compiler
+   warnings. The installed-SDK center-of-mass example builds and launches outside
+   its source directory. Windows verification is cross-compilation only;
+   sanitizers were not rerun for this default-value-only change.
+
 ## Active Milestone: Bugs Identified by Rohr User
 
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
