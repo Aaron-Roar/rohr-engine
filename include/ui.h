@@ -234,6 +234,14 @@ void ui_field_event_add(const SDL_Event *event);
 void ui_field_focus_clear(void);
 void ui_field_focus_set(const char *id, UIFieldBinding binding,
     TextAsset *display, bool select_all);
+/**
+ * Edit text or a number. Click places the caret; drag selects a range;
+ * double-click and Ctrl+A select all. Numeric mouse focus does not select all.
+ * Typing replaces selection, Delete/Backspace remove it, and Left/Right collapse
+ * it to the corresponding edge. Shift does not extend keyboard selection.
+ * Selection captures the pointer through release and scrolls overflowing text.
+ * Programmatic focus may explicitly request select-all for either field kind.
+ */
 UIFieldResult ui_field(const char *id, UIFieldBinding binding,
     TextAsset *display, UIRect bounds, const UIButtonStyle *style);
 /** Draw a wrapping, vertically scrollable multiline string field. */

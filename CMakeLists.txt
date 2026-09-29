@@ -542,6 +542,13 @@ if(ROHR_BUILD_TESTS)
     target_link_libraries(ui_field_test PRIVATE rohr_engine)
     set_target_properties(ui_field_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME ui_field COMMAND ui_field_test)
+    add_executable(ui_field_selection_test tests/ui_field_selection.c)
+    target_include_directories(ui_field_selection_test PRIVATE src)
+    target_compile_definitions(ui_field_selection_test PRIVATE
+        ROHR_TEST_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/examples/user-interface/assets/jetbrains_mono_bold_italic.ttf")
+    target_link_libraries(ui_field_selection_test PRIVATE rohr_engine)
+    set_target_properties(ui_field_selection_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME ui_field_selection COMMAND ui_field_selection_test)
 
     add_executable(ui_dropdown_test tests/ui_dropdown.c)
     target_link_libraries(ui_dropdown_test PRIVATE rohr_engine)
@@ -756,6 +763,7 @@ if(ROHR_BUILD_TESTS)
         text_assets
         timing
         ui_field
+        ui_field_selection
         ui_dropdown
         joints
         soft_body
@@ -795,6 +803,7 @@ if(ROHR_BUILD_TESTS)
         text_assets_test
         timing_test
         ui_field_test
+        ui_field_selection_test
         ui_dropdown_test
         joints_test
         soft_body_test

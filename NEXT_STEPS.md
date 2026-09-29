@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–3 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–4 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -156,8 +156,19 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–3 are compl
    The installed-SDK center-of-mass example builds and runs from outside its
    source directory. Windows execution and interactive visual review remain
    manual verification.
-4. [ ] **Fix text selection interactions** — Support drag selection relative
-   to the current cursor position, and select all on double-click.
+4. [x] **Fix text selection interactions** — Shared text and numeric fields
+   place the caret on single-click, select from the press position while
+   dragging, and select the whole field on double-click. Numeric mouse focus
+   no longer selects all; explicit rename select-all remains available.
+   Range replacement/deletion, Ctrl+A, UTF-8 boundaries, and arrow collapse
+   are supported without Shift+arrow selection. Captured dragging scrolls
+   overflowing fields, respects clipped/translated panels, and cancels on
+   focus loss, disappearance, or modal takeover. Public signatures are
+   unchanged. Nine focused Linux tests and five ASan/UBSan tests with leak
+   detection pass; Linux and Windows builds have no compiler warnings. The
+   standalone UI example builds against the updated installed SDK and runs
+   outside its source directory. Windows execution and interactive visual
+   review remain manual verification.
 5. [ ] **Fix auto-shape selection scope** — Apply auto-shape to all vertices
    when none are selected, and only the selected vertices when multiple are
    selected.

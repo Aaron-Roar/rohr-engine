@@ -19,6 +19,13 @@ static void key_add_mod(SDL_Keycode key, SDL_Keymod modifiers) {
 
 static void key_add(SDL_Keycode key) {
     key_add_mod(key, SDL_KMOD_NONE);
+    /* Real string input arrives as SDL text events, not printable key events. */
+    if(key >= 32 && key <= 126) {
+        char text[] = {(char)key, '\0'};
+        SDL_Event event = {.type = SDL_EVENT_TEXT_INPUT};
+        event.text.text = text;
+        rohr_ui_field_event_add(&event);
+    }
 }
 
 static void repeated_key_add(SDL_Keycode key) {
@@ -112,6 +119,8 @@ int main(void) {
     rohr_ui_modal_controls_begin();
     if(!rohr_ui_button("inside-modal", NULL, bounds, NULL).pressed) return 1;
     rohr_ui_modal_controls_end();
+    rohr_ui_frame_end();
+    rohr_ui_frame_begin((UIInput){.primary_button = MOUSE_BUTTON_STATE_RELEASED});
     rohr_ui_frame_end();
 
     snprintf(string, sizeof(string), "abcd");
