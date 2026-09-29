@@ -663,7 +663,117 @@ static bool layout_render_order_picking_check(void) {
 }
 #undef PICK_REQUIRE
 
+static bool control_zoom_check(void) {
+    const float zooms[] = {0.1f, 0.5f, 1.0f, 2.0f, 10.0f};
+    Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    for(size_t z = 0; z < sizeof(zooms) / sizeof(zooms[0]); z += 1) {
+        EditorProject project;
+        EditorViewportState state = {0};
+        editor_project_init(&project);
+        EditorObject *object = editor_project_object_add(&project, (Position){0});
+        EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+        EditorSoftBody *soft = editor_project_soft_body_add(&project, object);
+        if(body == NULL || soft == NULL) return false;
+        /* Exterior handles must work without depending on the size of geometry. */
+        body->hitboxes[0].visible = false;
+        project.viewport_camera_zoom = zooms[z];
+        project.viewport_local_view = false;
+        project.viewport_camera_offset = (Vec2D){0};
+        for(int kind = 0; kind < 2; kind += 1) {
+            for(int outside = 0; outside < 2; outside += 1) {
+                editor_viewport_state_init(&state);
+                state.mode = kind ? EDITOR_VIEWPORT_SOFT_BODY : EDITOR_VIEWPORT_RIGID_BODY;
+                state.selection = kind ? EDITOR_SELECTION_SOFT_BODY : EDITOR_SELECTION_RIGID_BODY;
+                state.selected_rigid_body = body->id;
+                state.selected_soft_body = soft->id;
+                body->rotation = soft->rotation = 30;
+                float angle = math_degrees_to_radians(30);
+                float arm = EDITOR_VIEWPORT_ROTATION_ARM_LENGTH + (outside ? 13 : 11);
+                Position press = {center.x + sinf(angle) * arm,
+                    center.y - cosf(angle) * arm};
+                (void)picking_pointer_update(&project, &state, press, MOUSE_BUTTON_STATE_PRESSED);
+                bool rotating = kind ? state.rotated_soft_body : state.rotated_body;
+                if(rotating == (outside != 0)) goto fail;
+                if(!outside) {
+                    angle = math_degrees_to_radians(120);
+                    Position target = {center.x + sinf(angle) * arm,
+                        center.y - cosf(angle) * arm};
+                    if(!picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_DOWN) ||
+                            fabsf((kind ? soft->rotation : body->rotation) - 120) > 0.001f)
+                        goto fail;
+                    (void)picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_RELEASED);
+                    if(state.rotated_body || state.rotated_soft_body) goto fail;
+                }
+            }
+            for(int outside = 0; outside < 2; outside += 1) {
+                editor_viewport_state_init(&state);
+                state.mode = EDITOR_VIEWPORT_ORIGIN;
+                state.selection = EDITOR_SELECTION_ORIGIN;
+                state.selected_origin_kind = kind ? EDITOR_ORIGIN_SOFT_BODY : EDITOR_ORIGIN_RIGID_BODY;
+                state.selected_rigid_body = body->id;
+                state.selected_soft_body = soft->id;
+                Position press = {center.x + (outside ? 11 : 9), center.y};
+                (void)picking_pointer_update(&project, &state, press, MOUSE_BUTTON_STATE_PRESSED);
+                if(state.dragged_origin == (outside != 0)) goto fail;
+                editor_viewport_transform_cancel(&state);
+                if(state.dragged_origin) goto fail;
+            }
+        }
+        body->rotation = 0;
+        body->center_of_mass_explicit = true;
+        body->center_of_mass_offset = (Position){50 / zooms[z], 0};
+        for(int outside = 0; outside < 2; outside += 1) {
+            editor_viewport_state_init(&state);
+            state.mode = EDITOR_VIEWPORT_RIGID_BODY;
+            state.selection = EDITOR_SELECTION_RIGID_BODY;
+            state.selected_rigid_body = body->id;
+            Position press = {center.x + 50, center.y + (outside ? 14 : 12)};
+            (void)picking_pointer_update(&project, &state, press, MOUSE_BUTTON_STATE_PRESSED);
+            if(state.dragged_center_of_mass == (outside != 0)) goto fail;
+            if(!outside) {
+                Position target = {press.x + 5, press.y};
+                (void)picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_DOWN);
+                if(fabsf(body->center_of_mass_offset.x - 55 / zooms[z]) > 0.001f ||
+                        fabsf(body->center_of_mass_offset.y) > 0.001f) goto fail;
+                (void)picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_RELEASED);
+                if(state.dragged_center_of_mass) goto fail;
+                body->center_of_mass_offset.x = 50 / zooms[z];
+            }
+        }
+        editor_viewport_state_init(&state);
+        state.mode = EDITOR_VIEWPORT_RIGID_BODY;
+        body->position = (Position){-30 / zooms[z], 0};
+        soft->position = (Position){30 / zooms[z], 0};
+        body->rotation = soft->rotation = 0;
+        if(!editor_viewport_selection_set(&project, &state,
+                (EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY, object->id, 0, 0, body->id}, false) ||
+                !editor_viewport_selection_set(&project, &state,
+                (EditorSelectionRef){EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, soft->id}, true))
+            goto fail;
+        Position handle = {center.x, center.y - EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
+        if(!picking_pointer_update(&project, &state, handle, MOUSE_BUTTON_STATE_PRESSED) ||
+                !state.group_rotating) goto fail;
+        Position target = {center.x + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH, center.y};
+        if(!picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_DOWN) ||
+                fabsf(body->rotation - 90) > 0.001f || fabsf(soft->rotation - 90) > 0.001f)
+            goto fail;
+        (void)picking_pointer_update(&project, &state, target, MOUSE_BUTTON_STATE_RELEASED);
+        if(state.group_rotating) goto fail;
+        editor_viewport_state_destroy(&state);
+        editor_project_destroy(&project);
+        continue;
+fail:
+        fprintf(stderr, "control zoom regression at zoom %g\n", zooms[z]);
+        editor_viewport_state_destroy(&state);
+        editor_project_destroy(&project);
+        return false;
+    }
+    return true;
+}
+
 int main(void) {
+    if(!control_zoom_check()) return 1;
     if(!editor_layers_check()) return 1;
     if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
     if(!accordion_layout_metrics_check() ||

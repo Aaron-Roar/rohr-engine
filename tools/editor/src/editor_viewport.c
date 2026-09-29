@@ -18,6 +18,10 @@
 #define EDITOR_RIGID_BODY_LINE_PICK_RADIUS 6.0f
 /* Reserve room for the existing kind order within each authored layer. */
 #define EDITOR_SCENE_LAYER_STRIDE 64
+/* Editor control dimensions are screen pixels; convert only at world-space use. */
+#define EDITOR_ORIGIN_PICK_RADIUS 10.0f
+#define EDITOR_ROTATION_PICK_RADIUS 12.0f
+#define EDITOR_ROTATION_HANDLE_RADIUS 10.0f
 
 static FontAsset *editor_viewport_ui_font = NULL;
 static TextAsset editor_viewport_ui_text_assets[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
@@ -525,7 +529,7 @@ static Position editor_soft_body_rotation_handle_get(const EditorObject *object,
     return editor_rotation_control_position_get(
         (Position){object->position.x + body->position.x,
             object->position.y + body->position.y},
-        body->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+        body->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / editor_view_scale);
 }
 
 static Position editor_body_rotation_handle_get(const EditorObject *object,
@@ -533,7 +537,7 @@ static Position editor_body_rotation_handle_get(const EditorObject *object,
     return editor_rotation_control_position_get(
         (Position){object->position.x + body->position.x,
             object->position.y + body->position.y},
-        body->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH);
+        body->rotation, EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / editor_view_scale);
 }
 
 static float editor_segment_distance_squared(Position point, Position start, Position end) {
@@ -815,7 +819,7 @@ static void editor_body_origin_draw(const EditorObject *object,
     Position center;
     Position x_end;
     Position y_end;
-    const float axis_length = 16.0f;
+    const float axis_length = 16.0f / editor_view_scale;
 
     if(object == NULL || body == NULL) return;
     center = (Position){object->position.x + body->position.x,
@@ -826,8 +830,9 @@ static void editor_body_origin_draw(const EditorObject *object,
         center.y + cosf(math_degrees_to_radians(body->rotation)) * axis_length};
     editor_line_draw(center, x_end, (Color){235, 95, 95, 255});
     editor_line_draw(center, y_end, (Color){95, 220, 135, 255});
-    editor_circle_draw(center, 5.0f, (Color){245, 245, 250, 255});
-    editor_quad_draw(center, 3.0f, 3.0f, 0.0f, (Color){245, 245, 250, 255});
+    editor_circle_draw(center, 5.0f / editor_view_scale, (Color){245, 245, 250, 255});
+    editor_quad_draw(center, 3.0f, 3.0f,
+        0.0f, (Color){245, 245, 250, 255});
 }
 
 enum { EDITOR_COM_HANDLE_RADIUS = 13 };
@@ -867,9 +872,9 @@ static void editor_center_of_mass_draw(const EditorObject *object,
         (Color){255, 215, 70, 255} : (Color){45, 140, 255, 255};
     Color border = {245, 245, 250, 255};
     /* Opaque backing covers the origin when both handles coincide. */
-    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS, border);
-    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS - 1, color);
-    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS - 3,
+    editor_circle_filled_draw(center, EDITOR_COM_HANDLE_RADIUS / editor_view_scale, border);
+    editor_circle_filled_draw(center, (EDITOR_COM_HANDLE_RADIUS - 1) / editor_view_scale, color);
+    editor_circle_filled_draw(center, (EDITOR_COM_HANDLE_RADIUS - 3) / editor_view_scale,
         (Color){24, 30, 40, 255});
     /* Upright anvil: horn, face, narrow waist, and flared foot. */
     const Position points[] = {{-9, 4}, {-4, 4}, {-4, 6}, {8, 6},
@@ -877,12 +882,15 @@ static void editor_center_of_mass_draw(const EditorObject *object,
     Shape anvil = {.amount_of_vertices = sizeof(points) / sizeof(points[0])};
     for(size_t i = 0; i < anvil.amount_of_vertices; i += 1)
         anvil.vertices[i] = editor_view_world_to_screen(
-            (Position){center.x + points[i].x, center.y + points[i].y});
+            (Position){center.x + points[i].x / editor_view_scale,
+                center.y + points[i].y / editor_view_scale});
     (void)rohr_graphics_screen_shape_filled_draw(anvil, color);
     for(size_t i = 0; i < anvil.amount_of_vertices; i += 1) {
         Position a = points[i], b = points[(i + 1) % anvil.amount_of_vertices];
-        editor_line_draw((Position){center.x + a.x, center.y + a.y},
-            (Position){center.x + b.x, center.y + b.y}, border);
+        editor_line_draw((Position){center.x + a.x / editor_view_scale,
+                center.y + a.y / editor_view_scale},
+            (Position){center.x + b.x / editor_view_scale,
+                center.y + b.y / editor_view_scale}, border);
     }
 }
 
@@ -4326,7 +4334,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         bool group_handle_closest = true;
         if(editor_group_pivot_get(project, state, &state->group_pivot)) {
             rotation_handle = (Position){state->group_pivot.x,
-                state->group_pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
+                state->group_pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / editor_view_scale};
             float group_distance = hypotf(pointer.x - rotation_handle.x,
                 pointer.y - rotation_handle.y);
             for(size_t i = 0; i < state->selected_item_count; i += 1) {
@@ -4343,7 +4351,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         if(group_handle_closest && editor_group_pivot_get(project, state, &state->group_pivot) &&
                 hypotf(pointer.x - rotation_handle.x,
                     pointer.y - rotation_handle.y) <=
-                        12.0f / editor_view_scale) {
+                        EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
             state->group_rotating = true;
             state->group_pointer_angle = editor_rotation_control_pointer_angle_get(state->group_pivot, pointer);
             return true;
@@ -4359,7 +4367,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     project, ref, &center, &handle, &rotation)) continue;
             if(!editor_rotation_control_begin(center, rotation,
                     hypotf(handle.x - center.x, handle.y - center.y), pointer,
-                    12.0f / editor_view_scale,
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale,
                     &state->rotation_pointer_offset)) continue;
             if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
                     ref.kind == EDITOR_SELECTION_PARTICLE) {
@@ -4893,7 +4901,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         Position center;
         if(editor_center_of_mass_world_get(object, body, &center) &&
                 hypotf(pointer.x - center.x, pointer.y - center.y) <=
-                    EDITOR_COM_HANDLE_RADIUS) {
+                    EDITOR_COM_HANDLE_RADIUS / editor_view_scale) {
             state->selected_center_of_mass = true;
             state->dragged_center_of_mass = true;
             state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
@@ -4914,8 +4922,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY))) {
         Position center = {object->position.x + body->position.x,
             object->position.y + body->position.y};
-        if((pointer.x - center.x) * (pointer.x - center.x) +
-                (pointer.y - center.y) * (pointer.y - center.y) <= 100.0f) {
+        if(editor_rotation_control_hit_check(pointer, center,
+                EDITOR_ORIGIN_PICK_RADIUS / editor_view_scale)) {
             Uint64 now = SDL_GetTicks();
             bool editing = state->mode == EDITOR_VIEWPORT_ORIGIN &&
                 state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY;
@@ -4961,8 +4969,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             bool editing;
             bool double_clicked;
             if(soft_body->id != state->selected_soft_body || !soft_body->visible ||
-                    (pointer.x - center.x) * (pointer.x - center.x) +
-                    (pointer.y - center.y) * (pointer.y - center.y) > 100.0f) continue;
+                    !editor_rotation_control_hit_check(pointer, center,
+                        EDITOR_ORIGIN_PICK_RADIUS / editor_view_scale)) continue;
             now = SDL_GetTicks();
             editing = state->mode == EDITOR_VIEWPORT_ORIGIN &&
                 state->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY;
@@ -5004,8 +5012,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position center;
             if(soft_body->id != state->selected_soft_body || !soft_body->visible) continue;
             handle = editor_soft_body_rotation_handle_get(object, soft_body);
-            if((pointer.x - handle.x) * (pointer.x - handle.x) +
-                    (pointer.y - handle.y) * (pointer.y - handle.y) > 144.0f) break;
+            if(!editor_rotation_control_hit_check(pointer, handle,
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale)) break;
             center = (Position){object->position.x + soft_body->position.x,
                 object->position.y + soft_body->position.y};
             state->rotated_soft_body = true;
@@ -5024,7 +5032,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Orientation rotation = editor_sprite_world_rotation_get(object, sprite);
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
-                    12.0f / editor_view_scale) {
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
                 state->rotated_sprite = true;
                 state->rotation_pointer_offset = rotation -
                     editor_rotation_control_pointer_angle_get(center, pointer);
@@ -5043,7 +5051,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 &rotation);
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
-                    12.0f / editor_view_scale) {
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
                 state->rotated_animated_sprite = true;
                 state->rotation_pointer_offset = rotation -
                     editor_rotation_control_pointer_angle_get(center, pointer);
@@ -5062,7 +5070,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Position center = editor_camera_world_get(object, camera, &rotation);
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             if(hypotf(pointer.x - handle.x, pointer.y - handle.y) <=
-                    12.0f / editor_view_scale) {
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale) {
                 state->rotated_camera_entity = true;
                 state->rotation_pointer_offset = rotation -
                     editor_rotation_control_pointer_angle_get(center, pointer);
@@ -5243,8 +5251,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     !body->standalone_particle))) {
         Position handle = editor_body_rotation_handle_get(object, body);
         if(!body->standalone_particle &&
-                (pointer.x - handle.x) * (pointer.x - handle.x) +
-                (pointer.y - handle.y) * (pointer.y - handle.y) <= 144.0f) {
+                editor_rotation_control_hit_check(pointer, handle,
+                    EDITOR_ROTATION_PICK_RADIUS / editor_view_scale)) {
             Position center = {object->position.x + body->position.x,
                 object->position.y + body->position.y};
             state->rotated_body = true;
@@ -5872,7 +5880,7 @@ static void editor_viewport_cameras_draw(const EditorObject *object,
         if(selected) {
             Position handle = editor_sprite_rotation_handle_get(center, rotation);
             editor_line_draw(center, handle, color);
-            editor_circle_draw(handle, 10.0f / editor_view_scale, color);
+            editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale, color);
         }
     }
 }
@@ -5918,7 +5926,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                         object->id, 0, 0, sprite->id))) {
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
-            editor_circle_draw(handle, 10.0f / editor_view_scale,
+            editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
                 (Color){255, 215, 70, 255});
         }
     }
@@ -5964,7 +5972,7 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                     object->id, 0, 0, animation->id))) {
             Position handle = editor_sprite_rotation_handle_get(world, rotation);
             editor_line_draw(world, handle, (Color){255, 215, 70, 255});
-            editor_circle_draw(handle, 10.0f / editor_view_scale,
+            editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
                 (Color){255, 215, 70, 255});
         }
     }
@@ -6079,14 +6087,15 @@ static void editor_viewport_object_draw(const EditorObject *object,
             editor_body_origin_draw(object, selected);
             if(state->selection == EDITOR_SELECTION_ORIGIN &&
                     state->selected_origin_kind == EDITOR_ORIGIN_RIGID_BODY)
-                editor_circle_draw(center, 7.0f, (Color){255, 215, 70, 255});
+                editor_circle_draw(center, 7.0f / editor_view_scale, (Color){255, 215, 70, 255});
             if(!selected->standalone_particle &&
                     (state->mode == EDITOR_VIEWPORT_RIGID_BODY ||
                         state->mode == EDITOR_VIEWPORT_PARTICLE) &&
                     state->selected_item_count <= 1) {
                 Position handle = editor_body_rotation_handle_get(object, selected);
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});
-                editor_circle_draw(handle, 10.0f, (Color){255, 215, 70, 255});
+                editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
+                    (Color){255, 215, 70, 255});
             }
             if(selected->particle && state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
                 Position particle_center = editor_particle_center_world_get(object,
@@ -6121,7 +6130,8 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 object->position.y + body->position.y};
             handle = editor_body_rotation_handle_get(object, body);
             editor_line_draw(center, handle, (Color){255, 215, 70, 255});
-            editor_circle_draw(handle, 10.0f, (Color){255, 215, 70, 255});
+            editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
+                    (Color){255, 215, 70, 255});
         }
     }
 
@@ -6236,15 +6246,16 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 object->position.y + body->position.y};
             handle = editor_soft_body_rotation_handle_get(object, body);
             editor_view_scene_layer_set(body->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
-            editor_circle_draw(center, 5.0f, (Color){245, 245, 250, 255});
+            editor_circle_draw(center, 5.0f / editor_view_scale, (Color){245, 245, 250, 255});
             editor_quad_draw(center, 3.0f, 3.0f, 0.0f,
                 (Color){245, 245, 250, 255});
             if(state->selection == EDITOR_SELECTION_ORIGIN)
-                editor_circle_draw(center, 7.0f, (Color){255, 215, 70, 255});
+                editor_circle_draw(center, 7.0f / editor_view_scale, (Color){255, 215, 70, 255});
             if(state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
                     state->mode == EDITOR_VIEWPORT_SOFT_AREA || multi_selected) {
                 editor_line_draw(center, handle, (Color){255, 215, 70, 255});
-                editor_circle_draw(handle, 10.0f, (Color){255, 215, 70, 255});
+                editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
+                    (Color){255, 215, 70, 255});
             }
             if(state->selected_item_count <= 1) break;
         }
@@ -6919,12 +6930,12 @@ static void editor_viewport_content_draw(const EditorProject *project,
                     state->selected_items[i], &center, &handle, &rotation)) continue;
             (void)rotation;
             editor_line_draw(center, handle, (Color){255, 215, 70, 255});
-            editor_circle_draw(handle, 10.0f / editor_view_scale,
+            editor_circle_draw(handle, EDITOR_ROTATION_HANDLE_RADIUS / editor_view_scale,
                 (Color){255, 215, 70, 255});
         }
         if(editor_group_pivot_get((EditorProject *)project, state, &pivot)) {
             Position handle = {pivot.x,
-                pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH};
+                pivot.y + EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / editor_view_scale};
             editor_line_draw(pivot, handle, (Color){255, 215, 70, 255});
             editor_quad_draw(pivot, 7.0f, 7.0f, 0.0f,
                 (Color){255, 215, 70, 255});

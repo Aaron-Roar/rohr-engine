@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1 and 2 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–3 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -146,8 +146,16 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1 and 2 are com
    pass without compiler warnings. The installed-SDK center-of-mass example
    builds and runs from outside its source directory. Windows execution and
    interactive visual review remain manual verification.
-3. [ ] **Scale rotation handles, origins, and COM markers with zoom** — Correct
-   zoom scaling for these editor controls and markers.
+3. [x] **Scale rotation handles, origins, and COM markers with zoom** — Body
+   and group rotation arms, handle rings, origin axes/rings, and the complete
+   COM marker retain constant screen dimensions. Origin, rotation, and COM
+   picking use screen-space tolerances. Regression coverage checks inside/
+   outside tolerance, dragging, release, cancellation, and group rotation at
+   10%, 50%, 100%, 200%, and 1000% zoom. Linux navigation/history/startup tests,
+   ASan/UBSan with leak detection, and warning-free Linux/Windows builds pass.
+   The installed-SDK center-of-mass example builds and runs from outside its
+   source directory. Windows execution and interactive visual review remain
+   manual verification.
 4. [ ] **Fix text selection interactions** — Support drag selection relative
    to the current cursor position, and select all on double-click.
 5. [ ] **Fix auto-shape selection scope** — Apply auto-shape to all vertices
