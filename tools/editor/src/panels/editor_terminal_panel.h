@@ -33,7 +33,8 @@ void editor_terminal_panel_visible_toggle(EditorTerminalPanel *panel);
 bool editor_terminal_panel_focused_check(const EditorTerminalPanel *panel);
 bool editor_terminal_panel_interrupt(EditorTerminalPanel *panel);
 bool editor_terminal_panel_event_add(EditorTerminalPanel *panel,
-    const SDL_Event *event, float viewport_width, float viewport_bottom);
+    const SDL_Event *event, float viewport_width, float viewport_bottom,
+    bool input_blocked);
 void editor_terminal_panel_update(EditorTerminalPanel *panel);
 void editor_terminal_panel_operation_write(EditorTerminalPanel *panel,
     const char *command);

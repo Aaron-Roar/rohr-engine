@@ -652,6 +652,12 @@ void ui_field_focus_clear(void) {
     ui_context.field_scroll_x = ui_context.field_scroll_y = 0;
 }
 
+static void ui_field_text_input_ensure(void) {
+    SDL_Window *window = SDL_GetKeyboardFocus();
+    if(window != NULL && !SDL_TextInputActive(window))
+        (void)SDL_StartTextInput(window);
+}
+
 void ui_field_focus_set(const char *id, UIFieldBinding binding,
         TextAsset *display, bool select_all) {
     uint64_t field_id = ui_hash_id(id);
@@ -663,8 +669,7 @@ void ui_field_focus_set(const char *id, UIFieldBinding binding,
     ui_context.field_cursor = strlen(ui_context.field_edit);
     ui_context.field_anchor = select_all ? 0 : ui_context.field_cursor;
     ui_context.field_scroll_y = 0.0f;
-    if(SDL_GetKeyboardFocus() != NULL)
-        (void)SDL_StartTextInput(SDL_GetKeyboardFocus());
+    ui_field_text_input_ensure();
 }
 
 bool ui_key_pressed_check(SDL_Keycode key) {
@@ -970,8 +975,6 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
         }
         ui_context.field_id = field_id;
         ui_context.field_in_modal = ui_context.modal_controls;
-        if(newly_active && SDL_GetKeyboardFocus() != NULL)
-            (void)SDL_StartTextInput(SDL_GetKeyboardFocus());
         /* The scrollbar owns its strip, not the text selection gesture. */
         bool scrollbar = multiline && display != NULL &&
             display->size.y + 2 * UI_FIELD_PADDING > resolved_bounds.height &&
@@ -1005,6 +1008,8 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
     }
     result.active = allowed && ui_context.field_id == field_id;
     if(result.active) {
+        /* Focus can survive an SDL input stop or a temporary window blur. */
+        ui_field_text_input_ensure();
         ui_context.field_seen = true;
         if(ui_context.field_capture_id == field_id) {
             ui_context.pointer_consumed = true;

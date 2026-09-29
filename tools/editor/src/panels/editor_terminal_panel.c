@@ -122,20 +122,32 @@ static void editor_terminal_input_write(EditorTerminalPanel *panel,
 }
 
 bool editor_terminal_panel_event_add(EditorTerminalPanel *panel,
-        const SDL_Event *event, float viewport_width, float viewport_bottom) {
+        const SDL_Event *event, float viewport_width, float viewport_bottom,
+        bool input_blocked) {
     Position pointer;
     bool inside;
     if(panel == NULL || event == NULL || !panel->visible) return false;
+    if(input_blocked) {
+        /* A modal owns input until the user explicitly refocuses the terminal. */
+        if(panel->focused && SDL_GetKeyboardFocus() != NULL)
+            (void)SDL_StopTextInput(SDL_GetKeyboardFocus());
+        panel->focused = false;
+        return false;
+    }
     pointer = rohr_graphics_mouse_screen_position_get();
     inside = pointer.x >= 0.0f && pointer.x < viewport_width &&
         pointer.y >= viewport_bottom && pointer.y < EDITOR_ACTION_BAR_TOP;
     if(event->type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
             event->button.button == SDL_BUTTON_LEFT) {
+        bool was_focused = panel->focused;
         panel->focused = inside;
-        if(panel->focused && SDL_GetKeyboardFocus() != NULL)
-            (void)SDL_StartTextInput(SDL_GetKeyboardFocus());
-        else if(SDL_GetKeyboardFocus() != NULL)
-            (void)SDL_StopTextInput(SDL_GetKeyboardFocus());
+        SDL_Window *window = SDL_GetKeyboardFocus();
+        if(window != NULL) {
+            if(panel->focused && !SDL_TextInputActive(window))
+                (void)SDL_StartTextInput(window);
+            else if(was_focused && !panel->focused)
+                (void)SDL_StopTextInput(window);
+        }
     }
     if(event->type == SDL_EVENT_MOUSE_WHEEL && inside) {
         if(event->wheel.y > 0.0f) panel->scroll_offset += 3;

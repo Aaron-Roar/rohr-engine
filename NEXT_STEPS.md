@@ -122,6 +122,29 @@ last.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
 
+## Single-Goal Milestone: Reliable Text Input Across the Editor
+
+Keep text entry usable through initial selection, repeated clicks, double-click
+selection, and focus transfers between fields, dialogs, and the terminal.
+This user-selected correction precedes the next Bugs Identified by Rohr User goal.
+
+1. [x] **Fix shared text-input focus and verify all editor field paths** —
+   The terminal only stops text input on its own focus loss; focused shared
+   fields restore inactive SDL text input without restarting active sessions.
+   Modal controls block terminal input, and terminal-consumed events no longer
+   reach UI widgets. Regression coverage checks real SDL activation alongside
+   editing, including first/repeated clicks, selection replacement, delayed
+   window focus, keyboard/programmatic activation, field/terminal transfers,
+   multiline/numeric fields, and the actual new-project name dialog. All eight
+   focused tests and four ASan/LSan/UBSan checks pass. Linux and Windows builds
+   pass without compiler warnings; Windows verification is cross-compilation.
+   The installed-SDK UI example builds and launches outside its source directory.
+   The full Linux suite passes 56/57 tests: `rigid_contact_stability` also fails
+   identically with the unchanged baseline engine (body falls away from its
+   floor under the current negative default gravity). That separate physics
+   fixture issue remains outside this goal. Desktop interaction review remains
+   recommended; automated editor interaction checks use SDL's dummy backend.
+
 ## Single-Goal Milestone: Default Gravity
 
 Use downward gravity of `(0, -9.8)` for engine initialization and new editor

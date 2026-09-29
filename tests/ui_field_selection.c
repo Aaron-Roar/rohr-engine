@@ -9,6 +9,9 @@
 
 #define CHECK(c) do { if(!(c)) { fprintf(stderr, "field selection line %d: %s\n", __LINE__, #c); return false; } } while(0)
 static FontAsset test_font;
+static SDL_Window *test_window;
+/* The bundled SDL dummy backend has no window manager to grant focus. */
+extern bool SDL_SetKeyboardFocus(SDL_Window *window);
 
 typedef struct FieldFixture {
     char value[512];
@@ -311,17 +314,102 @@ static bool explicit_focus_and_empty_check(void) {
     return true;
 }
 
+static bool text_input_focus_check(void) {
+    for(int multiline = 0; multiline < 2; multiline += 1) {
+        FieldFixture f;
+        CHECK(fixture_start(&f, "abcdef", multiline != 0));
+        Position p = point(&f, 2);
+        CHECK(SDL_StopTextInput(test_window));
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_PRESSED).active);
+        CHECK(SDL_TextInputActive(test_window));
+        (void)frame(&f, p, MOUSE_BUTTON_STATE_RELEASED);
+        CHECK(SDL_StopTextInput(test_window));
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_PRESSED).active);
+        CHECK(SDL_TextInputActive(test_window));
+        (void)frame(&f, p, MOUSE_BUTTON_STATE_RELEASED);
+        text_input("X");
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_UP).changed);
+        CHECK(strcmp(f.value, "X") == 0);
+
+        /* Recover even without another click, including focus granted late. */
+        CHECK(SDL_StopTextInput(test_window));
+        CHECK(SDL_SetKeyboardFocus(NULL));
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_UP).active);
+        CHECK(!SDL_TextInputActive(test_window));
+        CHECK(SDL_SetKeyboardFocus(test_window));
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_UP).active);
+        CHECK(SDL_TextInputActive(test_window));
+
+        rohr_ui_field_focus_clear();
+        CHECK(SDL_StopTextInput(test_window));
+        ui_field_focus_set("selection", f.binding, &f.text, true);
+        CHECK(SDL_TextInputActive(test_window));
+        text_input("rename");
+        CHECK(frame(&f, p, MOUSE_BUTTON_STATE_UP).changed);
+        CHECK(strcmp(f.value, "rename") == 0);
+
+        key(SDLK_ESCAPE, SDL_KMOD_NONE);
+        (void)frame(&f, p, MOUSE_BUTTON_STATE_UP);
+        CHECK(SDL_StopTextInput(test_window));
+        CHECK(!frame(&f, p, MOUSE_BUTTON_STATE_UP).active);
+        CHECK(!SDL_TextInputActive(test_window));
+        fixture_stop(&f);
+    }
+    return true;
+}
+
+static bool keyboard_and_field_transfer_check(void) {
+    FieldFixture f;
+    CHECK(fixture_start(&f, "12", false));
+    f.number = 12;
+    f.binding = (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &f.number};
+    (void)frame(&f, (Position){0}, MOUSE_BUTTON_STATE_UP);
+    CHECK(SDL_StopTextInput(test_window));
+    (void)rohr_ui_navigation_move(UI_NAVIGATION_RIGHT);
+    CHECK(rohr_ui_navigation_activate());
+    CHECK(frame(&f, (Position){0}, MOUSE_BUTTON_STATE_UP).active);
+    CHECK(SDL_TextInputActive(test_window));
+    key('9', SDL_KMOD_NONE);
+    CHECK(frame(&f, (Position){0}, MOUSE_BUTTON_STATE_UP).changed);
+    CHECK(f.number == 129);
+
+    char other[64] = "other";
+    UIFieldBinding binding = {.kind = UI_FIELD_STRING,
+        .string = other, .string_capacity = sizeof(other)};
+    for(int step = 0; step < 3; step += 1) {
+        if(step == 2) {
+            CHECK(SDL_TextInputActive(test_window));
+            key(SDLK_A, SDL_KMOD_CTRL);
+            text_input("replacement");
+        }
+        rohr_ui_frame_begin((UIInput){.pointer = {250, 140},
+            .primary_button = step == 0 ? MOUSE_BUTTON_STATE_PRESSED :
+                step == 1 ? MOUSE_BUTTON_STATE_RELEASED : MOUSE_BUTTON_STATE_UP});
+        CHECK(rohr_ui_field("other", binding, &f.text, f.bounds, NULL).active);
+        rohr_ui_frame_end();
+    }
+    CHECK(strcmp(other, "replacement") == 0 && f.number == 129);
+    fixture_stop(&f);
+    return true;
+}
+
 int main(void) {
     EngineResult result=rohr_engine_start();
     if(rohr_error_check(result)) return 1;
     result=rohr_graphics_start();
     if(rohr_error_check(result)) { rohr_engine_stop(); return 1; }
+    int window_count = 0;
+    SDL_Window **windows = SDL_GetWindows(&window_count);
+    test_window = window_count > 0 ? windows[0] : NULL;
+    SDL_free(windows);
+    if(test_window == NULL || !SDL_SetKeyboardFocus(test_window)) return 1;
     FontAssetResult font = rohr_graphics_font_load((FontDescriptor){ROHR_TEST_FONT_PATH, 18});
     if(rohr_error_check(font)) { rohr_graphics_stop(); rohr_engine_stop(); return 1; }
     test_font = font.result.value;
     bool passed=editing_check() && clicks_check() && rejection_check() &&
         capture_check() && multiline_check() && overflow_and_translation_check() &&
-        explicit_focus_and_empty_check();
+        explicit_focus_and_empty_check() && text_input_focus_check() &&
+        keyboard_and_field_transfer_check();
     rohr_ui_field_focus_clear();
     (void)rohr_graphics_font_release(&test_font);
     rohr_graphics_stop();

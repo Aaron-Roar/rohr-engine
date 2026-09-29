@@ -2753,11 +2753,17 @@ int main(int argc, char **argv) {
                 }
                 continue;
             }
+            bool terminal_input_blocked = file_browser.active ||
+                editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
+                build_settings_panel.open || visual_settings_panel.open ||
+                physics_settings_panel.open || notification_panel.report_open ||
+                notification_panel.log_open || input_settings_panel.key_capture_active;
             bool terminal_consumed = editor_terminal_panel_event_add(&terminal_panel,
-                &event, EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM);
+                &event, EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM,
+                terminal_input_blocked);
             if(event.type == SDL_EVENT_MOUSE_WHEEL && !terminal_consumed)
                 viewport_wheel_y += event.wheel.y;
-            rohr_ui_event_add(&event);
+            if(!terminal_consumed) rohr_ui_event_add(&event);
             if(event.type == SDL_EVENT_QUIT) {
                 if(!workspace.open ||
                         editor_project_hash_get(&project) == saved_project_hash) {
