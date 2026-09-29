@@ -2865,9 +2865,11 @@ int main(int argc, char **argv) {
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             close_action = EDITOR_CLOSE_NONE;
         } else if((soft_body_editor.auto_shape_picker_open ||
+                bulk_panel.auto_shape_picker_open ||
                 hitbox_editor.auto_shape_picker_open) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             soft_body_editor.auto_shape_picker_open = false;
+            bulk_panel.auto_shape_picker_open = false;
             hitbox_editor.auto_shape_picker_open = false;
         } else if((collision_category_open || collide_with_open) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
@@ -3120,6 +3122,11 @@ int main(int argc, char **argv) {
             editor_mode_divider_draw(
                 EDITOR_VIEWPORT_WIDTH, 84.0f, EDITOR_TOOLS_WIDTH);
         }
+        editor_auto_shape_picker_frame_begin(&auto_shape_editor,
+            panel_content_offset - panel_scroll_offset,
+            (UIRect){EDITOR_VIEWPORT_WIDTH, EDITOR_MENU_HEIGHT,
+                EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT -
+                    panel_footer_height});
         rohr_ui_translation_y_push(panel_content_offset);
         viewport_state.preview_rigid_body = 0;
         viewport_state.preview_soft_body = 0;
@@ -4014,6 +4021,7 @@ int main(int argc, char **argv) {
                     close_action = EDITOR_CLOSE_NONE;
                     editor_viewport_context_menu_close(&viewport_context_menu);
                     soft_body_editor.auto_shape_picker_open = false;
+                    bulk_panel.auto_shape_picker_open = false;
                     hitbox_editor.auto_shape_picker_open = false;
                     collision_category_open = false;
                     collide_with_open = false;
@@ -4625,25 +4633,8 @@ int main(int argc, char **argv) {
                 editor_viewport_context_menu_open(&viewport_context_menu, pointer,
                     target_found ? &context_target : NULL, false);
             }
-            if((soft_body_editor.auto_shape_picker_open ||
-                    hitbox_editor.auto_shape_picker_open) &&
-                    pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED) {
-                UIRect button_bounds = viewport_state.mode == EDITOR_VIEWPORT_HITBOX ?
-                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 78.0f,
-                        EDITOR_TOOLS_WIDTH - 20.0f, 28.0f} :
-                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 360.0f,
-                        EDITOR_TOOLS_WIDTH - 20.0f, 30.0f};
-                UIRect picker_bounds = viewport_state.mode == EDITOR_VIEWPORT_HITBOX ?
-                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 110.0f,
-                        EDITOR_TOOLS_WIDTH - 20.0f, 62.0f} :
-                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 394.0f,
-                        EDITOR_TOOLS_WIDTH - 20.0f, 62.0f};
-                if(!editor_point_in_rect(pointer, button_bounds) &&
-                        !editor_point_in_rect(pointer, picker_bounds)) {
-                    soft_body_editor.auto_shape_picker_open = false;
-                    hitbox_editor.auto_shape_picker_open = false;
-                }
-            }
+            editor_auto_shape_picker_frame_end(&auto_shape_editor, pointer,
+                pointer_state.button_states[MOUSE_BUTTON_LEFT], false);
             bool ui_consumed = !workspace.open || file_browser.active ||
                 close_action != EDITOR_CLOSE_NONE ||
                 context_menu_modal ||

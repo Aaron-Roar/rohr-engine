@@ -119,6 +119,26 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_navigation PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
+    add_executable(editor_auto_shape_test
+        tests/editor_auto_shape.c
+        src/editor_history.c
+        src/editor_navigation.c
+        src/editor_viewport.c
+        src/editors/editor_mode_controls.c
+        src/editors/geometry/editor_auto_shape.c
+        src/editors/geometry/editor_hitbox.c
+        src/editors/soft_body/editor_soft_body.c
+        src/editors/multi/editor_bulk_panel.c
+        src/viewport/controls/editor_rotation_control.c
+    )
+    target_include_directories(editor_auto_shape_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib)
+    target_link_libraries(editor_auto_shape_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_auto_shape_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_auto_shape COMMAND editor_auto_shape_test)
+    set_tests_properties(editor_auto_shape PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_viewport_context_menu_test
         tests/editor_viewport_context_menu.c
         src/viewport/menus/editor_viewport_context_menu.c

@@ -878,15 +878,17 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                     state->selected_items[i].parent != first_ref.parent ||
                     state->selected_items[i].container != first_ref.container)
                 same_shape = false;
+        UIRect auto_shape_button = {x + 10.0f, footer_y, width - 20.0f, 30.0f};
         if(same_shape && rohr_ui_button("editor.bulk.auto_shape",
                 &panel->auto_shape_label,
-                (UIRect){x + 10.0f, footer_y, width - 20.0f, 30.0f}, NULL).clicked)
+                auto_shape_button, NULL).clicked)
             panel->auto_shape_picker_open = !panel->auto_shape_picker_open;
         if(same_shape && panel->auto_shape_picker_open) {
             int shape = editor_auto_shape_picker_draw(auto_shape,
                 "editor.bulk.auto_shape.option",
+                auto_shape_button,
                 (UIRect){x + 10.0f, footer_y + 34.0f, width - 20.0f, 62.0f},
-                state->selected_item_count);
+                state->selected_item_count, &panel->auto_shape_picker_open);
             if(shape >= 0) {
                 EditorObject *object = editor_project_selected_get(project);
                 auto_shape->config.kind = (EditorAutoShapeKind)shape;

@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–4 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–5 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -174,9 +174,20 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–4 are compl
    double-click, submission, and resumed row input; five Linux follow-up tests,
    ASan/UBSan with leak detection, and Linux/Windows builds pass. The standalone
    UI example also builds and launches outside its source directory.
-5. [ ] **Fix auto-shape selection scope** — Apply auto-shape to all vertices
-   when none are selected, and only the selected vertices when multiple are
-   selected.
+5. [x] **Restore auto-shape picker interaction and verify selection scope** —
+   Hitbox, soft-body, and multiple-selection pickers now share dismissal using
+   their current layout bounds, panel translation, scroll offset, and clip.
+   Shape clicks survive until release; outside clicks and Escape dismiss.
+   Soft-body picker placement is valid on its opening frame. Failed application
+   preserves geometry and does not enter auto-shape editing. Existing minimum
+   point counts remain; no point selection reshapes all points, while a valid
+   subset reshapes only those points. Regression coverage verifies real panel
+   clicks, translated/scrolled layouts, accordion changes, disabled shapes,
+   failure preservation, and one-entry undo/redo. Six focused Linux tests and
+   three ASan/UBSan tests with leak detection pass. Linux and Windows builds
+   have no compiler warnings; the installed-SDK UI example builds and launches
+   outside its source directory. Windows execution and interactive editor
+   verification remain manual checks.
 6. [ ] **Fix Left/Right animation options** — Restore the options in the
    editor and verify their behavior in the application, where the reported
    issue has not yet been checked.

@@ -328,10 +328,10 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             &topology, topology_groups, topology_group_count, 0, 0);
         topology_auto_shape_y = editor_mode_accordion_layout_group_row_y(
             &topology, topology_groups, topology_group_count, 1, 0);
-        if(editor->auto_shape_picker_open) {
-            topology_picker_y = editor_mode_accordion_layout_group_row_y(
-                &topology, topology_groups, topology_group_count, 2, 0);
-        } else {
+        /* The button can open the picker after this frame's layout pass. */
+        topology_picker_y = topology_auto_shape_y +
+            topology_groups[1].row_height + 6.0f;
+        if(!editor->auto_shape_picker_open) {
             topology_add_node_y = editor_mode_accordion_layout_group_row_y(
                 &topology, topology_groups, topology_group_count, 1, 1);
             topology_add_beam_y = editor_mode_accordion_layout_group_row_y(
@@ -446,9 +446,10 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             if(result.double_clicked) context->viewport->mode = EDITOR_VIEWPORT_ORIGIN;
         }
     }
+    UIRect auto_shape_button = {context->x + 10.0f, topology_auto_shape_y,
+        context->width - 20.0f, 30.0f};
     if(rohr_ui_button("editor.soft_body.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, topology_auto_shape_y,
-                context->width - 20.0f, 30.0f}, NULL).clicked)
+            auto_shape_button, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(!editor->auto_shape_picker_open) {
         if(rohr_ui_button("editor.soft_body.add_node", &editor->add_node_label,
@@ -491,13 +492,14 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             context->viewport, object, body);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.soft_body.auto_shape.option",
+            auto_shape_button,
             (UIRect){context->x + 10.0f, topology_picker_y,
-                context->width - 20.0f, 62.0f}, count > 0 ? count : body->node_count);
+                context->width - 20.0f, 62.0f}, count, &editor->auto_shape_picker_open);
         if(shape >= 0) {
             auto_shape->config.kind = (EditorAutoShapeKind)shape;
             context->viewport->auto_shape_parent_mode = EDITOR_VIEWPORT_SOFT_BODY;
-            (void)editor_auto_shape_editor_apply(auto_shape, context->project,
-                context->viewport, EDITOR_VIEWPORT_SOFT_BODY);
+            if(!editor_auto_shape_editor_apply(auto_shape, context->project,
+                    context->viewport, EDITOR_VIEWPORT_SOFT_BODY)) return field_active;
             context->viewport->mode = EDITOR_VIEWPORT_AUTO_SHAPE;
             context->viewport->selection = EDITOR_SELECTION_SOFT_BODY;
             auto_shape->first_was_active = false;

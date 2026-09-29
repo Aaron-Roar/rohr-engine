@@ -112,23 +112,25 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
             (void)editor_command_execute(context->project, &command);
         }
     }
+    UIRect auto_shape_button = {context->x + 10.0f, 116.0f,
+        context->width - 20.0f, 28.0f};
     if(rohr_ui_button("editor.hitbox.auto_shape", &editor->auto_shape_label,
-            (UIRect){context->x + 10.0f, 116.0f,
-                context->width - 20.0f, 28.0f}, NULL).clicked)
+            auto_shape_button, NULL).clicked)
         editor->auto_shape_picker_open = !editor->auto_shape_picker_open;
     if(editor->auto_shape_picker_open) {
         size_t selected_count = editor_auto_shape_hitbox_points_capture(
             context->viewport, object, body, hitbox);
         int shape = editor_auto_shape_picker_draw(auto_shape,
             "editor.hitbox.auto_shape.option",
+            auto_shape_button,
             (UIRect){context->x + 10.0f, 148.0f,
                 context->width - 20.0f, 62.0f},
-            selected_count > 0 ? selected_count : hitbox->vertex_count);
+            selected_count, &editor->auto_shape_picker_open);
         if(shape >= 0) {
             auto_shape->config.kind = (EditorAutoShapeKind)shape;
             context->viewport->auto_shape_parent_mode = EDITOR_VIEWPORT_HITBOX;
-            (void)editor_auto_shape_editor_apply(auto_shape, context->project,
-                context->viewport, EDITOR_VIEWPORT_HITBOX);
+            if(!editor_auto_shape_editor_apply(auto_shape, context->project,
+                    context->viewport, EDITOR_VIEWPORT_HITBOX)) return field_active;
             context->viewport->mode = EDITOR_VIEWPORT_AUTO_SHAPE;
             context->viewport->selection = EDITOR_SELECTION_HITBOX;
             auto_shape->first_was_active = false;

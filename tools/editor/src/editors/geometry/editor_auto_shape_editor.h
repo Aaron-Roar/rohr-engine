@@ -27,6 +27,12 @@ typedef struct EditorAutoShapeEditor {
     bool first_was_active;
     bool second_was_active;
     bool third_was_active;
+    /* Borrowed open flag and layout recorded only for the current UI frame. */
+    bool *picker_open;
+    UIRect picker_button_bounds;
+    UIRect picker_bounds;
+    UIRect picker_clip;
+    float picker_translation_y;
 } EditorAutoShapeEditor;
 
 bool editor_auto_shape_editor_create(EditorAutoShapeEditor *editor,
@@ -42,7 +48,12 @@ size_t editor_auto_shape_hitbox_points_capture(EditorViewportState *viewport,
     const EditorHitbox *hitbox);
 size_t editor_auto_shape_soft_body_points_capture(EditorViewportState *viewport,
     const EditorObject *object, const EditorSoftBody *body);
+void editor_auto_shape_picker_frame_begin(EditorAutoShapeEditor *editor,
+    float translation_y, UIRect clip);
+void editor_auto_shape_picker_frame_end(EditorAutoShapeEditor *editor,
+    Position pointer, MouseButtonState primary, bool escape);
 int editor_auto_shape_picker_draw(EditorAutoShapeEditor *editor,
-    const char *id_prefix, UIRect bounds, size_t point_count);
+    const char *id_prefix, UIRect button_bounds, UIRect bounds,
+    size_t point_count, bool *open);
 
 #endif

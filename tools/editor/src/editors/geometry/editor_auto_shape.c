@@ -78,12 +78,43 @@ static void icon_draw(UIRect bounds, EditorAutoShapeKind kind, Color color) {
     }
 }
 
+void editor_auto_shape_picker_frame_begin(EditorAutoShapeEditor *editor,
+        float translation_y, UIRect clip) {
+    if(editor == NULL) return;
+    editor->picker_open = NULL;
+    editor->picker_translation_y = translation_y;
+    editor->picker_clip = clip;
+}
+
+static bool picker_point_inside_check(Position point, UIRect bounds) {
+    return bounds.width > 0.0f && bounds.height > 0.0f &&
+        point.x >= bounds.x && point.x < bounds.x + bounds.width &&
+        point.y >= bounds.y && point.y < bounds.y + bounds.height;
+}
+
+void editor_auto_shape_picker_frame_end(EditorAutoShapeEditor *editor,
+        Position pointer, MouseButtonState primary, bool escape) {
+    if(editor == NULL || editor->picker_open == NULL) return;
+    if(escape || (primary == MOUSE_BUTTON_STATE_PRESSED &&
+            (!picker_point_inside_check(pointer, editor->picker_clip) ||
+                (!picker_point_inside_check(pointer, editor->picker_button_bounds) &&
+                 !picker_point_inside_check(pointer, editor->picker_bounds)))))
+        *editor->picker_open = false;
+    editor->picker_open = NULL;
+}
+
 int editor_auto_shape_picker_draw(EditorAutoShapeEditor *editor,
-        const char *id_prefix, UIRect bounds, size_t point_count) {
+        const char *id_prefix, UIRect button_bounds, UIRect bounds,
+        size_t point_count, bool *open) {
     const TextAsset *labels[3];
     float gap = 4.0f;
     float width = (bounds.width - gap * 2.0f) / 3.0f;
-    if(editor == NULL || id_prefix == NULL) return -1;
+    if(editor == NULL || id_prefix == NULL || open == NULL || !*open) return -1;
+    editor->picker_open = open;
+    editor->picker_button_bounds = button_bounds;
+    editor->picker_button_bounds.y += editor->picker_translation_y;
+    editor->picker_bounds = bounds;
+    editor->picker_bounds.y += editor->picker_translation_y;
     labels[0] = &editor->triangle_label;
     labels[1] = &editor->rectangle_label;
     labels[2] = &editor->circle_label;
