@@ -15,7 +15,7 @@ bool editor_animation_frame_editor_create(EditorAnimationFrameEditor *editor,
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("Path", path_label);
-    CREATE("Width", width_label); CREATE("Height", height_label);
+    CREATE("Scale X", width_label); CREATE("Scale Y", height_label);
     CREATE("Offset X", offset_x_label); CREATE("Offset Y", offset_y_label);
     CREATE("Rotation", rotation_label);
     CREATE("", offset_x_field); CREATE("", offset_y_field); CREATE("", rotation_field);
@@ -71,7 +71,7 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
     if(frame == NULL) return false;
     snprintf(name, sizeof(name), "%s", frame->name);
     snprintf(path, sizeof(path), "%s", frame->path);
-    width = frame->size.x; height = frame->size.y;
+    width = frame->scale.x; height = frame->scale.y;
     if(!editor_mode_named_text_sync(editor->font, frame->name,
             &editor->name_field, editor->name_cache,
             EDITOR_OBJECT_NAME_MAX)) return false;
@@ -91,13 +91,13 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->width_label,
         (UIRect){context->x + 8.0f, 118.0f, 70.0f, 28.0f});
-    width_result = editor_mode_field("editor.animation_frame.width",
+    width_result = editor_mode_field("editor.animation_frame.scale_x",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &width},
         &editor->width_field, (UIRect){context->x + 82.0f, 118.0f,
             context->width - 92.0f, 28.0f}, NULL);
     rohr_ui_label(&editor->height_label,
         (UIRect){context->x + 8.0f, 156.0f, 70.0f, 28.0f});
-    height_result = editor_mode_field("editor.animation_frame.height",
+    height_result = editor_mode_field("editor.animation_frame.scale_y",
         (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &height},
         &editor->height_field, (UIRect){context->x + 82.0f, 156.0f,
             context->width - 92.0f, 28.0f}, NULL);
@@ -142,10 +142,10 @@ bool editor_animation_frame_editor_draw(EditorAnimationFrameEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     if(width_result.changed || height_result.changed) {
-        EditorCommand command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET,
-            .data.animation_frame_size_set = {.object = object->id,
+        EditorCommand command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
+            .data.animation_frame_scale_set = {.object = object->id,
                 .sprite = animation->id, .index = frame_index,
-                .size = {width, height}}};
+                .scale = {width, height}}};
         (void)editor_command_execute(context->project, &command);
     }
     if(context->delete_y_get != NULL && !context->delete_footer) {

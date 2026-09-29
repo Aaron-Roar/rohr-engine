@@ -128,6 +128,10 @@ int main(void) {
     }
     animation_elderfly = animation_result.result.value;
     sprite_elderfly = rohr_graphics_animated_sprite_create(animation_elderfly, (Scale){10,10});
+    for(size_t frame = 0; frame < sprite_elderfly.frame_count; frame += 1) {
+        Scale pixels = rohr_graphics_texture_size_get(sprite_elderfly.frames[frame].texture).result.value;
+        sprite_elderfly.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};
+    }
     rohr_graphics_animated_sprite_add(water_smash, sprite_elderfly);
     (void)rohr_graphics_animation_release(&animation_elderfly);
     if(!example_viewport_create(render_scene, NULL, &viewport)) goto fail;

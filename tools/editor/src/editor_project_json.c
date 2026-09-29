@@ -575,8 +575,8 @@ static yyjson_mut_val *editor_json_animated_sprite_write(yyjson_mut_doc *documen
         yyjson_mut_obj_add_uint(document, item, "id", frame->id);
         yyjson_mut_obj_add_strcpy(document, item, "name", frame->name);
         yyjson_mut_obj_add_strcpy(document, item, "path", frame->path);
-        yyjson_mut_obj_add_real(document, item, "width", frame->size.x);
-        yyjson_mut_obj_add_real(document, item, "height", frame->size.y);
+        yyjson_mut_obj_add_real(document, item, "scale_x", frame->scale.x);
+        yyjson_mut_obj_add_real(document, item, "scale_y", frame->scale.y);
         yyjson_mut_obj_add_real(document, item, "offset_x", frame->offset.x);
         yyjson_mut_obj_add_real(document, item, "offset_y", frame->offset.y);
         yyjson_mut_obj_add_real(document, item, "rotation", frame->rotation);
@@ -1571,15 +1571,16 @@ static bool editor_json_animated_sprite_read(yyjson_val *value,
                 !editor_json_name(frame, sprite->frames[i].name) ||
                 !yyjson_is_str(path) || yyjson_get_len(path) == 0 ||
                 yyjson_get_len(path) >= sizeof(sprite->frames[i].path) ||
-                !editor_json_real(frame, "width", &sprite->frames[i].size.x) ||
-                !editor_json_real(frame, "height", &sprite->frames[i].size.y) ||
+                !editor_json_real(frame, "scale_x", &sprite->frames[i].scale.x) ||
+                !editor_json_real(frame, "scale_y", &sprite->frames[i].scale.y) ||
                 !editor_json_optional_real(frame, "offset_x", &sprite->frames[i].offset.x, 0.0f) ||
                 !editor_json_optional_real(frame, "offset_y", &sprite->frames[i].offset.y, 0.0f) ||
                 !editor_json_optional_real(frame, "rotation", &sprite->frames[i].rotation, 0.0f) ||
                 !isfinite(sprite->frames[i].offset.x) || !isfinite(sprite->frames[i].offset.y) ||
                 !isfinite(sprite->frames[i].rotation) ||
                 sprite->frames[i].name[0] == '\0' ||
-                sprite->frames[i].size.x <= 0.0f || sprite->frames[i].size.y <= 0.0f)
+                !isfinite(sprite->frames[i].scale.x) || !isfinite(sprite->frames[i].scale.y) ||
+                yyjson_obj_get(frame, "width") != NULL || yyjson_obj_get(frame, "height") != NULL)
             return false;
         memcpy(sprite->frames[i].path, yyjson_get_str(path), yyjson_get_len(path) + 1);
         sprite->frames[i].id = (EditorSpriteId)id;
@@ -1860,7 +1861,8 @@ static bool editor_json_references_valid(EditorProject *project) {
                 return false;
             for(size_t frame_index = 0; frame_index < sprite->frame_count; frame_index += 1) {
                 const EditorAnimationFrame *frame = &sprite->frames[frame_index];
-                if(!isfinite(frame->offset.x) || !isfinite(frame->offset.y) ||
+                if(!isfinite(frame->scale.x) || !isfinite(frame->scale.y) ||
+                        !isfinite(frame->offset.x) || !isfinite(frame->offset.y) ||
                         !isfinite(frame->rotation)) return false;
             }
             for(size_t other = 0; other < j; other += 1)

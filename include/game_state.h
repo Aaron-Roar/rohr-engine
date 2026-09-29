@@ -11,7 +11,7 @@
 
 /** Current JSON game-state schema version. */
 /* Version 3 uses clockwise degrees and degree-based angular rates. */
-#define GAME_STATE_VERSION 3
+#define GAME_STATE_VERSION 4
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

@@ -15,6 +15,7 @@
 
 #include "entity_components.h"
 #include "graphics.h"
+#include "graphics/texture_assets.h"
 #include "physics.h"
 #include "physics/collision/shape_decomposition.h"
 #include "yyjson/yyjson.h"
@@ -195,20 +196,14 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
     yyjson_arr_foreach(frames, frame_index, frame_count, frame) {
         yyjson_val *file = yyjson_obj_get(frame, "file");
         yyjson_val *frame_id = yyjson_obj_get(frame, "id");
-        Vec2D size;
-        Vec2D offset = {0};
-        double rotation = 0.0;
-        yyjson_val *offset_value = yyjson_obj_get(frame, "offset");
-        yyjson_val *rotation_value = yyjson_obj_get(frame, "rotation");
+
         size_t file_length;
         if(!yyjson_is_obj(frame)
                 || !yyjson_is_str(file)
-                || !state_vec2(yyjson_obj_get(frame, "size"), &size)
-                || (offset_value != NULL && !state_vec2(offset_value, &offset))
-                || (rotation_value != NULL &&
-                    (!yyjson_is_num(rotation_value) ||
-                    !isfinite(rotation = yyjson_get_num(rotation_value)) ||
-                    !isfinite((float)rotation)))
+                || yyjson_obj_get(frame, "size") != NULL
+                || yyjson_obj_get(frame, "scale") != NULL
+                || yyjson_obj_get(frame, "offset") != NULL
+                || yyjson_obj_get(frame, "rotation") != NULL
                 || (frame_id != NULL && (!yyjson_is_uint(frame_id) ||
                     yyjson_get_uint(frame_id) == 0 ||
                     yyjson_get_uint(frame_id) > UINT32_MAX))) {
@@ -219,16 +214,11 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         memcpy(animation->frame_paths[frame_index], yyjson_get_str(file), file_length + 1);
-        animation->descriptor.texture_descriptors[frame_index] = (TextureDescriptor){
-            .file = animation->frame_paths[frame_index],
-            .size = {size.x, size.y}
-        };
+        animation->descriptor.frame_files[frame_index] = animation->frame_paths[frame_index];
         animation->descriptor.frame_ids[frame_index] = frame_id == NULL ?
             (AnimationFrameId)frame_index + 1 :
             (AnimationFrameId)yyjson_get_uint(frame_id);
-        animation->descriptor.frame_offsets[frame_index] =
-            (Position){offset.x, offset.y};
-        animation->descriptor.frame_rotations[frame_index] = (float)rotation;
+
     }
     asset_result = graphics_animation_load(animation->descriptor);
     if(asset_result.kind == ERROR_RESULT_ERROR) {
@@ -1183,6 +1173,52 @@ static EngineResult state_shape_load(Entity entity, yyjson_val *value) {
     return physics_hitbox_set(entity, shape);
 }
 
+/* Load borrowed frame values while holding temporary image references. The caller
+ * releases these after attaching the sprite, including every failure path. */
+static EngineResult state_sprite_frames_read(yyjson_val *values, AnimatedSprite *sprite,
+        TextureAsset *textures, size_t *texture_count) {
+    if(values == NULL) return error_result_value(true);
+    size_t count = yyjson_arr_size(values);
+    if(!yyjson_is_arr(values) || count > MAX_ANIMATIONS_FRAMES)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    AnimatedSprite source = *sprite;
+    sprite->frame_count = 0;
+    sprite->player.frame_count = 0;
+    for(size_t f = 0; f < count; f += 1) {
+        yyjson_val *record = yyjson_arr_get(values, f);
+        yyjson_val *file = yyjson_obj_get(record, "file");
+        yyjson_val *id = yyjson_obj_get(record, "id");
+        Vec2D scale, offset;
+        double rotation;
+        if(!yyjson_is_obj(record) ||
+                !state_vec2(yyjson_obj_get(record, "scale"), &scale) ||
+                !state_vec2(yyjson_obj_get(record, "offset"), &offset) ||
+                !state_number(record, "rotation", &rotation) ||
+                (id != NULL && (!yyjson_is_uint(id) || yyjson_get_uint(id) > UINT32_MAX)) ||
+                yyjson_obj_get(record, "size") != NULL)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        AnimationFrame frame = f < source.frame_count ? source.frames[f] : (AnimationFrame){0};
+        if(file != NULL) {
+            if(!yyjson_is_str(file)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            TextureAssetResult loaded = graphics_texture_load(
+                (TextureDescriptor){.file = yyjson_get_str(file)});
+            if(loaded.kind == ERROR_RESULT_ERROR) return error_result_error(loaded.result.error);
+            textures[(*texture_count)++] = loaded.result.value;
+            frame.texture = loaded.result.value;
+        }
+        if(id != NULL) frame.id = (uint32_t)yyjson_get_uint(id);
+        frame.scale = (Scale){scale.x, scale.y};
+        frame.offset = offset;
+        frame.rotation = (Orientation)rotation;
+        EngineResult result = graphics_animated_sprite_value_frame_add(sprite, frame);
+        if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
+    if((count != 0 && sprite->player.frame_index >= count) ||
+            (count == 0 && sprite->player.frame_index != 0))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    return error_result_value(true);
+}
+
 static EngineResult state_components_load(
         Entity entity,
         yyjson_val *components,
@@ -1605,7 +1641,8 @@ static EngineResult state_components_load(
                 || !isfinite(orientation_offset)
                 || time_per_frame < 0.0
                 || start_frame < 0
-                || start_frame >= animation->descriptor.amount_of_descriptors) {
+                || (yyjson_obj_get(value, "frames") == NULL &&
+                    start_frame >= animation->descriptor.amount_of_descriptors)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         scale = (Scale){scale_value.x, scale_value.y};
@@ -1618,7 +1655,14 @@ static EngineResult state_components_load(
         sprite.orientation_offset = (Orientation)orientation_offset;
         sprite.follow_entity_rotation = follow_entity_rotation;
         sprite.visible = visible;
-        result = graphics_animated_sprite_add(entity, sprite);
+        TextureAsset frame_textures[MAX_ANIMATIONS_FRAMES] = {0};
+        size_t frame_texture_count = 0;
+        result = state_sprite_frames_read(yyjson_obj_get(value, "frames"), &sprite,
+            frame_textures, &frame_texture_count);
+        if(result.kind != ERROR_RESULT_ERROR)
+            result = graphics_animated_sprite_add(entity, sprite);
+        for(size_t f = 0; f < frame_texture_count; f += 1)
+            (void)graphics_texture_release(&frame_textures[f]);
         if(result.kind == ERROR_RESULT_ERROR) return result;
         state_sprite_references[index] = (StateSpriteReference){
             .used = true,
@@ -2167,6 +2211,21 @@ static void state_named_reference_write(
         yyjson_mut_obj_add_strcpy(document, components, key, name.result.value.value);
 }
 
+static void state_frame_file_write(yyjson_mut_doc *document, yyjson_mut_val *record,
+        TextureAsset texture) {
+    const char *path = graphics_texture_path_get(texture);
+    char *directory = SDL_GetCurrentDirectory();
+    if(directory != NULL && path != NULL) {
+        for(char *p = directory; *p != '\0'; p += 1) if(*p == '\\') *p = '/';
+        size_t length = strlen(directory);
+        while(length > 0 && directory[length - 1] == '/') length -= 1;
+        if(strncmp(path, directory, length) == 0 && path[length] == '/')
+            path += length + 1;
+    }
+    yyjson_mut_obj_add_strcpy(document, record, "file", path);
+    SDL_free(directory);
+}
+
 EngineResult game_state_file_save(const char *path) {
     yyjson_mut_doc *document;
     yyjson_mut_val *root;
@@ -2319,26 +2378,12 @@ EngineResult game_state_file_save(const char *path) {
         for(frame_index = 0;
                 frame_index < animation->descriptor.amount_of_descriptors;
                 frame_index += 1) {
-            TextureDescriptor *texture =
-                &animation->descriptor.texture_descriptors[frame_index];
+
             yyjson_mut_val *frame = yyjson_mut_obj(document);
             yyjson_mut_obj_add_uint(document, frame, "id",
                 animation->descriptor.frame_ids[frame_index]);
-            yyjson_mut_obj_add_strcpy(document, frame, "file", texture->file);
-            Position offset = animation->descriptor.frame_offsets[frame_index];
-            yyjson_mut_obj_add_val(document, frame, "offset",
-                state_vec2_write(document, (Vec2D){offset.x, offset.y}));
-            yyjson_mut_obj_add_real(document, frame, "rotation",
-                animation->descriptor.frame_rotations[frame_index]);
-            yyjson_mut_obj_add_val(
-                document,
-                frame,
-                "size",
-                state_vec2_write(
-                    document,
-                    (Vec2D){texture->size.x, texture->size.y}
-                )
-            );
+            yyjson_mut_obj_add_strcpy(document, frame, "file",
+                animation->descriptor.frame_files[frame_index]);
             yyjson_mut_arr_add_val(frames, frame);
         }
         yyjson_mut_obj_add_val(document, definition, "frames", frames);
@@ -2551,6 +2596,20 @@ EngineResult game_state_file_save(const char *path) {
                 reference->follow_entity_rotation);
             yyjson_mut_obj_add_bool(document, sprite, "visible",
                 reference->visible);
+            yyjson_mut_val *frames = yyjson_mut_arr(document);
+            for(size_t f = 0; f < animated_sprites[index].frame_count; f += 1) {
+                AnimationFrame *frame = &animated_sprites[index].frames[f];
+                yyjson_mut_val *record = yyjson_mut_obj(document);
+                state_frame_file_write(document, record, frame->texture);
+                yyjson_mut_obj_add_uint(document, record, "id", frame->id);
+                yyjson_mut_obj_add_val(document, record, "scale",
+                    state_vec2_write(document, (Vec2D){frame->scale.x, frame->scale.y}));
+                yyjson_mut_obj_add_val(document, record, "offset",
+                    state_vec2_write(document, (Vec2D){frame->offset.x, frame->offset.y}));
+                yyjson_mut_obj_add_real(document, record, "rotation", frame->rotation);
+                yyjson_mut_arr_add_val(frames, record);
+            }
+            yyjson_mut_obj_add_val(document, sprite, "frames", frames);
             yyjson_mut_obj_add_val(
                 document,
                 components,

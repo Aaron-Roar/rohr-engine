@@ -31,7 +31,7 @@ static bool runtime_check(void) {
     const char *saved = "com_state_saved.json";
     const char *authored = "com_state_template.json";
     const char *invalid = "com_state_invalid.json";
-    const char *initial = "{\"version\":3,\"entities\":["
+    const char *initial = "{\"version\":4,\"entities\":["
         "{\"name\":\"explicit_body\",\"components\":{\"mass\":12,"
         "\"position\":{\"x\":10,\"y\":20},\"orientation\":-450,\"angular_velocity\":810,"
         "\"hit_box\":[{\"x\":2,\"y\":3},{\"x\":6,\"y\":3},{\"x\":6,\"y\":5},{\"x\":2,\"y\":5}],"
@@ -79,7 +79,7 @@ static bool runtime_check(void) {
     uint32_t count = entity_alive_count_get();
     for(size_t i=0; i<sizeof(bad)/sizeof(bad[0]); i+=1) {
         char json[1024];
-        snprintf(json, sizeof(json), "{\"version\":3,\"entities\":[{\"name\":\"failed_body\","
+        snprintf(json, sizeof(json), "{\"version\":4,\"entities\":[{\"name\":\"failed_body\","
             "\"components\":{\"center_of_mass\":%s}}]}", bad[i]);
         CHECK(write_file(invalid, json));
         CHECK(rohr_error_check(rohr_game_state_file_load(invalid)));

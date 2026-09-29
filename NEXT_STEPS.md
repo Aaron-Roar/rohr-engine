@@ -232,6 +232,21 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–7 are compl
    viewport examples build against the Linux SDK and launch outside their source
    directories. Windows execution and interactive visual review remain manual
    verification. Goal 8's frame-scaling investigation remains separate.
+   **Mutable frame values follow-up (complete):** Reusable frame values now hold
+   scale, offset, and rotation independently of shared image catalogs. Each sprite
+   owns copied transforms and image references; mutation preserves playback and
+   rolls back on invalid input. Scale 1 uses native pixels, signed axes flip image
+   content before rotation, Left combines with the horizontal sign, and zero scale
+   collapses drawing and image selection. Editor controls, multi-edit, CLI, undo,
+   generated C, runtime saves/templates, documentation, and bundled examples use
+   this model. Project format 5 and runtime state version 4 reject old definitions.
+   Runtime saves preserve replaced/appended frames and keep local image paths
+   relative. The 56-test Linux suite and seven ASan/UBSan tests with leak detection
+   pass; Linux/Windows builds have no compiler warnings. Nine standalone examples
+   build against the installed Linux SDK and launch outside their source folders.
+   Generated code with signed/zero scale builds against both SDKs and runs on Linux,
+   verifying independent transforms, playback, and shared image lifetime. Windows
+   execution and interactive editor review remain manual checks. Goal 8 is separate.
 8. [ ] **Fix unintended translation during frame scaling** — Investigate and
    correct frames that move when scaled, using the animation-origin and
    frame-offset model established in goal 7.

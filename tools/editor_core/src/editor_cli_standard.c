@@ -257,9 +257,9 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
         ADD("frame-add");
         ADD(command->data.animation_frame_add.name);
         ADD(command->data.animation_frame_add.path);
-        snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_add.size.x);
+        snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_add.scale.x);
         ADD(number);
-        snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_add.size.y);
+        snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_add.scale.y);
         ADD(number);
     } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_REMOVE) {
         ADD("--frame-index");
@@ -267,7 +267,7 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
         ADD("frame-delete");
     } else if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME ||
             command->type == EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET ||
-            command->type == EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET ||
+            command->type == EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET ||
             command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
         size_t index = command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME ?
             command->data.animation_frame_rename.index :
@@ -275,7 +275,7 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
                 command->data.animation_frame_path_set.index :
                 command->type == EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET ?
                     command->data.animation_frame_transform_set.index :
-                    command->data.animation_frame_size_set.index;
+                    command->data.animation_frame_scale_set.index;
         ADD("--frame-index");
         snprintf(number, sizeof(number), "%zu", index); ADD(number);
         if(command->type == EDITOR_COMMAND_ANIMATION_FRAME_RENAME) {
@@ -288,11 +288,11 @@ static EditorResult cli_sprite_command_write(const EditorProject *project,
             snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_transform_set.offset.y); ADD(number);
             snprintf(number, sizeof(number), "%.9g", command->data.animation_frame_transform_set.rotation); ADD(number);
         } else {
-            ADD("frame-size-set");
+            ADD("frame-scale-set");
             snprintf(number, sizeof(number), "%.9g",
-                command->data.animation_frame_size_set.size.x); ADD(number);
+                command->data.animation_frame_scale_set.scale.x); ADD(number);
             snprintf(number, sizeof(number), "%.9g",
-                command->data.animation_frame_size_set.size.y); ADD(number);
+                command->data.animation_frame_scale_set.scale.y); ADD(number);
         }
     } else {
         ADD("--property");

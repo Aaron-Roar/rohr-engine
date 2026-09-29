@@ -672,6 +672,21 @@ EngineResult rohr_graphics_animation_retain(AnimationAsset asset) { return graph
 EngineResult rohr_graphics_animation_release(AnimationAsset *asset) { return graphics_animation_release(asset); }
 bool rohr_graphics_animation_valid_check(AnimationAsset asset) { return graphics_animation_valid_check(asset); }
 AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset) { return graphics_animation_info_get(asset); }
+TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset) { return graphics_texture_size_get(asset); }
+AnimationFrame rohr_graphics_animation_frame_create(TextureAsset texture) { return graphics_animation_frame_create(texture); }
+EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame) { return graphics_animated_sprite_value_frame_add(sprite, frame); }
+EngineResult rohr_graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite, size_t index, AnimationFrame frame) { return graphics_animated_sprite_value_frame_set(sprite, index, frame); }
+AnimationFrameResult rohr_graphics_animated_sprite_frame_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_get(entity, index); }
+EngineResult rohr_graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame) { return graphics_animated_sprite_frame_set(entity, index, frame); }
+EngineResult rohr_graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame) { return graphics_animated_sprite_frame_add(entity, frame); }
+EngineResult rohr_graphics_animated_sprite_frame_scale_set(Entity entity, size_t index, Scale scale) { return graphics_animated_sprite_frame_scale_set(entity, index, scale); }
+EngineResult rohr_graphics_animated_sprite_frame_offset_set(Entity entity, size_t index, Position offset) { return graphics_animated_sprite_frame_offset_set(entity, index, offset); }
+EngineResult rohr_graphics_animated_sprite_frame_rotation_set(Entity entity, size_t index, Orientation rotation) { return graphics_animated_sprite_frame_rotation_set(entity, index, rotation); }
+EngineResult rohr_graphics_animated_sprite_frame_rotation_radians_set(Entity entity, size_t index, Orientation rotation) { return graphics_animated_sprite_frame_rotation_radians_set(entity, index, rotation); }
+TextureSizeResult rohr_graphics_animated_sprite_frame_scale_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_scale_get(entity, index); }
+PositionResult rohr_graphics_animated_sprite_frame_offset_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_offset_get(entity, index); }
+SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_rotation_get(entity, index); }
+SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_radians_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_rotation_radians_get(entity, index); }
 AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index) { return graphics_animation_frame_get(asset, frame_index); }
 AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset) { return graphics_animation_player_create(asset); }
 void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current_tick, Time current_time) { graphics_animation_player_update(player, current_tick, current_time); }

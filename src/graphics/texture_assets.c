@@ -59,6 +59,11 @@ static void graphics_texture_resource_unused_destroy(
         graphics_texture_resource_destroy(resource);
 }
 
+const char *graphics_texture_path_get(TextureAsset asset) {
+    GraphicsTextureResource *resource = graphics_texture_resource_get(asset.handle, false);
+    return resource != NULL ? resource->path : NULL;
+}
+
 EngineResult graphics_texture_assets_init(void) {
     if(texture_assets_initialized) return error_result_value(true);
     memset(texture_resources, 0, sizeof(texture_resources));
@@ -159,6 +164,14 @@ TextureAssetResult graphics_texture_load(TextureDescriptor descriptor) {
     resource->used = true;
     asset.handle = resource->handle;
     return ERROR_RESULT_MAKE_VALUE(TextureAssetResult, asset);
+}
+
+TextureSizeResult graphics_texture_size_get(TextureAsset asset) {
+    GraphicsTextureResource *resource = graphics_texture_resource_get(asset.handle, false);
+    if(resource == NULL)
+        return ERROR_RESULT_MAKE_ERROR(TextureSizeResult, ERROR_ENGINE_TEXTURE_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(TextureSizeResult,
+        ((Scale){(float)resource->texture->w, (float)resource->texture->h}));
 }
 
 EngineResult graphics_texture_retain(TextureAsset asset) {

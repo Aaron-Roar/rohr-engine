@@ -178,7 +178,7 @@ static bool graphics_check(void) {
     OK(rohr_graphics_sprite_orientation_offset_radians_set(e,PI_F/2));
     CHECK(near(rohr_graphics_sprite_orientation_offset_radians_get(e).result.value,PI_F/2));
     AnimationAssetResult animation=graphics_animation_load((AnimationDescriptor){
-        .id=1,.amount_of_descriptors=1,.texture_descriptors={{"angles_asset.png",{20,10}}}});
+        .id=1,.amount_of_descriptors=1,.frame_files={"angles_asset.png"}});
     OK(animation);
     OK(graphics_animated_sprite_add(e,graphics_animated_sprite_create(animation.result.value,(Scale){1,1})));
     OK(graphics_animated_sprite_orientation_offset_radians_set(e,PI_F));

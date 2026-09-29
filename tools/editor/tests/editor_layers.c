@@ -6,6 +6,7 @@
 #include "editor_command.h"
 #include <limits.h>
 #include <math.h>
+#include "../../../tests/test_png.h"
 #include <stdio.h>
 
 #define CHECK(c) do { if(!(c)) { fprintf(stderr, "editor layers line %d: %s\n", \
@@ -130,7 +131,7 @@ static bool body_layers_check(void) {
     CHECK(hit.kind == EDITOR_SELECTION_SPRITE && hit.item == sprite->id);
     EditorAnimatedSprite *animation = editor_project_animated_sprite_add(&project, object);
     CHECK(animation != NULL);
-    CHECK(editor_project_animation_frame_add(&project, animation, "frame", "unused.png", (Scale){100,100}));
+    CHECK(editor_project_animation_frame_add(&project, animation, "frame", "editor_layers_frame.png", (Scale){100,100}));
     animation->graphics_layer.value = 12;
     CHECK(editor_viewport_selection_at_get(&project, &state, center, &hit));
     CHECK(hit.kind == EDITOR_SELECTION_ANIMATED_SPRITE && hit.item == animation->id);
@@ -229,7 +230,7 @@ static bool animation_direction_check(void) {
     }
     /* Check the app's draw path using the same asymmetric assets. */
     AnimationDescriptor descriptor = {.amount_of_descriptors = 2,
-        .texture_descriptors = {{paths[0], {80,64}}, {paths[1], {80,64}}}};
+        .frame_files = {paths[0], paths[1]}};
     AnimationAssetResult asset = rohr_graphics_animation_load(descriptor);
     CHECK(!rohr_error_check(asset));
     CameraResult camera = rohr_camera_get(rohr_camera_active_get());
@@ -242,6 +243,7 @@ static bool animation_direction_check(void) {
     for(int left = 0; left < 2; left += 1) {
         AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
             (Scale){1,1});
+        for(size_t f = 0; f < sprite.frame_count; f += 1) sprite.frames[f].scale = (Scale){10,8};
         sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         EntityResult entity = rohr_entity_add();
         CHECK(!rohr_error_check(entity));
@@ -256,14 +258,15 @@ static bool animation_direction_check(void) {
         OK(rohr_entity_delete(entity.result.value));
     }
     OK(rohr_graphics_animation_release(&asset.result.value));
-    descriptor.frame_offsets[0] = (Position){30,20};
-    descriptor.frame_rotations[0] = 45;
     asset = rohr_graphics_animation_load(descriptor);
     CHECK(!rohr_error_check(asset));
     for(int left = 0; left < 2; left += 1) {
         AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
             (Scale){2,3});
+        sprite.frames[0].offset = (Position){30,20};
+        sprite.frames[0].rotation = 45;
         sprite.orientation_offset = 90;
+        for(size_t f = 0; f < sprite.frame_count; f += 1) sprite.frames[f].scale = (Scale){10,8};
         sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         EntityResult entity = rohr_entity_add();
         CHECK(!rohr_error_check(entity));
@@ -290,7 +293,7 @@ static bool animation_direction_check(void) {
     CHECK(animation != NULL);
     for(size_t frame = 0; frame < 2; frame += 1)
         CHECK(editor_project_animation_frame_add(&project, animation, "frame",
-            paths[frame], (Scale){80,64}));
+            paths[frame], (Scale){10,8}));
     animation->ticks_per_frame = 1;
     animation->time_per_frame = 0;
     Position center = {EDITOR_VIEWPORT_WIDTH * .5f,
@@ -382,6 +385,96 @@ static bool animation_direction_check(void) {
     return true;
 }
 
+static bool frame_flips_check(void) {
+    const char *path = "editor_frame_flips.png";
+    const Uint32 pixels[] = {0xff0000ff,0x00ff00ff,0x0000ffff,0xffff00ff};
+    const Color colors[] = {{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
+    SDL_Surface *surface = SDL_CreateSurface(8, 8, SDL_PIXELFORMAT_RGBA8888);
+    CHECK(surface != NULL);
+    for(int q = 0; q < 4; q += 1) {
+        SDL_Rect quadrant = {(q % 2) * 4, (q / 2) * 4, 4, 4};
+        CHECK(SDL_FillSurfaceRect(surface, &quadrant, pixels[q]));
+    }
+    CHECK(SDL_SavePNG(surface, path));
+    SDL_DestroySurface(surface);
+    TextureAssetResult image = rohr_graphics_texture_load((TextureDescriptor){.file = path});
+    CHECK(!rohr_error_check(image));
+    AnimatedSprite runtime = rohr_graphics_animated_sprite_create((AnimationAsset){0}, (Scale){1,1});
+    AnimationFrame frame = rohr_graphics_animation_frame_create(image.result.value);
+    frame.offset = (Position){30,20};
+    frame.rotation = 90;
+    OK(rohr_graphics_animated_sprite_value_frame_add(&runtime, frame));
+    Entity entity = rohr_entity_add().result.value;
+    OK(rohr_graphics_animated_sprite_add(entity, runtime));
+    OK(rohr_graphics_texture_release(&image.result.value));
+    EditorProject project;
+    EditorViewportState state = {0};
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorAnimatedSprite *animation = editor_project_animated_sprite_add(&project, object);
+    CHECK(animation != NULL);
+    CHECK(editor_project_animation_frame_add(&project, animation, "frame", path, (Scale){1,1}));
+    animation->frames[0].offset = frame.offset;
+    animation->frames[0].rotation = frame.rotation;
+    animation->playing = false;
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    project.viewport_local_view = false;
+    project.viewport_camera_zoom = 1;
+    for(int app = 0; app < 2; app += 1) {
+        Position center = app ? (Position){670,340} :
+            (Position){EDITOR_VIEWPORT_WIDTH*.5f+30,
+                EDITOR_MENU_HEIGHT+(EDITOR_VIEWPORT_BOTTOM-EDITOR_MENU_HEIGHT)*.5f-20};
+        for(int horizontal = 0; horizontal < 2; horizontal += 1)
+        for(int vertical = 0; vertical < 2; vertical += 1)
+        for(int left = 0; left < 2; left += 1) {
+            Scale scale = {horizontal ? -10 : 10, vertical ? -10 : 10};
+            Direction direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
+            if(app) {
+                OK(rohr_graphics_animated_sprite_frame_scale_set(entity, 0, scale));
+                animated_sprites[rohr_entity_index_get(entity).result.value].direction = direction;
+                rohr_graphics_background_draw((Color){0,0,0,255});
+                CHECK(rohr_graphics_animated_sprite_draw(entity));
+                rohr_graphics_show();
+            } else {
+                animation->frames[0].scale = scale;
+                animation->direction = direction;
+                draw(&project, &state);
+                EditorSelectionRef selection;
+                CHECK(editor_viewport_selection_at_get(&project, &state,
+                    (Position){center.x+20,center.y+20}, &selection));
+                CHECK(selection.kind == EDITOR_SELECTION_ANIMATED_SPRITE);
+            }
+            for(int q = 0; q < 4; q += 1) {
+                int x = q % 2, y = q / 2;
+                /* A clockwise quarter turn maps image (x,y) to screen (-y,x). */
+                Position point = {center.x - (y ? 20 : -20), center.y + (x ? 20 : -20)};
+                int source = (x ^ horizontal ^ left) + 2 * (y ^ vertical);
+                CHECK(pixel_check(point, colors[source]));
+            }
+        }
+        if(app) {
+            OK(rohr_graphics_animated_sprite_frame_scale_set(entity, 0, (Scale){0,10}));
+            rohr_graphics_background_draw((Color){0,0,0,255});
+            CHECK(rohr_graphics_animated_sprite_draw(entity));
+            rohr_graphics_show();
+        } else {
+            animation->frames[0].scale = (Scale){0,10};
+            draw(&project, &state);
+            EditorSelectionRef selection;
+            CHECK(!editor_viewport_selection_at_get(&project, &state,
+                (Position){center.x+20,center.y+20}, &selection));
+        }
+        CHECK(pixel_check((Position){center.x+20,center.y+20}, (Color){0,0,0,255}));
+    }
+    OK(rohr_entity_delete(entity));
+    editor_viewport_assets_destroy();
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    CHECK(SDL_RemovePath(path));
+    return true;
+}
+
 bool editor_layers_check(void) {
     OK(rohr_engine_start());
     OK(rohr_graphics_start());
@@ -390,9 +483,12 @@ bool editor_layers_check(void) {
     CHECK(!rohr_error_check(viewport));
     OK(rohr_viewport_camera_clear(viewport.result.value));
     OK(rohr_viewport_disable_set(viewport.result.value));
+    CHECK(SDL_SaveFile("editor_layers_frame.png", test_png, sizeof(test_png)));
     bool passed = body_layers_check();
     editor_viewport_assets_destroy();
+    (void)SDL_RemovePath("editor_layers_frame.png");
     if(passed) passed = animation_direction_check();
+    if(passed) passed = frame_flips_check();
     rohr_graphics_stop();
     rohr_engine_stop();
     return passed;

@@ -1835,15 +1835,36 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 
 /**
  * @brief Loads or shares an immutable animation resource.
- * Frame offsets place centers relative to the sprite origin; frame rotations
- * are clockwise degrees about those centers. Sprite scale affects offsets and
- * dimensions; sprite orientation rotates offsets and adds to frame rotation.
- * Direction mirrors image content only. Omitted frame transforms are zero.
+ * The descriptor supplies image paths, stable IDs, and default timing.
+ * Frame transforms are copied into each instance and edited after creation.
  * @param anim_desc Animation descriptor containing load settings.
  * @return AnimationAssetResult containing the asset, or an error.
  */
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 
+/** Native pixel dimensions, independent of TextureAsset.size. */
+TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset);
+/** Borrowed image value with native size, scale {1,1}, zero offset/rotation/id. */
+AnimationFrame rohr_graphics_animation_frame_create(TextureAsset texture);
+/** Non-owning builders: copy values; keep image owners alive until component add.
+ * Use only on unattached values, never directly on an installed component.
+ * ID zero assigns an unused ID on add and preserves the current ID on set. */
+EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame);
+EngineResult rohr_graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite, size_t index, AnimationFrame frame);
+/** Get a copied instance frame with a borrowed image. Do not release its texture. */
+AnimationFrameResult rohr_graphics_animated_sprite_frame_get(Entity entity, size_t index);
+/** Instance mutation retains images, preserves playback, and rolls back on error.
+ * Signed scale flips content; zero collapses the image. All transforms must be finite. */
+EngineResult rohr_graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame);
+EngineResult rohr_graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame);
+EngineResult rohr_graphics_animated_sprite_frame_scale_set(Entity entity, size_t index, Scale scale);
+EngineResult rohr_graphics_animated_sprite_frame_offset_set(Entity entity, size_t index, Position offset);
+EngineResult rohr_graphics_animated_sprite_frame_rotation_set(Entity entity, size_t index, Orientation rotation);
+EngineResult rohr_graphics_animated_sprite_frame_rotation_radians_set(Entity entity, size_t index, Orientation rotation);
+TextureSizeResult rohr_graphics_animated_sprite_frame_scale_get(Entity entity, size_t index);
+PositionResult rohr_graphics_animated_sprite_frame_offset_get(Entity entity, size_t index);
+SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_get(Entity entity, size_t index);
+SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_radians_get(Entity entity, size_t index);
 /** @brief Adds one owning reference to a loaded animation asset. */
 EngineResult rohr_graphics_animation_retain(AnimationAsset asset);
 
@@ -1860,7 +1881,7 @@ bool rohr_graphics_animation_valid_check(AnimationAsset asset);
 /** @brief Returns immutable metadata for a loaded animation. */
 AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
 
-/** @brief Returns one immutable frame with a borrowed texture value. */
+/** @brief Returns a reusable catalog frame with scale one and a borrowed texture. */
 AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset,
     size_t frame_index);
 

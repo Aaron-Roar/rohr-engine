@@ -27,9 +27,14 @@ containing a static floor and a gravity-enabled box.
 ## Animation frame alignment
 
 An animation's Origin X/Y controls place its shared origin. Each frame has
-Offset X/Y, Rotation, and Width/Height controls. Moving the animation preserves
+Offset X/Y, Rotation, and Scale X/Y controls. Moving the animation preserves
 the offsets; rotating a frame turns it about its own center. Animation scale
-affects frame offsets and dimensions. Left/Right mirrors only the image.
+affects frame offsets and dimensions. Scale 1 uses the native image dimension;
+negative X/Y mirrors that image axis before rotation without moving its center.
+Left/Right combines with the X sign (two horizontal flips cancel). Zero on either
+axis hides the image and removes its image selection bounds; the frame remains
+editable in the frame list and properties. Multi-edit supports scale, offset,
+and rotation.
 
 Open a frame from the animation's frame list or double-click its viewport image.
 The selected frame stays visible while editing, even if animation playback is
@@ -44,8 +49,12 @@ rohr-cli --project objects/project.rohr.json --object character \
   --animated-sprite walk --frame-index 0 frame-transform-set 12 -4 15
 ```
 
-The final values are offset X, offset Y, and clockwise degrees. Existing project
-frames without transform fields default to zero offset and rotation.
+The final values are offset X, offset Y, and clockwise degrees. Use
+`frame-scale-set -1 1` with the same selectors to flip one frame horizontally.
+`frame-add name path scale-x scale-y` creates a frame. Project frame records now
+store `scale_x` and `scale_y`; `width`/`height` are rejected. Convert old dimensions
+by dividing each by that image’s native dimension. Omitted offset/rotation
+fields default to zero.
 
 ## Generated project layout
 
@@ -345,11 +354,11 @@ A pair responds only when both directional filters accept one another.
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 4; older project data must be rewritten.
+Project data uses format version 5; older project data must be rewritten.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
-generated C use the same units. Runtime state and templates use version 3;
+generated C use the same units. Runtime state and templates use version 4;
 old project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or

@@ -23,4 +23,7 @@ bool graphics_texture_command_reference_add(TextureHandle handle);
 void graphics_texture_command_reference_remove(TextureHandle handle);
 SDL_Texture *graphics_texture_native_get(TextureHandle handle);
 
+/* Borrowed normalized source path; valid while the texture is owned. */
+const char *graphics_texture_path_get(TextureAsset asset);
+
 #endif

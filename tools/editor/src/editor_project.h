@@ -32,7 +32,7 @@
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 4 stores clockwise degrees and degree-based angular rates. */
-#define EDITOR_PROJECT_FORMAT_VERSION 4
+#define EDITOR_PROJECT_FORMAT_VERSION 5
 #define EDITOR_NAVIGATION_MODE_MAX 29
 #define EDITOR_NAVIGATION_SELECTION_MAX 26
 
@@ -353,7 +353,7 @@ typedef struct EditorAnimationFrame {
     EditorSpriteId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     char path[EDITOR_ASSET_PATH_MAX];
-    Scale size;
+    Scale scale;
     Position offset;
     Orientation rotation;
 } EditorAnimationFrame;

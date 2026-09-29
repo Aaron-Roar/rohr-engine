@@ -3154,22 +3154,55 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 ```
 
-Loads or shares an immutable animation resource. The descriptor's
-`frame_offsets[]` place frame centers relative to the animation origin;
-`frame_rotations[]` specify clockwise degrees around each frame's own center.
-Omitted entries are zero. Frame lookup returns these as `offset` and `rotation`.
+Loads or shares an image catalog using `frame_files[]`, stable IDs, and default
+timing. Descriptors contain no dimensions or transforms. Catalog frame lookup
+returns a copied value with scale 1, offset/rotation zero, and a borrowed image.
+Each sprite receives independent transform copies while sharing image resources.
 
-The animated sprite's existing position/body offset is its origin. Drawing
-scales each frame's offset and dimensions by sprite scale, rotates the offset
-by sprite orientation, and draws at the resulting center with sprite orientation
-plus frame rotation. Dimensions remain rectangular, including nonuniform scale.
-Moving the origin preserves all frame offsets. Left/Right mirrors only texture
-content before rotation and never changes a frame's transform.
+Frame scale multiplies the native pixel dimensions. Negative X/Y flips image
+content before rotation; Left XORs the horizontal flip. Zero collapses drawing
+and image selection. Frame offsets and centers never change when frame scale
+changes. Sprite scale affects the whole arrangement, including offsets, and
+sprite orientation rotates the arrangement. Rotation defaults to clockwise degrees;
+the `_radians_` setter/getter explicitly converts radians.
 
-Alignment belongs to the immutable shared asset definition and participates in
-cache identity. Loading nonfinite offsets or rotations fails without acquiring
-a persistent asset reference. Replacing an animation uses the existing
-load/add/release ownership contract.
+Reusable values and post-creation mutation:
+
+```c
+TextureAssetResult image = rohr_graphics_texture_load(
+    (TextureDescriptor){.file = "assets/walk_1.png"});
+if(rohr_error_check(image)) return;
+AnimationFrame frame = rohr_graphics_animation_frame_create(image.result.value);
+frame.scale = (Scale){-0.5f, 0.5f};
+frame.offset = (Position){12, -4};
+frame.rotation = 15;
+
+AnimatedSprite animation = rohr_graphics_animated_sprite_create(
+    (AnimationAsset){0}, (Scale){1, 1});
+EngineResult result = rohr_graphics_animated_sprite_value_frame_add(&animation, frame);
+if(!rohr_error_check(result)) result = rohr_graphics_animated_sprite_add(entity_a, animation);
+if(!rohr_error_check(result)) result = rohr_graphics_animated_sprite_add(entity_b, animation);
+(void)rohr_graphics_texture_release(&image.result.value);
+if(rohr_error_check(result)) return;
+
+result = rohr_graphics_animated_sprite_frame_scale_set(entity_a, 0, (Scale){2, 1});
+/* entity_b and the reusable value retain their previous transforms. */
+```
+
+Value builders borrow image handles; keep the original owners until component
+insertion. Component insertion and entity frame setters acquire their own image
+references. Never use value builders directly on an installed component.
+Getters return copies containing borrowed images, which must not be released.
+Mutating a reusable value after insertion does not change previously inserted copies.
+
+The instance API offers `frame_get`, `frame_set`, and `frame_add`, plus
+`frame_scale_set/get`, `frame_offset_set/get`, and
+`frame_rotation_set/get` (`frame_rotation_radians_set/get` for radians),
+all prefixed `rohr_graphics_animated_sprite_` and addressed by entity and
+zero-based frame index. `rohr_graphics_texture_size_get` returns native pixels.
+Setters accept finite signed/zero scale, preserve playback progress and timing,
+and leave prior state and ownership intact on error. Frame ID zero auto-assigns
+on add and preserves the previous ID on replacement; duplicate IDs are rejected.
 
 | Parameter | Description |
 | --- | --- |
@@ -3219,7 +3252,7 @@ AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
 AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index);
 ```
 
- @brief Returns one immutable frame with a borrowed texture value.
+ @brief Returns a copied catalog frame with scale one and a borrowed texture value.
 
 ### `rohr_graphics_animation_player_create`
 

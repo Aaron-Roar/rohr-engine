@@ -466,7 +466,7 @@ static int creation_result_test(void) {
     command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_ADD,
         .data.animation_frame_add = {.object = object->id,
             .sprite = animation.result.object, .name = "frame_1",
-            .path = "frame.png", .size = {32.0f, 32.0f}}};
+            .path = "frame.png", .scale = {32.0f, 32.0f}}};
     frame = editor_command_execute(&project, &command);
     if(sprite.kind != ERROR_RESULT_VALUE || !sprite.created.valid ||
             sprite.created.kind != EDITOR_ITEM_SPRITE ||
@@ -1357,7 +1357,7 @@ static int sprite_commands_test(void) {
     command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_ADD,
         .data.animation_frame_add = {.object = object->id, .sprite = animated->id,
             .name = "wheel_frame", .path = "assets/wheel.png",
-            .size = {32.0f, 24.0f}}};
+            .scale = {32.0f, 24.0f}}};
     executed = editor_command_execute(&project, &command);
     if(executed.kind != ERROR_RESULT_VALUE) return 1;
     result = editor_command_cli_standard_write(&project, &command, &executed,
@@ -1376,29 +1376,29 @@ static int sprite_commands_test(void) {
             parsed.data.animation_frame_add.sprite != animated->id ||
             strcmp(parsed.data.animation_frame_add.name, "wheel_frame") != 0 ||
             strcmp(parsed.data.animation_frame_add.path, "assets/wheel.png") != 0 ||
-            parsed.data.animation_frame_add.size.x != 32.0f ||
-            parsed.data.animation_frame_add.size.y != 24.0f) return 1;
+            parsed.data.animation_frame_add.scale.x != 32.0f ||
+            parsed.data.animation_frame_add.scale.y != 24.0f) return 1;
 
-    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET,
-        .data.animation_frame_size_set = {.object = object->id,
-            .sprite = animated->id, .index = 0, .size = {48.0f, 36.0f}}};
+    command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
+        .data.animation_frame_scale_set = {.object = object->id,
+            .sprite = animated->id, .index = 0, .scale = {-48.0f, 0.0f}}};
     executed = editor_command_execute(&project, &command);
-    if(executed.kind != ERROR_RESULT_VALUE || animated->frames[0].size.x != 48.0f ||
-            animated->frames[0].size.y != 36.0f) return 1;
+    if(executed.kind != ERROR_RESULT_VALUE || animated->frames[0].scale.x != -48.0f ||
+            animated->frames[0].scale.y != 0.0f) return 1;
     result = editor_command_cli_standard_write(&project, &command, &executed,
         "project.rohr.json", text, sizeof(text));
     if(editor_result_check(result) || strstr(text, "--frame-index 0") == NULL ||
-            strstr(text, "frame-size-set 48 36") == NULL) return 1;
+            strstr(text, "frame-scale-set -48 0") == NULL) return 1;
     count = 0;
     for(char *token = strtok(text, " "); token != NULL && count < 32;
             token = strtok(NULL, " ")) arguments[count++] = token;
     result = editor_command_cli_standard_parse(&project, count, arguments, &path,
         &parsed);
     if(editor_result_check(result) ||
-            parsed.type != EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET ||
-            parsed.data.animation_frame_size_set.index != 0 ||
-            parsed.data.animation_frame_size_set.size.x != 48.0f ||
-            parsed.data.animation_frame_size_set.size.y != 36.0f) return 1;
+            parsed.type != EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET ||
+            parsed.data.animation_frame_scale_set.index != 0 ||
+            parsed.data.animation_frame_scale_set.scale.x != -48.0f ||
+            parsed.data.animation_frame_scale_set.scale.y != 0.0f) return 1;
 
     command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
         .data.animation_frame_transform_set = {object->id, animated->id, 0,

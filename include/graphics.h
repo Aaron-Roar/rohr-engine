@@ -285,18 +285,15 @@ typedef struct {
   Scale size;
 } TextureDescriptor;
 
-/** Descriptor for loading an animation from texture descriptors. */
+/** Descriptor for loading a shared image catalog with default timing. */
 typedef struct {
   /** Stable project identity. Zero selects the compatibility default of one. */
   AnimationId id;
-  /** Texture descriptors for each animation frame. */
-  TextureDescriptor texture_descriptors[MAX_ANIMATIONS_FRAMES];
+  /** Image paths for each catalog frame. Instance transforms are set after creation. */
+  const char *frame_files[MAX_ANIMATIONS_FRAMES];
   /** Stable frame IDs. Zero entries default to their one-based frame index. */
   AnimationFrameId frame_ids[MAX_ANIMATIONS_FRAMES];
-  /** Frame centers relative to the animation origin, before sprite scale/rotation. */
-  Position frame_offsets[MAX_ANIMATIONS_FRAMES];
-  /** Clockwise degrees around each frame's own center. Zero is unrotated. */
-  Orientation frame_rotations[MAX_ANIMATIONS_FRAMES];
+
   /** Number of valid descriptors. */
   uint8_t amount_of_descriptors;
   /** Frame duration measured in engine ticks. */
@@ -321,6 +318,7 @@ typedef struct {
 
 /** Result type for functions that return a TextureAsset. */
 ERROR_DECLARE_RESULT_TYPE(TextureAssetResult, TextureAsset);
+ERROR_DECLARE_RESULT_TYPE(TextureSizeResult, Scale);
 
 /** Descriptor for loading a scalable font from disk. */
 typedef struct FontDescriptor {
@@ -369,10 +367,11 @@ typedef struct {
     Time time_per_frame;
 } AnimationInfo;
 
-/** One immutable animation frame. The texture value is borrowed. */
+/** Reusable frame value. The texture is borrowed; copies have independent transforms. */
 typedef struct {
     AnimationFrameId id;
     TextureAsset texture;
+    Scale scale;
     Position offset;
     Orientation rotation;
 } AnimationFrame;
@@ -389,6 +388,7 @@ ERROR_DECLARE_RESULT_TYPE(AnimationFrameResult, AnimationFrame);
 typedef struct AnimationPlayer {
     AnimationAsset animation;
     size_t frame_index;
+    size_t frame_count;
     Tick last_update_tick;
     Time last_update_time;
     Tick ticks_per_frame;
@@ -417,6 +417,9 @@ extern SpritePool sprites_pool;
 typedef struct {
     /** Per-sprite playback state for a shared animation asset. */
     AnimationPlayer player;
+    /** Instance frame values; value construction borrows images, ECS insertion retains them. */
+    AnimationFrame frames[MAX_ANIMATIONS_FRAMES];
+    size_t frame_count;
     /** Current draw direction. */
     Direction direction;
     /** Draw scale. */
@@ -620,6 +623,30 @@ bool graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
 
 /** Load or share an immutable animation and return one owning reference. */
 AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);
+
+/** Native pixel dimensions, independent of TextureAsset.size. */
+TextureSizeResult graphics_texture_size_get(TextureAsset asset);
+/** Borrowed image value with native size, scale {1,1}, zero offset/rotation/id. */
+AnimationFrame graphics_animation_frame_create(TextureAsset texture);
+/** Non-owning builders: copy values; keep image owners alive until component add.
+ * Use only on unattached values, never directly on an installed component.
+ * ID zero assigns an unused ID on add and preserves the current ID on set. */
+EngineResult graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame);
+EngineResult graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite, size_t index, AnimationFrame frame);
+/** Get a copied instance frame with a borrowed image. Do not release its texture. */
+AnimationFrameResult graphics_animated_sprite_frame_get(Entity entity, size_t index);
+/** Instance mutation retains images, preserves playback, and rolls back on error.
+ * Signed scale flips content; zero collapses the image. All transforms must be finite. */
+EngineResult graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame);
+EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame);
+EngineResult graphics_animated_sprite_frame_scale_set(Entity entity, size_t index, Scale scale);
+EngineResult graphics_animated_sprite_frame_offset_set(Entity entity, size_t index, Position offset);
+EngineResult graphics_animated_sprite_frame_rotation_set(Entity entity, size_t index, Orientation rotation);
+EngineResult graphics_animated_sprite_frame_rotation_radians_set(Entity entity, size_t index, Orientation rotation);
+TextureSizeResult graphics_animated_sprite_frame_scale_get(Entity entity, size_t index);
+PositionResult graphics_animated_sprite_frame_offset_get(Entity entity, size_t index);
+SpriteOrientationResult graphics_animated_sprite_frame_rotation_get(Entity entity, size_t index);
+SpriteOrientationResult graphics_animated_sprite_frame_rotation_radians_get(Entity entity, size_t index);
 /** Add one owning reference to a loaded animation asset. */
 EngineResult graphics_animation_retain(AnimationAsset asset);
 /** Release one owning reference and clear the caller's asset value. */
@@ -628,7 +655,7 @@ EngineResult graphics_animation_release(AnimationAsset *asset);
 bool graphics_animation_valid_check(AnimationAsset asset);
 /** Return immutable metadata stored for an animation asset. */
 AnimationInfoResult graphics_animation_info_get(AnimationAsset asset);
-/** Return one immutable frame whose texture value is borrowed. */
+/** Return a reusable catalog frame with scale one and a borrowed texture. */
 AnimationFrameResult graphics_animation_frame_get(AnimationAsset asset,
     size_t frame_index);
 

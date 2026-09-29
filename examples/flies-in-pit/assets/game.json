@@ -1,5 +1,5 @@
 {
-    "version": 3,
+    "version": 4,
     "camera": {
         "attachment": {
             "entity": "large_fly",
@@ -161,6 +161,140 @@
                     }
                 ],
                 "animated_sprite": {
+                    "frames": [
+                        {
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "y": 0.125,
+                                "x": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            }
+                        },
+                        {
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "y": 0.125,
+                                "x": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0
+                        }
+                    ],
                     "scale": {
                         "x": 10.0,
                         "y": 10.0
@@ -210,6 +344,140 @@
                     }
                 ],
                 "animated_sprite": {
+                    "frames": [
+                        {
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "y": 0.125,
+                                "x": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            }
+                        },
+                        {
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0,
+                            "scale": {
+                                "y": 0.125,
+                                "x": 0.125
+                            }
+                        },
+                        {
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "rotation": 0,
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            }
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "offset": {
+                                "x": 0,
+                                "y": 0
+                            },
+                            "rotation": 0
+                        },
+                        {
+                            "scale": {
+                                "x": 0.125,
+                                "y": 0.125
+                            },
+                            "offset": {
+                                "y": 0,
+                                "x": 0
+                            },
+                            "rotation": 0
+                        }
+                    ],
                     "scale": {
                         "x": 0.4681777358055115,
                         "y": 0.4681777358055115
@@ -269,88 +537,40 @@
                 "time_per_frame": 0.05,
                 "frames": [
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f1.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f1.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f2.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f2.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f3.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f3.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f4.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f4.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f5.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f5.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f6.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f6.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f7.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f7.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f8.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f8.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f9.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f9.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f10.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f10.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f11.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f11.png"
                     },
                     {
-                        "file": "assets/flies-in-pit/elder-fly/flying/f12.png",
-                        "size": {
-                            "x": 50.0,
-                            "y": 50.0
-                        }
+                        "file": "assets/flies-in-pit/elder-fly/flying/f12.png"
                     }
                 ]
             }

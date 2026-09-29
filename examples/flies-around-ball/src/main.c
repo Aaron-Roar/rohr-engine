@@ -108,6 +108,10 @@ int main(void) {
     }
     animation = animation_result.result.value;
     sprite = rohr_graphics_animated_sprite_create(animation, (Scale){3,3});
+    for(size_t frame = 0; frame < sprite.frame_count; frame += 1) {
+        Scale pixels = rohr_graphics_texture_size_get(sprite.frames[frame].texture).result.value;
+        sprite.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};
+    }
 
     EntityResult ball_result = rohr_entity_add();
     if(rohr_error_check(ball_result)) {
@@ -155,6 +159,10 @@ int main(void) {
             goto fail;
         }
         sprite = rohr_graphics_animated_sprite_create(animation, (Scale){size/10, size/10});
+        for(size_t frame = 0; frame < sprite.frame_count; frame += 1) {
+            Scale pixels = rohr_graphics_texture_size_get(sprite.frames[frame].texture).result.value;
+            sprite.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};
+        }
         sprite.player.time_per_frame = rohr_tools_random_range_float(0.005, 0.5);
         rohr_graphics_animated_sprite_add(small_fly, sprite);
         rohr_entity_components_add(small_fly, ROHR_PARTICLE);

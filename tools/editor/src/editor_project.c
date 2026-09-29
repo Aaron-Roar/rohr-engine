@@ -3373,12 +3373,12 @@ bool editor_project_animation_frame_add(EditorProject *project,
         Scale size) {
     EditorAnimationFrame *frame;
     if(project == NULL || animated_sprite == NULL || name == NULL || path == NULL ||
-            name[0] == '\0' || path[0] == '\0' || size.x <= 0.0f || size.y <= 0.0f ||
+            name[0] == '\0' || path[0] == '\0' || !isfinite(size.x) || !isfinite(size.y) ||
             !EDITOR_ARRAY_RESERVE(animated_sprite->frames,
                 animated_sprite->frame_capacity,
                 animated_sprite->frame_count + 1)) return false;
     frame = &animated_sprite->frames[animated_sprite->frame_count++];
-    *frame = (EditorAnimationFrame){.id = project->next_sprite_id++, .size = size};
+    *frame = (EditorAnimationFrame){.id = project->next_sprite_id++, .scale = size};
     editor_project_property_name_format(frame->name, sizeof(frame->name), name);
     snprintf(frame->path, sizeof(frame->path), "%s", path);
     return true;

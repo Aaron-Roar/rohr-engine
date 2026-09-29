@@ -12,6 +12,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include "../../../tests/test_png.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -91,7 +92,7 @@ static void animation_frame_history_check(void) {
     for(size_t zoom = 0; zoom < 3; zoom += 1) {
         EditorProject project;
         EditorHistory history;
-        EditorViewportState viewport;
+        EditorViewportState viewport = {0};
         editor_project_init(&project);
         project.viewport_local_view = false;
         project.viewport_camera_zoom = zooms[zoom];
@@ -108,9 +109,9 @@ static void animation_frame_history_check(void) {
         animation->editor_position = (Position){10,5};
         animation->follow_body_rotation = true;
         animation->scale = (Scale){2,3};
-        assert(editor_project_animation_frame_add(&project, animation, "first", "first.png",
+        assert(editor_project_animation_frame_add(&project, animation, "first", "editor_history_frame.png",
             (Scale){20,20}));
-        assert(editor_project_animation_frame_add(&project, animation, "second", "second.png",
+        assert(editor_project_animation_frame_add(&project, animation, "second", "editor_history_frame.png",
             (Scale){20,20}));
         animation->frames[1].offset = (Position){30,20};
         animation->frames[1].rotation = 450;
@@ -186,6 +187,25 @@ static void animation_frame_history_check(void) {
             assert(viewport.selected_animation_frame == animation->frames[0].id);
             assert(animation->frames[1].offset.x > 39.99f);
         }
+        size_t undo_count = history.undo_count;
+        EditorCommand scale_command = {.type = EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
+            .data.animation_frame_scale_set = {project.objects[0].id, id, 1, {-2,0}}};
+        assert(editor_command_execute(&project, &scale_command).kind == ERROR_RESULT_VALUE);
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        Position preserved_offset = animation->frames[1].offset;
+        assert(animation->frames[1].scale.x == -2 && animation->frames[1].scale.y == 0);
+        assert(history.undo_count == undo_count + 1);
+        scale_command.data.animation_frame_scale_set.scale.x = NAN;
+        assert(editor_command_execute(&project, &scale_command).kind == ERROR_RESULT_ERROR);
+        assert(history.undo_count == undo_count + 1 && animation->frames[1].scale.x == -2);
+        assert(editor_history_undo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->frames[1].scale.x == 20 && animation->frames[1].scale.y == 20);
+        assert(editor_history_redo(&history));
+        animation = editor_project_animated_sprite_get(&project.objects[0], id);
+        assert(animation->frames[1].scale.x == -2 && animation->frames[1].scale.y == 0 &&
+            animation->frames[1].offset.x == preserved_offset.x &&
+            animation->frames[1].offset.y == preserved_offset.y);
         editor_command_executing_callback_set(NULL, NULL);
         editor_command_finished_callback_set(NULL, NULL);
         callback_history = NULL;
@@ -209,7 +229,7 @@ static void angular_history_check(void) {
         grab_offset, 810) == 810);
     EditorProject project;
     EditorHistory history;
-    EditorViewportState viewport;
+    EditorViewportState viewport = {0};
     editor_project_init(&project);
     project.viewport_local_view = false;
     EditorObject *object = editor_project_object_add(&project, (Position){0});
@@ -422,6 +442,7 @@ static void center_of_mass_interaction_check(void) {
 }
 
 int main(void) {
+    if(!SDL_SaveFile("editor_history_frame.png", test_png, sizeof(test_png))) return 1;
     angular_history_check();
     animation_frame_history_check();
     center_of_mass_interaction_check();
@@ -1459,7 +1480,7 @@ int main(void) {
         animation_id = animation->id;
         animation->editor_position = (Position){-300.0f, 150.0f};
         assert(editor_project_animation_frame_add(&project, animation,
-            "frame", "frame.png", (Scale){64.0f, 64.0f}));
+            "frame", "editor_history_frame.png", (Scale){64.0f, 64.0f}));
         editor_history_reset(&history);
         editor_viewport_state_init(&viewport);
         viewport.mode = EDITOR_VIEWPORT_OBJECT;
@@ -1813,5 +1834,7 @@ int main(void) {
 
     editor_viewport_state_destroy(&viewport);
     editor_history_destroy(&history);
+    editor_viewport_assets_destroy();
+    (void)SDL_RemovePath("editor_history_frame.png");
     return 0;
 }

@@ -113,16 +113,16 @@ ownership.
 Animations are immutable registry resources addressed through
 generation-checked `AnimationAsset` handles. Registry identity includes the
 normalized stable animation ID, ordered stable frame IDs, resolved frame
-textures and their logical sizes, frame center offsets and clockwise degree
-rotations, and tick/time timing. Zero IDs normalize to
+textures and tick/time timing. Frame transforms are copied into each sprite
+instance, outside catalog identity. Zero IDs normalize to
 their documented compatibility defaults. Identical definitions share one
 resource; changing any identity input creates a distinct animation.
 
 Each animation resource owns one texture reference per ordered frame until its
 final animation reference is released. Loading an identical animation adds an
 animation owner without adding another persistent set of frame references.
-Animation information is returned by value, while each immutable frame value
-contains a borrowed texture. Callers must not release a borrowed frame texture
+Animation information is returned by value; frame getters return reusable values
+containing borrowed textures. Callers must not release a borrowed frame texture
 unless they first retain their own copy. A successful animation load or
 explicit retain creates one owner, and a successful release consumes one owner
 and clears the supplied asset. Zero release is idempotent; null pointers and
@@ -132,8 +132,13 @@ Mutable playback lives in `AnimationPlayer`, separate from shared animation
 data. Player and animated-sprite value construction are non-owning. Every player
 has an independent frame index, update timestamps, and effective tick/time
 durations initialized from the asset defaults. Successful animated-sprite
-component insertion retains the animation; replacement, removal, entity
-deletion, and graphics teardown release component ownership.
+component insertion retains the optional catalog and each instance frame texture;
+replacement, removal, entity deletion, and graphics teardown release all these
+owners. Frame setters retain the replacement before releasing the previous image,
+copy transforms, preserve playback, and leave prior state intact on failure.
+Frame values and value builders borrow images until component insertion; callers
+must keep their image owners alive until then. Scale multiplies native pixel
+size, signed axes mirror image content, and zero collapses drawing/selection.
 
 Invalid definitions and partial frame-load failures release every texture
 acquired during the attempt. Releasing the final animation owner releases its

@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `3`. A state may be split across
+Game state uses yyjson and schema version `4`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 3,
+  "version": 4,
   "entities": [
     {
       "name": "player",
@@ -265,10 +265,17 @@ Animations are named once in the top-level asset catalog. State loading must
 occur after `rohr_graphics_start()` when a file contains animation assets, because
 the engine creates SDL textures while connecting the state. Animation and frame
 `id` values are stable unsigned project identities used by cross-system bindings.
-Each asset frame may also specify `"offset": {"x": 12, "y": -4}` and
-`"rotation": 15`. These default to zero, are finite, and describe the frame
-center relative to the animation origin and clockwise degrees around its own
-center. Both runtime saves and template saves preserve frame alignment.
+Catalog frames contain only image files and IDs. Instance `animated_sprite.frames`
+records contain `scale`, `offset`, and `rotation`, with optional `file` and `id`
+overrides. Omit the array to copy the catalog with scale 1 and zero offset/rotation.
+Each instance owns its transforms; runtime saves preserve replaced/appended frames,
+while template saves preserve the authored description. Scale multiplies native
+image dimensions, signed axes flip image content, and zero collapses the image.
+Offsets place frame centers relative to the animation origin; rotation uses
+clockwise degrees about each center. Transform values must be finite.
+Version 3 and old catalog `size`/transform fields are rejected. To rewrite old
+dimensions, divide them by the image's native width/height and put the resulting
+scale on each sprite instance.
 
 Legacy definitions may omit IDs; animations then use their one-based catalog
 position and frames use their one-based frame position.
@@ -282,8 +289,7 @@ position and frames use their one-based frame position.
     "time_per_frame": 0.05,
     "frames": [{
       "id": 1,
-      "file": "assets/elderfly/flying/f1.png",
-      "size": {"x": 50, "y": 50}
+      "file": "assets/elderfly/flying/f1.png"
     }]
   }]
 }
@@ -294,6 +300,8 @@ Counted prototypes can vary sprite values deterministically by instance:
 ```json
 "animated_sprite": {
   "animation": "elderfly_flying",
+  "frames": [{"scale": {"x": 0.125, "y": 0.125},
+              "offset": {"x": 0, "y": 0}, "rotation": 0}],
   "scale": {"x": 0.4, "y": 0.4},
   "time_per_frame": 0,
   "ticks_per_frame": 3,

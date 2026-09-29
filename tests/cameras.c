@@ -340,6 +340,8 @@ int main(void) {
         rohr_engine_stop();
         return 1;
     }
+    /* The attachment test deleted its entity; layer checks need a live one. */
+    target_entity_result = rohr_entity_add();
     viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
     default_font = rohr_graphics_font_default_get();
     default_text = rohr_graphics_text_create(&default_font, "Built-In 123!",
@@ -348,7 +350,8 @@ int main(void) {
         rohr_error_check(default_text) ? (TextAsset){0} : default_text.result.value,
         .scale = {2.0f, 2.0f}};
     second_viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
-    if(rohr_error_check(viewport_result) || rohr_error_check(second_viewport_result) ||
+    if(rohr_error_check(target_entity_result) || rohr_error_check(viewport_result) ||
+            rohr_error_check(second_viewport_result) ||
             rohr_error_check(default_text) ||
             !rohr_graphics_text_value_set(&default_text.result.value,
                 "Built-In Font") ||

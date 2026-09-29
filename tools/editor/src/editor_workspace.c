@@ -419,9 +419,9 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     animation->time_per_frame = 0.2;
     animation->playing = true;
     if(!editor_project_animation_frame_add(project, animation, "frame_1",
-            "assets/tutorial_frame_1.png", (Scale){64.0f, 64.0f}) ||
+            "assets/tutorial_frame_1.png", (Scale){0.16f, 0.16f}) ||
             !editor_project_animation_frame_add(project, animation, "frame_2",
-                "assets/tutorial_frame_2.png", (Scale){64.0f, 64.0f})) return false;
+                "assets/tutorial_frame_2.png", (Scale){0.16f, 0.16f})) return false;
     animation = editor_project_animated_sprite_add(project, starter);
     if(animation == NULL) return false;
     snprintf(animation->name, sizeof(animation->name), "free_animation");
@@ -429,9 +429,9 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     animation->time_per_frame = 0.2;
     animation->playing = true;
     if(!editor_project_animation_frame_add(project, animation, "frame_1",
-            "assets/tutorial_frame_1.png", (Scale){64.0f, 64.0f}) ||
+            "assets/tutorial_frame_1.png", (Scale){0.16f, 0.16f}) ||
             !editor_project_animation_frame_add(project, animation, "frame_2",
-                "assets/tutorial_frame_2.png", (Scale){64.0f, 64.0f})) return false;
+                "assets/tutorial_frame_2.png", (Scale){0.16f, 0.16f})) return false;
     editor_project_selection_clear(project);
     return true;
 }
@@ -1063,21 +1063,11 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
                 fprintf(source, "%sUINT32_C(%u)", frame == 0 ? "" : ", ",
                     sprite->frames[frame].id);
-            fprintf(source, "}, .frame_offsets = {");
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
-                fprintf(source, "%s{%#.9gf, %#.9gf}", frame == 0 ? "" : ", ",
-                    sprite->frames[frame].offset.x, sprite->frames[frame].offset.y);
-            fprintf(source, "}, .frame_rotations = {");
-            for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
-                fprintf(source, "%s%#.9gf", frame == 0 ? "" : ", ",
-                    sprite->frames[frame].rotation);
-            fprintf(source, "}, .texture_descriptors = {");
+            fprintf(source, "}, .frame_files = {");
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
                 const EditorAnimationFrame *asset = &sprite->frames[frame];
-                fprintf(source, "%s{.file = ", frame == 0 ? "" : ", ");
+                fprintf(source, "%s", frame == 0 ? "" : ", ");
                 editor_workspace_c_string_write(source, asset->path);
-                fprintf(source, ", .size = {%#.9gf, %#.9gf}}",
-                    asset->size.x, asset->size.y);
             }
             fprintf(source,
                 "}};\n"
@@ -1093,10 +1083,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "      animated.orientation_offset = %#.9gf;\n"
                 "      animated.direction = %s;\n"
                 "      animated.follow_entity_rotation = %s;\n"
-                "      animated.visible = %s;\n"
-                "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
-                "      (void)rohr_graphics_animation_release(&loaded.result.value);\n"
-                "      if(rohr_error_check(result)) goto fail; }\n",
+                "      animated.visible = %s;\n",
                 sprite->scale.x, sprite->scale.y, sprite->starting_frame,
                 body == NULL ? 0.0f : sprite->editor_position.x,
                 body == NULL ? 0.0f : sprite->editor_position.y,
@@ -1104,7 +1091,20 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 sprite->direction == DIRECTION_LEFT ? "DIRECTION_LEFT" :
                     "DIRECTION_RIGHT",
                 sprite->follow_body_rotation ? "true" : "false",
-                sprite->visible ? "true" : "false", target);
+                sprite->visible ? "true" : "false");
+            for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
+                const EditorAnimationFrame *value = &sprite->frames[frame];
+                fprintf(source,
+                    "      animated.frames[%zu].scale = (Scale){%#.9gf, %#.9gf};\n"
+                    "      animated.frames[%zu].offset = (Position){%#.9gf, %#.9gf};\n"
+                    "      animated.frames[%zu].rotation = %#.9gf;\n",
+                    frame, value->scale.x, value->scale.y,
+                    frame, value->offset.x, value->offset.y, frame, value->rotation);
+            }
+            fprintf(source,
+                "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
+                "      (void)rohr_graphics_animation_release(&loaded.result.value);\n"
+                "      if(rohr_error_check(result)) goto fail; }\n", target);
             if(body != NULL) {
                 for(size_t binding_index = 0;
                         binding_index < body->hitbox_animation_binding_count;

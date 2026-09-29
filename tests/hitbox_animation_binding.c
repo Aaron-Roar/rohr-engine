@@ -27,10 +27,10 @@ int main(void) {
     if(rohr_error_check(rohr_graphics_start())) goto fail;
     animation_result = rohr_graphics_animation_load((AnimationDescriptor){
         .id = 41,
-        .texture_descriptors = {
-            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
-            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
-            {"hitbox_animation_binding.png", {1.0f, 1.0f}},
+        .frame_files = {
+            "hitbox_animation_binding.png",
+            "hitbox_animation_binding.png",
+            "hitbox_animation_binding.png",
         },
         .frame_ids = {101, 102, 103},
         .amount_of_descriptors = 3,

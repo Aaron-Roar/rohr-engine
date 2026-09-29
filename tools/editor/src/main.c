@@ -4398,7 +4398,7 @@ int main(int argc, char **argv) {
                                 .data.animation_frame_add = {
                                     .object = sprite_browser_object,
                                     .sprite = animation_browser_sprite,
-                                    .size = {64.0f, 64.0f}}};
+                                    .scale = {1.0f, 1.0f}}};
                             EditorCommandResult added;
                             if(!editor_file_browser_selected_path_get(&file_browser, i,
                                     selected_path, sizeof(selected_path))) {

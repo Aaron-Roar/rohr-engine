@@ -154,6 +154,7 @@ static void editor_view_scene_layer_set(EditorGraphicsLayerBinding binding, int 
 typedef struct EditorPreviewTexture {
     char path[EDITOR_ASSET_PATH_MAX * 2];
     TextureAsset texture;
+    Scale source_size;
     bool failed;
 } EditorPreviewTexture;
 
@@ -238,6 +239,7 @@ static size_t editor_animation_preview_frame_get(const EditorObject *object,
     return preview->frame_index;
 }
 
+static Scale editor_animation_frame_size_get(const EditorAnimationFrame *frame);
 static Position editor_sprite_world_get(const EditorObject *object,
     const EditorSprite *sprite);
 static Position editor_animated_sprite_world_get(const EditorObject *object,
@@ -269,6 +271,7 @@ static Position editor_sprite_rotation_handle_get(Position center,
 
 static bool editor_sprite_point_contains(Position center, Scale size,
         Orientation rotation, Position point) {
+    if(size.x == 0 || size.y == 0) return false;
     Vec2D offset = {point.x - center.x, point.y - center.y};
     Vec2D local = math_vector_rotate(offset, -rotation);
 
@@ -320,7 +323,7 @@ void editor_viewport_assets_destroy(void) {
     editor_asset_root[0] = '\0';
 }
 
-static TextureAsset *editor_preview_texture_get(const char *path) {
+static EditorPreviewTexture *editor_preview_texture_entry_get(const char *path) {
     char resolved[EDITOR_ASSET_PATH_MAX * 2];
     SDL_PathInfo info;
     bool absolute;
@@ -336,8 +339,7 @@ static TextureAsset *editor_preview_texture_get(const char *path) {
         path);
     for(size_t i = 0; i < editor_preview_texture_count; i += 1) {
         if(strcmp(editor_preview_textures[i].path, resolved) == 0)
-            return editor_preview_textures[i].failed ? NULL :
-                &editor_preview_textures[i].texture;
+            return &editor_preview_textures[i];
     }
     if(!SDL_GetPathInfo(resolved, &info) || info.type != SDL_PATHTYPE_FILE) return NULL;
     if(editor_preview_texture_count == editor_preview_texture_capacity) {
@@ -352,17 +354,34 @@ static TextureAsset *editor_preview_texture_get(const char *path) {
     {
         EditorPreviewTexture *entry =
             &editor_preview_textures[editor_preview_texture_count++];
-        TextureAssetResult result;
         *entry = (EditorPreviewTexture){0};
         snprintf(entry->path, sizeof(entry->path), "%s", resolved);
-        result = rohr_graphics_texture_load((TextureDescriptor){resolved, {1.0f, 1.0f}});
-        if(rohr_error_check(result)) {
-            entry->failed = true;
-            return NULL;
-        }
-        entry->texture = result.result.value;
-        return &entry->texture;
+        SDL_Surface *surface = SDL_LoadPNG(resolved);
+        if(surface != NULL) {
+            entry->source_size = (Scale){(float)surface->w, (float)surface->h};
+            SDL_DestroySurface(surface);
+        } else entry->failed = true;
+        return entry;
     }
+}
+
+static TextureAsset *editor_preview_texture_get(const char *path) {
+    EditorPreviewTexture *entry = editor_preview_texture_entry_get(path);
+    if(entry == NULL || entry->failed) return NULL;
+    if(entry->texture.handle == TEXTURE_HANDLE_INVALID) {
+        TextureAssetResult loaded = rohr_graphics_texture_load(
+            (TextureDescriptor){entry->path, entry->source_size});
+        if(rohr_error_check(loaded)) return NULL;
+        entry->texture = loaded.result.value;
+    }
+    return &entry->texture;
+}
+
+static Scale editor_animation_frame_size_get(const EditorAnimationFrame *frame) {
+    EditorPreviewTexture *entry = editor_preview_texture_entry_get(frame->path);
+    if(entry == NULL || entry->failed) return (Scale){0};
+    return (Scale){entry->source_size.x * frame->scale.x,
+        entry->source_size.y * frame->scale.y};
 }
 
 static void editor_view_transform_set(const EditorProject *project,
@@ -1520,11 +1539,13 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
         Orientation rotation;
         EditorMarqueeBounds bounds;
         if(!animation->visible || frame == NULL) continue;
+        Scale frame_size = editor_animation_frame_size_get(frame);
+        if(frame_size.x == 0 || frame_size.y == 0) continue;
         world = editor_animation_frame_world_get(object, animation, frame, &rotation);
         Vec2D x = math_vector_rotate((Vec2D){
-            frame->size.x * animation->scale.x * 0.5f, 0}, rotation);
+            editor_animation_frame_size_get(frame).x * animation->scale.x * 0.5f, 0}, rotation);
         Vec2D y = math_vector_rotate((Vec2D){0,
-            frame->size.y * animation->scale.y * 0.5f}, rotation);
+            editor_animation_frame_size_get(frame).y * animation->scale.y * 0.5f}, rotation);
         float half_width = fabsf(x.x) + fabsf(y.x);
         float half_height = fabsf(x.y) + fabsf(y.y);
         bounds = (EditorMarqueeBounds){world.x - half_width, world.x + half_width,
@@ -2081,8 +2102,8 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
             editor_animation_preview_frame_get(object, sprite, state)];
         Orientation rotation;
         center = editor_animation_frame_world_get(object, sprite, frame, &rotation);
-        size = (Scale){frame->size.x * sprite->scale.x,
-            frame->size.y * sprite->scale.y};
+        size = (Scale){editor_animation_frame_size_get(frame).x * sprite->scale.x,
+            editor_animation_frame_size_get(frame).y * sprite->scale.y};
         if(editor_sprite_point_contains(center, size, rotation, point)) return true;
     }
     for(size_t i = 0; i < object->camera_count; i += 1) {
@@ -3062,8 +3083,8 @@ static bool editor_group_point_hit(EditorProject *project,
                 Orientation rotation;
                 point = editor_animation_frame_world_get(object, animation, frame, &rotation);
                 if(editor_sprite_point_contains(point, (Scale){
-                        frame->size.x * animation->scale.x,
-                        frame->size.y * animation->scale.y}, rotation, pointer)) return true;
+                        editor_animation_frame_size_get(frame).x * animation->scale.x,
+                        editor_animation_frame_size_get(frame).y * animation->scale.y}, rotation, pointer)) return true;
             }
         } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
             EditorCamera *camera = editor_project_camera_get(object, ref.item);
@@ -3446,8 +3467,8 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         frame = &sprite->frames[frame_index];
         center = editor_animation_frame_world_get(object, sprite, frame, &rotation);
         if(!editor_sprite_point_contains(center,
-                (Scale){frame->size.x * sprite->scale.x,
-                    frame->size.y * sprite->scale.y}, rotation, pointer)) continue;
+                (Scale){editor_animation_frame_size_get(frame).x * sprite->scale.x,
+                    editor_animation_frame_size_get(frame).y * sprite->scale.y}, rotation, pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
             object->id, 0, 0, sprite->id};
         editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
@@ -5012,8 +5033,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                     return true;
                 }
                 if(editor_sprite_point_contains(center,
-                        (Scale){frame->size.x * animation->scale.x,
-                            frame->size.y * animation->scale.y}, rotation, pointer)) {
+                        (Scale){editor_animation_frame_size_get(frame).x * animation->scale.x,
+                            editor_animation_frame_size_get(frame).y * animation->scale.y}, rotation, pointer)) {
                     state->dragged_animation_frame = true;
                     state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
                     return true;
@@ -5169,8 +5190,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 Position frame_center = editor_animation_frame_world_get(object,
                     sprite, frame, &frame_rotation);
                 image_hit = editor_sprite_point_contains(frame_center,
-                    (Scale){frame->size.x * sprite->scale.x,
-                        frame->size.y * sprite->scale.y}, frame_rotation, pointer);
+                    (Scale){editor_animation_frame_size_get(frame).x * sprite->scale.x,
+                        editor_animation_frame_size_get(frame).y * sprite->scale.y}, frame_rotation, pointer);
             }
             if(!image_hit && hypotf(pointer.x - center.x, pointer.y - center.y) <=
                     EDITOR_ORIGIN_PICK_RADIUS / editor_view_scale) {
@@ -5249,8 +5270,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorSelectionRef selection;
             if(!animation->visible || frame == NULL) continue;
             world = editor_animation_frame_world_get(object, animation, frame, &rotation);
-            size = (Scale){frame->size.x * animation->scale.x,
-                frame->size.y * animation->scale.y};
+            size = (Scale){editor_animation_frame_size_get(frame).x * animation->scale.x,
+                editor_animation_frame_size_get(frame).y * animation->scale.y};
             if(!editor_sprite_point_contains(
                     world, size, rotation, pointer)) continue;
             Uint64 now = SDL_GetTicks();
@@ -5872,6 +5893,7 @@ static Position editor_animated_sprite_world_get(const EditorObject *object,
 
 static void editor_sprite_outline_draw(Position center, Scale size,
         Orientation rotation, Color color) {
+    if(size.x == 0 || size.y == 0) return;
     Position corners[4] = {{-size.x * 0.5f, -size.y * 0.5f},
         {size.x * 0.5f, -size.y * 0.5f}, {size.x * 0.5f, size.y * 0.5f},
         {-size.x * 0.5f, size.y * 0.5f}};
@@ -6098,8 +6120,8 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
         frame = &animation->frames[preview_frame];
         texture = editor_preview_texture_get(frame->path);
         world = editor_animation_frame_world_get(object, animation, frame, &rotation);
-        size = (Scale){frame->size.x * animation->scale.x,
-            frame->size.y * animation->scale.y};
+        size = (Scale){editor_animation_frame_size_get(frame).x * animation->scale.x,
+            editor_animation_frame_size_get(frame).y * animation->scale.y};
         screen_size = (Scale){size.x * editor_view_scale,
             size.y * editor_view_scale};
         Orientation draw_rotation = rotation;

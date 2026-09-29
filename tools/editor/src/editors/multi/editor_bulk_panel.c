@@ -158,8 +158,11 @@ static const EditorBulkProperty sprite_properties[] = {
     {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
 };
 static const EditorBulkProperty animation_frame_properties[] = {
-    {"Width", EDITOR_BULK_FRAME_WIDTH, EDITOR_BULK_FLOAT, 0},
-    {"Height", EDITOR_BULK_FRAME_HEIGHT, EDITOR_BULK_FLOAT, 0}
+    {"Scale X", EDITOR_BULK_FRAME_WIDTH, EDITOR_BULK_FLOAT, 0},
+    {"Scale Y", EDITOR_BULK_FRAME_HEIGHT, EDITOR_BULK_FLOAT, 0},
+    {"Offset X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
+    {"Offset Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
+    {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
 };
 static const EditorBulkProperty mixed_position_properties[] = {
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
@@ -373,13 +376,24 @@ static bool editor_bulk_transform_command_get(EditorProject *project,
         for(size_t i = 0; i < animation->frame_count; i += 1) {
             Scale size;
             if(animation->frames[i].id != ref.item) continue;
-            size = animation->frames[i].size;
+            size = animation->frames[i].scale;
             if(target == EDITOR_BULK_FRAME_WIDTH) size.x = value;
             else if(target == EDITOR_BULK_FRAME_HEIGHT) size.y = value;
-            else return false;
-            *command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_SIZE_SET,
-                .data.animation_frame_size_set = {.object = ref.object,
-                    .sprite = ref.parent, .index = i, .size = size}};
+            else {
+                Position offset = animation->frames[i].offset;
+                Orientation rotation = animation->frames[i].rotation;
+                if(target == EDITOR_BULK_POSITION_X) offset.x = value;
+                else if(target == EDITOR_BULK_POSITION_Y) offset.y = value;
+                else if(target == EDITOR_BULK_ROTATION) rotation = value;
+                else return false;
+                *command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
+                    .data.animation_frame_transform_set = {ref.object, ref.parent, i,
+                        offset, rotation}};
+                return true;
+            }
+            *command = (EditorCommand){.type = EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
+                .data.animation_frame_scale_set = {.object = ref.object,
+                    .sprite = ref.parent, .index = i, .scale = size}};
             return true;
         }
         return false;

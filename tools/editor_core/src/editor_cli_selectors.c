@@ -689,7 +689,7 @@ EditorResult editor_command_cli_named_parse(const EditorProject *project,
         if(strcmp(action, "frame-add") == 0) {
             if(rest_count != 4) return editor_result_error(
                 EDITOR_ERROR_INVALID_ARGUMENT,
-                "frame-add requires <name> <path> <width> <height>");
+                "frame-add requires <name> <path> <scale-x> <scale-y>");
             for(size_t i = 0; i < rest_count; i += 1)
                 if(!editor_cli_argument_push(normalized, &normalized_count, rest[i]))
                     goto capacity_error;
@@ -697,7 +697,7 @@ EditorResult editor_command_cli_named_parse(const EditorProject *project,
         } else if(strcmp(action, "frame-delete") == 0 ||
                 strcmp(action, "frame-rename") == 0 ||
                 strcmp(action, "frame-path-set") == 0 ||
-                strcmp(action, "frame-size-set") == 0 ||
+                strcmp(action, "frame-scale-set") == 0 ||
                 strcmp(action, "frame-transform-set") == 0) {
             if(!selectors.frame.id_set) return editor_result_error(
                 EDITOR_ERROR_INVALID_ARGUMENT,

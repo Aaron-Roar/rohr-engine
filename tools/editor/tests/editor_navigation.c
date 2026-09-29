@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include "../../../tests/test_png.h"
 
 float editor_viewport_width = WINDOW_WIDTH * 0.8f;
 float editor_window_width = WINDOW_WIDTH;
@@ -773,6 +774,7 @@ fail:
 }
 
 int main(void) {
+    if(!SDL_SaveFile("editor_navigation_frame.png", test_png, sizeof(test_png))) return 1;
     if(!control_zoom_check()) return 1;
     if(!editor_layers_check()) return 1;
     if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
@@ -1696,9 +1698,9 @@ int main(void) {
         EditorSelectionRef second;
         if(frame_object == NULL || animation == NULL ||
                 !editor_project_animation_frame_add(&project, animation,
-                    "first", "assets/first.png", (Scale){16.0f, 16.0f}) ||
+                    "first", "editor_navigation_frame.png", (Scale){16.0f, 16.0f}) ||
                 !editor_project_animation_frame_add(&project, animation,
-                    "second", "assets/second.png", (Scale){24.0f, 24.0f})) return 1;
+                    "second", "editor_navigation_frame.png", (Scale){24.0f, 24.0f})) return 1;
         animation_id = animation->id;
         first_id = animation->frames[0].id;
         second_id = animation->frames[1].id;
@@ -1784,7 +1786,7 @@ int main(void) {
             &project, pointer_object);
         if(sprite == NULL || animation == NULL ||
                 !editor_project_animation_frame_add(&project, animation,
-                    "frame", "frame.png", (Scale){20.0f, 80.0f})) return 1;
+                    "frame", "editor_navigation_frame.png", (Scale){20.0f, 80.0f})) return 1;
         sprite->position = (Position){-100.0f, 0.0f};
         sprite->size = (Scale){80.0f, 20.0f};
         sprite->rotation = -45.0f;
@@ -1889,7 +1891,7 @@ int main(void) {
         if(clicked_soft_body->area_count == 0 || clicked_sprite == NULL ||
                 clicked_animation == NULL ||
                 !editor_project_animation_frame_add(&click_project,
-                    clicked_animation, "click_frame", "click_frame.png",
+                    clicked_animation, "click_frame", "editor_navigation_frame.png",
                     (Scale){16.0f, 16.0f})) return 1;
 
         fallback = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
@@ -2001,5 +2003,7 @@ int main(void) {
     }
     editor_history_destroy(&history);
     editor_viewport_state_destroy(&state);
+    editor_viewport_assets_destroy();
+    (void)SDL_RemovePath("editor_navigation_frame.png");
     return 0;
 }

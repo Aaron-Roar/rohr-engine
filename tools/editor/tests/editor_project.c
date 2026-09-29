@@ -858,8 +858,8 @@ int main(void) {
                 !file_contains(path,
                     "AnimationDescriptor descriptor = {.id = UINT32_C(") ||
                 !file_contains(path, ".frame_ids = {UINT32_C(") ||
-                !file_contains(path, ".frame_offsets = {{13.0000000f, -9.00000000f}}") ||
-                !file_contains(path, ".frame_rotations = {450.000000f}") ||
+                !file_contains(path, "animated.frames[0].offset = (Position){13.0000000f, -9.00000000f}") ||
+                !file_contains(path, "animated.frames[0].rotation = 450.000000f") ||
                 !file_contains(path, "animated.player.frame_index = ") ||
                 !file_contains(path, "assets/fly frame.png") ||
                 !file_contains(path, "animated.follow_entity_rotation = false") ||
@@ -1194,7 +1194,7 @@ int main(void) {
 
         EditorAnimatedSprite *aligned = editor_project_animated_sprite_add(&project, object);
         if(aligned == NULL || !editor_project_animation_frame_add(&project, aligned,
-                "aligned", "frame.png", (Scale){32,24})) return 1;
+                "aligned", "frame.png", (Scale){-2,0})) return 1;
         aligned->frames[0].offset = (Position){13,-9};
         aligned->frames[0].rotation = 450;
         EditorAnimatedSpriteId aligned_id = aligned->id;
@@ -1208,7 +1208,14 @@ int main(void) {
             editor_project_animated_sprite_get(loaded_object, aligned_id);
         if(loaded_animation == NULL || loaded_animation->frames[0].offset.x != 13 ||
                 loaded_animation->frames[0].offset.y != -9 ||
-                loaded_animation->frames[0].rotation != 450) return 1;
+                loaded_animation->frames[0].rotation != 450 ||
+                loaded_animation->frames[0].scale.x != -2 || loaded_animation->frames[0].scale.y != 0) return 1;
+        if(!file_json_number_replace(path, "format_version", "4") ||
+                !editor_result_check(editor_project_load(&loaded, path))) return 1;
+        if(!editor_project_save(&project, path) ||
+                !file_json_number_replace(path, "scale_x", "1e100") ||
+                !editor_result_check(editor_project_load(&loaded, path))) return 1;
+        if(!editor_project_save(&project, path)) return 1;
         if(!file_json_number_replace(path, "offset_x", "1e100") ||
                 !editor_result_check(editor_project_load(&loaded, path))) return 1;
         loaded_object = editor_project_selected_get(&loaded);
@@ -1469,7 +1476,7 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 4") == NULL) return 1;
+                strstr(result.result.error.message, "requires 5") == NULL) return 1;
     }
 
     {
