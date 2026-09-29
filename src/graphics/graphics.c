@@ -17,6 +17,7 @@
 #include "graphics/font_assets.h"
 #include "graphics/text_assets.h"
 #include "graphics/texture_assets.h"
+#include "graphics/texture_draw.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -4332,6 +4333,12 @@ void graphics_texture_draw(TextureAsset texture_asset, Position pos, Orientation
 
 void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
         Scale size, Orientation orientation) {
+    graphics_screen_texture_direction_draw(texture_asset, center, size,
+        orientation, DIRECTION_RIGHT);
+}
+
+void graphics_screen_texture_direction_draw(TextureAsset texture_asset, Position center,
+        Scale size, Orientation orientation, Direction direction) {
     GraphicsCommand *command;
     SDL_FRect destination = {center.x - size.x * 0.5f,
         center.y - size.y * 0.5f, size.x, size.y};
@@ -4348,7 +4355,8 @@ void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
     command->data.texture.destination = destination;
     command->data.texture.center = rotation_center;
     command->data.texture.degrees = (double)orientation;
-    command->data.texture.flip = SDL_FLIP_NONE;
+    command->data.texture.flip = direction == DIRECTION_LEFT ?
+        SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
 }
 
 static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,

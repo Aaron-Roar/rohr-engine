@@ -6,6 +6,7 @@
 #include "editor_command.h"
 #include "editor_mass_properties.h"
 #include "editor_layout.h"
+#include "graphics/texture_draw.h"
 #include "viewport/controls/editor_rotation_control.h"
 
 #include <math.h>
@@ -5958,8 +5959,9 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
                 size.y * editor_view_preview_scale.y};
             rotation = editor_view_preview_texture_rotation_get(rotation);
         }
-        if(texture != NULL) rohr_graphics_screen_texture_draw(*texture,
-            editor_view_world_to_screen(world), screen_size, rotation);
+        if(texture != NULL) graphics_screen_texture_direction_draw(*texture,
+            editor_view_world_to_screen(world), screen_size, rotation,
+            animation->direction);
         selected = object_highlighted ||
             (state->selection == EDITOR_SELECTION_ANIMATED_SPRITE &&
                 state->selected_animated_sprite == animation->id) ||

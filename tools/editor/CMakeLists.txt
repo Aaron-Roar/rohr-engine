@@ -48,7 +48,8 @@ add_executable(rohr_editor_gui
     src/main.c
 )
 
-target_include_directories(rohr_editor_gui PRIVATE src ${PROJECT_SOURCE_DIR}/lib)
+target_include_directories(rohr_editor_gui PRIVATE
+    src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(rohr_editor_gui PRIVATE
     ROHR_DEVELOPMENT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(rohr_editor_gui PRIVATE rohr_engine rohr_terminal rohr_editor_core)
@@ -110,7 +111,7 @@ if(ROHR_BUILD_TESTS)
         src/panels/editor_input_settings_panel.c
     )
     target_include_directories(editor_navigation_test PRIVATE
-        src ${PROJECT_SOURCE_DIR}/lib)
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_navigation_test PRIVATE rohr_engine rohr_editor_core)
     set_target_properties(editor_navigation_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
@@ -131,7 +132,8 @@ if(ROHR_BUILD_TESTS)
         src/editors/multi/editor_bulk_panel.c
         src/viewport/controls/editor_rotation_control.c
     )
-    target_include_directories(editor_auto_shape_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib)
+    target_include_directories(editor_auto_shape_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_auto_shape_test PRIVATE rohr_engine rohr_editor_core)
     set_target_properties(editor_auto_shape_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -164,7 +166,7 @@ if(ROHR_BUILD_TESTS)
         src/viewport/controls/editor_rotation_control.c
     )
     target_include_directories(editor_history_test PRIVATE
-        src ${PROJECT_SOURCE_DIR}/lib)
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_history_test PRIVATE rohr_engine rohr_editor_core)
     set_target_properties(editor_history_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests

@@ -3,7 +3,9 @@
  */
 #include "editor_viewport.h"
 #include "editor_layout.h"
+#include "editor_command.h"
 #include <limits.h>
+#include <math.h>
 #include <stdio.h>
 
 #define CHECK(c) do { if(!(c)) { fprintf(stderr, "editor layers line %d: %s\n", \
@@ -172,6 +174,158 @@ static bool body_layers_check(void) {
     return true;
 }
 
+static bool direction_pixels_check(Position center, float rotation,
+        Direction direction, unsigned allowed_frames, unsigned *seen) {
+    const Color colors[2][2] = {{{255,0,0,255}, {0,0,255,255}},
+        {{0,255,0,255}, {255,255,0,255}}};
+    int count = 0;
+    SDL_Window **windows = SDL_GetWindows(&count);
+    CHECK(windows != NULL && count > 0);
+    SDL_Renderer *renderer = SDL_GetRenderer(windows[0]);
+    SDL_free(windows);
+    SDL_Surface *surface = SDL_RenderReadPixels(renderer, NULL);
+    CHECK(surface != NULL);
+    Color found[2] = {0};
+    float angle = math_degrees_to_radians(rotation);
+    bool read = true;
+    for(size_t side = 0; side < 2; side += 1) {
+        float distance = side == 0 ? -16 : 16;
+        read = SDL_ReadSurfacePixel(surface,
+            (int)roundf(center.x + cosf(angle) * distance),
+            (int)roundf(center.y + sinf(angle) * distance),
+            &found[side].red, &found[side].green, &found[side].blue,
+            &found[side].alpha) && read;
+    }
+    SDL_DestroySurface(surface);
+    CHECK(read);
+    for(size_t frame = 0; frame < 2; frame += 1) {
+        if(!(allowed_frames & (1u << frame))) continue;
+        bool matched = true;
+        for(size_t side = 0; side < 2; side += 1) {
+            Color expected = colors[frame][direction == DIRECTION_LEFT ? 1 - side : side];
+            matched = matched && found[side].red == expected.red &&
+                found[side].green == expected.green && found[side].blue == expected.blue;
+        }
+        if(matched) { *seen |= 1u << frame; return true; }
+    }
+    fprintf(stderr, "animation direction %d at %.0f,%.0f rotation %.0f: %u,%u,%u / %u,%u,%u\n",
+        direction, center.x, center.y, rotation, found[0].red, found[0].green,
+        found[0].blue, found[1].red, found[1].green, found[1].blue);
+    return false;
+}
+
+static bool animation_direction_check(void) {
+    const char *paths[] = {"editor_direction_first.png", "editor_direction_second.png"};
+    const Uint32 colors[2][2] = {{0xff0000ff, 0x0000ffff}, {0x00ff00ff, 0xffff00ff}};
+    for(size_t frame = 0; frame < 2; frame += 1) {
+        SDL_Surface *surface = SDL_CreateSurface(8, 8, SDL_PIXELFORMAT_RGBA8888);
+        CHECK(surface != NULL);
+        SDL_Rect left = {0,0,4,8}, right = {4,0,4,8};
+        bool saved = SDL_FillSurfaceRect(surface, &left, colors[frame][0]) &&
+            SDL_FillSurfaceRect(surface, &right, colors[frame][1]) &&
+            SDL_SavePNG(surface, paths[frame]);
+        SDL_DestroySurface(surface);
+        CHECK(saved);
+    }
+    /* Check the app's draw path using the same asymmetric assets. */
+    AnimationDescriptor descriptor = {.amount_of_descriptors = 2,
+        .texture_descriptors = {{paths[0], {80,64}}, {paths[1], {80,64}}}};
+    AnimationAssetResult asset = rohr_graphics_animation_load(descriptor);
+    CHECK(!rohr_error_check(asset));
+    CameraResult camera = rohr_camera_get(rohr_camera_active_get());
+    CHECK(!rohr_error_check(camera));
+    camera.result.value.position = (Position){0};
+    camera.result.value.orientation = 0;
+    camera.result.value.zoom = 1;
+    camera.result.value.dimensions = (Vec2D){1280,720};
+    OK(rohr_camera_set(rohr_camera_active_get(), camera.result.value));
+    for(int left = 0; left < 2; left += 1) {
+        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
+            (Scale){1,1});
+        sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
+        EntityResult entity = rohr_entity_add();
+        CHECK(!rohr_error_check(entity));
+        OK(rohr_graphics_animated_sprite_add(entity.result.value, sprite));
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
+        rohr_graphics_background_draw((Color){0,0,0,255});
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
+        CHECK(rohr_graphics_animated_sprite_draw(entity.result.value));
+        rohr_graphics_show();
+        unsigned seen = 0;
+        CHECK(direction_pixels_check((Position){640,360}, 0, sprite.direction, 1, &seen));
+        OK(rohr_entity_delete(entity.result.value));
+    }
+    OK(rohr_graphics_animation_release(&asset.result.value));
+
+    EditorProject project;
+    EditorViewportState state = {.mode = EDITOR_VIEWPORT_OBJECT};
+    editor_project_init(&project);
+    project.viewport_local_view = false;
+    project.viewport_camera_zoom = 1;
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    CHECK(object != NULL);
+    EditorAnimatedSprite *animation = editor_project_animated_sprite_add(&project, object);
+    CHECK(animation != NULL);
+    for(size_t frame = 0; frame < 2; frame += 1)
+        CHECK(editor_project_animation_frame_add(&project, animation, "frame",
+            paths[frame], (Scale){80,64}));
+    animation->ticks_per_frame = 1;
+    animation->time_per_frame = 0;
+    Position center = {EDITOR_VIEWPORT_WIDTH * .5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * .5f};
+    EditorCamera *preview_camera = editor_project_camera_add(&project, object);
+    CHECK(preview_camera != NULL);
+    preview_camera->dimensions = (Scale){200,200};
+    EditorLayoutViewport *viewport = editor_project_layout_viewport_add(&project);
+    CHECK(viewport != NULL);
+    viewport->config.rectangle = (ViewportRectangle){0,0,420,240};
+    for(size_t screen_index = 0; screen_index < 2; screen_index += 1) {
+        EditorViewportCameraItem *screen = editor_viewport_camera_add(&project, viewport,
+            object->id, preview_camera->id);
+        CHECK(screen != NULL);
+        screen->placement.rectangle = screen_index == 0 ?
+            (ViewportRectangle){0,0,200,160} : (ViewportRectangle){220,20,180,200};
+        screen->placement.orientation = screen_index == 0 ? 0 : 90;
+        screen->placement.fit = SCREEN_FIT_STRETCH;
+        screen->placement.visible = true;
+    }
+    for(int preview = 0; preview < 3; preview += 1) {
+        state.mode = preview == 2 ? EDITOR_VIEWPORT_LAYOUT :
+            preview == 1 ? EDITOR_VIEWPORT_ANIMATION_FRAME : EDITOR_VIEWPORT_OBJECT;
+        state.selected_layout_viewport = viewport->id;
+        state.selected_animated_sprite = animation->id;
+        state.selected_animation_frame = animation->frames[0].id;
+        for(int left = 0; left < 2; left += 1) {
+            EditorCommand command = {.type = EDITOR_COMMAND_ANIMATED_SPRITE_DIRECTION_SET,
+                .data.animated_sprite_direction_set = {object->id, animation->id,
+                    left ? DIRECTION_LEFT : DIRECTION_RIGHT}};
+            CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+            animation->editor_rotation = preview == 1 ? 90 : 0;
+            animation->playing = false;
+            for(int playing = 0; playing < 2; playing += 1) {
+                unsigned seen = 0;
+                animation->playing = playing != 0;
+                for(int frame = 0; frame < 3; frame += 1) {
+                    draw(&project, &state);
+                    if(preview == 2) {
+                        CHECK(direction_pixels_check((Position){center.x+100, center.y+80},
+                            0, animation->direction, playing ? 3 : 1, &seen));
+                        CHECK(direction_pixels_check((Position){center.x+310, center.y+120},
+                            90, animation->direction, playing ? 3 : 1, &seen));
+                    } else CHECK(direction_pixels_check(center, animation->editor_rotation,
+                        animation->direction, playing ? 3 : 1, &seen));
+                }
+                CHECK(seen == (playing ? 3u : 1u));
+            }
+        }
+    }
+    editor_viewport_assets_destroy();
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    for(size_t i = 0; i < 2; i += 1) CHECK(SDL_RemovePath(paths[i]));
+    return true;
+}
+
 bool editor_layers_check(void) {
     OK(rohr_engine_start());
     OK(rohr_graphics_start());
@@ -182,6 +336,7 @@ bool editor_layers_check(void) {
     OK(rohr_viewport_disable_set(viewport.result.value));
     bool passed = body_layers_check();
     editor_viewport_assets_destroy();
+    if(passed) passed = animation_direction_check();
     rohr_graphics_stop();
     rohr_engine_stop();
     return passed;

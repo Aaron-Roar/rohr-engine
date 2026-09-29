@@ -127,7 +127,7 @@ last.
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
 animation issues, and add animation origins with individual frame offsets.
 This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–5 are complete.
+Editor Forces and Torques. Preserve the user's goal order; goals 1–6 are complete.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -201,9 +201,19 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–5 are compl
    scale extremes, rejection, and undo/redo have regression coverage. Six Linux
    tests, four ASan/UBSan tests with leak detection, warning-free Linux/Windows
    builds, and the installed-SDK UI example build/headless launch pass.
-6. [ ] **Fix Left/Right animation options** — Restore the options in the
-   editor and verify their behavior in the application, where the reported
-   issue has not yet been checked.
+6. [x] **Fix Left/Right animation options** — Editor animation rendering now
+   honors the authored direction, mirroring Left horizontally before rotation
+   just like the app. The same draw path covers playing animations, stopped
+   static/frame-editor previews, and camera previews. An internal screen-texture
+   draw helper preserves queued texture ownership and existing public APIs.
+   Asymmetric two-frame rendering tests reproduce the old failure and verify
+   app/editor parity, both directions, playback advancement, stopped frames,
+   rotated sprites, and two camera screens with different sizes and rotations.
+   Seven focused Linux tests and four ASan/UBSan tests with leak detection pass;
+   Linux and Windows builds have no compiler warnings. Player-controller and
+   viewport examples build against the updated installed SDK and launch outside
+   their source directories. Windows execution and interactive visual review
+   remain manual verification.
 7. [ ] **Add animation origins and individual frame offsets** — Give animations
    an origin and each frame its own offset relative to that origin, with
    matching authoring, persistence, generated C, and runtime behavior.
