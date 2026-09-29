@@ -2296,22 +2296,9 @@ static void editor_mode_hierarchy_row(void *opaque,
             context->context_menu->target.parent == selection.parent &&
             context->context_menu->target.container == selection.container &&
             context->context_menu->target.item == selection.item) {
-        UIFieldBinding binding = {.kind = UI_FIELD_STRING,
-            .string = context->context_menu->rename_value,
-            .string_capacity = sizeof(context->context_menu->rename_value)};
-        UIFieldResult result;
-        if(context->context_menu->rename_focus_pending) {
-            ui_field_focus_set("editor.context.column.rename", binding,
-                &context->context_menu->rename_field, true);
-            context->context_menu->rename_focus_pending = false;
-        }
-        result = rohr_ui_field("editor.context.column.rename", binding,
-            &context->context_menu->rename_field, bounds, NULL);
-        if(result.changed)
-            (void)rohr_graphics_text_value_set(
-                &context->context_menu->rename_field,
-                context->context_menu->rename_value);
-        if(result.submitted || (context->primary == MOUSE_BUTTON_STATE_PRESSED &&
+        UIFieldResult result = editor_viewport_context_menu_inline_rename_draw(
+            context->context_menu, bounds);
+        if(result.submitted || (rohr_ui_primary_pressed_check() &&
                 !editor_point_in_rect(context->pointer, screen_bounds))) {
             (void)editor_navigation_selection_name_set(context->project,
                 selection, context->context_menu->rename_value);
@@ -3063,7 +3050,7 @@ int main(int argc, char **argv) {
             .primary_button = pointer_state.button_states[MOUSE_BUTTON_LEFT]
         });
         bool context_menu_modal =
-            editor_viewport_context_menu_open_check(&viewport_context_menu);
+            editor_viewport_context_menu_modal_check(&viewport_context_menu);
         UIRect build_settings_bounds = {
             fmaxf(30.0f, EDITOR_VIEWPORT_WIDTH * 0.08f),
             EDITOR_MENU_HEIGHT + 34.0f,
@@ -3142,7 +3129,8 @@ int main(int argc, char **argv) {
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
-            pointer_state.button_states[MOUSE_BUTTON_LEFT];
+            context_menu_modal ? MOUSE_BUTTON_STATE_UP :
+                pointer_state.button_states[MOUSE_BUTTON_LEFT];
         bool hierarchy_additive_selection =
             editor_selection_modifier_check();
         bool frame_multi_selection = viewport_state.selected_item_count > 1;

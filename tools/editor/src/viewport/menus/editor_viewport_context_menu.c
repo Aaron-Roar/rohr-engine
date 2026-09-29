@@ -218,6 +218,30 @@ bool editor_viewport_context_menu_open_check(
     return menu != NULL && menu->open;
 }
 
+bool editor_viewport_context_menu_modal_check(
+        const EditorViewportContextMenu *menu) {
+    return menu != NULL && (menu->open || (menu->renaming && menu->from_column));
+}
+
+UIFieldResult editor_viewport_context_menu_inline_rename_draw(
+        EditorViewportContextMenu *menu, UIRect bounds) {
+    if(menu == NULL || !menu->renaming || !menu->from_column)
+        return (UIFieldResult){0};
+    UIFieldBinding binding = {.kind = UI_FIELD_STRING,
+        .string = menu->rename_value, .string_capacity = sizeof(menu->rename_value)};
+    /* The row underneath remains outside modal controls and cannot claim input. */
+    rohr_ui_modal_controls_begin();
+    if(menu->rename_focus_pending) {
+        ui_field_focus_set("editor.context.column.rename", binding,
+            &menu->rename_field, true);
+        menu->rename_focus_pending = false;
+    }
+    UIFieldResult result = rohr_ui_field("editor.context.column.rename", binding,
+        &menu->rename_field, bounds, NULL);
+    rohr_ui_modal_controls_end();
+    return result;
+}
+
 bool editor_viewport_context_menu_point_contains(
         const EditorViewportContextMenu *menu, Position point) {
     UIRect bounds;

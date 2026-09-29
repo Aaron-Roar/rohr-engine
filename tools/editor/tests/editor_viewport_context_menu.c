@@ -55,7 +55,93 @@ static bool rename_to_element_check(void) {
         selection_equal(menu.target, second);
 }
 
+static bool inline_rename_frame(EditorViewportContextMenu *menu, Position pointer,
+        MouseButtonState button, bool *submitted) {
+    UIRect row = {100, 100, 200, 30};
+    rohr_ui_frame_begin((UIInput){.pointer = pointer, .primary_button = button});
+    if(editor_viewport_context_menu_modal_check(menu))
+        rohr_ui_modal_set((UIRect){0, 0, 500, 500});
+    /* Match the real column order: the element button precedes the rename field. */
+    UIButtonResult element = rohr_ui_button("element", NULL, row, NULL);
+    UIFieldResult field = editor_viewport_context_menu_inline_rename_draw(menu, row);
+    UIButtonResult neighbor = rohr_ui_button("neighbor", NULL,
+        (UIRect){310, 100, 150, 30}, NULL);
+    bool passed = !element.pressed && !element.clicked && !element.double_clicked &&
+        !element.focus_changed && !neighbor.pressed && !neighbor.clicked;
+    if(submitted != NULL) *submitted = field.submitted;
+    rohr_ui_frame_end();
+    return passed;
+}
+
+static bool inline_rename_check(void) {
+    EditorViewportContextMenu menu = {0};
+    EngineResult started = rohr_engine_start();
+    if(rohr_error_check(started)) return false;
+    started = rohr_graphics_start();
+    if(rohr_error_check(started)) { rohr_engine_stop(); return false; }
+    FontAsset font = rohr_graphics_font_default_get();
+    bool passed = editor_viewport_context_menu_create(&menu, &font);
+    if(!passed) goto done;
+    menu.renaming = true;
+    menu.from_column = true;
+    menu.rename_focus_pending = true;
+    snprintf(menu.rename_value, sizeof(menu.rename_value), "abcdef");
+    snprintf(menu.rename_original, sizeof(menu.rename_original), "abcdef");
+    if(!editor_viewport_context_menu_modal_check(&menu)) { passed = false; goto done; }
+    passed = inline_rename_frame(&menu, (Position){0}, MOUSE_BUTTON_STATE_UP, NULL);
+    /* Built-in font glyphs are eight pixels wide; clicking index two must insert there. */
+    Position caret = {192, 115};
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_PRESSED, NULL);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_RELEASED, NULL);
+    SDL_Event event = {.type = SDL_EVENT_TEXT_INPUT};
+    event.text.text = "X";
+    rohr_ui_field_event_add(&event);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_UP, NULL) &&
+        strcmp(menu.rename_value, "abXcdef") == 0 && menu.renaming;
+    /* Select a range by dragging across the row and release over another element. */
+    passed = passed && inline_rename_frame(&menu, (Position){180, 115}, MOUSE_BUTTON_STATE_PRESSED, NULL);
+    passed = passed && inline_rename_frame(&menu, (Position){350, 115}, MOUSE_BUTTON_STATE_DOWN, NULL);
+    passed = passed && inline_rename_frame(&menu, (Position){350, 115}, MOUSE_BUTTON_STATE_RELEASED, NULL);
+    event.text.text = "Y";
+    rohr_ui_field_event_add(&event);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_UP, NULL) &&
+        strcmp(menu.rename_value, "aY") == 0 && menu.renaming;
+    caret = (Position){200, 115};
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_PRESSED, NULL);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_RELEASED, NULL);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_PRESSED, NULL);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_RELEASED, NULL);
+    event.text.text = "renamed";
+    rohr_ui_field_event_add(&event);
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_UP, NULL) &&
+        strcmp(menu.rename_value, "renamed") == 0 && menu.renaming;
+    event = (SDL_Event){.type = SDL_EVENT_KEY_DOWN};
+    event.key.key = SDLK_RETURN;
+    rohr_ui_field_event_add(&event);
+    bool submitted = false;
+    passed = passed && inline_rename_frame(&menu, caret, MOUSE_BUTTON_STATE_UP, &submitted) && submitted;
+    editor_viewport_context_menu_cancel(&menu);
+    passed = passed && !editor_viewport_context_menu_modal_check(&menu);
+    rohr_ui_field_focus_clear();
+    rohr_ui_frame_begin((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_PRESSED});
+    passed = passed && rohr_ui_button("element", NULL, (UIRect){100,100,200,30}, NULL).pressed;
+    rohr_ui_frame_end();
+    rohr_ui_frame_begin((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_RELEASED});
+    passed = passed && rohr_ui_button("element", NULL, (UIRect){100,100,200,30}, NULL).clicked;
+    rohr_ui_frame_end();
+done:
+    rohr_ui_field_focus_clear();
+    editor_viewport_context_menu_destroy(&menu);
+    rohr_graphics_stop();
+    rohr_engine_stop();
+    return passed;
+}
+
 int main(void) {
+    if(!inline_rename_check()) {
+        fprintf(stderr, "inline rename allowed element input or lost text editing\n");
+        return 1;
+    }
     if(!element_to_element_check()) {
         fprintf(stderr, "element-to-element context replacement failed\n");
         return 1;

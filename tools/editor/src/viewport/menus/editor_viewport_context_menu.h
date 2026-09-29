@@ -55,6 +55,10 @@ void editor_viewport_context_menu_close(EditorViewportContextMenu *menu);
 void editor_viewport_context_menu_cancel(EditorViewportContextMenu *menu);
 bool editor_viewport_context_menu_open_check(
     const EditorViewportContextMenu *menu);
+bool editor_viewport_context_menu_modal_check(
+    const EditorViewportContextMenu *menu);
+UIFieldResult editor_viewport_context_menu_inline_rename_draw(
+    EditorViewportContextMenu *menu, UIRect bounds);
 bool editor_viewport_context_menu_point_contains(
     const EditorViewportContextMenu *menu, Position point);
 

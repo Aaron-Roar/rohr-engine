@@ -132,6 +132,8 @@ if(ROHR_BUILD_TESTS)
     )
     add_test(NAME editor_viewport_context_menu
         COMMAND editor_viewport_context_menu_test)
+    set_tests_properties(editor_viewport_context_menu PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_history_test
         tests/editor_history.c

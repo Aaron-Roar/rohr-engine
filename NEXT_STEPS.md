@@ -168,7 +168,12 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–4 are compl
    detection pass; Linux and Windows builds have no compiler warnings. The
    standalone UI example builds against the updated installed SDK and runs
    outside its source directory. Windows execution and interactive visual
-   review remain manual verification.
+   review remain manual verification. Inline column rename now captures input
+   modally so the underlying row cannot select, open, or drag while placing
+   the caret or selecting text. A focused regression verifies click, drag,
+   double-click, submission, and resumed row input; five Linux follow-up tests,
+   ASan/UBSan with leak detection, and Linux/Windows builds pass. The standalone
+   UI example also builds and launches outside its source directory.
 5. [ ] **Fix auto-shape selection scope** — Apply auto-shape to all vertices
    when none are selected, and only the selected vertices when multiple are
    selected.
