@@ -7,7 +7,9 @@
 #include "editors/multi/editor_bulk_panel.h"
 #include "editor_history.h"
 #include <math.h>
+#include <float.h>
 #include <stdio.h>
+#include <string.h>
 
 float editor_viewport_width = 1024.0f;
 float editor_window_width = 1280.0f;
@@ -148,6 +150,109 @@ static bool position_equal(Position a, Position b) {
     return fabsf(a.x - b.x) < 0.001f && fabsf(a.y - b.y) < 0.001f;
 }
 
+static double polygon_area_get(const Position *points, size_t count) {
+    double area = 0;
+    for(size_t i = 0; i < count; i += 1) {
+        Position a = points[i], b = points[(i + 1) % count];
+        area += (double)a.x * b.y - (double)b.x * a.y;
+    }
+    return fabs(area) * 0.5;
+}
+
+static bool area_near(double actual, double expected) {
+    return fabs(actual - expected) <= expected * 0.00002;
+}
+
+static bool sizing_check(void) {
+    bool passed = true;
+    /* Concave L: boundary area 7, convex hull area 11.5. */
+    Position concave[] = {{0,0}, {4,0}, {4,1}, {1,1}, {1,4}, {0,4}};
+    Position generated[6];
+    EditorAutoShapeConfig config = {.kind = EDITOR_AUTO_SHAPE_CIRCLE,
+        .triangle_kind = EDITOR_AUTO_TRIANGLE_ISOSCELES,
+        .width = 100, .height = 100, .radius = 50};
+    EditorAutoShapeConfig sized;
+    REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config,
+        concave, 6, true, &sized)));
+    REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 6)));
+    REQUIRE(area_near(polygon_area_get(generated, 6), 7));
+    REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config,
+        concave, 6, false, &sized)));
+    REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 6)));
+    REQUIRE(area_near(polygon_area_get(generated, 6), 11.5));
+    Position rectangle[] = {{-400,-100}, {400,-100}, {400,100}, {-400,100}};
+    for(int kind = 0; kind < 3; kind += 1) {
+        config.kind = (EditorAutoShapeKind)kind;
+        for(int triangle = 0; triangle < 3; triangle += 1) {
+            config.triangle_kind = (EditorAutoTriangleKind)triangle;
+            config.apex_offset = 20;
+            REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config,
+                rectangle, 4, true, &sized)));
+            REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 4)));
+            REQUIRE(area_near(polygon_area_get(generated, 4), 160000));
+            if(kind != EDITOR_AUTO_SHAPE_CIRCLE &&
+                    triangle != EDITOR_AUTO_TRIANGLE_EQUILATERAL)
+                REQUIRE(fabsf(sized.width / sized.height - 4) < 0.0001f);
+        }
+    }
+    /* Repeated conversions use polygon area, including a four-vertex circle. */
+    memcpy(generated, rectangle, sizeof(rectangle));
+    for(int i = 0; i < 150; i += 1) {
+        config.kind = (EditorAutoShapeKind)(i % 3);
+        config.triangle_kind = EDITOR_AUTO_TRIANGLE_ISOSCELES;
+        REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config,
+            generated, 4, true, &sized)));
+        REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 4)));
+        REQUIRE(area_near(polygon_area_get(generated, 4), 160000));
+    }
+    /* Unordered duplicate/interior points must not affect hull area. */
+    Position unordered[] = {{4,1}, {0,4}, {0,0}, {4,0}, {1,1}, {0,0}};
+    REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config,
+        unordered, 6, false, &sized)));
+    REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 6)));
+    REQUIRE(area_near(polygon_area_get(generated, 6), 10));
+    Position line[] = {{0,0}, {100,0}, {300,0}, {300,0}};
+    for(int kind = 0; kind < 3; kind += 1) {
+        config.kind = (EditorAutoShapeKind)kind;
+        REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config, line, 4, false, &sized)));
+        REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 4)));
+        REQUIRE(polygon_area_get(generated, 4) > 0);
+        float min_x = generated[0].x, max_x = min_x;
+        float min_y = generated[0].y, max_y = min_y;
+        for(size_t i = 1; i < 4; i += 1) {
+            min_x = fminf(min_x, generated[i].x); max_x = fmaxf(max_x, generated[i].x);
+            min_y = fminf(min_y, generated[i].y); max_y = fmaxf(max_y, generated[i].y);
+        }
+        REQUIRE(fabsf(fmaxf(max_x - min_x, max_y - min_y) - 300) < 0.001f);
+    }
+    /* Reverse winding, translate, and test well above/below default dimensions. */
+    const float scales[] = {0.00001f, 1, 1000000};
+    for(size_t scale = 0; scale < 3; scale += 1) {
+        Position points[4];
+        for(size_t i = 0; i < 4; i += 1)
+            points[i] = (Position){(rectangle[3-i].x + 2000) * scales[scale],
+                (rectangle[3-i].y - 3000) * scales[scale]};
+        REQUIRE(!editor_result_check(editor_auto_shape_size_get(&config, points, 4, true, &sized)));
+        REQUIRE(!editor_result_check(editor_auto_shape_positions_get(&sized, generated, 4)));
+        REQUIRE(area_near(polygon_area_get(generated, 4), polygon_area_get(points, 4)));
+    }
+    EditorAutoShapeConfig saved = sized;
+    Position invalid[] = {{0,0}, {0,0}, {0,0}, {0,0}};
+    REQUIRE(editor_result_check(editor_auto_shape_size_get(&config, invalid, 4, true, &sized)));
+    REQUIRE(memcmp(&saved, &sized, sizeof(saved)) == 0);
+    invalid[1].x = NAN;
+    REQUIRE(editor_result_check(editor_auto_shape_size_get(&config, invalid, 4, false, &sized)));
+    REQUIRE(memcmp(&saved, &sized, sizeof(saved)) == 0);
+    invalid[0] = (Position){-FLT_MAX, -FLT_MAX};
+    invalid[1] = (Position){FLT_MAX, -FLT_MAX};
+    invalid[2] = (Position){FLT_MAX, FLT_MAX};
+    invalid[3] = (Position){-FLT_MAX, FLT_MAX};
+    REQUIRE(editor_result_check(editor_auto_shape_size_get(&config, invalid, 4, false, &sized)));
+    REQUIRE(memcmp(&saved, &sized, sizeof(saved)) == 0);
+done:
+    return passed;
+}
+
 static bool panel_check(FontAsset *font, int kind, bool scrolled, bool invalid) {
     Fixture fixture = {.kind = kind, .translation = kind == 0 ? 96 : 58,
         .scroll = scrolled ? 70 : 0};
@@ -165,11 +270,24 @@ static bool panel_check(FontAsset *font, int kind, bool scrolled, bool invalid) 
     EditorSoftBody *soft = editor_project_soft_body_add(&fixture.project, object);
     REQUIRE(body != NULL && soft != NULL);
     EditorHitbox *hitbox = &body->hitboxes[0];
+    body->position = (Position){37, -21};
+    body->rotation = 123;
+    body->center_of_mass_explicit = true;
+    body->center_of_mass_offset = (Position){8, 12};
+    soft->position = (Position){-9, 18};
+    soft->rotation = 321;
     while(hitbox->vertex_count < 6)
         REQUIRE(editor_project_hitbox_vertex_insert(&fixture.project, hitbox, 0));
     for(size_t i = 0; i < 6; i += 1) {
         float angle = (float)i * 6.28318530718f / 6.0f;
-        before[i] = (Position){150 + cosf(angle) * 20, 100 + sinf(angle) * 20};
+        if(kind == 0 && !scrolled) angle = -angle;
+        before[i] = invalid ? (Position){0} :
+            (Position){1500 + cosf(angle) * 200, 1000 + sinf(angle) * 200};
+        if(kind == 0 && scrolled) {
+            const Position concave[] = {{0,0}, {400,0}, {400,100},
+                {100,100}, {100,400}, {0,400}};
+            before[i] = concave[i];
+        }
         hitbox->vertices[i].position = before[i];
         REQUIRE(editor_project_soft_node_add(&fixture.project, soft, before[i]));
     }
@@ -208,13 +326,14 @@ static bool panel_check(FontAsset *font, int kind, bool scrolled, bool invalid) 
     Position circle = {bounds.x + bounds.width * 5.0f / 6.0f,
         bounds.y + bounds.height * 0.5f};
     REQUIRE(circle.y > 40 && circle.y < 700);
-    if(invalid) fixture.shape.config.radius = -1;
+    EditorAutoShapeConfig previous_config = fixture.shape.config;
     panel_frame(&fixture, circle, MOUSE_BUTTON_STATE_PRESSED);
     REQUIRE(*open && fixture.state.mode != EDITOR_VIEWPORT_AUTO_SHAPE);
     panel_frame(&fixture, circle, MOUSE_BUTTON_STATE_RELEASED);
     if(invalid) {
         REQUIRE(*open && fixture.state.mode != EDITOR_VIEWPORT_AUTO_SHAPE);
         REQUIRE(fixture.history.undo_count == 0);
+        REQUIRE(memcmp(&fixture.shape.config, &previous_config, sizeof(previous_config)) == 0);
         for(size_t i = 0; i < 6; i += 1)
             REQUIRE(position_equal(before[i], fixture_point_get(&fixture, i)));
         goto done;
@@ -223,16 +342,38 @@ static bool panel_check(FontAsset *font, int kind, bool scrolled, bool invalid) 
     REQUIRE(fixture.history.undo_count == 1);
     for(size_t i = 0; i < 6; i += 1) {
         after[i] = fixture_point_get(&fixture, i);
-        if(kind < 2 || i < 3)
-            REQUIRE(fabsf(hypotf(after[i].x, after[i].y) - 50) < 0.001f);
-        else REQUIRE(position_equal(before[i], after[i]));
+        if(kind >= 2 && i >= 3) REQUIRE(position_equal(before[i], after[i]));
     }
+    size_t changed_count = kind < 2 ? 6 : 3;
+    REQUIRE(area_near(polygon_area_get(after, changed_count),
+        polygon_area_get(before, changed_count)));
+    REQUIRE(position_equal(body->position, (Position){37, -21}) && body->rotation == 123);
+    REQUIRE(body->center_of_mass_explicit &&
+        position_equal(body->center_of_mass_offset, (Position){8, 12}));
+    REQUIRE(position_equal(soft->position, (Position){-9, 18}) && soft->rotation == 321);
     REQUIRE(editor_history_undo(&fixture.history));
     for(size_t i = 0; i < 6; i += 1)
         REQUIRE(position_equal(before[i], fixture_point_get(&fixture, i)));
     REQUIRE(editor_history_redo(&fixture.history));
     for(size_t i = 0; i < 6; i += 1)
         REQUIRE(position_equal(after[i], fixture_point_get(&fixture, i)));
+    /* Explicit edits resize normally; only choosing a shape performs sizing. */
+    fixture.shape.config.radius *= 2;
+    REQUIRE(editor_auto_shape_editor_apply(&fixture.shape, &fixture.project,
+        &fixture.state, fixture.state.auto_shape_parent_mode));
+    for(size_t i = 0; i < 6; i += 1) after[i] = fixture_point_get(&fixture, i);
+    double target_area = polygon_area_get(before, changed_count) * 4;
+    REQUIRE(area_near(polygon_area_get(after, changed_count), target_area));
+    for(size_t iteration = 0; iteration < 30; iteration += 1) {
+        EditorAutoShapeKind shape = iteration % 2 ? EDITOR_AUTO_SHAPE_CIRCLE :
+            EDITOR_AUTO_SHAPE_TRIANGLE;
+        REQUIRE(editor_auto_shape_editor_begin(&fixture.shape, &fixture.project,
+            &fixture.state, fixture.state.auto_shape_parent_mode, shape));
+        for(size_t i = 0; i < 6; i += 1) after[i] = fixture_point_get(&fixture, i);
+        REQUIRE(area_near(polygon_area_get(after, changed_count), target_area));
+        if(kind >= 2) for(size_t i = 3; i < 6; i += 1)
+            REQUIRE(position_equal(before[i], after[i]));
+    }
 done:
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);
@@ -251,7 +392,7 @@ int main(void) {
     if(rohr_error_check(rohr_engine_start())) return 1;
     if(rohr_error_check(rohr_graphics_start())) { rohr_engine_stop(); return 1; }
     FontAsset font = rohr_graphics_font_default_get();
-    bool passed = picker_check(&font);
+    bool passed = sizing_check() && picker_check(&font);
     for(int kind = 0; kind < 4 && passed; kind += 1) {
         passed = panel_check(&font, kind, false, false) &&
             panel_check(&font, kind, true, false);

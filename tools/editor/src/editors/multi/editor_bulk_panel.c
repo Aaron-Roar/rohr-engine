@@ -891,7 +891,6 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 state->selected_item_count, &panel->auto_shape_picker_open);
             if(shape >= 0) {
                 EditorObject *object = editor_project_selected_get(project);
-                auto_shape->config.kind = (EditorAutoShapeKind)shape;
                 if(first_ref.kind == EDITOR_SELECTION_VERTEX) {
                     EditorRigidBody *body = editor_project_rigid_body_get(object,
                         first_ref.parent);
@@ -913,10 +912,11 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                         object, body);
                     state->auto_shape_parent_mode = EDITOR_VIEWPORT_SOFT_BODY;
                 }
-                if(editor_auto_shape_editor_apply(auto_shape, project, state,
-                        state->auto_shape_parent_mode))
+                if(editor_auto_shape_editor_begin(auto_shape, project, state,
+                        state->auto_shape_parent_mode, (EditorAutoShapeKind)shape)) {
                     state->mode = EDITOR_VIEWPORT_AUTO_SHAPE;
-                panel->auto_shape_picker_open = false;
+                    panel->auto_shape_picker_open = false;
+                }
             }
         }
         footer_y += panel->auto_shape_picker_open ? 104.0f : 38.0f;

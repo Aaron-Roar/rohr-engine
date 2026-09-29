@@ -169,6 +169,18 @@ EditorResult editor_auto_shape_hitbox_apply(EditorHitbox *hitbox,
         indices[i] = i;
     }
     editor_auto_shape_indices_order(current, indices, hitbox->vertex_count);
+    /* Keep boundary adjacency when converting a concave polygon. Angular
+     * sorting chooses the start, but must not reconnect edges through notches. */
+    size_t first = indices[0];
+    double twice_area = 0;
+    for(size_t i = 1; i + 1 < hitbox->vertex_count; i += 1)
+        twice_area += ((double)current[i].x - current[0].x) *
+                ((double)current[i + 1].y - current[0].y) -
+            ((double)current[i].y - current[0].y) *
+                ((double)current[i + 1].x - current[0].x);
+    for(size_t i = 0; i < hitbox->vertex_count; i += 1)
+        indices[i] = (first + (twice_area < 0 ? hitbox->vertex_count - i : i)) %
+            hitbox->vertex_count;
     if(!editor_result_check(result)) for(size_t i = 0; i < hitbox->vertex_count;
             i += 1) hitbox->vertices[indices[i]].position = output_positions[i];
     free(output_positions);

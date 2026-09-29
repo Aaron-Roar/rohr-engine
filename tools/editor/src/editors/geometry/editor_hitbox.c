@@ -127,10 +127,10 @@ bool editor_hitbox_editor_draw(EditorHitboxEditor *editor,
                 context->width - 20.0f, 62.0f},
             selected_count, &editor->auto_shape_picker_open);
         if(shape >= 0) {
-            auto_shape->config.kind = (EditorAutoShapeKind)shape;
             context->viewport->auto_shape_parent_mode = EDITOR_VIEWPORT_HITBOX;
-            if(!editor_auto_shape_editor_apply(auto_shape, context->project,
-                    context->viewport, EDITOR_VIEWPORT_HITBOX)) return field_active;
+            if(!editor_auto_shape_editor_begin(auto_shape, context->project,
+                    context->viewport, EDITOR_VIEWPORT_HITBOX,
+                    (EditorAutoShapeKind)shape)) return field_active;
             context->viewport->mode = EDITOR_VIEWPORT_AUTO_SHAPE;
             context->viewport->selection = EDITOR_SELECTION_HITBOX;
             auto_shape->first_was_active = false;

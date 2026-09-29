@@ -43,6 +43,14 @@ bool editor_auto_shape_editor_draw(EditorAutoShapeEditor *editor,
 bool editor_auto_shape_editor_apply(EditorAutoShapeEditor *editor,
     EditorProject *project, EditorViewportState *viewport,
     EditorViewportMode parent_mode);
+/* Seed conversion dimensions without changing the source or output on failure.
+ * Ordered polygons use boundary area; unordered points use their convex hull. */
+EditorResult editor_auto_shape_size_get(const EditorAutoShapeConfig *config,
+    const Position *points, size_t count, bool ordered_polygon,
+    EditorAutoShapeConfig *output);
+bool editor_auto_shape_editor_begin(EditorAutoShapeEditor *editor,
+    EditorProject *project, EditorViewportState *viewport,
+    EditorViewportMode parent_mode, EditorAutoShapeKind kind);
 size_t editor_auto_shape_hitbox_points_capture(EditorViewportState *viewport,
     const EditorObject *object, const EditorRigidBody *body,
     const EditorHitbox *hitbox);

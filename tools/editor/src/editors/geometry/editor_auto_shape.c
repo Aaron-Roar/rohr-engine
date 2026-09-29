@@ -8,6 +8,7 @@
 #include "editor_navigation.h"
 
 #include <math.h>
+#include <float.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -16,6 +17,181 @@ static EditorSoftBody *soft_body_get(EditorObject *object, EditorSoftBodyId id) 
     for(size_t i = 0; i < object->soft_body_count; i += 1)
         if(object->soft_body_items[i].id == id) return &object->soft_body_items[i];
     return NULL;
+}
+
+#define EDITOR_AUTO_SHAPE_POINT_MAX \
+    (EDITOR_HITBOX_VERTEX_MAX > EDITOR_SOFT_NODE_MAX ? \
+        EDITOR_HITBOX_VERTEX_MAX : EDITOR_SOFT_NODE_MAX)
+
+static double shape_cross_get(Position a, Position b, Position c) {
+    return ((double)b.x - a.x) * ((double)c.y - a.y) -
+        ((double)b.y - a.y) * ((double)c.x - a.x);
+}
+
+static double shape_area_get(const Position *points, size_t count) {
+    double twice_area = 0;
+    for(size_t i = 1; i + 1 < count; i += 1)
+        twice_area += shape_cross_get(points[0], points[i], points[i + 1]);
+    return fabs(twice_area) * 0.5;
+}
+
+static double shape_hull_area_get(const Position *points, size_t count) {
+    Position sorted[EDITOR_AUTO_SHAPE_POINT_MAX];
+    Position hull[2 * EDITOR_AUTO_SHAPE_POINT_MAX];
+    memcpy(sorted, points, count * sizeof(*points));
+    for(size_t i = 1; i < count; i += 1) {
+        Position point = sorted[i];
+        size_t at = i;
+        while(at > 0 && (sorted[at - 1].x > point.x ||
+                (sorted[at - 1].x == point.x && sorted[at - 1].y > point.y))) {
+            sorted[at] = sorted[at - 1];
+            at -= 1;
+        }
+        sorted[at] = point;
+    }
+    size_t used = 0;
+    for(size_t i = 0; i < count; i += 1) {
+        while(used >= 2 && shape_cross_get(hull[used - 2], hull[used - 1],
+                sorted[i]) <= 0) used -= 1;
+        hull[used++] = sorted[i];
+    }
+    size_t lower = used;
+    for(size_t i = count - 1; i > 0; i -= 1) {
+        while(used > lower && shape_cross_get(hull[used - 2], hull[used - 1],
+                sorted[i - 1]) <= 0) used -= 1;
+        hull[used++] = sorted[i - 1];
+    }
+    return shape_area_get(hull, used - 1);
+}
+
+EditorResult editor_auto_shape_size_get(const EditorAutoShapeConfig *config,
+        const Position *points, size_t count, bool ordered_polygon,
+        EditorAutoShapeConfig *output) {
+    Position generated[EDITOR_AUTO_SHAPE_POINT_MAX];
+    if(config == NULL || points == NULL || output == NULL ||
+            count < 3 || count > EDITOR_AUTO_SHAPE_POINT_MAX)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "auto-shape sizing requires at least three supported points");
+    double min_x = points[0].x, max_x = points[0].x;
+    double min_y = points[0].y, max_y = points[0].y;
+    for(size_t i = 0; i < count; i += 1) {
+        if(!isfinite(points[i].x) || !isfinite(points[i].y))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "auto-shape sizing requires finite points");
+        min_x = fmin(min_x, points[i].x); max_x = fmax(max_x, points[i].x);
+        min_y = fmin(min_y, points[i].y); max_y = fmax(max_y, points[i].y);
+    }
+    double width = max_x - min_x, height = max_y - min_y;
+    double span = fmax(width, height);
+    if(span <= 0)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "coincident points have no size to preserve");
+    double area = ordered_polygon ? shape_area_get(points, count) :
+        shape_hull_area_get(points, count);
+    EditorAutoShapeConfig sized = *config;
+    /* Work at unit scale before expanding, avoiding overflow for large shapes. */
+    sized.width = area > 0 ? (float)(width / span) : 1;
+    sized.height = area > 0 ? (float)(height / span) : 1;
+    sized.radius = 1;
+    sized.apex_offset = config->kind == EDITOR_AUTO_SHAPE_TRIANGLE &&
+        config->triangle_kind == EDITOR_AUTO_TRIANGLE_SCALENE &&
+        isfinite(config->width) && config->width > 0 ?
+        (float)((double)config->apex_offset / config->width * sized.width) : 0;
+    EditorResult result = editor_auto_shape_positions_get(&sized, generated, count);
+    if(editor_result_check(result)) return result;
+    double generated_area = shape_area_get(generated, count);
+    if(!(generated_area > 0) || !isfinite(generated_area))
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "auto-shape dimensions cannot represent this shape");
+    double scale;
+    if(area > 0) scale = sqrt(area / generated_area);
+    else {
+        /* Give a line a nonzero shape whose largest bound matches its span. */
+        min_x = max_x = generated[0].x; min_y = max_y = generated[0].y;
+        for(size_t i = 1; i < count; i += 1) {
+            min_x = fmin(min_x, generated[i].x); max_x = fmax(max_x, generated[i].x);
+            min_y = fmin(min_y, generated[i].y); max_y = fmax(max_y, generated[i].y);
+        }
+        scale = span / fmax(max_x - min_x, max_y - min_y);
+    }
+    double values[] = {sized.width * scale, sized.height * scale,
+        sized.radius * scale, sized.apex_offset * scale};
+    for(size_t i = 0; i < 4; i += 1)
+        if(!isfinite(values[i]) || fabs(values[i]) > FLT_MAX ||
+                (i < 3 && (float)values[i] <= 0))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "auto-shape dimensions exceed the supported range");
+    sized.width = (float)values[0]; sized.height = (float)values[1];
+    sized.radius = (float)values[2]; sized.apex_offset = (float)values[3];
+    result = editor_auto_shape_positions_get(&sized, generated, count);
+    if(editor_result_check(result)) return result;
+    for(size_t i = 0; i < count; i += 1)
+        if(!isfinite(generated[i].x) || !isfinite(generated[i].y))
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "auto-shape vertices exceed the supported range");
+    if(shape_area_get(generated, count) <= 0)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+            "auto-shape dimensions are too small to represent");
+    *output = sized;
+    return editor_result_value(true);
+}
+
+static bool shape_point_selected_check(const EditorViewportState *viewport,
+        uint32_t id) {
+    if(viewport->auto_shape_point_count == 0) return true;
+    for(size_t i = 0; i < viewport->auto_shape_point_count; i += 1)
+        if(viewport->auto_shape_points[i] == id) return true;
+    return false;
+}
+
+bool editor_auto_shape_editor_begin(EditorAutoShapeEditor *editor,
+        EditorProject *project, EditorViewportState *viewport,
+        EditorViewportMode parent_mode, EditorAutoShapeKind kind) {
+    if(editor == NULL || project == NULL || viewport == NULL) return false;
+    EditorObject *object = editor_project_selected_get(project);
+    if(object == NULL) return false;
+    Position points[EDITOR_AUTO_SHAPE_POINT_MAX];
+    size_t count = 0;
+    bool ordered_polygon = false;
+    if(parent_mode == EDITOR_VIEWPORT_HITBOX) {
+        EditorRigidBody *body = editor_project_rigid_body_get(object,
+            viewport->selected_rigid_body);
+        EditorHitbox *box = body == NULL ? NULL : editor_project_hitbox_get(body,
+            viewport->selected_hitbox);
+        if(box == NULL || box->vertex_count > EDITOR_AUTO_SHAPE_POINT_MAX) return false;
+        for(size_t i = 0; i < box->vertex_count; i += 1)
+            if(shape_point_selected_check(viewport, box->vertices[i].id))
+                points[count++] = box->vertices[i].position;
+        ordered_polygon = count == box->vertex_count;
+    } else if(parent_mode == EDITOR_VIEWPORT_SOFT_BODY) {
+        EditorSoftBody *body = soft_body_get(object, viewport->selected_soft_body);
+        if(body == NULL || body->node_count > EDITOR_AUTO_SHAPE_POINT_MAX) return false;
+        for(size_t i = 0; i < body->node_count; i += 1)
+            if(shape_point_selected_check(viewport, body->nodes[i].id))
+                points[count++] = body->nodes[i].position;
+    } else return false;
+    EditorAutoShapeConfig previous = editor->config, sized = previous;
+    sized.kind = kind;
+    EditorResult result = editor_auto_shape_size_get(&sized, points, count,
+        ordered_polygon, &sized);
+    if(editor_result_check(result)) {
+        fprintf(stderr, "%s\n", result.result.error.message);
+        return false;
+    }
+    editor->config = sized;
+    if(!editor_auto_shape_editor_apply(editor, project, viewport, parent_mode)) {
+        editor->config = previous;
+        return false;
+    }
+    if(ordered_polygon) {
+        /* Corner controls refer to the converted boundary, not its old notches. */
+        EditorRigidBody *body = editor_project_rigid_body_get(object,
+            viewport->selected_rigid_body);
+        EditorHitbox *box = editor_project_hitbox_get(body, viewport->selected_hitbox);
+        (void)editor_auto_shape_hitbox_points_capture(viewport, object, body, box);
+    }
+    editor->first_was_active = editor->second_was_active = editor->third_was_active = false;
+    return true;
 }
 
 static void auto_shape_ids_order(uint32_t *ids, Position *points, size_t count) {

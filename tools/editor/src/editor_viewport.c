@@ -2158,7 +2158,9 @@ bool editor_viewport_auto_shape_update(EditorViewportState *state,
                 .data.auto_shape = {.kind = EDITOR_ITEM_HITBOX,
                     .object = object->id, .parent = body->id, .item = hitbox->id,
                     .config = *config}};
-            command.data.auto_shape.point_count = state->auto_shape_point_count;
+            command.data.auto_shape.point_count =
+                state->auto_shape_point_count < hitbox->vertex_count ?
+                    state->auto_shape_point_count : 0;
             memcpy(command.data.auto_shape.points, state->auto_shape_points,
                 state->auto_shape_point_count * sizeof(*state->auto_shape_points));
             (void)editor_command_execute(project, &command);

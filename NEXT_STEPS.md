@@ -188,6 +188,19 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–5 are compl
    have no compiler warnings; the installed-SDK UI example builds and launches
    outside its source directory. Windows execution and interactive editor
    verification remain manual checks.
+   **Size-preserving conversion follow-up (complete):** Choosing an auto-shape
+   now derives its initial dimensions from the affected geometry. Whole hitboxes
+   preserve boundary area; selected subsets and soft-body nodes use convex-hull
+   area. Scaling uses the generated polygon's area, including low-vertex circles,
+   and seeds rectangle/triangle proportions from local bounds. Nonzero collinear
+   points use their largest bound as the starting span; coincident, nonfinite,
+   or unrepresentable inputs fail without changing geometry or prior settings.
+   Whole-hitbox conversion preserves boundary adjacency through concave notches.
+   Origins, rotations, and explicit COM remain unchanged; later numeric edits
+   resize normally. Repeated conversions, both windings, concavity, subsets,
+   scale extremes, rejection, and undo/redo have regression coverage. Six Linux
+   tests, four ASan/UBSan tests with leak detection, warning-free Linux/Windows
+   builds, and the installed-SDK UI example build/headless launch pass.
 6. [ ] **Fix Left/Right animation options** — Restore the options in the
    editor and verify their behavior in the application, where the reported
    issue has not yet been checked.
