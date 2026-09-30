@@ -21,8 +21,8 @@ typedef struct AreaScene {
 } AreaScene;
 
 typedef struct AreaVisual {
-    AreaScene scenes[2];
-    TextAsset labels[3];
+    AreaScene scenes[3];
+    TextAsset labels[4];
     unsigned selected;
     double seconds;
     bool paused;
@@ -31,15 +31,18 @@ typedef struct AreaVisual {
 } AreaVisual;
 
 /* A scene owns its body and all nodes, beams and areas through that body. */
-static bool area_scene_create(AreaScene *scene, bool layered) {
+static bool area_scene_create(AreaScene *scene, unsigned kind) {
     static const Position square[] = {{-110,-110},{110,-110},{110,110},{-110,110}};
     static const Position layers[] = {
         {-180,-100},{40,-100},{40,-20},{-60,-20},{-60,110},{-180,110},
         {-100,-60},{150,-60},{60,140}};
+    bool layered = kind == 1;
+    static const Position window[] = {{-110,-110},{110,-110},{110,110},{-110,110},
+        {-45,-45},{45,-45},{45,45},{-45,45}};
     EntityResult body = rohr_physics_soft_body_create(); OK(body);
     scene->body = body.result.value;
-    scene->count = layered ? 9 : 4;
-    memcpy(scene->reference, layered ? layers : square, scene->count * sizeof(Position));
+    scene->count = layered ? 9 : kind == 2 ? 8 : 4;
+    memcpy(scene->reference, layered ? layers : kind == 2 ? window : square, scene->count * sizeof(Position));
     for(unsigned i = 0; i < scene->count; i += 1) {
         EntityResult node = rohr_physics_soft_body_node_create(
             scene->body, scene->reference[i], 1, 4); OK(node);
@@ -48,36 +51,49 @@ static bool area_scene_create(AreaScene *scene, bool layered) {
     }
     SoftBodyAreaLoop loop = {.node_count = layered ? 6 : 4};
     memcpy(loop.nodes, scene->nodes, loop.node_count * sizeof(Entity));
-    EntityResult area = rohr_physics_soft_body_area_create(scene->body, loop); OK(area);
+    SoftBodyAreaGeometry geometry = {.outer=loop};
+    if(kind == 2) {
+        geometry.hole_count=1;
+        geometry.holes[0]=(SoftBodyAreaLoop){.nodes={scene->nodes[4],scene->nodes[5],scene->nodes[6],scene->nodes[7]},.node_count=4};
+    }
+    EntityResult area = rohr_physics_soft_body_area_create(scene->body, geometry); OK(area);
     scene->area = area.result.value;
     if(layered) {
-        EntityResult overlay = rohr_physics_soft_body_area_create(scene->body,
-            (SoftBodyAreaLoop){.nodes={scene->nodes[6],scene->nodes[7],scene->nodes[8]},.node_count=3});
+        EntityResult overlay = rohr_physics_soft_body_area_create(scene->body, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={scene->nodes[6],scene->nodes[7],scene->nodes[8]},.node_count=3}});
         OK(overlay); scene->overlay = overlay.result.value;
         OK(rohr_graphics_soft_body_area_color_set(scene->overlay,(Color){235,95,65,255}));
         OK(rohr_graphics_layer_entity_set(scene->overlay,3));
     } else {
-        for(unsigned i = 0; i < 4; i += 1) {
+        if(kind == 2) {
+            EntityResult behind=rohr_physics_soft_body_area_create(scene->body,(SoftBodyAreaGeometry){.outer=loop}); OK(behind);
+            scene->overlay=behind.result.value;
+            OK(rohr_graphics_soft_body_area_color_set(scene->overlay,(Color){235,95,65,255}));
+            OK(rohr_graphics_layer_entity_set(scene->overlay,-1));
+        }
+        for(unsigned i = 0; i < scene->count; i += 1) {
+            unsigned next=(i/4)*4+(i+1)%4;
             EntityResult edge = rohr_physics_soft_body_beam_create(
-                scene->body,scene->nodes[i],scene->nodes[(i+1)%4],1,0); OK(edge);
+                scene->body,scene->nodes[i],scene->nodes[next],1,0); OK(edge);
             OK(rohr_graphics_layer_entity_set(edge.result.value,10));
         }
     }
     return true;
 }
 
-/* Kinematic movement only: no physics step and no area edits/retriangulation. */
-static bool area_scene_pose_set(AreaScene *scene, bool layered, double seconds) {
+/* Kinematic movement only: no physics step and no area description edits. */
+static bool area_scene_pose_set(AreaScene *scene, unsigned kind, double seconds) {
     double phase = fmod(seconds,8.0);
     float swap = phase < 1 ? 0 : phase < 4 ? (float)((phase-1)/3) :
         phase < 5 ? 1 : (float)((8-phase)/3);
     for(unsigned i = 0; i < scene->count; i += 1) {
         Position moved = scene->reference[i];
-        if(layered) {
+        if(kind == 1) {
             moved.x += 35 * sinf((float)seconds + (float)i * 0.65f);
             moved.y += 25 * sinf((float)seconds * 0.8f + (float)i);
             if(i == 3) moved.x += 140 * sinf((float)seconds * 0.5f);
-        } else if(i < 2) {
+        } else if(kind == 2 && i >= 4) {
+            moved.x += 170 * sinf((float)seconds * 0.6f);
+        } else if(kind == 0 && i < 2) {
             moved.x *= 1 - 2 * swap;
         }
         OK(rohr_physics_position_set(scene->nodes[i],moved));
@@ -87,7 +103,7 @@ static bool area_scene_pose_set(AreaScene *scene, bool layered, double seconds) 
 
 static bool area_motion_check(AreaScene *scene) {
     EntityIndex index = rohr_entity_index_get(scene->area).result.value;
-    SoftBodyAreaState authored = soft_body_area_states[index];
+    SoftBodyArea authored = soft_body_area_states[index].value;
     const double times[] = {0,0.5,1,2.5,4,4.5,5,6.5,8,9};
     const float left_x[] = {-110,-110,-110,0,110,110,110,0,-110,-110};
     for(unsigned t = 0; t < sizeof(times)/sizeof(*times); t += 1) {
@@ -98,17 +114,43 @@ static bool area_motion_check(AreaScene *scene) {
             CHECK(actual.y == scene->reference[i].y);
             CHECK(actual.x == (i == 0 ? left_x[t] : i == 1 ? -left_x[t] : scene->reference[i].x));
         }
-        CHECK(!memcmp(&authored,&soft_body_area_states[index],sizeof(authored)));
+        const NodeLoopFill *fill;
+        OK(physics_soft_body_area_fill_get(scene->area,&fill));
+        CHECK(!memcmp(&authored,&soft_body_area_states[index].value,sizeof(authored)));
         CHECK(rohr_physics_soft_body_get(scene->body).result.value.areas[0] == scene->area);
     }
     return true;
 }
 
+static bool area_scene_motion_check(AreaScene *scene, unsigned kind) {
+    for(unsigned frame=0;frame<200;frame+=1) {
+        double time=(double)frame/10;
+        CHECK(area_scene_pose_set(scene,kind,time));
+        const NodeLoopFill *fill;
+        OK(physics_soft_body_area_fill_get(scene->area,&fill));
+        if(kind == 2) {
+            double area=0;
+            for(size_t v=0;v<fill->vertex_count;v+=3) {
+                Vec2D a=fill->vertices[v],b=fill->vertices[v+1],c=fill->vertices[v+2];
+                area+=fabs(((double)b.x-a.x)*((double)c.y-a.y)-((double)b.y-a.y)*((double)c.x-a.x))/2;
+            }
+            double center=170*sinf((float)time*0.6f);
+            double width=fmax(0,fmin(110,center+45)-fmax(-110,center-45));
+            CHECK(fabs(area-(48400-width*90))<0.02);
+        }
+    }
+    return true;
+}
+
 bool soft_body_areas_visual_motion_check(void) {
-    AreaScene scene = {0};
-    bool passed = area_scene_create(&scene,false) && area_motion_check(&scene);
-    if(scene.body != ENTITY_INVALID) (void)rohr_entity_delete(scene.body);
-    return passed;
+    for(unsigned kind=0;kind<3;kind+=1) {
+        AreaScene scene={0};
+        bool passed=area_scene_create(&scene,kind) &&
+            (kind == 0 ? area_motion_check(&scene) : area_scene_motion_check(&scene,kind));
+        if(scene.body != ENTITY_INVALID) (void)rohr_entity_delete(scene.body);
+        if(!passed) return false;
+    }
+    return true;
 }
 
 static void area_visual_draw(CameraId camera, void *context) {
@@ -126,17 +168,17 @@ static void area_visual_draw(CameraId camera, void *context) {
     else if(rohr_input_mouse_button_released_check(INPUT_MOUSE_BUTTON_LEFT)) button = MOUSE_BUTTON_STATE_RELEASED;
     else if(rohr_input_mouse_button_down_check(INPUT_MOUSE_BUTTON_LEFT)) button = MOUSE_BUTTON_STATE_DOWN;
     rohr_ui_frame_begin((UIInput){.pointer=rohr_graphics_mouse_screen_position_get(),.primary_button=button});
-    for(unsigned i = 0; i < 2; i += 1) {
+    for(unsigned i = 0; i < 3; i += 1) {
         UIButtonStyle style = rohr_ui_button_style_default_get();
         if(visual->selected == i) style.idle = (Color){45,100,160,255};
-        UIButtonResult result = rohr_ui_button(i == 0 ? "hourglass" : "layered",
+        UIButtonResult result = rohr_ui_button(i == 0 ? "hourglass" : i == 1 ? "layered" : "window",
             &visual->labels[i],(UIRect){20 + i*220,20,210,40},&style);
         if(result.clicked && visual->selected != i) {
             visual->selected = i;
             visual->seconds = 0;
         }
     }
-    rohr_ui_label(&visual->labels[2],(UIRect){20,70,740,30});
+    rohr_ui_label(&visual->labels[3],(UIRect){20,70,740,30});
     rohr_ui_frame_end();
     rohr_graphics_layer_active_set(0);
 }
@@ -160,7 +202,7 @@ static bool area_visual_loop(AreaVisual *visual) {
         Uint64 now = SDL_GetTicks();
         if(!visual->paused) visual->seconds += (double)(now-previous)/1000;
         previous = now;
-        CHECK(area_scene_pose_set(&visual->scenes[visual->selected],visual->selected == 1,visual->seconds));
+        CHECK(area_scene_pose_set(&visual->scenes[visual->selected],visual->selected,visual->seconds));
         rohr_graphics_show();
         CHECK(!visual->draw_failed);
     }
@@ -173,10 +215,10 @@ bool soft_body_areas_visual_run(void) {
     CameraId camera = CAMERA_INVALID;
     bool passed = false;
     if(rohr_error_check(rohr_graphics_start())) return false;
-    if(!area_scene_create(&visual.scenes[0],false) || !area_scene_create(&visual.scenes[1],true)) goto done;
+    for(unsigned i=0;i<3;i+=1) if(!area_scene_create(&visual.scenes[i],i)) goto done;
     FontAsset font = rohr_graphics_font_default_get();
-    const char *labels[] = {"Hourglass", "Layered areas", "Space: pause/resume    L: switch layers    Esc: exit"};
-    for(unsigned i = 0; i < 3; i += 1) {
+    const char *labels[] = {"Hourglass", "Layered areas", "Moving window", "Space: pause/resume    L: switch layers    Esc: exit"};
+    for(unsigned i = 0; i < 4; i += 1) {
         TextAssetResult text = rohr_graphics_text_create(&font,labels[i],(Color){255,255,255,255});
         if(rohr_error_check(text)) goto done;
         visual.labels[i] = text.result.value;
@@ -197,8 +239,8 @@ bool soft_body_areas_visual_run(void) {
 done:
     if(viewport != VIEWPORT_INVALID) (void)rohr_viewport_destroy(viewport);
     if(camera != CAMERA_INVALID) (void)rohr_camera_render_callback_set(camera,NULL,NULL);
-    for(unsigned i = 0; i < 3; i += 1) (void)rohr_graphics_text_destroy(&visual.labels[i]);
-    for(unsigned i = 0; i < 2; i += 1)
+    for(unsigned i = 0; i < 4; i += 1) (void)rohr_graphics_text_destroy(&visual.labels[i]);
+    for(unsigned i = 0; i < 3; i += 1)
         if(visual.scenes[i].body != ENTITY_INVALID) (void)rohr_entity_delete(visual.scenes[i].body);
     rohr_graphics_stop();
     return passed;

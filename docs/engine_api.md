@@ -2464,17 +2464,23 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set( Entity beam, Rohr
 ### `rohr_physics_soft_body_area_create`
 
 ```c
-EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaLoop loop);
+EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
 ```
 
-Creates a visual area from an ordered loop of existing nodes.
+Creates an area from an outer loop minus its owned hole loops.
 
-| Parameter | Description |
-| --- | --- |
-| `soft_body` | Owning soft body. |
-| `loop` | Value copied by the engine; 3..SOFT_BODY_MAX_NODES distinct nodes from this body. Closing edge is implicit, and no beams are required. Initial positions must form a simple nonzero polygon. Triangulation is fixed during motion, including folds and inversions. Areas add no mass/collision. New areas are visible, inherit the draw call's surface color, and append to the body's area order. Delete with rohr_entity_delete; deleting a referenced node or the body also deletes the area. |
+Copies geometry. Each loop has 3–64 distinct live nodes from the owning soft
+body and closes implicitly. Self-crossing loops are accepted when they enclose
+space. Every enclosed outer region is filled once, minus all enclosed hole
+regions, independent of traversal direction. Holes may extend beyond the outer
+loop.
 
-**Returns:** EntityResult containing the area entity; failure creates nothing.
+More than 16 holes returns `ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED`. Invalid creation
+creates nothing. Areas add no mass or collision.
+
+New areas are visible, inherit the draw surface color and append to list order.
+Node motion updates the fill, including collapse and crossings. Delete with
+`rohr_entity_delete`; deleting any referenced node or the owner deletes the area.
 
 ### `rohr_physics_soft_body_area_get`
 
@@ -2482,19 +2488,19 @@ Creates a visual area from an ordered loop of existing nodes.
 SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area);
 ```
 
- Returns a value snapshot including node order, authored local positions,
+ Returns a copied geometry/style snapshot, without cache or borrowed storage.
 
-visibility and color override. No caller-owned memory is retained.
-
-### `rohr_physics_soft_body_area_nodes_set`
+### `rohr_physics_soft_body_area_geometry_set`
 
 ```c
-EngineResult rohr_physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop);
+EngineResult rohr_physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry);
 ```
 
- Replaces the loop and triangulates current positions transactionally.
+ Replaces all loops transactionally. Invalid geometry (including more than
 
-Failure preserves everything. Success preserves entity, style, layer/order.
+16 holes) preserves the previous description, style, entity and layer/order.
+
+Full subtraction is valid; each authored loop must itself enclose space.
 
 ### `rohr_physics_soft_body_area_order_set`
 

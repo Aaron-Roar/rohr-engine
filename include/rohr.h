@@ -1496,24 +1496,24 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask collides_with
 );
 /**
- * @brief Creates a visual area from an ordered loop of existing nodes.
- * @param soft_body Owning soft body.
- * @param loop Value copied by the engine; 3..SOFT_BODY_MAX_NODES distinct nodes
- * from this body. Closing edge is implicit, and no beams are required.
- * Initial positions must form a simple nonzero polygon. Triangulation is fixed
- * during motion, including folds and inversions. Areas add no mass/collision.
- * New areas are visible, inherit the draw call's surface color, and append to
- * the body's area order. Delete with rohr_entity_delete; deleting a referenced
- * node or the body also deletes the area.
- * @return EntityResult containing the area entity; failure creates nothing.
+ * @brief Creates an area from an outer loop minus its owned hole loops.
+ * Copies geometry. Each loop has 3..64 distinct live nodes from soft_body and
+ * closes implicitly. Self-crossing loops are accepted when they enclose space.
+ * Every enclosed outer region is filled once, minus all enclosed hole regions,
+ * independent of traversal direction. Holes may extend beyond the outer loop.
+ * More than 16 holes returns ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED.
+ * Invalid creation creates nothing. Areas add no mass or collision.
+ * New areas are visible, inherit the draw surface color and append to list order.
+ * Node motion updates the fill, including collapse and crossings. Delete with
+ * rohr_entity_delete; deleting any referenced node or the owner deletes the area.
  */
-EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaLoop loop);
-/** Returns a value snapshot including node order, authored local positions,
- * visibility and color override. No caller-owned memory is retained. */
+EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
+/** Returns a copied geometry/style snapshot, without cache or borrowed storage. */
 SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area);
-/** Replaces the loop and triangulates current positions transactionally.
- * Failure preserves everything. Success preserves entity, style, layer/order. */
-EngineResult rohr_physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop);
+/** Replaces all loops transactionally. Invalid geometry (including more than
+ * 16 holes) preserves the previous description, style, entity and layer/order.
+ * Full subtraction is valid; each authored loop must itself enclose space. */
+EngineResult rohr_physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry);
 /** Moves the area to a zero-based index in its owner's area list.
  * Later areas draw on top within the same layer. Out-of-range indices fail. */
 EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index);

@@ -112,9 +112,9 @@ int main(void) {
     beam = rohr_physics_soft_body_beam_create(
         body.result.value, node_a.result.value, node_b.result.value, 10.0f, 1.0f);
     area = rohr_physics_soft_body_area_create(
-        body.result.value, (SoftBodyAreaLoop){
+        body.result.value, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){
             .nodes = {node_a.result.value, node_b.result.value, node_c.result.value},
-            .node_count = 3});
+            .node_count = 3}});
     if(rohr_error_check(beam) || rohr_error_check(area)) goto fail;
     {
         SoftBodyBeamResult collision = rohr_physics_soft_body_beam_get(
@@ -308,10 +308,10 @@ int main(void) {
                 rohr_error_check(rohr_physics_friction_set(
                     boundary_b.result.value, 1.0f))) goto fail;
         boundary_area = rohr_physics_soft_body_area_create(
-            boundary_body.result.value, (SoftBodyAreaLoop){
+            boundary_body.result.value, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){
                 .nodes = {boundary_a.result.value, boundary_b.result.value,
                     boundary_c.result.value},
-                .node_count = 3});
+                .node_count = 3}});
         boundary_beam = rohr_physics_soft_body_beam_create(
             boundary_body.result.value, boundary_a.result.value,
             boundary_b.result.value, 10.0f, 1.0f);

@@ -187,6 +187,7 @@ void physics_tables_destroy(void) {
     (void)SoftBodyPool_destroy(&soft_bodies_pool);
     (void)SoftBodyNodePool_destroy(&soft_body_nodes_pool);
     (void)SoftBodyBeamPool_destroy(&soft_body_beams_pool);
+    physics_soft_body_area_tables_clear();
     (void)SoftBodyAreaStatePool_destroy(&soft_body_area_states_pool);
 }
 

@@ -57,7 +57,7 @@ radians. See the [angle convention and migration contract](docs/angle_convention
 - Optional MP4 recording through `ffmpeg`.
 
 Current limitations include no audio, swept collision/CCD, adaptive physics
-substeps, polygon holes/self-intersections, or stable release-compatible editor
+substeps, collision-polygon holes/self-intersections, or stable release-compatible editor
 schema.
 
 ## Building and using Rohr
@@ -226,9 +226,11 @@ For interactive area rendering checks, run the test executable:
 
 The Hourglass scene holds the top vertices fixed while the bottom vertices swap
 and return over an eight-second cycle. White edges show the loop boundary above
-the blue fill; triangulation stays fixed throughout the crossing. Use the onscreen
-buttons to switch to Layered areas. Space pauses/resumes, L switches the orange
-area's layer in that scene, and Escape exits. Without `--visual`, the test runs
+the blue fill; only the two enclosed lobes stay filled during the crossing.
+Use the onscreen buttons for Layered areas or Moving window. The window reveals
+an independent orange area, then opens into a notch as it crosses the boundary.
+Space pauses/resumes, L switches layers in the Layered areas scene, and Escape
+exits. Without `--visual`, the test runs
 automated checks and exits. These scenes are test-only and are not installed
 with the SDK or included in the vehicle example.
 

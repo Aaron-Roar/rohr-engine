@@ -75,6 +75,7 @@ typedef struct GraphicsCommand {
             int indices[MAX_CONCAVE_PIECES * 3];
             int count;
             int index_count;
+            bool alpha_blend;
             Color color;
         } shape;
         struct {
@@ -3897,10 +3898,17 @@ static void graphics_commands_execute(void) {
                             (SDL_FColor){color.red / 255.0f, color.green / 255.0f,
                                          color.blue / 255.0f, color.alpha / 255.0f};
                     }
+                    SDL_BlendMode previous_blend = SDL_BLENDMODE_NONE;
+                    if(command->data.shape.alpha_blend) {
+                        (void)SDL_GetRenderDrawBlendMode(sdl_renderer, &previous_blend);
+                        (void)SDL_SetRenderDrawBlendMode(sdl_renderer, SDL_BLENDMODE_BLEND);
+                    }
                     (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices,
                                              command->data.shape.count,
                                              command->data.shape.indices,
                                              command->data.shape.index_count);
+                    if(command->data.shape.alpha_blend)
+                        (void)SDL_SetRenderDrawBlendMode(sdl_renderer, previous_blend);
                     break;
                 }
                 case GRAPHICS_COMMAND_TEXT: {
@@ -5108,32 +5116,32 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         if(error_check(physics_soft_body_area_index_get(body.areas[i], &area_index))) continue;
         const SoftBodyAreaState *area = &soft_body_area_states[area_index];
         if(!area->value.visible) continue;
-        Position current[SOFT_BODY_MAX_NODES];
-        for(uint32_t j = 0; j < area->value.loop.node_count; j += 1) {
-            EntityIndex node_index;
-            if(!entity_index_get(area->value.loop.nodes[j], &node_index)) {
-                graphics_layer_active_set(previous_layer);
-                return false;
-            }
-            current[j] = positions[node_index];
+        const NodeLoopFill *fill;
+        if(error_check(physics_soft_body_area_fill_get(body.areas[i], &fill))) {
+            graphics_layer_active_set(previous_layer);
+            return false;
         }
         Color color = area->value.draw_color_overridden ? area->value.draw_color : surface_color;
         int previous_child_layer = graphics_entity_layer_begin(body.areas[i]);
-        for(size_t j = 0; j < area->triangulation.triangle_count; j += 1) {
-            Shape shape = {.amount_of_vertices = 3};
-            if(node_loop_triangle_get(&area->triangulation, current,
-                    area->value.loop.node_count, j, shape.vertices) != NODE_LOOP_GEOMETRY_OK) {
+        /* Batch independent triangles; area geometry is visual-only and must
+         * not pass through hitbox validation or its physics tolerances. */
+        for(size_t vertex = 0; vertex < fill->vertex_count;) {
+            GraphicsCommand *command = graphics_command_append(GRAPHICS_COMMAND_SHAPE_FILLED);
+            if(command == NULL) {
                 graphics_layer_active_set(previous_layer);
                 return false;
             }
-            double ax = (double)shape.vertices[1].x - shape.vertices[0].x;
-            double ay = (double)shape.vertices[1].y - shape.vertices[0].y;
-            double bx = (double)shape.vertices[2].x - shape.vertices[0].x;
-            double by = (double)shape.vertices[2].y - shape.vertices[0].y;
-            if(ax * by == ay * bx) continue;
-            if(!graphics_shape_filled_draw(shape, color)) {
-                graphics_layer_active_set(previous_layer);
-                return false;
+            size_t count = fill->vertex_count - vertex;
+            size_t limit = (MAX_VERTICIES / 3) * 3;
+            if(count > limit) count = limit;
+            command->data.shape.count = (int)count;
+            command->data.shape.index_count = (int)count;
+            command->data.shape.alpha_blend = true;
+            command->data.shape.color = color;
+            for(size_t j = 0; j < count; j += 1) {
+                Position screen = graphics_world_to_screen_get(fill->vertices[vertex++]);
+                command->data.shape.points[j] = (SDL_FPoint){screen.x, screen.y};
+                command->data.shape.indices[j] = (int)j;
             }
         }
         graphics_layer_active_set(previous_child_layer);

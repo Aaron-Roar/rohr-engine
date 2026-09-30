@@ -267,21 +267,21 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
                     wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
                     support_beam_damping, false) ||
                 rohr_error_check(rohr_physics_soft_body_area_create(
-                    wheel->soft_body, (SoftBodyAreaLoop){
+                    wheel->soft_body, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){
                         .nodes = {wheel->nodes[anchor],
                             wheel->nodes[OUTER_NODE_START + i],
                             wheel->nodes[OUTER_NODE_START + next]},
-                        .node_count = 3}))) return false;
+                        .node_count = 3}}))) return false;
     }
     for(uint32_t i = 0; i < ANCHOR_NODE_COUNT; i += 1) {
         uint32_t next_anchor = (i + 1) % ANCHOR_NODE_COUNT;
         uint32_t outer = OUTER_NODE_START +
             (((i + 1) * OUTER_NODE_COUNT / ANCHOR_NODE_COUNT) % OUTER_NODE_COUNT);
         if(rohr_error_check(rohr_physics_soft_body_area_create(
-                    wheel->soft_body, (SoftBodyAreaLoop){
+                    wheel->soft_body, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){
                         .nodes = {wheel->nodes[i], wheel->nodes[outer],
                             wheel->nodes[next_anchor]},
-                        .node_count = 3}))) return false;
+                        .node_count = 3}}))) return false;
     }
     return true;
 }

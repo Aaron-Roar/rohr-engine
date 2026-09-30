@@ -184,6 +184,27 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    its source directory. Windows verification is cross-compilation only;
    sanitizers were not rerun for this default-value-only change.
 
+## Completed Milestone: Boundary-Correct Soft-Body Areas and Holes
+
+Fill current outer-loop enclosed regions once, subtracting only the owning area's
+hole loops. Preserve area identity and styling through crossings and deformation.
+
+1. [x] **Replace fixed fills and add owned holes** — Added copied geometry with
+   an outer loop and up to 16 owned holes, explicit maximum-hole errors, and
+   transactional replacement. Current boundaries generate nonoverlapping fills
+   with area-local subtraction and alpha blending; unchanged poses reuse cached
+   geometry. Removed obsolete fixed triangles and authored reference positions.
+   Tests cover initial crossings, hourglass spill, windows/notches, overlapping
+   holes, independent areas, transparency, collapse, ordering and deletion.
+   Added moving-window visual review alongside hourglass and layered scenes.
+   All 59 native tests, three ASan/UBSan/leak checks, Linux/Windows builds, a
+   sanitized visual cycle, and the installed-SDK vehicle build/headless launch
+   pass. Windows is compile-only; desktop review remains requested. Optimized
+   geometry benchmarks on this machine measured about 0.005 ms per ordinary
+   window rebuild and 16 ms for 17 tangled loops of 64 shared nodes each.
+   The latter is an expensive worst case; unchanged draws reuse the pose cache.
+   Resume Node-Loop Soft-Body Areas Goal 4 only on explicit user instruction.
+
 ## Completed Milestone: Soft-Body Area Visual Test
 
 Inspect area colors through a square-to-hourglass fold while keeping diagnostic
@@ -244,10 +265,13 @@ within a layer draw on top, limited to each area's own footprint.
    visual-test milestone above. All 59 native tests, three ASan/UBSan/leak checks, Linux/Windows
    builds, and both installed-SDK example modes pass. Windows is compile-only;
    desktop visual review remains requested. No holes or independent visual
-   vertices; editor persistence, generation, and authoring remain below.
+   vertices at this historical boundary; runtime holes and dynamic fills are
+   superseded by the Boundary-Correct Soft-Body Areas and Holes milestone above.
+   Editor persistence, generation, and authoring remain below.
 4. [ ] **Connect editor data and app generation** — Add persistence, rendering,
-   picking, and generated runtime areas. Preserve the authored reference shape
-   to recreate triangulation when loading a deformed pose. Default soft bodies
+   picking, and generated runtime areas with outer and owned hole loops.
+   Persist node references; fills derive from the current pose without an authored
+   triangulation reference shape. Default soft bodies
    keep four square nodes and six beams and gain one square area.
 5. [ ] **Add area authoring and verify parity** — Add editor and CLI loop editing,
    layer/list ordering, and undo. Deleting a node deletes dependent areas;

@@ -88,6 +88,8 @@ const char *error_code_message_get(EngineError error) {
             return "frame limit cannot be negative";
         case ERROR_ENGINE_MAX_ENTITIES_EXCEEDED:
             return "maximum entity count exceeded";
+        case ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED:
+            return "maximum soft-body area holes exceeded (maximum 16)";
         case ERROR_ENGINE_TABLE_EXPANSION_FAILED:
             return "engine table expansion failed";
         case ERROR_ENGINE_INVALID_ENTITY:

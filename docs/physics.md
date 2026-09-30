@@ -260,43 +260,72 @@ open spaces in the beam topology.
 
 ### Runtime visual areas
 
-Pass an ordered loop by value; its last node connects back to the first. Nodes
-must belong to the owning soft body, but need not have connecting beams. Separate
-areas may share nodes. Creation and loop edits validate a simple, nonzero polygon
-and capture body-local reference positions. Fixed triangle indices follow those
-same nodes through subsequent deformation, collapse, inversion, and folding.
-Invalid edits return an error and preserve the last successful description.
+An area owns a copied outer node loop and up to 16 copied hole loops. Each loop
+closes implicitly, contains 3–64 distinct live nodes from the same body, and
+needs no connecting beams. Different loops and areas may share nodes.
+
+The fill is every bounded region of the current outer boundary, minus the union
+of every bounded hole region. Traversal direction and repeated enclosure never
+erase a region. An hourglass fills its two lobes and leaves its sides empty.
+Holes subtract only from their owning area: partial overlap creates a notch,
+outside holes remove nothing, and complete subtraction is a valid invisible
+result. Another area can remain visible through a hole or cover it by layer order.
 
 ```c
-SoftBodyAreaLoop loop = {.nodes = {a, b, c, d}, .node_count = 4};
-EntityResult created = rohr_physics_soft_body_area_create(body, loop);
+SoftBodyAreaGeometry geometry = {
+    .outer = {.nodes = {a, b, c, d}, .node_count = 4},
+    .holes = {{.nodes = {e, f, g, h}, .node_count = 4}},
+    .hole_count = 1
+};
+EntityResult created = rohr_physics_soft_body_area_create(body, geometry);
 if(!rohr_error_check(created)) {
     Entity area = created.result.value;
     rohr_graphics_soft_body_area_color_set(area, (Color){40,120,220,255});
     rohr_graphics_layer_entity_set(area, 3);
-    rohr_physics_soft_body_area_order_set(area, 0);
-    // Later edits use rohr_physics_soft_body_area_nodes_set(area, loop).
+    // Replace edited geometry and check the result before assuming success:
+    EngineResult edited = rohr_physics_soft_body_area_geometry_set(area, geometry);
 }
 ```
 
-An area starts visible and uses the surface color supplied to
-`rohr_graphics_soft_body_draw` until overridden. Color clear restores that
-fallback. Visibility affects only the fill. Higher entity layers draw on top;
-within one layer, later entries in the owning body's area list draw on top.
-Each fill covers only its own deformed triangles; overlap never recolors another
-area. An unassigned area layer inherits the body's active draw layer.
+Creation and geometry replacement accept self-crossing loops when each loop
+encloses nonzero space. Invalid changes preserve the last successful description.
+A hole count above `SOFT_BODY_MAX_AREA_HOLES` (16) returns
+`ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED` before accessing hole entries. A loop with
+no enclosed space cannot be authored, but subsequent node motion may collapse
+any loop without deleting its description; its fill disappears and can return.
 
-`rohr_physics_soft_body_area_get` returns a value snapshot with owner, node loop,
-authored local positions, visibility, and color override. Changing that snapshot
-does not mutate the area. Reordering uses a zero-based destination index and
-preserves the relative order of other areas. `rohr_entity_delete` removes the
-area; deleting any referenced node or its body deletes dependent areas. Deleting
-a beam does not delete an area. Limits are 64 nodes per loop and 128 areas per
-body; holes and independent visual vertices are unsupported.
+Rendering builds a planar arrangement, merges coincident boundary segments,
+and uses the unbounded face to identify each loop's filled silhouette. Horizontal
+slabs then triangulate the outer silhouette minus hole silhouettes without
+overlapping triangle interiors. Temporary intersections are visual geometry,
+not entities, beams, or physical connections. Areas alpha-blend once per covered
+point. Coordinate-relative double-precision tolerances handle touching geometry;
+features below numerical resolution can collapse.
 
-This replaces the manual triangle API, component, and storage without compatibility
-wrappers. Use a three-node area for a former triangle. Editor area persistence,
-generation, and authoring are scheduled for the following milestone goals.
+Generated triangles are cached against all referenced node positions and geometry
+edits, shared across unchanged draws/cameras, and released with the area. Scratch
+storage is explicitly engine-owned and reused until engine shutdown. Moving
+complex crossings cost more than simple loops; the geometry regression reports
+ordinary-window and 17-loop tangled-case rebuild timings.
+
+Areas start visible and inherit the draw call's surface color. Color clear restores
+that fallback. Higher entity layers draw on top; later entries in a body's area
+list draw on top within a layer. Unassigned area layers inherit the body's active
+draw layer. Geometry replacement preserves style, entity identity, and ordering.
+
+The getter returns owner, geometry, visibility, and color override by value.
+Changing a snapshot does not mutate the area. Reordering uses a zero-based
+destination index and preserves other areas' relative order. Entity deletion
+removes an area; deleting any node referenced by its outer or hole loops deletes
+the dependent area. Deleting beams does not delete areas. Limits remain 64 nodes
+per body, 64 nodes per loop, 16 holes per area, and 128 areas per body.
+
+This is a breaking replacement of the single-loop creation argument,
+`area_nodes_set`, authored reference positions, and fixed triangulation. Use
+`SoftBodyAreaGeometry` and `area_geometry_set`; no compatibility wrappers remain.
+The editor persistence, generation, and authoring goals follow this runtime work.
+Visual fill holes do not change collision: physical openings still follow node
+and beam collision geometry.
 
 ## Debugging and limits
 
@@ -309,7 +338,7 @@ Available diagnostics include:
 
 Current limitations:
 
-- polygons must be simple; holes and self-intersections are rejected;
+- collision polygons must be simple; collision holes and self-intersections are rejected;
 - collision detection is discrete, without swept collision/CCD;
 - substeps are fixed rather than adaptive;
 - contact reporting exposes one representative manifold even when the solver

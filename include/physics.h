@@ -379,6 +379,7 @@ typedef struct Joint {
 #define SOFT_BODY_MAX_NODES 64
 #define SOFT_BODY_MAX_BEAMS 256
 #define SOFT_BODY_MAX_AREAS 128
+#define SOFT_BODY_MAX_AREA_HOLES 16
 /** Smallest stable full thickness accepted by beam collision. */
 #define ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN 0.01f
 
@@ -436,13 +437,17 @@ typedef struct SoftBodyAreaLoop {
     uint32_t node_count;
 } SoftBodyAreaLoop;
 
-/** Value snapshot of a visual area. No borrowed storage or triangle handles. */
+/** Copied boundary description. Hole order and loop winding have no effect. */
+typedef struct SoftBodyAreaGeometry {
+    SoftBodyAreaLoop outer;
+    SoftBodyAreaLoop holes[SOFT_BODY_MAX_AREA_HOLES];
+    uint32_t hole_count;
+} SoftBodyAreaGeometry;
+
+/** Value snapshot; generated triangles and caches remain private. */
 typedef struct SoftBodyArea {
     Entity soft_body;
-    SoftBodyAreaLoop loop;
-    /** Authored positions in body-local coordinates, in loop order. These
-     * remain unchanged during motion and are replaced only by nodes_set. */
-    Position reference_positions[SOFT_BODY_MAX_NODES];
+    SoftBodyAreaGeometry geometry;
     Color draw_color;
     bool draw_color_overridden;
     bool visible;
@@ -926,9 +931,9 @@ EngineResult physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaLoop loop);
+EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
 SoftBodyAreaResult physics_soft_body_area_get(Entity area);
-EngineResult physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop);
+EngineResult physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry);
 EngineResult physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 /**

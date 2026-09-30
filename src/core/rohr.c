@@ -547,9 +547,9 @@ EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam) { return 
 EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam) { return physics_soft_body_beam_collision_disable(beam); }
 EngineResult rohr_physics_soft_body_beam_collision_thickness_set(Entity beam, float thickness) { return physics_soft_body_beam_collision_thickness_set(beam, thickness); }
 EngineResult rohr_physics_soft_body_beam_collision_filter_set(Entity beam, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_beam_collision_filter_set(beam, category, collides_with); }
-EntityResult rohr_physics_soft_body_area_create(Entity body, SoftBodyAreaLoop loop) { return physics_soft_body_area_create(body, loop); }
+EntityResult rohr_physics_soft_body_area_create(Entity body, SoftBodyAreaGeometry geometry) { return physics_soft_body_area_create(body, geometry); }
 SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area) { return physics_soft_body_area_get(area); }
-EngineResult rohr_physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop) { return physics_soft_body_area_nodes_set(area, loop); }
+EngineResult rohr_physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry) { return physics_soft_body_area_geometry_set(area, geometry); }
 EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index) { return physics_soft_body_area_order_set(area, index); }
 EngineResult rohr_graphics_soft_body_area_color_set(Entity area, Color color) { return graphics_soft_body_area_color_set(area, color); }
 EngineResult rohr_graphics_soft_body_area_color_clear(Entity area) { return graphics_soft_body_area_color_clear(area); }

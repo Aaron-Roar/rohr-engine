@@ -57,6 +57,8 @@ typedef enum EngineError {
     ERROR_ENGINE_INVALID_FRAME_LIMIT,
     /** An operation would exceed MAX_ENTITIES. */
     ERROR_ENGINE_MAX_ENTITIES_EXCEEDED,
+    /** An area geometry exceeds SOFT_BODY_MAX_AREA_HOLES (16). */
+    ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED,
     /** Entity-indexed subsystem tables could not grow. */
     ERROR_ENGINE_TABLE_EXPANSION_FAILED,
     /** An entity id is invalid or stale. */

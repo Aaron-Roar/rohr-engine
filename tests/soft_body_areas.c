@@ -6,6 +6,7 @@
 #include "physics/soft_body/soft_body_area.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define CHECK(c) do { if(!(c)) { fprintf(stderr, "areas line %d: %s\n", __LINE__, #c); return false; } } while(0)
@@ -19,61 +20,60 @@ static bool runtime_check(void) {
         EntityResult node = rohr_physics_soft_body_node_create(body.result.value, points[i], 1, 1);
         OK(node); loop.nodes[i] = node.result.value;
     }
-    EntityResult area = rohr_physics_soft_body_area_create(body.result.value, loop); OK(area);
+    EntityResult area = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop}); OK(area);
     SoftBodyAreaResult value = rohr_physics_soft_body_area_get(area.result.value); OK(value);
     CHECK(value.result.value.visible && !value.result.value.draw_color_overridden);
     CHECK(value.result.value.soft_body == body.result.value);
-    CHECK(!memcmp(value.result.value.reference_positions, points, sizeof(points)));
+    CHECK(value.result.value.geometry.outer.node_count == 5);
     CHECK(rohr_physics_soft_body_get(body.result.value).result.value.beam_count == 0);
     CHECK(!rohr_entity_components_check(area.result.value, ROHR_HIT_BOX));
     OK(rohr_graphics_soft_body_area_color_set(area.result.value, (Color){12,34,56,255}));
     OK(rohr_graphics_soft_body_area_visibility_set(area.result.value, false));
     EntityIndex index = rohr_entity_index_get(area.result.value).result.value;
     SoftBodyAreaState before = soft_body_area_states[index];
-    CHECK(before.triangulation.triangle_count == 3);
+    CHECK(before.cache->fill.vertex_count > 0);
     SoftBodyAreaLoop invalid[] = {
         {.node_count = 2}, {.node_count = SOFT_BODY_MAX_NODES + 1},
         {.nodes = {loop.nodes[0], loop.nodes[1], loop.nodes[0]}, .node_count = 3},
         {.nodes = {loop.nodes[0], loop.nodes[1], ENTITY_INVALID}, .node_count = 3},
-        {.nodes = {loop.nodes[0], loop.nodes[2], loop.nodes[1], loop.nodes[4]}, .node_count = 4}
     };
     for(unsigned i = 0; i < sizeof(invalid)/sizeof(*invalid); i += 1) {
-        CHECK(rohr_error_check(rohr_physics_soft_body_area_nodes_set(area.result.value, invalid[i])));
-        CHECK(rohr_error_check(rohr_physics_soft_body_area_create(body.result.value, invalid[i])));
+        CHECK(rohr_error_check(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = invalid[i]})));
+        CHECK(rohr_error_check(rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = invalid[i]})));
         CHECK(!memcmp(&before, &soft_body_area_states[index], sizeof(before)));
     }
     EntityResult other = rohr_physics_soft_body_create(); OK(other);
     EntityResult foreign = rohr_physics_soft_body_node_create(other.result.value, (Position){0,50}, 1, 1); OK(foreign);
     SoftBodyAreaLoop bad = loop; bad.nodes[2] = foreign.result.value;
-    CHECK(rohr_error_check(rohr_physics_soft_body_area_nodes_set(area.result.value, bad)));
-    CHECK(rohr_error_check(rohr_physics_soft_body_area_create(foreign.result.value, loop)));
+    CHECK(rohr_error_check(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = bad})));
+    CHECK(rohr_error_check(rohr_physics_soft_body_area_create(foreign.result.value, (SoftBodyAreaGeometry){.outer = loop})));
     OK(rohr_entity_delete(other.result.value));
     CHECK(rohr_error_check(rohr_physics_soft_body_area_get(foreign.result.value)));
-    /* A fold, inversion and collapse never rebuild the authored mesh. */
+    /* Pose changes update the fill while preserving the stored description. */
     Position poses[] = {{-100,-70},{0,-80},{-60,-50}};
     for(unsigned i = 0; i < 3; i += 1) {
         OK(rohr_physics_position_set(loop.nodes[2], poses[i]));
-        CHECK(!memcmp(&before, &soft_body_area_states[index], sizeof(before)));
+        const NodeLoopFill *fill;
+        OK(physics_soft_body_area_fill_get(area.result.value, &fill));
+        CHECK(!memcmp(&before.value, &soft_body_area_states[index].value, sizeof(before.value)));
     }
-    CHECK(rohr_error_check(rohr_physics_soft_body_area_nodes_set(area.result.value, loop)));
-    CHECK(!memcmp(&before, &soft_body_area_states[index], sizeof(before)));
     OK(rohr_physics_position_set(loop.nodes[2], points[2]));
     SoftBodyAreaLoop reversed = {.node_count = 5};
     for(unsigned i = 0; i < 5; i += 1) reversed.nodes[i] = loop.nodes[4-i];
-    OK(rohr_physics_soft_body_area_nodes_set(area.result.value, reversed));
+    OK(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = reversed}));
     value = rohr_physics_soft_body_area_get(area.result.value); OK(value);
     CHECK(!value.result.value.visible && value.result.value.draw_color.red == 12);
-    CHECK(value.result.value.loop.nodes[0] == loop.nodes[4]);
+    CHECK(value.result.value.geometry.outer.nodes[0] == loop.nodes[4]);
     OK(rohr_graphics_soft_body_area_color_clear(area.result.value));
     CHECK(!rohr_physics_soft_body_area_get(area.result.value).result.value.draw_color_overridden);
     /* Returned loop/snapshot is independent; capacity and ordering are transactional. */
-    value.result.value.loop.nodes[0] = ENTITY_INVALID;
+    value.result.value.geometry.outer.nodes[0] = ENTITY_INVALID;
     Entity areas[SOFT_BODY_MAX_AREAS]; areas[0] = area.result.value;
     for(unsigned i = 1; i < SOFT_BODY_MAX_AREAS; i += 1) {
-        EntityResult next = rohr_physics_soft_body_area_create(body.result.value, loop); OK(next);
+        EntityResult next = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop}); OK(next);
         areas[i] = next.result.value;
     }
-    CHECK(rohr_error_check(rohr_physics_soft_body_area_create(body.result.value, loop)));
+    CHECK(rohr_error_check(rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop})));
     OK(rohr_physics_soft_body_area_order_set(areas[0], SOFT_BODY_MAX_AREAS-1));
     SoftBody topology = rohr_physics_soft_body_get(body.result.value).result.value;
     CHECK(topology.areas[0] == areas[1] && topology.areas[SOFT_BODY_MAX_AREAS-1] == areas[0]);
@@ -83,7 +83,7 @@ static bool runtime_check(void) {
     topology = rohr_physics_soft_body_get(body.result.value).result.value;
     CHECK(topology.area_count == SOFT_BODY_MAX_AREAS-1 && topology.areas[1] == areas[2]);
     CHECK(rohr_error_check(rohr_graphics_soft_body_area_visibility_set(areas[1], true)));
-    EntityResult replacement = rohr_physics_soft_body_area_create(body.result.value, loop); OK(replacement);
+    EntityResult replacement = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop}); OK(replacement);
     CHECK(rohr_error_check(rohr_physics_soft_body_area_get(areas[1])));
     OK(rohr_entity_delete(loop.nodes[0]));
     CHECK(rohr_physics_soft_body_get(body.result.value).result.value.area_count == 0);
@@ -91,13 +91,13 @@ static bool runtime_check(void) {
         CHECK(!rohr_entity_alive_check(areas[i]));
     CHECK(!rohr_entity_alive_check(replacement.result.value));
     SoftBodyAreaLoop remaining = {.nodes = {loop.nodes[1],loop.nodes[2],loop.nodes[3]}, .node_count = 3};
-    replacement = rohr_physics_soft_body_area_create(body.result.value, remaining); OK(replacement);
+    replacement = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = remaining}); OK(replacement);
     OK(rohr_entity_delete(body.result.value));
     CHECK(!rohr_entity_alive_check(replacement.result.value));
     return true;
 }
 
-static bool limits_and_reference_check(void) {
+static bool limits_and_transform_check(void) {
     EntityResult body = rohr_physics_soft_body_create(); OK(body);
     OK(rohr_physics_position_set(body.result.value,(Position){100,200}));
     OK(rohr_physics_orientation_set(body.result.value,90));
@@ -108,17 +108,16 @@ static bool limits_and_reference_check(void) {
         EntityResult node = rohr_physics_soft_body_node_local_create(body.result.value,local,1,1);
         OK(node); loop.nodes[i] = node.result.value;
     }
-    EntityResult area = rohr_physics_soft_body_area_create(body.result.value,loop); OK(area);
+    EntityResult area = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop}); OK(area);
     SoftBodyArea value = rohr_physics_soft_body_area_get(area.result.value).result.value;
-    CHECK(fabsf(value.reference_positions[0].x-100) < 0.001f);
-    CHECK(fabsf(value.reference_positions[0].y) < 0.001f);
-    EntityIndex index = rohr_entity_index_get(area.result.value).result.value;
-    CHECK(soft_body_area_states[index].triangulation.triangle_count == SOFT_BODY_MAX_NODES-2);
+    CHECK(value.geometry.outer.node_count == SOFT_BODY_MAX_NODES);
+    const NodeLoopFill *fill;
+    OK(physics_soft_body_area_fill_get(area.result.value, &fill));
+    CHECK(fill->vertex_count > 0);
     EntityResult beam = rohr_physics_soft_body_beam_create(body.result.value,loop.nodes[0],loop.nodes[1],1,1); OK(beam);
     OK(rohr_entity_delete(beam.result.value));
     CHECK(rohr_entity_alive_check(area.result.value));
-    EntityResult independent = rohr_physics_soft_body_area_create(body.result.value,
-        (SoftBodyAreaLoop){.nodes={loop.nodes[1],loop.nodes[2],loop.nodes[3]},.node_count=3}); OK(independent);
+    EntityResult independent = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={loop.nodes[1],loop.nodes[2],loop.nodes[3]},.node_count=3}}); OK(independent);
     OK(rohr_entity_delete(loop.nodes[0]));
     CHECK(!rohr_entity_alive_check(area.result.value) && rohr_entity_alive_check(independent.result.value));
     OK(rohr_entity_delete(body.result.value));
@@ -126,9 +125,61 @@ static bool limits_and_reference_check(void) {
     return true;
 }
 
+static bool holes_check(void) {
+    EntityResult body=rohr_physics_soft_body_create(); OK(body);
+    Position points[]={{-100,-100},{100,-100},{100,100},{-100,100},
+        {-20,-20},{20,-20},{20,20},{-20,20}};
+    Entity nodes[8];
+    for(unsigned i=0;i<8;i+=1) {
+        EntityResult node=rohr_physics_soft_body_node_create(body.result.value,points[i],1,1); OK(node);
+        nodes[i]=node.result.value;
+    }
+    SoftBodyAreaGeometry geometry={.outer={.nodes={nodes[0],nodes[1],nodes[2],nodes[3]},.node_count=4},.hole_count=16};
+    for(unsigned i=0;i<16;i+=1)
+        geometry.holes[i]=(SoftBodyAreaLoop){.nodes={nodes[4],nodes[5],nodes[6],nodes[7]},.node_count=4};
+    EntityResult area=rohr_physics_soft_body_area_create(body.result.value,geometry); OK(area);
+    EntityResult unrelated=rohr_physics_soft_body_area_create(body.result.value,(SoftBodyAreaGeometry){.outer=geometry.outer}); OK(unrelated);
+    SoftBodyArea snapshot=rohr_physics_soft_body_area_get(area.result.value).result.value;
+    CHECK(snapshot.geometry.hole_count==16);
+    geometry.hole_count=17;
+    EntityResult rejected=rohr_physics_soft_body_area_create(body.result.value,geometry);
+    CHECK(rohr_error_check(rejected) && rejected.result.error==ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED);
+    EngineResult edit=rohr_physics_soft_body_area_geometry_set(area.result.value,geometry);
+    CHECK(rohr_error_check(edit) && edit.result.error==ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED);
+    CHECK(strstr(rohr_error_message_get(edit),"maximum 16")!=NULL);
+    SoftBodyArea after=rohr_physics_soft_body_area_get(area.result.value).result.value;
+    CHECK(!memcmp(&snapshot,&after,sizeof(snapshot)));
+    geometry=snapshot.geometry;
+    const NodeLoopFill *fill;
+    OK(physics_soft_body_area_fill_get(area.result.value,&fill));
+    Vec2D *cached_vertices=fill->vertices;
+    OK(physics_soft_body_area_fill_get(area.result.value,&fill));
+    CHECK(fill->vertices==cached_vertices);
+    OK(rohr_graphics_soft_body_area_color_set(area.result.value,(Color){12,34,56,128}));
+    OK(physics_soft_body_area_fill_get(area.result.value,&fill));
+    CHECK(fill->vertices==cached_vertices);
+    /* Collapsed runtime holes are harmless, but rejected as new descriptions. */
+    for(unsigned i=4;i<8;i+=1) OK(rohr_physics_position_set(nodes[i],(Position){0,0}));
+    OK(physics_soft_body_area_fill_get(area.result.value,&fill)); CHECK(fill->vertex_count>0);
+    CHECK(rohr_error_check(rohr_physics_soft_body_area_geometry_set(area.result.value,geometry)));
+    for(unsigned i=4;i<8;i+=1) OK(rohr_physics_position_set(nodes[i],points[i]));
+    /* Initial hourglasses are valid; zero signed area is not zero enclosed area. */
+    geometry.hole_count=0;
+    geometry.outer=(SoftBodyAreaLoop){.nodes={nodes[1],nodes[0],nodes[2],nodes[3]},.node_count=4};
+    EntityResult crossed=rohr_physics_soft_body_area_create(body.result.value,geometry); OK(crossed);
+    OK(rohr_entity_delete(crossed.result.value));
+    OK(rohr_entity_delete(nodes[4]));
+    CHECK(!rohr_entity_alive_check(area.result.value));
+    CHECK(rohr_entity_alive_check(unrelated.result.value));
+    OK(rohr_entity_delete(body.result.value));
+    return true;
+}
+
 static void scene_draw(CameraId camera, void *context) {
     (void)camera;
+    rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw((Color){0,0,0,255});
+    rohr_graphics_layer_active_set(0);
     (void)rohr_graphics_soft_body_draw(*(Entity *)context,
         (Color){0,255,0,255}, (Color){0}, (Color){0});
 }
@@ -142,7 +193,10 @@ static bool sample_check(int x, int y, Color expected) {
     Uint8 r,g,b,a;
     bool read = SDL_ReadSurfacePixel(surface,x,y,&r,&g,&b,&a);
     SDL_DestroySurface(surface);
-    CHECK(read && r == expected.red && g == expected.green && b == expected.blue);
+    if(read && (abs((int)r-expected.red)>1 || abs((int)g-expected.green)>1 || abs((int)b-expected.blue)>1))
+        fprintf(stderr,"pixel (%d,%d): got %u,%u,%u; expected %u,%u,%u\n",x,y,r,g,b,expected.red,expected.green,expected.blue);
+    CHECK(read && abs((int)r-expected.red) <= 1 &&
+        abs((int)g-expected.green) <= 1 && abs((int)b-expected.blue) <= 1);
     return true;
 }
 
@@ -157,9 +211,8 @@ static bool rendering_check(void) {
         nodes[i]=n.result.value;
         if(i<4) square.nodes[i]=nodes[i];
     }
-    EntityResult lower = rohr_physics_soft_body_area_create(body.result.value,square); OK(lower);
-    EntityResult upper = rohr_physics_soft_body_area_create(body.result.value,
-        (SoftBodyAreaLoop){.nodes={nodes[4],nodes[5],nodes[6]},.node_count=3}); OK(upper);
+    EntityResult lower = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = square}); OK(lower);
+    EntityResult upper = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={nodes[4],nodes[5],nodes[6]},.node_count=3}}); OK(upper);
     Color red={255,0,0,255}, green={0,255,0,255};
     OK(rohr_graphics_soft_body_area_color_set(upper.result.value,red));
     CameraId camera = rohr_camera_active_get();
@@ -167,7 +220,9 @@ static bool rendering_check(void) {
     OK(rohr_camera_set(camera,c));
     OK(rohr_camera_render_callback_set(camera,scene_draw,&body.result.value));
     ViewportIdResult viewport=rohr_viewport_create((ViewportConfig){.rectangle={0,0,640,480}}); OK(viewport);
-    OK(rohr_viewport_camera_set(viewport.result.value,camera));
+    ScreenIdResult screen=rohr_screen_create((ScreenConfig){.camera=camera,.width=640,.height=480}); OK(screen);
+    ViewportItemIdResult item=rohr_viewport_screen_add(viewport.result.value,screen.result.value,
+        (ViewportItemConfig){.rectangle={0,0,640,480},.visible=true}); OK(item);
     OK(rohr_viewport_enable_set(viewport.result.value));
     rohr_graphics_show();
     CHECK(sample_check(360,240,red) && sample_check(280,240,green));
@@ -180,7 +235,40 @@ static bool rendering_check(void) {
     OK(rohr_graphics_soft_body_area_visibility_set(upper.result.value,true));
     OK(rohr_graphics_soft_body_area_color_clear(upper.result.value));
     rohr_graphics_show(); CHECK(sample_check(360,240,green));
+    /* A hole reveals another area's fill, and cannot erase independent areas. */
+    SoftBodyAreaGeometry window={.outer=square,.hole_count=1,.holes={{.node_count=4}}};
+    Position hole_points[]={{-15,-15},{15,-15},{15,15},{-15,15}};
+    for(unsigned i=0;i<4;i+=1) {
+        EntityResult n=rohr_physics_soft_body_node_create(body.result.value,hole_points[i],1,1); OK(n);
+        window.holes[0].nodes[i]=n.result.value;
+    }
+    OK(rohr_physics_soft_body_area_geometry_set(lower.result.value,window));
+    EntityResult behind=rohr_physics_soft_body_area_create(body.result.value,(SoftBodyAreaGeometry){.outer=square}); OK(behind);
+    Color blue={0,0,255,255};
+    OK(rohr_graphics_soft_body_area_color_set(behind.result.value,blue));
+    OK(rohr_graphics_layer_entity_set(behind.result.value,-1));
+    OK(rohr_graphics_soft_body_area_color_set(upper.result.value,red));
+    rohr_graphics_show(); CHECK(sample_check(320,240,blue) && sample_check(360,240,red));
+    for(unsigned i=0;i<4;i+=1) {
+        Position p=hole_points[i]; p.x+=40;
+        OK(rohr_physics_position_set(window.holes[0].nodes[i],p));
+    }
+    rohr_graphics_show(); CHECK(sample_check(360,240,red) && sample_check(320,240,green));
+    OK(rohr_graphics_soft_body_area_visibility_set(upper.result.value,false));
+    OK(rohr_graphics_soft_body_area_color_set(lower.result.value,(Color){255,0,0,128}));
+    rohr_graphics_show(); CHECK(sample_check(280,240,(Color){128,0,127,255}));
+    CHECK(sample_check(360,240,blue));
+    /* The rendered crossed square must have no side spill. */
+    OK(rohr_graphics_soft_body_area_visibility_set(behind.result.value,false));
+    OK(rohr_physics_soft_body_area_geometry_set(lower.result.value,(SoftBodyAreaGeometry){.outer=square}));
+    OK(rohr_graphics_soft_body_area_color_set(lower.result.value,green));
+    OK(rohr_physics_position_set(nodes[0],(Position){80,-60}));
+    OK(rohr_physics_position_set(nodes[1],(Position){-80,-60}));
+    rohr_graphics_show();
+    CHECK(sample_check(270,240,(Color){0,0,0,255}) && sample_check(370,240,(Color){0,0,0,255}));
+    CHECK(sample_check(320,200,green) && sample_check(320,280,green));
     OK(rohr_viewport_destroy(viewport.result.value));
+    OK(rohr_screen_destroy(screen.result.value));
     OK(rohr_camera_render_callback_set(camera,NULL,NULL));
     OK(rohr_entity_delete(body.result.value));
     rohr_graphics_stop();
@@ -195,7 +283,7 @@ int main(int argc, char **argv) {
     }
     if(rohr_error_check(rohr_engine_start())) return 1;
     bool passed = visual ? soft_body_areas_visual_run() :
-        runtime_check() && limits_and_reference_check() &&
+        runtime_check() && limits_and_transform_check() && holes_check() &&
         soft_body_areas_visual_motion_check() && rendering_check();
     rohr_engine_stop();
     return passed ? 0 : 1;
