@@ -378,7 +378,7 @@ typedef struct Joint {
 
 #define SOFT_BODY_MAX_NODES 64
 #define SOFT_BODY_MAX_BEAMS 256
-#define SOFT_BODY_MAX_TRIANGLES 128
+#define SOFT_BODY_MAX_AREAS 128
 /** Smallest stable full thickness accepted by beam collision. */
 #define ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN 0.01f
 
@@ -388,10 +388,10 @@ typedef struct SoftBody {
     Entity origin;
     Entity nodes[SOFT_BODY_MAX_NODES];
     Entity beams[SOFT_BODY_MAX_BEAMS];
-    Entity triangles[SOFT_BODY_MAX_TRIANGLES];
+    Entity areas[SOFT_BODY_MAX_AREAS];
     uint32_t node_count;
     uint32_t beam_count;
-    uint32_t triangle_count;
+    uint32_t area_count;
 } SoftBody;
 
 /** Lightweight point mass participating in soft-body collision. */
@@ -430,13 +430,23 @@ typedef struct SoftBodyBeam {
     bool draw_color_overridden;
 } SoftBodyBeam;
 
-/** Deforming triangular surface referencing three soft-body nodes. */
-typedef struct SoftBodyTriangle {
+/** Ordered node boundary; the last node connects implicitly to the first. */
+typedef struct SoftBodyAreaLoop {
+    Entity nodes[SOFT_BODY_MAX_NODES];
+    uint32_t node_count;
+} SoftBodyAreaLoop;
+
+/** Value snapshot of a visual area. No borrowed storage or triangle handles. */
+typedef struct SoftBodyArea {
     Entity soft_body;
-    Entity node_a;
-    Entity node_b;
-    Entity node_c;
-} SoftBodyTriangle;
+    SoftBodyAreaLoop loop;
+    /** Authored positions in body-local coordinates, in loop order. These
+     * remain unchanged during motion and are replaced only by nodes_set. */
+    Position reference_positions[SOFT_BODY_MAX_NODES];
+    Color draw_color;
+    bool draw_color_overridden;
+    bool visible;
+} SoftBodyArea;
 
 /** Explicit handles created when pinning a soft-body node to an anchor. */
 typedef struct SoftBodyNodeAnchorPin {
@@ -447,7 +457,7 @@ typedef struct SoftBodyNodeAnchorPin {
 ERROR_DECLARE_RESULT_TYPE(SoftBodyResult, SoftBody);
 ERROR_DECLARE_RESULT_TYPE(SoftBodyNodeResult, SoftBodyNode);
 ERROR_DECLARE_RESULT_TYPE(SoftBodyBeamResult, SoftBodyBeam);
-ERROR_DECLARE_RESULT_TYPE(SoftBodyTriangleResult, SoftBodyTriangle);
+ERROR_DECLARE_RESULT_TYPE(SoftBodyAreaResult, SoftBodyArea);
 ERROR_DECLARE_RESULT_TYPE(SoftBodyNodeAnchorPinResult, SoftBodyNodeAnchorPin);
 
 /** Pool storing positions by EntityIndex. */
@@ -493,7 +503,6 @@ MEMORY_DECLARE_OBJECT_POOL(JointPool, Joint);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyPool, SoftBody);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyNodePool, SoftBodyNode);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyBeamPool, SoftBodyBeam);
-MEMORY_DECLARE_OBJECT_POOL(SoftBodyTrianglePool, SoftBodyTriangle);
 
 extern PositionPool positions_pool;
 extern ParticleGeometryPool particle_geometries_pool;
@@ -522,7 +531,6 @@ extern JointPool joints_pool;
 extern SoftBodyPool soft_bodies_pool;
 extern SoftBodyNodePool soft_body_nodes_pool;
 extern SoftBodyBeamPool soft_body_beams_pool;
-extern SoftBodyTrianglePool soft_body_triangles_pool;
 #define positions positions_pool.objects
 #define velocities velocities_pool.objects
 #define accelerations accelerations_pool.objects
@@ -547,7 +555,6 @@ extern SoftBodyTrianglePool soft_body_triangles_pool;
 #define soft_bodies soft_bodies_pool.objects
 #define soft_body_nodes soft_body_nodes_pool.objects
 #define soft_body_beams soft_body_beams_pool.objects
-#define soft_body_triangles soft_body_triangles_pool.objects
 
 /**
  * Translate a local shape into world coordinates.
@@ -919,13 +926,10 @@ EngineResult physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-EntityResult physics_soft_body_triangle_create(
-    Entity soft_body,
-    Entity node_a,
-    Entity node_b,
-    Entity node_c
-);
-SoftBodyTriangleResult physics_soft_body_triangle_get(Entity triangle);
+EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaLoop loop);
+SoftBodyAreaResult physics_soft_body_area_get(Entity area);
+EngineResult physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop);
+EngineResult physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 /**
  * Create a joint entity connecting two live entities.

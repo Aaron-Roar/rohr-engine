@@ -51,7 +51,7 @@ int main(void) {
     EntityResult node_b;
     EntityResult node_c;
     EntityResult beam;
-    EntityResult triangle;
+    EntityResult area;
     SoftBodyNodeAnchorPinResult attachment;
     EntityResult rigid_body;
     JointAnchorIdResult rigid_anchor;
@@ -111,9 +111,11 @@ int main(void) {
     }
     beam = rohr_physics_soft_body_beam_create(
         body.result.value, node_a.result.value, node_b.result.value, 10.0f, 1.0f);
-    triangle = rohr_physics_soft_body_triangle_create(
-        body.result.value, node_a.result.value, node_b.result.value, node_c.result.value);
-    if(rohr_error_check(beam) || rohr_error_check(triangle)) goto fail;
+    area = rohr_physics_soft_body_area_create(
+        body.result.value, (SoftBodyAreaLoop){
+            .nodes = {node_a.result.value, node_b.result.value, node_c.result.value},
+            .node_count = 3});
+    if(rohr_error_check(beam) || rohr_error_check(area)) goto fail;
     {
         SoftBodyBeamResult collision = rohr_physics_soft_body_beam_get(
             beam.result.value);
@@ -201,7 +203,7 @@ int main(void) {
     {
         SoftBodyResult topology = rohr_physics_soft_body_get(body.result.value);
         if(rohr_error_check(topology) || topology.result.value.node_count != 3 ||
-                topology.result.value.beam_count != 1 || topology.result.value.triangle_count != 1) goto fail;
+                topology.result.value.beam_count != 1 || topology.result.value.area_count != 1) goto fail;
     }
     if(rohr_error_check(rohr_physics_position_set(node_b.result.value, (Position){20.0f, 0.0f})) ||
             rohr_error_check(rohr_physics_angular_velocity_set(
@@ -250,7 +252,7 @@ int main(void) {
     if(rohr_error_check(rohr_entity_delete(body.result.value)) ||
             rohr_entity_alive_check(node_a.result.value) || rohr_entity_alive_check(node_b.result.value) ||
             rohr_entity_alive_check(node_c.result.value) || rohr_entity_alive_check(beam.result.value) ||
-            rohr_entity_alive_check(triangle.result.value) ||
+            rohr_entity_alive_check(area.result.value) ||
             rohr_entity_alive_check(attachment.result.value.joint)) goto fail;
     {
         EntityResult collision_body = rohr_physics_soft_body_create();
@@ -287,7 +289,7 @@ int main(void) {
         EntityResult boundary_b;
         EntityResult boundary_c;
         EntityResult boundary_beam;
-        EntityResult boundary_triangle;
+        EntityResult boundary_area;
         EntityResult object = rohr_entity_add();
         EntityIndexResult object_index;
         PositionResult object_position;
@@ -305,13 +307,15 @@ int main(void) {
                     boundary_a.result.value, 1.0f)) ||
                 rohr_error_check(rohr_physics_friction_set(
                     boundary_b.result.value, 1.0f))) goto fail;
-        boundary_triangle = rohr_physics_soft_body_triangle_create(
-            boundary_body.result.value, boundary_a.result.value,
-            boundary_b.result.value, boundary_c.result.value);
+        boundary_area = rohr_physics_soft_body_area_create(
+            boundary_body.result.value, (SoftBodyAreaLoop){
+                .nodes = {boundary_a.result.value, boundary_b.result.value,
+                    boundary_c.result.value},
+                .node_count = 3});
         boundary_beam = rohr_physics_soft_body_beam_create(
             boundary_body.result.value, boundary_a.result.value,
             boundary_b.result.value, 10.0f, 1.0f);
-        if(rohr_error_check(boundary_triangle) || rohr_error_check(boundary_beam) ||
+        if(rohr_error_check(boundary_area) || rohr_error_check(boundary_beam) ||
                 rohr_error_check(rohr_physics_soft_body_beam_collision_disable(
                     boundary_beam.result.value)) ||
                 rohr_error_check(rohr_physics_position_set(

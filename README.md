@@ -214,6 +214,9 @@ Generated HTML is written to `build/docs/html/index.html` and is not committed.
 - [`center_of_mass`](examples/center_of_mass/README.md): editor-authored off-center
   geometry, automatic/explicit COM, free rotation, and local anchors.
 - `soft-body`: node/beam wheels, boundary contacts, particles, and vehicle input.
+  Run `soft_body --areas` for concave, layered node-loop fills with kinematic
+  deformation and folding. Space pauses motion, L swaps the orange fill's layer,
+  and Escape exits. The blue fill should retain its color outside the overlap.
 - `user-interface`: UI primitives and interactions.
 - `view-port`: camera/viewport and sprite movement.
 - `pong`: generated game components, collision, input, and scoring.

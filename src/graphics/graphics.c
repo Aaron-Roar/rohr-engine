@@ -9,6 +9,7 @@
 #include "engine.h"
 #include "systems.h"
 #include "physics.h"
+#include "physics/soft_body/soft_body_area.h"
 #include "physics/physics_internal.h"
 #include "core/platform_process.h"
 #include "window_presentation.h"
@@ -5102,18 +5103,39 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
     if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) return false;
     body = body_result.result.value;
     previous_layer = graphics_entity_layer_begin(soft_body_entity);
-    for(uint32_t i = 0; i < body.triangle_count; i += 1) {
-        SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(body.triangles[i]);
-        EntityIndex indices[3];
-        Shape shape = {.amount_of_vertices = 3};
-        int previous_child_layer;
-        if(triangle.kind == ERROR_RESULT_ERROR ||
-                !entity_index_get(triangle.result.value.node_a, &indices[0]) ||
-                !entity_index_get(triangle.result.value.node_b, &indices[1]) ||
-                !entity_index_get(triangle.result.value.node_c, &indices[2])) continue;
-        for(uint32_t vertex = 0; vertex < 3; vertex += 1) shape.vertices[vertex] = positions[indices[vertex]];
-        previous_child_layer = graphics_entity_layer_begin(body.triangles[i]);
-        (void)graphics_shape_filled_draw(shape, surface_color);
+    for(uint32_t i = 0; i < body.area_count; i += 1) {
+        EntityIndex area_index;
+        if(error_check(physics_soft_body_area_index_get(body.areas[i], &area_index))) continue;
+        const SoftBodyAreaState *area = &soft_body_area_states[area_index];
+        if(!area->value.visible) continue;
+        Position current[SOFT_BODY_MAX_NODES];
+        for(uint32_t j = 0; j < area->value.loop.node_count; j += 1) {
+            EntityIndex node_index;
+            if(!entity_index_get(area->value.loop.nodes[j], &node_index)) {
+                graphics_layer_active_set(previous_layer);
+                return false;
+            }
+            current[j] = positions[node_index];
+        }
+        Color color = area->value.draw_color_overridden ? area->value.draw_color : surface_color;
+        int previous_child_layer = graphics_entity_layer_begin(body.areas[i]);
+        for(size_t j = 0; j < area->triangulation.triangle_count; j += 1) {
+            Shape shape = {.amount_of_vertices = 3};
+            if(node_loop_triangle_get(&area->triangulation, current,
+                    area->value.loop.node_count, j, shape.vertices) != NODE_LOOP_GEOMETRY_OK) {
+                graphics_layer_active_set(previous_layer);
+                return false;
+            }
+            double ax = (double)shape.vertices[1].x - shape.vertices[0].x;
+            double ay = (double)shape.vertices[1].y - shape.vertices[0].y;
+            double bx = (double)shape.vertices[2].x - shape.vertices[0].x;
+            double by = (double)shape.vertices[2].y - shape.vertices[0].y;
+            if(ax * by == ay * bx) continue;
+            if(!graphics_shape_filled_draw(shape, color)) {
+                graphics_layer_active_set(previous_layer);
+                return false;
+            }
+        }
         graphics_layer_active_set(previous_child_layer);
     }
     for(uint32_t i = 0; i < body.beam_count; i += 1) {
@@ -5158,6 +5180,32 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
     }
     graphics_layer_active_set(previous_layer);
     return true;
+}
+
+EngineResult graphics_soft_body_area_color_set(Entity area, Color color) {
+    EntityIndex index;
+    EngineResult result = physics_soft_body_area_index_get(area, &index);
+    if(error_check(result)) return result;
+    soft_body_area_states[index].value.draw_color = color;
+    soft_body_area_states[index].value.draw_color_overridden = true;
+    return error_result_value(true);
+}
+
+EngineResult graphics_soft_body_area_color_clear(Entity area) {
+    EntityIndex index;
+    EngineResult result = physics_soft_body_area_index_get(area, &index);
+    if(error_check(result)) return result;
+    soft_body_area_states[index].value.draw_color = (Color){0};
+    soft_body_area_states[index].value.draw_color_overridden = false;
+    return error_result_value(true);
+}
+
+EngineResult graphics_soft_body_area_visibility_set(Entity area, bool visible) {
+    EntityIndex index;
+    EngineResult result = physics_soft_body_area_index_get(area, &index);
+    if(error_check(result)) return result;
+    soft_body_area_states[index].value.visible = visible;
+    return error_result_value(true);
 }
 
 static bool graphics_soft_body_nodes_match(Entity a, Entity b, Entity x, Entity y) {

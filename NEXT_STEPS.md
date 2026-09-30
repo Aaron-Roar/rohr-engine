@@ -215,9 +215,18 @@ within a layer draw on top, limited to each area's own footprint.
    the geometry ASan/UBSan/leak check, Linux/Windows builds, and an installed-SDK
    soft-body example build/headless launch pass. Windows is compile-only.
    Runtime areas, public APIs, and editor fills remain for subsequent goals.
-3. [ ] **Add runtime areas and API** — Own explicit node loops and fixed
-   triangulation, render independent layered fills, and provide a visual runtime
-   example. No holes or independent visual vertices in this milestone.
+3. [x] **Add runtime areas and API** — Added copied, value-type node loops,
+   transactional creation/edits, authored local reference positions, and private
+   fixed triangulation. Areas own visibility/color overrides, use entity layers,
+   and retain explicit list order; deletion preserves surviving order and node
+   or body deletion removes dependent areas. Removed manual triangle APIs,
+   components, and storage without compatibility wrappers; migrated callers to
+   three-node areas. The installed soft-body example includes `--areas` for
+   concave, overlapping colored fills with deformation, folding, and layer
+   switching. All 59 native tests, three ASan/UBSan/leak checks, Linux/Windows
+   builds, and both installed-SDK example modes pass. Windows is compile-only;
+   desktop visual review remains requested. No holes or independent visual
+   vertices; editor persistence, generation, and authoring remain below.
 4. [ ] **Connect editor data and app generation** — Add persistence, rendering,
    picking, and generated runtime areas. Preserve the authored reference shape
    to recreate triangulation when loading a deformed pose. Default soft bodies

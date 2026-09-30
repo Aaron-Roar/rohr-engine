@@ -1496,18 +1496,27 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask collides_with
 );
 /**
- * @brief Creates a deforming triangular surface from three nodes.
+ * @brief Creates a visual area from an ordered loop of existing nodes.
  * @param soft_body Owning soft body.
- * @param node_a First node.
- * @param node_b Second node.
- * @param node_c Third node.
- * @return EntityResult containing the triangle entity.
+ * @param loop Value copied by the engine; 3..SOFT_BODY_MAX_NODES distinct nodes
+ * from this body. Closing edge is implicit, and no beams are required.
+ * Initial positions must form a simple nonzero polygon. Triangulation is fixed
+ * during motion, including folds and inversions. Areas add no mass/collision.
+ * New areas are visible, inherit the draw call's surface color, and append to
+ * the body's area order. Delete with rohr_entity_delete; deleting a referenced
+ * node or the body also deletes the area.
+ * @return EntityResult containing the area entity; failure creates nothing.
  */
-EntityResult rohr_physics_soft_body_triangle_create(
-    Entity soft_body, Entity node_a, Entity node_b, Entity node_c
-);
-/** @brief Returns soft-body triangle data. @param triangle Triangle entity. @return SoftBodyTriangleResult. */
-SoftBodyTriangleResult rohr_physics_soft_body_triangle_get(Entity triangle);
+EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaLoop loop);
+/** Returns a value snapshot including node order, authored local positions,
+ * visibility and color override. No caller-owned memory is retained. */
+SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area);
+/** Replaces the loop and triangulates current positions transactionally.
+ * Failure preserves everything. Success preserves entity, style, layer/order. */
+EngineResult rohr_physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop);
+/** Moves the area to a zero-based index in its owner's area list.
+ * Later areas draw on top within the same layer. Out-of-range indices fail. */
+EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 /**
  * @brief Creates a joint between two entities.
@@ -1748,12 +1757,18 @@ void rohr_graphics_joints_draw(Color color);
 /**
  * @brief Draws a soft body's current surfaces, beams, and collision nodes.
  * @param soft_body Soft-body owner entity.
- * @param surface Triangle surface color.
+ * @param surface Fallback color for areas without a color override.
  * @param beam Beam color.
  * @param node Collision-node color.
  * @return true when the soft body's draw commands were queued.
  */
 bool rohr_graphics_soft_body_draw(Entity soft_body, Color surface, Color beam, Color node);
+/** Overrides an area's draw color; clear restores the draw call's surface color. */
+EngineResult rohr_graphics_soft_body_area_color_set(Entity area, Color color);
+/** Restores the draw call's surface color for this area. */
+EngineResult rohr_graphics_soft_body_area_color_clear(Entity area);
+/** Hides/shows the visual area without affecting nodes, beams or collision. */
+EngineResult rohr_graphics_soft_body_area_visibility_set(Entity area, bool visible);
 
 /** Sets a drawing-color override for one node belonging to a soft body. */
 EngineResult rohr_graphics_soft_body_node_color_set(

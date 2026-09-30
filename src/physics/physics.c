@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "physics/soft_body/soft_body_area.h"
 #include "physics/physics_internal.h"
 
 MEMORY_DEFINE_OBJECT_POOL(PositionPool, Position)
@@ -29,7 +30,7 @@ MEMORY_DEFINE_OBJECT_POOL(JointPool, Joint)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyPool, SoftBody)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyNodePool, SoftBodyNode)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyBeamPool, SoftBodyBeam)
-MEMORY_DEFINE_OBJECT_POOL(SoftBodyTrianglePool, SoftBodyTriangle)
+MEMORY_DEFINE_OBJECT_POOL(SoftBodyAreaStatePool, SoftBodyAreaState)
 
 PositionPool positions_pool = {0};
 ParticleGeometryPool particle_geometries_pool = {0};
@@ -58,7 +59,7 @@ JointPool joints_pool = {0};
 SoftBodyPool soft_bodies_pool = {0};
 SoftBodyNodePool soft_body_nodes_pool = {0};
 SoftBodyBeamPool soft_body_beams_pool = {0};
-SoftBodyTrianglePool soft_body_triangles_pool = {0};
+SoftBodyAreaStatePool soft_body_area_states_pool = {0};
 
 EngineResult physics_tables_init(void) {
     physics_config_init();
@@ -93,7 +94,7 @@ EngineResult physics_tables_init(void) {
     if(SoftBodyPool_init(&soft_bodies_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(SoftBodyNodePool_init(&soft_body_nodes_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(SoftBodyBeamPool_init(&soft_body_beams_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
-    if(SoftBodyTrianglePool_init(&soft_body_triangles_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
+    if(SoftBodyAreaStatePool_init(&soft_body_area_states_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     return error_result_value(true);
 
 fail:
@@ -146,7 +147,7 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > soft_bodies_pool.capacity && SoftBodyPool_expand(&soft_bodies_pool, new_capacity - soft_bodies_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_nodes_pool.capacity && SoftBodyNodePool_expand(&soft_body_nodes_pool, new_capacity - soft_body_nodes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_beams_pool.capacity && SoftBodyBeamPool_expand(&soft_body_beams_pool, new_capacity - soft_body_beams_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
-    if(new_capacity > soft_body_triangles_pool.capacity && SoftBodyTrianglePool_expand(&soft_body_triangles_pool, new_capacity - soft_body_triangles_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    if(new_capacity > soft_body_area_states_pool.capacity && SoftBodyAreaStatePool_expand(&soft_body_area_states_pool, new_capacity - soft_body_area_states_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     return error_result_value(true);
 }
 
@@ -186,7 +187,7 @@ void physics_tables_destroy(void) {
     (void)SoftBodyPool_destroy(&soft_bodies_pool);
     (void)SoftBodyNodePool_destroy(&soft_body_nodes_pool);
     (void)SoftBodyBeamPool_destroy(&soft_body_beams_pool);
-    (void)SoftBodyTrianglePool_destroy(&soft_body_triangles_pool);
+    (void)SoftBodyAreaStatePool_destroy(&soft_body_area_states_pool);
 }
 
 void physics_entity_clear(Entity entity, EntityIndex index) {

@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "soft_body_area.h"
 
 #include "physics/physics_internal.h"
 #include "math2d.h"
@@ -98,9 +99,9 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
     if(index < soft_bodies_pool.capacity && soft_bodies_pool.used[index]) {
         SoftBody body = soft_bodies[index];
 
-        for(uint32_t i = 0; i < body.triangle_count; i += 1)
-            if(entity_alive_check(body.triangles[i]))
-                (void)entity_delete(body.triangles[i]);
+        for(uint32_t i = 0; i < body.area_count; i += 1)
+            if(entity_alive_check(body.areas[i]))
+                (void)entity_delete(body.areas[i]);
         for(uint32_t i = 0; i < body.beam_count; i += 1)
             if(entity_alive_check(body.beams[i]))
                 (void)entity_delete(body.beams[i]);
@@ -126,21 +127,7 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
             if(connected_entity.kind == ERROR_RESULT_VALUE)
                 (void)entity_delete(connected_entity.result.value);
         }
-        for(EntityIndex connected = 0;
-                connected < soft_body_triangles_pool.capacity;
-                connected += 1) {
-            SoftBodyTriangle triangle;
-            EntityResult connected_entity;
-
-            if(!soft_body_triangles_pool.used[connected]) continue;
-            triangle = soft_body_triangles[connected];
-            if(triangle.node_a != entity &&
-                    triangle.node_b != entity &&
-                    triangle.node_c != entity) continue;
-            connected_entity = entity_from_index_get(connected);
-            if(connected_entity.kind == ERROR_RESULT_VALUE)
-                (void)entity_delete(connected_entity.result.value);
-        }
+        physics_soft_body_areas_node_clear(entity, owner);
         if(entity_index_get(owner, &body_index) &&
                 body_index < soft_bodies_pool.capacity &&
                 soft_bodies_pool.used[body_index])
@@ -164,21 +151,7 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
                 entity);
         (void)SoftBodyBeamPool_release_at(&soft_body_beams_pool, index);
     }
-    if(index < soft_body_triangles_pool.capacity &&
-            soft_body_triangles_pool.used[index]) {
-        EntityIndex body_index;
-        Entity owner = soft_body_triangles[index].soft_body;
-
-        if(entity_index_get(owner, &body_index) &&
-                body_index < soft_bodies_pool.capacity &&
-                soft_bodies_pool.used[body_index])
-            physics_soft_body_entity_list_remove(
-                soft_bodies[body_index].triangles,
-                &soft_bodies[body_index].triangle_count,
-                entity);
-        (void)SoftBodyTrianglePool_release_at(
-            &soft_body_triangles_pool, index);
-    }
+    physics_soft_body_area_entity_clear(entity, index);
 }
 
 EntityResult physics_soft_body_create(void) {
@@ -667,53 +640,4 @@ EngineResult physics_soft_body_beam_collision_filter_set(Entity beam,
     soft_body_beams[index].category = category;
     soft_body_beams[index].collides_with = collides_with;
     return error_result_value(true);
-}
-
-EntityResult physics_soft_body_triangle_create(Entity soft_body, Entity node_a, Entity node_b, Entity node_c) {
-    EntityIndex body_index;
-    EntityIndex indices[3];
-    Entity nodes_to_check[3] = {node_a, node_b, node_c};
-    EntityIndex triangle_index;
-    EntityResult triangle;
-
-    if(physics_live_index_get(soft_body, &body_index).kind == ERROR_RESULT_ERROR ||
-            !entity_index_components_check(body_index, ROHR_SOFT_BODY) ||
-            node_a == node_b || node_b == node_c || node_a == node_c) {
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    }
-    for(uint32_t i = 0; i < 3; i += 1) {
-        if(physics_live_index_get(nodes_to_check[i], &indices[i]).kind == ERROR_RESULT_ERROR ||
-                !entity_index_components_check(indices[i], ROHR_SOFT_BODY_NODE) ||
-                soft_body_nodes[indices[i]].soft_body != soft_body) {
-            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-        }
-    }
-    if(soft_bodies[body_index].triangle_count >= SOFT_BODY_MAX_TRIANGLES) {
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
-    }
-    triangle = entity_add();
-    if(triangle.kind == ERROR_RESULT_ERROR) return triangle;
-    if(!entity_index_get(triangle.result.value, &triangle_index) ||
-            SoftBodyTrianglePool_store_at(&soft_body_triangles_pool, triangle_index, (SoftBodyTriangle){
-                .soft_body = soft_body,
-                .node_a = node_a,
-                .node_b = node_b,
-                .node_c = node_c
-            }).kind == ERROR_RESULT_ERROR) {
-        (void)entity_delete(triangle.result.value);
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
-    }
-    entity_mask[triangle_index] |= ROHR_SOFT_BODY_TRIANGLE;
-    soft_bodies[body_index].triangles[soft_bodies[body_index].triangle_count++] = triangle.result.value;
-    return triangle;
-}
-
-SoftBodyTriangleResult physics_soft_body_triangle_get(Entity triangle) {
-    EntityIndex index;
-    EngineResult result = physics_live_index_get(triangle, &index);
-    if(result.kind == ERROR_RESULT_ERROR) return ERROR_RESULT_MAKE_ERROR(SoftBodyTriangleResult, result.result.error);
-    if(!entity_index_components_check(index, ROHR_SOFT_BODY_TRIANGLE) || !soft_body_triangles_pool.used[index]) {
-        return ERROR_RESULT_MAKE_ERROR(SoftBodyTriangleResult, ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    return ERROR_RESULT_MAKE_VALUE(SoftBodyTriangleResult, soft_body_triangles[index]);
 }

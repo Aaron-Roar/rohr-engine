@@ -233,9 +233,9 @@ apply forces; pin and weld joints are iterative constraints. In editor
 constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
-Soft bodies own particle nodes, beams, and optional generated filled surfaces.
+Soft bodies own particle nodes, beams, and optional visual node-loop areas.
 Every beam remains a soft-body-owned constraint and owns thick-segment collision
-independently of surface triangles. On creation, collision is enabled only when
+independently of visual areas. On creation, collision is enabled only when
 both endpoint nodes enable collision, the node category and collide-with masks
 are combined, and thickness starts at the smaller endpoint diameter. These are
 creation defaults, not live inheritance: later node filter changes do not alter
@@ -254,9 +254,49 @@ the solver removes the portion inside an endpoint node only when that node's
 filter allows it to handle the target. This avoids duplicate node/beam response
 without preventing a differently filtered beam from reaching the endpoint.
 Beam contacts belong to the beam's stable entity handle, and endpoint ordering
-does not change the interpolated material response. Surface triangles provide
+does not change the interpolated material response. Areas provide
 rendering only and do not participate in collision; physical holes are simply
 open spaces in the beam topology.
+
+### Runtime visual areas
+
+Pass an ordered loop by value; its last node connects back to the first. Nodes
+must belong to the owning soft body, but need not have connecting beams. Separate
+areas may share nodes. Creation and loop edits validate a simple, nonzero polygon
+and capture body-local reference positions. Fixed triangle indices follow those
+same nodes through subsequent deformation, collapse, inversion, and folding.
+Invalid edits return an error and preserve the last successful description.
+
+```c
+SoftBodyAreaLoop loop = {.nodes = {a, b, c, d}, .node_count = 4};
+EntityResult created = rohr_physics_soft_body_area_create(body, loop);
+if(!rohr_error_check(created)) {
+    Entity area = created.result.value;
+    rohr_graphics_soft_body_area_color_set(area, (Color){40,120,220,255});
+    rohr_graphics_layer_entity_set(area, 3);
+    rohr_physics_soft_body_area_order_set(area, 0);
+    // Later edits use rohr_physics_soft_body_area_nodes_set(area, loop).
+}
+```
+
+An area starts visible and uses the surface color supplied to
+`rohr_graphics_soft_body_draw` until overridden. Color clear restores that
+fallback. Visibility affects only the fill. Higher entity layers draw on top;
+within one layer, later entries in the owning body's area list draw on top.
+Each fill covers only its own deformed triangles; overlap never recolors another
+area. An unassigned area layer inherits the body's active draw layer.
+
+`rohr_physics_soft_body_area_get` returns a value snapshot with owner, node loop,
+authored local positions, visibility, and color override. Changing that snapshot
+does not mutate the area. Reordering uses a zero-based destination index and
+preserves the relative order of other areas. `rohr_entity_delete` removes the
+area; deleting any referenced node or its body deletes dependent areas. Deleting
+a beam does not delete an area. Limits are 64 nodes per loop and 128 areas per
+body; holes and independent visual vertices are unsupported.
+
+This replaces the manual triangle API, component, and storage without compatibility
+wrappers. Use a three-node area for a former triangle. Editor area persistence,
+generation, and authoring are scheduled for the following milestone goals.
 
 ## Debugging and limits
 

@@ -547,8 +547,13 @@ EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam) { return 
 EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam) { return physics_soft_body_beam_collision_disable(beam); }
 EngineResult rohr_physics_soft_body_beam_collision_thickness_set(Entity beam, float thickness) { return physics_soft_body_beam_collision_thickness_set(beam, thickness); }
 EngineResult rohr_physics_soft_body_beam_collision_filter_set(Entity beam, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_beam_collision_filter_set(beam, category, collides_with); }
-EntityResult rohr_physics_soft_body_triangle_create(Entity soft_body, Entity node_a, Entity node_b, Entity node_c) { return physics_soft_body_triangle_create(soft_body, node_a, node_b, node_c); }
-SoftBodyTriangleResult rohr_physics_soft_body_triangle_get(Entity triangle) { return physics_soft_body_triangle_get(triangle); }
+EntityResult rohr_physics_soft_body_area_create(Entity body, SoftBodyAreaLoop loop) { return physics_soft_body_area_create(body, loop); }
+SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area) { return physics_soft_body_area_get(area); }
+EngineResult rohr_physics_soft_body_area_nodes_set(Entity area, SoftBodyAreaLoop loop) { return physics_soft_body_area_nodes_set(area, loop); }
+EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index) { return physics_soft_body_area_order_set(area, index); }
+EngineResult rohr_graphics_soft_body_area_color_set(Entity area, Color color) { return graphics_soft_body_area_color_set(area, color); }
+EngineResult rohr_graphics_soft_body_area_color_clear(Entity area) { return graphics_soft_body_area_color_clear(area); }
+EngineResult rohr_graphics_soft_body_area_visibility_set(Entity area, bool visible) { return graphics_soft_body_area_visibility_set(area, visible); }
 EntityResult rohr_physics_joint_create(Entity a, Entity b, JointType type, Vec2D local_anchor_a, Vec2D local_anchor_b, float stiffness, float damping) {
     return physics_joint_create(a, b, type, local_anchor_a, local_anchor_b, stiffness, damping);
 }

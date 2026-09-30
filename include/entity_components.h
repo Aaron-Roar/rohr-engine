@@ -132,7 +132,7 @@ typedef enum {
     /** Entity is a spring beam connecting soft-body nodes. */
     ROHR_SOFT_BODY_BEAM              = 1 << 24,
     /** Entity is a triangular soft-body surface. */
-    ROHR_SOFT_BODY_TRIANGLE          = 1 << 25,
+    ROHR_SOFT_BODY_AREA              = 1 << 25,
     /** Entity receives acceleration from the engine gravity stage. */
     ROHR_GRAVITY                     = 1 << 26,
     /** Entity follows authored motion but does not respond to physics forces. */

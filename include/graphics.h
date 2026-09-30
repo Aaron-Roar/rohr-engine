@@ -948,6 +948,10 @@ bool graphics_joint_draw(Entity joint, Color color);
 void graphics_joints_draw(Color color);
 /** Draw a soft body's deforming surfaces, beams, and collision nodes. */
 bool graphics_soft_body_draw(Entity soft_body, Color surface, Color beam, Color node);
+EngineResult graphics_soft_body_area_color_set(Entity area, Color color);
+EngineResult graphics_soft_body_area_color_clear(Entity area);
+EngineResult graphics_soft_body_area_visibility_set(Entity area, bool visible);
+
 EngineResult graphics_soft_body_node_color_set(Entity soft_body, Entity node, Color color);
 EngineResult graphics_soft_body_beam_color_set(
     Entity soft_body, Entity node_a, Entity node_b, Color color);
