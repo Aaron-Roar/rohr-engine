@@ -33,7 +33,6 @@ add_executable(rohr_editor_gui
     src/editors/physics/editor_joint.c
     src/editors/soft_body/editor_soft_beam.c
     src/editors/soft_body/editor_soft_node.c
-    src/editors/soft_body/editor_soft_area.c
     src/editors/soft_body/editor_soft_body.c
     src/editors/render/editor_animation_frame.c
     src/editors/render/editor_sprite.c

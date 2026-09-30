@@ -352,8 +352,7 @@ static EditorHistoryAggregateChange *editor_history_aggregate_capture(
         item = parent;
         value = body;
         size = sizeof(*body);
-    } else if(kind == EDITOR_ITEM_SOFT_NODE || kind == EDITOR_ITEM_SOFT_BEAM ||
-            kind == EDITOR_ITEM_SOFT_AREA) {
+    } else if(kind == EDITOR_ITEM_SOFT_NODE || kind == EDITOR_ITEM_SOFT_BEAM) {
         EditorSoftBody *body = editor_history_soft_body_get(object, parent);
         if(body == NULL) return NULL;
         aggregate_kind = EDITOR_HISTORY_AGGREGATE_SOFT_BODY;

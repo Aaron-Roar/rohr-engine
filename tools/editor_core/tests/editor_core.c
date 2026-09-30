@@ -230,7 +230,52 @@ static bool position_near(Position position, float x, float y) {
     return fabsf(position.x - x) < 0.001f && fabsf(position.y - y) < 0.001f;
 }
 
+static int auto_shape_sparse_selection_test(void) {
+    EditorVertex vertices[7] = {0}, saved_vertices[7];
+    EditorSoftNode nodes[7] = {0}, saved_nodes[7];
+    EditorHitbox hitbox = {.vertices = vertices, .vertex_count = 7,
+        .vertex_capacity = 7};
+    EditorSoftBody body = {.nodes = nodes, .node_count = 7, .node_capacity = 7};
+    EditorAutoShapeConfig triangle = {.kind = EDITOR_AUTO_SHAPE_TRIANGLE,
+        .triangle_kind = EDITOR_AUTO_TRIANGLE_ISOSCELES, .width = 6, .height = 4};
+    /* Shuffled IDs reference slots beyond the three-element selection. */
+    EditorVertexId selected[] = {107, 103, 105};
+    for(size_t i = 0; i < 7; i += 1) {
+        vertices[i].id = nodes[i].id = (uint32_t)(101 + i);
+        vertices[i].position = nodes[i].position = (Position){50 + (float)i, 80};
+    }
+    vertices[2].position = nodes[2].position = (Position){-3, -2};
+    vertices[4].position = nodes[4].position = (Position){3, -2};
+    vertices[6].position = nodes[6].position = (Position){0, 4};
+    if(editor_result_check(editor_auto_shape_hitbox_points_apply(&hitbox,
+                &triangle, selected, 3)) ||
+            editor_result_check(editor_auto_shape_soft_body_points_apply(&body,
+                &triangle, selected, 3))) return 1;
+    for(size_t i = 0; i < 7; i += 1) {
+        Position expected = {50 + (float)i, 80};
+        if(i == 2) expected = (Position){0, -2};
+        if(i == 4) expected = (Position){3, 2};
+        if(i == 6) expected = (Position){-3, 2};
+        if(vertices[i].id != 101 + i || nodes[i].id != 101 + i ||
+                !position_near(vertices[i].position, expected.x, expected.y) ||
+                !position_near(nodes[i].position, expected.x, expected.y)) return 1;
+    }
+    memcpy(saved_vertices, vertices, sizeof(vertices));
+    memcpy(saved_nodes, nodes, sizeof(nodes));
+    const uint32_t invalid[][3] = {{107, 103, 107}, {107, 103, 999}};
+    for(size_t i = 0; i < 2; i += 1) {
+        if(!editor_result_check(editor_auto_shape_hitbox_points_apply(&hitbox,
+                    &triangle, invalid[i], 3)) ||
+                !editor_result_check(editor_auto_shape_soft_body_points_apply(&body,
+                    &triangle, invalid[i], 3)) ||
+                memcmp(saved_vertices, vertices, sizeof(vertices)) != 0 ||
+                memcmp(saved_nodes, nodes, sizeof(nodes)) != 0) return 1;
+    }
+    return 0;
+}
+
 static int auto_shape_test(void) {
+    if(auto_shape_sparse_selection_test() != 0) return 1;
     EditorHitbox hitbox = {0};
     EditorSoftBody soft_body = {0};
     EditorVertex vertices[5] = {0};
@@ -1584,7 +1629,37 @@ static int camera_commands_test(void) {
     return 0;
 }
 
+static int removed_area_commands_test(void) {
+    EditorProject project;
+    EditorCommand parsed;
+    const char *path;
+    char *area_selector[] = {"rohr-cli", "--soft-body", "cloth", "--area", "face",
+        "--property", "color", "ff8800ff"};
+    char *area_color[] = {"rohr-cli", "--soft-body", "cloth", "--property",
+        "area-color", "ff8800ff"};
+    char *surface[] = {"rohr-cli", "--soft-body", "cloth", "--property",
+        "surface-enabled", "true"};
+    char *beam_color[] = {"rohr-cli", "--soft-body", "cloth", "--property",
+        "beam-color", "ff8800ff"};
+    editor_project_init(&project);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorSoftBody *body = editor_project_soft_body_add(&project, object);
+    if(body == NULL) { editor_project_destroy(&project); return 1; }
+    snprintf(body->name, sizeof(body->name), "cloth");
+    bool valid = editor_result_check(editor_command_cli_standard_parse(
+            &project, 8, area_selector, &path, &parsed)) &&
+        editor_result_check(editor_command_cli_standard_parse(
+            &project, 6, area_color, &path, &parsed)) &&
+        editor_result_check(editor_command_cli_standard_parse(
+            &project, 6, surface, &path, &parsed)) &&
+        !editor_result_check(editor_command_cli_standard_parse(
+            &project, 6, beam_color, &path, &parsed));
+    editor_project_destroy(&project);
+    return valid ? 0 : 1;
+}
+
 int main(void) {
+    if(removed_area_commands_test() != 0) return 1;
     const char *path = "/tmp/rohr-editor-core-test.json";
     EditorDocument document;
     EditorDocument loaded;

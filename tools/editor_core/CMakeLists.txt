@@ -63,17 +63,6 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(center_of_mass_persistence PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
-    add_executable(stable_soft_areas_test tests/stable_soft_areas.c)
-    target_link_libraries(stable_soft_areas_test PRIVATE rohr_editor_core)
-    if(ROHR_ENABLE_SANITIZERS)
-        target_compile_options(stable_soft_areas_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
-    endif()
-    set_target_properties(stable_soft_areas_test PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
-    add_test(NAME stable_soft_areas COMMAND stable_soft_areas_test)
-    set_tests_properties(stable_soft_areas PROPERTIES
-        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
-
     add_executable(editor_core_test tests/editor_core.c)
     target_link_libraries(editor_core_test PRIVATE rohr_editor_core)
     set_target_properties(editor_core_test PROPERTIES

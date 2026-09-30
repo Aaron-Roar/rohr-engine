@@ -50,15 +50,6 @@ static bool file_contains(const char *path, const char *text) {
     return found;
 }
 
-static bool file_order_check(const char *path, const char *first, const char *second) {
-    char *contents = SDL_LoadFile(path, NULL);
-    if(contents == NULL) return false;
-    char *a = strstr(contents, first), *b = strstr(contents, second);
-    bool ordered = a != NULL && b != NULL && a < b;
-    SDL_free(contents);
-    return ordered;
-}
-
 static size_t file_occurrence_count(const char *path, const char *text) {
     char *contents;
     char *at;
@@ -776,22 +767,7 @@ int main(void) {
                 generated_node_a->color = UINT32_C(0xff0000ff);
                 generated_node_a->color_overridden = true;
             }
-            if(generated_soft_body != NULL && generated_soft_body->area_count == 2) {
-                snprintf(generated_soft_body->areas[0].name, EDITOR_OBJECT_NAME_MAX, "back_area");
-                snprintf(generated_soft_body->areas[1].name, EDITOR_OBJECT_NAME_MAX, "front_area");
-                generated_soft_body->areas[0].surface_enabled = false;
-                generated_soft_body->areas[1].color = UINT32_C(0x00ff00ff);
-                generated_soft_body->areas[1].color_overridden = true;
-                generated_soft_body->areas[1].graphics_layer_inherited = false;
-                generated_soft_body->areas[1].graphics_layer.value = 43;
-                size_t a = editor_project_soft_body_hierarchy_index_get(generated_soft_body,
-                    EDITOR_SOFT_HIERARCHY_AREA, generated_soft_body->areas[0].id);
-                size_t b = editor_project_soft_body_hierarchy_index_get(generated_soft_body,
-                    EDITOR_SOFT_HIERARCHY_AREA, generated_soft_body->areas[1].id);
-                EditorSoftHierarchyItem swap = generated_soft_body->hierarchy[a];
-                generated_soft_body->hierarchy[a] = generated_soft_body->hierarchy[b];
-                generated_soft_body->hierarchy[b] = swap;
-            }
+
             if(body_anchor == NULL || world_anchor == NULL || generated_joint == NULL ||
                     generated_soft_body == NULL || generated_node_a == NULL ||
                     generated_node_b == NULL || generated_node_c == NULL ||
@@ -800,7 +776,6 @@ int main(void) {
                     generated_beam == NULL || generated_beam_b == NULL ||
                     generated_beam_c == NULL || generated_beam_d == NULL ||
                     generated_beam_e == NULL || generated_beam_f == NULL ||
-                    generated_soft_body->area_count != 2 ||
                     generated_camera == NULL ||
                     generated_particle == NULL ||
                     generated_sprite == NULL || generated_animation == NULL ||
@@ -866,13 +841,9 @@ int main(void) {
                     "rohr_physics_soft_body_beam_collision_config_set") ||
                 !file_contains(path,
                     ".enabled = false, .thickness = 4.00000000f") ||
-                /* Disabled surfaces retain their persistent runtime identities too. */
-                file_occurrence_count(path,
-                    "rohr_physics_soft_body_area_create") != 4 ||
+                /* Removed area APIs must not leak into generated applications. */
+                file_contains(path, "soft_body_area_") ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
-                !file_contains(path, "rohr_graphics_soft_body_area_style_set") ||
-                !file_contains(path, "object->front_area,rohr_graphics_color_hex_create(UINT32_C(0x00ff00ff)),true,true,true") ||
-                !file_order_check(path, "object->front_area=created.result.value", "object->back_area=created.result.value") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path, "rohr_graphics_animation_release") ||
                 !file_contains(path, "rohr_graphics_texture_release") ||
@@ -905,7 +876,7 @@ int main(void) {
                     "rohr_graphics_layer_entity_set(objects->starter.node_") ||
                 !file_contains(path,
                     "rohr_graphics_layer_entity_set(objects->starter.beam_") ||
-                !file_contains(path, ", 43)") ||
+                file_contains(path, ", 43)") ||
                 !file_contains(path, "rohr_graphics_layer_sprite_set") ||
                 !file_contains(path, "rohr_graphics_layer_animation_set")) {
             workspace_fixture_remove(fixture);
@@ -1233,6 +1204,13 @@ int main(void) {
                 loaded_animation->frames[0].offset.y != -9 ||
                 loaded_animation->frames[0].rotation != 450 ||
                 loaded_animation->frames[0].scale.x != -2 || loaded_animation->frames[0].scale.y != 0) return 1;
+        if(!file_json_number_replace(path, "format_version", "6")) return 1;
+        EditorResult old_schema = editor_project_load(&loaded, path);
+        if(!editor_result_check(old_schema) ||
+                old_schema.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
+                loaded.objects[0].id != project.objects[0].id ||
+                loaded_animation->frames[0].offset.x != 13 ||
+                loaded_animation->frames[0].rotation != 450) return 1;
         if(!file_json_number_replace(path, "format_version", "4") ||
                 !editor_result_check(editor_project_load(&loaded, path))) return 1;
         if(!editor_project_save(&project, path) ||
@@ -1326,213 +1304,6 @@ int main(void) {
                     "front_point") != 0 ||
                 strcmp(loaded_object->rigid_bodies[0].hitboxes[0].line_names[0],
                     "upper_edge") != 0) return 1;
-    }
-
-    {
-        static EditorProject topology_project;
-        EditorObject *topology_object;
-        EditorSoftBody *topology_body;
-        EditorSoftBeam *divider;
-        EditorSoftNode *nodes[6];
-        const Position node_positions[6] = {
-            {20.0f, 0.0f}, {10.0f, 17.0f}, {-10.0f, 17.0f},
-            {-20.0f, 0.0f}, {-10.0f, -17.0f}, {10.0f, -17.0f}
-        };
-        uint32_t triangles[EDITOR_SOFT_AREA_NODE_MAX - 2][3];
-        editor_project_init(&topology_project);
-        topology_object = editor_project_object_add(&topology_project, (Position){0});
-        topology_body = editor_project_soft_body_add(&topology_project, topology_object);
-        if(topology_object == NULL || topology_body == NULL) return 1;
-        for(size_t i = 0; i < 6; i += 1) {
-            nodes[i] = editor_project_soft_node_add(
-                &topology_project, topology_body, node_positions[i]);
-            if(nodes[i] == NULL) return 1;
-        }
-        for(size_t i = 0; i < 6; i += 1) {
-            if(editor_project_soft_beam_add(&topology_project, topology_body,
-                    nodes[i]->id, nodes[(i + 1) % 6]->id) == NULL) return 1;
-        }
-        if(topology_body->area_count != 1 || topology_body->areas[0].node_count != 6 ||
-                editor_project_soft_area_triangulate(topology_body,
-                    &topology_body->areas[0], triangles,
-                    EDITOR_SOFT_AREA_NODE_MAX - 2) != 4) return 1;
-        {
-            static EditorProject topology_loaded;
-            const char *path = "editor_soft_area_layer_round_trip.json";
-            topology_body->areas[0].graphics_layer_inherited = false;
-            topology_body->areas[0].graphics_layer.value = 73;
-            topology_body->areas[0].surface_enabled = false;
-            if(!editor_project_save(&topology_project, path) ||
-                    editor_result_check(editor_project_load(&topology_loaded, path)))
-                return 1;
-            (void)remove(path);
-            if(topology_loaded.objects[0].soft_body_items[0].areas[0].
-                        graphics_layer_inherited ||
-                    topology_loaded.objects[0].soft_body_items[0].areas[0].
-                        graphics_layer.value != 73) return 1;
-            if(topology_loaded.objects[0].soft_body_items[0].areas[0].
-                    surface_enabled) return 1;
-        }
-        divider = editor_project_soft_beam_add(&topology_project, topology_body,
-            nodes[0]->id, nodes[3]->id);
-        if(divider == NULL ||
-                topology_body->area_count != 2 ||
-                topology_body->areas[0].node_count != 4 ||
-                topology_body->areas[1].node_count != 4 ||
-                topology_body->areas[0].surface_enabled ||
-                topology_body->areas[1].surface_enabled ||
-                topology_body->areas[0].graphics_layer_inherited ||
-                topology_body->areas[1].graphics_layer_inherited ||
-                topology_body->areas[0].graphics_layer.value != 73 ||
-                topology_body->areas[1].graphics_layer.value != 73) return 1;
-        if(!editor_project_soft_beam_remove(
-                    &topology_project, topology_body, divider->id) ||
-                topology_body->area_count != 1 ||
-                topology_body->areas[0].surface_enabled ||
-                topology_body->areas[0].graphics_layer_inherited ||
-                topology_body->areas[0].graphics_layer.value != 73) return 1;
-    }
-
-    {
-        static EditorProject concave_project;
-        EditorObject *concave_object;
-        EditorSoftBody *concave_body;
-        EditorSoftNode *nodes[5];
-        const Position node_positions[5] = {
-            {-30.0f, -20.0f}, {30.0f, -20.0f}, {5.0f, 0.0f},
-            {30.0f, 20.0f}, {-30.0f, 20.0f}
-        };
-        uint32_t triangles[EDITOR_SOFT_AREA_NODE_MAX - 2][3];
-
-        editor_project_init(&concave_project);
-        concave_object = editor_project_object_add(&concave_project, (Position){0});
-        concave_body = editor_project_soft_body_add(&concave_project, concave_object);
-        if(concave_object == NULL || concave_body == NULL) return 1;
-        for(size_t i = 0; i < 5; i += 1) {
-            nodes[i] = editor_project_soft_node_add(
-                &concave_project, concave_body, node_positions[i]);
-            if(nodes[i] == NULL) return 1;
-        }
-        for(size_t i = 0; i < 5; i += 1) {
-            if(editor_project_soft_beam_add(&concave_project, concave_body,
-                    nodes[i]->id, nodes[(i + 1) % 5]->id) == NULL) return 1;
-        }
-        if(concave_body->area_count != 1 || concave_body->areas[0].node_count != 5 ||
-                editor_project_soft_area_triangulate(concave_body,
-                    &concave_body->areas[0], triangles,
-                    EDITOR_SOFT_AREA_NODE_MAX - 2) != 3) return 1;
-    }
-
-    {
-        static EditorProject disconnected_project;
-        EditorObject *disconnected_object;
-        EditorSoftBody *disconnected_body;
-        EditorSoftNode *nodes[6];
-        const Position node_positions[6] = {
-            {-50.0f, -10.0f}, {-30.0f, -10.0f}, {-40.0f, 10.0f},
-            {30.0f, -10.0f}, {50.0f, -10.0f}, {40.0f, 10.0f}
-        };
-
-        editor_project_init(&disconnected_project);
-        disconnected_object = editor_project_object_add(
-            &disconnected_project, (Position){0});
-        disconnected_body = editor_project_soft_body_add(
-            &disconnected_project, disconnected_object);
-        if(disconnected_object == NULL || disconnected_body == NULL) return 1;
-        for(size_t i = 0; i < 6; i += 1) {
-            nodes[i] = editor_project_soft_node_add(
-                &disconnected_project, disconnected_body, node_positions[i]);
-            if(nodes[i] == NULL) return 1;
-        }
-        for(size_t triangle = 0; triangle < 2; triangle += 1) {
-            size_t first_node = triangle * 3;
-            for(size_t edge = 0; edge < 3; edge += 1) {
-                if(editor_project_soft_beam_add(&disconnected_project,
-                        disconnected_body, nodes[first_node + edge]->id,
-                        nodes[first_node + (edge + 1) % 3]->id) == NULL) return 1;
-            }
-        }
-        if(disconnected_body->area_count != 2 ||
-                disconnected_body->areas[0].node_count != 3 ||
-                disconnected_body->areas[1].node_count != 3) return 1;
-    }
-
-    {
-        static EditorProject nested_project;
-        EditorObject *nested_object;
-        EditorSoftBody *nested_body;
-        EditorSoftNode *nodes[8];
-        const Position node_positions[8] = {
-            {-40.0f, -40.0f}, {40.0f, -40.0f}, {40.0f, 40.0f}, {-40.0f, 40.0f},
-            {-10.0f, -10.0f}, {10.0f, -10.0f}, {10.0f, 10.0f}, {-10.0f, 10.0f}
-        };
-
-        editor_project_init(&nested_project);
-        nested_object = editor_project_object_add(&nested_project, (Position){0});
-        nested_body = editor_project_soft_body_add(&nested_project, nested_object);
-        if(nested_object == NULL || nested_body == NULL) return 1;
-        for(size_t i = 0; i < 8; i += 1) {
-            nodes[i] = editor_project_soft_node_add(
-                &nested_project, nested_body, node_positions[i]);
-            if(nodes[i] == NULL) return 1;
-        }
-        for(size_t loop = 0; loop < 2; loop += 1) {
-            size_t first_node = loop * 4;
-            for(size_t edge = 0; edge < 4; edge += 1) {
-                if(editor_project_soft_beam_add(&nested_project, nested_body,
-                        nodes[first_node + edge]->id,
-                        nodes[first_node + (edge + 1) % 4]->id) == NULL) return 1;
-            }
-        }
-        if(nested_body->area_count != 2 || nested_body->areas[0].node_count != 10 ||
-                nested_body->areas[1].node_count != 4) return 1;
-        Position outline[10];
-        for(size_t i=0;i<10;i++)
-            if(!editor_project_soft_area_position_get(nested_body,&nested_body->areas[0],i,&outline[i])) return 1;
-        if(area_polygon_contains_check(outline,10,(Position){0,0}) ||
-            !area_polygon_contains_check(outline,10,(Position){25,0})) return 1;
-    }
-
-    {
-        static EditorProject invalid_version_project;
-        const char *path = "editor_project_invalid_version.json";
-        EditorResult result;
-
-        if(!file_replace(path, "{\"format_version\":99}")) return 1;
-        result = editor_project_load(&invalid_version_project, path);
-        (void)remove(path);
-        if(!editor_result_check(result) ||
-                result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
-                strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 6") == NULL) return 1;
-    }
-
-    {
-        static EditorProject invalid_project;
-        EditorObject *invalid_object;
-        EditorSoftBody *invalid_body;
-        EditorSoftNode *nodes[4];
-        const Position node_positions[4] = {
-            {-20.0f, 0.0f}, {0.0f, 20.0f}, {20.0f, 0.0f}, {0.0f, -20.0f}
-        };
-
-        editor_project_init(&invalid_project);
-        invalid_object = editor_project_object_add(&invalid_project, (Position){0});
-        invalid_body = editor_project_soft_body_add(&invalid_project, invalid_object);
-        if(invalid_object == NULL || invalid_body == NULL) return 1;
-        for(size_t i = 0; i < 4; i += 1) {
-            nodes[i] = editor_project_soft_node_add(
-                &invalid_project, invalid_body, node_positions[i]);
-            if(nodes[i] == NULL) return 1;
-        }
-        for(size_t i = 0; i < 3; i += 1) {
-            if(editor_project_soft_beam_add(&invalid_project, invalid_body,
-                    nodes[i]->id, nodes[i + 1]->id) == NULL) return 1;
-        }
-        if(invalid_body->area_count != 0 ||
-                editor_project_soft_beam_add(&invalid_project, invalid_body,
-                    nodes[3]->id, 0) == NULL || invalid_body->area_count != 0)
-            return 1;
     }
 
     {

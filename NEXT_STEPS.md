@@ -30,12 +30,11 @@ developer-owned C and do not need to be authored in the editor.
 5. **Standalone particles (complete)** — Reusable editor-authored particle
    definitions generate public `ParticleConfig` constants and instantiate
    through the particle API.
-6. **Advanced soft-body surfaces (complete)** — Beams own independently
+6. **Advanced soft-body surfaces (superseded in part)** — Beams own independently
    configurable thick-segment collision with per-target endpoint exclusion,
-   while generated triangles are visual-only. Areas can disable visual surface
-   generation without changing the physical openings defined by their beams,
-   with direct C, editor, JSON, generated-C, example, documentation, and
-   Linux/Windows coverage.
+   independently of visual fills. The old area authoring and generation paths
+   are being removed by Node-Loop Soft-Body Areas; node/beam collision remains
+   supported.
 7. **Input controllers and action declarations (complete)** — Engine-owned
    keyboard, pointer, and text/IME snapshots feed top-level named logical
    controllers with Button, Axis 1D, and Axis 2D actions. Momentary and
@@ -54,6 +53,11 @@ project before marking the item complete.
 After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
+
+The user-selected **Node-Loop Soft-Body Areas** milestone is active and takes
+priority. It replaces Geometrically Bounded Area Overlap and the earlier
+beam-derived area model. Goal 1 removes that model before building its replacement;
+area fills are temporarily unavailable. This is an approved breaking change.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -179,6 +183,45 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    warnings. The installed-SDK center-of-mass example builds and launches outside
    its source directory. Windows verification is cross-compilation only;
    sanitizers were not rerun for this default-value-only change.
+
+## Milestone: Node-Loop Soft-Body Areas
+
+Replace beam-derived coloring with explicit ordered loops of existing soft-body
+nodes. The last node connects implicitly to the first. Areas need no physical
+boundary beams; separate areas may share nodes. Higher layers and later entries
+within a layer draw on top, limited to each area's own footprint.
+
+1. [x] **Remove beam-derived coloring** — Removed obsolete geometry discovery,
+   storage, public area APIs, editor panels/picking, CLI selectors, persistence,
+   and generated area code. Node/beam editing and physics remain operational;
+   the separate manual triangle primitives remain supported. Project schema 7
+   rejects old files without migration. Area fills are temporarily unavailable;
+   state this explicitly in the commit. Also fixed the user-approved Auto Shape
+   out-of-bounds read for selected hitbox vertices and soft-body nodes by keeping
+   temporary positions indexed consistently with their original arrays.
+   Regressions cover sparse shuffled selections, unchanged unselected points,
+   and transactional rejection of duplicate/missing IDs. All 57 native tests,
+   five ASan/UBSan/leak checks, Linux/Windows builds, and installed-SDK example
+   and generated-app headless launches pass. Windows is compile-only; desktop
+   visual review is recommended before committing.
+2. [ ] **Build ordered-loop geometry** — Validate simple nonzero initial loops,
+   including concave polygons, and triangulate internally. Preserve triangle
+   connections during later motion and folds. Test this geometry independently.
+3. [ ] **Add runtime areas and API** — Own explicit node loops and fixed
+   triangulation, render independent layered fills, and provide a visual runtime
+   example. No holes or independent visual vertices in this milestone.
+4. [ ] **Connect editor data and app generation** — Add persistence, rendering,
+   picking, and generated runtime areas. Preserve the authored reference shape
+   to recreate triangulation when loading a deformed pose. Default soft bodies
+   keep four square nodes and six beams and gain one square area.
+5. [ ] **Add area authoring and verify parity** — Add editor and CLI loop editing,
+   layer/list ordering, and undo. Deleting a node deletes dependent areas;
+   undo restores them together. Rewrite bundled examples and verify the editor,
+   generated applications, sanitizers, and Linux/Windows builds.
+
+The earlier Geometrically Bounded Area Overlap goal is superseded. Its unresolved
+missing-crossing recovery rules are discarded with the beam-derived model.
+Earlier completed area milestones below record history, not current support.
 
 ## Completed Milestone: Stable Area Colors During Motion
 

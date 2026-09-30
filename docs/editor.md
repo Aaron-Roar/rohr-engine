@@ -28,7 +28,7 @@ New rigid bodies and added hitboxes start as centered 140-by-140 squares.
 New UI shapes start as 180-by-180 squares. **Add Soft Body** (also the CLI
 `soft-body add` command) creates four corners of a 140-by-140 square with six
 beams: four perimeter edges and both diagonals, with no center node. Nodes,
-beams, and derived areas retain their normal property defaults. Low-level
+and beams retain their normal property defaults. Low-level
 soft-body construction remains empty for custom geometry builders. Saved
 geometry, duplicates, and explicitly chosen Auto Shape types are preserved.
 
@@ -265,7 +265,7 @@ An object is an authored collection, similar to a prefab definition. It may own:
 - rigid bodies and their hitboxes;
 - particles represented by particle-enabled rigid bodies;
 - anchors and joints;
-- soft bodies, nodes, beams, and generated triangular areas.
+- soft bodies, nodes, and beams.
 
 Object names are formatted as PascalCase because they become generated C type
 names. Child property names are formatted as snake_case because they become
@@ -364,8 +364,9 @@ A pair responds only when both directional filters accept one another.
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 6. Version-5 node-loop areas load as persistent
-boundaries; earlier project formats must be rewritten.
+Project data uses format version 7. Earlier formats must be rewritten; loading
+them returns a schema error without replacing the current project. Beam-derived
+area data is no longer supported.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
@@ -467,54 +468,19 @@ or disable it when no thickness is valid; growing a node does not grow or
 re-enable an existing beam. Collision, thickness, and both filter masks remain
 individually editable in the beam panel.
 
-Adding, removing, or reconnecting beams establishes colorable areas from the
-smallest enclosed regions of the current geometry. Crossing beams divide these
-regions without creating physical nodes or connecting the beams. A square with
-both diagonals initially has four selectable triangular areas. A disconnected
-inner loop forms its own area and a hole in the enclosing area, so their fills
-do not overlap.
+Soft-body area fills are temporarily unavailable while the node-loop area system
+is built. The beam-derived area model, area panels and selectors, and area color
+controls have been removed. Editor-authored and generated soft bodies display
+nodes and beams only. Beam collision and node physics are unchanged.
 
-Once established, an area owns a persistent beam boundary and ID. Moving nodes
-or using Auto Shape changes its visible regions without creating or deleting
-area definitions. Crossing corners use the actual current beam intersections;
-stored fractions only record the authored boundary directions. Regions with
-unchanged beam boundaries keep their existing owners during movement, rotation,
-and deformation; ordinary movement does not merge their colors. Fills, picking,
-marquee bounds, and selection outlines use the same current beam-bounded regions.
-A square folded into a bow tie retains one area covering both lobes, and enclosed
-self-overlap regions stay filled. Explicit inner-loop holes remain holes.
+Nodes and beams may override their parent colors. **Inherit** disables the local
+color control and follows the soft-body color.
 
-When a crossing disappears, surviving boundary turns identify the current
-regions covered by each original definition. Several definitions may cover a
-merged region. Higher graphics layers take precedence; within one layer,
-later areas in the editor list draw on top. Reordering the list affects both
-editor and generated app rendering. Hidden or surface-disabled areas do not
-block selection. Covered definitions retain their IDs, colors, and settings,
-which return when their boundaries separate. A newly enclosed region with no
-surviving old corner is covered by the definitions contributing its boundary
-beams, with the same layer/order rule. A collapsed definition can have
-no visible region while retaining its identity. No physical nodes or collision
-connections are introduced at crossings.
-
-Connection edits preserve IDs and settings for matching boundaries. New areas
-get fresh IDs and inherit color, visibility, surface, and layer settings from
-the previous area with greatest overlap (lowest ID breaks a tie). No overlap
-uses the soft body's defaults. Save/load preserves these boundaries and settings
-rather than reconstructing areas from deformed positions.
-
-Areas are visual surfaces only. Disabling **Surface** leaves authored beam
-collision unchanged. Physical openings depend on the collision-enabled beams.
-
-Areas may override the parent area color and their boundary beams may override
-the parent beam color. When **Inherit** is selected, the local color control is
-disabled and follows the soft-body color.
-
-Dragging any node, beam, or filled area while in the soft-body editor translates
-the whole soft body. Double-click nodes, beams, or areas to open their individual
-editors.
+Dragging a node or beam in the soft-body editor translates the whole soft body.
+Double-click a node or beam to open its individual editor.
 
 Soft bodies provide the same **Auto Shape** tool. It repositions existing nodes
-without replacing node IDs, names, beams, or area relationships.
+without replacing node IDs, names, or beams.
 
 ## Current boundary
 

@@ -448,7 +448,6 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_val *value = yyjson_mut_obj(document);
     yyjson_mut_val *nodes = yyjson_mut_arr(document);
     yyjson_mut_val *beams = yyjson_mut_arr(document);
-    yyjson_mut_val *areas = yyjson_mut_arr(document);
     yyjson_mut_val *hierarchy = yyjson_mut_arr(document);
     yyjson_mut_obj_add_uint(document, value, "id", body->id);
     yyjson_mut_obj_add_strcpy(document, value, "name", body->name);
@@ -466,7 +465,6 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
     yyjson_mut_obj_add_uint(document, value, "node_color", body->node_color);
     yyjson_mut_obj_add_uint(document, value, "beam_color", body->beam_color);
-    yyjson_mut_obj_add_uint(document, value, "area_color", body->area_color);
     for(size_t i = 0; i < body->node_count; i += 1) {
         const EditorSoftNode *node = &body->nodes[i];
         yyjson_mut_val *item = yyjson_mut_obj(document);
@@ -523,42 +521,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_bool(document, item, "color_overridden", beam->color_overridden);
         yyjson_mut_arr_add_val(beams, item);
     }
-    for(size_t i = 0; i < body->area_count; i += 1) {
-        const EditorSoftArea *area = &body->areas[i];
-        yyjson_mut_val *item = yyjson_mut_obj(document);
-        yyjson_mut_val *area_nodes = yyjson_mut_arr(document);
-        yyjson_mut_obj_add_uint(document, item, "id", area->id);
-        yyjson_mut_obj_add_strcpy(document, item, "name", area->name);
-        editor_json_graphics_layer_binding_write(document, item,
-            area->graphics_layer);
-        yyjson_mut_obj_add_bool(document, item, "graphics_layer_inherited",
-            area->graphics_layer_inherited);
-        for(size_t node_index = 0; node_index < area->node_count; node_index += 1)
-            yyjson_mut_arr_add_uint(document, area_nodes, area->nodes[node_index]);
-        yyjson_mut_obj_add_val(document, item, "nodes", area_nodes);
-        yyjson_mut_val *boundary=yyjson_mut_arr(document);
-        for(size_t k=0;k<area->node_count;k++) {
-            AreaBoundaryPoint point=area->boundary?area->boundary[k]:
-                (AreaBoundaryPoint){.nodes={area->nodes[k]}};
-            yyjson_mut_val *corner=yyjson_mut_obj(document);
-            yyjson_mut_val *nodes=yyjson_mut_arr(document);
-            for(size_t n=0;n<4;n++) yyjson_mut_arr_add_uint(document,nodes,point.nodes[n]);
-            yyjson_mut_obj_add_val(document,corner,"nodes",nodes);
-            yyjson_mut_obj_add_uint(document,corner,"beam_a",point.beams[0]);
-            yyjson_mut_obj_add_uint(document,corner,"beam_b",point.beams[1]);
-            yyjson_mut_obj_add_real(document,corner,"fraction_a",point.fractions[0]);
-            yyjson_mut_obj_add_real(document,corner,"fraction_b",point.fractions[1]);
-            yyjson_mut_obj_add_uint(document,corner,"edge",point.edge);
-            yyjson_mut_arr_add_val(boundary,corner);
-        }
-        yyjson_mut_obj_add_val(document,item,"boundary",boundary);
-        yyjson_mut_obj_add_uint(document, item, "color", area->color);
-        yyjson_mut_obj_add_bool(document, item, "color_overridden", area->color_overridden);
-        yyjson_mut_obj_add_bool(document, item, "visible", area->visible);
-        yyjson_mut_obj_add_bool(document, item, "surface_enabled",
-            area->surface_enabled);
-        yyjson_mut_arr_add_val(areas, item);
-    }
+
     for(size_t i = 0; i < body->hierarchy_count; i += 1) {
         yyjson_mut_val *item = yyjson_mut_obj(document);
         yyjson_mut_obj_add_uint(document, item, "kind", body->hierarchy[i].kind);
@@ -567,7 +530,6 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     }
     yyjson_mut_obj_add_val(document, value, "nodes", nodes);
     yyjson_mut_obj_add_val(document, value, "beams", beams);
-    yyjson_mut_obj_add_val(document, value, "areas", areas);
     yyjson_mut_obj_add_val(document, value, "hierarchy", hierarchy);
     return value;
 }
@@ -799,7 +761,6 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_obj_add_uint(document, root, "next_soft_body_id", project->next_soft_body_id);
     yyjson_mut_obj_add_uint(document, root, "next_soft_node_id", project->next_soft_node_id);
     yyjson_mut_obj_add_uint(document, root, "next_soft_beam_id", project->next_soft_beam_id);
-    yyjson_mut_obj_add_uint(document, root, "next_soft_area_id", project->next_soft_area_id);
     yyjson_mut_obj_add_uint(document, root, "next_sprite_id", project->next_sprite_id);
     yyjson_mut_obj_add_uint(document, root, "next_animated_sprite_id",
         project->next_animated_sprite_id);
@@ -1313,29 +1274,25 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
 }
 
 static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
-        EditorProject *project, uint32_t version, EditorResult *error) {
+        EditorProject *project) {
     yyjson_val *nodes = yyjson_obj_get(value, "nodes");
     yyjson_val *beams = yyjson_obj_get(value, "beams");
-    yyjson_val *areas = yyjson_obj_get(value, "areas");
     yyjson_val *hierarchy = yyjson_obj_get(value, "hierarchy");
     yyjson_val *rotation = yyjson_obj_get(value, "rotation");
     yyjson_val *initial_velocity = yyjson_obj_get(value, "initial_velocity");
     *body = (EditorSoftBody){
         .node_color = UINT32_C(0xffaa46ff),
         .beam_color = UINT32_C(0xebf0f5ff),
-        .area_color = UINT32_C(0x505a78ff)
     };
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &body->id) || body->id == 0 ||
             !editor_json_name(value, body->name) || !editor_json_position_read(
                 yyjson_obj_get(value, "position"), &body->position) ||
             !editor_json_bool(value, "visible", &body->visible) || !yyjson_is_arr(nodes) ||
             !yyjson_is_arr(beams)) return false;
-    if(areas != NULL && !yyjson_is_arr(areas)) return false;
     if(hierarchy != NULL && !yyjson_is_arr(hierarchy)) return false;
     if(yyjson_obj_get(value, "node_color") != NULL &&
             (!editor_json_uint(value, "node_color", &body->node_color) ||
-            !editor_json_uint(value, "beam_color", &body->beam_color) ||
-            !editor_json_uint(value, "area_color", &body->area_color))) return false;
+            !editor_json_uint(value, "beam_color", &body->beam_color))) return false;
     if(rotation != NULL && !editor_json_real(value, "rotation", &body->rotation)) {
         return false;
     }
@@ -1466,116 +1423,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         editor_project_property_name_format(beam->name, sizeof(beam->name), beam->name);
         if(project->next_soft_beam_id <= beam->id) project->next_soft_beam_id = beam->id + 1;
     }
-    if(areas != NULL) {
-        body->area_count = yyjson_arr_size(areas);
-        if(!EDITOR_ARRAY_RESERVE(body->areas, body->area_capacity,
-                body->area_count)) return false;
-        if(body->area_count > 0) memset(body->areas, 0,
-            body->area_count * sizeof(*body->areas));
-        for(size_t i = 0; i < body->area_count; i += 1) {
-            yyjson_val *item = yyjson_arr_get(areas, i);
-            yyjson_val *area_nodes = yyjson_obj_get(item, "nodes");
-            EditorSoftArea *area = &body->areas[i];
-            area->graphics_layer_inherited = true;
-            if(!yyjson_is_obj(item) || !editor_json_uint(item, "id", &area->id) ||
-                    area->id == 0 || !editor_json_name(item, area->name) ||
-                    !editor_json_uint(item, "color", &area->color) ||
-                    !editor_json_bool(item, "color_overridden", &area->color_overridden) ||
-                    !editor_json_bool(item, "visible", &area->visible) ||
-                    !editor_json_bool(item, "surface_enabled",
-                        &area->surface_enabled)) return false;
-            if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
-                    (!editor_json_bool(item, "graphics_layer_inherited",
-                        &area->graphics_layer_inherited) ||
-                    !editor_json_graphics_layer_binding_read(item,
-                        &area->graphics_layer))) return false;
-            if(area_nodes != NULL) {
-                if(!yyjson_is_arr(area_nodes) || yyjson_arr_size(area_nodes) < 3)
-                    return false;
-                area->node_count = yyjson_arr_size(area_nodes);
-                if(!EDITOR_ARRAY_RESERVE(area->nodes, area->node_capacity,
-                        area->node_count)) return false;
-                for(size_t node_index = 0; node_index < area->node_count; node_index += 1) {
-                    yyjson_val *node = yyjson_arr_get(area_nodes, node_index);
-                    if(!yyjson_is_uint(node) || yyjson_get_uint(node) > UINT32_MAX) return false;
-                    area->nodes[node_index] = (EditorSoftNodeId)yyjson_get_uint(node);
-                }
-            } else {
-                area->node_count = 3;
-                if(!EDITOR_ARRAY_RESERVE(area->nodes, area->node_capacity, 3))
-                    return false;
-                if(!editor_json_uint(item, "node_a", &area->nodes[0]) ||
-                        !editor_json_uint(item, "node_b", &area->nodes[1]) ||
-                        !editor_json_uint(item, "node_c", &area->nodes[2])) return false;
-            }
-            yyjson_val *boundary=yyjson_obj_get(item,"boundary");
-            if(!EDITOR_ARRAY_RESERVE(area->boundary,area->boundary_capacity,area->node_count)) return false;
-            if(version>=6 && (!yyjson_is_arr(boundary) || yyjson_arr_size(boundary)!=area->node_count)) {
-                *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
-                    "Soft body '%s', area '%s': missing or mismatched persistent boundary",body->name,area->name);
-                return false;
-            }
-            for(size_t k=0;k<area->node_count;k++) {
-                AreaBoundaryPoint *point=&area->boundary[k];
-                *point=(AreaBoundaryPoint){.nodes={area->nodes[k]}};
-                if(boundary!=NULL) {
-                    yyjson_val *corner=yyjson_arr_get(boundary,k);
-                    yyjson_val *nodes=yyjson_obj_get(corner,"nodes");
-                    if(!yyjson_is_arr(nodes) || yyjson_arr_size(nodes)!=4 ||
-                        !editor_json_uint(corner,"beam_a",&point->beams[0]) ||
-                        !editor_json_uint(corner,"beam_b",&point->beams[1]) ||
-                        !editor_json_real(corner,"fraction_a",&point->fractions[0]) ||
-                        !editor_json_real(corner,"fraction_b",&point->fractions[1]) ||
-                        !editor_json_uint(corner,"edge",&point->edge)) return false;
-                    for(size_t n=0;n<4;n++) {
-                        yyjson_val *v=yyjson_arr_get(nodes,n);
-                        if(!yyjson_is_uint(v) || yyjson_get_uint(v)>UINT32_MAX) return false;
-                        point->nodes[n]=(uint32_t)yyjson_get_uint(v);
-                    }
-                } else {
-                    uint32_t a=area->nodes[k],b=area->nodes[(k+1)%area->node_count];
-                    for(size_t n=0;n<body->beam_count;n++)
-                        if((body->beams[n].node_a==a && body->beams[n].node_b==b) ||
-                            (body->beams[n].node_a==b && body->beams[n].node_b==a)) {
-                            point->edge=body->beams[n].id; break;
-                        }
-                }
-                size_t endpoints=point->beams[0]?4:1;
-                for(size_t n=0;n<endpoints;n++) {
-                    bool found=false;
-                    for(size_t j=0;j<body->node_count;j++) found|=body->nodes[j].id==point->nodes[n];
-                    if(!found) {
-                        *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
-                            "Soft body '%s', area '%s': boundary corner %zu references missing node %u",
-                            body->name,area->name,k,point->nodes[n]); return false;
-                    }
-                }
-                for(size_t n=0;n<3;n++) {
-                    uint32_t id=n==2?point->edge:point->beams[n];
-                    if(id==0 && (n==2 || point->beams[0]==0)) continue;
-                    bool found=false;
-                    for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==id) {
-                        found=true;
-                        if(n<2 && (body->beams[j].node_a!=point->nodes[n*2] ||
-                            body->beams[j].node_b!=point->nodes[n*2+1])) found=false;
-                    }
-                    if(!found) {
-                        *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
-                            "Soft body '%s', area '%s': boundary corner %zu references invalid beam %u",
-                            body->name,area->name,k,id); return false;
-                    }
-                    if(n<2 && (point->fractions[n]<0 || point->fractions[n]>1)) return false;
-                }
-                area->nodes[k]=point->beams[0]?0:point->nodes[0];
-            }
-            editor_project_property_name_format(area->name, sizeof(area->name), area->name);
-            if(project->next_soft_area_id <= area->id) {
-                project->next_soft_area_id = area->id + 1;
-            }
-        }
-    }
-    /* Saved areas are material boundaries, never rediscovered on load. */
-    if(areas == NULL) editor_project_soft_areas_sync(project, body);
+
     if(hierarchy != NULL) {
         body->hierarchy_count = yyjson_arr_size(hierarchy);
         if(!EDITOR_ARRAY_RESERVE(body->hierarchy, body->hierarchy_capacity,
@@ -1584,7 +1432,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
             yyjson_val *item = yyjson_arr_get(hierarchy, i);
             uint32_t kind;
             if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                    kind > EDITOR_SOFT_HIERARCHY_AREA ||
+                    kind > EDITOR_SOFT_HIERARCHY_BEAM ||
                     !editor_json_uint(item, "id", &body->hierarchy[i].id) ||
                     body->hierarchy[i].id == 0) return false;
             body->hierarchy[i].kind = (EditorSoftHierarchyItemKind)kind;
@@ -1592,9 +1440,9 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     }
     {
         size_t serialized_count = body->hierarchy_count;
-        size_t expected_count = body->node_count + body->beam_count + body->area_count;
+        size_t expected_count = body->node_count + body->beam_count;
         editor_project_soft_body_hierarchy_sync(body);
-        if(version >= 6 && hierarchy != NULL && (body->hierarchy_count != serialized_count ||
+        if(hierarchy != NULL && (body->hierarchy_count != serialized_count ||
                 body->hierarchy_count != expected_count)) return false;
     }
     if(!editor_json_graphics_layer_binding_read(value, &body->graphics_layer))
@@ -1854,11 +1702,6 @@ static bool editor_json_references_valid(EditorProject *project) {
                         editor_project_graphics_layer_get(project,
                             body->beams[child].graphics_layer.layer) == NULL)
                     return false;
-            for(size_t child = 0; child < body->area_count; child += 1)
-                if(body->areas[child].graphics_layer.layer != 0 &&
-                        editor_project_graphics_layer_get(project,
-                            body->areas[child].graphics_layer.layer) == NULL)
-                    return false;
         }
         for(size_t j = 0; j < object->sprite_count; j += 1)
             if(object->sprites[j].graphics_layer.layer != 0 &&
@@ -2082,7 +1925,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != 5 && version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
@@ -2199,12 +2042,11 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             !editor_json_uint(root, "next_soft_body_id", &loaded.next_soft_body_id) ||
             !editor_json_uint(root, "next_soft_node_id", &loaded.next_soft_node_id) ||
             !editor_json_uint(root, "next_soft_beam_id", &loaded.next_soft_beam_id) ||
-            !editor_json_uint(root, "next_soft_area_id", &loaded.next_soft_area_id) ||
             loaded.next_id == 0 || loaded.next_vertex_id == 0 ||
             loaded.next_rigid_body_id == 0 || loaded.next_hitbox_id == 0 ||
             loaded.next_joint_id == 0 || loaded.next_anchor_id == 0 ||
             loaded.next_soft_body_id == 0 || loaded.next_soft_node_id == 0 ||
-            loaded.next_soft_beam_id == 0 || loaded.next_soft_area_id == 0 ||
+            loaded.next_soft_beam_id == 0 ||
             !yyjson_is_arr(collision_masks) || yyjson_arr_size(collision_masks) == 0 ||
             yyjson_arr_size(collision_masks) > EDITOR_COLLISION_MASK_MAX)
         goto done;
@@ -2566,7 +2408,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     &object->joint_items[j], &loaded)) goto done;
         for(size_t j = 0; j < object->soft_body_count; j += 1)
             if(!editor_json_soft_body_read(yyjson_arr_get(soft_body_values, j),
-                    &object->soft_body_items[j], &loaded, version, &result)) goto done;
+                    &object->soft_body_items[j], &loaded)) goto done;
         for(size_t j = 0; j < object->animated_sprite_count; j += 1)
             if(!editor_json_animated_sprite_read(
                     yyjson_arr_get(animated_sprite_values, j),

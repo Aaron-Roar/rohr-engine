@@ -492,7 +492,8 @@ static void default_shapes_history_check(void) {
     assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
     assert(history.undo_count == 2 && object->soft_body_count == 1);
     EditorSoftBody *soft = &object->soft_body_items[0];
-    assert(soft->node_count == 4 && soft->beam_count == 6);
+    assert(soft->node_count == 4 && soft->beam_count == 6 &&
+        soft->hierarchy_count == 10);
     EditorSoftNodeId ids[4];
     for(size_t i = 0; i < 4; i += 1) {
         points[i] = soft->nodes[i].position;
@@ -515,7 +516,8 @@ static void default_shapes_history_check(void) {
     assert(editor_history_redo(&history));
     object = &project.objects[0];
     soft = &object->soft_body_items[0];
-    assert(soft->node_count == 4 && soft->beam_count == 6);
+    assert(soft->node_count == 4 && soft->beam_count == 6 &&
+        soft->hierarchy_count == 10);
     for(size_t i = 0; i < 4; i += 1) assert(soft->nodes[i].id == ids[i]);
 
     assert(editor_history_ui_change_begin(&history));
@@ -532,6 +534,10 @@ static void default_shapes_history_check(void) {
 
     const char *path = "editor_default_shapes.json";
     assert(editor_project_save(&project, path));
+    char *saved = SDL_LoadFile(path, NULL);
+    assert(saved != NULL && strstr(saved, "\"areas\"") == NULL &&
+        strstr(saved, "area_color") == NULL && strstr(saved, "next_soft_area_id") == NULL);
+    SDL_free(saved);
     assert(!editor_result_check(editor_project_load(&loaded, path)));
     assert(loaded.objects[0].rigid_bodies[0].hitboxes[0].vertex_count == 4);
     assert(loaded.objects[0].soft_body_items[0].node_count == 4 &&
@@ -559,65 +565,7 @@ static void default_shapes_history_check(void) {
     editor_project_destroy(&loaded);
 }
 
-static void stable_areas_history_check(void) {
-    EditorProject project; EditorHistory history; EditorViewportState viewport;
-    editor_project_init(&project);
-    EditorObject *object=editor_project_object_add(&project,(Position){0});
-    EditorSoftBody *body=editor_project_soft_body_add(&project,object);
-    Position corner_positions[4]={{-100,-100},{100,-100},{100,100},{-100,100}};
-    for(size_t i=0;i<4;i++) assert(editor_project_soft_node_add(&project,body,corner_positions[i]));
-    for(size_t i=0;i<4;i++) assert(editor_project_soft_beam_add(&project,body,
-        body->nodes[i].id,body->nodes[(i+1)%4].id));
-    EditorSoftAreaId original=body->areas[0].id;
-    assert(editor_history_init(&history,&project)); callback_history=&history;
-    editor_command_executing_callback_set(history_begin,NULL);
-    editor_command_finished_callback_set(history_finish,NULL);
-    EditorCommand command={.type=EDITOR_COMMAND_SOFT_NODE_POSITION,
-        .data.soft_node_position={.object=object->id,.body=body->id,
-            .node=body->nodes[1].id,.position={100,100}}};
-    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
-    command.data.soft_node_position.node=body->nodes[2].id;
-    command.data.soft_node_position.position=(Position){100,-100};
-    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
-    assert(body->area_count==1 && body->areas[0].id==original);
-    assert(editor_history_undo(&history));
-    assert(editor_history_redo(&history));
-    for(size_t side=0;side<2;side++) {
-        editor_viewport_state_init(&viewport);
-        EditorSelectionRef ref={EDITOR_SELECTION_SOFT_AREA,object->id,body->id,0,original};
-        assert(editor_viewport_selection_set(&project,&viewport,ref,false));
-        viewport.mode=EDITOR_VIEWPORT_SOFT_AREA;
-        Position click=test_world_to_screen((Position){side?60:-60,0});
-        assert(editor_viewport_update(&viewport,&project,click,MOUSE_BUTTON_STATE_PRESSED,
-            MOUSE_BUTTON_STATE_UP,false,0,false));
-        assert(viewport.selection==EDITOR_SELECTION_SOFT_AREA && viewport.selected_soft_area==original);
-        (void)editor_viewport_update(&viewport,&project,click,MOUSE_BUTTON_STATE_RELEASED,
-            MOUSE_BUTTON_STATE_UP,false,0,false);
-        editor_viewport_state_destroy(&viewport);
-    }
-    for(size_t i=0;i<4;i++) body->nodes[i].position=corner_positions[i];
-    EditorSoftBeam *diagonal=editor_project_soft_beam_add(&project,body,body->nodes[0].id,body->nodes[2].id);
-    assert(diagonal && body->area_count==2);
-    EditorSoftAreaId first=body->areas[0].id,second=body->areas[1].id;
-    editor_history_reset(&history);
-    command=(EditorCommand){.type=EDITOR_COMMAND_RELATIONSHIP_SET,
-        .data.relationship_set={.kind=EDITOR_RELATIONSHIP_SOFT_BEAM_NODE,
-            .object=object->id,.parent=body->id,.item=diagonal->id,.endpoint=1,.target=0}};
-    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
-    assert(body->area_count==1);
-    assert(editor_history_undo(&history));
-    body=&project.objects[0].soft_body_items[0];
-    assert(body->area_count==2 && body->areas[0].id==first && body->areas[1].id==second);
-    assert(editor_history_redo(&history));
-    body=&project.objects[0].soft_body_items[0];
-    assert(body->area_count==1);
-    editor_command_executing_callback_set(NULL,NULL);
-    editor_command_finished_callback_set(NULL,NULL); callback_history=NULL;
-    editor_history_destroy(&history); editor_project_destroy(&project);
-}
-
 int main(void) {
-    stable_areas_history_check();
     default_shapes_history_check();
     if(!SDL_SaveFile("editor_history_frame.png", test_png, sizeof(test_png))) return 1;
     angular_history_check();

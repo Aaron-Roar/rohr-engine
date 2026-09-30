@@ -611,14 +611,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                             visible = &body->beams[i].visible;
                     break;
                 }
-                case EDITOR_VISIBILITY_SOFT_AREA: {
-                    EditorSoftBody *body = editor_command_soft_body_get(object,
-                        command->data.visibility.parent);
-                    if(body != NULL) for(size_t i = 0; i < body->area_count; i += 1)
-                        if(body->areas[i].id == command->data.visibility.item)
-                            visible = &body->areas[i].visible;
-                    break;
-                }
                 case EDITOR_VISIBILITY_CAMERA: {
                     EditorCamera *camera = editor_project_camera_get(object,
                         command->data.visibility.item);
@@ -1147,9 +1139,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_BEAM_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->beam_color = set->value.integer;
-                else if(set->property == EDITOR_PROPERTY_AREA_COLOR &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
-                    body->area_color = set->value.integer;
                 else if(set->property == EDITOR_PROPERTY_INITIAL_VELOCITY_X &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT)
                     body->initial_velocity.x = set->value.number;
@@ -1309,20 +1298,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     beam->color_overridden = true;
                 }
                 else goto property_invalid;
-            } else if(set->kind == EDITOR_ITEM_SOFT_AREA) {
-                EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
-                EditorSoftArea *area = NULL;
-                if(body != NULL) for(size_t i = 0; i < body->area_count; i += 1)
-                    if(body->areas[i].id == set->item) area = &body->areas[i];
-                if(area == NULL) return editor_command_not_found("soft area", set->item);
-                if(set->property == EDITOR_PROPERTY_COLOR &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
-                    area->color = set->value.integer;
-                    area->color_overridden = true;
-                } else if(set->property == EDITOR_PROPERTY_SURFACE_ENABLED &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
-                    area->surface_enabled = set->value.boolean;
-                else goto property_invalid;
             } else goto property_invalid;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
 property_invalid:
@@ -1363,7 +1338,6 @@ property_invalid:
                 if(set->endpoint == 0) beam->node_a = set->target;
                 else beam->node_b = set->target;
                 editor_command_soft_beam_collision_constrain(body, beam);
-                editor_project_soft_areas_sync(project, body);
             } else if(set->kind == EDITOR_RELATIONSHIP_ENTITY_PARENT) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     set->item);
@@ -2179,7 +2153,6 @@ static bool editor_command_item_kind_parse(const char *domain, EditorItemKind *k
     else if(strcmp(domain, "soft-body") == 0) *kind = EDITOR_ITEM_SOFT_BODY;
     else if(strcmp(domain, "soft-node") == 0) *kind = EDITOR_ITEM_SOFT_NODE;
     else if(strcmp(domain, "soft-beam") == 0) *kind = EDITOR_ITEM_SOFT_BEAM;
-    else if(strcmp(domain, "soft-area") == 0) *kind = EDITOR_ITEM_SOFT_AREA;
     else if(strcmp(domain, "vertex") == 0) *kind = EDITOR_ITEM_VERTEX;
     else if(strcmp(domain, "line") == 0) *kind = EDITOR_ITEM_LINE;
     else if(strcmp(domain, "layout-viewport") == 0)
@@ -2200,7 +2173,6 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
         case EDITOR_ITEM_SOFT_BODY: return "soft-body";
         case EDITOR_ITEM_SOFT_NODE: return "soft-node";
         case EDITOR_ITEM_SOFT_BEAM: return "soft-beam";
-        case EDITOR_ITEM_SOFT_AREA: return "soft-area";
         case EDITOR_ITEM_VERTEX: return "vertex";
         case EDITOR_ITEM_LINE: return "line";
         case EDITOR_ITEM_LAYOUT_VIEWPORT: return "layout-viewport";
@@ -2249,7 +2221,6 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
     EDITOR_BOOL_PROPERTY("rotation-locked", EDITOR_PROPERTY_ROTATION_LOCKED)
     EDITOR_BOOL_PROPERTY("collision", EDITOR_PROPERTY_COLLISION)
-    EDITOR_BOOL_PROPERTY("surface-enabled", EDITOR_PROPERTY_SURFACE_ENABLED)
     EDITOR_BOOL_PROPERTY("particle", EDITOR_PROPERTY_PARTICLE)
     EDITOR_BOOL_PROPERTY("particle-auto-fit", EDITOR_PROPERTY_PARTICLE_AUTO_FIT)
     EDITOR_BOOL_PROPERTY("hitbox-frame-binding",
@@ -2273,7 +2244,6 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_COLOR_PROPERTY("particle-fill-color", EDITOR_PROPERTY_PARTICLE_FILL_COLOR)
     EDITOR_COLOR_PROPERTY("node-color", EDITOR_PROPERTY_NODE_COLOR)
     EDITOR_COLOR_PROPERTY("beam-color", EDITOR_PROPERTY_BEAM_COLOR)
-    EDITOR_COLOR_PROPERTY("area-color", EDITOR_PROPERTY_AREA_COLOR)
     EDITOR_COLOR_PROPERTY("color", EDITOR_PROPERTY_COLOR)
 #undef EDITOR_COLOR_PROPERTY
 #undef EDITOR_FLOAT_PROPERTY
@@ -2316,7 +2286,6 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_DAMPING: return "damping";
         case EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS:
             return "collision-thickness";
-        case EDITOR_PROPERTY_SURFACE_ENABLED: return "surface-enabled";
         case EDITOR_PROPERTY_POSITION_FOLLOWS_BODY: return "position-follows-body";
         case EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY: return "rotation-follows-body";
         case EDITOR_PROPERTY_LINE_LENGTH: return "length";
@@ -2326,7 +2295,6 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_PARTICLE_FILL_COLOR: return "particle-fill-color";
         case EDITOR_PROPERTY_NODE_COLOR: return "node-color";
         case EDITOR_PROPERTY_BEAM_COLOR: return "beam-color";
-        case EDITOR_PROPERTY_AREA_COLOR: return "area-color";
         case EDITOR_PROPERTY_COLOR: return "color";
         case EDITOR_PROPERTY_INITIAL_VELOCITY_X: return "initial-velocity-x";
         case EDITOR_PROPERTY_INITIAL_VELOCITY_Y: return "initial-velocity-y";
@@ -2824,7 +2792,7 @@ collision_filter_invalid:
         }
         if(!editor_command_item_kind_parse(domain, &set->kind)) goto property_parse_invalid;
         nested = set->kind == EDITOR_ITEM_SOFT_NODE ||
-            set->kind == EDITOR_ITEM_SOFT_BEAM || set->kind == EDITOR_ITEM_SOFT_AREA;
+            set->kind == EDITOR_ITEM_SOFT_BEAM;
         indexed = set->kind == EDITOR_ITEM_VERTEX || set->kind == EDITOR_ITEM_LINE;
         if((nested && count != 9) || (indexed && count != 10) ||
                 (!nested && !indexed && count != 8) ||
@@ -3063,9 +3031,6 @@ item_invalid:
             has_parent = true;
         } else if(strcmp(domain, "soft-beam") == 0) {
             kind = EDITOR_VISIBILITY_SOFT_BEAM;
-            has_parent = true;
-        } else if(strcmp(domain, "soft-area") == 0) {
-            kind = EDITOR_VISIBILITY_SOFT_AREA;
             has_parent = true;
         } else goto visibility_invalid;
         if(kind == EDITOR_VISIBILITY_OBJECT && count == 6) {
@@ -3547,7 +3512,6 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 case EDITOR_VISIBILITY_SOFT_BODY: domain = "soft-body"; break;
                 case EDITOR_VISIBILITY_SOFT_NODE: domain = "soft-node"; break;
                 case EDITOR_VISIBILITY_SOFT_BEAM: domain = "soft-beam"; break;
-                case EDITOR_VISIBILITY_SOFT_AREA: domain = "soft-area"; break;
                 default: return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
                     "unknown visibility target");
             }
@@ -3773,8 +3737,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                     command->data.visibility.visible ? "true" : "false");
             } else if(command->data.visibility.kind == EDITOR_VISIBILITY_HITBOX ||
                     command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_NODE ||
-                    command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_BEAM ||
-                    command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_AREA) {
+                    command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_BEAM) {
                 snprintf(values, sizeof(values), " %u %u %u %s",
                     command->data.visibility.object,
                     command->data.visibility.parent,
@@ -3923,8 +3886,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             if(set->property == EDITOR_PROPERTY_HITBOX_FRAME_BINDING)
                 snprintf(values, sizeof(values), " %u %u %u %u", set->object,
                     set->item, set->parent, set->index);
-            else if(set->kind == EDITOR_ITEM_SOFT_NODE || set->kind == EDITOR_ITEM_SOFT_BEAM ||
-                    set->kind == EDITOR_ITEM_SOFT_AREA)
+            else if(set->kind == EDITOR_ITEM_SOFT_NODE || set->kind == EDITOR_ITEM_SOFT_BEAM)
                 snprintf(values, sizeof(values), " %u %u %u", set->object,
                     set->parent, set->item);
             else if(set->kind == EDITOR_ITEM_VERTEX || set->kind == EDITOR_ITEM_LINE)

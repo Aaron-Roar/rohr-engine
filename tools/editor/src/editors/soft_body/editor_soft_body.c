@@ -52,7 +52,7 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("Acceleration X", acceleration_x_label);
     CREATE("Acceleration Y", acceleration_y_label);
     CREATE("Angular Velocity (deg/s)", angular_velocity_label);
-    CREATE("Beam Color", beam_color_label); CREATE("Area Color", area_color_label);
+    CREATE("Beam Color", beam_color_label);
     CREATE("Origin", origin_label); CREATE("Auto Shape", auto_shape_label);
     CREATE("Add Node", add_node_label); CREATE("Add Beam", add_beam_label);
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
@@ -85,7 +85,7 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     DESTROY(velocity_x_label); DESTROY(velocity_y_label);
     DESTROY(acceleration_x_label); DESTROY(acceleration_y_label);
     DESTROY(angular_velocity_label);
-    DESTROY(area_color_label); DESTROY(origin_label); DESTROY(auto_shape_label);
+    DESTROY(origin_label); DESTROY(auto_shape_label);
     DESTROY(add_node_label); DESTROY(add_beam_label); DESTROY(visibility_label);
     DESTROY(visible_label);
     DESTROY(hidden_label); DESTROY(delete_label); DESTROY(x_field);
@@ -104,8 +104,6 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
         rohr_graphics_text_destroy(&editor->node_names[i]);
     for(size_t i = 0; i < EDITOR_SOFT_BEAM_MAX; i += 1)
         rohr_graphics_text_destroy(&editor->beam_names[i]);
-    for(size_t i = 0; i < EDITOR_SOFT_AREA_MAX; i += 1)
-        rohr_graphics_text_destroy(&editor->area_names[i]);
     *editor = (EditorSoftBodyEditor){0};
 }
 
@@ -147,20 +145,7 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
         snprintf(id, sizeof(id), "editor.soft_beam.%u", item.id);
         snprintf(visibility_id, sizeof(visibility_id),
             "editor.soft_beam.%u.visibility", item.id);
-    } else {
-        for(size_t i = 0; i < body->area_count; i += 1)
-            if(body->areas[i].id == item.id) {
-                name = body->areas[i].name; shown = body->areas[i].visible;
-                label = &editor->area_names[i]; cache = editor->area_cache[i];
-            }
-        selection = EDITOR_SELECTION_SOFT_AREA;
-        visibility = EDITOR_VISIBILITY_SOFT_AREA;
-        selected = context->viewport->selection == selection &&
-            context->viewport->selected_soft_area == item.id;
-        snprintf(id, sizeof(id), "editor.soft_area.%u", item.id);
-        snprintf(visibility_id, sizeof(visibility_id),
-            "editor.soft_area.%u.visibility", item.id);
-    }
+    } else return true;
     if(name == NULL || label == NULL || cache == NULL) return true;
     if(!editor_mode_named_text_sync(editor->font, name, label, cache,
             EDITOR_OBJECT_NAME_MAX)) return false;
@@ -189,11 +174,7 @@ static bool hierarchy_item_draw(EditorSoftBodyEditor *editor,
                 context->viewport->selected_soft_node = item.id;
             else if(selection == EDITOR_SELECTION_SOFT_BEAM)
                 context->viewport->selected_soft_beam = item.id;
-            else {
-                context->viewport->selected_soft_area = item.id;
-                context->viewport->soft_area_candidates[0] = item.id;
-                context->viewport->soft_area_candidate_count = 1;
-            }
+
             if(result.double_clicked)
                 (void)editor_navigation_selected_open(context->project,
                     context->viewport);
@@ -217,7 +198,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
     float section_y = 118.0f;
     float transform_row_y[4] = {0};
     float initial_motion_row_y[5] = {0};
-    float appearance_row_y[3] = {0};
+    float appearance_row_y[2] = {0};
     float topology_origin_y = 0.0f, topology_auto_shape_y = 0.0f;
     float topology_add_node_y = 0.0f, topology_add_beam_y = 0.0f;
     float topology_list_y = 0.0f, topology_picker_y = 0.0f;
@@ -267,7 +248,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             {.row_count = 3, .row_height = 26.0f, .row_gap = 10.0f},
             {.row_count = 1, .row_height = layer_height,
                 .gap_before = 10.0f}};
-        const float appearance_rows[] = {26.0f, 26.0f, 26.0f};
+        const float appearance_rows[] = {26.0f, 26.0f};
         const float initial_motion_rows[] = {
             26.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         EditorModeAccordionLayoutGroup topology_groups[3] = {
@@ -305,7 +286,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->appearance_section,
-                "editor.soft_body.section.appearance", appearance_rows, 3,
+                "editor.soft_body.section.appearance", appearance_rows, 2,
                 6.0f);
         EditorModeAccordionLayoutResult topology =
             editor_mode_accordion_layout_nested_section(&accordion,
@@ -320,7 +301,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         transform_row_y[3] = editor_mode_accordion_layout_group_row_y(
             &transform, transform_groups, 2, 1, 0);
         appearance_open = appearance.expanded;
-        for(size_t row = 0; row < 3; row += 1)
+        for(size_t row = 0; row < 2; row += 1)
             appearance_row_y[row] = editor_mode_accordion_layout_row_y(
                 &appearance, appearance_rows, row, 6.0f);
         topology_open = topology.expanded;
@@ -423,13 +404,6 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             appearance_row_y[1],
             context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
         object->id, 0, body->id, EDITOR_PROPERTY_BEAM_COLOR);
-    rohr_ui_label(&editor->area_color_label,
-        (UIRect){context->x + 8.0f, appearance_row_y[2], 90.0f, 26.0f});
-    (void)editor_mode_color_swatch("editor.soft_body.area_color",
-        &body->area_color, false, (UIRect){context->x + 100.0f,
-            appearance_row_y[2],
-            context->width - 110.0f, 26.0f}, context, EDITOR_ITEM_SOFT_BODY,
-        object->id, 0, body->id, EDITOR_PROPERTY_AREA_COLOR);
     }
     if(topology_open) {
     {

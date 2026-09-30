@@ -849,11 +849,6 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 fprintf(header, "    Entity %s;\n", body->nodes[node_index].name);
             for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1)
                 fprintf(header, "    Entity %s;\n", body->beams[beam_index].name);
-            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
-                if(area->node_count >= 3) fprintf(header,
-                    "    Entity %s;\n", area->name);
-            }
         }
         for(size_t sprite_index = 0; sprite_index < object->sprite_count;
                 sprite_index += 1)
@@ -1291,40 +1286,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         body->name, node_a->name, node_b->name, beam->color);
                 }
             }
-            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
-                if(area->node_count<3) continue;
-                fprintf(source,"    { AreaBoundaryPoint boundary[%zu] = {\n",area->node_count);
-                for(size_t k=0;k<area->node_count;k++) {
-                    AreaBoundaryPoint point=area->boundary?area->boundary[k]:
-                        (AreaBoundaryPoint){.nodes={area->nodes[k]}};
-                    fprintf(source,"        {.nodes={");
-                    for(size_t n=0;n<4;n++) {
-                        const EditorSoftNode *node=editor_workspace_soft_node_get(body,point.nodes[n]);
-                        if(n) fprintf(source,",");
-                        if(node) fprintf(source,"object->%s",node->name); else fprintf(source,"0");
-                    }
-                    fprintf(source,"},.beams={");
-                    for(size_t n=0;n<2;n++) {
-                        const EditorSoftBeam *beam=NULL;
-                        for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==point.beams[n]) beam=&body->beams[j];
-                        if(n) fprintf(source,",");
-                        if(beam) fprintf(source,"object->%s",beam->name); else fprintf(source,"0");
-                    }
-                    fprintf(source,"},.fractions={%.9ff,%.9ff},.edge=",point.fractions[0],point.fractions[1]);
-                    const EditorSoftBeam *edge=NULL;
-                    for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==point.edge) edge=&body->beams[j];
-                    if(edge) fprintf(source,"object->%s",edge->name); else fprintf(source,"0");
-                    fprintf(source,"},\n");
-                }
-                fprintf(source,"    }; EntityResult created=rohr_physics_soft_body_area_create(object->%s,boundary,%zu);\n"
-                    "      if(rohr_error_check(created)) { result=rohr_error_result_error(created.result.error); goto fail; }\n"
-                    "      object->%s=created.result.value; }\n",body->name,area->node_count,area->name);
-                fprintf(source,"    result=rohr_graphics_soft_body_area_style_set(object->%s,"
-                    "rohr_graphics_color_hex_create(UINT32_C(0x%08x)),%s,%s,%s);\n"
-                    "    if(rohr_error_check(result)) goto fail;\n",area->name,area->color,
-                    area->color_overridden?"true":"false",area->visible?"true":"false",area->surface_enabled?"true":"false");
-            }
+
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
                 const EditorSoftNode *node = &body->nodes[node_index];
                 if(!node->color_overridden) continue;
@@ -1481,7 +1443,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
-                body->name, body->area_color, body->beam_color, body->node_color);
+                body->name, UINT32_C(0x00000000), body->beam_color, body->node_color);
         }
         fprintf(source,
             "}\n\n"
@@ -1925,11 +1887,6 @@ static bool editor_workspace_generated_viewports_write(
                 if(!body->beams[child].graphics_layer_inherited)
                     WRITE_ENTITY_LAYER(body->beams[child].graphics_layer, "",
                         body->beams[child].name);
-            for(size_t child = 0; child < body->area_count; child += 1) {
-                const EditorSoftArea *area = &body->areas[child];
-                if(!area->graphics_layer_inherited && area->node_count>=3)
-                    WRITE_ENTITY_LAYER(area->graphics_layer,"",area->name);
-            }
         }
         for(size_t i = 0; i < object->sprite_count; i += 1)
             WRITE_COMPONENT_LAYER(object->sprites[i].graphics_layer, "sprite", "sprite_",

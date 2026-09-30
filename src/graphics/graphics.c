@@ -5101,24 +5101,7 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
 
     if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) return false;
     body = body_result.result.value;
-    AreaMesh meshes[SOFT_BODY_MAX_TRIANGLES] = {0};
-    if(!physics_soft_body_area_meshes_create(soft_body_entity, meshes, SOFT_BODY_MAX_TRIANGLES)) return false;
     previous_layer = graphics_entity_layer_begin(soft_body_entity);
-    for(uint32_t i=0;i<body.area_count;i++) {
-        SoftBodyAreaResult area=physics_soft_body_area_get(body.areas[i]);
-        AreaMesh *mesh = &meshes[i];
-        if(area.kind==ERROR_RESULT_ERROR || !area.result.value.visible ||
-            !area.result.value.surface_enabled) continue;
-        int child_layer=graphics_entity_layer_begin(body.areas[i]);
-        for(size_t k=0;k<mesh->count;k++) {
-            Shape shape={.amount_of_vertices=3};
-            memcpy(shape.vertices,mesh->triangles[k],3*sizeof(Position));
-            (void)graphics_shape_filled_draw(shape,area.result.value.draw_color_overridden?
-                area.result.value.draw_color:surface_color);
-        }
-        graphics_layer_active_set(child_layer);
-    }
-    for(uint32_t i=0;i<body.area_count;i++) area_mesh_destroy(&meshes[i]);
     for(uint32_t i = 0; i < body.triangle_count; i += 1) {
         SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(body.triangles[i]);
         EntityIndex indices[3];
@@ -5130,9 +5113,7 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
                 !entity_index_get(triangle.result.value.node_c, &indices[2])) continue;
         for(uint32_t vertex = 0; vertex < 3; vertex += 1) shape.vertices[vertex] = positions[indices[vertex]];
         previous_child_layer = graphics_entity_layer_begin(body.triangles[i]);
-        (void)graphics_shape_filled_draw(shape,
-            triangle.result.value.draw_color_overridden ?
-                triangle.result.value.draw_color : surface_color);
+        (void)graphics_shape_filled_draw(shape, surface_color);
         graphics_layer_active_set(previous_child_layer);
     }
     for(uint32_t i = 0; i < body.beam_count; i += 1) {
@@ -5213,42 +5194,6 @@ EngineResult graphics_soft_body_beam_color_set(
                 entity_index_get(beam_entity, &index)) {
             soft_body_beams[index].draw_color = color;
             soft_body_beams[index].draw_color_overridden = true;
-            return error_result_value(true);
-        }
-    }
-    return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-}
-
-EngineResult graphics_soft_body_area_color_set(Entity soft_body, Entity node_a,
-        Entity node_b, Entity node_c, Color color) {
-    SoftBodyResult body_result = physics_soft_body_get(soft_body);
-    Entity requested[3] = {node_a, node_b, node_c};
-
-    if(body_result.kind == ERROR_RESULT_ERROR) {
-        return error_result_error(body_result.result.error);
-    }
-    for(uint32_t i = 0; i < body_result.result.value.triangle_count; i += 1) {
-        Entity triangle_entity = body_result.result.value.triangles[i];
-        SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(triangle_entity);
-        Entity actual[3];
-        EntityIndex index;
-        bool matched[3] = {false, false, false};
-        if(triangle.kind == ERROR_RESULT_ERROR) continue;
-        actual[0] = triangle.result.value.node_a;
-        actual[1] = triangle.result.value.node_b;
-        actual[2] = triangle.result.value.node_c;
-        for(uint32_t requested_index = 0; requested_index < 3; requested_index += 1) {
-            for(uint32_t actual_index = 0; actual_index < 3; actual_index += 1) {
-                if(!matched[actual_index] && requested[requested_index] == actual[actual_index]) {
-                    matched[actual_index] = true;
-                    break;
-                }
-            }
-        }
-        if(matched[0] && matched[1] && matched[2] &&
-                entity_index_get(triangle_entity, &index)) {
-            soft_body_triangles[index].draw_color = color;
-            soft_body_triangles[index].draw_color_overridden = true;
             return error_result_value(true);
         }
     }

@@ -222,7 +222,8 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape received invalid hitbox points");
     output_positions = malloc(point_count * sizeof(*output_positions));
-    current = malloc(point_count * sizeof(*current));
+    /* The ordering indices refer to the original vertex array. */
+    current = malloc(hitbox->vertex_count * sizeof(*current));
     indices = malloc(point_count * sizeof(*indices));
     if(output_positions == NULL || current == NULL || indices == NULL) {
         free(output_positions);
@@ -243,7 +244,7 @@ EditorResult editor_auto_shape_hitbox_points_apply(EditorHitbox *hitbox,
                     goto finish;
             }
             indices[point] = vertex;
-            current[point] = hitbox->vertices[vertex].position;
+            current[vertex] = hitbox->vertices[vertex].position;
             goto next_hitbox_point;
         }
         result = editor_result_error(EDITOR_ERROR_NOT_FOUND,
@@ -274,7 +275,8 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "auto shape received invalid soft-body nodes");
     output_positions = malloc(point_count * sizeof(*output_positions));
-    current = malloc(point_count * sizeof(*current));
+    /* The ordering indices refer to the original node array. */
+    current = malloc(body->node_count * sizeof(*current));
     indices = malloc(point_count * sizeof(*indices));
     if(output_positions == NULL || current == NULL || indices == NULL) {
         free(output_positions);
@@ -295,7 +297,7 @@ EditorResult editor_auto_shape_soft_body_points_apply(EditorSoftBody *body,
                     goto finish;
             }
             indices[point] = node;
-            current[point] = body->nodes[node].position;
+            current[node] = body->nodes[node].position;
             goto next_soft_body_point;
         }
         result = editor_result_error(EDITOR_ERROR_NOT_FOUND,

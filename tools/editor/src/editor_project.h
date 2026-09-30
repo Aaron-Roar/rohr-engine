@@ -22,21 +22,19 @@
 #define EDITOR_SOFT_BODY_MAX 8
 #define EDITOR_SOFT_NODE_MAX SOFT_BODY_MAX_NODES
 #define EDITOR_SOFT_BEAM_MAX SOFT_BODY_MAX_BEAMS
-#define EDITOR_SOFT_AREA_MAX SOFT_BODY_MAX_TRIANGLES
 #define EDITOR_CAMERA_MAX MAX_CAMERAS
 #define EDITOR_LAYOUT_VIEWPORT_MAX MAX_VIEWPORTS
 #define EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX MAX_VIEWPORT_ITEMS
 #define EDITOR_LAYOUT_VIEWPORT_UI_MAX 64
 #define EDITOR_UI_FONT_MAX 32
-#define EDITOR_SOFT_AREA_NODE_MAX EDITOR_SOFT_NODE_MAX
 #define EDITOR_OBJECT_HIERARCHY_MAX \
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Version 4 stores clockwise degrees and degree-based angular rates. */
-#define EDITOR_PROJECT_FORMAT_VERSION 6
-#define EDITOR_NAVIGATION_MODE_MAX 29
-#define EDITOR_NAVIGATION_SELECTION_MAX 26
+/* Version 7 removes beam-derived areas and their editor navigation kinds. */
+#define EDITOR_PROJECT_FORMAT_VERSION 7
+#define EDITOR_NAVIGATION_MODE_MAX 28
+#define EDITOR_NAVIGATION_SELECTION_MAX 25
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -47,7 +45,6 @@ typedef uint32_t EditorAnchorId;
 typedef uint32_t EditorSoftBodyId;
 typedef uint32_t EditorSoftNodeId;
 typedef uint32_t EditorSoftBeamId;
-typedef uint32_t EditorSoftAreaId;
 typedef uint32_t EditorSpriteId;
 typedef uint32_t EditorAnimatedSpriteId;
 typedef uint32_t EditorCameraId;
@@ -283,31 +280,12 @@ typedef struct EditorSoftBeam {
     bool color_overridden;
 } EditorSoftBeam;
 
-#include "area_geometry.h"
-
-typedef struct EditorSoftArea {
-    EditorSoftAreaId id;
-    char name[EDITOR_OBJECT_NAME_MAX];
-    EditorGraphicsLayerBinding graphics_layer;
-    bool graphics_layer_inherited;
-    EditorSoftNodeId *nodes; /* Legacy node corners; zero for intersections. */
-    AreaBoundaryPoint *boundary;
-    size_t boundary_capacity;
-    size_t node_count;
-    size_t node_capacity;
-    uint32_t color;
-    bool color_overridden;
-    bool visible;
-    bool surface_enabled;
-} EditorSoftArea;
-
 #define EDITOR_SOFT_BODY_HIERARCHY_MAX \
-    (EDITOR_SOFT_NODE_MAX + EDITOR_SOFT_BEAM_MAX + EDITOR_SOFT_AREA_MAX)
+    (EDITOR_SOFT_NODE_MAX + EDITOR_SOFT_BEAM_MAX)
 
 typedef enum EditorSoftHierarchyItemKind {
     EDITOR_SOFT_HIERARCHY_NODE,
     EDITOR_SOFT_HIERARCHY_BEAM,
-    EDITOR_SOFT_HIERARCHY_AREA
 } EditorSoftHierarchyItemKind;
 
 typedef struct EditorSoftHierarchyItem {
@@ -327,16 +305,12 @@ typedef struct EditorSoftBody {
     bool visible;
     uint32_t node_color;
     uint32_t beam_color;
-    uint32_t area_color;
     EditorSoftNode *nodes;
     size_t node_count;
     size_t node_capacity;
     EditorSoftBeam *beams;
     size_t beam_count;
     size_t beam_capacity;
-    EditorSoftArea *areas;
-    size_t area_count;
-    size_t area_capacity;
     EditorSoftHierarchyItem *hierarchy;
     size_t hierarchy_count;
     size_t hierarchy_capacity;
@@ -644,7 +618,6 @@ typedef struct EditorProject {
     EditorSoftBodyId next_soft_body_id;
     EditorSoftNodeId next_soft_node_id;
     EditorSoftBeamId next_soft_beam_id;
-    EditorSoftAreaId next_soft_area_id;
     EditorSpriteId next_sprite_id;
     EditorAnimatedSpriteId next_animated_sprite_id;
     EditorCameraId next_camera_id;
@@ -841,17 +814,6 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
     EditorSoftNodeId node_a, EditorSoftNodeId node_b);
 bool editor_project_soft_beam_remove(EditorProject *project, EditorSoftBody *body,
     EditorSoftBeamId id);
-bool editor_project_soft_area_position_get(const EditorSoftBody *body,
-    const EditorSoftArea *area, size_t index, Position *out);
-bool editor_project_soft_area_mesh_create(const EditorSoftBody *body,
-    const EditorSoftArea *area, AreaMesh *out);
-/* Caller supplies area_count outputs in storage order and destroys each mesh. */
-bool editor_project_soft_body_area_meshes_create(const EditorSoftBody *body, AreaMesh *out);
-const EditorSoftArea *editor_project_soft_area_ordered_get(const EditorSoftBody *body,
-        size_t index);
-void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body);
-size_t editor_project_soft_area_triangulate(const EditorSoftBody *body,
-    const EditorSoftArea *area, uint32_t triangles[][3], size_t capacity);
 EditorSprite *editor_project_sprite_add(EditorProject *project, EditorObject *object,
     const char *name, const char *path);
 EditorSprite *editor_project_sprite_get(EditorObject *object, EditorSpriteId id);

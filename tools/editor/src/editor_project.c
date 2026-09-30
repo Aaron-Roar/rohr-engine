@@ -166,7 +166,6 @@ void editor_project_init(EditorProject *project) {
         .next_soft_body_id = 1,
         .next_soft_node_id = 1,
         .next_soft_beam_id = 1,
-        .next_soft_area_id = 1,
         .next_sprite_id = 1,
         .next_animated_sprite_id = 1,
         .next_camera_id = 1,
@@ -379,49 +378,10 @@ bool editor_project_rigid_body_copy_set(EditorRigidBody *destination,
     return true;
 }
 
-static void editor_project_soft_area_destroy(EditorSoftArea *area) {
-    if(area == NULL) return;
-    free(area->nodes);
-    free(area->boundary);
-    *area = (EditorSoftArea){0};
-}
-
-static bool editor_project_soft_area_clone(EditorSoftArea *destination,
-        const EditorSoftArea *source) {
-    *destination = *source;
-    destination->nodes = NULL;
-    destination->boundary = NULL;
-    destination->node_capacity = destination->boundary_capacity = 0;
-    if(!EDITOR_ARRAY_RESERVE(destination->nodes, destination->node_capacity,
-            source->node_count) || (source->boundary != NULL &&
-            !EDITOR_ARRAY_RESERVE(destination->boundary, destination->boundary_capacity,
-                source->node_count))) {
-        editor_project_soft_area_destroy(destination);
-        return false;
-    }
-    if(source->node_count) memcpy(destination->nodes, source->nodes,
-        source->node_count * sizeof(*source->nodes));
-    if(source->boundary) memcpy(destination->boundary, source->boundary,
-        source->node_count * sizeof(*source->boundary));
-    return true;
-}
-
-static bool editor_project_soft_area_copy_set(EditorSoftArea *destination,
-        const EditorSoftArea *source) {
-    EditorSoftArea copy = {0};
-    if(!editor_project_soft_area_clone(&copy, source)) return false;
-    editor_project_soft_area_destroy(destination);
-    *destination = copy;
-    return true;
-}
-
 void editor_project_soft_body_destroy(EditorSoftBody *body) {
     if(body == NULL) return;
-    for(size_t i = 0; i < body->area_count; i += 1)
-        editor_project_soft_area_destroy(&body->areas[i]);
     free(body->nodes);
     free(body->beams);
-    free(body->areas);
     free(body->hierarchy);
     *body = (EditorSoftBody){0};
 }
@@ -432,22 +392,17 @@ bool editor_project_soft_body_clone(EditorSoftBody *destination,
     *destination = *source;
     destination->nodes = NULL;
     destination->beams = NULL;
-    destination->areas = NULL;
     destination->hierarchy = NULL;
     destination->node_count = 0;
     destination->beam_count = 0;
-    destination->area_count = 0;
     destination->hierarchy_count = 0;
     destination->node_capacity = 0;
     destination->beam_capacity = 0;
-    destination->area_capacity = 0;
     destination->hierarchy_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->nodes, destination->node_capacity,
             source->node_count) ||
             !EDITOR_ARRAY_RESERVE(destination->beams,
                 destination->beam_capacity, source->beam_count) ||
-            !EDITOR_ARRAY_RESERVE(destination->areas,
-                destination->area_capacity, source->area_count) ||
             !EDITOR_ARRAY_RESERVE(destination->hierarchy,
                 destination->hierarchy_capacity, source->hierarchy_count))
         goto fail;
@@ -460,11 +415,7 @@ bool editor_project_soft_body_clone(EditorSoftBody *destination,
     destination->node_count = source->node_count;
     destination->beam_count = source->beam_count;
     destination->hierarchy_count = source->hierarchy_count;
-    for(size_t i = 0; i < source->area_count; i += 1) {
-        if(!editor_project_soft_area_clone(&destination->areas[i],
-                &source->areas[i])) goto fail;
-        destination->area_count += 1;
-    }
+
     return true;
 fail:
     editor_project_soft_body_destroy(destination);
@@ -475,49 +426,31 @@ bool editor_project_soft_body_copy_set(EditorSoftBody *destination,
         const EditorSoftBody *source) {
     EditorSoftNode *nodes;
     EditorSoftBeam *beams;
-    EditorSoftArea *areas;
     EditorSoftHierarchyItem *hierarchy;
-    size_t node_capacity, beam_capacity, area_capacity, hierarchy_capacity;
-    size_t old_area_count, old_area_capacity;
+    size_t node_capacity, beam_capacity, hierarchy_capacity;
     if(destination == NULL || source == NULL) return false;
-    old_area_capacity = destination->area_capacity;
-    if(
-            !EDITOR_ARRAY_RESERVE(destination->nodes,
-                destination->node_capacity, source->node_count) ||
-            !EDITOR_ARRAY_RESERVE(destination->beams,
-                destination->beam_capacity, source->beam_count) ||
-            !EDITOR_ARRAY_RESERVE(destination->areas,
-                destination->area_capacity, source->area_count) ||
-            !EDITOR_ARRAY_RESERVE(destination->hierarchy,
-                destination->hierarchy_capacity, source->hierarchy_count)) return false;
-    if(destination->area_capacity > old_area_capacity)
-        memset(&destination->areas[old_area_capacity], 0,
-            (destination->area_capacity - old_area_capacity) *
-                sizeof(*destination->areas));
+    if(!EDITOR_ARRAY_RESERVE(destination->nodes, destination->node_capacity,
+                source->node_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->beams, destination->beam_capacity,
+                source->beam_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->hierarchy, destination->hierarchy_capacity,
+                source->hierarchy_count)) return false;
     nodes = destination->nodes; beams = destination->beams;
-    areas = destination->areas; hierarchy = destination->hierarchy;
+    hierarchy = destination->hierarchy;
     node_capacity = destination->node_capacity;
     beam_capacity = destination->beam_capacity;
-    area_capacity = destination->area_capacity;
     hierarchy_capacity = destination->hierarchy_capacity;
-    old_area_count = destination->area_count;
     if(source->node_count > 0) memcpy(nodes, source->nodes,
         source->node_count * sizeof(*nodes));
     if(source->beam_count > 0) memcpy(beams, source->beams,
         source->beam_count * sizeof(*beams));
     if(source->hierarchy_count > 0) memcpy(hierarchy, source->hierarchy,
         source->hierarchy_count * sizeof(*hierarchy));
-    for(size_t i = 0; i < source->area_count; i += 1)
-        if(!editor_project_soft_area_copy_set(&areas[i],
-                &source->areas[i])) return false;
-    for(size_t i = source->area_count; i < old_area_count; i += 1)
-        editor_project_soft_area_destroy(&areas[i]);
     *destination = *source;
     destination->nodes = nodes; destination->beams = beams;
-    destination->areas = areas; destination->hierarchy = hierarchy;
+    destination->hierarchy = hierarchy;
     destination->node_capacity = node_capacity;
     destination->beam_capacity = beam_capacity;
-    destination->area_capacity = area_capacity;
     destination->hierarchy_capacity = hierarchy_capacity;
     return true;
 }
@@ -1461,11 +1394,6 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
                 if(body->beams[child].graphics_layer.layer == id) {
                     body->beams[child].graphics_layer.layer = 0;
                     body->beams[child].graphics_layer.value = removed_value;
-                }
-            for(size_t child = 0; child < body->area_count; child += 1)
-                if(body->areas[child].graphics_layer.layer == id) {
-                    body->areas[child].graphics_layer.layer = 0;
-                    body->areas[child].graphics_layer.value = removed_value;
                 }
         }
         for(size_t i = 0; i < value->sprite_count; i += 1)
@@ -2722,14 +2650,12 @@ EditorSoftBody *editor_project_soft_body_add(EditorProject *project, EditorObjec
         .id = project->next_soft_body_id++,
         .node_color = UINT32_C(0xffaa46ff),
         .beam_color = UINT32_C(0xebf0f5ff),
-        .area_color = UINT32_C(0x505a78ff),
         .visible = true
     };
     if(!EDITOR_ARRAY_RESERVE(body->nodes, body->node_capacity,
             EDITOR_SOFT_NODE_MAX) || !EDITOR_ARRAY_RESERVE(body->beams,
                 body->beam_capacity, EDITOR_SOFT_BEAM_MAX) ||
-            !EDITOR_ARRAY_RESERVE(body->areas, body->area_capacity,
-                EDITOR_SOFT_AREA_MAX) || !EDITOR_ARRAY_RESERVE(body->hierarchy,
+            !EDITOR_ARRAY_RESERVE(body->hierarchy,
                 body->hierarchy_capacity, EDITOR_SOFT_BODY_HIERARCHY_MAX)) {
         editor_project_soft_body_destroy(body);
         object->soft_body_count -= 1;
@@ -2737,7 +2663,6 @@ EditorSoftBody *editor_project_soft_body_add(EditorProject *project, EditorObjec
     }
     memset(body->nodes, 0, body->node_capacity * sizeof(*body->nodes));
     memset(body->beams, 0, body->beam_capacity * sizeof(*body->beams));
-    memset(body->areas, 0, body->area_capacity * sizeof(*body->areas));
     memset(body->hierarchy, 0,
         body->hierarchy_capacity * sizeof(*body->hierarchy));
     snprintf(body->name, sizeof(body->name), "soft_body_%u", body->id);
@@ -2809,9 +2734,6 @@ static bool editor_project_soft_hierarchy_item_exists(const EditorSoftBody *body
     } else if(item.kind == EDITOR_SOFT_HIERARCHY_BEAM) {
         for(size_t i = 0; i < body->beam_count; i += 1)
             if(body->beams[i].id == item.id) return true;
-    } else if(item.kind == EDITOR_SOFT_HIERARCHY_AREA) {
-        for(size_t i = 0; i < body->area_count; i += 1)
-            if(body->areas[i].id == item.id) return true;
     }
     return false;
 }
@@ -2851,14 +2773,7 @@ void editor_project_soft_body_hierarchy_sync(EditorSoftBody *body) {
                 found = true;
         if(!found) editor_project_soft_hierarchy_item_add(body, item.kind, item.id);
     }
-    for(size_t i = 0; i < body->area_count; i += 1) {
-        EditorSoftHierarchyItem item = {EDITOR_SOFT_HIERARCHY_AREA, body->areas[i].id};
-        bool found = false;
-        for(size_t j = 0; j < body->hierarchy_count; j += 1)
-            if(body->hierarchy[j].kind == item.kind && body->hierarchy[j].id == item.id)
-                found = true;
-        if(!found) editor_project_soft_hierarchy_item_add(body, item.kind, item.id);
-    }
+
 }
 
 size_t editor_project_soft_body_hierarchy_index_get(const EditorSoftBody *body,
@@ -2902,7 +2817,6 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
         }
         body->node_count -= 1;
         body->nodes[body->node_count] = (EditorSoftNode){0};
-        editor_project_soft_areas_sync(project, body);
         editor_project_soft_body_hierarchy_sync(body);
         return true;
     }
@@ -2958,7 +2872,6 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
     };
     snprintf(beam->name, sizeof(beam->name), "beam_%u", beam->id);
     editor_project_soft_hierarchy_item_add(body, EDITOR_SOFT_HIERARCHY_BEAM, beam->id);
-    editor_project_soft_areas_sync(project, body);
     return beam;
 }
 
@@ -2972,297 +2885,10 @@ bool editor_project_soft_beam_remove(EditorProject *project, EditorSoftBody *bod
         }
         body->beam_count -= 1;
         body->beams[body->beam_count] = (EditorSoftBeam){0};
-        editor_project_soft_areas_sync(project, body);
         editor_project_soft_body_hierarchy_sync(body);
         return true;
     }
     return false;
-}
-
-static const EditorSoftNode *editor_soft_node_by_id_get(const EditorSoftBody *body,
-        EditorSoftNodeId id) {
-    if(body == NULL || id == 0) return NULL;
-    for(size_t i = 0; i < body->node_count; i += 1)
-        if(body->nodes[i].id == id) return &body->nodes[i];
-    return NULL;
-}
-
-static void editor_soft_area_style_copy(
-        EditorSoftArea *target, const EditorSoftArea *source) {
-    if(target == NULL || source == NULL) return;
-    target->graphics_layer = source->graphics_layer;
-    target->graphics_layer_inherited = source->graphics_layer_inherited;
-    target->color = source->color;
-    target->color_overridden = source->color_overridden;
-    target->visible = source->visible;
-    target->surface_enabled = source->surface_enabled;
-}
-
-bool editor_project_soft_area_position_get(const EditorSoftBody *body,
-        const EditorSoftArea *area, size_t index, Position *out) {
-    if(body == NULL || area == NULL || out == NULL || index >= area->node_count)
-        return false;
-    AreaBoundaryPoint point = area->boundary ? area->boundary[index] :
-        (AreaBoundaryPoint){.nodes={area->nodes[index]}};
-    const EditorSoftNode *node = editor_soft_node_by_id_get(body, point.nodes[0]);
-    if(node == NULL) return false;
-    *out = node->position;
-    if(point.beams[0] == 0) return true;
-    Position p[4];
-    for(size_t i=0;i<4;i++) {
-        node=editor_soft_node_by_id_get(body,point.nodes[i]);
-        if(node==NULL) return false;
-        p[i]=node->position;
-    }
-    AreaSegment beams[2] = {
-        {point.beams[0], point.nodes[0], point.nodes[1], p[0], p[1]},
-        {point.beams[1], point.nodes[2], point.nodes[3], p[2], p[3]}
-    };
-    return area_boundary_position_get(beams, 2, point, out);
-}
-
-static AreaSegment *editor_soft_segments_create(const EditorSoftBody *body, size_t *count) {
-    AreaSegment *segments = calloc(body->beam_count + body->node_count, sizeof(*segments));
-    *count = 0;
-    if(segments == NULL) return NULL;
-    for(size_t i = 0; i < body->beam_count; i++) {
-        const EditorSoftBeam *beam = &body->beams[i];
-        const EditorSoftNode *a = editor_soft_node_by_id_get(body, beam->node_a);
-        const EditorSoftNode *b = editor_soft_node_by_id_get(body, beam->node_b);
-        if(a && b) segments[(*count)++] = (AreaSegment){beam->id, a->id, b->id, a->position, b->position};
-    }
-    for(size_t i = 0; i < body->node_count; i++) {
-        const EditorSoftNode *node = &body->nodes[i];
-        segments[(*count)++] = (AreaSegment){0, node->id, node->id, node->position, node->position};
-    }
-    return segments;
-}
-
-bool editor_project_soft_body_area_meshes_create(const EditorSoftBody *body, AreaMesh *out) {
-    if(body == NULL || (body->area_count && out == NULL)) return false;
-    for(size_t i = 0; i < body->area_count; i++) out[i] = (AreaMesh){0};
-    if(body->area_count == 0) return true;
-    size_t count = 0;
-    bool ok = false;
-    AreaSegment *segments = editor_soft_segments_create(body, &count);
-    AreaFace *definitions = calloc(body->area_count, sizeof(*definitions));
-    if(segments == NULL || definitions == NULL) goto done;
-    for(size_t i = 0; i < body->area_count; i++) {
-        const EditorSoftArea *area = &body->areas[i];
-        definitions[i] = (AreaFace){area->boundary, area->node_count};
-        if(area->boundary == NULL) {
-            definitions[i].points = calloc(area->node_count, sizeof(*area->boundary));
-            if(definitions[i].points == NULL && area->node_count) goto done;
-            for(size_t k = 0; k < area->node_count; k++) definitions[i].points[k].nodes[0] = area->nodes[k];
-        }
-    }
-    ok = area_boundary_meshes_create(segments, count, definitions, body->area_count, out);
-done:
-    if(definitions) for(size_t i = 0; i < body->area_count; i++)
-        if(body->areas[i].boundary == NULL) free(definitions[i].points);
-    free(definitions); free(segments);
-    return ok;
-}
-
-bool editor_project_soft_area_mesh_create(const EditorSoftBody *body,
-        const EditorSoftArea *area, AreaMesh *out) {
-    if(out == NULL) return false;
-    *out = (AreaMesh){0};
-    if(body == NULL || area == NULL) return false;
-    for(size_t i = 0; i < body->area_count; i++) if(area == &body->areas[i]) {
-        AreaMesh *meshes = calloc(body->area_count, sizeof(*meshes));
-        if(meshes == NULL) return false;
-        bool ok = editor_project_soft_body_area_meshes_create(body, meshes);
-        if(ok) { *out = meshes[i]; meshes[i] = (AreaMesh){0}; }
-        for(size_t j = 0; j < body->area_count; j++) area_mesh_destroy(&meshes[j]);
-        free(meshes);
-        return ok;
-    }
-    /* A prospective area during connection edits is not a stored definition. */
-    size_t count = 0;
-    AreaSegment *segments = editor_soft_segments_create(body, &count);
-    AreaBoundaryPoint *boundary = calloc(area->node_count, sizeof(*boundary));
-    if(segments == NULL || (boundary == NULL && area->node_count)) { free(segments); free(boundary); return false; }
-    for(size_t i = 0; i < area->node_count; i++) boundary[i] = area->boundary ? area->boundary[i] :
-        (AreaBoundaryPoint){.nodes = {area->nodes[i]}};
-    bool ok = area_boundary_mesh_create(segments, count, boundary, area->node_count, out);
-    free(boundary); free(segments);
-    return ok;
-}
-
-static bool editor_area_corner_equal(AreaBoundaryPoint a,AreaBoundaryPoint b) {
-    if(a.beams[0]==0 || b.beams[0]==0)
-        return a.beams[0]==b.beams[0] && a.nodes[0]==b.nodes[0];
-    return (a.beams[0]==b.beams[0] && a.beams[1]==b.beams[1] &&
-        memcmp(a.nodes,b.nodes,sizeof(a.nodes))==0) ||
-        (a.beams[0]==b.beams[1] && a.beams[1]==b.beams[0] &&
-        a.nodes[0]==b.nodes[2] && a.nodes[1]==b.nodes[3] &&
-        a.nodes[2]==b.nodes[0] && a.nodes[3]==b.nodes[1]);
-}
-
-const EditorSoftArea *editor_project_soft_area_ordered_get(const EditorSoftBody *body,
-        size_t index) {
-    if(body == NULL || index >= body->area_count) return NULL;
-    size_t rank = 0;
-    for(size_t i = 0; i < body->hierarchy_count; i++) {
-        if(body->hierarchy[i].kind != EDITOR_SOFT_HIERARCHY_AREA) continue;
-        for(size_t j = 0; j < body->area_count; j++)
-            if(body->areas[j].id == body->hierarchy[i].id) {
-                if(rank++ == index) return &body->areas[j];
-                break;
-            }
-    }
-    /* Newly created definitions can be queried before hierarchy sync. */
-    for(size_t i = 0; i < body->area_count; i++)
-        if(editor_project_soft_body_hierarchy_index_get(body,
-                EDITOR_SOFT_HIERARCHY_AREA, body->areas[i].id) == SIZE_MAX && rank++ == index)
-            return &body->areas[i];
-    return NULL;
-}
-
-static bool editor_area_boundary_equal(const EditorSoftArea *old,const AreaFace *face) {
-    if(old->node_count!=face->count) return false;
-    for(size_t start=0;start<face->count;start++) for(size_t reverse=0;reverse<2;reverse++) {
-        bool equal=true;
-        for(size_t i=0;i<face->count;i++) {
-            size_t index=(start+(reverse?face->count-i:i))%face->count;
-            AreaBoundaryPoint p=old->boundary?old->boundary[index]:
-                (AreaBoundaryPoint){.nodes={old->nodes[index]}};
-            if(!editor_area_corner_equal(p,face->points[i])) { equal=false; break; }
-            if(old->boundary) {
-                size_t edge=reverse?(index+face->count-1)%face->count:index;
-                if(old->boundary[edge].edge!=face->points[i].edge) { equal=false; break; }
-            }
-        }
-        if(equal) return true;
-    }
-    return false;
-}
-
-void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body) {
-    if(project==NULL || body==NULL) return;
-    AreaSegment *segments=calloc(body->beam_count,sizeof(*segments));
-    AreaFaces faces={0}; EditorSoftArea *next=NULL; size_t count=0;
-    if(segments==NULL && body->beam_count) return;
-    for(size_t i=0;i<body->beam_count;i++) {
-        const EditorSoftBeam *beam=&body->beams[i];
-        const EditorSoftNode *a=editor_soft_node_by_id_get(body,beam->node_a);
-        const EditorSoftNode *b=editor_soft_node_by_id_get(body,beam->node_b);
-        if(a && b) segments[count++]=(AreaSegment){beam->id,a->id,b->id,a->position,b->position};
-    }
-    if(!area_faces_create(segments,count,&faces)) { free(segments); return; }
-    free(segments);
-    next=calloc(faces.count,sizeof(*next));
-    if(next==NULL && faces.count) { area_faces_destroy(&faces); return; }
-    EditorSoftAreaId next_id=project->next_soft_area_id;
-    for(size_t i=0;i<faces.count;i++) {
-        EditorSoftArea *area=&next[i]; const EditorSoftArea *match=NULL;
-        for(size_t j=0;j<body->area_count;j++)
-            if(editor_area_boundary_equal(&body->areas[j],&faces.items[i])) { match=&body->areas[j]; break; }
-        if(match) {
-            /* Keep authored boundary directions and identity during later edits. */
-            if(!editor_project_soft_area_clone(area,match)) goto fail;
-            continue;
-        }
-        *area=(EditorSoftArea){.id=next_id++, .graphics_layer_inherited=true,
-            .color=body->area_color,.visible=true,.surface_enabled=true,
-            .node_count=faces.items[i].count};
-        snprintf(area->name,sizeof(area->name),"area_%u",area->id);
-        if(!EDITOR_ARRAY_RESERVE(area->nodes,area->node_capacity,area->node_count) ||
-            !EDITOR_ARRAY_RESERVE(area->boundary,area->boundary_capacity,area->node_count)) goto fail;
-        memcpy(area->boundary,faces.items[i].points,area->node_count*sizeof(*area->boundary));
-        for(size_t k=0;k<area->node_count;k++) area->nodes[k]=area->boundary[k].beams[0]?0:area->boundary[k].nodes[0];
-        AreaMesh mesh={0};
-        if(!editor_project_soft_area_mesh_create(body,area,&mesh)) goto fail;
-        double overlap=0; const EditorSoftArea *style=NULL;
-        for(size_t j=0;j<body->area_count;j++) {
-            AreaMesh previous={0};
-            if(!editor_project_soft_area_mesh_create(body,&body->areas[j],&previous)) continue;
-            double amount=area_mesh_overlap_get(&mesh,&previous);
-            area_mesh_destroy(&previous);
-            if(amount>overlap+0.000001 || (amount>0 && fabs(amount-overlap)<=0.000001 &&
-                (style==NULL || body->areas[j].id<style->id))) { overlap=amount; style=&body->areas[j]; }
-        }
-        area_mesh_destroy(&mesh);
-        if(style) editor_soft_area_style_copy(area,style);
-    }
-    for(size_t i=0;i<body->area_count;i++) editor_project_soft_area_destroy(&body->areas[i]);
-    free(body->areas); body->areas=next; body->area_count=faces.count; body->area_capacity=faces.count;
-    project->next_soft_area_id=next_id;
-    area_faces_destroy(&faces);
-    editor_project_soft_body_hierarchy_sync(body);
-    return;
-fail:
-    for(size_t i=0;i<faces.count;i++) editor_project_soft_area_destroy(&next[i]);
-    free(next); area_faces_destroy(&faces);
-}
-
-static float editor_soft_triangle_cross(Position a, Position b, Position c) {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-}
-
-static bool editor_soft_point_in_triangle(Position point, Position a, Position b,
-        Position c) {
-    float ab = editor_soft_triangle_cross(a, b, point);
-    float bc = editor_soft_triangle_cross(b, c, point);
-    float ca = editor_soft_triangle_cross(c, a, point);
-    return ab >= -0.0001f && bc >= -0.0001f && ca >= -0.0001f;
-}
-
-size_t editor_project_soft_area_triangulate(const EditorSoftBody *body,
-        const EditorSoftArea *area, uint32_t triangles[][3], size_t capacity) {
-    uint32_t *remaining;
-    size_t count;
-    size_t triangle_count = 0;
-    if(body == NULL || area == NULL || triangles == NULL || area->node_count < 3) return 0;
-    count = area->node_count;
-    remaining = malloc(count * sizeof(*remaining));
-    if(remaining == NULL) return 0;
-    for(size_t i = 0; i < count; i += 1) remaining[i] = (uint32_t)i;
-    while(count > 3 && triangle_count < capacity) {
-        bool clipped = false;
-        for(size_t i = 0; i < count; i += 1) {
-            uint32_t previous = remaining[(i + count - 1) % count];
-            uint32_t current = remaining[i];
-            uint32_t next = remaining[(i + 1) % count];
-            const EditorSoftNode *a = editor_soft_node_by_id_get(body, area->nodes[previous]);
-            const EditorSoftNode *b = editor_soft_node_by_id_get(body, area->nodes[current]);
-            const EditorSoftNode *c = editor_soft_node_by_id_get(body, area->nodes[next]);
-            bool contains = false;
-            if(a == NULL || b == NULL || c == NULL ||
-                    editor_soft_triangle_cross(a->position, b->position, c->position) <=
-                        0.0001f) continue;
-            for(size_t j = 0; j < count; j += 1) {
-                uint32_t candidate = remaining[j];
-                const EditorSoftNode *node;
-                if(candidate == previous || candidate == current || candidate == next) continue;
-                node = editor_soft_node_by_id_get(body, area->nodes[candidate]);
-                if(node != NULL && editor_soft_point_in_triangle(node->position,
-                        a->position, b->position, c->position)) contains = true;
-            }
-            if(contains) continue;
-            triangles[triangle_count][0] = previous;
-            triangles[triangle_count][1] = current;
-            triangles[triangle_count][2] = next;
-            triangle_count += 1;
-            for(size_t j = i + 1; j < count; j += 1) remaining[j - 1] = remaining[j];
-            count -= 1;
-            clipped = true;
-            break;
-        }
-        if(!clipped) {
-            free(remaining);
-            return 0;
-        }
-    }
-    if(count == 3 && triangle_count < capacity) {
-        triangles[triangle_count][0] = remaining[0];
-        triangles[triangle_count][1] = remaining[1];
-        triangles[triangle_count][2] = remaining[2];
-        triangle_count += 1;
-    }
-    free(remaining);
-    return triangle_count;
 }
 
 EditorSprite *editor_project_sprite_add(EditorProject *project, EditorObject *object,

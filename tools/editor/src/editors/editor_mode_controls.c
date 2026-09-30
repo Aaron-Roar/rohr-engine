@@ -444,7 +444,6 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                 (Position){center.x + 6.0f * scale,
                     center.y - 5.0f * scale}, 2.5f * scale, color);
             break;
-        case EDITOR_SELECTION_SOFT_AREA:
         case EDITOR_SELECTION_UI_SHAPE:
             editor_mode_icon_line((Position){center.x, center.y - half},
                 (Position){center.x + half, center.y + half},
@@ -806,7 +805,6 @@ const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_SOFT_BODY: return "editor.soft_body.name";
         case EDITOR_VIEWPORT_SOFT_NODE: return "editor.soft_node.name";
         case EDITOR_VIEWPORT_SOFT_BEAM: return "editor.soft_beam.name";
-        case EDITOR_VIEWPORT_SOFT_AREA: return "editor.soft_area.name";
         case EDITOR_VIEWPORT_LINE: return "editor.line.name";
         case EDITOR_VIEWPORT_VERTEX: return "editor.vertex.name";
         case EDITOR_VIEWPORT_SPRITE: return "editor.sprite.name";

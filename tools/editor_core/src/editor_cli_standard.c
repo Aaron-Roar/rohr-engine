@@ -20,7 +20,7 @@ static bool cli_selector_flag(const char *value) {
     static const char *flags[] = {"--object", "--object-id", "--body", "--body-id",
         "--hitbox", "--hitbox-id", "--joint", "--joint-id", "--anchor",
         "--anchor-id", "--soft-body", "--soft-body-id", "--node", "--node-id",
-        "--beam", "--beam-id", "--area", "--area-id", "--vertex", "--vertex-id", "--line",
+        "--beam", "--beam-id", "--vertex", "--vertex-id", "--line",
         "--line-index", "--node-a", "--node-a-id", "--node-b", "--node-b-id",
         "--collision-mask", "--sprite", "--sprite-id", "--animated-sprite",
         "--animated-sprite-id", "--frame-index"};
@@ -77,7 +77,6 @@ static size_t cli_tokens(const char *text, char tokens[][CLI_TEXT]) {
 static const char *cli_item_flag(EditorItemKind kind) {
     static const char *flags[] = {"--object", "--body", "--hitbox", "--joint",
         "--anchor", "--soft-body", "--node", "--beam", "--vertex", "--line"};
-    if(kind == EDITOR_ITEM_SOFT_AREA) return "--area";
     return kind <= EDITOR_ITEM_LINE ? flags[kind] : NULL;
 }
 
@@ -570,7 +569,6 @@ static void cli_target_consider(CliInput *input, const char *flag, const char *n
     else if(strstr(flag, "node-a") || strstr(flag, "node-b")) return;
     else if(strstr(flag, "node")) { rank = 2; domain = "soft-node"; }
     else if(strstr(flag, "beam")) { rank = 2; domain = "soft-beam"; }
-    else if(strstr(flag, "area")) { rank = 2; domain = "soft-area"; }
     else if(strstr(flag, "soft-body")) { rank = 1; domain = "soft-body"; }
     else if(strstr(flag, "body")) { rank = 1; domain = "rigid-body"; }
     else if(strstr(flag, "joint")) { rank = 1; domain = "joint"; }

@@ -22,7 +22,6 @@ typedef enum EditorViewportMode {
     EDITOR_VIEWPORT_SOFT_BODY,
     EDITOR_VIEWPORT_SOFT_NODE,
     EDITOR_VIEWPORT_SOFT_BEAM,
-    EDITOR_VIEWPORT_SOFT_AREA,
     EDITOR_VIEWPORT_ORIGIN,
     EDITOR_VIEWPORT_LINE,
     EDITOR_VIEWPORT_VERTEX,
@@ -54,7 +53,6 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_SOFT_BODY,
     EDITOR_SELECTION_SOFT_NODE,
     EDITOR_SELECTION_SOFT_BEAM,
-    EDITOR_SELECTION_SOFT_AREA,
     EDITOR_SELECTION_ORIGIN,
     EDITOR_SELECTION_LINE,
     EDITOR_SELECTION_VERTEX,
@@ -152,7 +150,6 @@ typedef struct EditorViewportState {
     EditorSoftBodyId selected_soft_body;
     EditorSoftNodeId selected_soft_node;
     EditorSoftBeamId selected_soft_beam;
-    EditorSoftAreaId selected_soft_area;
     EditorSpriteId selected_sprite;
     EditorAnimatedSpriteId selected_animated_sprite;
     EditorCameraId selected_camera_entity;
@@ -163,8 +160,6 @@ typedef struct EditorViewportState {
     EditorViewportCameraItemId selected_viewport_camera_item;
     EditorViewportUiItemId selected_viewport_ui_item;
     EditorSpriteId selected_animation_frame;
-    EditorSoftAreaId soft_area_candidates[EDITOR_SOFT_AREA_MAX];
-    size_t soft_area_candidate_count;
     EditorOriginKind selected_origin_kind;
     EditorViewportMode auto_shape_parent_mode;
     uint32_t auto_shape_points[EDITOR_SOFT_NODE_MAX];

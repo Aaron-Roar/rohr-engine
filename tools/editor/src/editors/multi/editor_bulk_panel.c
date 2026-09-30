@@ -108,8 +108,6 @@ static const EditorBulkProperty soft_body_properties[] = {
         EDITOR_PROPERTY_NODE_COLOR},
     {"Beam Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR,
         EDITOR_PROPERTY_BEAM_COLOR},
-    {"Area Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR,
-        EDITOR_PROPERTY_AREA_COLOR}
 };
 static const EditorBulkProperty soft_node_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
@@ -131,10 +129,6 @@ static const EditorBulkProperty soft_beam_properties[] = {
         EDITOR_PROPERTY_STIFFNESS},
     {"Damping", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_DAMPING},
-    {"Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR, EDITOR_PROPERTY_COLOR}
-};
-static const EditorBulkProperty soft_area_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR, EDITOR_PROPERTY_COLOR}
 };
 static const EditorBulkProperty vertex_properties[] = {
@@ -197,7 +191,6 @@ static const EditorBulkProperty *editor_bulk_properties_get(
         case EDITOR_SELECTION_SOFT_BODY: EDITOR_BULK_LIST(soft_body_properties);
         case EDITOR_SELECTION_SOFT_NODE: EDITOR_BULK_LIST(soft_node_properties);
         case EDITOR_SELECTION_SOFT_BEAM: EDITOR_BULK_LIST(soft_beam_properties);
-        case EDITOR_SELECTION_SOFT_AREA: EDITOR_BULK_LIST(soft_area_properties);
         case EDITOR_SELECTION_VERTEX: EDITOR_BULK_LIST(vertex_properties);
         case EDITOR_SELECTION_LINE: EDITOR_BULK_LIST(line_properties);
         case EDITOR_SELECTION_ORIGIN: EDITOR_BULK_LIST(origin_properties);
@@ -268,7 +261,6 @@ static EditorItemKind editor_bulk_item_kind_get(EditorHierarchySelection kind) {
         case EDITOR_SELECTION_SOFT_BODY: return EDITOR_ITEM_SOFT_BODY;
         case EDITOR_SELECTION_SOFT_NODE: return EDITOR_ITEM_SOFT_NODE;
         case EDITOR_SELECTION_SOFT_BEAM: return EDITOR_ITEM_SOFT_BEAM;
-        case EDITOR_SELECTION_SOFT_AREA: return EDITOR_ITEM_SOFT_AREA;
         case EDITOR_SELECTION_VERTEX: return EDITOR_ITEM_VERTEX;
         case EDITOR_SELECTION_LINE: return EDITOR_ITEM_LINE;
         default: return EDITOR_ITEM_OBJECT;
@@ -278,8 +270,7 @@ static EditorItemKind editor_bulk_item_kind_get(EditorHierarchySelection kind) {
 static bool editor_bulk_delete_check(const EditorViewportState *state) {
     if(state == NULL) return false;
     for(size_t i = 0; i < state->selected_item_count; i += 1) {
-        if(state->selected_items[i].kind == EDITOR_SELECTION_ORIGIN ||
-                state->selected_items[i].kind == EDITOR_SELECTION_SOFT_AREA)
+        if(state->selected_items[i].kind == EDITOR_SELECTION_ORIGIN)
             return false;
     }
     return true;
@@ -550,7 +541,6 @@ static bool editor_bulk_visibility_command_get(EditorSelectionRef ref,
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
         case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_VISIBILITY_SOFT_BEAM; break;
-        case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_VISIBILITY_SOFT_AREA; break;
         default: return false;
     }
     *command = (EditorCommand){.type = EDITOR_COMMAND_VISIBILITY,

@@ -15,8 +15,7 @@ EditorWorkspace
         ├── EditorJoint[]
         ├── EditorSoftBody[]
         │   ├── EditorSoftNode[]
-        │   ├── EditorSoftBeam[]
-        │   └── EditorSoftArea[]
+        │   └── EditorSoftBeam[]
         ├── EditorSprite[]
         └── EditorAnimatedSprite[]
             └── EditorAnimationFrame[]
@@ -134,10 +133,8 @@ particle origin, and particle radius separately.
 - Parent removal owns removal of its children.
 - Anchors are independent object children and are referenced by joints.
 - Joints do not own anchors and therefore do not implicitly delete them.
-- Soft areas are bounded faces derived from the planar node/beam graph and are
-  synchronized after topology changes. Ordered boundaries preserve separate
-  cross-section faces; ear-clipping produces runtime triangles without changing
-  the editor-level area.
+- Soft bodies currently own nodes and beams. Beam-derived areas have been
+  removed; visual area authoring is unavailable until node-loop areas land.
 - Generated source owns no editor data; it materializes runtime entities only.
 
 ## Extending the editor

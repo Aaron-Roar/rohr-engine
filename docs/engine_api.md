@@ -2988,14 +2988,6 @@ EngineResult rohr_graphics_soft_body_beam_color_set( Entity soft_body, Entity no
 
  Sets a drawing-color override for the beam connecting two soft-body nodes.
 
-### `rohr_graphics_soft_body_area_color_set`
-
-```c
-EngineResult rohr_graphics_soft_body_area_color_set( Entity soft_body, Entity node_a, Entity node_b, Entity node_c, Color color);
-```
-
- Sets a drawing-color override for the area formed by three soft-body nodes.
-
 ### `rohr_graphics_texture_load`
 
 ```c
@@ -5245,41 +5237,12 @@ UISliderResult rohr_ui_slider_with_text(const char *id, float value, const UISli
  @brief Draws a slider with optional caller-owned label and value text.
 
 
-### Persistent soft-body areas
+### Soft-body area availability
 
-An area is an entity handle owning a copied `AreaBoundaryPoint` boundary. Query
-it with `rohr_physics_soft_body_area_get`; enumerate handles through the
-`areas`/`area_count` fields of `rohr_physics_soft_body_get`. The queried boundary
-is borrowed and remains valid until deletion. Body deletion owns area cleanup;
-a deleted area handle becomes invalid rather than referring to a replacement.
-
-For procedural geometry, call `rohr_physics_soft_body_areas_rebuild(body)` after
-adding, removing, or reconnecting beams. This explicit authoring step uses the
-current geometry, preserves matching area handles, and gives new regions the
-properties of the previous region with greatest overlap. It does not run during
-simulation or position updates. Beam edits may be batched before rebuilding.
-The editor performs this step on its connection-edit commands. Existing manual
-triangle APIs remain available; avoid authoring both triangles and areas for
-the same surface.
-
-Generated projects instead restore saved boundaries with
-`rohr_physics_soft_body_area_create(body, boundary, count)` and retain one named
-handle per area. They never rediscover areas from the saved deformed geometry.
-`rohr_graphics_soft_body_area_style_set` changes color inheritance, visibility,
-and surface fill. Entity layer APIs apply to the entire area. Drawing a soft
-body resolves current beam-bounded regions for all enabled areas. Higher layers
-draw on top; equal layers use area creation order. Generated projects create
-areas in their editor list order. Temporary overlap never deletes area handles.
-
-A node corner uses `nodes[0]`. A crossing corner stores both beam handles, their
-four endpoint handles, and two initial interpolation fractions. Its current
-position is the actual beam intersection; fractions only identify the authored
-boundary directions. `edge` identifies the outgoing boundary beam. When a
-crossing disappears, surviving boundary turns identify the merged regions.
-Newly enclosed regions without a surviving old corner are covered by the
-definitions contributing their boundary beams. Multiple definitions may cover
-a region; layer/order resolves their
-rendering without changing physics connectivity or area ownership.
-`rohr_soft_body_area_mesh_create` produces a caller-owned current triangle mesh
-and exterior `edges`/`edge_count`; release both through
-`rohr_soft_body_area_mesh_destroy`. Node movement needs no area rebuild.
+Beam-derived soft-body areas have been removed as a breaking API change.
+Area creation, discovery, queries, style overrides, and mesh helpers are no
+longer available. `SoftBody` no longer owns an area array or area count.
+Editor-authored area fills are temporarily unavailable while ordered node-loop
+areas are implemented. Nodes, beams, and their collision behavior remain
+available. The separate manual soft-body triangle primitives remain supported;
+they are not a replacement area API or an editor authoring path.

@@ -37,11 +37,9 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
             second.kind == EDITOR_SELECTION_CAMERA ||
             second.kind == EDITOR_SELECTION_ANIMATED_SPRITE);
     bool soft_children = (first.kind == EDITOR_SELECTION_SOFT_NODE ||
-            first.kind == EDITOR_SELECTION_SOFT_BEAM ||
-            first.kind == EDITOR_SELECTION_SOFT_AREA) &&
+            first.kind == EDITOR_SELECTION_SOFT_BEAM) &&
         (second.kind == EDITOR_SELECTION_SOFT_NODE ||
-            second.kind == EDITOR_SELECTION_SOFT_BEAM ||
-            second.kind == EDITOR_SELECTION_SOFT_AREA);
+            second.kind == EDITOR_SELECTION_SOFT_BEAM);
     return (first.kind == second.kind || object_children || soft_children) &&
         first.object == second.object &&
         first.parent == second.parent && first.container == second.container;
@@ -50,7 +48,6 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
 static EditorSoftHierarchyItemKind editor_soft_hierarchy_kind_get(
         EditorHierarchySelection kind) {
     if(kind == EDITOR_SELECTION_SOFT_BEAM) return EDITOR_SOFT_HIERARCHY_BEAM;
-    if(kind == EDITOR_SELECTION_SOFT_AREA) return EDITOR_SOFT_HIERARCHY_AREA;
     return EDITOR_SOFT_HIERARCHY_NODE;
 }
 
@@ -58,7 +55,6 @@ static EditorSelectionRef editor_soft_hierarchy_selection_get(
         EditorObjectId object, EditorSoftBodyId body, EditorSoftHierarchyItem item) {
     EditorHierarchySelection kind = EDITOR_SELECTION_SOFT_NODE;
     if(item.kind == EDITOR_SOFT_HIERARCHY_BEAM) kind = EDITOR_SELECTION_SOFT_BEAM;
-    else if(item.kind == EDITOR_SOFT_HIERARCHY_AREA) kind = EDITOR_SELECTION_SOFT_AREA;
     return (EditorSelectionRef){kind, object, body, 0, item.id};
 }
 
@@ -292,9 +288,6 @@ static bool editor_reorder_storage_get(EditorProject *project,
     else if(selection.kind == EDITOR_SELECTION_SOFT_BEAM)
         *storage = (EditorReorderStorage){(unsigned char *)soft_body->beams,
             soft_body->beam_count, sizeof(soft_body->beams[0])};
-    else if(selection.kind == EDITOR_SELECTION_SOFT_AREA)
-        *storage = (EditorReorderStorage){(unsigned char *)soft_body->areas,
-            soft_body->area_count, sizeof(soft_body->areas[0])};
     else return false;
     return true;
 }
@@ -445,11 +438,9 @@ bool editor_navigation_selection_reorder(EditorProject *project,
         return editor_object_hierarchy_reorder(project, state, source,
             target, after, history);
     if((source.kind == EDITOR_SELECTION_SOFT_NODE ||
-                source.kind == EDITOR_SELECTION_SOFT_BEAM ||
-                source.kind == EDITOR_SELECTION_SOFT_AREA) &&
+                source.kind == EDITOR_SELECTION_SOFT_BEAM) &&
             (target.kind == EDITOR_SELECTION_SOFT_NODE ||
-                target.kind == EDITOR_SELECTION_SOFT_BEAM ||
-                target.kind == EDITOR_SELECTION_SOFT_AREA) &&
+                target.kind == EDITOR_SELECTION_SOFT_BEAM) &&
             source.parent == target.parent)
         return editor_soft_body_hierarchy_reorder(project, state, source,
             target, after, history);
@@ -620,7 +611,6 @@ static bool editor_selection_remove_command_get(EditorProject *project,
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
         case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
-        case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
         case EDITOR_SELECTION_VERTEX: kind = EDITOR_ITEM_VERTEX; break;
         case EDITOR_SELECTION_LINE: kind = EDITOR_ITEM_LINE; break;
         default: return false;
@@ -678,8 +668,7 @@ static bool editor_selection_removed_with_parent_check(
                 parent.item == selection.container) return true;
         if(parent.kind == EDITOR_SELECTION_SOFT_BODY &&
                 (selection.kind == EDITOR_SELECTION_SOFT_NODE ||
-                    selection.kind == EDITOR_SELECTION_SOFT_BEAM ||
-                    selection.kind == EDITOR_SELECTION_SOFT_AREA) &&
+                    selection.kind == EDITOR_SELECTION_SOFT_BEAM) &&
                 parent.item == selection.parent) return true;
         if(parent.kind == EDITOR_SELECTION_INPUT_CONTROLLER &&
                 selection.kind == EDITOR_SELECTION_INPUT_ACTION &&
@@ -847,8 +836,6 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
             EDITOR_VISIBILITY_FIND(body->nodes, body->node_count);
         if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
             EDITOR_VISIBILITY_FIND(body->beams, body->beam_count);
-        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
-            EDITOR_VISIBILITY_FIND(body->areas, body->area_count);
     }
 #undef EDITOR_VISIBILITY_FIND
     return false;
@@ -918,7 +905,6 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_VISIBILITY_SOFT_BEAM; break;
-            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_VISIBILITY_SOFT_AREA; break;
             case EDITOR_SELECTION_CAMERA: kind = EDITOR_VISIBILITY_CAMERA; break;
             default: return false;
         }
@@ -1019,8 +1005,6 @@ bool editor_navigation_selection_name_get(EditorProject *project,
             EDITOR_NAME_FIND(body->nodes, body->node_count);
         if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
             EDITOR_NAME_FIND(body->beams, body->beam_count);
-        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
-            EDITOR_NAME_FIND(body->areas, body->area_count);
     }
 #undef EDITOR_NAME_FIND
     if(value == NULL) return false;
@@ -1123,7 +1107,6 @@ bool editor_navigation_selection_name_set(EditorProject *project,
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
-            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
             case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
             default: return false;
         }

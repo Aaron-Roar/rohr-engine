@@ -66,10 +66,10 @@ static const CliHelpDomain cli_help_domains[] = {
         "rigid-body <body|none>, visibility <true|false>",
         "--anchor wheel_anchor --property position 12 8", 1},
     {"--soft-body", "soft body", "position <x> <y>, rotation <degrees>, initial-angular-velocity <degrees/s>, "
-        "origin <x> <y>, node-color <hex>, beam-color <hex>, area-color <hex>, "
+        "origin <x> <y>, node-color <hex>, beam-color <hex>, "
         "visibility <true|false>, auto-shape <shape> <triangle-kind> <width> "
         "<height> <radius> <apex-offset>",
-        "--soft-body cloth --property area-color ff8800ff", 1},
+        "--soft-body cloth --property beam-color ff8800ff", 1},
     {"--node", "soft-body node", "position <x> <y>, mass <number>, "
         "friction <number>, restitution <0..1>, gravity <true|false>, "
         "collision <true|false>, node-radius <number>, color <hex>, "
@@ -78,8 +78,6 @@ static const CliHelpDomain cli_help_domains[] = {
     {"--beam", "soft-body beam", "stiffness <number>, damping <number>, "
         "color <hex>, visibility <true|false>, node-a <node|none>, node-b <node|none>",
         "--soft-body cloth --beam edge_1 --property damping 0.2", 2},
-    {"--area", "soft-body area", "color <hex>, visibility <true|false>",
-        "--soft-body cloth --area area_1 --property color 4488ffff", 2},
     {"--vertex", "hitbox vertex", "position <x> <y>, position-locked <true|false>",
         "--body chassis --vertex vertex_1 --property position 4 8", 3},
     {"--line", "hitbox line", "length <number>",
@@ -156,7 +154,7 @@ static void cli_help_print(int count, char **arguments) {
     if(domain == NULL) {
         puts("\nSelectors:\n"
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
-            "  --node, --beam, --area, --vertex, --line, --sprite,\n"
+            "  --node, --beam, --vertex, --line, --sprite,\n"
             "  --animated-sprite, --frame-index, --controller, --action,\n"
             "  --binding, --binding-index\n"
             "  Every named selector also accepts its -id form.");

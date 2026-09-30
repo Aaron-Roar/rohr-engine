@@ -71,7 +71,7 @@ static bool editor_generation_rigid_body_write(EditorTerminalPanel *terminal,
 static bool editor_generation_soft_body_write(EditorTerminalPanel *terminal,
         const EditorSoftBody *body, const char *prefix, bool last) {
     char child_prefix[96];
-    size_t child_count = body->node_count + body->beam_count + body->area_count;
+    size_t child_count = body->node_count + body->beam_count;
     size_t child = 0;
     if(!editor_generation_line_write(terminal, prefix,
             last ? "└── " : "├── ", "SoftBody", body->name)) return false;
@@ -87,7 +87,6 @@ static bool editor_generation_soft_body_write(EditorTerminalPanel *terminal,
 } while(0)
     EDITOR_GENERATION_CHILD(body->nodes, body->node_count, "Node");
     EDITOR_GENERATION_CHILD(body->beams, body->beam_count, "Beam");
-    EDITOR_GENERATION_CHILD(body->areas, body->area_count, "Area");
 #undef EDITOR_GENERATION_CHILD
     return true;
 }
