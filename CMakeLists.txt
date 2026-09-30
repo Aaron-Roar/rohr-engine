@@ -570,7 +570,8 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(soft_body_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body COMMAND soft_body_test)
 
-    add_executable(soft_body_areas_test tests/soft_body_areas.c)
+    add_executable(soft_body_areas_test tests/soft_body_areas.c
+        tests/soft_body_areas_visual.c)
     target_include_directories(soft_body_areas_test PRIVATE src)
     target_link_libraries(soft_body_areas_test PRIVATE rohr_engine)
     set_target_properties(soft_body_areas_test PROPERTIES

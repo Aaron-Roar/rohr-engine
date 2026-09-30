@@ -8,7 +8,6 @@
 
 #include <math.h>
 #include <stdio.h>
-#include <string.h>
 
 #define WHEEL_COUNT 2
 #define ANCHOR_NODE_COUNT 10
@@ -433,84 +432,7 @@ static void render_scene(CameraId camera, void *context_value) {
             GRAPHICS_FILLED, hub_color);
 }
 
-/* Deliberate kinematic deformation isolates fill behavior from beam physics. */
-static void area_demo_draw(CameraId camera, void *context) {
-    (void)camera;
-    rohr_graphics_background_draw((Color){24,28,38,255});
-    (void)rohr_graphics_soft_body_draw(*(Entity *)context,
-        (Color){55,150,220,255}, (Color){255,255,255,255}, (Color){255,255,255,255});
-}
-
-static int area_demo_run(void) {
-    ViewportId viewport = VIEWPORT_INVALID;
-    int status = 1;
-    if(rohr_error_check(rohr_engine_start())) return 1;
-    if(rohr_error_check(rohr_graphics_start())) goto done;
-    EntityResult body = rohr_physics_soft_body_create();
-    if(rohr_error_check(body)) goto done;
-    const Position reference[] = {
-        {-180,-100},{40,-100},{40,-20},{-60,-20},{-60,110},{-180,110},
-        {-100,-60},{150,-60},{60,140}};
-    Entity nodes[9];
-    for(unsigned i = 0; i < 9; i += 1) {
-        EntityResult node = rohr_physics_soft_body_node_create(body.result.value, reference[i], 1, 3);
-        if(rohr_error_check(node)) goto done;
-        nodes[i] = node.result.value;
-    }
-    SoftBodyAreaLoop loop = {.node_count=6};
-    for(unsigned i = 0; i < 6; i += 1) loop.nodes[i] = nodes[i];
-    EntityResult concave = rohr_physics_soft_body_area_create(body.result.value, loop);
-    EntityResult overlay = rohr_physics_soft_body_area_create(body.result.value,
-        (SoftBodyAreaLoop){.nodes={nodes[6],nodes[7],nodes[8]},.node_count=3});
-    if(rohr_error_check(concave) || rohr_error_check(overlay) ||
-            rohr_error_check(rohr_graphics_soft_body_area_color_set(overlay.result.value,
-                (Color){235,95,65,255})) ||
-            rohr_error_check(rohr_graphics_layer_entity_set(overlay.result.value,3))) goto done;
-    CameraId camera = rohr_camera_active_get();
-    Camera view = rohr_camera_get(camera).result.value;
-    view.position = (Position){0}; view.zoom = 1; view.orientation = 0;
-    if(rohr_error_check(rohr_camera_set(camera,view)) ||
-            !example_viewport_create(area_demo_draw,&body.result.value,&viewport)) goto done;
-    fprintf(stdout,"Area demo: blue concave loop, orange layer-3 overlay. Space pauses; L swaps layers; Escape exits.\n");
-    bool paused = false, high = true, running = true;
-    double phase = 0;
-    Uint64 previous = SDL_GetTicks();
-    while(running) {
-        SDL_Event event;
-        rohr_input_frame_begin();
-        while((event = rohr_engine_event_poll()).type != 0) {
-            if(event.type == SDL_EVENT_QUIT) running = false;
-            if(event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) continue;
-            if(event.key.scancode == SDL_SCANCODE_ESCAPE) running = false;
-            if(event.key.scancode == SDL_SCANCODE_SPACE) paused = !paused;
-            if(event.key.scancode == SDL_SCANCODE_L) {
-                high = !high;
-                if(rohr_error_check(rohr_graphics_layer_entity_set(overlay.result.value,high ? 3 : -1))) goto done;
-            }
-        }
-        Uint64 now = SDL_GetTicks();
-        if(!paused) phase += (double)(now-previous) / 1000.0;
-        previous = now;
-        for(unsigned i = 0; i < 9; i += 1) {
-            Position moved = reference[i];
-            moved.x += 35.0f * sinf((float)phase + (float)i * 0.65f);
-            moved.y += 25.0f * sinf((float)phase * 0.8f + (float)i);
-            /* Periodically fold the concave loop across itself. */
-            if(i == 3) moved.x += 140.0f * sinf((float)phase * 0.5f);
-            if(rohr_error_check(rohr_physics_position_set(nodes[i],moved))) goto done;
-        }
-        rohr_graphics_show();
-    }
-    status = 0;
-done:
-    example_viewport_destroy(&viewport);
-    rohr_graphics_stop();
-    rohr_engine_stop();
-    return status;
-}
-
-int main(int argc, char **argv) {
-    if(argc > 1 && strcmp(argv[1], "--areas") == 0) return area_demo_run();
+int main(void) {
     const float wheel_horizontal_offset =
         chassis_dimensions.x * wheel_horizontal_position_ratio;
     const float chassis_wheel_vertical_offset =

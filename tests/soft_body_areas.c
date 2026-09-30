@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "soft_body_areas_visual.h"
 #include "physics/soft_body/soft_body_area.h"
 #include <math.h>
 #include <stdio.h>
@@ -186,9 +187,16 @@ static bool rendering_check(void) {
     return true;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    bool visual = argc == 2 && strcmp(argv[1], "--visual") == 0;
+    if(argc != 1 && !visual) {
+        fprintf(stderr, "Usage: %s [--visual]\n", argv[0]);
+        return 1;
+    }
     if(rohr_error_check(rohr_engine_start())) return 1;
-    bool passed = runtime_check() && limits_and_reference_check() && rendering_check();
+    bool passed = visual ? soft_body_areas_visual_run() :
+        runtime_check() && limits_and_reference_check() &&
+        soft_body_areas_visual_motion_check() && rendering_check();
     rohr_engine_stop();
     return passed ? 0 : 1;
 }

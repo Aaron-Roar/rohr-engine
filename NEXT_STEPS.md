@@ -184,6 +184,24 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    its source directory. Windows verification is cross-compilation only;
    sanitizers were not rerun for this default-value-only change.
 
+## Completed Milestone: Soft-Body Area Visual Test
+
+Inspect area colors through a square-to-hourglass fold while keeping diagnostic
+scenes in test executables and the standalone vehicle example focused.
+
+1. [x] **Isolate area demonstrations and add hourglass motion** — Moved the
+   layered demo into `soft_body_areas_test --visual` and added a square whose
+   bottom vertices swap and return over eight seconds, with endpoint pauses,
+   fixed triangulation, white boundaries, and node markers. Onscreen buttons
+   select scenes; Space pauses and L changes the layered scene's overlap order.
+   Removed all demo flags/code from the vehicle example. Three focused native
+   tests and three ASan/UBSan/leak checks pass, including motion endpoint and
+   unchanged-triangulation checks. Linux/Windows builds pass without compiler
+   warnings (Windows compile-only). A complete visual cycle also runs cleanly
+   under sanitizers; the installed-SDK vehicle launches and exits from outside
+   the source directory. Desktop visual review remains requested. Resume the
+   main milestone only when the user requests Goal 4.
+
 ## Milestone: Node-Loop Soft-Body Areas
 
 Replace beam-derived coloring with explicit ordered loops of existing soft-body
@@ -221,9 +239,9 @@ within a layer draw on top, limited to each area's own footprint.
    and retain explicit list order; deletion preserves surviving order and node
    or body deletion removes dependent areas. Removed manual triangle APIs,
    components, and storage without compatibility wrappers; migrated callers to
-   three-node areas. The installed soft-body example includes `--areas` for
-   concave, overlapping colored fills with deformation, folding, and layer
-   switching. All 59 native tests, three ASan/UBSan/leak checks, Linux/Windows
+   three-node areas. Originally added a runtime example mode for concave,
+   overlapping colored fills; these diagnostics now belong to the separate
+   visual-test milestone above. All 59 native tests, three ASan/UBSan/leak checks, Linux/Windows
    builds, and both installed-SDK example modes pass. Windows is compile-only;
    desktop visual review remains requested. No holes or independent visual
    vertices; editor persistence, generation, and authoring remain below.

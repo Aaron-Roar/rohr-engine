@@ -214,12 +214,23 @@ Generated HTML is written to `build/docs/html/index.html` and is not committed.
 - [`center_of_mass`](examples/center_of_mass/README.md): editor-authored off-center
   geometry, automatic/explicit COM, free rotation, and local anchors.
 - `soft-body`: node/beam wheels, boundary contacts, particles, and vehicle input.
-  Run `soft_body --areas` for concave, layered node-loop fills with kinematic
-  deformation and folding. Space pauses motion, L swaps the orange fill's layer,
-  and Escape exits. The blue fill should retain its color outside the overlap.
 - `user-interface`: UI primitives and interactions.
 - `view-port`: camera/viewport and sprite movement.
 - `pong`: generated game components, collision, input, and scoring.
+
+For interactive area rendering checks, run the test executable:
+
+```sh
+./build/tests/soft_body_areas_test --visual
+```
+
+The Hourglass scene holds the top vertices fixed while the bottom vertices swap
+and return over an eight-second cycle. White edges show the loop boundary above
+the blue fill; triangulation stays fixed throughout the crossing. Use the onscreen
+buttons to switch to Layered areas. Space pauses/resumes, L switches the orange
+area's layer in that scene, and Escape exits. Without `--visual`, the test runs
+automated checks and exits. These scenes are test-only and are not installed
+with the SDK or included in the vehicle example.
 
 ## Contributing
 
