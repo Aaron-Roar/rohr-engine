@@ -197,6 +197,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/ui.c
     src/input/input.c
     src/math/math2d.c
+    src/math/node_loop_geometry.c
     src/physics/broadphase/aabb_tree.c
     src/physics/body/body_state.c
     src/physics/body/mass_properties.c
@@ -568,6 +569,16 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(soft_body_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body COMMAND soft_body_test)
 
+    add_executable(node_loop_geometry_test tests/node_loop_geometry.c)
+    target_include_directories(node_loop_geometry_test PRIVATE src)
+    target_link_libraries(node_loop_geometry_test PRIVATE rohr_engine)
+    set_target_properties(node_loop_geometry_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME node_loop_geometry COMMAND node_loop_geometry_test)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(node_loop_geometry_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+
     add_executable(auto_shape_test tests/auto_shape.c)
     target_link_libraries(auto_shape_test PRIVATE rohr_engine)
     set_target_properties(auto_shape_test PROPERTIES
@@ -814,6 +825,7 @@ if(ROHR_BUILD_TESTS)
         ui_dropdown_test
         joints_test
         soft_body_test
+        node_loop_geometry_test
         auto_shape_test
         collision_sensor_test
         particle_collision_mode_test

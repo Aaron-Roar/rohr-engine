@@ -204,9 +204,17 @@ within a layer draw on top, limited to each area's own footprint.
    five ASan/UBSan/leak checks, Linux/Windows builds, and installed-SDK example
    and generated-app headless launches pass. Windows is compile-only; desktop
    visual review is recommended before committing.
-2. [ ] **Build ordered-loop geometry** — Validate simple nonzero initial loops,
-   including concave polygons, and triangulate internally. Preserve triangle
-   connections during later motion and folds. Test this geometry independently.
+2. [x] **Build ordered-loop geometry** — Added internal, allocation-free loop
+   validation and deterministic triangulation for convex/concave polygons in
+   either winding, retaining collinear boundary nodes. Invalid initial loops
+   leave previous output intact. Fixed indices address the original node order;
+   resolving current triangle positions permits later folds, inversions, and
+   collapse without changing connectivity. Tests cover boundaries, area coverage,
+   all-node participation, scale/translation, invalid input, deformation, and
+   200 seeded polygons through the 100-point geometry limit. All 58 native tests,
+   the geometry ASan/UBSan/leak check, Linux/Windows builds, and an installed-SDK
+   soft-body example build/headless launch pass. Windows is compile-only.
+   Runtime areas, public APIs, and editor fills remain for subsequent goals.
 3. [ ] **Add runtime areas and API** — Own explicit node loops and fixed
    triangulation, render independent layered fills, and provide a visual runtime
    example. No holes or independent visual vertices in this milestone.

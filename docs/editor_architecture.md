@@ -137,6 +137,30 @@ particle origin, and particle radius separately.
   removed; visual area authoring is unavailable until node-loop areas land.
 - Generated source owns no editor data; it materializes runtime entities only.
 
+## Node-loop geometry foundation
+
+`src/math/node_loop_geometry.h` provides the internal, allocation-free geometry
+foundation for forthcoming soft-body areas. It has no entity or beam dependencies
+and is not an installed public API. Runtime areas and editor area authoring are
+still unavailable at this milestone stage.
+
+`node_loop_triangulation_get` validates an ordered loop of 3 to
+`NODE_LOOP_MAX_POINTS` points (currently the shared 100-vertex geometry limit).
+The final edge connects back to the first point implicitly. Convex and concave
+loops work in either winding; straight boundary subdivisions retain their nodes.
+Nonfinite or repeated points, backtracking, zero-area loops, and nonadjacent
+edges that cross, touch, or overlap are rejected. Calculations use doubles and
+relative error bounds for numerically indistinguishable collinearity.
+
+The caller owns the returned fixed triangle indices into the supplied node order.
+Failure leaves its previous triangulation intact. Creation uses deterministic
+ear clipping with bounded scratch storage; triangulate only for authoring edits.
+`node_loop_triangle_get` resolves a stored triangle against current positions in
+that same node order. It accepts later folds, inversions, and collapses without
+rediscovering boundaries or changing connectivity. Future runtime and editor
+integration must preserve that order and retain the authored reference pose for
+serialization; node-handle ownership validation belongs to those integrations.
+
 ## Extending the editor
 
 When adding an authored property:
