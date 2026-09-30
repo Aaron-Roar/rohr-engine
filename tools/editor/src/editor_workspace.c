@@ -852,9 +852,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
                 const EditorSoftArea *area = &body->areas[area_index];
                 if(area->node_count >= 3) fprintf(header,
-                    "    Entity %s;\n"
-                    "    Entity %s_triangles[%zu];\n",
-                    area->name, area->name, area->node_count - 2);
+                    "    Entity %s;\n", area->name);
             }
         }
         for(size_t sprite_index = 0; sprite_index < object->sprite_count;
@@ -1295,43 +1293,37 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             }
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
                 const EditorSoftArea *area = &body->areas[area_index];
-                uint32_t (*triangles)[3];
-                if(!area->surface_enabled || area->node_count < 3) continue;
-                triangles = malloc((area->node_count - 2) * sizeof(*triangles));
-                if(triangles == NULL) continue;
-                size_t triangle_count = editor_project_soft_area_triangulate(
-                    body, area, triangles, area->node_count - 2);
-                for(size_t triangle = 0; triangle < triangle_count; triangle += 1) {
-                    const EditorSoftNode *node_a = editor_workspace_soft_node_get(
-                        body, area->nodes[triangles[triangle][0]]);
-                    const EditorSoftNode *node_b = editor_workspace_soft_node_get(
-                        body, area->nodes[triangles[triangle][1]]);
-                    const EditorSoftNode *node_c = editor_workspace_soft_node_get(
-                        body, area->nodes[triangles[triangle][2]]);
-                    if(node_a == NULL || node_b == NULL || node_c == NULL) continue;
-                    fprintf(source,
-                        "    { EntityResult created = rohr_physics_soft_body_triangle_create("
-                        "object->%s, object->%s, object->%s, object->%s);\n"
-                        "      if(rohr_error_check(created)) { result = rohr_error_result_error("
-                        "created.result.error); goto fail; }\n",
-                        body->name, node_a->name, node_b->name, node_c->name);
-                    fprintf(source,
-                        "      object->%s_triangles[%zu] = created.result.value;",
-                        area->name, triangle);
-                    if(triangle == 0) fprintf(source,
-                        " object->%s = created.result.value;", area->name);
-                    fprintf(source, " }\n");
-                    if(area->color_overridden) {
-                        fprintf(source,
-                            "    result = rohr_graphics_soft_body_area_color_set(object->%s, "
-                            "object->%s, object->%s, object->%s, "
-                            "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
-                            "    if(rohr_error_check(result)) goto fail;\n",
-                            body->name, node_a->name, node_b->name, node_c->name,
-                        area->color);
+                if(area->node_count<3) continue;
+                fprintf(source,"    { AreaBoundaryPoint boundary[%zu] = {\n",area->node_count);
+                for(size_t k=0;k<area->node_count;k++) {
+                    AreaBoundaryPoint point=area->boundary?area->boundary[k]:
+                        (AreaBoundaryPoint){.nodes={area->nodes[k]}};
+                    fprintf(source,"        {.nodes={");
+                    for(size_t n=0;n<4;n++) {
+                        const EditorSoftNode *node=editor_workspace_soft_node_get(body,point.nodes[n]);
+                        if(n) fprintf(source,",");
+                        if(node) fprintf(source,"object->%s",node->name); else fprintf(source,"0");
                     }
+                    fprintf(source,"},.beams={");
+                    for(size_t n=0;n<2;n++) {
+                        const EditorSoftBeam *beam=NULL;
+                        for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==point.beams[n]) beam=&body->beams[j];
+                        if(n) fprintf(source,",");
+                        if(beam) fprintf(source,"object->%s",beam->name); else fprintf(source,"0");
+                    }
+                    fprintf(source,"},.fractions={%.9ff,%.9ff},.edge=",point.fractions[0],point.fractions[1]);
+                    const EditorSoftBeam *edge=NULL;
+                    for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==point.edge) edge=&body->beams[j];
+                    if(edge) fprintf(source,"object->%s",edge->name); else fprintf(source,"0");
+                    fprintf(source,"},\n");
                 }
-                free(triangles);
+                fprintf(source,"    }; EntityResult created=rohr_physics_soft_body_area_create(object->%s,boundary,%zu);\n"
+                    "      if(rohr_error_check(created)) { result=rohr_error_result_error(created.result.error); goto fail; }\n"
+                    "      object->%s=created.result.value; }\n",body->name,area->node_count,area->name);
+                fprintf(source,"    result=rohr_graphics_soft_body_area_style_set(object->%s,"
+                    "rohr_graphics_color_hex_create(UINT32_C(0x%08x)),%s,%s,%s);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",area->name,area->color,
+                    area->color_overridden?"true":"false",area->visible?"true":"false",area->surface_enabled?"true":"false");
             }
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
                 const EditorSoftNode *node = &body->nodes[node_index];
@@ -1935,17 +1927,8 @@ static bool editor_workspace_generated_viewports_write(
                         body->beams[child].name);
             for(size_t child = 0; child < body->area_count; child += 1) {
                 const EditorSoftArea *area = &body->areas[child];
-                uint32_t (*triangles)[3];
-                size_t triangle_count;
-                if(area->graphics_layer_inherited || area->node_count < 3) continue;
-                triangles = malloc((area->node_count - 2) * sizeof(*triangles));
-                if(triangles == NULL) continue;
-                triangle_count = editor_project_soft_area_triangulate(body, area,
-                    triangles, area->node_count - 2);
-                for(size_t triangle = 0; triangle < triangle_count; triangle += 1)
-                    WRITE_ENTITY_LAYER_INDEX(area->graphics_layer, area->name,
-                        triangle);
-                free(triangles);
+                if(!area->graphics_layer_inherited && area->node_count>=3)
+                    WRITE_ENTITY_LAYER(area->graphics_layer,"",area->name);
             }
         }
         for(size_t i = 0; i < object->sprite_count; i += 1)

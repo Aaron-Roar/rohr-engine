@@ -141,6 +141,7 @@ typedef enum {
     ROHR_SPRITE                      = 1 << 28,
     /** Entity has physics-owned animation-frame to hitbox bindings. */
     ROHR_HITBOX_ANIMATION_BINDING    = 1 << 29,
+    ROHR_SOFT_BODY_AREA             = 1 << 30,
 } Component;
 
 /** Fixed-size, engine-owned entity name. */

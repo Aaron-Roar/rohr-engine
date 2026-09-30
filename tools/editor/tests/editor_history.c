@@ -457,7 +457,168 @@ static void center_of_mass_interaction_check(void) {
     editor_project_destroy(&project);
 }
 
+static void square_check(const Position *points, float side) {
+    for(size_t i = 0; i < 4; i += 1) {
+        float x = points[(i + 1) % 4].x - points[i].x;
+        float y = points[(i + 1) % 4].y - points[i].y;
+        assert((fabsf(x) < .001f && fabsf(fabsf(y) - side) < .001f) ||
+            (fabsf(y) < .001f && fabsf(fabsf(x) - side) < .001f));
+        for(size_t j = i + 1; j < 4; j += 1)
+            assert(points[i].x != points[j].x || points[i].y != points[j].y);
+    }
+}
+
+static void default_shapes_history_check(void) {
+    EditorProject project, loaded;
+    EditorHistory history;
+    editor_project_init(&project);
+    editor_project_init(&loaded);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    assert(object != NULL && editor_history_init(&history, &project));
+    callback_history = &history;
+    editor_command_executing_callback_set(history_begin, NULL);
+    editor_command_finished_callback_set(history_finish, NULL);
+    EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_RIGID_BODY, .object = object->id}};
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    assert(history.undo_count == 1 && object->rigid_body_count == 1);
+    EditorHitbox *hitbox = &object->rigid_bodies[0].hitboxes[0];
+    assert(hitbox->vertex_count == 4);
+    Position points[4];
+    for(size_t i = 0; i < 4; i += 1) points[i] = hitbox->vertices[i].position;
+    square_check(points, EDITOR_BODY_DEFAULT_SIZE);
+
+    command.data.item_add.kind = EDITOR_ITEM_SOFT_BODY;
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    assert(history.undo_count == 2 && object->soft_body_count == 1);
+    EditorSoftBody *soft = &object->soft_body_items[0];
+    assert(soft->node_count == 4 && soft->beam_count == 6);
+    EditorSoftNodeId ids[4];
+    for(size_t i = 0; i < 4; i += 1) {
+        points[i] = soft->nodes[i].position;
+        ids[i] = soft->nodes[i].id;
+        assert(ids[i] != 0);
+    }
+    square_check(points, EDITOR_BODY_DEFAULT_SIZE);
+    for(size_t i = 0; i < 4; i += 1)
+        for(size_t j = i + 1; j < 4; j += 1) {
+            size_t matches = 0;
+            for(size_t b = 0; b < soft->beam_count; b += 1) {
+                EditorSoftBeam *beam = &soft->beams[b];
+                if((beam->node_a == ids[i] && beam->node_b == ids[j]) ||
+                        (beam->node_a == ids[j] && beam->node_b == ids[i])) matches += 1;
+            }
+            assert(matches == 1);
+        }
+    assert(editor_history_undo(&history));
+    assert(project.objects[0].soft_body_count == 0);
+    assert(editor_history_redo(&history));
+    object = &project.objects[0];
+    soft = &object->soft_body_items[0];
+    assert(soft->node_count == 4 && soft->beam_count == 6);
+    for(size_t i = 0; i < 4; i += 1) assert(soft->nodes[i].id == ids[i]);
+
+    assert(editor_history_ui_change_begin(&history));
+    EditorLayoutViewport *viewport = editor_project_layout_viewport_add(&project);
+    EditorViewportUiItem *item = editor_viewport_ui_add(&project, viewport,
+        EDITOR_VIEWPORT_UI_SHAPE);
+    assert(item != NULL && item->value.shape.vertex_count == 4);
+    for(size_t i = 0; i < 4; i += 1) points[i] = item->value.shape.vertices[i];
+    square_check(points, EDITOR_UI_SHAPE_DEFAULT_SIZE);
+    assert(editor_history_ui_change_finish(&history));
+    assert(history.undo_count == 3);
+    assert(editor_history_undo(&history) && project.layout_viewport_count == 0);
+    assert(editor_history_redo(&history) && project.layout_viewport_count == 1);
+
+    const char *path = "editor_default_shapes.json";
+    assert(editor_project_save(&project, path));
+    assert(!editor_result_check(editor_project_load(&loaded, path)));
+    assert(loaded.objects[0].rigid_bodies[0].hitboxes[0].vertex_count == 4);
+    assert(loaded.objects[0].soft_body_items[0].node_count == 4 &&
+        loaded.objects[0].soft_body_items[0].beam_count == 6);
+    /* Explicitly authored triangles, rectangles and removed beams survive reload. */
+    object = &project.objects[0];
+    hitbox = &object->rigid_bodies[0].hitboxes[0];
+    assert(editor_project_hitbox_line_remove(hitbox, 0));
+    soft = &object->soft_body_items[0];
+    assert(editor_project_soft_beam_remove(&project, soft, soft->beams[0].id));
+    EditorViewportUiDefinition *definition = &project.ui_definitions[0];
+    definition->value.shape.vertices[2].y = 36;
+    definition->value.shape.vertices[3].y = 36;
+    assert(editor_project_save(&project, path));
+    assert(!editor_result_check(editor_project_load(&loaded, path)));
+    assert(loaded.objects[0].rigid_bodies[0].hitboxes[0].vertex_count == 3);
+    assert(loaded.objects[0].soft_body_items[0].beam_count == 5);
+    assert(loaded.ui_definitions[0].value.shape.vertices[2].y == 36);
+    assert(SDL_RemovePath(path));
+    editor_command_executing_callback_set(NULL, NULL);
+    editor_command_finished_callback_set(NULL, NULL);
+    callback_history = NULL;
+    editor_history_destroy(&history);
+    editor_project_destroy(&project);
+    editor_project_destroy(&loaded);
+}
+
+static void stable_areas_history_check(void) {
+    EditorProject project; EditorHistory history; EditorViewportState viewport;
+    editor_project_init(&project);
+    EditorObject *object=editor_project_object_add(&project,(Position){0});
+    EditorSoftBody *body=editor_project_soft_body_add(&project,object);
+    Position corner_positions[4]={{-100,-100},{100,-100},{100,100},{-100,100}};
+    for(size_t i=0;i<4;i++) assert(editor_project_soft_node_add(&project,body,corner_positions[i]));
+    for(size_t i=0;i<4;i++) assert(editor_project_soft_beam_add(&project,body,
+        body->nodes[i].id,body->nodes[(i+1)%4].id));
+    EditorSoftAreaId original=body->areas[0].id;
+    assert(editor_history_init(&history,&project)); callback_history=&history;
+    editor_command_executing_callback_set(history_begin,NULL);
+    editor_command_finished_callback_set(history_finish,NULL);
+    EditorCommand command={.type=EDITOR_COMMAND_SOFT_NODE_POSITION,
+        .data.soft_node_position={.object=object->id,.body=body->id,
+            .node=body->nodes[1].id,.position={100,100}}};
+    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
+    command.data.soft_node_position.node=body->nodes[2].id;
+    command.data.soft_node_position.position=(Position){100,-100};
+    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
+    assert(body->area_count==1 && body->areas[0].id==original);
+    assert(editor_history_undo(&history));
+    assert(editor_history_redo(&history));
+    for(size_t side=0;side<2;side++) {
+        editor_viewport_state_init(&viewport);
+        EditorSelectionRef ref={EDITOR_SELECTION_SOFT_AREA,object->id,body->id,0,original};
+        assert(editor_viewport_selection_set(&project,&viewport,ref,false));
+        viewport.mode=EDITOR_VIEWPORT_SOFT_AREA;
+        Position click=test_world_to_screen((Position){side?60:-60,0});
+        assert(editor_viewport_update(&viewport,&project,click,MOUSE_BUTTON_STATE_PRESSED,
+            MOUSE_BUTTON_STATE_UP,false,0,false));
+        assert(viewport.selection==EDITOR_SELECTION_SOFT_AREA && viewport.selected_soft_area==original);
+        (void)editor_viewport_update(&viewport,&project,click,MOUSE_BUTTON_STATE_RELEASED,
+            MOUSE_BUTTON_STATE_UP,false,0,false);
+        editor_viewport_state_destroy(&viewport);
+    }
+    for(size_t i=0;i<4;i++) body->nodes[i].position=corner_positions[i];
+    EditorSoftBeam *diagonal=editor_project_soft_beam_add(&project,body,body->nodes[0].id,body->nodes[2].id);
+    assert(diagonal && body->area_count==2);
+    EditorSoftAreaId first=body->areas[0].id,second=body->areas[1].id;
+    editor_history_reset(&history);
+    command=(EditorCommand){.type=EDITOR_COMMAND_RELATIONSHIP_SET,
+        .data.relationship_set={.kind=EDITOR_RELATIONSHIP_SOFT_BEAM_NODE,
+            .object=object->id,.parent=body->id,.item=diagonal->id,.endpoint=1,.target=0}};
+    assert(editor_command_execute(&project,&command).kind==ERROR_RESULT_VALUE);
+    assert(body->area_count==1);
+    assert(editor_history_undo(&history));
+    body=&project.objects[0].soft_body_items[0];
+    assert(body->area_count==2 && body->areas[0].id==first && body->areas[1].id==second);
+    assert(editor_history_redo(&history));
+    body=&project.objects[0].soft_body_items[0];
+    assert(body->area_count==1);
+    editor_command_executing_callback_set(NULL,NULL);
+    editor_command_finished_callback_set(NULL,NULL); callback_history=NULL;
+    editor_history_destroy(&history); editor_project_destroy(&project);
+}
+
 int main(void) {
+    stable_areas_history_check();
+    default_shapes_history_check();
     if(!SDL_SaveFile("editor_history_frame.png", test_png, sizeof(test_png))) return 1;
     angular_history_check();
     animation_frame_history_check();
@@ -620,8 +781,8 @@ int main(void) {
                 Position pivot = item->position;
                 Orientation *orientation = &item->rotation;
                 if(item->kind == EDITOR_VIEWPORT_UI_SHAPE) {
-                    pivot.x += 90.0f;
-                    pivot.y += 18.0f;
+                    pivot.x += EDITOR_UI_SHAPE_DEFAULT_SIZE * 0.5f;
+                    pivot.y += EDITOR_UI_SHAPE_DEFAULT_SIZE * 0.5f;
                     orientation = &item->value.shape.rotation;
                 }
                 *orientation = 0.0f;
@@ -1025,7 +1186,8 @@ int main(void) {
             assert(hitbox->vertices[i].position.y == before[i].y);
         }
         shortcut_apply(&history, SDLK_Y);
-        assert(fabsf(hitbox->vertices[0].position.y + 30.0f) < 0.001f);
+        assert(fabsf(hypotf(hitbox->vertices[0].position.x,
+            hitbox->vertices[0].position.y) - 30.0f) < 0.001f);
     }
     editor_history_reset(&history);
     editor_viewport_state_init(&viewport);
@@ -1049,7 +1211,8 @@ int main(void) {
         assert(!auto_shape_pointer_update(&history, &viewport, &project, &config,
             grab, MOUSE_BUTTON_STATE_RELEASED));
         assert(fabsf(config.radius - 50.0f) < 0.001f);
-        assert(fabsf(hitbox->vertices[0].position.y + 50.0f) < 0.001f);
+        assert(fabsf(hypotf(hitbox->vertices[0].position.x,
+            hitbox->vertices[0].position.y) - 50.0f) < 0.001f);
         for(size_t i = 0; i < hitbox->vertex_count; i += 1) {
             float radius = hypotf(hitbox->vertices[i].position.x,
                 hitbox->vertices[i].position.y);
@@ -1057,9 +1220,11 @@ int main(void) {
         }
         assert(history.undo_count == 1);
         shortcut_apply(&history, SDLK_Z);
-        assert(fabsf(hitbox->vertices[0].position.y + 30.0f) < 0.001f);
+        assert(fabsf(hypotf(hitbox->vertices[0].position.x,
+            hitbox->vertices[0].position.y) - 30.0f) < 0.001f);
         shortcut_apply(&history, SDLK_Y);
-        assert(fabsf(hitbox->vertices[0].position.y + 50.0f) < 0.001f);
+        assert(fabsf(hypotf(hitbox->vertices[0].position.x,
+            hitbox->vertices[0].position.y) - 50.0f) < 0.001f);
     }
 
     assert(editor_project_soft_node_add(&project, soft_body,

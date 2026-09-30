@@ -28,6 +28,9 @@ target_include_directories(rohr_editor_core
         ${PROJECT_SOURCE_DIR}/lib
 )
 target_link_libraries(rohr_editor_core PUBLIC rohr_engine PRIVATE rohr_lua)
+if(ROHR_ENABLE_SANITIZERS)
+    target_compile_options(rohr_editor_core PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+endif()
 
 if(ROHR_BUILD_TESTS)
     set(COM_EXAMPLE_SOURCE ${PROJECT_SOURCE_DIR}/examples/center_of_mass)
@@ -58,6 +61,17 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME center_of_mass_persistence COMMAND center_of_mass_persistence_test)
     set_tests_properties(center_of_mass_persistence PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(stable_soft_areas_test tests/stable_soft_areas.c)
+    target_link_libraries(stable_soft_areas_test PRIVATE rohr_editor_core)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(stable_soft_areas_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(stable_soft_areas_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME stable_soft_areas COMMAND stable_soft_areas_test)
+    set_tests_properties(stable_soft_areas PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_core_test tests/editor_core.c)

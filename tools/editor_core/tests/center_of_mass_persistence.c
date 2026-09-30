@@ -178,7 +178,6 @@ static bool project_check(void) {
     body->initial_velocity = (Velocity){2,-1}; body->initial_angular_velocity = 810;
     body->mass_value = 12;
     EditorHitbox *hitbox = &body->hitboxes[0];
-    CHECK(editor_project_hitbox_vertex_insert(&project, hitbox, 0));
     CHECK(hitbox->vertex_count == 4);
     const Position vertices[] = {{2,3},{6,3},{6,5},{2,5}};
     for(size_t i=0;i<4;i+=1) hitbox->vertices[i].position = vertices[i];

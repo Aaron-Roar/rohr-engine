@@ -197,6 +197,7 @@ set(ROHR_ENGINE_SOURCES
     src/graphics/ui.c
     src/input/input.c
     src/math/math2d.c
+    src/math/area_geometry.c
     src/physics/broadphase/aabb_tree.c
     src/physics/body/body_state.c
     src/physics/body/mass_properties.c

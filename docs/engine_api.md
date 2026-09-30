@@ -5243,3 +5243,36 @@ UISliderResult rohr_ui_slider_with_text(const char *id, float value, const UISli
 ```
 
  @brief Draws a slider with optional caller-owned label and value text.
+
+
+### Persistent soft-body areas
+
+An area is an entity handle owning a copied `AreaBoundaryPoint` boundary. Query
+it with `rohr_physics_soft_body_area_get`; enumerate handles through the
+`areas`/`area_count` fields of `rohr_physics_soft_body_get`. The queried boundary
+is borrowed and remains valid until deletion. Body deletion owns area cleanup;
+a deleted area handle becomes invalid rather than referring to a replacement.
+
+For procedural geometry, call `rohr_physics_soft_body_areas_rebuild(body)` after
+adding, removing, or reconnecting beams. This explicit authoring step uses the
+current geometry, preserves matching area handles, and gives new regions the
+properties of the previous region with greatest overlap. It does not run during
+simulation or position updates. Beam edits may be batched before rebuilding.
+The editor performs this step on its connection-edit commands. Existing manual
+triangle APIs remain available; avoid authoring both triangles and areas for
+the same surface.
+
+Generated projects instead restore saved boundaries with
+`rohr_physics_soft_body_area_create(body, boundary, count)` and retain one named
+handle per area. They never rediscover areas from the saved deformed geometry.
+`rohr_graphics_soft_body_area_style_set` changes color inheritance, visibility,
+and surface fill. Entity layer APIs apply to the entire area. Drawing a soft
+body renders all enabled areas using even-odd fill, including self-intersections.
+
+A node corner uses `nodes[0]`. A crossing corner stores both beam handles, their
+four endpoint handles, and two initial interpolation fractions. Its current
+position is the mean of those interpolants; it requires no physical intersection
+node. `edge` identifies the outgoing boundary beam. These associations stay
+fixed while the body deforms. `rohr_soft_body_area_mesh_create` produces a
+caller-owned current triangle mesh; release it with
+`rohr_soft_body_area_mesh_destroy`.

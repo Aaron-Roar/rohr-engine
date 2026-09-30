@@ -24,6 +24,14 @@ For a new project, navigate to the parent directory, enter the new directory
 name, and choose **Create Project**. The editor creates a working starter scene
 containing a static floor and a gravity-enabled box.
 
+New rigid bodies and added hitboxes start as centered 140-by-140 squares.
+New UI shapes start as 180-by-180 squares. **Add Soft Body** (also the CLI
+`soft-body add` command) creates four corners of a 140-by-140 square with six
+beams: four perimeter edges and both diagonals, with no center node. Nodes,
+beams, and derived areas retain their normal property defaults. Low-level
+soft-body construction remains empty for custom geometry builders. Saved
+geometry, duplicates, and explicitly chosen Auto Shape types are preserved.
+
 ## Animation frame alignment
 
 An animation's Origin X/Y controls place its shared origin. Each frame has
@@ -313,7 +321,7 @@ origin; soft-body nodes retain their local offsets as well.
 
 ## Hitboxes and rigid bodies
 
-A new rigid body starts with a triangular hitbox. In the hitbox editor, vertices
+A new rigid body starts with a square hitbox. In the hitbox editor, vertices
 and lines are selectable and editable. Adding a vertex splits the selected line
 at its midpoint without moving neighboring vertices. Locked vertices cannot be
 moved; line-length edits distribute movement only to unlocked endpoints.
@@ -356,7 +364,8 @@ A pair responds only when both directional filters accept one another.
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 5; older project data must be rewritten.
+Project data uses format version 6. Version-5 node-loop areas load as persistent
+boundaries; earlier project formats must be rewritten.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
@@ -458,15 +467,29 @@ or disable it when no thickness is valid; growing a node does not grow or
 re-enable an existing beam. Collision, thickness, and both filter masks remain
 individually editable in the beam panel.
 
-Closed node-and-beam loops generate colorable areas automatically. A hexagonal
-loop becomes one area; cross-section beams divide an enclosure into multiple
-independently selectable areas. Beam crossings without nodes are not topology
-and do not divide an area. Concave areas are triangulated internally for drawing,
-while the editor preserves one boundary and one color setting for the complete
-area. Triangles never define collision. Disable an area's **Surface** option to
-leave that area visually open while keeping its authored beams and their
-independent collision settings. Physical holes are the open spaces left by the
-beam layout; disabling a visual surface does not remove boundary collision.
+Adding, removing, or reconnecting beams establishes colorable areas from the
+smallest enclosed regions of the current geometry. Crossing beams divide these
+regions without creating physical nodes or connecting the beams. A square with
+both diagonals initially has four selectable triangular areas. A disconnected
+inner loop forms its own area and a hole in the enclosing area, so their fills
+do not overlap.
+
+Once established, an area owns a persistent boundary and ID. Moving nodes or
+using Auto Shape deforms it without discovering new areas. A square folded into
+a bow tie remains one selectable area covering both visible lobes. Rendering
+and picking use the same even-odd boundary fill; collapsed pieces are omitted
+without deleting the area. Crossing corners remember their fractions along the
+two original beams and follow the average of those material positions after
+deformation, even if the beams cease crossing.
+
+Connection edits preserve IDs and settings for matching boundaries. New areas
+get fresh IDs and inherit color, visibility, surface, and layer settings from
+the previous area with greatest overlap (lowest ID breaks a tie). No overlap
+uses the soft body's defaults. Save/load preserves these boundaries and settings
+rather than reconstructing areas from deformed positions.
+
+Areas are visual surfaces only. Disabling **Surface** leaves authored beam
+collision unchanged. Physical openings depend on the collision-enabled beams.
 
 Areas may override the parent area color and their boundary beams may override
 the parent beam color. When **Inherit** is selected, the local color control is

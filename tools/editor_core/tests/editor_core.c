@@ -406,9 +406,14 @@ static int auto_shape_command_test(void) {
     command.data.auto_shape.points[1] = hitbox->vertices[1].id;
     command.data.auto_shape.points[2] = hitbox->vertices[2].id;
     command.data.auto_shape.point_count = 3;
+    Position untouched = hitbox->vertices[3].position;
     result = editor_command_execute(&project, &command);
-    if(result.kind != ERROR_RESULT_VALUE ||
-            !position_near(hitbox->vertices[0].position, 0.0f, -12.0f)) return 1;
+    if(result.kind != ERROR_RESULT_VALUE) return 1;
+    for(size_t i = 0; i < 3; i += 1)
+        if(fabsf(hypotf(hitbox->vertices[i].position.x,
+                hitbox->vertices[i].position.y) - 12.0f) > 0.001f) return 1;
+    if(!position_near(hitbox->vertices[3].position, untouched.x, untouched.y))
+        return 1;
     parsed_result = editor_command_cli_standard_write(&project, &command, &result,
         "project.rohr.json", output, sizeof(output));
     if(editor_result_check(parsed_result) ||
@@ -927,7 +932,8 @@ static int item_commands_test(void) {
     for(size_t i = 0; i < object->soft_body_count; i += 1)
         if(object->soft_body_items[i].id == soft_body_id)
             soft_body = &object->soft_body_items[i];
-    if(soft_body == NULL) return 1;
+    if(soft_body == NULL || soft_body->node_count != 4 || soft_body->beam_count != 6)
+        return 1;
     ITEM_ADD(((EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
         .data.item_add = {.kind = EDITOR_ITEM_SOFT_NODE, .object = object->id,
             .parent = soft_body_id}}));
@@ -947,7 +953,7 @@ static int item_commands_test(void) {
     snprintf(command.data.item_rename.name, sizeof(command.data.item_rename.name),
         "%s", "renamed node");
     if(editor_command_execute(&project, &command).kind != ERROR_RESULT_VALUE ||
-            strcmp(soft_body->nodes[0].name, "renamed_node") != 0 ||
+            strcmp(soft_body->nodes[4].name, "renamed_node") != 0 ||
             editor_result_check(editor_command_cli_parse(8, rename_arguments,
                 &path, &command)) || command.type != EDITOR_COMMAND_ITEM_RENAME)
         return 1;

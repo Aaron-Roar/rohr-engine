@@ -1027,3 +1027,20 @@ void rohr_ui_radians_quad(Position center, float width, float height, float angl
 
 float rohr_math_degrees_to_radians(float degrees) { return math_degrees_to_radians(degrees); }
 float rohr_math_radians_to_degrees(float radians) { return math_radians_to_degrees(radians); }
+
+EntityResult rohr_physics_soft_body_area_create(Entity body,const AreaBoundaryPoint *boundary,size_t count) { return physics_soft_body_area_create(body,boundary,count); }
+SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area) { return physics_soft_body_area_get(area); }
+EngineResult rohr_graphics_soft_body_area_style_set(Entity area,Color color,bool override_color,bool visible,bool surface_enabled) { return physics_soft_body_area_style_set(area,color,override_color,visible,surface_enabled); }
+bool rohr_soft_body_area_mesh_create(Entity area,AreaMesh *out) { return physics_soft_body_area_mesh_create(area,out); }
+void rohr_soft_body_area_mesh_destroy(AreaMesh *mesh) { area_mesh_destroy(mesh); }
+
+static EngineResult rohr_soft_area_layer_copy(Entity from,Entity to) {
+    GraphicsLayerIdResult id=graphics_layer_entity_id_get(from);
+    if(id.kind==ERROR_RESULT_VALUE) return graphics_layer_entity_id_set(to,id.result.value);
+    GraphicsLayerValueResult value=graphics_layer_entity_get(from);
+    if(value.kind==ERROR_RESULT_VALUE) return graphics_layer_entity_set(to,value.result.value);
+    return error_result_value(true);
+}
+EngineResult rohr_physics_soft_body_areas_rebuild(Entity body) {
+    return physics_soft_body_areas_rebuild(body,rohr_soft_area_layer_copy);
+}

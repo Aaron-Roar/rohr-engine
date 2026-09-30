@@ -10,6 +10,8 @@
 
 #define EDITOR_OBJECT_MAX 256
 #define EDITOR_HITBOX_VERTEX_MIN 3
+#define EDITOR_BODY_DEFAULT_SIZE 140.0f
+#define EDITOR_UI_SHAPE_DEFAULT_SIZE 180.0f
 #define EDITOR_HITBOX_VERTEX_MAX MAX_VERTICIES
 #define EDITOR_OBJECT_NAME_MAX 64
 #define EDITOR_ASSET_PATH_MAX 1024
@@ -32,7 +34,7 @@
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 4 stores clockwise degrees and degree-based angular rates. */
-#define EDITOR_PROJECT_FORMAT_VERSION 5
+#define EDITOR_PROJECT_FORMAT_VERSION 6
 #define EDITOR_NAVIGATION_MODE_MAX 29
 #define EDITOR_NAVIGATION_SELECTION_MAX 26
 
@@ -281,12 +283,16 @@ typedef struct EditorSoftBeam {
     bool color_overridden;
 } EditorSoftBeam;
 
+#include "area_geometry.h"
+
 typedef struct EditorSoftArea {
     EditorSoftAreaId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     EditorGraphicsLayerBinding graphics_layer;
     bool graphics_layer_inherited;
-    EditorSoftNodeId *nodes;
+    EditorSoftNodeId *nodes; /* Legacy node corners; zero for intersections. */
+    AreaBoundaryPoint *boundary;
+    size_t boundary_capacity;
     size_t node_count;
     size_t node_capacity;
     uint32_t color;
@@ -835,6 +841,10 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
     EditorSoftNodeId node_a, EditorSoftNodeId node_b);
 bool editor_project_soft_beam_remove(EditorProject *project, EditorSoftBody *body,
     EditorSoftBeamId id);
+bool editor_project_soft_area_position_get(const EditorSoftBody *body,
+    const EditorSoftArea *area, size_t index, Position *out);
+bool editor_project_soft_area_mesh_create(const EditorSoftBody *body,
+    const EditorSoftArea *area, AreaMesh *out);
 void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body);
 size_t editor_project_soft_area_triangulate(const EditorSoftBody *body,
     const EditorSoftArea *area, uint32_t triangles[][3], size_t capacity);

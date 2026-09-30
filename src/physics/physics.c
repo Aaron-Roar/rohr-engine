@@ -30,6 +30,7 @@ MEMORY_DEFINE_OBJECT_POOL(SoftBodyPool, SoftBody)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyNodePool, SoftBodyNode)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyBeamPool, SoftBodyBeam)
 MEMORY_DEFINE_OBJECT_POOL(SoftBodyTrianglePool, SoftBodyTriangle)
+MEMORY_DEFINE_OBJECT_POOL(SoftBodyAreaPool, SoftBodyArea)
 
 PositionPool positions_pool = {0};
 ParticleGeometryPool particle_geometries_pool = {0};
@@ -59,6 +60,7 @@ SoftBodyPool soft_bodies_pool = {0};
 SoftBodyNodePool soft_body_nodes_pool = {0};
 SoftBodyBeamPool soft_body_beams_pool = {0};
 SoftBodyTrianglePool soft_body_triangles_pool = {0};
+SoftBodyAreaPool soft_body_areas_pool = {0};
 
 EngineResult physics_tables_init(void) {
     physics_config_init();
@@ -93,6 +95,7 @@ EngineResult physics_tables_init(void) {
     if(SoftBodyPool_init(&soft_bodies_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(SoftBodyNodePool_init(&soft_body_nodes_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(SoftBodyBeamPool_init(&soft_body_beams_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
+    if(SoftBodyAreaPool_init(&soft_body_areas_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(SoftBodyTrianglePool_init(&soft_body_triangles_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     return error_result_value(true);
 
@@ -146,6 +149,7 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > soft_bodies_pool.capacity && SoftBodyPool_expand(&soft_bodies_pool, new_capacity - soft_bodies_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_nodes_pool.capacity && SoftBodyNodePool_expand(&soft_body_nodes_pool, new_capacity - soft_body_nodes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_beams_pool.capacity && SoftBodyBeamPool_expand(&soft_body_beams_pool, new_capacity - soft_body_beams_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    if(new_capacity > soft_body_areas_pool.capacity && SoftBodyAreaPool_expand(&soft_body_areas_pool, new_capacity - soft_body_areas_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_triangles_pool.capacity && SoftBodyTrianglePool_expand(&soft_body_triangles_pool, new_capacity - soft_body_triangles_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     return error_result_value(true);
 }
@@ -186,6 +190,9 @@ void physics_tables_destroy(void) {
     (void)SoftBodyPool_destroy(&soft_bodies_pool);
     (void)SoftBodyNodePool_destroy(&soft_body_nodes_pool);
     (void)SoftBodyBeamPool_destroy(&soft_body_beams_pool);
+    for(size_t i=0;i<soft_body_areas_pool.capacity;i++)
+        if(soft_body_areas_pool.used[i]) free((void*)soft_body_areas[i].boundary);
+    (void)SoftBodyAreaPool_destroy(&soft_body_areas_pool);
     (void)SoftBodyTrianglePool_destroy(&soft_body_triangles_pool);
 }
 

@@ -55,10 +55,12 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
-The user-selected **Bugs Identified by Rohr User** milestone takes precedence
-over all other unfinished work. Complete its goals in the order below, one
-explicitly selected goal at a time. The proposed Editor Forces and Torques
-milestone follows it, before numbered priority 4.
+The user-selected **Stable Soft-Body Areas** milestone is complete.
+
+The user-selected **Bugs Identified by Rohr User** milestone is complete.
+The proposed **Editor Forces and Torques** milestone is next, before numbered
+priority 4. Pursue only an explicitly selected goal, beginning with its open
+authoring and runtime decisions.
 
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
@@ -174,12 +176,38 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    its source directory. Windows verification is cross-compilation only;
    sanitizers were not rerun for this default-value-only change.
 
-## Active Milestone: Bugs Identified by Rohr User
+## Completed Milestone: Stable Soft-Body Areas
+
+Establish areas from beam connectivity and geometry when connections change,
+then preserve their identities and material boundaries through deformation,
+saving, loading, editor selection, and generated runtime rendering.
+
+1. [x] **Fix area creation, identity, deformation, and persistence** — Discover
+   minimal enclosed regions including beam intersections; preserve matching
+   boundaries and inherit new-region styling by greatest overlap. Keep node
+   movement independent of area discovery, support folded surfaces, expose
+   persistent runtime handles, migrate version-5 area loops without rediscovery,
+   and recover the reported project with a backup. Verify history, picking,
+   JSON, generated C, native/sanitizer checks, and platform builds.
+   Completed: persistent node/intersection boundaries, even-odd rendering and
+   selection (including folds and nested holes), ID and overlap-based property
+   retention, explicit runtime rebuild and area queries, and version-5 migration
+   into version 6. Recovered the reported project with a timestamped backup;
+   every pre-existing field except the format version is preserved. All 58 native
+   tests and four ASan/UBSan/LSan editor/area checks pass, with editor code now
+   instrumented. Fixed an uninitialized particle-vertex lock flag, an empty-list
+   clone copy, and a stale test pointer exposed by that verification. Linux and
+   Windows cross-builds pass without compiler warnings. The recovered scene plus
+   a crossing-area fixture and the soft-body example build against the installed
+   SDK and launch headlessly outside their source directories. Windows checks
+   are compilation only; desktop visual review remains recommended.
+
+## Completed Milestone: Bugs Identified by Rohr User
 
 Resolve the reported editor selection, zoom, layering, text, auto-shape, and
-animation issues, and add animation origins with individual frame offsets.
-This milestone takes priority over all other unfinished work, including
-Editor Forces and Torques. Preserve the user's goal order; goals 1–8 are complete.
+animation issues, add animation origins with individual frame offsets, and
+create square shapes by default. All nine goals are complete. The proposed
+Editor Forces and Torques milestone follows this work.
 
 1. [x] **Scale rigid-body line selection thickness with zoom** — Individual
    edge picking now converts the shared six-pixel screen tolerance to world
@@ -313,8 +341,20 @@ Editor Forces and Torques. Preserve the user's goal order; goals 1–8 are compl
    and launch outside their source directories. Public signatures and saved
    values/formats are unchanged; offset interpretation follows the clarified
    contract. Desktop visual review remains recommended.
-9. [ ] **Default to rectangles instead of triangles** — Make rectangle the
-   default shape.
+9. [x] **Create square shapes by default** — New UI shapes and rigid-body
+   hitboxes start as axis-aligned squares. The editor/CLI Add Soft Body command
+   creates four square corner nodes and six unique beams connecting every node
+   pair (both diagonals, no center node). Preserve authored/saved geometry and
+   explicit Auto Shape choices. UI squares are 180-by-180; body squares are
+   140-by-140. Low-level soft-body construction stays empty for custom geometry
+   builders. Creation, all-pairs connectivity, undo/redo, and persistence are
+   covered by regression checks. All 57 native tests and four focused
+   ASan/UBSan/LSan checks pass; Linux and Windows cross-builds pass without
+   compiler warnings. A fresh CLI-created project generates the expected
+   geometry, builds against the installed SDK, and launches headlessly from
+   outside its source directory; the installed-SDK UI example also builds and
+   launches. Windows verification is compilation only. Desktop visual review
+   remains recommended.
 
 Clarify material ambiguities when preparing the relevant goal, including
 handle/marker zoom behavior, text-selection context, auto-shape with

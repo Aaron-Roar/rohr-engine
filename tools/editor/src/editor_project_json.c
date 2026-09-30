@@ -536,6 +536,22 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         for(size_t node_index = 0; node_index < area->node_count; node_index += 1)
             yyjson_mut_arr_add_uint(document, area_nodes, area->nodes[node_index]);
         yyjson_mut_obj_add_val(document, item, "nodes", area_nodes);
+        yyjson_mut_val *boundary=yyjson_mut_arr(document);
+        for(size_t k=0;k<area->node_count;k++) {
+            AreaBoundaryPoint point=area->boundary?area->boundary[k]:
+                (AreaBoundaryPoint){.nodes={area->nodes[k]}};
+            yyjson_mut_val *corner=yyjson_mut_obj(document);
+            yyjson_mut_val *nodes=yyjson_mut_arr(document);
+            for(size_t n=0;n<4;n++) yyjson_mut_arr_add_uint(document,nodes,point.nodes[n]);
+            yyjson_mut_obj_add_val(document,corner,"nodes",nodes);
+            yyjson_mut_obj_add_uint(document,corner,"beam_a",point.beams[0]);
+            yyjson_mut_obj_add_uint(document,corner,"beam_b",point.beams[1]);
+            yyjson_mut_obj_add_real(document,corner,"fraction_a",point.fractions[0]);
+            yyjson_mut_obj_add_real(document,corner,"fraction_b",point.fractions[1]);
+            yyjson_mut_obj_add_uint(document,corner,"edge",point.edge);
+            yyjson_mut_arr_add_val(boundary,corner);
+        }
+        yyjson_mut_obj_add_val(document,item,"boundary",boundary);
         yyjson_mut_obj_add_uint(document, item, "color", area->color);
         yyjson_mut_obj_add_bool(document, item, "color_overridden", area->color_overridden);
         yyjson_mut_obj_add_bool(document, item, "visible", area->visible);
@@ -1297,7 +1313,7 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
 }
 
 static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
-    EditorProject *project) {
+        EditorProject *project, uint32_t version, EditorResult *error) {
     yyjson_val *nodes = yyjson_obj_get(value, "nodes");
     yyjson_val *beams = yyjson_obj_get(value, "beams");
     yyjson_val *areas = yyjson_obj_get(value, "areas");
@@ -1492,13 +1508,74 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                         !editor_json_uint(item, "node_b", &area->nodes[1]) ||
                         !editor_json_uint(item, "node_c", &area->nodes[2])) return false;
             }
+            yyjson_val *boundary=yyjson_obj_get(item,"boundary");
+            if(!EDITOR_ARRAY_RESERVE(area->boundary,area->boundary_capacity,area->node_count)) return false;
+            if(version>=6 && (!yyjson_is_arr(boundary) || yyjson_arr_size(boundary)!=area->node_count)) {
+                *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
+                    "Soft body '%s', area '%s': missing or mismatched persistent boundary",body->name,area->name);
+                return false;
+            }
+            for(size_t k=0;k<area->node_count;k++) {
+                AreaBoundaryPoint *point=&area->boundary[k];
+                *point=(AreaBoundaryPoint){.nodes={area->nodes[k]}};
+                if(boundary!=NULL) {
+                    yyjson_val *corner=yyjson_arr_get(boundary,k);
+                    yyjson_val *nodes=yyjson_obj_get(corner,"nodes");
+                    if(!yyjson_is_arr(nodes) || yyjson_arr_size(nodes)!=4 ||
+                        !editor_json_uint(corner,"beam_a",&point->beams[0]) ||
+                        !editor_json_uint(corner,"beam_b",&point->beams[1]) ||
+                        !editor_json_real(corner,"fraction_a",&point->fractions[0]) ||
+                        !editor_json_real(corner,"fraction_b",&point->fractions[1]) ||
+                        !editor_json_uint(corner,"edge",&point->edge)) return false;
+                    for(size_t n=0;n<4;n++) {
+                        yyjson_val *v=yyjson_arr_get(nodes,n);
+                        if(!yyjson_is_uint(v) || yyjson_get_uint(v)>UINT32_MAX) return false;
+                        point->nodes[n]=(uint32_t)yyjson_get_uint(v);
+                    }
+                } else {
+                    uint32_t a=area->nodes[k],b=area->nodes[(k+1)%area->node_count];
+                    for(size_t n=0;n<body->beam_count;n++)
+                        if((body->beams[n].node_a==a && body->beams[n].node_b==b) ||
+                            (body->beams[n].node_a==b && body->beams[n].node_b==a)) {
+                            point->edge=body->beams[n].id; break;
+                        }
+                }
+                size_t endpoints=point->beams[0]?4:1;
+                for(size_t n=0;n<endpoints;n++) {
+                    bool found=false;
+                    for(size_t j=0;j<body->node_count;j++) found|=body->nodes[j].id==point->nodes[n];
+                    if(!found) {
+                        *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
+                            "Soft body '%s', area '%s': boundary corner %zu references missing node %u",
+                            body->name,area->name,k,point->nodes[n]); return false;
+                    }
+                }
+                for(size_t n=0;n<3;n++) {
+                    uint32_t id=n==2?point->edge:point->beams[n];
+                    if(id==0 && (n==2 || point->beams[0]==0)) continue;
+                    bool found=false;
+                    for(size_t j=0;j<body->beam_count;j++) if(body->beams[j].id==id) {
+                        found=true;
+                        if(n<2 && (body->beams[j].node_a!=point->nodes[n*2] ||
+                            body->beams[j].node_b!=point->nodes[n*2+1])) found=false;
+                    }
+                    if(!found) {
+                        *error=editor_result_error(EDITOR_ERROR_SCHEMA_INVALID,
+                            "Soft body '%s', area '%s': boundary corner %zu references invalid beam %u",
+                            body->name,area->name,k,id); return false;
+                    }
+                    if(n<2 && (point->fractions[n]<0 || point->fractions[n]>1)) return false;
+                }
+                area->nodes[k]=point->beams[0]?0:point->nodes[0];
+            }
             editor_project_property_name_format(area->name, sizeof(area->name), area->name);
             if(project->next_soft_area_id <= area->id) {
                 project->next_soft_area_id = area->id + 1;
             }
         }
     }
-    editor_project_soft_areas_sync(project, body);
+    /* Saved areas are material boundaries, never rediscovered on load. */
+    if(areas == NULL) editor_project_soft_areas_sync(project, body);
     if(hierarchy != NULL) {
         body->hierarchy_count = yyjson_arr_size(hierarchy);
         if(!EDITOR_ARRAY_RESERVE(body->hierarchy, body->hierarchy_capacity,
@@ -1517,7 +1594,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         size_t serialized_count = body->hierarchy_count;
         size_t expected_count = body->node_count + body->beam_count + body->area_count;
         editor_project_soft_body_hierarchy_sync(body);
-        if(hierarchy != NULL && (body->hierarchy_count != serialized_count ||
+        if(version >= 6 && hierarchy != NULL && (body->hierarchy_count != serialized_count ||
                 body->hierarchy_count != expected_count)) return false;
     }
     if(!editor_json_graphics_layer_binding_read(value, &body->graphics_layer))
@@ -2005,7 +2082,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != 5 && version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
@@ -2489,7 +2566,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     &object->joint_items[j], &loaded)) goto done;
         for(size_t j = 0; j < object->soft_body_count; j += 1)
             if(!editor_json_soft_body_read(yyjson_arr_get(soft_body_values, j),
-                    &object->soft_body_items[j], &loaded)) goto done;
+                    &object->soft_body_items[j], &loaded, version, &result)) goto done;
         for(size_t j = 0; j < object->animated_sprite_count; j += 1)
             if(!editor_json_animated_sprite_read(
                     yyjson_arr_get(animated_sprite_values, j),

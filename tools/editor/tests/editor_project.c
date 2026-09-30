@@ -652,8 +652,11 @@ int main(void) {
             }
             EditorAnchor *body_anchor = editor_project_anchor_add(&loaded_project,
                 generated_object, (Position){12.0f, 0.0f}, generated_body->id);
+            EditorAnchorId body_anchor_id = body_anchor ? body_anchor->id : 0;
             EditorAnchor *world_anchor = editor_project_anchor_add(&loaded_project,
                 generated_object, (Position){80.0f, 20.0f}, 0);
+            /* Adding a sibling may reallocate the anchor array. */
+            body_anchor = editor_project_anchor_get(generated_object, body_anchor_id);
             EditorJoint *generated_joint = editor_project_joint_add(&loaded_project,
                 generated_object, EDITOR_JOINT_SPRING);
             EditorSprite *generated_sprite = editor_project_sprite_add(&loaded_project,
@@ -845,11 +848,11 @@ int main(void) {
                     "rohr_physics_soft_body_beam_collision_config_set") ||
                 !file_contains(path,
                     ".enabled = false, .thickness = 4.00000000f") ||
-                /* Two starter surfaces plus one enabled new surface. */
+                /* Disabled surfaces retain their persistent runtime identities too. */
                 file_occurrence_count(path,
-                    "rohr_physics_soft_body_triangle_create") != 3 ||
+                    "rohr_physics_soft_body_area_create") != 4 ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
-                !file_contains(path, "rohr_graphics_soft_body_area_color_set") ||
+                !file_contains(path, "rohr_graphics_soft_body_area_style_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path, "rohr_graphics_animation_release") ||
                 !file_contains(path, "rohr_graphics_texture_release") ||
@@ -882,7 +885,7 @@ int main(void) {
                     "rohr_graphics_layer_entity_set(objects->starter.node_") ||
                 !file_contains(path,
                     "rohr_graphics_layer_entity_set(objects->starter.beam_") ||
-                !file_contains(path, "[0], 43)") ||
+                !file_contains(path, ", 43)") ||
                 !file_contains(path, "rohr_graphics_layer_sprite_set") ||
                 !file_contains(path, "rohr_graphics_layer_animation_set")) {
             workspace_fixture_remove(fixture);
@@ -1009,7 +1012,7 @@ int main(void) {
     chassis->border_color = UINT32_C(0xabcdef12);
     chassis->surface_color = UINT32_C(0x12345678);
     hitbox = &chassis->hitboxes[0];
-    if(hitbox == NULL || !hitbox->visible || hitbox->vertex_count != 3) return 1;
+    if(hitbox == NULL || !hitbox->visible || hitbox->vertex_count != 4) return 1;
     editor_project_property_name_format(hitbox->vertices[0].name,
         sizeof(hitbox->vertices[0].name), "front Point");
     editor_project_property_name_format(hitbox->line_names[0],
@@ -1037,15 +1040,15 @@ int main(void) {
                     original_length)) return 1;
     }
     if(!editor_project_hitbox_vertex_insert(&project, hitbox, 0) ||
-            hitbox->vertex_count != 4 ||
+            hitbox->vertex_count != 5 ||
             !position_equal(hitbox->vertices[0].position, first) ||
             !position_equal(hitbox->vertices[1].position, (Position){
                 (first.x + second.x) * 0.5f, (first.y + second.y) * 0.5f}) ||
             !position_equal(hitbox->vertices[2].position, second) ||
             strcmp(hitbox->line_names[0], "upper_edge") != 0 ||
-            strcmp(hitbox->vertices[1].name, "vertex_4") != 0 ||
+            strcmp(hitbox->vertices[1].name, "vertex_5") != 0 ||
             !editor_project_hitbox_line_remove(hitbox, 0) ||
-            hitbox->vertex_count != 3 ||
+            hitbox->vertex_count != 4 ||
             strcmp(hitbox->line_names[0], "upper_edge") != 0) return 1;
 
     joint = editor_project_joint_add(&project, object, EDITOR_JOINT_SPRING);
@@ -1461,8 +1464,13 @@ int main(void) {
                         nodes[first_node + (edge + 1) % 4]->id) == NULL) return 1;
             }
         }
-        if(nested_body->area_count != 2 || nested_body->areas[0].node_count != 4 ||
+        if(nested_body->area_count != 2 || nested_body->areas[0].node_count != 10 ||
                 nested_body->areas[1].node_count != 4) return 1;
+        Position outline[10];
+        for(size_t i=0;i<10;i++)
+            if(!editor_project_soft_area_position_get(nested_body,&nested_body->areas[0],i,&outline[i])) return 1;
+        if(area_polygon_contains_check(outline,10,(Position){0,0}) ||
+            !area_polygon_contains_check(outline,10,(Position){25,0})) return 1;
     }
 
     {
@@ -1476,7 +1484,7 @@ int main(void) {
         if(!editor_result_check(result) ||
                 result.result.error.code != EDITOR_ERROR_SCHEMA_VERSION ||
                 strstr(result.result.error.message, "format_version 99") == NULL ||
-                strstr(result.result.error.message, "requires 5") == NULL) return 1;
+                strstr(result.result.error.message, "requires 6") == NULL) return 1;
     }
 
     {

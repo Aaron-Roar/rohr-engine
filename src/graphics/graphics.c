@@ -5102,6 +5102,21 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
     if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) return false;
     body = body_result.result.value;
     previous_layer = graphics_entity_layer_begin(soft_body_entity);
+    for(uint32_t i=0;i<body.area_count;i++) {
+        SoftBodyAreaResult area=physics_soft_body_area_get(body.areas[i]);
+        AreaMesh mesh={0};
+        if(area.kind==ERROR_RESULT_ERROR || !area.result.value.visible ||
+            !area.result.value.surface_enabled || !physics_soft_body_area_mesh_create(body.areas[i],&mesh)) continue;
+        int child_layer=graphics_entity_layer_begin(body.areas[i]);
+        for(size_t k=0;k<mesh.count;k++) {
+            Shape shape={.amount_of_vertices=3};
+            memcpy(shape.vertices,mesh.triangles[k],3*sizeof(Position));
+            (void)graphics_shape_filled_draw(shape,area.result.value.draw_color_overridden?
+                area.result.value.draw_color:surface_color);
+        }
+        graphics_layer_active_set(child_layer);
+        area_mesh_destroy(&mesh);
+    }
     for(uint32_t i = 0; i < body.triangle_count; i += 1) {
         SoftBodyTriangleResult triangle = physics_soft_body_triangle_get(body.triangles[i]);
         EntityIndex indices[3];

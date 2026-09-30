@@ -1663,6 +1663,11 @@ static EditorSoftBeam *editor_soft_area_beam_get(EditorSoftBody *body,
     EditorSoftNodeId a;
     EditorSoftNodeId b;
     if(body == NULL || area == NULL || edge >= area->node_count) return NULL;
+    if(area->boundary) {
+        for(size_t i=0;i<body->beam_count;i++)
+            if(body->beams[i].id==area->boundary[edge].edge) return &body->beams[i];
+        return NULL;
+    }
     a = area->nodes[edge];
     b = area->nodes[(edge + 1) % area->node_count];
     for(size_t i = 0; i < body->beam_count; i += 1) {

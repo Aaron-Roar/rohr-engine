@@ -1495,6 +1495,20 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
+/* Persistent area creation copies its boundary. Query returns a borrowed view.
+ * Enumerate current handles with rohr_physics_soft_body_get().areas.
+ * Mesh output is caller-owned; release with rohr_soft_body_area_mesh_destroy. */
+EntityResult rohr_physics_soft_body_area_create(Entity body, const AreaBoundaryPoint *boundary, size_t count);
+SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area);
+/** Explicitly establish areas from current beams after a topology edit.
+ * Position/physics updates never rebuild areas. Existing triangle surfaces
+ * are independent; use either authored areas or legacy triangles for a surface. */
+EngineResult rohr_physics_soft_body_areas_rebuild(Entity body);
+EngineResult rohr_graphics_soft_body_area_style_set(Entity area, Color color,
+    bool override_color, bool visible, bool surface_enabled);
+bool rohr_soft_body_area_mesh_create(Entity area, AreaMesh *out);
+void rohr_soft_body_area_mesh_destroy(AreaMesh *mesh);
+
 /**
  * @brief Creates a deforming triangular surface from three nodes.
  * @param soft_body Owning soft body.

@@ -747,7 +747,25 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 if(value != NULL) { created = value->id; created_name = value->name; }
             } else if(kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *value = editor_project_soft_body_add(project, object);
-                if(value != NULL) { created = value->id; created_name = value->name; }
+                if(value != NULL) {
+                    Shape square = rohr_math_square_create(EDITOR_BODY_DEFAULT_SIZE,
+                        EDITOR_BODY_DEFAULT_SIZE);
+                    EditorSoftNodeId nodes[4] = {0};
+                    bool valid = true;
+                    for(size_t i = 0; i < 4 && valid; i += 1) {
+                        EditorSoftNode *node = editor_project_soft_node_add(project,
+                            value, square.vertices[i]);
+                        if(node == NULL) valid = false;
+                        else nodes[i] = node->id;
+                    }
+                    /* Every unordered pair: perimeter plus both diagonals. */
+                    for(size_t i = 0; i < 4 && valid; i += 1)
+                        for(size_t j = i + 1; j < 4 && valid; j += 1)
+                            valid = editor_project_soft_beam_add(project, value,
+                                nodes[i], nodes[j]) != NULL;
+                    if(valid) { created = value->id; created_name = value->name; }
+                    else (void)editor_project_soft_body_remove(object, value->id);
+                }
             } else if(kind == EDITOR_ITEM_CAMERA) {
                 EditorCamera *value = editor_project_camera_add(project, object);
                 if(value != NULL) { created = value->id; created_name = value->name; }
@@ -1345,6 +1363,7 @@ property_invalid:
                 if(set->endpoint == 0) beam->node_a = set->target;
                 else beam->node_b = set->target;
                 editor_command_soft_beam_collision_constrain(body, beam);
+                editor_project_soft_areas_sync(project, body);
             } else if(set->kind == EDITOR_RELATIONSHIP_ENTITY_PARENT) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     set->item);

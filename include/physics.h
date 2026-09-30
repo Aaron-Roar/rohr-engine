@@ -6,6 +6,7 @@
 #define PHYSICS_H
 #include <stddef.h>
 #include "math2d.h"
+#include "area_geometry.h"
 #include "entity_components.h"
 
 typedef struct PhysicsUpdateReport {
@@ -389,6 +390,8 @@ typedef struct SoftBody {
     Entity nodes[SOFT_BODY_MAX_NODES];
     Entity beams[SOFT_BODY_MAX_BEAMS];
     Entity triangles[SOFT_BODY_MAX_TRIANGLES];
+    Entity areas[SOFT_BODY_MAX_TRIANGLES];
+    uint32_t area_count;
     uint32_t node_count;
     uint32_t beam_count;
     uint32_t triangle_count;
@@ -439,6 +442,31 @@ typedef struct SoftBodyTriangle {
     Color draw_color;
     bool draw_color_overridden;
 } SoftBodyTriangle;
+
+/** Persistent visual surface. Boundary storage is body-owned and borrowed by
+ * queries; valid until the area is deleted. No physical nodes are created. */
+typedef struct SoftBodyArea {
+    Entity soft_body;
+    const AreaBoundaryPoint *boundary;
+    size_t boundary_count;
+    Color draw_color;
+    bool draw_color_overridden;
+    bool visible;
+    bool surface_enabled;
+} SoftBodyArea;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyAreaResult, SoftBodyArea);
+/* Creation copies the boundary; its node/beam references must belong to body.
+ * Enumerate through SoftBody.areas/area_count. entity_delete invalidates the ID.
+ * Mesh creation allocates output owned by the caller (area_mesh_destroy). */
+EntityResult physics_soft_body_area_create(Entity body,
+    const AreaBoundaryPoint *boundary, size_t count);
+SoftBodyAreaResult physics_soft_body_area_get(Entity area);
+/* Optional integration callback copies graphics-owned properties. */
+EngineResult physics_soft_body_areas_rebuild(Entity body,
+    EngineResult (*style_copy)(Entity from, Entity to));
+EngineResult physics_soft_body_area_style_set(Entity area, Color color,
+    bool override_color, bool visible, bool surface_enabled);
+bool physics_soft_body_area_mesh_create(Entity area, AreaMesh *out);
 
 /** Explicit handles created when pinning a soft-body node to an anchor. */
 typedef struct SoftBodyNodeAnchorPin {
@@ -496,6 +524,7 @@ MEMORY_DECLARE_OBJECT_POOL(SoftBodyPool, SoftBody);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyNodePool, SoftBodyNode);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyBeamPool, SoftBodyBeam);
 MEMORY_DECLARE_OBJECT_POOL(SoftBodyTrianglePool, SoftBodyTriangle);
+MEMORY_DECLARE_OBJECT_POOL(SoftBodyAreaPool, SoftBodyArea);
 
 extern PositionPool positions_pool;
 extern ParticleGeometryPool particle_geometries_pool;
@@ -525,6 +554,8 @@ extern SoftBodyPool soft_bodies_pool;
 extern SoftBodyNodePool soft_body_nodes_pool;
 extern SoftBodyBeamPool soft_body_beams_pool;
 extern SoftBodyTrianglePool soft_body_triangles_pool;
+extern SoftBodyAreaPool soft_body_areas_pool;
+#define soft_body_areas (soft_body_areas_pool.objects)
 #define positions positions_pool.objects
 #define velocities velocities_pool.objects
 #define accelerations accelerations_pool.objects
