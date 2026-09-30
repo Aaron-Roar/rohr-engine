@@ -850,7 +850,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1)
                 fprintf(header, "    Entity %s;\n", body->beams[beam_index].name);
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = &body->areas[area_index];
+                const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
                 if(area->node_count >= 3) fprintf(header,
                     "    Entity %s;\n", area->name);
             }
@@ -1292,7 +1292,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 }
             }
             for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = &body->areas[area_index];
+                const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
                 if(area->node_count<3) continue;
                 fprintf(source,"    { AreaBoundaryPoint boundary[%zu] = {\n",area->node_count);
                 for(size_t k=0;k<area->node_count;k++) {

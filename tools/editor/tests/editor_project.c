@@ -50,6 +50,15 @@ static bool file_contains(const char *path, const char *text) {
     return found;
 }
 
+static bool file_order_check(const char *path, const char *first, const char *second) {
+    char *contents = SDL_LoadFile(path, NULL);
+    if(contents == NULL) return false;
+    char *a = strstr(contents, first), *b = strstr(contents, second);
+    bool ordered = a != NULL && b != NULL && a < b;
+    SDL_free(contents);
+    return ordered;
+}
+
 static size_t file_occurrence_count(const char *path, const char *text) {
     char *contents;
     char *at;
@@ -768,11 +777,20 @@ int main(void) {
                 generated_node_a->color_overridden = true;
             }
             if(generated_soft_body != NULL && generated_soft_body->area_count == 2) {
+                snprintf(generated_soft_body->areas[0].name, EDITOR_OBJECT_NAME_MAX, "back_area");
+                snprintf(generated_soft_body->areas[1].name, EDITOR_OBJECT_NAME_MAX, "front_area");
                 generated_soft_body->areas[0].surface_enabled = false;
                 generated_soft_body->areas[1].color = UINT32_C(0x00ff00ff);
                 generated_soft_body->areas[1].color_overridden = true;
                 generated_soft_body->areas[1].graphics_layer_inherited = false;
                 generated_soft_body->areas[1].graphics_layer.value = 43;
+                size_t a = editor_project_soft_body_hierarchy_index_get(generated_soft_body,
+                    EDITOR_SOFT_HIERARCHY_AREA, generated_soft_body->areas[0].id);
+                size_t b = editor_project_soft_body_hierarchy_index_get(generated_soft_body,
+                    EDITOR_SOFT_HIERARCHY_AREA, generated_soft_body->areas[1].id);
+                EditorSoftHierarchyItem swap = generated_soft_body->hierarchy[a];
+                generated_soft_body->hierarchy[a] = generated_soft_body->hierarchy[b];
+                generated_soft_body->hierarchy[b] = swap;
             }
             if(body_anchor == NULL || world_anchor == NULL || generated_joint == NULL ||
                     generated_soft_body == NULL || generated_node_a == NULL ||
@@ -853,6 +871,8 @@ int main(void) {
                     "rohr_physics_soft_body_area_create") != 4 ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_soft_body_area_style_set") ||
+                !file_contains(path, "object->front_area,rohr_graphics_color_hex_create(UINT32_C(0x00ff00ff)),true,true,true") ||
+                !file_order_check(path, "object->front_area=created.result.value", "object->back_area=created.result.value") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path, "rohr_graphics_animation_release") ||
                 !file_contains(path, "rohr_graphics_texture_release") ||

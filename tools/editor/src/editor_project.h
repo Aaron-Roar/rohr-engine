@@ -845,6 +845,10 @@ bool editor_project_soft_area_position_get(const EditorSoftBody *body,
     const EditorSoftArea *area, size_t index, Position *out);
 bool editor_project_soft_area_mesh_create(const EditorSoftBody *body,
     const EditorSoftArea *area, AreaMesh *out);
+/* Caller supplies area_count outputs in storage order and destroys each mesh. */
+bool editor_project_soft_body_area_meshes_create(const EditorSoftBody *body, AreaMesh *out);
+const EditorSoftArea *editor_project_soft_area_ordered_get(const EditorSoftBody *body,
+        size_t index);
 void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body);
 size_t editor_project_soft_area_triangulate(const EditorSoftBody *body,
     const EditorSoftArea *area, uint32_t triangles[][3], size_t capacity);

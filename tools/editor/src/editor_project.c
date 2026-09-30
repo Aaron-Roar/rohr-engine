@@ -3014,33 +3014,110 @@ bool editor_project_soft_area_position_get(const EditorSoftBody *body,
         if(node==NULL) return false;
         p[i]=node->position;
     }
-    out->x = .5f*(p[0].x+(p[1].x-p[0].x)*point.fractions[0] +
-        p[2].x+(p[3].x-p[2].x)*point.fractions[1]);
-    out->y = .5f*(p[0].y+(p[1].y-p[0].y)*point.fractions[0] +
-        p[2].y+(p[3].y-p[2].y)*point.fractions[1]);
-    return true;
+    AreaSegment beams[2] = {
+        {point.beams[0], point.nodes[0], point.nodes[1], p[0], p[1]},
+        {point.beams[1], point.nodes[2], point.nodes[3], p[2], p[3]}
+    };
+    return area_boundary_position_get(beams, 2, point, out);
+}
+
+static AreaSegment *editor_soft_segments_create(const EditorSoftBody *body, size_t *count) {
+    AreaSegment *segments = calloc(body->beam_count + body->node_count, sizeof(*segments));
+    *count = 0;
+    if(segments == NULL) return NULL;
+    for(size_t i = 0; i < body->beam_count; i++) {
+        const EditorSoftBeam *beam = &body->beams[i];
+        const EditorSoftNode *a = editor_soft_node_by_id_get(body, beam->node_a);
+        const EditorSoftNode *b = editor_soft_node_by_id_get(body, beam->node_b);
+        if(a && b) segments[(*count)++] = (AreaSegment){beam->id, a->id, b->id, a->position, b->position};
+    }
+    for(size_t i = 0; i < body->node_count; i++) {
+        const EditorSoftNode *node = &body->nodes[i];
+        segments[(*count)++] = (AreaSegment){0, node->id, node->id, node->position, node->position};
+    }
+    return segments;
+}
+
+bool editor_project_soft_body_area_meshes_create(const EditorSoftBody *body, AreaMesh *out) {
+    if(body == NULL || (body->area_count && out == NULL)) return false;
+    for(size_t i = 0; i < body->area_count; i++) out[i] = (AreaMesh){0};
+    if(body->area_count == 0) return true;
+    size_t count = 0;
+    bool ok = false;
+    AreaSegment *segments = editor_soft_segments_create(body, &count);
+    AreaFace *definitions = calloc(body->area_count, sizeof(*definitions));
+    if(segments == NULL || definitions == NULL) goto done;
+    for(size_t i = 0; i < body->area_count; i++) {
+        const EditorSoftArea *area = &body->areas[i];
+        definitions[i] = (AreaFace){area->boundary, area->node_count};
+        if(area->boundary == NULL) {
+            definitions[i].points = calloc(area->node_count, sizeof(*area->boundary));
+            if(definitions[i].points == NULL && area->node_count) goto done;
+            for(size_t k = 0; k < area->node_count; k++) definitions[i].points[k].nodes[0] = area->nodes[k];
+        }
+    }
+    ok = area_boundary_meshes_create(segments, count, definitions, body->area_count, out);
+done:
+    if(definitions) for(size_t i = 0; i < body->area_count; i++)
+        if(body->areas[i].boundary == NULL) free(definitions[i].points);
+    free(definitions); free(segments);
+    return ok;
 }
 
 bool editor_project_soft_area_mesh_create(const EditorSoftBody *body,
         const EditorSoftArea *area, AreaMesh *out) {
     if(out == NULL) return false;
-    *out=(AreaMesh){0};
+    *out = (AreaMesh){0};
     if(body == NULL || area == NULL) return false;
-    Position *points=malloc(area->node_count*sizeof(*points));
-    if(points==NULL && area->node_count) return false;
-    for(size_t i=0;i<area->node_count;i++)
-        if(!editor_project_soft_area_position_get(body,area,i,&points[i])) {
-            free(points); return false;
-        }
-    bool ok=area_mesh_create(points,area->node_count,out);
-    free(points); return ok;
+    for(size_t i = 0; i < body->area_count; i++) if(area == &body->areas[i]) {
+        AreaMesh *meshes = calloc(body->area_count, sizeof(*meshes));
+        if(meshes == NULL) return false;
+        bool ok = editor_project_soft_body_area_meshes_create(body, meshes);
+        if(ok) { *out = meshes[i]; meshes[i] = (AreaMesh){0}; }
+        for(size_t j = 0; j < body->area_count; j++) area_mesh_destroy(&meshes[j]);
+        free(meshes);
+        return ok;
+    }
+    /* A prospective area during connection edits is not a stored definition. */
+    size_t count = 0;
+    AreaSegment *segments = editor_soft_segments_create(body, &count);
+    AreaBoundaryPoint *boundary = calloc(area->node_count, sizeof(*boundary));
+    if(segments == NULL || (boundary == NULL && area->node_count)) { free(segments); free(boundary); return false; }
+    for(size_t i = 0; i < area->node_count; i++) boundary[i] = area->boundary ? area->boundary[i] :
+        (AreaBoundaryPoint){.nodes = {area->nodes[i]}};
+    bool ok = area_boundary_mesh_create(segments, count, boundary, area->node_count, out);
+    free(boundary); free(segments);
+    return ok;
 }
 
 static bool editor_area_corner_equal(AreaBoundaryPoint a,AreaBoundaryPoint b) {
     if(a.beams[0]==0 || b.beams[0]==0)
         return a.beams[0]==b.beams[0] && a.nodes[0]==b.nodes[0];
-    return a.beams[0]==b.beams[0] && a.beams[1]==b.beams[1] &&
-        memcmp(a.nodes,b.nodes,sizeof(a.nodes))==0;
+    return (a.beams[0]==b.beams[0] && a.beams[1]==b.beams[1] &&
+        memcmp(a.nodes,b.nodes,sizeof(a.nodes))==0) ||
+        (a.beams[0]==b.beams[1] && a.beams[1]==b.beams[0] &&
+        a.nodes[0]==b.nodes[2] && a.nodes[1]==b.nodes[3] &&
+        a.nodes[2]==b.nodes[0] && a.nodes[3]==b.nodes[1]);
+}
+
+const EditorSoftArea *editor_project_soft_area_ordered_get(const EditorSoftBody *body,
+        size_t index) {
+    if(body == NULL || index >= body->area_count) return NULL;
+    size_t rank = 0;
+    for(size_t i = 0; i < body->hierarchy_count; i++) {
+        if(body->hierarchy[i].kind != EDITOR_SOFT_HIERARCHY_AREA) continue;
+        for(size_t j = 0; j < body->area_count; j++)
+            if(body->areas[j].id == body->hierarchy[i].id) {
+                if(rank++ == index) return &body->areas[j];
+                break;
+            }
+    }
+    /* Newly created definitions can be queried before hierarchy sync. */
+    for(size_t i = 0; i < body->area_count; i++)
+        if(editor_project_soft_body_hierarchy_index_get(body,
+                EDITOR_SOFT_HIERARCHY_AREA, body->areas[i].id) == SIZE_MAX && rank++ == index)
+            return &body->areas[i];
+    return NULL;
 }
 
 static bool editor_area_boundary_equal(const EditorSoftArea *old,const AreaFace *face) {
@@ -3083,7 +3160,7 @@ void editor_project_soft_areas_sync(EditorProject *project, EditorSoftBody *body
         for(size_t j=0;j<body->area_count;j++)
             if(editor_area_boundary_equal(&body->areas[j],&faces.items[i])) { match=&body->areas[j]; break; }
         if(match) {
-            /* Keep material attachments as well as identity during later edits. */
+            /* Keep authored boundary directions and identity during later edits. */
             if(!editor_project_soft_area_clone(area,match)) goto fail;
             continue;
         }

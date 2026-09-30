@@ -676,20 +676,18 @@ static void editor_triangle_filled_draw(Position a, Position b, Position c, Colo
 }
 
 static void editor_soft_area_filled_draw(const EditorObject *object,
-        const EditorSoftBody *body, const EditorSoftArea *area, Color color) {
-    AreaMesh mesh={0};
-    if(!editor_project_soft_area_mesh_create(body,area,&mesh)) return;
+        const EditorSoftBody *body, const EditorSoftArea *area, Color color, const AreaMesh *resolved) {
+    if(resolved == NULL) return;
     editor_view_scene_layer_set(area->graphics_layer_inherited ?
         body->graphics_layer : area->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
-    for(size_t i=0;i<mesh.count;i++) {
+    for(size_t i=0;i<resolved->count;i++) {
         Position points[3];
         for(size_t j=0;j<3;j++) {
-            EditorSoftNode node={.position=mesh.triangles[i][j]};
+            EditorSoftNode node={.position=resolved->triangles[i][j]};
             points[j]=editor_soft_node_world_get(object,body,&node);
         }
         editor_triangle_filled_draw(points[0],points[1],points[2],color);
     }
-    area_mesh_destroy(&mesh);
 }
 
 static void editor_hitbox_filled_draw(const EditorObject *object,
@@ -1596,13 +1594,15 @@ static void editor_marquee_soft_children_add(EditorViewportState *state,
     for(size_t i = 0; i < body->area_count; i += 1) {
         const EditorSoftArea *area = &body->areas[i];
         EditorMarqueeBounds bounds = {0};
-        if(!area->visible) continue;
-        for(size_t node_index = 0; node_index < area->node_count; node_index += 1) {
-            EditorSoftNode node={0};
-            if(editor_project_soft_area_position_get(body,area,node_index,&node.position))
+        if(!area->visible || !area->surface_enabled) continue;
+        AreaMesh mesh = {0};
+        if(editor_project_soft_area_mesh_create(body, area, &mesh))
+            for(size_t k = 0; k < mesh.count; k++) for(size_t v = 0; v < 3; v++) {
+                EditorSoftNode node = {.position = mesh.triangles[k][v]};
                 editor_marquee_bounds_point_add(&bounds,
                     editor_soft_node_world_get(object, body, &node));
-        }
+            }
+        area_mesh_destroy(&mesh);
         if(editor_marquee_bounds_overlap(marquee, bounds))
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
@@ -1981,15 +1981,15 @@ static const EditorSoftNode *editor_soft_node_get(const EditorSoftBody *body,
 static bool editor_soft_area_point_contains(const EditorObject *object,
         const EditorSoftBody *body, const EditorSoftArea *area, Position point) {
     if(object==NULL || body==NULL || area==NULL || area->node_count<3) return false;
-    Position *points=malloc(area->node_count*sizeof(*points));
-    if(points==NULL) return false;
-    for(size_t i=0;i<area->node_count;i++) {
-        EditorSoftNode node={0};
-        if(!editor_project_soft_area_position_get(body,area,i,&node.position)) { free(points); return false; }
-        points[i]=editor_soft_node_world_get(object,body,&node);
+    AreaMesh mesh = {0};
+    if(!editor_project_soft_area_mesh_create(body, area, &mesh)) return false;
+    for(size_t i = 0; i < mesh.count; i++) for(size_t j = 0; j < 3; j++) {
+        EditorSoftNode node = {.position = mesh.triangles[i][j]};
+        mesh.triangles[i][j] = editor_soft_node_world_get(object, body, &node);
     }
-    bool inside=area_polygon_contains_check(points,area->node_count,point);
-    free(points); return inside;
+    bool inside = area_mesh_contains_check(&mesh, point);
+    area_mesh_destroy(&mesh);
+    return inside;
 }
 
 static bool editor_object_visual_point_contains(const EditorObject *object,
@@ -2025,8 +2025,8 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
                         editor_soft_node_world_get(object, body, b)) <= 36.0f) return true;
         }
         for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-            const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible && editor_soft_area_point_contains(
+            const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
+            if(area->visible && area->surface_enabled && editor_soft_area_point_contains(
                     object, body, area, point)) return true;
         }
     }
@@ -3509,7 +3509,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
             editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
         for(size_t j = body->area_count; j > 0; j -= 1) {
-            EditorSoftArea *area = &body->areas[j - 1];
+            const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, j - 1);
             binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
             if(!area->visible || !area->surface_enabled ||
                     !editor_soft_area_point_contains(object, body, area, pointer))
@@ -6309,31 +6309,30 @@ static void editor_viewport_object_draw(const EditorObject *object,
             }
         }
         if(!body->visible) continue;
+        AreaMesh *meshes = calloc(body->area_count, sizeof(*meshes));
+        bool resolved = meshes != NULL && editor_project_soft_body_area_meshes_create(body, meshes);
         for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-            const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible && area->surface_enabled)
-                editor_soft_area_filled_draw(object, body, area,
-                graphics_color_hex_create(
-                    area->color_overridden ? area->color : body->area_color));
-        }
-        if(object_highlighted) {
-            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-                const EditorSoftArea *area = &body->areas[area_index];
-                if(area->visible && area->surface_enabled) editor_soft_area_filled_draw(
-                    object, body, area, (Color){255, 215, 70, 48});
+            const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
+            if(!resolved || !area->visible || !area->surface_enabled) continue;
+            const AreaMesh *mesh = &meshes[area - body->areas];
+            editor_soft_area_filled_draw(object, body, area,
+                graphics_color_hex_create(area->color_overridden ? area->color : body->area_color), mesh);
+            if(object_highlighted) editor_soft_area_filled_draw(object, body, area, (Color){255,215,70,48}, mesh);
+            bool selected = area == selected_area || editor_viewport_path_selected(state,
+                EDITOR_SELECTION_SOFT_AREA, object->id, body->id, 0, area->id);
+            if(!selected) continue;
+            editor_soft_area_filled_draw(object, body, area, (Color){255,215,70,72}, mesh);
+            {
+                for(size_t edge = 0; edge < mesh->edge_count; edge++) {
+                    EditorSoftNode a = {.position = mesh->edges[edge][0]};
+                    EditorSoftNode b = {.position = mesh->edges[edge][1]};
+                    editor_line_draw(editor_soft_node_world_get(object, body, &a),
+                        editor_soft_node_world_get(object, body, &b), (Color){255,215,70,255});
+                }
             }
         }
-        if(selected_area != NULL && selected_area->visible) {
-            editor_soft_area_filled_draw(
-                object, body, selected_area, (Color){255, 215, 70, 72});
-        }
-        for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-            const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible && editor_viewport_path_selected(state,
-                    EDITOR_SELECTION_SOFT_AREA, object->id, body->id, 0, area->id))
-                editor_soft_area_filled_draw(
-                    object, body, area, (Color){255, 215, 70, 72});
-        }
+        if(meshes) for(size_t i = 0; i < body->area_count; i++) area_mesh_destroy(&meshes[i]);
+        free(meshes);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?
@@ -6358,21 +6357,6 @@ static void editor_viewport_object_draw(const EditorObject *object,
                         beam->id) ?
                     (Color){255, 215, 70, 255} : graphics_color_hex_create(
                         beam->color_overridden ? beam->color : body->beam_color));
-            }
-        }
-        for(size_t k=0;k<body->area_count;k++) {
-            const EditorSoftArea *area=&body->areas[k];
-            if(!area->visible || (area!=selected_area && !editor_viewport_path_selected(state,
-                EDITOR_SELECTION_SOFT_AREA,object->id,body->id,0,area->id))) continue;
-            editor_view_scene_layer_set(area->graphics_layer_inherited?body->graphics_layer:
-                area->graphics_layer,EDITOR_GRAPHICS_LAYER_SOFT_BODY);
-            for(size_t edge=0;edge<area->node_count;edge++) {
-                if(area->boundary && area->boundary[edge].edge==0) continue;
-                EditorSoftNode a={0},b={0};
-                if(editor_project_soft_area_position_get(body,area,edge,&a.position) &&
-                    editor_project_soft_area_position_get(body,area,(edge+1)%area->node_count,&b.position))
-                    editor_line_draw(editor_soft_node_world_get(object,body,&a),
-                        editor_soft_node_world_get(object,body,&b),(Color){255,215,70,255});
             }
         }
         for(size_t i = 0; i < body->node_count; i += 1) {
@@ -6503,13 +6487,17 @@ static void editor_viewport_camera_preview_object_draw(
             body_index += 1) {
         const EditorSoftBody *body = &object->soft_body_items[body_index];
         if(!body->visible) continue;
+        AreaMesh *meshes = calloc(body->area_count, sizeof(*meshes));
+        bool resolved = meshes != NULL && editor_project_soft_body_area_meshes_create(body, meshes);
         for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
-            const EditorSoftArea *area = &body->areas[area_index];
-            if(area->visible && area->surface_enabled)
+            const EditorSoftArea *area = editor_project_soft_area_ordered_get(body, area_index);
+            if(resolved && area->visible && area->surface_enabled)
                 editor_soft_area_filled_draw(object, body, area,
                 graphics_color_hex_create(area->color_overridden ? area->color :
-                    body->area_color));
+                    body->area_color), &meshes[area - body->areas]);
         }
+        if(meshes) for(size_t i = 0; i < body->area_count; i++) area_mesh_destroy(&meshes[i]);
+        free(meshes);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?

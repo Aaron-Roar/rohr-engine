@@ -801,26 +801,51 @@ EngineResult physics_soft_body_area_style_set(Entity area,Color color,
     soft_body_areas[index].surface_enabled=surface_enabled;
     return error_result_value(true);
 }
-bool physics_soft_body_area_mesh_create(Entity area,AreaMesh *out) {
-    if(!out) return false;
-    *out=(AreaMesh){0}; SoftBodyAreaResult result=physics_soft_body_area_get(area);
-    if(result.kind==ERROR_RESULT_ERROR) return false;
-    SoftBodyArea value=result.result.value;
-    Position *points=malloc(value.boundary_count*sizeof(*points));
-    if(!points) return false;
-    for(size_t i=0;i<value.boundary_count;i++) {
-        const AreaBoundaryPoint *p=&value.boundary[i]; Position nodes[4];
-        for(size_t k=0;k<(p->beams[0]?4:1);k++) {
-            EntityIndex index;
-            if(!entity_index_get(p->nodes[k],&index) || !positions_pool.used[index]) { free(points); return false; }
-            nodes[k]=positions[index];
-        }
-        points[i]=nodes[0];
-        if(p->beams[0]) points[i]=(Position){
-            .5f*(nodes[0].x+(nodes[1].x-nodes[0].x)*p->fractions[0]+nodes[2].x+(nodes[3].x-nodes[2].x)*p->fractions[1]),
-            .5f*(nodes[0].y+(nodes[1].y-nodes[0].y)*p->fractions[0]+nodes[2].y+(nodes[3].y-nodes[2].y)*p->fractions[1])};
+bool physics_soft_body_area_meshes_create(Entity entity, AreaMesh *out, size_t capacity) {
+    SoftBodyResult body = physics_soft_body_get(entity);
+    if(body.kind == ERROR_RESULT_ERROR || out == NULL || capacity < body.result.value.area_count) return false;
+    for(size_t i = 0; i < body.result.value.area_count; i++) out[i] = (AreaMesh){0};
+    if(body.result.value.area_count == 0) return true;
+    AreaSegment segments[SOFT_BODY_MAX_BEAMS + SOFT_BODY_MAX_NODES];
+    size_t count = 0;
+    for(size_t i = 0; i < body.result.value.beam_count; i++) {
+        Entity id = body.result.value.beams[i];
+        SoftBodyBeamResult beam = physics_soft_body_beam_get(id);
+        EntityIndex a, b;
+        if(beam.kind == ERROR_RESULT_ERROR ||
+                !entity_index_get(beam.result.value.node_a, &a) ||
+                !entity_index_get(beam.result.value.node_b, &b)) return false;
+        segments[count++] = (AreaSegment){id, beam.result.value.node_a,
+            beam.result.value.node_b, positions[a], positions[b]};
     }
-    bool ok=area_mesh_create(points,value.boundary_count,out); free(points); return ok;
+    for(size_t i = 0; i < body.result.value.node_count; i++) {
+        Entity id = body.result.value.nodes[i]; EntityIndex index;
+        if(!entity_index_get(id, &index)) return false;
+        segments[count++] = (AreaSegment){0, id, id, positions[index], positions[index]};
+    }
+    AreaFace definitions[SOFT_BODY_MAX_TRIANGLES];
+    for(size_t i = 0; i < body.result.value.area_count; i++) {
+        SoftBodyAreaResult area = physics_soft_body_area_get(body.result.value.areas[i]);
+        if(area.kind == ERROR_RESULT_ERROR) return false;
+        definitions[i] = (AreaFace){(AreaBoundaryPoint *)area.result.value.boundary, area.result.value.boundary_count};
+    }
+    return area_boundary_meshes_create(segments, count, definitions, body.result.value.area_count, out);
+}
+
+bool physics_soft_body_area_mesh_create(Entity entity, AreaMesh *out) {
+    if(out == NULL) return false;
+    *out = (AreaMesh){0};
+    SoftBodyAreaResult area = physics_soft_body_area_get(entity);
+    if(area.kind == ERROR_RESULT_ERROR) return false;
+    SoftBodyResult body = physics_soft_body_get(area.result.value.soft_body);
+    if(body.kind == ERROR_RESULT_ERROR) return false;
+    AreaMesh meshes[SOFT_BODY_MAX_TRIANGLES] = {0};
+    if(!physics_soft_body_area_meshes_create(area.result.value.soft_body, meshes, SOFT_BODY_MAX_TRIANGLES)) return false;
+    for(size_t i = 0; i < body.result.value.area_count; i++) {
+        if(body.result.value.areas[i] == entity) *out = meshes[i];
+        else area_mesh_destroy(&meshes[i]);
+    }
+    return true;
 }
 
 static bool physics_area_boundary_equal_check(const SoftBodyArea *area,const AreaFace *face) {
@@ -831,9 +856,14 @@ static bool physics_area_boundary_equal_check(const SoftBodyArea *area,const Are
             size_t index=(start+(reverse?face->count-i:i))%face->count;
             const AreaBoundaryPoint *a=&area->boundary[index],*b=&face->points[i];
             size_t edge=reverse?(index+face->count-1)%face->count:index;
-            if(area->boundary[edge].edge!=b->edge ||
-                a->beams[0]!=b->beams[0] || a->beams[1]!=b->beams[1] ||
-                memcmp(a->nodes,b->nodes,sizeof(a->nodes))!=0) { equal=false; break; }
+            /* Generated IDs can reverse the canonical crossing-beam order. */
+            bool same_corner=a->beams[0]==b->beams[0] && a->beams[1]==b->beams[1] &&
+                memcmp(a->nodes,b->nodes,sizeof(a->nodes))==0;
+            if(a->beams[0] && b->beams[0])
+                same_corner |= a->beams[0]==b->beams[1] && a->beams[1]==b->beams[0] &&
+                    a->nodes[0]==b->nodes[2] && a->nodes[1]==b->nodes[3] &&
+                    a->nodes[2]==b->nodes[0] && a->nodes[3]==b->nodes[1];
+            if(area->boundary[edge].edge!=b->edge || !same_corner) { equal=false; break; }
         }
         if(equal) return true;
     }

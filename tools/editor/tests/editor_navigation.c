@@ -334,6 +334,67 @@ static bool picking_pointer_update(EditorProject *project, EditorViewportState *
     fprintf(stderr, "render-order picking failed at line %d: %s\n", \
         __LINE__, #condition); return false; } } while(0)
 
+static bool area_merge_picking_check(void) {
+    EditorProject project; EditorViewportState state = {0}; EditorHistory history;
+    EditorSelectionRef hit;
+    editor_project_init(&project); editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorSoftBody *body = editor_project_soft_body_add(&project, object);
+    Position square[4] = {{-100,-100},{100,-100},{100,100},{-100,100}};
+    for(size_t i=0;i<4;i++) PICK_REQUIRE(editor_project_soft_node_add(&project,body,square[i]));
+    for(size_t i=0;i<4;i++) PICK_REQUIRE(editor_project_soft_beam_add(&project,body,
+        body->nodes[i].id,body->nodes[(i+1)%4].id));
+    PICK_REQUIRE(editor_project_soft_beam_add(&project,body,body->nodes[0].id,body->nodes[2].id));
+    PICK_REQUIRE(editor_project_soft_beam_add(&project,body,body->nodes[1].id,body->nodes[3].id));
+    body->nodes[2].position = (Position){-50,-50};
+    EditorSoftAreaId covered[2] = {0}; size_t count = 0;
+    for(size_t i=0;i<body->area_count;i++) {
+        const EditorSoftArea *area = editor_project_soft_area_ordered_get(body,i);
+        AreaMesh mesh = {0};
+        PICK_REQUIRE(editor_project_soft_area_mesh_create(body,area,&mesh));
+        if(area_mesh_contains_check(&mesh,(Position){-20,-80})) {
+            PICK_REQUIRE(count<2); covered[count++] = area->id;
+        }
+        area_mesh_destroy(&mesh);
+    }
+    PICK_REQUIRE(count==2);
+    EditorSelectionRef back = {EDITOR_SELECTION_SOFT_AREA,object->id,body->id,0,covered[0]};
+    EditorSelectionRef front = {EDITOR_SELECTION_SOFT_AREA,object->id,body->id,0,covered[1]};
+    PICK_REQUIRE(editor_viewport_selection_set(&project,&state,back,false));
+    state.mode = EDITOR_VIEWPORT_SOFT_AREA;
+    Position click = {EDITOR_VIEWPORT_WIDTH*.5f-20,
+        EDITOR_MENU_HEIGHT+(EDITOR_VIEWPORT_BOTTOM-EDITOR_MENU_HEIGHT)*.5f+80};
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.kind==EDITOR_SELECTION_SOFT_AREA && hit.item==covered[1]);
+    PICK_REQUIRE(editor_history_init(&history,&project));
+    PICK_REQUIRE(editor_navigation_selection_reorder(&project,&state,back,front,true,&history));
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[0]);
+    PICK_REQUIRE(editor_history_undo(&history));
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[1]);
+    PICK_REQUIRE(editor_history_redo(&history));
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[0]);
+    body = &project.objects[0].soft_body_items[0];
+    for(size_t i=0;i<body->area_count;i++) if(body->areas[i].id==covered[1]) {
+        body->areas[i].graphics_layer_inherited = false;
+        body->areas[i].graphics_layer.value = 100;
+    }
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[1]);
+    for(size_t i=0;i<body->area_count;i++) if(body->areas[i].id==covered[1]) body->areas[i].visible=false;
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[0]);
+    for(size_t i=0;i<body->area_count;i++) if(body->areas[i].id==covered[1]) {
+        body->areas[i].visible=true; body->areas[i].surface_enabled=false;
+    }
+    PICK_REQUIRE(editor_viewport_selection_at_get(&project,&state,click,&hit));
+    PICK_REQUIRE(hit.item==covered[0]);
+    editor_history_destroy(&history); editor_viewport_state_destroy(&state); editor_project_destroy(&project);
+    return true;
+}
+
 static bool render_order_picking_check(void) {
     EditorProject project;
     EditorViewportState state = {0};
@@ -777,7 +838,7 @@ int main(void) {
     if(!SDL_SaveFile("editor_navigation_frame.png", test_png, sizeof(test_png))) return 1;
     if(!control_zoom_check()) return 1;
     if(!editor_layers_check()) return 1;
-    if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
+    if(!area_merge_picking_check() || !render_order_picking_check() || !layout_render_order_picking_check()) return 1;
     if(!accordion_layout_metrics_check() ||
             !created_name_focus_mapping_check() ||
             !created_name_focus_replacement_check() ||

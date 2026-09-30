@@ -467,6 +467,9 @@ EngineResult physics_soft_body_areas_rebuild(Entity body,
 EngineResult physics_soft_body_area_style_set(Entity area, Color color,
     bool override_color, bool visible, bool surface_enabled);
 bool physics_soft_body_area_mesh_create(Entity area, AreaMesh *out);
+/* Caller supplies capacity outputs, at least the body's area_count. Meshes
+ * follow body.areas order; destroy each mesh after use. */
+bool physics_soft_body_area_meshes_create(Entity body, AreaMesh *out, size_t capacity);
 
 /** Explicit handles created when pinning a soft-body node to an anchor. */
 typedef struct SoftBodyNodeAnchorPin {

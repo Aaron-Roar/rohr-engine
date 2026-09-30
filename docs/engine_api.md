@@ -5267,12 +5267,19 @@ Generated projects instead restore saved boundaries with
 handle per area. They never rediscover areas from the saved deformed geometry.
 `rohr_graphics_soft_body_area_style_set` changes color inheritance, visibility,
 and surface fill. Entity layer APIs apply to the entire area. Drawing a soft
-body renders all enabled areas using even-odd fill, including self-intersections.
+body resolves current beam-bounded regions for all enabled areas. Higher layers
+draw on top; equal layers use area creation order. Generated projects create
+areas in their editor list order. Temporary overlap never deletes area handles.
 
 A node corner uses `nodes[0]`. A crossing corner stores both beam handles, their
 four endpoint handles, and two initial interpolation fractions. Its current
-position is the mean of those interpolants; it requires no physical intersection
-node. `edge` identifies the outgoing boundary beam. These associations stay
-fixed while the body deforms. `rohr_soft_body_area_mesh_create` produces a
-caller-owned current triangle mesh; release it with
-`rohr_soft_body_area_mesh_destroy`.
+position is the actual beam intersection; fractions only identify the authored
+boundary directions. `edge` identifies the outgoing boundary beam. When a
+crossing disappears, surviving boundary turns identify the merged regions.
+Newly enclosed regions without a surviving old corner are covered by the
+definitions contributing their boundary beams. Multiple definitions may cover
+a region; layer/order resolves their
+rendering without changing physics connectivity or area ownership.
+`rohr_soft_body_area_mesh_create` produces a caller-owned current triangle mesh
+and exterior `edges`/`edge_count`; release both through
+`rohr_soft_body_area_mesh_destroy`. Node movement needs no area rebuild.

@@ -7,19 +7,26 @@
 #include <string.h>
 
 #define AREA_EPS 0.000001
+/* Promote before subtraction, including both factors of each product.
+ * Mixing rounded float differences with double differences can make even
+ * cross(a, b, b) nonzero and disconnect a beam from its own endpoint. */
 static double cross(Vec2D a, Vec2D b, Vec2D c) {
-    return ((double)b.x-a.x)*(c.y-a.y)-((double)b.y-a.y)*(c.x-a.x);
+    return ((double)b.x-a.x)*((double)c.y-a.y)-
+        ((double)b.y-a.y)*((double)c.x-a.x);
 }
 static Vec2D lerp(Vec2D a, Vec2D b, double t) {
-    return (Vec2D){(float)(a.x+(b.x-a.x)*t),(float)(a.y+(b.y-a.y)*t)};
+    return (Vec2D){(float)(a.x+((double)b.x-a.x)*t),
+        (float)(a.y+((double)b.y-a.y)*t)};
 }
 static bool intersect(Vec2D a, Vec2D b, Vec2D c, Vec2D d,
         double *t, double *u) {
-    double x=b.x-a.x,y=b.y-a.y,xx=d.x-c.x,yy=d.y-c.y;
+    double x=(double)b.x-a.x,y=(double)b.y-a.y;
+    double xx=(double)d.x-c.x,yy=(double)d.y-c.y;
     double det=x*yy-y*xx;
     if(fabs(det)<AREA_EPS) return false;
-    *t=((c.x-a.x)*yy-(c.y-a.y)*xx)/det;
-    *u=((c.x-a.x)*y-(c.y-a.y)*x)/det;
+    double dx=(double)c.x-a.x,dy=(double)c.y-a.y;
+    *t=(dx*yy-dy*xx)/det;
+    *u=(dx*y-dy*x)/det;
     return *t>=-AREA_EPS && *t<=1+AREA_EPS && *u>=-AREA_EPS && *u<=1+AREA_EPS;
 }
 static bool append(void **items,size_t *count,size_t size,const void *value) {
@@ -35,7 +42,7 @@ void area_faces_destroy(AreaFaces *f) {
 }
 void area_mesh_destroy(AreaMesh *m) {
     if(!m) return;
-    free(m->triangles); *m=(AreaMesh){0};
+    free(m->triangles); free(m->edges); *m=(AreaMesh){0};
 }
 typedef struct Vertex { Vec2D p; AreaBoundaryPoint point; } Vertex;
 typedef struct Edge { size_t a,b; uint32_t beam; bool visited; } Edge;
@@ -128,10 +135,10 @@ bool area_faces_create(const AreaSegment *s,size_t count,AreaFaces *out) {
         for(size_t j=0;j<count;j++) {
             /* Endpoints split collinear overlaps as well as T junctions. */
             Vec2D p[2]={s[j].a,s[j].b}; uint32_t ids[2]={s[j].node_a,s[j].node_b};
-            double dx=s[i].b.x-s[i].a.x,dy=s[i].b.y-s[i].a.y,len=dx*dx+dy*dy;
+            double dx=(double)s[i].b.x-s[i].a.x,dy=(double)s[i].b.y-s[i].a.y,len=dx*dx+dy*dy;
             if(len<AREA_EPS*AREA_EPS) continue;
             for(size_t k=0;k<2;k++) {
-                double t=((p[k].x-s[i].a.x)*dx+(p[k].y-s[i].a.y)*dy)/len;
+                double t=(((double)p[k].x-s[i].a.x)*dx+((double)p[k].y-s[i].a.y)*dy)/len;
                 if(t< -AREA_EPS || t>1+AREA_EPS || fabs(cross(s[i].a,s[i].b,p[k]))>AREA_EPS*sqrt(len)) continue;
                 size_t idx=vertex_add(&v,&nv,p[k],(AreaBoundaryPoint){.nodes={ids[k]}});
                 Cut c={fmax(0,fmin(1,t)),idx};
@@ -143,7 +150,10 @@ bool area_faces_create(const AreaSegment *s,size_t count,AreaFaces *out) {
             size_t a=s[i].id<s[j].id?i:j,b=a==i?j:i;
             AreaBoundaryPoint point={.nodes={s[a].node_a,s[a].node_b,s[b].node_a,s[b].node_b},
                 .beams={s[a].id,s[b].id},.fractions={(float)(a==i?t:u),(float)(a==i?u:t)}};
-            size_t idx=vertex_add(&v,&nv,lerp(s[i].a,s[i].b,t),point);
+            /* Both visits to the same pair must produce the identical float
+             * position; evaluating once along each beam can leave two nearby
+             * graph vertices and break the face walk. */
+            size_t idx=vertex_add(&v,&nv,lerp(s[a].a,s[a].b,a==i?t:u),point);
             Cut c={t,idx};
             if(idx==SIZE_MAX || !append((void**)&cuts,&nc,sizeof(c),&c)) goto fail;
         }
@@ -202,7 +212,9 @@ fail:
     free(v); free(e); free(cuts); free(path); area_faces_destroy(out); return false;
 }
 static int real_compare(const void *a,const void *b) { double x=*(const double*)a,y=*(const double*)b; return (x>y)-(x<y); }
-static double edge_x(Vec2D a,Vec2D b,double y) { return a.x+(y-a.y)*(b.x-a.x)/(b.y-a.y); }
+static double edge_x(Vec2D a,Vec2D b,double y) {
+    return a.x+(y-a.y)*((double)b.x-a.x)/((double)b.y-a.y);
+}
 bool area_polygon_contains_check(const Vec2D *p,size_t n,Vec2D q) {
     bool inside=false; if(!p || n<3) return false;
     for(size_t i=0,j=n-1;i<n;j=i++) if((p[i].y>q.y)!=(p[j].y>q.y) && q.x<edge_x(p[i],p[j],q.y)) inside=!inside;
@@ -247,6 +259,260 @@ bool area_mesh_create(const Vec2D *p,size_t n,AreaMesh *out) {
     free(ys); free(hits); return true;
 fail:
     free(ys); free(hits); area_mesh_destroy(out); return false;
+}
+
+static const AreaSegment *segment_get(const AreaSegment *segments, size_t count,
+        uint32_t id) {
+    for(size_t i = 0; i < count; i++) if(segments[i].id == id) return &segments[i];
+    return NULL;
+}
+
+bool area_boundary_position_get(const AreaSegment *segments, size_t count,
+        AreaBoundaryPoint point, Vec2D *out) {
+    if(out == NULL || (count && segments == NULL)) return false;
+    if(point.beams[0] == 0) {
+        for(size_t i = 0; i < count; i++) {
+            if(segments[i].node_a == point.nodes[0]) { *out = segments[i].a; return true; }
+            if(segments[i].node_b == point.nodes[0]) { *out = segments[i].b; return true; }
+        }
+        return false;
+    }
+    const AreaSegment *a = segment_get(segments, count, point.beams[0]);
+    const AreaSegment *b = segment_get(segments, count, point.beams[1]);
+    double t, u;
+    if(a == NULL || b == NULL || !intersect(a->a, a->b, b->a, b->b, &t, &u)) return false;
+    *out = lerp(a->a, a->b, fmax(0, fmin(1, t)));
+    return true;
+}
+
+static double corner_fraction_get(AreaBoundaryPoint point, const AreaSegment *beam) {
+    if(point.beams[0] == 0) return point.nodes[0] == beam->node_a ? 0 : 1;
+    return point.fractions[point.beams[0] == beam->id ? 0 : 1];
+}
+
+/* A surviving turn identifies its adjacent region even when another crossing
+ * of the authored boundary has disappeared. More than one definition can
+ * claim the same region: drawing order resolves that overlap without erasing
+ * either definition. Compare beam rays as well as IDs at crossing corners. */
+static bool boundary_turn_matches_check(const AreaSegment *segments, size_t count,
+        const AreaBoundaryPoint *boundary, size_t n, const AreaFace *face) {
+    for(size_t i = 0; i < n; i++) {
+        AreaBoundaryPoint a = boundary[i], before = boundary[(i + n - 1) % n];
+        if(a.edge == 0 || before.edge == 0) continue;
+        for(size_t j = 0; j < face->count; j++) {
+            AreaBoundaryPoint b = face->points[j];
+            AreaBoundaryPoint prev = face->points[(j + face->count - 1) % face->count];
+            if(a.beams[0] == 0 ? b.beams[0] != 0 || a.nodes[0] != b.nodes[0] :
+                    !((a.beams[0] == b.beams[0] && a.beams[1] == b.beams[1]) ||
+                    (a.beams[0] == b.beams[1] && a.beams[1] == b.beams[0]))) continue;
+            bool forward = a.edge == b.edge && before.edge == prev.edge;
+            bool reverse = a.edge == prev.edge && before.edge == b.edge;
+            if(!forward && !reverse) continue;
+            if(a.beams[0] == 0) return true;
+            const AreaSegment *incoming = segment_get(segments, count, before.edge);
+            const AreaSegment *outgoing = segment_get(segments, count, a.edge);
+            if(incoming == NULL || outgoing == NULL) continue;
+            AreaBoundaryPoint next = boundary[(i + 1) % n];
+            AreaBoundaryPoint after = face->points[(j + 1) % face->count];
+            double in = corner_fraction_get(before, incoming) - corner_fraction_get(a, incoming);
+            double out = corner_fraction_get(next, outgoing) - corner_fraction_get(a, outgoing);
+            double other_in = corner_fraction_get(forward ? prev : after, incoming) - corner_fraction_get(b, incoming);
+            double other_out = corner_fraction_get(forward ? after : prev, outgoing) - corner_fraction_get(b, outgoing);
+            if(in * other_in > 0 && out * other_out > 0) return true;
+        }
+    }
+    return false;
+}
+
+static bool boundary_edge_check(const AreaBoundaryPoint *boundary, size_t count,
+        uint32_t edge) {
+    bool hole = false;
+    for(size_t i = 0; i < count; i++) {
+        if(boundary[i].edge == 0) { hole = !hole; continue; }
+        if(!hole && boundary[i].edge == edge) return true;
+    }
+    return false;
+}
+
+static bool mesh_face_append(AreaMesh *out, const AreaFace *face,
+        const AreaSegment *segments, size_t count) {
+    Vec2D *points = malloc(face->count * sizeof(*points));
+    AreaMesh mesh = {0};
+    bool ok = false;
+    if(points == NULL) return false;
+    for(size_t i = 0; i < face->count; i++)
+        if(!area_boundary_position_get(segments, count, face->points[i], &points[i])) goto done;
+    if(!area_mesh_create(points, face->count, &mesh)) goto done;
+    for(size_t i = 0; i < mesh.count; i++)
+        if(!append((void **)&out->triangles, &out->count, sizeof(*out->triangles), mesh.triangles[i])) goto done;
+    for(size_t i = 0; i < face->count; i++) {
+        if(face->points[i].edge == 0) continue;
+        Vec2D edge[2] = {points[i], points[(i + 1) % face->count]};
+        size_t shared = SIZE_MAX;
+        for(size_t j = 0; j < out->edge_count; j++) {
+            const Vec2D *other = out->edges[j];
+            if(hypot(edge[0].x-other[1].x, edge[0].y-other[1].y) < AREA_EPS &&
+                    hypot(edge[1].x-other[0].x, edge[1].y-other[0].y) < AREA_EPS) { shared = j; break; }
+        }
+        if(shared != SIZE_MAX) {
+            --out->edge_count;
+            if(shared != out->edge_count)
+                memcpy(out->edges[shared], out->edges[out->edge_count], sizeof(*out->edges));
+        }
+        else if(!append((void **)&out->edges, &out->edge_count, sizeof(*out->edges), edge)) goto done;
+    }
+    ok = true;
+done:
+    free(points);
+    area_mesh_destroy(&mesh);
+    return ok;
+}
+
+bool area_boundary_mesh_create(const AreaSegment *segments, size_t count,
+        const AreaBoundaryPoint *boundary, size_t n, AreaMesh *out) {
+    AreaFaces faces = {0};
+    AreaSegment *local = NULL;
+    Vec2D *points = NULL;
+    bool *holes = NULL;
+    bool complete = true, has_edges = false, ok = false;
+    size_t local_count = 0;
+    if(out == NULL) return false;
+    *out = (AreaMesh){0};
+    if((count && segments == NULL) || (n && boundary == NULL)) return false;
+    if(n < 3) return true;
+    points = malloc(n * sizeof(*points));
+    local = calloc(n, sizeof(*local));
+    holes = calloc(n, sizeof(*holes));
+    if(points == NULL || local == NULL || holes == NULL) goto done;
+    for(size_t i = 0; i < n; i++) {
+        complete &= area_boundary_position_get(segments, count, boundary[i], &points[i]);
+        has_edges |= boundary[i].edge != 0;
+    }
+    if(complete) {
+        /* Resolve the authored beam portions first, then find all bounded
+         * regions of that graph. This fills self-crossing lobes and enclosed
+         * overlap regions without even-odd cancellation. Explicit hole rings
+         * remain holes; edge=0 seams are never drawn. */
+        bool hole = false;
+        for(size_t i = 0; i < n; i++) {
+            if(has_edges && boundary[i].edge == 0) { hole = !hole; continue; }
+            local[local_count] = (AreaSegment){(uint32_t)local_count + 1,
+                (uint32_t)i + 1, (uint32_t)((i + 1) % n) + 1,
+                points[i], points[(i + 1) % n]};
+            holes[local_count++] = hole;
+        }
+        if(!area_faces_create(local, local_count, &faces)) goto done;
+        for(size_t i = 0; i < faces.count; i++) {
+            bool only_hole = true;
+            for(size_t k = 0; k < faces.items[i].count; k++) {
+                uint32_t edge = faces.items[i].points[k].edge;
+                if(edge && !holes[edge - 1]) only_hole = false;
+            }
+            if(!only_hole && !mesh_face_append(out, &faces.items[i], local, local_count)) goto done;
+        }
+    } else {
+        if(!area_faces_create(segments, count, &faces)) goto done;
+        for(size_t i = 0; i < faces.count; i++)
+            if(boundary_turn_matches_check(segments, count, boundary, n, &faces.items[i]) &&
+                    !mesh_face_append(out, &faces.items[i], segments, count)) goto done;
+    }
+    ok = true;
+done:
+    free(points); free(local); free(holes);
+    area_faces_destroy(&faces);
+    if(!ok) area_mesh_destroy(out);
+    return ok;
+}
+
+bool area_mesh_contains_check(const AreaMesh *mesh, Vec2D point) {
+    if(mesh == NULL) return false;
+    for(size_t i = 0; i < mesh->count; i++) {
+        const Vec2D *p = mesh->triangles[i];
+        double a = cross(p[0], p[1], point), b = cross(p[1], p[2], point), c = cross(p[2], p[0], point);
+        if((a >= -AREA_EPS && b >= -AREA_EPS && c >= -AREA_EPS) ||
+                (a <= AREA_EPS && b <= AREA_EPS && c <= AREA_EPS)) return true;
+    }
+    return false;
+}
+
+static bool boundary_face_matches_check(const AreaFace *definition, const AreaFace *face) {
+    if(definition->count != face->count) return false;
+    size_t count = face->count;
+    for(size_t start = 0; start < count; start++) for(size_t reverse = 0; reverse < 2; reverse++) {
+        bool matches = true;
+        for(size_t i = 0; i < count; i++) {
+            size_t at = (start + (reverse ? count - i : i)) % count;
+            const AreaBoundaryPoint *a = &definition->points[at], *b = &face->points[i];
+            bool same_corner = a->beams[0] == 0 ?
+                b->beams[0] == 0 && a->nodes[0] == b->nodes[0] :
+                (a->beams[0] == b->beams[0] && a->beams[1] == b->beams[1]) ||
+                (a->beams[0] == b->beams[1] && a->beams[1] == b->beams[0]);
+            size_t edge = reverse ? (at + count - 1) % count : at;
+            if(!same_corner || definition->points[edge].edge != b->edge) { matches = false; break; }
+        }
+        if(matches) return true;
+    }
+    return false;
+}
+
+bool area_boundary_meshes_create(const AreaSegment *segments, size_t count,
+        const AreaFace *definitions, size_t definition_count, AreaMesh *out) {
+    AreaFaces faces = {0};
+    if(definition_count && (definitions == NULL || out == NULL)) return false;
+    for(size_t i = 0; i < definition_count; i++) out[i] = (AreaMesh){0};
+    if(definition_count == 0) return true;
+    for(size_t i = 0; i < definition_count; i++)
+        if(definitions[i].count && definitions[i].points == NULL) return false;
+    if(!area_faces_create(segments, count, &faces)) goto fail;
+    for(size_t i = 0; i < definition_count; i++) {
+        bool matched = false;
+        /* Unchanged boundaries have an exact owner. Build directly from the
+         * current graph instead of independently rediscovering the same cell
+         * and treating a numerical disagreement as a newly merged region. */
+        for(size_t j = 0; j < faces.count; j++)
+            if(boundary_face_matches_check(&definitions[i], &faces.items[j])) {
+                if(!mesh_face_append(&out[i], &faces.items[j], segments, count)) goto fail;
+                matched = true;
+                break;
+            }
+        if(!matched && !area_boundary_mesh_create(segments, count,
+                definitions[i].points, definitions[i].count, &out[i])) goto fail;
+    }
+    for(size_t i = 0; i < faces.count; i++) {
+        AreaMesh region = {0};
+        if(!mesh_face_append(&region, &faces.items[i], segments, count)) { area_mesh_destroy(&region); goto fail; }
+        if(region.count == 0) { area_mesh_destroy(&region); continue; }
+        size_t largest = 0;
+        for(size_t k = 1; k < region.count; k++) {
+            const Vec2D *a = region.triangles[k], *b = region.triangles[largest];
+            if(fabs(cross(a[0], a[1], a[2])) > fabs(cross(b[0], b[1], b[2]))) largest = k;
+        }
+        const Vec2D *p = region.triangles[largest];
+        Vec2D sample = {(p[0].x+p[1].x+p[2].x)/3, (p[0].y+p[1].y+p[2].y)/3};
+        bool covered = false;
+        for(size_t j = 0; j < definition_count; j++) covered |= area_mesh_contains_check(&out[j], sample);
+        area_mesh_destroy(&region);
+        if(covered) continue;
+        /* Motion can enclose a region using portions of several definitions,
+         * without retaining any old corner. Every contributing definition
+         * covers that region; layers/order choose its visible owner. Disabled
+         * and hidden definitions still participate in the coverage test above,
+         * so deliberately unfilled regions are not recolored by neighbors. */
+        for(size_t j = 0; j < definition_count; j++) {
+            bool contributes = false;
+            for(size_t k = 0; k < faces.items[i].count; k++) {
+                uint32_t edge = faces.items[i].points[k].edge;
+                if(edge) contributes |= boundary_edge_check(definitions[j].points, definitions[j].count, edge);
+            }
+            if(contributes && !mesh_face_append(&out[j], &faces.items[i], segments, count)) goto fail;
+        }
+    }
+    area_faces_destroy(&faces);
+    return true;
+fail:
+    area_faces_destroy(&faces);
+    for(size_t i = 0; i < definition_count; i++) area_mesh_destroy(&out[i]);
+    return false;
 }
 double area_mesh_overlap_get(const AreaMesh *a,const AreaMesh *b) {
     double total=0;

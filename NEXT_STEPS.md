@@ -55,7 +55,11 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
-The user-selected **Stable Soft-Body Areas** milestone is complete.
+The user-selected **Stable Area Colors During Motion** milestone is complete.
+It fixes runtime color flashing caused by numerical region detection failures.
+
+The user-selected **Beam-Bounded Soft-Body Area Colors** milestone is complete.
+It supersedes the material-position fill behavior of **Stable Soft-Body Areas**.
 
 The user-selected **Bugs Identified by Rohr User** milestone is complete.
 The proposed **Editor Forces and Torques** milestone is next, before numbered
@@ -175,6 +179,47 @@ This user-selected correction precedes the next Bugs Identified by Rohr User goa
    warnings. The installed-SDK center-of-mass example builds and launches outside
    its source directory. Windows verification is cross-compilation only;
    sanitizers were not rerun for this default-value-only change.
+
+## Completed Milestone: Stable Area Colors During Motion
+
+Keep assigned area colors and ownership stable during ordinary movement while
+preserving genuine beam-driven splits, merges, and layer ordering.
+
+1. [x] **Fix motion-induced area color flashing** — Corrected mixed-precision
+   geometry predicates, bound unchanged beam boundaries to existing owners, and
+   preserved boundary identity across remapped or recycled entity IDs. Verified
+   7,000 geometry poses, 1,024 physics updates, and 1,200 generated-runtime motion
+   frames with unchanged ownership and colors. All 58 native tests and four
+   ASan/UBSan regressions pass; Linux and Windows builds pass without compiler
+   warnings. Generated app and installed-SDK soft-body example launch headlessly;
+   desktop visual verification remains requested.
+
+## Completed Milestone: Beam-Bounded Soft-Body Area Colors
+
+Make fills follow current beam geometry while preserving editable area identities
+and colors through deformation, merging, and separation.
+
+1. [x] **Correct area boundaries, color preservation, and overlap ordering** —
+   Resolve live beam intersections and enclosed regions; preserve parent IDs and
+   colors through splits; resolve merged coverage by layer and editor list order
+   without deleting covered definitions. Keep drawing, picking, outlines,
+   persistence, and generated runtime behavior consistent. Verify geometry,
+   color overrides, reorder/history, native tests, sanitizers, generated apps,
+   installed-SDK examples, and Windows compilation. No collision changes.
+   Completed: live beam intersections, stable definitions across split/merge
+   and separation, shared coverage for newly enclosed regions, preserved
+   explicit holes, and matching fill/picking/outline geometry. List order now
+   controls equal-layer drawing, picking, and generated area creation. Fixed
+   numerical duplication of crossing vertices and resolve drawing meshes once
+   per body. Existing schema and stored color overrides remain supported.
+   All 58 native tests and four ASan/UBSan/LSan checks pass, including 50
+   deterministic changing-crossing poses. Linux and Windows builds pass without
+   compiler warnings. A regenerated project fixture verifies colors, layers,
+   order, merge/separation, and drawing against the installed SDK; the generated
+   app and standalone soft-body example build and launch headlessly from outside
+   their source directories. Windows verification is compile-only. User desktop
+   verification remains recommended after restarting the rebuilt editor and
+   regenerating/rebuilding the project against this engine.
 
 ## Completed Milestone: Stable Soft-Body Areas
 

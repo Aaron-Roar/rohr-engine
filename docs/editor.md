@@ -474,13 +474,27 @@ both diagonals initially has four selectable triangular areas. A disconnected
 inner loop forms its own area and a hole in the enclosing area, so their fills
 do not overlap.
 
-Once established, an area owns a persistent boundary and ID. Moving nodes or
-using Auto Shape deforms it without discovering new areas. A square folded into
-a bow tie remains one selectable area covering both visible lobes. Rendering
-and picking use the same even-odd boundary fill; collapsed pieces are omitted
-without deleting the area. Crossing corners remember their fractions along the
-two original beams and follow the average of those material positions after
-deformation, even if the beams cease crossing.
+Once established, an area owns a persistent beam boundary and ID. Moving nodes
+or using Auto Shape changes its visible regions without creating or deleting
+area definitions. Crossing corners use the actual current beam intersections;
+stored fractions only record the authored boundary directions. Regions with
+unchanged beam boundaries keep their existing owners during movement, rotation,
+and deformation; ordinary movement does not merge their colors. Fills, picking,
+marquee bounds, and selection outlines use the same current beam-bounded regions.
+A square folded into a bow tie retains one area covering both lobes, and enclosed
+self-overlap regions stay filled. Explicit inner-loop holes remain holes.
+
+When a crossing disappears, surviving boundary turns identify the current
+regions covered by each original definition. Several definitions may cover a
+merged region. Higher graphics layers take precedence; within one layer,
+later areas in the editor list draw on top. Reordering the list affects both
+editor and generated app rendering. Hidden or surface-disabled areas do not
+block selection. Covered definitions retain their IDs, colors, and settings,
+which return when their boundaries separate. A newly enclosed region with no
+surviving old corner is covered by the definitions contributing its boundary
+beams, with the same layer/order rule. A collapsed definition can have
+no visible region while retaining its identity. No physical nodes or collision
+connections are introduced at crossings.
 
 Connection edits preserve IDs and settings for matching boundaries. New areas
 get fresh IDs and inherit color, visibility, surface, and layer settings from
