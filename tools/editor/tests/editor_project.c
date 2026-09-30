@@ -841,8 +841,8 @@ int main(void) {
                     "rohr_physics_soft_body_beam_collision_config_set") ||
                 !file_contains(path,
                     ".enabled = false, .thickness = 4.00000000f") ||
-                /* Removed area APIs must not leak into generated applications. */
-                file_contains(path, "soft_body_area_") ||
+                /* Node-loop areas are generated for the starter soft body. */
+                !file_contains(path, "rohr_physics_soft_body_area_create") ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path, "rohr_graphics_animation_release") ||

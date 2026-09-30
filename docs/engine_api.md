@@ -5287,12 +5287,28 @@ UISliderResult rohr_ui_slider_with_text(const char *id, float value, const UISli
  @brief Draws a slider with optional caller-owned label and value text.
 
 
-### Soft-body area availability
+### Soft-body areas in the editor
 
-Beam-derived soft-body areas have been removed as a breaking API change.
-Area creation, discovery, queries, style overrides, and mesh helpers are no
-longer available. `SoftBody` no longer owns an area array or area count.
-Editor-authored area fills are temporarily unavailable while ordered node-loop
-areas are implemented. Nodes, beams, and their collision behavior remain
-available. The separate manual soft-body triangle primitives remain supported;
-they are not a replacement area API or an editor authoring path.
+Node-loop areas and owned holes persist in editor projects and generate through
+`rohr_physics_soft_body_area_create`. Scene and camera previews use the same
+current-boundary geometry as runtime rendering. Each area owns its color,
+visibility, layer binding, and position in the area's drawing order. Holes
+subtract only from that area. The editor stores node IDs, not reference poses
+or authored triangles. Manual triangle primitives and beam-derived area APIs
+remain removed.
+
+New soft bodies have four square nodes, six beams, and one filled square area.
+Existing schema-7 projects without an `areas` property load without adding areas
+to their existing bodies. New area and hole IDs are stable within their owner.
+
+Unfinished loops are saved as drafts. If the outer loop or any hole is
+incomplete, the whole area displays amber boundaries and crossed node markers
+without a fill. Generation rejects that definition before replacing generated
+files, identifying the object, soft body, area, and loop. Hidden drafts also
+require completion or removal before generation. Deleting a referenced node
+removes dependent areas; undo restores their complete definitions.
+
+Fill picking respects holes, visibility, layer order, and body transforms. At
+this foundation stage it selects the owning soft body. The Areas accordion,
+node-selection box, hole editors, and CLI loop-authoring commands remain the
+next milestone goal.

@@ -268,15 +268,34 @@ within a layer draw on top, limited to each area's own footprint.
    vertices at this historical boundary; runtime holes and dynamic fills are
    superseded by the Boundary-Correct Soft-Body Areas and Holes milestone above.
    Editor persistence, generation, and authoring remain below.
-4. [ ] **Connect editor data and app generation** — Add persistence, rendering,
-   picking, and generated runtime areas with outer and owned hole loops.
-   Persist node references; fills derive from the current pose without an authored
-   triangulation reference shape. Default soft bodies
-   keep four square nodes and six beams and gain one square area.
-5. [ ] **Add area authoring and verify parity** — Add editor and CLI loop editing,
-   layer/list ordering, and undo. Deleting a node deletes dependent areas;
-   undo restores them together. Rewrite bundled examples and verify the editor,
-   generated applications, sanitizers, and Linux/Windows builds.
+4. [x] **Connect editor data and app generation** — Added persistent ordered
+   areas and owned holes with stable owner-local IDs, styles, layers, and saved
+   drafts. Cached current-boundary geometry drives scene/camera fills and
+   occlusion-aware picking of the owning body; incomplete loops show amber
+   outlines/markers without filling their area. Generation validates every loop
+   before writing, reports the affected object/body/area/hole, and emits copied
+   runtime geometry, color, visibility, and layer bindings. No reference poses
+   or authored triangles are stored. Default UI/starter soft bodies have four
+   square nodes, six beams, and one square area. Existing schema-7 bodies without
+   areas load unchanged. Copies/history own independent caches; node deletion
+   removes dependent areas and undo restores them. All 60 native tests, four
+   editor ASan/UBSan/leak checks, Linux/Windows builds, and the independent
+   installed-SDK generated-area fixture and vehicle example pass. Both apps
+   launch from /tmp; Windows is compile-only. Desktop visual review remains
+   requested; authoring controls follow in Goal 5.
+5. [ ] **Add area authoring and verify parity** — Add an Areas accordion with
+   Add Area above area rows; single-click selects, double-click opens, and adding
+   creates and opens an editor. Area editors expose appearance, a numbered
+   reorderable node box, and Add Hole with hole rows; hole editors share loop
+   editing without independent color/layer. Clicking the box activates picking:
+   click order defines the loop, clicking a member removes it, and re-adding
+   appends it. Clicking the box again, Escape, or changing editors ends picking.
+   Outside picking, normal node navigation preserves the definition. Save drafts;
+   show outlines without area fill until every loop is complete; block generation
+   with an identifying error. Limit holes to 16 including drafts. Use shared
+   editor/CLI commands, layer/list ordering, undo, and node-deletion cascades.
+   Rewrite bundled examples and verify editor/generated-app parity, sanitizers,
+   and Linux/Windows builds.
 
 The earlier Geometrically Bounded Area Overlap goal is superseded. Its unresolved
 missing-crossing recovery rules are discarded with the beam-derived model.

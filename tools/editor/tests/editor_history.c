@@ -493,7 +493,8 @@ static void default_shapes_history_check(void) {
     assert(history.undo_count == 2 && object->soft_body_count == 1);
     EditorSoftBody *soft = &object->soft_body_items[0];
     assert(soft->node_count == 4 && soft->beam_count == 6 &&
-        soft->hierarchy_count == 10);
+        soft->hierarchy_count == 10 && soft->area_count == 1 &&
+        soft->areas[0].outer.node_count == 4);
     EditorSoftNodeId ids[4];
     for(size_t i = 0; i < 4; i += 1) {
         points[i] = soft->nodes[i].position;
@@ -517,7 +518,8 @@ static void default_shapes_history_check(void) {
     object = &project.objects[0];
     soft = &object->soft_body_items[0];
     assert(soft->node_count == 4 && soft->beam_count == 6 &&
-        soft->hierarchy_count == 10);
+        soft->hierarchy_count == 10 && soft->area_count == 1 &&
+        soft->areas[0].outer.node_count == 4);
     for(size_t i = 0; i < 4; i += 1) assert(soft->nodes[i].id == ids[i]);
 
     assert(editor_history_ui_change_begin(&history));
@@ -535,7 +537,7 @@ static void default_shapes_history_check(void) {
     const char *path = "editor_default_shapes.json";
     assert(editor_project_save(&project, path));
     char *saved = SDL_LoadFile(path, NULL);
-    assert(saved != NULL && strstr(saved, "\"areas\"") == NULL &&
+    assert(saved != NULL && strstr(saved, "\"areas\"") != NULL &&
         strstr(saved, "area_color") == NULL && strstr(saved, "next_soft_area_id") == NULL);
     SDL_free(saved);
     assert(!editor_result_check(editor_project_load(&loaded, path)));
@@ -556,6 +558,16 @@ static void default_shapes_history_check(void) {
     assert(loaded.objects[0].rigid_bodies[0].hitboxes[0].vertex_count == 3);
     assert(loaded.objects[0].soft_body_items[0].beam_count == 5);
     assert(loaded.ui_definitions[0].value.shape.vertices[2].y == 36);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_REMOVE,
+        .data.item_remove = {.kind = EDITOR_ITEM_SOFT_NODE, .object = object->id,
+            .parent = soft->id, .item = soft->nodes[0].id}};
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    assert(project.objects[0].soft_body_items[0].area_count == 0);
+    assert(editor_history_undo(&history));
+    assert(project.objects[0].soft_body_items[0].area_count == 1);
+    assert(project.objects[0].soft_body_items[0].areas[0].outer.node_count == 4);
+    assert(editor_history_redo(&history));
+    assert(project.objects[0].soft_body_items[0].area_count == 0);
     assert(SDL_RemovePath(path));
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);

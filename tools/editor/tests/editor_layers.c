@@ -4,6 +4,7 @@
 #include "editor_viewport.h"
 #include "editor_layout.h"
 #include "editor_command.h"
+#include "editor_soft_area.h"
 #include <limits.h>
 #include <math.h>
 #include "../../../tests/test_png.h"
@@ -504,6 +505,82 @@ static bool frame_flips_check(void) {
     return true;
 }
 
+static bool soft_area_picking_check(void) {
+    EditorProject project;
+    EditorViewportState state = {0};
+    EditorSelectionRef hit;
+    editor_project_init(&project);
+    editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    CHECK(object != NULL);
+    EditorSoftBody *body = editor_project_soft_body_add(&project, object);
+    CHECK(body != NULL);
+    const Position points[] = {{-70,-70},{70,-70},{70,70},{-70,70},
+        {-20,-20},{20,-20},{20,20},{-20,20}};
+    for(size_t i = 0; i < 8; i += 1) {
+        EditorSoftNode *node = editor_project_soft_node_add(&project, body, points[i]);
+        CHECK(node != NULL);
+        node->visible = false;
+    }
+    EditorSoftArea *area = editor_soft_area_add(body);
+    CHECK(area != NULL);
+    area->outer.node_count = 4;
+    EditorSoftHole *hole = editor_soft_hole_add(area);
+    CHECK(hole != NULL);
+    hole->loop.node_count = 4;
+    for(size_t i = 0; i < 4; i += 1) {
+        area->outer.nodes[i] = body->nodes[i].id;
+        hole->loop.nodes[i] = body->nodes[i + 4].id;
+    }
+    area->graphics_layer_inherited = false;
+    area->graphics_layer.value = 3;
+    EditorRigidBody *back = editor_project_rigid_body_add(&project, object);
+    CHECK(back != NULL);
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    project.viewport_local_view = false;
+    project.viewport_camera_zoom = 1;
+    Position center = {EDITOR_VIEWPORT_WIDTH * .5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * .5f};
+    CHECK(editor_viewport_selection_at_get(&project, &state, center, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_RIGID_BODY && hit.item == back->id);
+    Position solid = {center.x + 40, center.y};
+    CHECK(editor_viewport_selection_at_get(&project, &state, solid, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_SOFT_BODY && hit.item == body->id);
+    /* A selected lower body cannot consume the front area's click. */
+    state.selection = EDITOR_SELECTION_RIGID_BODY;
+    state.selected_rigid_body = back->id;
+    CHECK(editor_viewport_update(&state, &project, solid,
+        MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false));
+    CHECK(state.selection == EDITOR_SELECTION_SOFT_BODY && state.selected_soft_body == body->id);
+    (void)editor_viewport_update(&state, &project, solid,
+        MOUSE_BUTTON_STATE_RELEASED, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    editor_viewport_selection_clear(&state);
+    state.selected_rigid_body = 0;
+    state.selected_soft_body = 0;
+    state.mode = EDITOR_VIEWPORT_OBJECT;
+    area->visible = false;
+    CHECK(editor_viewport_selection_at_get(&project, &state, solid, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_RIGID_BODY);
+    area->visible = true;
+    area->graphics_layer.value = -1;
+    CHECK(editor_viewport_selection_at_get(&project, &state, solid, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_RIGID_BODY);
+    area->graphics_layer.value = 3;
+    hole->loop.node_count = 2;
+    CHECK(editor_viewport_selection_at_get(&project, &state, solid, &hit));
+    CHECK(hit.kind == EDITOR_SELECTION_RIGID_BODY);
+    /* Exercise the shared scene draw path for a draft, then a transformed fill. */
+    draw(&project, &state);
+    hole->loop.node_count = 4;
+    body->rotation = 90;
+    body->position = (Position){10,0};
+    project.viewport_camera_zoom = 2;
+    draw(&project, &state);
+    editor_viewport_state_destroy(&state);
+    editor_project_destroy(&project);
+    return true;
+}
+
 bool editor_layers_check(void) {
     OK(rohr_engine_start());
     OK(rohr_graphics_start());
@@ -518,6 +595,7 @@ bool editor_layers_check(void) {
     (void)SDL_RemovePath("editor_layers_frame.png");
     if(passed) passed = animation_direction_check();
     if(passed) passed = frame_flips_check();
+    if(passed) passed = soft_area_picking_check();
     rohr_graphics_stop();
     rohr_engine_stop();
     return passed;

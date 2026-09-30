@@ -293,6 +293,33 @@ typedef struct EditorSoftHierarchyItem {
     uint32_t id;
 } EditorSoftHierarchyItem;
 
+typedef uint32_t EditorSoftAreaId;
+typedef uint32_t EditorSoftHoleId;
+typedef struct EditorSoftAreaLoop {
+    EditorSoftNodeId nodes[SOFT_BODY_MAX_NODES];
+    uint32_t node_count;
+} EditorSoftAreaLoop;
+typedef struct EditorSoftHole {
+    EditorSoftHoleId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    EditorSoftAreaLoop loop;
+} EditorSoftHole;
+/* Cache is editor-owned derived data, never serialized or shared by copies. */
+typedef struct EditorSoftAreaCache EditorSoftAreaCache;
+typedef struct EditorSoftArea {
+    EditorSoftAreaId id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    EditorGraphicsLayerBinding graphics_layer;
+    bool graphics_layer_inherited;
+    bool visible;
+    uint32_t color;
+    EditorSoftAreaLoop outer;
+    EditorSoftHole holes[SOFT_BODY_MAX_AREA_HOLES];
+    uint32_t hole_count;
+    EditorSoftHoleId next_hole_id;
+    EditorSoftAreaCache *cache;
+} EditorSoftArea;
+
 typedef struct EditorSoftBody {
     EditorSoftBodyId id;
     char name[EDITOR_OBJECT_NAME_MAX];
@@ -311,6 +338,10 @@ typedef struct EditorSoftBody {
     EditorSoftBeam *beams;
     size_t beam_count;
     size_t beam_capacity;
+    EditorSoftArea *areas;
+    size_t area_count;
+    size_t area_capacity;
+    EditorSoftAreaId next_area_id;
     EditorSoftHierarchyItem *hierarchy;
     size_t hierarchy_count;
     size_t hierarchy_capacity;

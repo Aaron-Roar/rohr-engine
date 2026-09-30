@@ -3,6 +3,7 @@
  */
 
 #include "editor_project.h"
+#include "editor_soft_area.h"
 #include "editor_array.h"
 
 #include <math.h>
@@ -380,6 +381,9 @@ bool editor_project_rigid_body_copy_set(EditorRigidBody *destination,
 
 void editor_project_soft_body_destroy(EditorSoftBody *body) {
     if(body == NULL) return;
+    for(size_t i = 0; i < body->area_count; i += 1)
+        editor_soft_area_cache_destroy(&body->areas[i]);
+    free(body->areas);
     free(body->nodes);
     free(body->beams);
     free(body->hierarchy);
@@ -390,6 +394,9 @@ bool editor_project_soft_body_clone(EditorSoftBody *destination,
         const EditorSoftBody *source) {
     if(destination == NULL || source == NULL) return false;
     *destination = *source;
+    destination->areas = NULL;
+    destination->area_count = 0;
+    destination->area_capacity = 0;
     destination->nodes = NULL;
     destination->beams = NULL;
     destination->hierarchy = NULL;
@@ -412,6 +419,13 @@ bool editor_project_soft_body_clone(EditorSoftBody *destination,
         source->beam_count * sizeof(*source->beams));
     if(source->hierarchy_count > 0) memcpy(destination->hierarchy,
         source->hierarchy, source->hierarchy_count * sizeof(*source->hierarchy));
+    if(!EDITOR_ARRAY_RESERVE(destination->areas, destination->area_capacity,
+            source->area_count)) goto fail;
+    for(size_t i = 0; i < source->area_count; i += 1) {
+        destination->areas[i] = source->areas[i];
+        destination->areas[i].cache = NULL;
+        destination->area_count += 1;
+    }
     destination->node_count = source->node_count;
     destination->beam_count = source->beam_count;
     destination->hierarchy_count = source->hierarchy_count;
@@ -426,15 +440,28 @@ bool editor_project_soft_body_copy_set(EditorSoftBody *destination,
         const EditorSoftBody *source) {
     EditorSoftNode *nodes;
     EditorSoftBeam *beams;
+    EditorSoftArea *areas;
+    size_t area_capacity;
     EditorSoftHierarchyItem *hierarchy;
     size_t node_capacity, beam_capacity, hierarchy_capacity;
     if(destination == NULL || source == NULL) return false;
+    if(destination == source) return true;
     if(!EDITOR_ARRAY_RESERVE(destination->nodes, destination->node_capacity,
                 source->node_count) ||
             !EDITOR_ARRAY_RESERVE(destination->beams, destination->beam_capacity,
                 source->beam_count) ||
             !EDITOR_ARRAY_RESERVE(destination->hierarchy, destination->hierarchy_capacity,
                 source->hierarchy_count)) return false;
+    if(!EDITOR_ARRAY_RESERVE(destination->areas, destination->area_capacity,
+            source->area_count)) return false;
+    areas = destination->areas;
+    area_capacity = destination->area_capacity;
+    for(size_t i = 0; i < destination->area_count; i += 1)
+        editor_soft_area_cache_destroy(&areas[i]);
+    for(size_t i = 0; i < source->area_count; i += 1) {
+        areas[i] = source->areas[i];
+        areas[i].cache = NULL;
+    }
     nodes = destination->nodes; beams = destination->beams;
     hierarchy = destination->hierarchy;
     node_capacity = destination->node_capacity;
@@ -447,6 +474,8 @@ bool editor_project_soft_body_copy_set(EditorSoftBody *destination,
     if(source->hierarchy_count > 0) memcpy(hierarchy, source->hierarchy,
         source->hierarchy_count * sizeof(*hierarchy));
     *destination = *source;
+    destination->areas = areas;
+    destination->area_capacity = area_capacity;
     destination->nodes = nodes; destination->beams = beams;
     destination->hierarchy = hierarchy;
     destination->node_capacity = node_capacity;
@@ -1385,6 +1414,11 @@ bool editor_project_graphics_layer_remove(EditorProject *project,
                 body->graphics_layer.layer = 0;
                 body->graphics_layer.value = removed_value;
             }
+            for(size_t child = 0; child < body->area_count; child += 1)
+                if(body->areas[child].graphics_layer.layer == id) {
+                    body->areas[child].graphics_layer.layer = 0;
+                    body->areas[child].graphics_layer.value = removed_value;
+                }
             for(size_t child = 0; child < body->node_count; child += 1)
                 if(body->nodes[child].graphics_layer.layer == id) {
                     body->nodes[child].graphics_layer.layer = 0;
@@ -2807,6 +2841,9 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
     }
     for(size_t i = 0; i < body->node_count; i += 1) {
         if(body->nodes[i].id != id) continue;
+        for(size_t a = body->area_count; a > 0; a -= 1)
+            if(editor_soft_area_node_check(&body->areas[a - 1], id))
+                (void)editor_soft_area_remove(body, body->areas[a - 1].id);
         for(size_t j = 0; j < body->beam_count; j += 1) {
             EditorSoftBeam *beam = &body->beams[j];
             if(beam->node_a == id) beam->node_a = 0;

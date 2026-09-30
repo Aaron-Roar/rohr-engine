@@ -3,6 +3,7 @@
  */
 
 #include "editor_project.h"
+#include "editor_soft_area.h"
 #include "editor_array.h"
 
 #include "yyjson/yyjson.h"
@@ -443,6 +444,41 @@ static yyjson_mut_val *editor_json_joint_write(yyjson_mut_doc *document,
     return value;
 }
 
+static yyjson_mut_val *editor_json_area_loop_write(yyjson_mut_doc *document,
+        const EditorSoftAreaLoop *loop) {
+    yyjson_mut_val *array = yyjson_mut_arr(document);
+    for(uint32_t i = 0; i < loop->node_count; i += 1)
+        yyjson_mut_arr_add_uint(document, array, loop->nodes[i]);
+    return array;
+}
+
+static yyjson_mut_val *editor_json_area_write(yyjson_mut_doc *document,
+        const EditorSoftArea *area) {
+    yyjson_mut_val *value = yyjson_mut_obj(document);
+    yyjson_mut_obj_add_uint(document, value, "id", area->id);
+    yyjson_mut_obj_add_strcpy(document, value, "name", area->name);
+    yyjson_mut_obj_add_bool(document, value, "visible", area->visible);
+    yyjson_mut_obj_add_uint(document, value, "color", area->color);
+    editor_json_graphics_layer_binding_write(document, value, area->graphics_layer);
+    yyjson_mut_obj_add_bool(document, value, "graphics_layer_inherited",
+        area->graphics_layer_inherited);
+    yyjson_mut_obj_add_uint(document, value, "next_hole_id", area->next_hole_id);
+    yyjson_mut_obj_add_val(document, value, "outer",
+        editor_json_area_loop_write(document, &area->outer));
+    yyjson_mut_val *holes = yyjson_mut_arr(document);
+    for(uint32_t i = 0; i < area->hole_count; i += 1) {
+        const EditorSoftHole *hole = &area->holes[i];
+        yyjson_mut_val *item = yyjson_mut_obj(document);
+        yyjson_mut_obj_add_uint(document, item, "id", hole->id);
+        yyjson_mut_obj_add_strcpy(document, item, "name", hole->name);
+        yyjson_mut_obj_add_val(document, item, "nodes",
+            editor_json_area_loop_write(document, &hole->loop));
+        yyjson_mut_arr_add_val(holes, item);
+    }
+    yyjson_mut_obj_add_val(document, value, "holes", holes);
+    return value;
+}
+
 static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     const EditorSoftBody *body) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
@@ -528,6 +564,11 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "id", body->hierarchy[i].id);
         yyjson_mut_arr_add_val(hierarchy, item);
     }
+    yyjson_mut_val *areas = yyjson_mut_arr(document);
+    for(size_t i = 0; i < body->area_count; i += 1)
+        yyjson_mut_arr_add_val(areas, editor_json_area_write(document, &body->areas[i]));
+    yyjson_mut_obj_add_val(document, value, "areas", areas);
+    yyjson_mut_obj_add_uint(document, value, "next_area_id", body->next_area_id);
     yyjson_mut_obj_add_val(document, value, "nodes", nodes);
     yyjson_mut_obj_add_val(document, value, "beams", beams);
     yyjson_mut_obj_add_val(document, value, "hierarchy", hierarchy);
@@ -1273,6 +1314,59 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
     return true;
 }
 
+static bool editor_json_area_loop_read(yyjson_val *value, EditorSoftAreaLoop *loop) {
+    if(!yyjson_is_arr(value) || yyjson_arr_size(value) > SOFT_BODY_MAX_NODES) return false;
+    loop->node_count = (uint32_t)yyjson_arr_size(value);
+    for(uint32_t i = 0; i < loop->node_count; i += 1) {
+        yyjson_val *node = yyjson_arr_get(value, i);
+        if(!yyjson_is_uint(node) || yyjson_get_uint(node) == 0 ||
+                yyjson_get_uint(node) > UINT32_MAX) return false;
+        loop->nodes[i] = (uint32_t)yyjson_get_uint(node);
+    }
+    return true;
+}
+
+static bool editor_json_areas_read(yyjson_val *value, EditorSoftBody *body) {
+    yyjson_val *areas = yyjson_obj_get(value, "areas");
+    /* Schema 7 projects from before node-loop authoring contain no areas. */
+    if(areas == NULL) return true;
+    if(!yyjson_is_arr(areas) || yyjson_arr_size(areas) > SOFT_BODY_MAX_AREAS ||
+            !editor_json_uint(value, "next_area_id", &body->next_area_id)) return false;
+    size_t count = yyjson_arr_size(areas);
+    if(!EDITOR_ARRAY_RESERVE(body->areas, body->area_capacity, count)) return false;
+    for(size_t i = 0; i < count; i += 1) {
+        yyjson_val *item = yyjson_arr_get(areas, i);
+        EditorSoftArea *area = &body->areas[body->area_count++];
+        *area = (EditorSoftArea){0};
+        yyjson_val *holes = yyjson_obj_get(item, "holes");
+        if(!editor_json_uint(item, "id", &area->id) || area->id == 0 ||
+                area->id >= body->next_area_id || !editor_json_name(item, area->name) ||
+                !editor_json_bool(item, "visible", &area->visible) ||
+                !editor_json_uint(item, "color", &area->color) ||
+                !editor_json_graphics_layer_binding_read(item, &area->graphics_layer) ||
+                !editor_json_bool(item, "graphics_layer_inherited", &area->graphics_layer_inherited) ||
+                !editor_json_uint(item, "next_hole_id", &area->next_hole_id) ||
+                !editor_json_area_loop_read(yyjson_obj_get(item, "outer"), &area->outer) ||
+                !yyjson_is_arr(holes) || yyjson_arr_size(holes) > SOFT_BODY_MAX_AREA_HOLES)
+            return false;
+        for(size_t j = 0; j < i; j += 1)
+            if(body->areas[j].id == area->id) return false;
+        area->hole_count = (uint32_t)yyjson_arr_size(holes);
+        for(uint32_t h = 0; h < area->hole_count; h += 1) {
+            yyjson_val *hole_value = yyjson_arr_get(holes, h);
+            EditorSoftHole *hole = &area->holes[h];
+            if(!editor_json_uint(hole_value, "id", &hole->id) || hole->id == 0 ||
+                    hole->id >= area->next_hole_id || !editor_json_name(hole_value, hole->name) ||
+                    !editor_json_area_loop_read(yyjson_obj_get(hole_value, "nodes"), &hole->loop))
+                return false;
+            for(uint32_t j = 0; j < h; j += 1)
+                if(area->holes[j].id == hole->id) return false;
+        }
+        if(!editor_soft_area_references_check(body, area)) return false;
+    }
+    return true;
+}
+
 static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         EditorProject *project) {
     yyjson_val *nodes = yyjson_obj_get(value, "nodes");
@@ -1447,6 +1541,7 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     }
     if(!editor_json_graphics_layer_binding_read(value, &body->graphics_layer))
         return false;
+    if(!editor_json_areas_read(value, body)) return false;
     if(project->next_soft_body_id <= body->id) project->next_soft_body_id = body->id + 1;
     return true;
 }
@@ -1692,6 +1787,11 @@ static bool editor_json_references_valid(EditorProject *project) {
                     editor_project_graphics_layer_get(project,
                         body->graphics_layer.layer) == NULL)
                 return false;
+            for(size_t child = 0; child < body->area_count; child += 1)
+                if(body->areas[child].graphics_layer.layer != 0 &&
+                        editor_project_graphics_layer_get(project,
+                            body->areas[child].graphics_layer.layer) == NULL)
+                    return false;
             for(size_t child = 0; child < body->node_count; child += 1)
                 if(body->nodes[child].graphics_layer.layer != 0 &&
                         editor_project_graphics_layer_get(project,

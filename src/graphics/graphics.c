@@ -3,6 +3,7 @@
  */
 
 #include "graphics.h"
+#include "graphics/triangle_draw.h"
 #include "physics/collision/shape_decomposition.h"
 #include "core/engine_internal.h"
 #include "console.h"
@@ -4076,6 +4077,28 @@ bool graphics_shape_filled_draw(Shape shape, Color color)
                 command->data.shape.indices[command->data.shape.index_count++] =
                     prepared.concave_pieces[piece].vertex_indices[vertex];
             }
+        }
+    }
+    return true;
+}
+
+bool graphics_screen_triangles_draw(const Position *vertices, size_t count, Color color) {
+    if((count > 0 && vertices == NULL) || count % 3 != 0) return false;
+    for(size_t i = 0; i < count; i += 1)
+        if(!isfinite(vertices[i].x) || !isfinite(vertices[i].y)) return false;
+    for(size_t start = 0; start < count;) {
+        GraphicsCommand *command = graphics_command_append(GRAPHICS_COMMAND_SHAPE_FILLED);
+        if(command == NULL) return false;
+        size_t batch = count - start;
+        if(batch > (MAX_VERTICIES / 3) * 3) batch = (MAX_VERTICIES / 3) * 3;
+        command->data.shape.count = (int)batch;
+        command->data.shape.index_count = (int)batch;
+        command->data.shape.alpha_blend = true;
+        command->data.shape.color = color;
+        for(size_t i = 0; i < batch; i += 1) {
+            Position point = vertices[start++];
+            command->data.shape.points[i] = (SDL_FPoint){point.x, point.y};
+            command->data.shape.indices[i] = (int)i;
         }
     }
     return true;

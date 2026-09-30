@@ -3,6 +3,7 @@
  */
 
 #include "editor_workspace.h"
+#include "editor_soft_area.h"
 
 #include "editor_config.h"
 
@@ -405,6 +406,13 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
                 soft_nodes[(i + 1) % 4]->id) == NULL) return false;
     if(editor_project_soft_beam_add(project, soft_body,
             soft_nodes[0]->id, soft_nodes[2]->id) == NULL) return false;
+
+    if(editor_project_soft_beam_add(project, soft_body,
+            soft_nodes[1]->id, soft_nodes[3]->id) == NULL) return false;
+    EditorSoftArea *default_area = editor_soft_area_add(soft_body);
+    if(default_area == NULL) return false;
+    default_area->outer.node_count = 4;
+    for(size_t i = 0; i < 4; i += 1) default_area->outer.nodes[i] = soft_nodes[i]->id;
 
     sprite = editor_project_sprite_add(project, starter, "standalone_sprite",
         "assets/tutorial_frame_1.png");
@@ -845,6 +853,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 soft_body_index += 1) {
             const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
             fprintf(header, "    Entity %s;\n", body->name);
+            if(body->area_count > 0)
+                fprintf(header, "    Entity %s_areas[%zu];\n", body->name, body->area_count);
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1)
                 fprintf(header, "    Entity %s;\n", body->nodes[node_index].name);
             for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1)
@@ -1285,6 +1295,36 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                         "    if(rohr_error_check(result)) goto fail;\n",
                         body->name, node_a->name, node_b->name, beam->color);
                 }
+            }
+
+            for(size_t area_index = 0; area_index < body->area_count; area_index += 1) {
+                const EditorSoftArea *area = &body->areas[area_index];
+                fprintf(source, "    { SoftBodyAreaGeometry geometry = {0};\n"
+                    "      geometry.hole_count = %u;\n", area->hole_count);
+                for(uint32_t loop_index = 0; loop_index <= area->hole_count; loop_index += 1) {
+                    const EditorSoftAreaLoop *loop = loop_index == 0 ? &area->outer :
+                        &area->holes[loop_index - 1].loop;
+                    char member[64];
+                    if(loop_index == 0) snprintf(member, sizeof(member), "outer");
+                    else snprintf(member, sizeof(member), "holes[%u]", loop_index - 1);
+                    fprintf(source, "      geometry.%s.node_count = %u;\n", member, loop->node_count);
+                    for(uint32_t n = 0; n < loop->node_count; n += 1) {
+                        const EditorSoftNode *node = editor_workspace_soft_node_get(body, loop->nodes[n]);
+                        fprintf(source, "      geometry.%s.nodes[%u] = object->%s;\n",
+                            member, n, node->name);
+                    }
+                }
+                fprintf(source,
+                    "      EntityResult created = rohr_physics_soft_body_area_create(object->%s, geometry);\n"
+                    "      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }\n"
+                    "      object->%s_areas[%zu] = created.result.value; }\n"
+                    "    result = rohr_graphics_soft_body_area_color_set(object->%s_areas[%zu], "
+                    "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
+                    "    if(rohr_error_check(result)) goto fail;\n"
+                    "    result = rohr_graphics_soft_body_area_visibility_set(object->%s_areas[%zu], %s);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",
+                    body->name, body->name, area_index, body->name, area_index, area->color,
+                    body->name, area_index, body->visible && area->visible ? "true" : "false");
             }
 
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
@@ -1834,14 +1874,14 @@ static bool editor_workspace_generated_viewports_write(
         "rohr_graphics_layer_entity_set(objects->%s.%s%s, %d))) goto fail;\n", \
         object_variable, Prefix, Name, (Binding).value); \
 } while(0)
-#define WRITE_ENTITY_LAYER_INDEX(Binding, Name, Index) do { \
+#define WRITE_AREA_LAYER(Binding, Name, Index) do { \
     bool found = false; \
     if((Binding).layer != 0) { \
         for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
                 layer_index += 1) if(project->graphics_layers[layer_index].id == \
                     (Binding).layer) { \
             fprintf(source, "    if(rohr_error_check(result = " \
-                "rohr_graphics_layer_entity_id_set(objects->%s.%s_triangles[%zu], " \
+                "rohr_graphics_layer_entity_id_set(objects->%s.%s_areas[%zu], " \
                 "resources->layers[%zu]))) goto fail;\n", object_variable, \
                 Name, Index, layer_index); \
             found = true; \
@@ -1849,7 +1889,7 @@ static bool editor_workspace_generated_viewports_write(
         } \
     } \
     if(!found) fprintf(source, "    if(rohr_error_check(result = " \
-        "rohr_graphics_layer_entity_set(objects->%s.%s_triangles[%zu], %d))) goto fail;\n", \
+        "rohr_graphics_layer_entity_set(objects->%s.%s_areas[%zu], %d))) goto fail;\n", \
         object_variable, Name, Index, (Binding).value); \
 } while(0)
 #define WRITE_COMPONENT_LAYER(Binding, Component, Prefix, Name) do { \
@@ -1879,6 +1919,9 @@ static bool editor_workspace_generated_viewports_write(
         for(size_t i = 0; i < object->soft_body_count; i += 1) {
             const EditorSoftBody *body = &object->soft_body_items[i];
             WRITE_ENTITY_LAYER(body->graphics_layer, "", body->name);
+            for(size_t area = 0; area < body->area_count; area += 1)
+                WRITE_AREA_LAYER((body->areas[area].graphics_layer_inherited ?
+                    body->graphics_layer : body->areas[area].graphics_layer), body->name, area);
             for(size_t child = 0; child < body->node_count; child += 1)
                 if(!body->nodes[child].graphics_layer_inherited)
                     WRITE_ENTITY_LAYER(body->nodes[child].graphics_layer, "",
@@ -1901,7 +1944,7 @@ static bool editor_workspace_generated_viewports_write(
                 body == NULL ? animation->name : body->name);
         }
 #undef WRITE_ENTITY_LAYER
-#undef WRITE_ENTITY_LAYER_INDEX
+#undef WRITE_AREA_LAYER
 #undef WRITE_COMPONENT_LAYER
     }
     fprintf(source, "    resources->fonts[resources->font_count++] = "
@@ -2417,6 +2460,7 @@ bool editor_workspace_c_generate(const EditorWorkspace *workspace,
     const EditorProject *project) {
     return workspace != NULL && workspace->open &&
         editor_project_center_of_mass_check(project) &&
+        editor_soft_areas_generation_validate(project).kind != ERROR_RESULT_ERROR &&
         editor_workspace_generated_objects_write(workspace, project) &&
         editor_workspace_generated_viewports_write(workspace, project) &&
         editor_workspace_legacy_main_upgrade(workspace, project);
@@ -2516,11 +2560,14 @@ EditorResult editor_workspace_command_execute(EditorWorkspace *workspace,
                 return editor_result_error(EDITOR_ERROR_FILE_IO,
                     "Could not save project workspace: %s", workspace->directory);
             return editor_result_value(true);
-        case EDITOR_WORKSPACE_COMMAND_GENERATE_C:
+        case EDITOR_WORKSPACE_COMMAND_GENERATE_C: {
+            EditorResult validation = editor_soft_areas_generation_validate(project);
+            if(validation.kind == ERROR_RESULT_ERROR) return validation;
             if(!editor_workspace_c_generate(workspace, project))
                 return editor_result_error(EDITOR_ERROR_FILE_IO,
                     "Could not generate project C source: %s", workspace->directory);
             return editor_result_value(true);
+        }
     }
     return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
         "Unknown workspace command");

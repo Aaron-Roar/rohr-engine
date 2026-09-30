@@ -6,6 +6,7 @@ add_library(rohr_editor_core STATIC
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project_json.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
+    src/editor_soft_area.c
     src/editor_mass_properties.c
     src/editor_command.c
     src/editor_auto_shape.c
@@ -77,4 +78,15 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME editor_config COMMAND editor_config_test
         $<TARGET_FILE:editor_config_test>)
+endif()
+
+if(ROHR_BUILD_TESTS)
+    add_executable(editor_soft_areas_test tests/editor_soft_areas.c)
+    target_link_libraries(editor_soft_areas_test PRIVATE rohr_editor_core)
+    set_target_properties(editor_soft_areas_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_soft_areas_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME editor_soft_areas COMMAND editor_soft_areas_test)
 endif()

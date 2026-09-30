@@ -3,6 +3,7 @@
  */
 
 #include "editor_command.h"
+#include "editor_soft_area.h"
 
 #include <errno.h>
 #include <math.h>
@@ -755,6 +756,14 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         for(size_t j = i + 1; j < 4 && valid; j += 1)
                             valid = editor_project_soft_beam_add(project, value,
                                 nodes[i], nodes[j]) != NULL;
+                    if(valid) {
+                        EditorSoftArea *area = editor_soft_area_add(value);
+                        valid = area != NULL;
+                        if(area != NULL) {
+                            area->outer.node_count = 4;
+                            memcpy(area->outer.nodes, nodes, sizeof(nodes));
+                        }
+                    }
                     if(valid) { created = value->id; created_name = value->name; }
                     else (void)editor_project_soft_body_remove(object, value->id);
                 }

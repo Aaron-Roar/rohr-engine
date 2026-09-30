@@ -3,6 +3,8 @@
  */
 
 #include "editor_viewport.h"
+#include "editor_soft_area.h"
+#include "graphics/triangle_draw.h"
 #include "editor_command.h"
 #include "editor_mass_properties.h"
 #include "editor_layout.h"
@@ -85,7 +87,7 @@ static bool editor_scene_layers_create(const EditorProject *project) {
             object->sprite_count + object->animated_sprite_count + object->soft_body_count;
         for(size_t j = 0; j < object->soft_body_count; j += 1) {
             const EditorSoftBody *body = &object->soft_body_items[j];
-            count += body->node_count + body->beam_count;
+            count += body->node_count + body->beam_count + body->area_count;
         }
     }
     if(count >= INT_MAX / EDITOR_SCENE_LAYER_STRIDE || count > SIZE_MAX / sizeof(int)) return false;
@@ -107,6 +109,7 @@ static bool editor_scene_layers_create(const EditorProject *project) {
         ADD_LAYERS(object->soft_body_items, object->soft_body_count);
         for(size_t j = 0; j < object->soft_body_count; j += 1) {
             const EditorSoftBody *body = &object->soft_body_items[j];
+            ADD_LAYERS(body->areas, body->area_count);
             ADD_LAYERS(body->nodes, body->node_count);
             ADD_LAYERS(body->beams, body->beam_count);
         }
@@ -1864,6 +1867,56 @@ static const EditorSoftNode *editor_soft_node_get(const EditorSoftBody *body,
     return NULL;
 }
 
+static Position editor_soft_local_get(const EditorObject *object,
+        const EditorSoftBody *body, Position world) {
+    float x = world.x - object->position.x - body->position.x;
+    float y = world.y - object->position.y - body->position.y;
+    float c = cosf(math_degrees_to_radians(body->rotation));
+    float s = sinf(math_degrees_to_radians(body->rotation));
+    return (Position){x * c - y * s, x * s + y * c};
+}
+
+static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftBody *body) {
+    for(size_t i = 0; i < body->area_count; i += 1) {
+        EditorSoftArea *area = &body->areas[i];
+        if(!area->visible) continue;
+        editor_view_scene_layer_set(area->graphics_layer_inherited ?
+            body->graphics_layer : area->graphics_layer, EDITOR_GRAPHICS_LAYER_SOFT_BODY);
+        EditorSoftAreaFill fill = editor_soft_area_fill_get(body, area);
+        if(fill.complete) {
+            Position batch[99];
+            for(size_t offset = 0; offset < fill.vertex_count;) {
+                size_t count = fill.vertex_count - offset;
+                if(count > 99) count = 99;
+                for(size_t j = 0; j < count; j += 1) {
+                    EditorSoftNode node = {.position = fill.vertices[offset++]};
+                    batch[j] = editor_view_world_to_screen(editor_soft_node_world_get(object, body, &node));
+                }
+                (void)graphics_screen_triangles_draw(batch, count, graphics_color_hex_create(area->color));
+            }
+        } else {
+            /* Draft loops have no fill. Amber boundaries and crossed markers
+             * distinguish incomplete definitions from runtime geometry. */
+            Color color = {255, 160, 60, 255};
+            for(uint32_t l = 0; l <= area->hole_count; l += 1) {
+                const EditorSoftAreaLoop *loop = l == 0 ? &area->outer : &area->holes[l - 1].loop;
+                for(uint32_t j = 0; j < loop->node_count; j += 1) {
+                    const EditorSoftNode *a = editor_soft_node_get(body, loop->nodes[j]);
+                    const EditorSoftNode *b = editor_soft_node_get(body, loop->nodes[(j + 1) % loop->node_count]);
+                    if(a == NULL) continue;
+                    Position world = editor_soft_node_world_get(object, body, a);
+                    if(b != NULL) editor_line_draw(world, editor_soft_node_world_get(object, body, b), color);
+                    float radius = 5.0f / editor_view_scale;
+                    editor_line_draw((Position){world.x - radius, world.y - radius},
+                        (Position){world.x + radius, world.y + radius}, color);
+                    editor_line_draw((Position){world.x - radius, world.y + radius},
+                        (Position){world.x + radius, world.y - radius}, color);
+                }
+            }
+        }
+    }
+}
+
 static bool editor_object_visual_point_contains(const EditorObject *object,
         const EditorViewportState *state, Position point) {
     if(object == NULL || !object->visible) return false;
@@ -1879,6 +1932,9 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
     for(size_t body_index = 0; body_index < object->soft_body_count; body_index += 1) {
         const EditorSoftBody *body = &object->soft_body_items[body_index];
         if(!body->visible) continue;
+        for(size_t a = 0; a < body->area_count; a += 1)
+            if(editor_soft_area_point_check(body, &body->areas[a],
+                    editor_soft_local_get(object, body, point))) return true;
         for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
             const EditorSoftNode *node = &body->nodes[node_index];
             Position world;
@@ -3372,6 +3428,15 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                 continue;
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
                 object->id, body->id, 0, beam->id};
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+        }
+        for(size_t j = body->area_count; j > 0; j -= 1) {
+            EditorSoftArea *area = &body->areas[j - 1];
+            if(!editor_soft_area_point_check(body, area,
+                    editor_soft_local_get(object, body, pointer))) continue;
+            binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BODY,
+                object->id, 0, 0, body->id};
             editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
     }
@@ -5294,6 +5359,21 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
+    if(front.kind == EDITOR_SELECTION_SOFT_BODY) {
+        EditorSoftBody *soft = editor_group_soft_body_get(object, front.item);
+        if(soft != NULL) {
+            (void)editor_viewport_selection_set(project, state, front, state->selection_modifier);
+            if(!state->selection_modifier) {
+                state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+                state->dragged_soft_body = true;
+                state->drag_offset = (Vec2D){pointer.x - object->position.x - soft->position.x,
+                    pointer.y - object->position.y - soft->position.y};
+                state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
+            }
+            return true;
+        }
+    }
+
     if(object->visible) {
         for(size_t soft_index = 0; soft_index < object->soft_body_count; soft_index += 1) {
             EditorSoftBody *soft_body = &object->soft_body_items[soft_index];
@@ -6066,6 +6146,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id) ||
             state->preview_soft_body == body->id;
         if(!body->visible) continue;
+        editor_soft_areas_draw(object, body);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?
@@ -6219,6 +6300,7 @@ static void editor_viewport_camera_preview_object_draw(
         const EditorSoftBody *body = &object->soft_body_items[body_index];
         if(!body->visible) continue;
 
+        editor_soft_areas_draw(object, body);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?
