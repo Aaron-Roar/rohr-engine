@@ -3,6 +3,7 @@
  */
 
 #include "editor_navigation.h"
+#include "editor_soft_area.h"
 
 #include <stdio.h>
 
@@ -285,6 +286,9 @@ static bool editor_reorder_storage_get(EditorProject *project,
     if(selection.kind == EDITOR_SELECTION_SOFT_NODE)
         *storage = (EditorReorderStorage){(unsigned char *)soft_body->nodes,
             soft_body->node_count, sizeof(soft_body->nodes[0])};
+    else if(selection.kind == EDITOR_SELECTION_SOFT_AREA)
+        *storage = (EditorReorderStorage){(unsigned char *)soft_body->areas,
+            soft_body->area_count, sizeof(soft_body->areas[0])};
     else if(selection.kind == EDITOR_SELECTION_SOFT_BEAM)
         *storage = (EditorReorderStorage){(unsigned char *)soft_body->beams,
             soft_body->beam_count, sizeof(soft_body->beams[0])};
@@ -611,6 +615,8 @@ static bool editor_selection_remove_command_get(EditorProject *project,
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
         case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
+        case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
+        case EDITOR_SELECTION_SOFT_HOLE: kind = EDITOR_ITEM_SOFT_HOLE; break;
         case EDITOR_SELECTION_VERTEX: kind = EDITOR_ITEM_VERTEX; break;
         case EDITOR_SELECTION_LINE: kind = EDITOR_ITEM_LINE; break;
         default: return false;
@@ -623,7 +629,8 @@ static bool editor_selection_remove_command_get(EditorProject *project,
                 selection.container : selection.item,
             .index = selection.kind == EDITOR_SELECTION_VERTEX ||
                     selection.kind == EDITOR_SELECTION_LINE ?
-                selection.item : 0}};
+                selection.item : selection.kind == EDITOR_SELECTION_SOFT_HOLE ?
+                    selection.container : 0}};
     return true;
 }
 
@@ -668,8 +675,13 @@ static bool editor_selection_removed_with_parent_check(
                 parent.item == selection.container) return true;
         if(parent.kind == EDITOR_SELECTION_SOFT_BODY &&
                 (selection.kind == EDITOR_SELECTION_SOFT_NODE ||
-                    selection.kind == EDITOR_SELECTION_SOFT_BEAM) &&
+                    selection.kind == EDITOR_SELECTION_SOFT_BEAM ||
+                    selection.kind == EDITOR_SELECTION_SOFT_AREA ||
+                    selection.kind == EDITOR_SELECTION_SOFT_HOLE) &&
                 parent.item == selection.parent) return true;
+        if(parent.kind == EDITOR_SELECTION_SOFT_AREA &&
+                selection.kind == EDITOR_SELECTION_SOFT_HOLE &&
+                parent.parent == selection.parent && parent.item == selection.container) return true;
         if(parent.kind == EDITOR_SELECTION_INPUT_CONTROLLER &&
                 selection.kind == EDITOR_SELECTION_INPUT_ACTION &&
                 parent.item == selection.parent) return true;
@@ -836,6 +848,8 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
             EDITOR_VISIBILITY_FIND(body->nodes, body->node_count);
         if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
             EDITOR_VISIBILITY_FIND(body->beams, body->beam_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
+            EDITOR_VISIBILITY_FIND(body->areas, body->area_count);
     }
 #undef EDITOR_VISIBILITY_FIND
     return false;
@@ -905,6 +919,7 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_VISIBILITY_SOFT_BEAM; break;
+            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_VISIBILITY_SOFT_AREA; break;
             case EDITOR_SELECTION_CAMERA: kind = EDITOR_VISIBILITY_CAMERA; break;
             default: return false;
         }
@@ -1005,6 +1020,12 @@ bool editor_navigation_selection_name_get(EditorProject *project,
             EDITOR_NAME_FIND(body->nodes, body->node_count);
         if(ref.kind == EDITOR_SELECTION_SOFT_BEAM)
             EDITOR_NAME_FIND(body->beams, body->beam_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_AREA)
+            EDITOR_NAME_FIND(body->areas, body->area_count);
+        if(ref.kind == EDITOR_SELECTION_SOFT_HOLE) {
+            EditorSoftArea *area = editor_soft_area_get(body, ref.container);
+            if(area != NULL) EDITOR_NAME_FIND(area->holes, area->hole_count);
+        }
     }
 #undef EDITOR_NAME_FIND
     if(value == NULL) return false;
@@ -1107,12 +1128,15 @@ bool editor_navigation_selection_name_set(EditorProject *project,
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
+            case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
+            case EDITOR_SELECTION_SOFT_HOLE: kind = EDITOR_ITEM_SOFT_HOLE; break;
             case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
             default: return false;
         }
         command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
             .data.item_rename = {.kind = kind, .object = ref.object,
-                .parent = ref.parent, .item = ref.item}};
+                .parent = ref.parent, .item = ref.item,
+                .index = ref.kind == EDITOR_SELECTION_SOFT_HOLE ? ref.container : 0}};
         snprintf(command.data.item_rename.name,
             sizeof(command.data.item_rename.name), "%s", name);
     }
@@ -1136,6 +1160,7 @@ bool editor_navigation_selected_open(EditorProject *project,
     EditorObject *selected;
     EditorHitbox *hitbox;
 
+    if(state != NULL) state->soft_area_picking = false;
     if(project == NULL || state == NULL) return false;
     if(state->selection == EDITOR_SELECTION_INPUT_CONTROLLER) {
         if(editor_project_input_controller_get(project,
@@ -1233,6 +1258,17 @@ bool editor_navigation_selected_open(EditorProject *project,
         case EDITOR_SELECTION_SOFT_NODE:
             state->mode = EDITOR_VIEWPORT_SOFT_NODE;
             return true;
+        case EDITOR_SELECTION_SOFT_AREA:
+        case EDITOR_SELECTION_SOFT_HOLE: {
+            EditorSoftArea *area = editor_soft_area_get(editor_soft_body_get(selected,
+                state->selected_soft_body), state->selected_soft_area);
+            if(area == NULL || (state->selection == EDITOR_SELECTION_SOFT_HOLE &&
+                    editor_soft_hole_get(area, state->selected_soft_hole) == NULL)) return false;
+            state->soft_area_picking = false;
+            state->mode = state->selection == EDITOR_SELECTION_SOFT_AREA ?
+                EDITOR_VIEWPORT_SOFT_AREA : EDITOR_VIEWPORT_SOFT_HOLE;
+            return true;
+        }
         case EDITOR_SELECTION_SOFT_BEAM:
             state->mode = EDITOR_VIEWPORT_SOFT_BEAM;
             return true;
@@ -1306,6 +1342,12 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_SOFT_NODE:
             state->selection = EDITOR_SELECTION_SOFT_NODE;
+            return true;
+        case EDITOR_VIEWPORT_SOFT_AREA:
+            state->selection = EDITOR_SELECTION_SOFT_AREA;
+            return true;
+        case EDITOR_VIEWPORT_SOFT_HOLE:
+            state->selection = EDITOR_SELECTION_SOFT_HOLE;
             return true;
         case EDITOR_VIEWPORT_SOFT_BEAM:
             state->selection = EDITOR_SELECTION_SOFT_BEAM;

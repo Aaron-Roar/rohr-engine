@@ -5308,7 +5308,8 @@ files, identifying the object, soft body, area, and loop. Hidden drafts also
 require completion or removal before generation. Deleting a referenced node
 removes dependent areas; undo restores their complete definitions.
 
-Fill picking respects holes, visibility, layer order, and body transforms. At
-this foundation stage it selects the owning soft body. The Areas accordion,
-node-selection box, hole editors, and CLI loop-authoring commands remain the
-next milestone goal.
+Fill picking respects holes, visibility, layer order, and body transforms.
+Open a soft body for its Areas accordion, then add or open an area to edit its
+ordered node loop and owned holes. The same operations are available through
+CLI selectors and undo/redo. See [Soft bodies](editor.md#soft-bodies) for the
+authoring workflow and commands.

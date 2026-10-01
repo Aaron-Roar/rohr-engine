@@ -74,7 +74,10 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_ANIMATION_FRAME_RENAME,
     EDITOR_COMMAND_ANIMATION_FRAME_PATH_SET,
     EDITOR_COMMAND_ANIMATION_FRAME_SCALE_SET,
-    EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET
+    EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
+    EDITOR_COMMAND_SOFT_AREA_LOOP_SET,
+    EDITOR_COMMAND_SOFT_AREA_ORDER_SET,
+    EDITOR_COMMAND_SOFT_AREA_LAYER_SET
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -96,7 +99,9 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_INPUT_BINDING,
     EDITOR_ITEM_SPRITE,
     EDITOR_ITEM_ANIMATED_SPRITE,
-    EDITOR_ITEM_ANIMATION_FRAME
+    EDITOR_ITEM_ANIMATION_FRAME,
+    EDITOR_ITEM_SOFT_AREA,
+    EDITOR_ITEM_SOFT_HOLE
 } EditorItemKind;
 
 typedef struct EditorInputControllerCommand {
@@ -259,7 +264,8 @@ typedef enum EditorVisibilityKind {
     EDITOR_VISIBILITY_SOFT_BODY,
     EDITOR_VISIBILITY_SOFT_NODE,
     EDITOR_VISIBILITY_SOFT_BEAM,
-    EDITOR_VISIBILITY_CAMERA
+    EDITOR_VISIBILITY_CAMERA,
+    EDITOR_VISIBILITY_SOFT_AREA
 } EditorVisibilityKind;
 
 typedef struct EditorCommand {
@@ -357,6 +363,18 @@ typedef struct EditorCommand {
             uint32_t item;
             bool visible;
         } visibility;
+        struct {
+            EditorObjectId object;
+            EditorSoftBodyId body;
+            EditorSoftAreaId area;
+            EditorSoftHoleId hole;
+            EditorSoftAreaLoop loop;
+        } soft_area_loop;
+        struct { EditorObjectId object; EditorSoftBodyId body;
+            EditorSoftAreaId area; uint32_t index; } soft_area_order;
+        struct { EditorObjectId object; EditorSoftBodyId body;
+            EditorSoftAreaId area; EditorGraphicsLayerBinding binding;
+            bool inherited; } soft_area_layer;
         EditorNavigationState navigation;
         EditorItemAddCommand item_add;
         EditorItemRemoveCommand item_remove;

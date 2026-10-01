@@ -612,6 +612,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                             visible = &body->beams[i].visible;
                     break;
                 }
+                case EDITOR_VISIBILITY_SOFT_AREA: {
+                    EditorSoftArea *area = editor_soft_area_get(editor_soft_body_get(object,
+                        command->data.visibility.parent), command->data.visibility.item);
+                    if(area != NULL) visible = &area->visible;
+                    break;
+                }
                 case EDITOR_VISIBILITY_CAMERA: {
                     EditorCamera *camera = editor_project_camera_get(object,
                         command->data.visibility.item);
@@ -622,6 +628,35 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             if(visible == NULL) return editor_command_not_found("visibility target",
                 command->data.visibility.item);
             *visible = command->data.visibility.visible;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_SOFT_AREA_LAYER_SET: {
+            EditorSoftArea *area = editor_soft_area_get(editor_soft_body_get(
+                editor_object_query_get(project, command->data.soft_area_layer.object),
+                command->data.soft_area_layer.body), command->data.soft_area_layer.area);
+            if(area == NULL || (command->data.soft_area_layer.binding.layer != 0 &&
+                    editor_project_graphics_layer_get(project, command->data.soft_area_layer.binding.layer) == NULL))
+                return editor_command_not_found("area or graphics layer", command->data.soft_area_layer.area);
+            area->graphics_layer = command->data.soft_area_layer.binding;
+            area->graphics_layer_inherited = command->data.soft_area_layer.inherited;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_SOFT_AREA_LOOP_SET: {
+            EditorSoftBody *body = editor_soft_body_get(editor_object_query_get(project,
+                command->data.soft_area_loop.object), command->data.soft_area_loop.body);
+            if(!editor_soft_area_loop_set(body, command->data.soft_area_loop.area,
+                    command->data.soft_area_loop.hole, command->data.soft_area_loop.loop))
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Area loop requires distinct nodes from the same soft body (maximum 64)").result.error);
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_SOFT_AREA_ORDER_SET: {
+            EditorSoftBody *body = editor_soft_body_get(editor_object_query_get(project,
+                command->data.soft_area_order.object), command->data.soft_area_order.body);
+            if(!editor_soft_area_order_set(body, command->data.soft_area_order.area,
+                    command->data.soft_area_order.index))
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Area order index is outside the body area list").result.error);
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         }
         case EDITOR_COMMAND_NAVIGATION_SET:
@@ -770,6 +805,19 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             } else if(kind == EDITOR_ITEM_CAMERA) {
                 EditorCamera *value = editor_project_camera_add(project, object);
                 if(value != NULL) { created = value->id; created_name = value->name; }
+            } else if(kind == EDITOR_ITEM_SOFT_AREA || kind == EDITOR_ITEM_SOFT_HOLE) {
+                EditorSoftBody *body = editor_soft_body_get(object, command->data.item_add.parent);
+                if(kind == EDITOR_ITEM_SOFT_AREA) {
+                    EditorSoftArea *area = editor_soft_area_add(body);
+                    if(area != NULL) { created = area->id; created_name = area->name; }
+                } else {
+                    EditorSoftArea *area = editor_soft_area_get(body, command->data.item_add.first);
+                    if(area != NULL && area->hole_count == SOFT_BODY_MAX_AREA_HOLES)
+                        return editor_command_error(editor_result_error(EDITOR_ERROR_CAPACITY,
+                            "Maximum soft-body area holes exceeded (maximum 16)").result.error);
+                    EditorSoftHole *hole = editor_soft_hole_add(area);
+                    if(hole != NULL) { created = hole->id; created_name = hole->name; }
+                }
             } else if(kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
                     command->data.item_add.parent);
@@ -804,6 +852,7 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         .parent = command->data.item_add.parent,
                         .item = created,
                         .index = kind == EDITOR_ITEM_VERTEX ? created :
+                            kind == EDITOR_ITEM_SOFT_HOLE ? command->data.item_add.first :
                             command->data.item_add.index}};
                 EditorCommandResult renamed;
                 if(kind == EDITOR_ITEM_VERTEX || kind == EDITOR_ITEM_LINE)
@@ -895,6 +944,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     command->data.item_remove.parent);
                 removed = editor_project_soft_node_remove(project, body,
                     command->data.item_remove.item);
+            } else if(kind == EDITOR_ITEM_SOFT_AREA || kind == EDITOR_ITEM_SOFT_HOLE) {
+                EditorSoftBody *body = editor_soft_body_get(object, command->data.item_remove.parent);
+                removed = kind == EDITOR_ITEM_SOFT_AREA ?
+                    editor_soft_area_remove(body, command->data.item_remove.item) :
+                    editor_soft_hole_remove(editor_soft_area_get(body, command->data.item_remove.index),
+                        command->data.item_remove.item);
             } else if(kind == EDITOR_ITEM_SOFT_BEAM) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
                     command->data.item_remove.parent);
@@ -979,6 +1034,15 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 EditorCamera *value = editor_project_camera_get(object,
                     command->data.item_rename.item);
                 if(value != NULL) name = value->name;
+            } else if(kind == EDITOR_ITEM_SOFT_AREA || kind == EDITOR_ITEM_SOFT_HOLE) {
+                EditorSoftBody *body = editor_soft_body_get(object, command->data.item_rename.parent);
+                EditorSoftArea *area = editor_soft_area_get(body, kind == EDITOR_ITEM_SOFT_AREA ?
+                    command->data.item_rename.item : command->data.item_rename.index);
+                if(kind == EDITOR_ITEM_SOFT_AREA && area != NULL) name = area->name;
+                else {
+                    EditorSoftHole *hole = editor_soft_hole_get(area, command->data.item_rename.item);
+                    if(hole != NULL) name = hole->name;
+                }
             } else if(kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object,
                     command->data.item_rename.parent);
@@ -1218,6 +1282,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value.boolean);
                 if(!success) goto property_invalid;
                 editor_project_anchor_constraints_apply(object, anchor->id);
+            } else if(set->kind == EDITOR_ITEM_SOFT_AREA) {
+                EditorSoftArea *area = editor_soft_area_get(editor_soft_body_get(object, set->parent), set->item);
+                if(area == NULL) return editor_command_not_found("soft area", set->item);
+                if(set->property != EDITOR_PROPERTY_COLOR || set->value_kind != EDITOR_PROPERTY_VALUE_UINT)
+                    goto property_invalid;
+                area->color = set->value.integer;
             } else if(set->kind == EDITOR_ITEM_SOFT_NODE) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftNode *node = editor_command_soft_node_get(body, set->item);

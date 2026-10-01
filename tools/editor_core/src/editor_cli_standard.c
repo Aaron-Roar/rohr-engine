@@ -5,6 +5,7 @@
 #include "editor_command.h"
 
 #include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -480,6 +481,10 @@ full:
 #undef INPUT_ADD
 }
 
+static EditorResult cli_area_command_write(const EditorProject *project, const EditorCommand *command,
+    const EditorCommandResult *result, const char *path,
+    char *output, size_t capacity, bool *handled);
+
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
@@ -487,6 +492,8 @@ EditorResult editor_command_cli_standard_write(const EditorProject *project,
     size_t count, at = 4, used = 0;
     const char *property;
     bool handled = false;
+    EditorResult area_result = cli_area_command_write(project, command, result, path, output, capacity, &handled);
+    if(handled) return area_result;
     EditorResult input = cli_input_command_write(project, command, result, path,
         output, capacity, &handled);
     if(handled) return input;
@@ -1066,6 +1073,247 @@ invalid_selector:
         "input selector ID or binding index must be an unsigned integer");
 }
 
+typedef struct AreaCliSelector { const char *value; bool id; } AreaCliSelector;
+static bool area_cli_match(AreaCliSelector selector, const char *name, uint32_t id) {
+    uint32_t parsed;
+    return selector.value != NULL && (selector.id ?
+        cli_input_uint_parse(selector.value, &parsed) && parsed == id : strcmp(selector.value, name) == 0);
+}
+static EditorResult cli_area_command_parse(const EditorProject *project,
+        int count, char **arguments, const char **path, EditorCommand *command, bool *handled) {
+    *handled = false;
+    for(int i = 1; i < count; i += 1)
+        if(strcmp(arguments[i], "--area") == 0 || strcmp(arguments[i], "--area-id") == 0 ||
+                strcmp(arguments[i], "--hole") == 0 || strcmp(arguments[i], "--hole-id") == 0) *handled = true;
+    if(!*handled) return editor_result_value(false);
+    if(project == NULL || path == NULL || command == NULL)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Area command requires a project and output");
+    AreaCliSelector object_s = {0}, body_s = {0}, area_s = {0}, hole_s = {0};
+    int operation = -1;
+    *path = NULL;
+    for(int i = 1; i < count; i += 1) {
+        const char *flag = arguments[i];
+        if(strcmp(flag, "add") == 0 || strcmp(flag, "delete") == 0 ||
+                strcmp(flag, "rename") == 0 || strcmp(flag, "--property") == 0) { operation = i; break; }
+        if(i + 1 >= count) goto invalid;
+        const char *value = arguments[++i];
+        if(strcmp(flag, "--project") == 0) { *path = value; continue; }
+        AreaCliSelector *selector = NULL;
+        if(strcmp(flag, "--object") == 0 || strcmp(flag, "--object-id") == 0) selector = &object_s;
+        else if(strcmp(flag, "--soft-body") == 0 || strcmp(flag, "--soft-body-id") == 0) selector = &body_s;
+        else if(strcmp(flag, "--area") == 0 || strcmp(flag, "--area-id") == 0) selector = &area_s;
+        else if(strcmp(flag, "--hole") == 0 || strcmp(flag, "--hole-id") == 0) selector = &hole_s;
+        if(selector == NULL || selector->value != NULL) goto invalid;
+        *selector = (AreaCliSelector){value, strstr(flag, "-id") != NULL};
+    }
+    if(operation < 0 || *path == NULL || object_s.value == NULL || body_s.value == NULL || area_s.value == NULL) goto invalid;
+    const EditorObject *object = NULL; const EditorSoftBody *body = NULL;
+    const EditorSoftArea *area = NULL; const EditorSoftHole *hole = NULL;
+    size_t matches = 0;
+    for(size_t i = 0; i < project->object_count; i += 1)
+        if(area_cli_match(object_s, project->objects[i].name, project->objects[i].id)) { object = &project->objects[i]; matches++; }
+    if(matches != 1) goto missing;
+    matches = 0;
+    for(size_t i = 0; i < object->soft_body_count; i += 1)
+        if(area_cli_match(body_s, object->soft_body_items[i].name, object->soft_body_items[i].id)) { body = &object->soft_body_items[i]; matches++; }
+    if(matches != 1) goto missing;
+    matches = 0;
+    for(size_t i = 0; i < body->area_count; i += 1)
+        if(area_cli_match(area_s, body->areas[i].name, body->areas[i].id)) { area = &body->areas[i]; matches++; }
+    bool add = strcmp(arguments[operation], "add") == 0;
+    bool is_hole = hole_s.value != NULL;
+    if(add && !is_hole) {
+        if(operation + 1 != count || area_s.id || matches != 0) goto invalid;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+            .data.item_add = {.kind = EDITOR_ITEM_SOFT_AREA, .object = object->id, .parent = body->id}};
+        snprintf(command->data.item_add.name, sizeof(command->data.item_add.name), "%s", area_s.value);
+        return editor_result_value(true);
+    }
+    if(matches != 1) goto missing;
+    matches = 0;
+    if(is_hole) for(uint32_t i = 0; i < area->hole_count; i += 1)
+        if(area_cli_match(hole_s, area->holes[i].name, area->holes[i].id)) { hole = &area->holes[i]; matches++; }
+    if(add) {
+        if(operation + 1 != count || hole_s.id || matches != 0) goto invalid;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+            .data.item_add = {.kind = EDITOR_ITEM_SOFT_HOLE, .object = object->id,
+                .parent = body->id, .first = area->id}};
+        snprintf(command->data.item_add.name, sizeof(command->data.item_add.name), "%s", hole_s.value);
+        return editor_result_value(true);
+    }
+    if(is_hole && matches != 1) goto missing;
+    EditorItemKind kind = is_hole ? EDITOR_ITEM_SOFT_HOLE : EDITOR_ITEM_SOFT_AREA;
+    uint32_t item = is_hole ? hole->id : area->id;
+    if(strcmp(arguments[operation], "delete") == 0 && operation + 1 == count) {
+        *command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_REMOVE,
+            .data.item_remove = {kind, object->id, body->id, item, is_hole ? area->id : 0}};
+        return editor_result_value(true);
+    }
+    if(strcmp(arguments[operation], "rename") == 0 && operation + 2 == count) {
+        *command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_RENAME,
+            .data.item_rename = {.kind = kind, .object = object->id, .parent = body->id,
+                .item = item, .index = is_hole ? area->id : 0}};
+        snprintf(command->data.item_rename.name, sizeof(command->data.item_rename.name), "%s", arguments[operation + 1]);
+        return editor_result_value(true);
+    }
+    if(strcmp(arguments[operation], "--property") != 0 || operation + 1 >= count) goto invalid;
+    const char *property = arguments[operation + 1];
+    int at = operation + 2;
+    if(strcmp(property, "nodes") == 0 || strcmp(property, "node-ids") == 0) {
+        if(count - at > SOFT_BODY_MAX_NODES) goto invalid;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_AREA_LOOP_SET,
+            .data.soft_area_loop = {.object = object->id, .body = body->id, .area = area->id,
+                .hole = is_hole ? hole->id : 0}};
+        for(int i = at; i < count; i += 1) {
+            uint32_t node = 0; size_t found = 0;
+            AreaCliSelector selector = {arguments[i], strcmp(property, "node-ids") == 0};
+            for(size_t n = 0; n < body->node_count; n += 1)
+                if(area_cli_match(selector, body->nodes[n].name, body->nodes[n].id)) { node = body->nodes[n].id; found++; }
+            if(found != 1) goto missing;
+            command->data.soft_area_loop.loop.nodes[command->data.soft_area_loop.loop.node_count++] = node;
+        }
+        return editor_result_value(true);
+    }
+    if(is_hole || at + 1 != count) goto invalid;
+    const char *value = arguments[at]; uint32_t number;
+    if(strcmp(property, "order") == 0 && cli_input_uint_parse(value, &number)) {
+        *command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_AREA_ORDER_SET,
+            .data.soft_area_order = {object->id, body->id, area->id, number}};
+        return editor_result_value(true);
+    }
+    if(strcmp(property, "color") == 0) {
+        char *end; errno = 0; unsigned long parsed = strtoul(value, &end, 16);
+        if(value[0] == '\0' || *end != '\0' || errno != 0 || parsed > UINT32_MAX) goto invalid;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_PROPERTY_SET,
+            .data.property_set = {EDITOR_ITEM_SOFT_AREA, object->id, body->id, area->id, 0,
+                EDITOR_PROPERTY_COLOR, EDITOR_PROPERTY_VALUE_UINT, {.integer = (uint32_t)parsed}}};
+        return editor_result_value(true);
+    }
+    if(strcmp(property, "visibility") == 0) {
+        bool visible; if(!cli_input_bool_parse(value, &visible)) goto invalid;
+        *command = (EditorCommand){.type = EDITOR_COMMAND_VISIBILITY,
+            .data.visibility = {EDITOR_VISIBILITY_SOFT_AREA, object->id, body->id, area->id, visible}};
+        return editor_result_value(true);
+    }
+    if(strcmp(property, "layer") == 0 || strcmp(property, "layer-id") == 0) {
+        EditorGraphicsLayerBinding binding = {0}; bool inherited = strcmp(value, "inherit") == 0;
+        if(!inherited && strcmp(property, "layer-id") == 0) {
+            if(!cli_input_uint_parse(value, &binding.layer) || binding.layer == 0) goto invalid;
+        } else if(!inherited) {
+            char *end; errno = 0; long parsed = strtol(value, &end, 10);
+            if(value[0] == '\0' || *end != '\0' || errno != 0 || parsed < INT_MIN || parsed > INT_MAX) goto invalid;
+            binding.value = (int)parsed;
+        }
+        *command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_AREA_LAYER_SET,
+            .data.soft_area_layer = {object->id, body->id, area->id, binding, inherited}};
+        return editor_result_value(true);
+    }
+invalid:
+    return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Area/hole syntax: --object <name> --soft-body <name> --area <name> [--hole <name>] "
+        "add|delete|rename <name>|--property nodes|node-ids|color|visibility|layer|layer-id|order <values>");
+missing:
+    return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+        "Area command selector is missing or ambiguous; use explicit --object-id, --soft-body-id, --area-id, --hole-id, or node-ids");
+}
+
+static EditorResult cli_area_command_write(const EditorProject *project, const EditorCommand *command,
+    const EditorCommandResult *result, const char *path,
+        char *output, size_t capacity, bool *handled) {
+    EditorObjectId object = 0; EditorSoftBodyId body = 0; EditorSoftAreaId area = 0;
+    EditorSoftHoleId hole = 0; bool add = false;
+    const char *operation = "--property", *property = NULL, *value = NULL, *name = NULL;
+    char number[32]; size_t used = 0;
+    *handled = true;
+    switch(command->type) {
+    case EDITOR_COMMAND_SOFT_AREA_LOOP_SET:
+        object = command->data.soft_area_loop.object; body = command->data.soft_area_loop.body;
+        area = command->data.soft_area_loop.area; hole = command->data.soft_area_loop.hole;
+        property = "node-ids"; break;
+    case EDITOR_COMMAND_SOFT_AREA_ORDER_SET:
+        object = command->data.soft_area_order.object; body = command->data.soft_area_order.body;
+        area = command->data.soft_area_order.area; property = "order";
+        snprintf(number, sizeof(number), "%u", command->data.soft_area_order.index); value = number; break;
+    case EDITOR_COMMAND_SOFT_AREA_LAYER_SET:
+        object = command->data.soft_area_layer.object; body = command->data.soft_area_layer.body;
+        area = command->data.soft_area_layer.area;
+        property = command->data.soft_area_layer.binding.layer == 0 ? "layer" : "layer-id";
+        if(command->data.soft_area_layer.inherited) { property = "layer"; value = "inherit"; }
+        else {
+            if(command->data.soft_area_layer.binding.layer == 0)
+                snprintf(number, sizeof(number), "%d", command->data.soft_area_layer.binding.value);
+            else snprintf(number, sizeof(number), "%u", command->data.soft_area_layer.binding.layer);
+            value = number;
+        } break;
+    case EDITOR_COMMAND_ITEM_ADD:
+        if(command->data.item_add.kind != EDITOR_ITEM_SOFT_AREA && command->data.item_add.kind != EDITOR_ITEM_SOFT_HOLE) goto unhandled;
+        object = command->data.item_add.object; body = command->data.item_add.parent;
+        area = command->data.item_add.first; hole = command->data.item_add.kind == EDITOR_ITEM_SOFT_HOLE;
+        operation = "add"; add = true; name = command->data.item_add.name;
+        if(name[0] == '\0' && result != NULL && result->kind == ERROR_RESULT_VALUE) {
+            const EditorObject *owner = NULL;
+            for(size_t i = 0; i < project->object_count; i += 1)
+                if(project->objects[i].id == object) owner = &project->objects[i];
+            if(owner != NULL) for(size_t b = 0; b < owner->soft_body_count; b += 1)
+                if(owner->soft_body_items[b].id == body)
+                    for(size_t a = 0; a < owner->soft_body_items[b].area_count; a += 1) {
+                        const EditorSoftArea *candidate = &owner->soft_body_items[b].areas[a];
+                        if(!hole && candidate->id == result->result.object) name = candidate->name;
+                        if(hole && candidate->id == area)
+                            for(uint32_t h = 0; h < candidate->hole_count; h += 1)
+                                if(candidate->holes[h].id == result->result.object) name = candidate->holes[h].name;
+                    }
+        }
+        if(name[0] == '\0') goto full;
+        break;
+    case EDITOR_COMMAND_ITEM_REMOVE:
+        if(command->data.item_remove.kind != EDITOR_ITEM_SOFT_AREA && command->data.item_remove.kind != EDITOR_ITEM_SOFT_HOLE) goto unhandled;
+        object = command->data.item_remove.object; body = command->data.item_remove.parent;
+        hole = command->data.item_remove.kind == EDITOR_ITEM_SOFT_HOLE ? command->data.item_remove.item : 0;
+        area = hole ? command->data.item_remove.index : command->data.item_remove.item;
+        operation = "delete"; break;
+    case EDITOR_COMMAND_ITEM_RENAME:
+        if(command->data.item_rename.kind != EDITOR_ITEM_SOFT_AREA && command->data.item_rename.kind != EDITOR_ITEM_SOFT_HOLE) goto unhandled;
+        object = command->data.item_rename.object; body = command->data.item_rename.parent;
+        hole = command->data.item_rename.kind == EDITOR_ITEM_SOFT_HOLE ? command->data.item_rename.item : 0;
+        area = hole ? command->data.item_rename.index : command->data.item_rename.item;
+        operation = "rename"; value = command->data.item_rename.name; break;
+    case EDITOR_COMMAND_VISIBILITY:
+        if(command->data.visibility.kind != EDITOR_VISIBILITY_SOFT_AREA) goto unhandled;
+        object = command->data.visibility.object; body = command->data.visibility.parent;
+        area = command->data.visibility.item; property = "visibility";
+        value = command->data.visibility.visible ? "true" : "false"; break;
+    case EDITOR_COMMAND_PROPERTY_SET:
+        if(command->data.property_set.kind != EDITOR_ITEM_SOFT_AREA) goto unhandled;
+        object = command->data.property_set.object; body = command->data.property_set.parent;
+        area = command->data.property_set.item; property = "color";
+        snprintf(number, sizeof(number), "%08x", command->data.property_set.value.integer); value = number; break;
+    default: goto unhandled;
+    }
+    output[0] = '\0';
+#define AREA_ADD(v) do { if(!cli_token_add(output, capacity, &used, v)) goto full; } while(0)
+#define AREA_ID(flag, id) do { char buffer[32]; snprintf(buffer, sizeof(buffer), "%u", id); AREA_ADD(flag); AREA_ADD(buffer); } while(0)
+    AREA_ADD("rohr-cli"); AREA_ADD("--project"); AREA_ADD(path);
+    AREA_ID("--object-id", object); AREA_ID("--soft-body-id", body);
+    if(add && !hole) { AREA_ADD("--area"); AREA_ADD(name); }
+    else { AREA_ID("--area-id", area); }
+    if(hole) { if(add) { AREA_ADD("--hole"); AREA_ADD(name); } else { AREA_ID("--hole-id", hole); } }
+    AREA_ADD(operation);
+    if(property != NULL) AREA_ADD(property);
+    if(value != NULL) AREA_ADD(value);
+    if(command->type == EDITOR_COMMAND_SOFT_AREA_LOOP_SET)
+        for(uint32_t i = 0; i < command->data.soft_area_loop.loop.node_count; i += 1) {
+            char buffer[32]; snprintf(buffer, sizeof(buffer), "%u", command->data.soft_area_loop.loop.nodes[i]); AREA_ADD(buffer);
+        }
+#undef AREA_ADD
+#undef AREA_ID
+    return editor_result_value(true);
+unhandled:
+    *handled = false; return editor_result_value(false);
+full:
+    return editor_result_error(EDITOR_ERROR_CAPACITY, "Area command exceeds output capacity");
+}
+
 EditorResult editor_command_cli_standard_parse(const EditorProject *project,
         int count, char **arguments, const char **path, EditorCommand *command) {
     CliInput input;
@@ -1075,6 +1323,8 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
     const char *property = NULL;
     const char *domain;
     bool input_handled = false;
+    EditorResult area_result = cli_area_command_parse(project, count, arguments, path, command, &input_handled);
+    if(input_handled) return area_result;
     EditorResult input_result = cli_input_command_parse(project, count, arguments,
         path, command, &input_handled);
     if(input_handled) return input_result;

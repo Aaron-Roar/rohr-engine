@@ -61,8 +61,12 @@ static bool areas_check(void) {
     hole->loop.node_count = 2;
     CHECK(!editor_soft_area_fill_get(body, area).complete);
     CHECK(!editor_soft_area_point_check(body, area, (Position){50,0}));
+    project.navigation = (EditorNavigationState){.mode = EDITOR_NAVIGATION_MODE_MAX,
+        .selection = EDITOR_NAVIGATION_SELECTION_MAX, .object = object->id,
+        .soft_body = body->id, .soft_area = area->id, .soft_hole = hole->id};
     CHECK(editor_project_save(&project, "editor_soft_areas.json"));
     CHECK(!editor_result_check(editor_project_load(&loaded, "editor_soft_areas.json")));
+    CHECK(loaded.navigation.soft_area == area->id && loaded.navigation.soft_hole == hole->id);
     EditorSoftArea *saved = &loaded.objects[0].soft_body_items[0].areas[0];
     CHECK(saved->id == area->id && saved->holes[0].id == hole->id &&
         saved->holes[0].loop.node_count == 2 && saved->color == area->color &&
@@ -120,4 +124,77 @@ static bool areas_check(void) {
     CHECK(SDL_RemovePath("editor_soft_areas.json"));
     return true;
 }
-int main(void) { return areas_check() ? 0 : 1; }
+
+static bool authoring_check(void) {
+    EditorProject project;
+    editor_project_init(&project);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    CHECK(object != NULL);
+    snprintf(object->name, sizeof(object->name), "cloth");
+    EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_SOFT_BODY, .object = object->id, .name = "fabric"}};
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    EditorSoftBody *body = &object->soft_body_items[0];
+    const char *operations[] = {
+        "--area patch add",
+        "--area patch --property nodes node_1 node_2 node_3 node_4",
+        "--area patch --property color aa227780",
+        "--area patch --property visibility false",
+        "--area patch --property layer -3",
+        "--area patch --property order 0",
+        "--area patch --hole window add",
+        "--area patch --hole window --property nodes node_1 node_2 node_3",
+        "--area patch --hole window rename opening",
+        "--area patch --hole opening --property node-ids",
+        "--area patch --hole opening delete",
+        "--area patch rename painted",
+    };
+    for(size_t i = 0; i < sizeof(operations) / sizeof(operations[0]); i += 1) {
+        char text[2048]; char *argv[100]; int argc = 0; const char *path;
+        snprintf(text, sizeof(text), "rohr-cli --project areas.json --object cloth --soft-body fabric %s", operations[i]);
+        for(char *token = strtok(text, " "); token != NULL; token = strtok(NULL, " ")) argv[argc++] = token;
+        EditorResult parsed = editor_command_cli_standard_parse(&project, argc, argv, &path, &command);
+        if(editor_result_check(parsed)) fprintf(stderr, "%s: %s\n", operations[i], parsed.result.error.message);
+        CHECK(!editor_result_check(parsed));
+        /* Serialize before mutation and replay the same shared command. */
+        char written[2048]; EditorCommand replay;
+        CHECK(!editor_result_check(editor_command_cli_standard_write(&project, &command, NULL,
+            "areas.json", written, sizeof(written))));
+        argc = 0;
+        for(char *token = strtok(written, " "); token != NULL; token = strtok(NULL, " ")) argv[argc++] = token;
+        CHECK(!editor_result_check(editor_command_cli_standard_parse(&project, argc, argv, &path, &replay)));
+        CHECK(replay.type == command.type);
+        CHECK(editor_command_execute(&project, &replay).kind == ERROR_RESULT_VALUE);
+    }
+    CHECK(body->area_count == 2);
+    EditorSoftArea *area = &body->areas[0];
+    CHECK(strcmp(area->name, "painted") == 0 && area->hole_count == 0);
+    CHECK(area->color == UINT32_C(0xaa227780) && !area->visible && area->graphics_layer.value == -3);
+    CHECK(!area->graphics_layer_inherited && area->outer.node_count == 4);
+    command = (EditorCommand){.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {.kind = EDITOR_ITEM_SOFT_AREA, .object = object->id,
+            .parent = body->id, .item = area->id, .property = EDITOR_PROPERTY_COLOR,
+            .value_kind = EDITOR_PROPERTY_VALUE_BOOL, .value.boolean = true}};
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_ERROR);
+    CHECK(area->color == UINT32_C(0xaa227780));
+    EditorSoftAreaLoop previous = area->outer;
+    command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_AREA_LOOP_SET,
+        .data.soft_area_loop = {object->id, body->id, area->id, 0,
+            {.node_count = 3, .nodes = {previous.nodes[0],previous.nodes[0],previous.nodes[1]}}}};
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_ERROR);
+    CHECK(memcmp(&previous, &area->outer, sizeof(previous)) == 0);
+    command.data.soft_area_loop.loop.nodes[1] = UINT32_MAX;
+    CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_ERROR);
+    CHECK(memcmp(&previous, &area->outer, sizeof(previous)) == 0);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_SOFT_HOLE, .object = object->id,
+            .parent = body->id, .first = area->id}};
+    for(size_t i = 0; i < 16; i += 1)
+        CHECK(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    EditorCommandResult result = editor_command_execute(&project, &command);
+    CHECK(result.kind == ERROR_RESULT_ERROR && strstr(result.result.error.message, "maximum 16") != NULL);
+    CHECK(area->hole_count == 16);
+    editor_project_destroy(&project);
+    return true;
+}
+int main(void) { return areas_check() && authoring_check() ? 0 : 1; }

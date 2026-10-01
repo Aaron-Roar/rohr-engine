@@ -468,10 +468,50 @@ or disable it when no thickness is valid; growing a node does not grow or
 re-enable an existing beam. Collision, thickness, and both filter masks remain
 individually editable in the beam panel.
 
-Soft-body area fills are temporarily unavailable while the node-loop area system
-is built. The beam-derived area model, area panels and selectors, and area color
-controls have been removed. Editor-authored and generated soft bodies display
-nodes and beams only. Beam collision and node physics are unchanged.
+Open a soft body to find the **Areas** accordion. **Add Area** creates a draft
+and opens its editor. Single-click an area row to select it; double-click to
+open it. Areas have their own name, visibility, color, and layer. Drag area rows
+to reorder them: later entries draw above earlier entries on the same layer.
+
+In the area editor, click the box beneath **Select nodes to define area** to
+start picking nodes in the viewport. Click order defines the boundary; the last
+node closes back to the first automatically. Clicking an included node removes
+it; selecting it again appends it. The numbered list provides **Up**, **Down**,
+and **X** controls for reordering or removing members without deleting nodes.
+Click the box again or press Escape to stop picking. Outside picking, a node
+click opens its normal editor and preserves the area definition.
+
+**Add Hole** creates an owned hole and opens its editor, which uses the same
+node-picking controls. Holes subtract only from their parent area, even when
+partly outside it; they have no independent color, visibility, or layer. An area
+supports at most 16 holes, including drafts. Areas can share nodes and need no
+boundary beams. The normal soft-body wheel example uses one outer tire loop
+and an inner hub hole.
+
+Drafts save and reload normally. If any loop is incomplete, the area shows
+boundaries and node markers without a fill; generation reports the affected
+object, body, area, and loop before replacing generated files. Finish or remove
+drafts before building. Deleting a referenced node removes dependent areas;
+undo restores them. Loop edits, appearance changes, row reordering, creation,
+and deletion use the shared undo/redo history.
+
+The selector-first CLI uses the same commands. Names can be replaced with
+`--object-id`, `--soft-body-id`, `--area-id`, and `--hole-id` selectors:
+
+```sh
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch add
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch --property nodes node_1 node_2 node_3 node_4
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch --property color 4488ccff
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch --property layer 3
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch --hole window add
+rohr-cli --project project.rohr.json --object cloth --soft-body fabric --area patch --hole window --property nodes node_5 node_6 node_7 node_8
+```
+
+Use `--property node-ids` for ordered numeric node IDs; an empty list clears a
+loop to a draft. Other area properties are `visibility true|false`,
+`layer inherit`, `layer-id <id>`, and `order <zero-based index>`. Areas and holes
+both support `rename <name>` and `delete`. Invalid references or duplicate nodes
+reject the edit and preserve the previous definition.
 
 Nodes and beams may override their parent colors. **Inherit** disables the local
 color control and follows the soft-body color.

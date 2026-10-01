@@ -6,11 +6,13 @@
 #define EDITOR_SOFT_BODY_H
 
 #include "editors/editor_mode_context.h"
+#include "editor_soft_area.h"
 #include "editors/editor_mode_controls.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
 
 typedef struct EditorSoftBodyEditor {
     FontAsset *font;
+    EditorSoftAreaEditor areas;
     TextAsset name_label, x_label, y_label, rotation_label;
     TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
     TextAsset acceleration_y_label, angular_velocity_label;

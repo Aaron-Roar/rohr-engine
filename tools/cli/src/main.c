@@ -78,6 +78,11 @@ static const CliHelpDomain cli_help_domains[] = {
     {"--beam", "soft-body beam", "stiffness <number>, damping <number>, "
         "color <hex>, visibility <true|false>, node-a <node|none>, node-b <node|none>",
         "--soft-body cloth --beam edge_1 --property damping 0.2", 2},
+    {"--area", "soft-body area", "nodes <ordered names...>, node-ids <ordered ids...>, "
+        "color <rrggbbaa>, visibility <true|false>, layer <number|inherit>, layer-id <id>, order <zero-based index>",
+        "--object cloth --soft-body fabric --area patch --property nodes top_left top_right bottom_right bottom_left", 2},
+    {"--hole", "soft-body area hole", "nodes <ordered names...>, node-ids <ordered ids...> (maximum 16 holes per area)",
+        "--object cloth --soft-body fabric --area patch --hole window add", 3},
     {"--vertex", "hitbox vertex", "position <x> <y>, position-locked <true|false>",
         "--body chassis --vertex vertex_1 --property position 4 8", 3},
     {"--line", "hitbox line", "length <number>",
@@ -154,7 +159,7 @@ static void cli_help_print(int count, char **arguments) {
     if(domain == NULL) {
         puts("\nSelectors:\n"
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
-            "  --node, --beam, --vertex, --line, --sprite,\n"
+            "  --node, --beam, --area, --hole, --vertex, --line, --sprite,\n"
             "  --animated-sprite, --frame-index, --controller, --action,\n"
             "  --binding, --binding-index\n"
             "  Every named selector also accepts its -id form.");

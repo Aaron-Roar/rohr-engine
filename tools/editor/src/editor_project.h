@@ -33,8 +33,8 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 7 removes beam-derived areas and their editor navigation kinds. */
 #define EDITOR_PROJECT_FORMAT_VERSION 7
-#define EDITOR_NAVIGATION_MODE_MAX 28
-#define EDITOR_NAVIGATION_SELECTION_MAX 25
+#define EDITOR_NAVIGATION_MODE_MAX 30
+#define EDITOR_NAVIGATION_SELECTION_MAX 27
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -595,6 +595,8 @@ typedef struct EditorNavigationState {
     EditorSoftBodyId soft_body;
     EditorSoftNodeId soft_node;
     EditorSoftBeamId soft_beam;
+    EditorSoftAreaId soft_area;
+    EditorSoftHoleId soft_hole;
     EditorSpriteId sprite;
     EditorAnimatedSpriteId animated_sprite;
     EditorCameraId camera;

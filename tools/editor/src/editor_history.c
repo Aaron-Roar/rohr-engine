@@ -352,7 +352,8 @@ static EditorHistoryAggregateChange *editor_history_aggregate_capture(
         item = parent;
         value = body;
         size = sizeof(*body);
-    } else if(kind == EDITOR_ITEM_SOFT_NODE || kind == EDITOR_ITEM_SOFT_BEAM) {
+    } else if(kind == EDITOR_ITEM_SOFT_NODE || kind == EDITOR_ITEM_SOFT_BEAM ||
+            kind == EDITOR_ITEM_SOFT_AREA || kind == EDITOR_ITEM_SOFT_HOLE) {
         EditorSoftBody *body = editor_history_soft_body_get(object, parent);
         if(body == NULL) return NULL;
         aggregate_kind = EDITOR_HISTORY_AGGREGATE_SOFT_BODY;
@@ -406,6 +407,20 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
     uint32_t parent;
     if(project == NULL || command == NULL) return NULL;
     switch(command->type) {
+        case EDITOR_COMMAND_VISIBILITY:
+            if(command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_AREA)
+                return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
+                    command->data.visibility.object, command->data.visibility.parent);
+            return NULL;
+        case EDITOR_COMMAND_SOFT_AREA_LAYER_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
+                command->data.soft_area_layer.object, command->data.soft_area_layer.body);
+        case EDITOR_COMMAND_SOFT_AREA_LOOP_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
+                command->data.soft_area_loop.object, command->data.soft_area_loop.body);
+        case EDITOR_COMMAND_SOFT_AREA_ORDER_SET:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
+                command->data.soft_area_order.object, command->data.soft_area_order.body);
         case EDITOR_COMMAND_CAMERA_TRANSFORM:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT,
                 command->data.camera_transform.object, 0);

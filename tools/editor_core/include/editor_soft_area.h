@@ -15,6 +15,14 @@ typedef struct EditorSoftAreaFill {
     uint32_t incomplete_loop; /* zero is outer; holes are one-based */
 } EditorSoftAreaFill;
 
+EditorSoftBody *editor_soft_body_get(EditorObject *object, EditorSoftBodyId id);
+EditorSoftArea *editor_soft_area_get(EditorSoftBody *body, EditorSoftAreaId id);
+EditorSoftHole *editor_soft_hole_get(EditorSoftArea *area, EditorSoftHoleId id);
+bool editor_soft_hole_remove(EditorSoftArea *area, EditorSoftHoleId id);
+bool editor_soft_area_loop_set(EditorSoftBody *body, EditorSoftAreaId area,
+    EditorSoftHoleId hole, EditorSoftAreaLoop loop);
+bool editor_soft_area_order_set(EditorSoftBody *body, EditorSoftAreaId area,
+    size_t index);
 EditorSoftArea *editor_soft_area_add(EditorSoftBody *body);
 EditorSoftHole *editor_soft_hole_add(EditorSoftArea *area);
 void editor_soft_area_cache_destroy(EditorSoftArea *area);

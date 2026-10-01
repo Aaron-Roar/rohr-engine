@@ -50,6 +50,7 @@
 #include "editors/object/editor_hierarchy.h"
 #include "editors/layout/editor_layout_viewport.h"
 #include "editors/soft_body/editor_soft_beam.h"
+#include <editor_soft_area.h>
 #include "editors/soft_body/editor_soft_node.h"
 #include "editors/soft_body/editor_soft_body.h"
 #include "viewport/controls/editor_coordinate_toggle.h"
@@ -706,6 +707,8 @@ static EditorNavigationState editor_navigation_state_get(
         .soft_body = state->selected_soft_body,
         .soft_node = state->selected_soft_node,
         .soft_beam = state->selected_soft_beam,
+        .soft_area = state->selected_soft_area,
+        .soft_hole = state->selected_soft_hole,
         .sprite = state->selected_sprite,
         .animated_sprite = state->selected_animated_sprite,
         .camera = state->selected_camera_entity,
@@ -732,6 +735,9 @@ static void editor_navigation_state_apply(EditorProject *project,
     state->selected_soft_body = navigation->soft_body;
     state->selected_soft_node = navigation->soft_node;
     state->selected_soft_beam = navigation->soft_beam;
+    state->selected_soft_area = navigation->soft_area;
+    state->selected_soft_hole = navigation->soft_hole;
+    state->soft_area_picking = false;
     state->selected_sprite = navigation->sprite;
     state->selected_animated_sprite = navigation->animated_sprite;
     state->selected_camera_entity = navigation->camera;
@@ -953,6 +959,14 @@ static float editor_panel_content_height_get(const EditorProject *project,
             state->mode == EDITOR_VIEWPORT_SPRITE)
         return height + (state->mode == EDITOR_VIEWPORT_PARTICLE ? 122.0f : 86.0f);
 
+    if(state->mode == EDITOR_VIEWPORT_SOFT_AREA || state->mode == EDITOR_VIEWPORT_SOFT_HOLE) {
+        EditorSoftBody *soft = editor_soft_body_get((EditorObject *)object, state->selected_soft_body);
+        EditorSoftArea *area = editor_soft_area_get(soft, state->selected_soft_area);
+        EditorSoftHole *hole = editor_soft_hole_get(area, state->selected_soft_hole);
+        if(area == NULL) return height;
+        size_t nodes = state->mode == EDITOR_VIEWPORT_SOFT_HOLE && hole != NULL ? hole->loop.node_count : area->outer.node_count;
+        return 450.0f + nodes * 30.0f + (state->mode == EDITOR_VIEWPORT_SOFT_AREA ? area->hole_count * 30.0f : 0);
+    }
     if(state->mode == EDITOR_VIEWPORT_SOFT_NODE) return height + 124.0f;
     if(state->mode == EDITOR_VIEWPORT_SOFT_BEAM)
         return height + 232.0f +
@@ -980,6 +994,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_LINE || mode == EDITOR_VIEWPORT_JOINT ||
         mode == EDITOR_VIEWPORT_ANCHOR || mode == EDITOR_VIEWPORT_SOFT_BODY ||
         mode == EDITOR_VIEWPORT_SOFT_NODE || mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+        mode == EDITOR_VIEWPORT_SOFT_AREA || mode == EDITOR_VIEWPORT_SOFT_HOLE ||
         mode == EDITOR_VIEWPORT_SPRITE ||
         mode == EDITOR_VIEWPORT_CAMERA_ENTITY ||
         mode == EDITOR_VIEWPORT_ANIMATED_SPRITE ||
@@ -996,7 +1011,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_INPUT_BINDING;
 }
 
-#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_INPUT_BINDING + 1)
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_SOFT_HOLE + 1)
 
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
@@ -1032,6 +1047,8 @@ static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_SOFT_BODY: return "Soft Body Properties";
         case EDITOR_VIEWPORT_SOFT_NODE: return "Node Properties";
         case EDITOR_VIEWPORT_SOFT_BEAM: return "Beam Properties";
+        case EDITOR_VIEWPORT_SOFT_AREA: return "Area Properties";
+        case EDITOR_VIEWPORT_SOFT_HOLE: return "Hole Properties";
         case EDITOR_VIEWPORT_ORIGIN: return "Origin Properties";
         case EDITOR_VIEWPORT_LINE: return "Line Properties";
         case EDITOR_VIEWPORT_VERTEX: return "Vertex Properties";
@@ -2008,6 +2025,21 @@ static bool editor_single_selected_delete(
         viewport_state->mode = EDITOR_VIEWPORT_ORIGIN;
         return true;
     }
+    if(viewport_state->selection == EDITOR_SELECTION_SOFT_AREA ||
+            viewport_state->selection == EDITOR_SELECTION_SOFT_HOLE) {
+        bool hole = viewport_state->selection == EDITOR_SELECTION_SOFT_HOLE;
+        EditorCommand command = {.type = EDITOR_COMMAND_ITEM_REMOVE,
+            .data.item_remove = {.kind = hole ? EDITOR_ITEM_SOFT_HOLE : EDITOR_ITEM_SOFT_AREA,
+                .object = selected->id, .parent = viewport_state->selected_soft_body,
+                .item = hole ? viewport_state->selected_soft_hole : viewport_state->selected_soft_area,
+                .index = hole ? viewport_state->selected_soft_area : 0}};
+        if(editor_command_execute(project, &command).kind == ERROR_RESULT_ERROR) return false;
+        editor_viewport_selection_clear(viewport_state);
+        viewport_state->soft_area_picking = false;
+        viewport_state->mode = hole ? EDITOR_VIEWPORT_SOFT_AREA : EDITOR_VIEWPORT_SOFT_BODY;
+        viewport_state->selection = hole ? EDITOR_SELECTION_SOFT_AREA : EDITOR_SELECTION_SOFT_BODY;
+        return true;
+    }
     if(viewport_state->selection == EDITOR_SELECTION_SOFT_BEAM) {
         EditorSoftBody *body = editor_selected_soft_body_get(selected, viewport_state);
         EditorSoftBeam *beam = editor_selected_soft_beam_get(body, viewport_state);
@@ -2849,6 +2881,10 @@ int main(int argc, char **argv) {
                     &viewport_context_menu) || viewport_context_menu.renaming) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             editor_context_menu_cancel(&viewport_context_menu);
+        } else if(viewport_state.soft_area_picking && !field_editing &&
+                !editor_terminal_panel_focused_check(&terminal_panel) &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            viewport_state.soft_area_picking = false;
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
@@ -3317,6 +3353,25 @@ int main(int argc, char **argv) {
                     .delete_footer = true,
                     .primary_button = hierarchy_primary},
                 editor_soft_node_collision_menu_draw, &collision_context);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_AREA ||
+                viewport_state.mode == EDITOR_VIEWPORT_SOFT_HOLE) {
+            EditorModeColorContext color_context = {.picker = &color_picker, .project = &project};
+            EditorModeDeleteContext delete_context = {.project = &project, .viewport = &viewport_state};
+            EditorModeHierarchyContext hierarchy_context = {
+                .project = &project, .context_menu = &viewport_context_menu,
+                .drag = &hierarchy_drag, .pointer = hierarchy_pointer,
+                .secondary = pointer_state.button_states[MOUSE_BUTTON_RIGHT],
+                .primary = hierarchy_primary, .scroll_offset = panel_scroll_offset,
+                .content_offset = panel_content_offset,
+                .additive_selection = hierarchy_additive_selection};
+            field_editing = editor_soft_area_editor_draw(&soft_body_editor.areas,
+                &(EditorModeContext){.project = &project, .viewport = &viewport_state,
+                    .x = EDITOR_VIEWPORT_WIDTH, .width = EDITOR_TOOLS_WIDTH,
+                    .layer_control = &layer_control, .color_open = editor_mode_color_picker_open,
+                    .color_context = &color_context, .delete_y_get = editor_mode_delete_y_get,
+                    .delete_open_item = editor_mode_open_item_delete, .delete_context = &delete_context,
+                    .delete_footer = true, .hierarchy_row = editor_mode_hierarchy_row,
+                    .hierarchy_context = &hierarchy_context, .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_BEAM) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
@@ -3709,6 +3764,12 @@ int main(int argc, char **argv) {
                 case EDITOR_VIEWPORT_SOFT_NODE:
                     delete_label = &soft_node_editor.delete_label;
                     delete_id = "editor.soft_node.delete";
+                    break;
+                case EDITOR_VIEWPORT_SOFT_AREA:
+                case EDITOR_VIEWPORT_SOFT_HOLE:
+                    delete_label = viewport_state.mode == EDITOR_VIEWPORT_SOFT_HOLE ?
+                        &soft_body_editor.areas.delete_hole : &soft_body_editor.areas.delete_area;
+                    delete_id = "editor.soft_area.delete";
                     break;
                 case EDITOR_VIEWPORT_SOFT_BEAM:
                     delete_label = &soft_beam_editor.delete_label;
@@ -4710,6 +4771,8 @@ int main(int argc, char **argv) {
                 navigation_before.soft_body != navigation_after.soft_body ||
                 navigation_before.soft_node != navigation_after.soft_node ||
                 navigation_before.soft_beam != navigation_after.soft_beam ||
+                navigation_before.soft_area != navigation_after.soft_area ||
+                navigation_before.soft_hole != navigation_after.soft_hole ||
                 navigation_before.sprite != navigation_after.sprite ||
                 navigation_before.animated_sprite !=
                     navigation_after.animated_sprite ||

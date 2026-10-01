@@ -133,33 +133,36 @@ particle origin, and particle radius separately.
 - Parent removal owns removal of its children.
 - Anchors are independent object children and are referenced by joints.
 - Joints do not own anchors and therefore do not implicitly delete them.
-- Soft bodies currently own nodes and beams. Beam-derived areas have been
-  removed; visual area authoring is unavailable until node-loop areas land.
+- Soft bodies own nodes, beams, and ordered visual areas. Areas own their
+  outer node loop, up to 16 hole loops, appearance, and derived fill caches.
+  Deleting a referenced node removes its dependent areas. Copies and history
+  snapshots own independent caches; holes have stable IDs scoped to their area.
 - Generated source owns no editor data; it materializes runtime entities only.
 
-## Node-loop geometry foundation
+## Node-loop areas
 
-`src/math/node_loop_geometry.h` provides the internal, allocation-free geometry
-foundation for forthcoming soft-body areas. It has no entity or beam dependencies
-and is not an installed public API. Runtime areas and editor area authoring are
-still unavailable at this milestone stage.
+`src/math/node_loop_geometry.h` builds current bounded loop regions independently
+of physics, beams, and entity ownership. The outer loop is additive; up to 16
+owned holes subtract from it. Each loop supports up to 64 points, with implicit
+closure, either winding, and self-intersections. Overlapping holes subtract
+only from their own area. No authored triangles or reference poses are stored.
 
-`node_loop_triangulation_get` validates an ordered loop of 3 to
-`NODE_LOOP_MAX_POINTS` points (currently the shared 100-vertex geometry limit).
-The final edge connects back to the first point implicitly. Convex and concave
-loops work in either winding; straight boundary subdivisions retain their nodes.
-Nonfinite or repeated points, backtracking, zero-area loops, and nonadjacent
-edges that cross, touch, or overlap are rejected. Calculations use doubles and
-relative error bounds for numerically indistinguishable collinearity.
+Callers own the reusable workspace and triangle output. A failed build preserves
+the previous output. Runtime and editor caches rebuild when loop membership or
+current node positions change. Editor scene rendering, camera previews, picking,
+and generated runtime rendering therefore use the same geometric rule.
 
-The caller owns the returned fixed triangle indices into the supplied node order.
-Failure leaves its previous triangulation intact. Creation uses deterministic
-ear clipping with bounded scratch storage; triangulate only for authoring edits.
-`node_loop_triangle_get` resolves a stored triangle against current positions in
-that same node order. It accepts later folds, inversions, and collapses without
-rediscovering boundaries or changing connectivity. Future runtime and editor
-integration must preserve that order and retain the authored reference pose for
-serialization; node-handle ownership validation belongs to those integrations.
+`editor_soft_area.c` in editor core validates owner-local node IDs and provides
+transactional loop edits, area order, and draft support. Shared commands route
+GUI and CLI changes through history. Draft loops persist, but any incomplete
+outer or hole loop suppresses the whole area fill and blocks generation before
+files are replaced. Picking mode belongs to transient viewport state; saved
+navigation records the area and hole IDs without reactivating picking on load.
+
+The soft-body editor owns the Areas accordion and area/hole panel text assets.
+Its font is borrowed from the existing editor font owner. Numbered loop rows
+edit membership, while area hierarchy rows use the shared context menu and drag
+reordering paths. Reordering areas changes drawing order without changing IDs.
 
 ## Extending the editor
 

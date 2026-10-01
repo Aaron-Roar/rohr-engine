@@ -984,6 +984,12 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
             selection->parent = state->selected_soft_body;
             selection->item = state->selected_soft_node;
             return selection->item != 0;
+        case EDITOR_SELECTION_SOFT_AREA:
+        case EDITOR_SELECTION_SOFT_HOLE:
+            selection->parent = state->selected_soft_body;
+            selection->container = state->selection == EDITOR_SELECTION_SOFT_HOLE ? state->selected_soft_area : 0;
+            selection->item = state->selection == EDITOR_SELECTION_SOFT_HOLE ? state->selected_soft_hole : state->selected_soft_area;
+            return selection->item != 0;
         case EDITOR_SELECTION_SOFT_BEAM:
             selection->parent = state->selected_soft_body;
             selection->item = state->selected_soft_beam;
@@ -1152,6 +1158,15 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
         case EDITOR_SELECTION_SOFT_NODE:
             state->selected_soft_body = selection.parent;
             state->selected_soft_node = selection.item;
+            break;
+        case EDITOR_SELECTION_SOFT_AREA:
+            state->selected_soft_body = selection.parent;
+            state->selected_soft_area = selection.item;
+            break;
+        case EDITOR_SELECTION_SOFT_HOLE:
+            state->selected_soft_body = selection.parent;
+            state->selected_soft_area = selection.container;
+            state->selected_soft_hole = selection.item;
             break;
         case EDITOR_SELECTION_SOFT_BEAM:
             state->selected_soft_body = selection.parent;
@@ -1729,6 +1744,9 @@ void editor_viewport_object_editor_enter(EditorViewportState *state) {
     state->selected_soft_body = 0;
     state->selected_soft_node = 0;
     state->selected_soft_beam = 0;
+    state->selected_soft_area = 0;
+    state->selected_soft_hole = 0;
+    state->soft_area_picking = false;
     state->selected_origin_kind = EDITOR_ORIGIN_NONE;
     state->selected_line = 0;
     state->selected_vertex = 0;
@@ -1768,6 +1786,22 @@ void editor_viewport_vertex_editor_enter(EditorViewportState *state, uint32_t ve
 }
 
 void editor_viewport_back(EditorViewportState *state) {
+    if(state != NULL && state->soft_area_picking) {
+        state->soft_area_picking = false;
+        return;
+    }
+    if(state != NULL && state->mode == EDITOR_VIEWPORT_SOFT_HOLE) {
+        editor_viewport_selection_clear(state);
+        state->mode = EDITOR_VIEWPORT_SOFT_AREA;
+        state->selection = EDITOR_SELECTION_SOFT_AREA;
+        return;
+    }
+    if(state != NULL && state->mode == EDITOR_VIEWPORT_SOFT_AREA) {
+        editor_viewport_selection_clear(state);
+        state->mode = EDITOR_VIEWPORT_SOFT_BODY;
+        state->selection = EDITOR_SELECTION_SOFT_BODY;
+        return;
+    }
     if(state == NULL) return;
     editor_viewport_selection_clear(state);
     if(state->mode == EDITOR_VIEWPORT_AUTO_SHAPE) {
@@ -1876,7 +1910,8 @@ static Position editor_soft_local_get(const EditorObject *object,
     return (Position){x * c - y * s, x * s + y * c};
 }
 
-static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftBody *body) {
+static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftBody *body,
+        const EditorViewportState *state) {
     for(size_t i = 0; i < body->area_count; i += 1) {
         EditorSoftArea *area = &body->areas[i];
         if(!area->visible) continue;
@@ -1894,11 +1929,17 @@ static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftB
                 }
                 (void)graphics_screen_triangles_draw(batch, count, graphics_color_hex_create(area->color));
             }
-        } else {
+        }
+        bool selected = state != NULL && state->selected_soft_body == body->id &&
+            state->selected_soft_area == area->id &&
+            (state->selection == EDITOR_SELECTION_SOFT_AREA || state->selection == EDITOR_SELECTION_SOFT_HOLE);
+        if(!fill.complete || selected) {
             /* Draft loops have no fill. Amber boundaries and crossed markers
              * distinguish incomplete definitions from runtime geometry. */
-            Color color = {255, 160, 60, 255};
+            Color color = selected ? (Color){255,215,70,255} : (Color){255,160,60,255};
             for(uint32_t l = 0; l <= area->hole_count; l += 1) {
+                if(selected && fill.complete && state->selection == EDITOR_SELECTION_SOFT_HOLE &&
+                        (l == 0 || area->holes[l - 1].id != state->selected_soft_hole)) continue;
                 const EditorSoftAreaLoop *loop = l == 0 ? &area->outer : &area->holes[l - 1].loop;
                 for(uint32_t j = 0; j < loop->node_count; j += 1) {
                     const EditorSoftNode *a = editor_soft_node_get(body, loop->nodes[j]);
@@ -3435,8 +3476,8 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
             if(!editor_soft_area_point_check(body, area,
                     editor_soft_local_get(object, body, pointer))) continue;
             binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
-            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BODY,
-                object->id, 0, 0, body->id};
+            EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
+                object->id, body->id, 0, area->id};
             editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
         }
     }
@@ -3486,6 +3527,8 @@ static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref) {
         ref.item = ref.parent;
         break;
     case EDITOR_SELECTION_SOFT_NODE:
+    case EDITOR_SELECTION_SOFT_AREA:
+    case EDITOR_SELECTION_SOFT_HOLE:
     case EDITOR_SELECTION_SOFT_BEAM:
         ref.kind = EDITOR_SELECTION_SOFT_BODY;
         ref.item = ref.parent;
@@ -3733,10 +3776,37 @@ bool editor_viewport_selection_at_get(EditorProject *project,
             state->selected_rigid_body != selection->parent)
         *selection = editor_pick_owner_get(*selection);
     if((selection->kind == EDITOR_SELECTION_SOFT_NODE ||
-            selection->kind == EDITOR_SELECTION_SOFT_BEAM) &&
+            selection->kind == EDITOR_SELECTION_SOFT_BEAM ||
+            selection->kind == EDITOR_SELECTION_SOFT_AREA) &&
             state->selected_soft_body != selection->parent)
         *selection = editor_pick_owner_get(*selection);
     return true;
+}
+
+bool editor_viewport_soft_area_node_toggle(EditorProject *project,
+        EditorViewportState *state, EditorSoftNodeId node) {
+    if(project == NULL || state == NULL || !state->soft_area_picking ||
+            (state->mode != EDITOR_VIEWPORT_SOFT_AREA && state->mode != EDITOR_VIEWPORT_SOFT_HOLE)) return false;
+    EditorObject *object = editor_project_selected_get(project);
+    EditorSoftBody *body = editor_soft_body_get(object, state->selected_soft_body);
+    EditorSoftArea *area = editor_soft_area_get(body, state->selected_soft_area);
+    EditorSoftHole *hole = editor_soft_hole_get(area, state->selected_soft_hole);
+    bool is_hole = state->mode == EDITOR_VIEWPORT_SOFT_HOLE;
+    if(area == NULL || (is_hole && hole == NULL) || editor_soft_node_get(body, node) == NULL) return false;
+    EditorSoftAreaLoop loop = is_hole ? hole->loop : area->outer;
+    uint32_t index = loop.node_count;
+    for(uint32_t i = 0; i < loop.node_count; i += 1) if(loop.nodes[i] == node) index = i;
+    if(index == loop.node_count) {
+        if(loop.node_count == SOFT_BODY_MAX_NODES) return false;
+        loop.nodes[loop.node_count++] = node;
+    } else {
+        memmove(&loop.nodes[index], &loop.nodes[index + 1],
+            (loop.node_count - index - 1) * sizeof(loop.nodes[0]));
+        loop.nodes[--loop.node_count] = 0;
+    }
+    EditorCommand command = {.type = EDITOR_COMMAND_SOFT_AREA_LOOP_SET,
+        .data.soft_area_loop = {object->id, body->id, area->id, is_hole ? hole->id : 0, loop}};
+    return editor_command_execute(project, &command).kind == ERROR_RESULT_VALUE;
 }
 
 bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
@@ -3768,6 +3838,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
         state->selected_center_of_mass = false;
         (void)editor_viewport_front_selection_get(project, state, pointer, &front);
+    }
+    if(state->soft_area_picking && state->mode != EDITOR_VIEWPORT_SOFT_AREA &&
+            state->mode != EDITOR_VIEWPORT_SOFT_HOLE) state->soft_area_picking = false;
+    if(state->soft_area_picking && !pan_modifier && !state->camera_panning &&
+            pan_button == MOUSE_BUTTON_STATE_UP && wheel_y == 0 &&
+            primary_button != MOUSE_BUTTON_STATE_UP) {
+        if(primary_button == MOUSE_BUTTON_STATE_PRESSED && front.kind == EDITOR_SELECTION_SOFT_NODE &&
+                front.object == project->selected && front.parent == state->selected_soft_body)
+            (void)editor_viewport_soft_area_node_toggle(project, state, front.item);
+        return true;
     }
     if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
             state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
@@ -5359,11 +5439,19 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
-    if(front.kind == EDITOR_SELECTION_SOFT_BODY) {
-        EditorSoftBody *soft = editor_group_soft_body_get(object, front.item);
+    if(front.kind == EDITOR_SELECTION_SOFT_AREA) {
+        EditorSoftBody *soft = editor_group_soft_body_get(object, front.parent);
         if(soft != NULL) {
-            (void)editor_viewport_selection_set(project, state, front, state->selection_modifier);
-            if(!state->selection_modifier) {
+            bool editing = state->selected_soft_body == soft->id &&
+                (state->mode == EDITOR_VIEWPORT_SOFT_BODY || state->mode == EDITOR_VIEWPORT_SOFT_AREA ||
+                 state->mode == EDITOR_VIEWPORT_SOFT_HOLE || state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
+                 state->mode == EDITOR_VIEWPORT_SOFT_BEAM);
+            EditorSelectionRef selection = editing ? front : editor_pick_owner_get(front);
+            (void)editor_viewport_selection_set(project, state, selection, state->selection_modifier);
+            if(!state->selection_modifier && editing) {
+                state->mode = EDITOR_VIEWPORT_SOFT_AREA;
+                state->soft_area_picking = false;
+            } else if(!state->selection_modifier) {
                 state->mode = EDITOR_VIEWPORT_SOFT_BODY;
                 state->dragged_soft_body = true;
                 state->drag_offset = (Vec2D){pointer.x - object->position.x - soft->position.x,
@@ -5383,7 +5471,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 object->id, 0, 0, soft_body->id};
             bool body_focused = (state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
                     state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
-                    state->mode == EDITOR_VIEWPORT_SOFT_BEAM) &&
+                    state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+                    state->mode == EDITOR_VIEWPORT_SOFT_AREA || state->mode == EDITOR_VIEWPORT_SOFT_HOLE) &&
                 state->selected_soft_body == soft_body->id;
             bool internal_only = editor_soft_body_internal_selection_check(state,
                 object->id, soft_body->id);
@@ -6146,7 +6235,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
             EDITOR_SELECTION_SOFT_BODY, object->id, 0, 0, body->id) ||
             state->preview_soft_body == body->id;
         if(!body->visible) continue;
-        editor_soft_areas_draw(object, body);
+        editor_soft_areas_draw(object, body, state);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?
@@ -6300,7 +6389,7 @@ static void editor_viewport_camera_preview_object_draw(
         const EditorSoftBody *body = &object->soft_body_items[body_index];
         if(!body->visible) continue;
 
-        editor_soft_areas_draw(object, body);
+        editor_soft_areas_draw(object, body, NULL);
         for(size_t beam_index = 0; beam_index < body->beam_count; beam_index += 1) {
             const EditorSoftBeam *beam = &body->beams[beam_index];
             editor_view_scene_layer_set(beam->graphics_layer_inherited ?

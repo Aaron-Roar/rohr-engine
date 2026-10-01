@@ -283,19 +283,25 @@ within a layer draw on top, limited to each area's own footprint.
    installed-SDK generated-area fixture and vehicle example pass. Both apps
    launch from /tmp; Windows is compile-only. Desktop visual review remains
    requested; authoring controls follow in Goal 5.
-5. [ ] **Add area authoring and verify parity** — Add an Areas accordion with
-   Add Area above area rows; single-click selects, double-click opens, and adding
-   creates and opens an editor. Area editors expose appearance, a numbered
-   reorderable node box, and Add Hole with hole rows; hole editors share loop
-   editing without independent color/layer. Clicking the box activates picking:
-   click order defines the loop, clicking a member removes it, and re-adding
-   appends it. Clicking the box again, Escape, or changing editors ends picking.
-   Outside picking, normal node navigation preserves the definition. Save drafts;
-   show outlines without area fill until every loop is complete; block generation
-   with an identifying error. Limit holes to 16 including drafts. Use shared
-   editor/CLI commands, layer/list ordering, undo, and node-deletion cascades.
-   Rewrite bundled examples and verify editor/generated-app parity, sanitizers,
-   and Linux/Windows builds.
+5. [x] **Add area authoring and verify parity** — Added the Areas accordion,
+   Add Area, and area/hole editors. Rows select on one click and open on two;
+   creation opens the new editor. The node-picking box records click order,
+   toggles membership, and appends reselected nodes; numbered rows reorder or
+   remove members. Ending picking restores normal node navigation without
+   changing the definition. Areas expose name, visibility, color, layers, and
+   shared hierarchy reordering/context actions. Owned holes use the same loop
+   controls without independent appearance, capped at 16 including drafts.
+   GUI and selector-first CLI authoring share commands, validation, and undo;
+   drafts, saved navigation, node-deletion cascades, and generated parity remain
+   covered. Updated the ordinary wheel example to one tire loop with a hub hole,
+   with no example flags or physics changes. Fixed accordion layout accumulation
+   caught by the Auto Shape regression and kept modal Escape handling ahead of
+   picker cancellation. All 61 native tests, six ASan/UBSan/leak checks, and
+   Linux/Windows builds pass without compiler warnings. The installed-SDK
+   generated-area app and wheel example build and launch from /tmp. Windows is
+   compile-only; desktop visual review of authoring and generated fills remains
+   requested before committing.
+
 
 The earlier Geometrically Bounded Area Overlap goal is superseded. Its unresolved
 missing-crossing recovery rules are discarded with the beam-derived model.

@@ -33,6 +33,7 @@ add_executable(rohr_editor_gui
     src/editors/physics/editor_joint.c
     src/editors/soft_body/editor_soft_beam.c
     src/editors/soft_body/editor_soft_node.c
+    src/editors/soft_body/editor_soft_area.c
     src/editors/soft_body/editor_soft_body.c
     src/editors/render/editor_animation_frame.c
     src/editors/render/editor_sprite.c
@@ -145,6 +146,7 @@ if(ROHR_BUILD_TESTS)
         src/editors/editor_mode_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/geometry/editor_hitbox.c
+        src/editors/soft_body/editor_soft_area.c
         src/editors/soft_body/editor_soft_body.c
         src/editors/multi/editor_bulk_panel.c
         src/viewport/controls/editor_rotation_control.c
@@ -156,6 +158,24 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME editor_auto_shape COMMAND editor_auto_shape_test)
     set_tests_properties(editor_auto_shape PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(editor_area_authoring_test
+        tests/editor_area_authoring.c
+        src/editor_history.c
+        src/editor_navigation.c
+        src/editor_viewport.c
+        src/editors/editor_mode_controls.c
+        src/editors/geometry/editor_auto_shape.c
+        src/editors/soft_body/editor_soft_area.c
+        src/viewport/controls/editor_rotation_control.c)
+    target_include_directories(editor_area_authoring_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_area_authoring_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_area_authoring_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_area_authoring COMMAND editor_area_authoring_test)
+    set_tests_properties(editor_area_authoring PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_viewport_context_menu_test
@@ -202,7 +222,7 @@ if(ROHR_BUILD_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS AND ROHR_ENABLE_SANITIZERS)
-    foreach(area_editor_target editor_project_test editor_navigation_test editor_history_test)
+    foreach(area_editor_target editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test)
         target_compile_options(${area_editor_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endforeach()
 endif()

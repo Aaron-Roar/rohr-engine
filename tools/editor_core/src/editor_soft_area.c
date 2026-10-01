@@ -15,6 +15,55 @@ struct EditorSoftAreaCache {
     bool initialized;
 };
 
+EditorSoftBody *editor_soft_body_get(EditorObject *object, EditorSoftBodyId id) {
+    if(object != NULL) for(size_t i = 0; i < object->soft_body_count; i += 1)
+        if(object->soft_body_items[i].id == id) return &object->soft_body_items[i];
+    return NULL;
+}
+EditorSoftArea *editor_soft_area_get(EditorSoftBody *body, EditorSoftAreaId id) {
+    if(body != NULL) for(size_t i = 0; i < body->area_count; i += 1)
+        if(body->areas[i].id == id) return &body->areas[i];
+    return NULL;
+}
+EditorSoftHole *editor_soft_hole_get(EditorSoftArea *area, EditorSoftHoleId id) {
+    if(area != NULL) for(uint32_t i = 0; i < area->hole_count; i += 1)
+        if(area->holes[i].id == id) return &area->holes[i];
+    return NULL;
+}
+bool editor_soft_hole_remove(EditorSoftArea *area, EditorSoftHoleId id) {
+    EditorSoftHole *hole = editor_soft_hole_get(area, id);
+    if(hole == NULL) return false;
+    size_t index = (size_t)(hole - area->holes);
+    memmove(hole, hole + 1, (area->hole_count - index - 1) * sizeof(*hole));
+    area->holes[--area->hole_count] = (EditorSoftHole){0};
+    return true;
+}
+bool editor_soft_area_loop_set(EditorSoftBody *body, EditorSoftAreaId id,
+        EditorSoftHoleId hole_id, EditorSoftAreaLoop loop) {
+    EditorSoftArea *area = editor_soft_area_get(body, id);
+    EditorSoftHole *hole = editor_soft_hole_get(area, hole_id);
+    if(area == NULL || (hole_id != 0 && hole == NULL)) return false;
+    EditorSoftArea candidate = *area;
+    if(hole_id == 0) candidate.outer = loop;
+    else candidate.holes[hole - area->holes].loop = loop;
+    if(!editor_soft_area_references_check(body, &candidate)) return false;
+    if(hole_id == 0) area->outer = loop;
+    else hole->loop = loop;
+    return true;
+}
+bool editor_soft_area_order_set(EditorSoftBody *body, EditorSoftAreaId id,
+        size_t index) {
+    EditorSoftArea *area = editor_soft_area_get(body, id);
+    if(area == NULL || index >= body->area_count) return false;
+    size_t old = (size_t)(area - body->areas);
+    EditorSoftArea value = *area;
+    if(old < index) memmove(area, area + 1, (index - old) * sizeof(*area));
+    else if(index < old) memmove(&body->areas[index + 1], &body->areas[index],
+        (old - index) * sizeof(*area));
+    body->areas[index] = value;
+    return true;
+}
+
 EditorSoftArea *editor_soft_area_add(EditorSoftBody *body) {
     if(body == NULL || body->area_count >= SOFT_BODY_MAX_AREAS ||
             body->next_area_id == UINT32_MAX ||

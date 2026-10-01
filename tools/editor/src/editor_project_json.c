@@ -777,6 +777,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_uint(document, value, "soft_body", navigation->soft_body);
         yyjson_mut_obj_add_uint(document, value, "soft_node", navigation->soft_node);
         yyjson_mut_obj_add_uint(document, value, "soft_beam", navigation->soft_beam);
+        yyjson_mut_obj_add_uint(document, value, "soft_area", navigation->soft_area);
+        yyjson_mut_obj_add_uint(document, value, "soft_hole", navigation->soft_hole);
         yyjson_mut_obj_add_uint(document, value, "sprite", navigation->sprite);
         yyjson_mut_obj_add_uint(document, value, "animated_sprite",
             navigation->animated_sprite);
@@ -2089,6 +2091,10 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !editor_json_uint(navigation, "soft_body", &loaded.navigation.soft_body) ||
                 !editor_json_uint(navigation, "soft_node", &loaded.navigation.soft_node) ||
                 !editor_json_uint(navigation, "soft_beam", &loaded.navigation.soft_beam) ||
+                (yyjson_obj_get(navigation, "soft_area") != NULL &&
+                    !editor_json_uint(navigation, "soft_area", &loaded.navigation.soft_area)) ||
+                (yyjson_obj_get(navigation, "soft_hole") != NULL &&
+                    !editor_json_uint(navigation, "soft_hole", &loaded.navigation.soft_hole)) ||
                 !editor_json_uint(navigation, "input_controller",
                     &loaded.navigation.input_controller) ||
                 !editor_json_uint(navigation, "origin_kind", &loaded.navigation.origin_kind) ||

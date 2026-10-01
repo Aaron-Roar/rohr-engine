@@ -39,7 +39,9 @@ typedef enum EditorViewportMode {
     EDITOR_VIEWPORT_UI_LINE_EDITOR,
     EDITOR_VIEWPORT_INPUT_CONTROLLER,
     EDITOR_VIEWPORT_INPUT_ACTION,
-    EDITOR_VIEWPORT_INPUT_BINDING
+    EDITOR_VIEWPORT_INPUT_BINDING,
+    EDITOR_VIEWPORT_SOFT_AREA,
+    EDITOR_VIEWPORT_SOFT_HOLE
 } EditorViewportMode;
 
 typedef enum EditorHierarchySelection {
@@ -68,7 +70,9 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_UI_LINE,
     EDITOR_SELECTION_INPUT_CONTROLLER,
     EDITOR_SELECTION_INPUT_ACTION,
-    EDITOR_SELECTION_INPUT_BINDING
+    EDITOR_SELECTION_INPUT_BINDING,
+    EDITOR_SELECTION_SOFT_AREA,
+    EDITOR_SELECTION_SOFT_HOLE
 } EditorHierarchySelection;
 
 typedef enum EditorOriginKind {
@@ -150,6 +154,9 @@ typedef struct EditorViewportState {
     EditorSoftBodyId selected_soft_body;
     EditorSoftNodeId selected_soft_node;
     EditorSoftBeamId selected_soft_beam;
+    EditorSoftAreaId selected_soft_area;
+    EditorSoftHoleId selected_soft_hole;
+    bool soft_area_picking;
     EditorSpriteId selected_sprite;
     EditorAnimatedSpriteId selected_animated_sprite;
     EditorCameraId selected_camera_entity;
@@ -174,6 +181,8 @@ typedef struct EditorViewportState {
     size_t selected_item_capacity;
 } EditorViewportState;
 
+bool editor_viewport_soft_area_node_toggle(EditorProject *project,
+    EditorViewportState *state, EditorSoftNodeId node);
 void editor_viewport_state_init(EditorViewportState *state);
 void editor_viewport_state_destroy(EditorViewportState *state);
 void editor_viewport_selection_clear(EditorViewportState *state);

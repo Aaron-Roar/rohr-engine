@@ -63,7 +63,8 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
     CREATE("", angular_velocity_field);
 #undef CREATE
-    if(!editor_mode_accordion_section_create(&editor->transform_section, font,
+    if(!editor_soft_area_editor_create(&editor->areas, font) ||
+            !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(
                 &editor->initial_motion_section, font, "Initial Motion", false) ||
@@ -94,6 +95,7 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     DESTROY(acceleration_x_field); DESTROY(acceleration_y_field);
     DESTROY(angular_velocity_field);
 #undef DESTROY
+    editor_soft_area_editor_destroy(&editor->areas);
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->initial_motion_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
@@ -288,6 +290,7 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
                 &editor->appearance_section,
                 "editor.soft_body.section.appearance", appearance_rows, 2,
                 6.0f);
+        accordion.y = editor_soft_area_list_draw(&editor->areas, context, body, accordion.y);
         EditorModeAccordionLayoutResult topology =
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->topology_section,

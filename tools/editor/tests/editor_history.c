@@ -3,6 +3,7 @@
  */
 
 #include "editor_history.h"
+#include <editor_soft_area.h>
 #include "editor_mass_properties.h"
 #include "viewport/controls/editor_rotation_control.h"
 #include "editor_layout.h"
@@ -577,7 +578,106 @@ static void default_shapes_history_check(void) {
     editor_project_destroy(&loaded);
 }
 
+
+static void area_authoring_history_check(void) {
+    EditorProject project;
+    EditorHistory history;
+    EditorViewportState state;
+    editor_project_init(&project);
+    EditorObject *object = editor_project_object_add(&project, (Position){0});
+    EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_SOFT_BODY, .object = object->id}};
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    EditorSoftBody *body = &object->soft_body_items[0];
+    EditorSoftBodyId body_id = body->id;
+    EditorSoftNodeId first = body->nodes[0].id, second = body->nodes[1].id;
+    assert(editor_history_init(&history, &project));
+    callback_history = &history;
+    editor_command_executing_callback_set(history_begin, NULL);
+    editor_command_finished_callback_set(history_finish, NULL);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_SOFT_AREA, .object = object->id, .parent = body_id}};
+    EditorCommandResult created = editor_command_execute(&project, &command);
+    assert(created.kind == ERROR_RESULT_VALUE);
+    EditorSoftAreaId area_id = created.result.object;
+    assert(body->area_count == 2);
+    assert(editor_history_undo(&history) && body->area_count == 1);
+    assert(editor_history_redo(&history) && body->area_count == 2);
+    editor_viewport_state_init(&state);
+    EditorSelectionRef ref = {EDITOR_SELECTION_SOFT_AREA, object->id, body_id, 0, area_id};
+    assert(editor_viewport_selection_set(&project, &state, ref, false));
+    assert(editor_navigation_selected_open(&project, &state));
+    assert(state.mode == EDITOR_VIEWPORT_SOFT_AREA && !state.soft_area_picking);
+    state.soft_area_picking = true;
+    assert(editor_viewport_soft_area_node_toggle(&project, &state, first));
+    assert(editor_viewport_soft_area_node_toggle(&project, &state, second));
+    assert(editor_viewport_soft_area_node_toggle(&project, &state, first));
+    assert(editor_viewport_soft_area_node_toggle(&project, &state, first));
+    EditorSoftArea *area = editor_soft_area_get(body, area_id);
+    assert(area->outer.node_count == 2 && area->outer.nodes[0] == second && area->outer.nodes[1] == first);
+    assert(editor_history_undo(&history));
+    area = editor_soft_area_get(body, area_id);
+    assert(area->outer.node_count == 1 && area->outer.nodes[0] == second);
+    assert(editor_history_redo(&history));
+    assert(editor_navigation_selection_name_set(&project, ref, "paint"));
+    assert(editor_history_undo(&history));
+    assert(strcmp(editor_soft_area_get(body, area_id)->name, "area_2") == 0);
+    assert(editor_history_redo(&history));
+    assert(editor_navigation_selection_visibility_set(&project, ref, false));
+    assert(editor_history_undo(&history) && editor_soft_area_get(body, area_id)->visible);
+    command = (EditorCommand){.type = EDITOR_COMMAND_SOFT_AREA_ORDER_SET,
+        .data.soft_area_order = {object->id, body_id, area_id, 0}};
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    assert(body->areas[0].id == area_id);
+    assert(editor_history_undo(&history) && body->areas[1].id == area_id);
+    EditorSelectionRef target = {EDITOR_SELECTION_SOFT_AREA, object->id, body_id, 0, body->areas[0].id};
+    assert(editor_navigation_selection_reorder(&project, &state, ref, target, false, &history));
+    body = editor_soft_body_get(&project.objects[0], body_id);
+    assert(body->areas[0].id == area_id);
+    assert(editor_history_undo(&history));
+    object = &project.objects[0];
+    body = editor_soft_body_get(object, body_id);
+    assert(body->areas[1].id == area_id);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_ADD,
+        .data.item_add = {.kind = EDITOR_ITEM_SOFT_HOLE, .object = object->id,
+            .parent = body_id, .first = area_id, .name = "window"}};
+    created = editor_command_execute(&project, &command);
+    assert(created.kind == ERROR_RESULT_VALUE);
+    EditorSoftHoleId hole_id = created.result.object;
+    ref = (EditorSelectionRef){EDITOR_SELECTION_SOFT_HOLE, object->id, body_id, area_id, hole_id};
+    assert(editor_viewport_selection_set(&project, &state, ref, false));
+    assert(editor_navigation_selected_open(&project, &state));
+    assert(state.mode == EDITOR_VIEWPORT_SOFT_HOLE && !state.soft_area_picking);
+    state.soft_area_picking = true;
+    assert(editor_viewport_soft_area_node_toggle(&project, &state, first));
+    assert(editor_history_undo(&history));
+    assert(editor_soft_hole_get(editor_soft_area_get(body, area_id), hole_id)->loop.node_count == 0);
+    assert(editor_history_redo(&history));
+    editor_viewport_back(&state);
+    assert(!state.soft_area_picking && state.mode == EDITOR_VIEWPORT_SOFT_HOLE);
+    editor_viewport_back(&state);
+    assert(state.mode == EDITOR_VIEWPORT_SOFT_AREA);
+    ref = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE, object->id, body_id, 0, first};
+    assert(editor_viewport_selection_set(&project, &state, ref, false));
+    assert(editor_navigation_selected_open(&project, &state));
+    assert(state.mode == EDITOR_VIEWPORT_SOFT_NODE);
+    assert(editor_soft_hole_get(editor_soft_area_get(body, area_id), hole_id)->loop.node_count == 1);
+    command = (EditorCommand){.type = EDITOR_COMMAND_ITEM_REMOVE,
+        .data.item_remove = {EDITOR_ITEM_SOFT_HOLE, object->id, body_id, hole_id, area_id}};
+    assert(editor_command_execute(&project, &command).kind == ERROR_RESULT_VALUE);
+    assert(editor_soft_area_get(body, area_id)->hole_count == 0);
+    assert(editor_history_undo(&history));
+    assert(editor_soft_area_get(body, area_id)->hole_count == 1);
+    editor_command_executing_callback_set(NULL, NULL);
+    editor_command_finished_callback_set(NULL, NULL);
+    callback_history = NULL;
+    editor_viewport_state_destroy(&state);
+    editor_history_destroy(&history);
+    editor_project_destroy(&project);
+}
+
 int main(void) {
+    area_authoring_history_check();
     default_shapes_history_check();
     if(!SDL_SaveFile("editor_history_frame.png", test_png, sizeof(test_png))) return 1;
     angular_history_check();
