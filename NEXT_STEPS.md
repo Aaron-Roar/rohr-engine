@@ -54,10 +54,8 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
-The user-selected **Node-Loop Soft-Body Areas** milestone is active and takes
-priority. It replaces Geometrically Bounded Area Overlap and the earlier
-beam-derived area model. Goal 1 removes that model before building its replacement;
-area fills are temporarily unavailable. This is an approved breaking change.
+The user-selected **Consistent Collision Controls** single-goal milestone and
+Node-Loop Soft-Body Areas are complete. Editor Forces and Torques remains next.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -131,6 +129,23 @@ last.
 - Keep generated output deterministic and compile it on Linux and Windows.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
+
+## Single-Goal Milestone: Consistent Collision Controls
+
+Make collision settings available for every compatible selection, with independent
+filter sections directly beneath their respective buttons, editable even when
+collision is disabled.
+
+1. [x] **Unify collision controls across individual and multi-selection editors** —
+   Share eligibility for rigid bodies, particles, soft nodes, and beams; expose
+   mixed states and independent category/collides-with expansion. Apply bulk
+   edits atomically through existing commands/history, preserving unrelated bits.
+   Verify layout, scrolling, selection changes, rollback, sanitizers, and Linux/
+   Windows builds. No public API, persistence format, or physics changes.
+   Completed with 62 native tests passing, four focused ASan/UBSan/LSan tests
+   passing, Linux and Windows compilation, and an installed-SDK soft-body
+   example build and headless startup check. Visual editor review remains a
+   user follow-up.
 
 ## Single-Goal Milestone: Restore Rigid-Contact Stability Coverage
 

@@ -20,9 +20,11 @@ typedef void (*EditorModeHierarchyRowFunction)(void *context,
     EditorViewportState *viewport, EditorSelectionRef selection,
     UIRect bounds, UIButtonResult interaction, bool last);
 struct EditorModeLayerControl;
+struct EditorHistory;
 
 typedef struct EditorModeContext {
     EditorProject *project;
+    struct EditorHistory *history;
     EditorViewportState *viewport;
     float x;
     float width;

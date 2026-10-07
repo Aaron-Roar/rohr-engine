@@ -69,9 +69,9 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Mass", mass_label); CREATE("Radius", radius_label);
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
-    CREATE("Gravity", gravity_label); CREATE("Collision", collision_label);
-    CREATE("Collision Category", collision_category_label);
-    CREATE("Collide With", collide_with_label); CREATE("Node Color", color_label);
+    CREATE("Gravity", gravity_label);
+
+    CREATE("Node Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("Visibility", visibility_label);
     CREATE("Inherit From Soft Body", motion_inherit_label);
     CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
@@ -97,6 +97,9 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
                 "Collision", false) ||
             !editor_mode_accordion_section_create(&editor->appearance_section, font,
                 "Appearance", false)) goto fail;
+    if(!editor_collision_controls_create(&editor->collision, font)) {
+        editor_soft_node_editor_destroy(editor); return false;
+    }
     return true;
 fail:
     editor_soft_node_editor_destroy(editor);
@@ -105,11 +108,12 @@ fail:
 
 void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
     if(editor == NULL) return;
+    editor_collision_controls_destroy(&editor->collision);
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(mass_label);
     DESTROY(radius_label); DESTROY(friction_label); DESTROY(restitution_label);
-    DESTROY(gravity_label); DESTROY(collision_label);
-    DESTROY(collision_category_label); DESTROY(collide_with_label);
+    DESTROY(gravity_label);
+
     DESTROY(color_label); DESTROY(inherit_label); DESTROY(visibility_label);
     DESTROY(motion_inherit_label); DESTROY(velocity_x_label);
     DESTROY(velocity_y_label); DESTROY(acceleration_x_label);
@@ -133,9 +137,7 @@ void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
 }
 
 bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
-        const EditorModeContext *context,
-        EditorSoftNodeCollisionMenuFunction collision_menu,
-        void *collision_context) {
+        const EditorModeContext *context) {
     EditorObject *object;
     EditorSoftBody *body;
     EditorSoftNode *node;
@@ -153,9 +155,6 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     float transform_row_y[3] = {0}, physics_row_y[3] = {0};
     float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0};
-    float collision_category_y = 0.0f, collision_category_list_y = 0.0f;
-    float collide_with_y = 0.0f, collide_with_list_y = 0.0f;
-    float collision_bottom = 0.0f;
     float section_y = 118.0f;
     if(editor == NULL || context == NULL || context->project == NULL ||
             context->viewport == NULL) return false;
@@ -163,6 +162,8 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     body = body_get(object, context->viewport->selected_soft_body);
     node = node_get(body, context->viewport->selected_soft_node);
     if(node == NULL) return false;
+    EditorSelectionRef collision_target = {EDITOR_SELECTION_SOFT_NODE, object->id, body->id, 0, node->id};
+    editor_collision_controls_selection_set(&editor->collision, &collision_target, 1);
     node_index = (size_t)(node - body->nodes);
     if(node_index >= EDITOR_SOFT_NODE_MAX) return false;
     snprintf(name, sizeof(name), "%s", node->name);
@@ -212,37 +213,10 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             node->initial_motion_inherited ? 1 : 5;
         const float material_rows[] = {26.0f, 26.0f};
         const float appearance_rows[] = {26.0f};
-        EditorModeAccordionLayoutGroup collision_groups[5] = {
-            {.row_count = 1, .row_height = 28.0f}};
+        EditorModeAccordionLayoutGroup collision_groups[] = {
+            {.row_count = 1, .row_height = editor_collision_controls_height_get(
+                &editor->collision, context->project, true)}};
         size_t collision_group_count = 1;
-        size_t category_group = SIZE_MAX, category_list_group = SIZE_MAX;
-        size_t collide_group = SIZE_MAX, collide_list_group = SIZE_MAX;
-        if(node->collision_enabled) {
-            category_group = collision_group_count;
-            collision_groups[collision_group_count++] =
-                (EditorModeAccordionLayoutGroup){.row_count = 1,
-                    .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collision_category_open) {
-                category_list_group = collision_group_count;
-                collision_groups[collision_group_count++] =
-                    (EditorModeAccordionLayoutGroup){
-                        .row_count = context->project->collision_mask_count + 1,
-                        .row_height = 26.0f, .row_gap = 4.0f,
-                        .gap_before = 4.0f};
-            }
-            collide_group = collision_group_count;
-            collision_groups[collision_group_count++] =
-                (EditorModeAccordionLayoutGroup){.row_count = 1,
-                    .row_height = 28.0f, .gap_before = 4.0f};
-            if(editor->collide_with_open) {
-                collide_list_group = collision_group_count;
-                collision_groups[collision_group_count++] =
-                    (EditorModeAccordionLayoutGroup){
-                        .row_count = context->project->collision_mask_count + 1,
-                        .row_height = 26.0f, .row_gap = 4.0f,
-                        .gap_before = 4.0f};
-            }
-        }
         EditorModeAccordionLayoutCursor accordion =
             editor_mode_accordion_layout_cursor_get(
                 context->x, context->width, section_y);
@@ -282,26 +256,6 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         material_open = material.expanded;
         collision_open = collision.expanded;
         collision_y = collision.content_y;
-        if(category_group != SIZE_MAX)
-            collision_category_y = editor_mode_accordion_layout_group_row_y(
-                &collision, collision_groups, collision_group_count,
-                category_group, 0);
-        if(category_list_group != SIZE_MAX)
-            collision_category_list_y =
-                editor_mode_accordion_layout_group_row_y(&collision,
-                    collision_groups, collision_group_count,
-                    category_list_group, 0);
-        if(collide_group != SIZE_MAX)
-            collide_with_y = editor_mode_accordion_layout_group_row_y(
-                &collision, collision_groups, collision_group_count,
-                collide_group, 0);
-        if(collide_list_group != SIZE_MAX)
-            collide_with_list_y = editor_mode_accordion_layout_group_row_y(
-                &collision, collision_groups, collision_group_count,
-                collide_list_group, 0);
-        collision_bottom = collision.content_y +
-            editor_mode_accordion_layout_groups_height_get(
-                collision_groups, collision_group_count);
         appearance_open = appearance.expanded;
         appearance_y = appearance.content_y;
         transform_row_y[0] = editor_mode_accordion_layout_group_row_y(
@@ -441,65 +395,13 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     field_active = field_active || name_result.active || x_result.active || y_result.active ||
         mass_result.active || radius_result.active || friction_result.active ||
         restitution_result.active || layer_active;
-    {
-        float row_x = context->x + 10.0f, row_width = context->width - 20.0f;
-        bool collision = node->collision_enabled;
-        if(collision_open && checkbox("editor.soft_node.collision",
-                &editor->collision_label,
-                (UIRect){row_x, collision_y, row_width, 28.0f}, &collision)) {
-            bool_set(context->project, object->id, body->id, node->id,
-                EDITOR_PROPERTY_COLLISION, collision);
-            if(!collision) editor->collision_category_open =
-                editor->collide_with_open = false;
-        }
-        if(collision_open && node->collision_enabled) {
-            if(rohr_ui_button("editor.soft_node.collision_category",
-                    &editor->collision_category_label,
-                    (UIRect){row_x, collision_category_y,
-                        row_width, 28.0f}, NULL).clicked) {
-                editor->collision_category_open = !editor->collision_category_open;
-                editor->collide_with_open = false;
-            }
-            rohr_ui_border((UIRect){row_x, collision_category_y,
-                    row_width, 28.0f},
-                2.0f, (Color){0, 0, 0, 255});
-            if(editor->collision_category_open && collision_menu != NULL) {
-                size_t rows = 0;
-                if(!collision_menu(collision_context,
-                        "editor.soft_node.collision_category.mask", context->project,
-                        &node->collision_category, object->id, body->id, node->id,
-                        EDITOR_COLLISION_FILTER_CATEGORY, row_x,
-                        collision_category_list_y, row_width,
-                        &field_active, &rows)) return field_active;
-            }
-            if(rohr_ui_button("editor.soft_node.collide_with",
-                    &editor->collide_with_label,
-                    (UIRect){row_x, collide_with_y,
-                        row_width, 28.0f}, NULL).clicked) {
-                editor->collide_with_open = !editor->collide_with_open;
-                editor->collision_category_open = false;
-            }
-            rohr_ui_border((UIRect){row_x, collide_with_y,
-                    row_width, 28.0f},
-                2.0f, (Color){0, 0, 0, 255});
-            if(editor->collide_with_open && collision_menu != NULL) {
-                size_t rows = 0;
-                if(!collision_menu(collision_context,
-                        "editor.soft_node.collide_with.mask", context->project,
-                        &node->collision_with, object->id, body->id, node->id,
-                        EDITOR_COLLISION_FILTER_COLLIDE_WITH, row_x,
-                        collide_with_list_y, row_width,
-                        &field_active, &rows)) return field_active;
-            }
-            if((editor->collision_category_open || editor->collide_with_open) &&
-                    context->primary_button == MOUSE_BUTTON_STATE_PRESSED) {
-                Position pointer = rohr_graphics_mouse_screen_position_get();
-                if(pointer.x < row_x || pointer.x > row_x + row_width ||
-                        pointer.y < collision_y ||
-                        pointer.y > collision_bottom)
-                    editor->collision_category_open = editor->collide_with_open = false;
-            }
-        }
+    if(collision_open) {
+        EditorSelectionRef target = {EDITOR_SELECTION_SOFT_NODE, object->id, body->id, 0, node->id};
+        EditorCollisionDrawResult collision = editor_collision_controls_draw(&editor->collision,
+            "editor.soft_node.collision", context->project, context->history, &target, 1,
+            context->x + 10, collision_y, context->width - 20, true);
+        if(collision.changed) return true;
+        field_active |= collision.active;
     }
     if(appearance_open) {
         bool inherit = !node->color_overridden;

@@ -202,16 +202,6 @@ typedef struct EditorModeHierarchyContext {
     bool additive_selection;
 } EditorModeHierarchyContext;
 
-typedef struct EditorCollisionMenuContext {
-    FontAsset *font;
-    TextAsset *labels;
-    char (*caches)[EDITOR_OBJECT_NAME_MAX];
-    char *name;
-    size_t name_capacity;
-    TextAsset *name_field;
-    const TextAsset *add_label;
-} EditorCollisionMenuContext;
-
 typedef struct EditorAnimationBrowserContext {
     EditorFileBrowser *browser;
     EditorWorkspace *workspace;
@@ -1399,150 +1389,6 @@ static bool editor_checkbox(const char *id, const TextAsset *label,
     return interaction.clicked;
 }
 
-static void editor_collision_filter_set(EditorProject *project, EditorItemKind kind,
-        EditorObjectId object, uint32_t parent, uint32_t item,
-        EditorCollisionFilterKind filter, const char *mask, bool enabled) {
-    EditorCommand command = {.type = EDITOR_COMMAND_COLLISION_FILTER_SET,
-        .data.collision_filter_set = {.kind = kind, .object = object,
-            .parent = parent, .item = item, .filter = filter, .enabled = enabled}};
-    snprintf(command.data.collision_filter_set.mask,
-        sizeof(command.data.collision_filter_set.mask), "%s", mask);
-    (void)editor_command_execute(project, &command);
-}
-
-static bool editor_collision_mask_menu_draw(const char *id_prefix,
-    EditorProject *project, RohrCollisionCategoryMask *active_masks,
-    EditorItemKind target_kind, EditorObjectId object, uint32_t parent,
-    uint32_t item, EditorCollisionFilterKind filter,
-    FontAsset *font, TextAsset labels[EDITOR_COLLISION_MASK_MAX],
-    char caches[EDITOR_COLLISION_MASK_MAX][EDITOR_OBJECT_NAME_MAX],
-    char *name, size_t name_capacity, TextAsset *name_field,
-    const TextAsset *add_label, float x, float y, float width,
-    bool *field_active, size_t *row_count) {
-    size_t inactive[EDITOR_COLLISION_MASK_MAX];
-    size_t inactive_count = 0;
-    UIFieldResult field_result;
-
-    if(id_prefix == NULL || project == NULL || active_masks == NULL ||
-            font == NULL || name == NULL || name_field == NULL ||
-            add_label == NULL || field_active == NULL || row_count == NULL) return false;
-    field_result = rohr_ui_field(id_prefix,
-        (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
-            .string_capacity = name_capacity}, name_field,
-        (UIRect){x, y, width * 0.72f, 28.0f}, NULL);
-    *field_active = *field_active || field_result.active;
-    {
-        char add_id[112];
-        snprintf(add_id, sizeof(add_id), "%s.add", id_prefix);
-        if(rohr_ui_button(add_id, add_label,
-                (UIRect){x + width * 0.72f, y, width * 0.28f, 28.0f}, NULL).clicked) {
-            EditorCommand command = {.type = EDITOR_COMMAND_COLLISION_MASK_ADD};
-            EditorCommandResult result;
-            size_t mask_index;
-            snprintf(command.data.collision_mask_add.name,
-                sizeof(command.data.collision_mask_add.name), "%s", name);
-            result = editor_command_execute(project, &command);
-            mask_index = result.kind == ERROR_RESULT_VALUE ?
-                (size_t)result.result.object : SIZE_MAX;
-            if(mask_index < project->collision_mask_count) {
-                editor_collision_filter_set(project, target_kind, object, parent,
-                    item, filter, project->collision_masks[mask_index].name, true);
-                name[0] = '\0';
-                (void)rohr_graphics_text_value_set(name_field, "");
-            }
-        }
-    }
-    *row_count = 1;
-    for(size_t mask = 0; mask < project->collision_mask_count; mask += 1) {
-        char mask_id[112];
-        uint64_t bit = UINT64_C(1) << mask;
-        bool enabled = (*active_masks & bit) != 0;
-        if(!enabled) {
-            inactive[inactive_count++] = mask;
-            continue;
-        }
-        if(!editor_named_text_sync(font, project->collision_masks[mask].name,
-                &labels[mask], caches[mask], EDITOR_OBJECT_NAME_MAX)) return false;
-        snprintf(mask_id, sizeof(mask_id), "%s.%zu", id_prefix, mask);
-        if(editor_checkbox(mask_id, &labels[mask],
-                (UIRect){x, y + (float)*row_count * 30.0f, width, 28.0f},
-                &enabled)) editor_collision_filter_set(project, target_kind,
-                    object, parent, item, filter,
-                    project->collision_masks[mask].name, enabled);
-        *row_count += 1;
-    }
-    for(size_t i = 1; i < inactive_count; i += 1) {
-        size_t value = inactive[i];
-        size_t j = i;
-        while(j > 0 && strcmp(project->collision_masks[value].name,
-                project->collision_masks[inactive[j - 1]].name) < 0) {
-            inactive[j] = inactive[j - 1];
-            j -= 1;
-        }
-        inactive[j] = value;
-    }
-    for(size_t i = 0; i < inactive_count; i += 1) {
-        size_t mask = inactive[i];
-        char mask_id[112];
-        uint64_t bit = UINT64_C(1) << mask;
-        bool enabled = false;
-        if(!editor_named_text_sync(font, project->collision_masks[mask].name,
-                &labels[mask], caches[mask], EDITOR_OBJECT_NAME_MAX)) return false;
-        snprintf(mask_id, sizeof(mask_id), "%s.%zu", id_prefix, mask);
-        if(editor_checkbox(mask_id, &labels[mask],
-                (UIRect){x, y + (float)*row_count * 30.0f, width, 28.0f},
-                &enabled)) editor_collision_filter_set(project, target_kind,
-                    object, parent, item, filter,
-                    project->collision_masks[mask].name, enabled);
-        *row_count += 1;
-    }
-    rohr_ui_border((UIRect){x, y, width, (float)*row_count * 30.0f - 2.0f},
-        2.0f, (Color){0, 0, 0, 255});
-    return true;
-}
-
-static bool editor_rigid_body_collision_menu_draw(void *opaque,
-        const char *id_prefix, EditorProject *project, uint64_t *active_masks,
-        EditorObjectId object, EditorRigidBodyId body,
-        EditorCollisionFilterKind filter, float x, float y, float width,
-        bool *field_active, size_t *row_count) {
-    EditorCollisionMenuContext *context = opaque;
-    if(context == NULL) return false;
-    return editor_collision_mask_menu_draw(id_prefix, project, active_masks,
-        EDITOR_ITEM_RIGID_BODY, object, 0, body, filter, context->font,
-        context->labels, context->caches, context->name,
-        context->name_capacity, context->name_field, context->add_label,
-        x, y, width, field_active, row_count);
-}
-
-static bool editor_soft_node_collision_menu_draw(void *opaque,
-        const char *id_prefix, EditorProject *project, uint64_t *active_masks,
-        EditorObjectId object, EditorSoftBodyId body, EditorSoftNodeId node,
-        EditorCollisionFilterKind filter, float x, float y, float width,
-        bool *field_active, size_t *row_count) {
-    EditorCollisionMenuContext *context = opaque;
-    if(context == NULL) return false;
-    return editor_collision_mask_menu_draw(id_prefix, project, active_masks,
-        EDITOR_ITEM_SOFT_NODE, object, body, node, filter, context->font,
-        context->labels, context->caches, context->name,
-        context->name_capacity, context->name_field, context->add_label,
-        x, y, width, field_active, row_count);
-}
-
-static bool editor_soft_beam_collision_menu_draw(void *opaque,
-        const char *id_prefix, EditorProject *project, uint64_t *active_masks,
-        EditorObjectId object, EditorSoftBodyId body, EditorSoftBeamId beam,
-        EditorCollisionFilterKind filter, float x, float y, float width,
-        bool *field_active, size_t *row_count) {
-    EditorCollisionMenuContext *context = opaque;
-    if(context == NULL) return false;
-    return editor_collision_mask_menu_draw(id_prefix, project, active_masks,
-        EDITOR_ITEM_SOFT_BEAM, object, body, beam, filter, context->font,
-        context->labels, context->caches, context->name,
-        context->name_capacity, context->name_field, context->add_label,
-        x, y, width, field_active, row_count);
-}
-
 static EditorRigidBody *editor_selected_body_get(EditorObject *object,
     const EditorViewportState *state) {
     return object == NULL || state == NULL ? NULL :
@@ -2406,18 +2252,10 @@ int main(int argc, char **argv) {
     TextAsset generate_c_label = {0};
     TextAsset compile_label = {0};
     TextAsset build_project_label = {0};
-    TextAsset collision_label = {0};
     TextAsset particle_label = {0};
     TextAsset particle_ring_color_label = {0};
     TextAsset particle_fill_color_label = {0};
     TextAsset auto_fit_label = {0};
-    TextAsset collision_category_label = {0};
-    TextAsset collide_with_label = {0};
-    TextAsset add_label = {0};
-    TextAsset collision_mask_name_field = {0};
-    char collision_mask_name[EDITOR_OBJECT_NAME_MAX] = {0};
-    TextAsset collision_mask_labels[EDITOR_COLLISION_MASK_MAX] = {0};
-    char collision_mask_cache[EDITOR_COLLISION_MASK_MAX][EDITOR_OBJECT_NAME_MAX] = {{0}};
     TextAsset view_label = {0};
     TextAsset settings_label = {0};
     TextAsset new_label = {0};
@@ -2506,8 +2344,6 @@ int main(int argc, char **argv) {
     bool terminal_editor_operations = true;
     bool terminal_generated_code = true;
     bool terminal_build_operations = true;
-    bool collision_category_open = false;
-    bool collide_with_open = false;
     bool column_frame_multi_edit_open = false;
     EditorCloseAction close_action = EDITOR_CLOSE_NONE;
     float panel_scroll_offset = 0.0f;
@@ -2617,15 +2453,10 @@ int main(int argc, char **argv) {
             !editor_text_create(&font, "Generate C", &generate_c_label) ||
             !editor_text_create(&font, "Compile", &compile_label) ||
             !editor_text_create(&font, "Build Project", &build_project_label) ||
-            !editor_text_create(&font, "Collision", &collision_label) ||
             !editor_text_create(&font, "Particle", &particle_label) ||
             !editor_text_create(&font, "Ring Color", &particle_ring_color_label) ||
             !editor_text_create(&font, "Fill Color", &particle_fill_color_label) ||
             !editor_text_create(&font, "Auto Fit", &auto_fit_label) ||
-            !editor_text_create(&font, "Collision Category", &collision_category_label) ||
-            !editor_text_create(&font, "Collide With", &collide_with_label) ||
-            !editor_text_create(&font, "Add", &add_label) ||
-            !editor_text_create(&font, "", &collision_mask_name_field) ||
             !editor_text_create(&font, "View", &view_label) ||
             !editor_text_create(&font, "Settings", &settings_label) ||
             !editor_text_create(&font, "New Project", &new_label) ||
@@ -2816,6 +2647,11 @@ int main(int argc, char **argv) {
             viewport_state.dragged_viewport_vertex ||
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
+        EditorCollisionControls *active_collision = viewport_state.selected_item_count > 1 ? &bulk_panel.collision :
+            viewport_state.mode == EDITOR_VIEWPORT_RIGID_BODY ? &rigid_body_editor.collision :
+            viewport_state.mode == EDITOR_VIEWPORT_SOFT_NODE ? &soft_node_editor.collision :
+            viewport_state.mode == EDITOR_VIEWPORT_SOFT_BEAM ? &soft_beam_editor.collision :
+            viewport_state.mode == EDITOR_VIEWPORT_PARTICLE ? &particle_editor.collision : NULL;
         if(file_browser.active &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             if(!editor_file_browser_parent(&file_browser)) {
@@ -2867,10 +2703,6 @@ int main(int argc, char **argv) {
             soft_body_editor.auto_shape_picker_open = false;
             bulk_panel.auto_shape_picker_open = false;
             hitbox_editor.auto_shape_picker_open = false;
-        } else if((collision_category_open || collide_with_open) &&
-                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
-            collision_category_open = false;
-            collide_with_open = false;
         } else if(color_picker.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             editor_color_picker_commit(&color_picker);
@@ -2881,6 +2713,11 @@ int main(int argc, char **argv) {
                     &viewport_context_menu) || viewport_context_menu.renaming) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             editor_context_menu_cancel(&viewport_context_menu);
+        } else if(active_collision != NULL && !field_editing &&
+                !editor_terminal_panel_focused_check(&terminal_panel) &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE) &&
+                (active_collision->open[0] || active_collision->open[1])) {
+            active_collision->open[0] = active_collision->open[1] = false;
         } else if(viewport_state.soft_area_picking && !field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
@@ -3073,8 +2910,6 @@ int main(int argc, char **argv) {
         if(panel_scroll_mode != viewport_state.mode) {
             panel_scroll_mode = viewport_state.mode;
             panel_scroll_offset = 0.0f;
-            collision_category_open = false;
-            collide_with_open = false;
             rigid_body_editor.binding_hitbox_open = 0;
         }
         bool delete_footer = editor_panel_delete_footer_check(&viewport_state);
@@ -3088,7 +2923,7 @@ int main(int argc, char **argv) {
         float panel_content_height = panel_content_offset + fmaxf(
             editor_panel_content_height_get(&project, &viewport_state,
                 &rigid_body_editor),
-            editor_bulk_panel_content_height_get(&viewport_state));
+            editor_bulk_panel_content_height_get(&bulk_panel, &project, &viewport_state));
         if(viewport_state.mode >= 0 &&
                 (size_t)viewport_state.mode < EDITOR_MODE_ACCORDION_COUNT &&
                 mode_measured_heights[viewport_state.mode] > 0.0f)
@@ -3185,7 +3020,7 @@ int main(int argc, char **argv) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
             field_editing = editor_particle_editor_draw(&particle_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3193,7 +3028,7 @@ int main(int argc, char **argv) {
                     .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
             field_editing = editor_particle_radius_editor_draw(&particle_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_RIGID_BODY) {
@@ -3210,14 +3045,8 @@ int main(int argc, char **argv) {
                 .scroll_offset = panel_scroll_offset,
                 .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
-            EditorCollisionMenuContext collision_context = {
-                .font = &font, .labels = collision_mask_labels,
-                .caches = collision_mask_cache, .name = collision_mask_name,
-                .name_capacity = sizeof(collision_mask_name),
-                .name_field = &collision_mask_name_field,
-                .add_label = &add_label};
             field_editing = editor_rigid_body_editor_draw(&rigid_body_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3229,13 +3058,12 @@ int main(int argc, char **argv) {
                     .delete_footer = true,
                     .hierarchy_row = editor_mode_hierarchy_row,
                     .hierarchy_context = &hierarchy_context,
-                    .primary_button = hierarchy_primary},
-                editor_rigid_body_collision_menu_draw, &collision_context);
+                    .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_HITBOX) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_hitbox_editor_draw(&hitbox_editor,
-                &auto_shape_editor, &(EditorModeContext){.project = &project,
+                &auto_shape_editor, &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3244,14 +3072,14 @@ int main(int argc, char **argv) {
                     .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_AUTO_SHAPE) {
             field_editing = editor_auto_shape_editor_draw(&auto_shape_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_VERTEX) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_vertex_editor_draw(&vertex_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3262,7 +3090,7 @@ int main(int argc, char **argv) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_line_editor_draw(&line_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3281,7 +3109,7 @@ int main(int argc, char **argv) {
                 .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3295,7 +3123,7 @@ int main(int argc, char **argv) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_anchor_editor_draw(&anchor_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3316,7 +3144,7 @@ int main(int argc, char **argv) {
                 .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_body_editor_draw(&soft_body_editor,
-                &auto_shape_editor, &(EditorModeContext){.project = &project,
+                &auto_shape_editor, &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3334,14 +3162,8 @@ int main(int argc, char **argv) {
                 .picker = &color_picker, .project = &project};
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
-            EditorCollisionMenuContext collision_context = {
-                .font = &font, .labels = collision_mask_labels,
-                .caches = collision_mask_cache, .name = collision_mask_name,
-                .name_capacity = sizeof(collision_mask_name),
-                .name_field = &collision_mask_name_field,
-                .add_label = &add_label};
             field_editing = editor_soft_node_editor_draw(&soft_node_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3351,8 +3173,7 @@ int main(int argc, char **argv) {
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
                     .delete_footer = true,
-                    .primary_button = hierarchy_primary},
-                editor_soft_node_collision_menu_draw, &collision_context);
+                    .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SOFT_AREA ||
                 viewport_state.mode == EDITOR_VIEWPORT_SOFT_HOLE) {
             EditorModeColorContext color_context = {.picker = &color_picker, .project = &project};
@@ -3365,7 +3186,7 @@ int main(int argc, char **argv) {
                 .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_soft_area_editor_draw(&soft_body_editor.areas,
-                &(EditorModeContext){.project = &project, .viewport = &viewport_state,
+                &(EditorModeContext){.history = &history, .project = &project, .viewport = &viewport_state,
                     .x = EDITOR_VIEWPORT_WIDTH, .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control, .color_open = editor_mode_color_picker_open,
                     .color_context = &color_context, .delete_y_get = editor_mode_delete_y_get,
@@ -3377,14 +3198,8 @@ int main(int argc, char **argv) {
                 .picker = &color_picker, .project = &project};
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
-            EditorCollisionMenuContext collision_context = {
-                .font = &font, .labels = collision_mask_labels,
-                .caches = collision_mask_cache, .name = collision_mask_name,
-                .name_capacity = sizeof(collision_mask_name),
-                .name_field = &collision_mask_name_field,
-                .add_label = &add_label};
             field_editing = editor_soft_beam_editor_draw(&soft_beam_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3394,13 +3209,12 @@ int main(int argc, char **argv) {
                     .delete_open_item = editor_mode_open_item_delete,
                     .delete_context = &delete_context,
                     .delete_footer = true,
-                    .primary_button = hierarchy_primary},
-                editor_soft_beam_collision_menu_draw, &collision_context);
+                    .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_SPRITE) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_sprite_editor_draw(&sprite_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3414,7 +3228,7 @@ int main(int argc, char **argv) {
                 .project = &project, .viewport = &viewport_state};
             field_editing = editor_animation_frame_editor_draw(
                 &animation_frame_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3422,7 +3236,7 @@ int main(int argc, char **argv) {
                     .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_CAMERA_ENTITY) {
             field_editing = editor_camera_editor_draw(&camera_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANIMATED_SPRITE) {
@@ -3444,7 +3258,7 @@ int main(int argc, char **argv) {
             bool additive_selection = editor_selection_modifier_check();
             field_editing = editor_animated_sprite_editor_draw(
                 &animated_sprite_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3460,7 +3274,7 @@ int main(int argc, char **argv) {
                 additive_selection, &column_frame_multi_edit_open);
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
             field_editing = editor_layout_camera_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control});
@@ -3471,7 +3285,7 @@ int main(int argc, char **argv) {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
                 .action = &workspace_browser_action};
             field_editing = editor_ui_shape_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3486,7 +3300,7 @@ int main(int argc, char **argv) {
                 .browser = &file_browser, .workspace = &workspace, .font = &font,
                 .action = &workspace_browser_action};
             field_editing = editor_ui_text_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3498,7 +3312,7 @@ int main(int argc, char **argv) {
             EditorModeColorContext color_context = {
                 .picker = &color_picker, .project = &project};
             field_editing = editor_ui_slider_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .layer_control = &layer_control,
@@ -3506,12 +3320,12 @@ int main(int argc, char **argv) {
                     .color_context = &color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR) {
             field_editing = editor_ui_vertex_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
             field_editing = editor_ui_line_editor_draw(&layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_LAYOUT) {
@@ -3527,7 +3341,7 @@ int main(int argc, char **argv) {
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_layout_viewport_editor_draw(
                 &layout_viewport_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .local_color_open = editor_mode_local_color_picker_open,
@@ -3553,7 +3367,7 @@ int main(int argc, char **argv) {
                 .action = &workspace_browser_action};
             bool additive_selection = editor_selection_modifier_check();
             field_editing = editor_object_editor_draw(&object_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3583,7 +3397,7 @@ int main(int argc, char **argv) {
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_controller_editor_draw(&input_settings_panel,
-                    &(EditorModeContext){.project = &project,
+                    &(EditorModeContext){.history = &history, .project = &project,
                         .viewport = &viewport_state,
                         .x = EDITOR_VIEWPORT_WIDTH,
                         .width = EDITOR_TOOLS_WIDTH,
@@ -3618,7 +3432,7 @@ int main(int argc, char **argv) {
                     .additive_selection = hierarchy_additive_selection};
                 input_settings_panel.open = true;
                 editor_input_action_editor_draw(&input_settings_panel,
-                    &(EditorModeContext){.project = &project,
+                    &(EditorModeContext){.history = &history, .project = &project,
                         .viewport = &viewport_state,
                         .x = EDITOR_VIEWPORT_WIDTH,
                         .width = EDITOR_TOOLS_WIDTH,
@@ -3667,7 +3481,7 @@ int main(int argc, char **argv) {
                 .content_offset = panel_content_offset,
                 .additive_selection = hierarchy_additive_selection};
             editor_hierarchy_editor_draw(&hierarchy_editor,
-                &(EditorModeContext){.project = &project,
+                &(EditorModeContext){.history = &history, .project = &project,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .hierarchy_row = editor_mode_hierarchy_row,
@@ -4037,8 +3851,6 @@ int main(int argc, char **argv) {
                     soft_body_editor.auto_shape_picker_open = false;
                     bulk_panel.auto_shape_picker_open = false;
                     hitbox_editor.auto_shape_picker_open = false;
-                    collision_category_open = false;
-                    collide_with_open = false;
                     editor_color_picker_cancel(&color_picker);
                     rohr_ui_field_focus_clear();
                 }
@@ -4900,18 +4712,10 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&compile_label);
     rohr_graphics_text_destroy(&build_project_label);
     rohr_graphics_text_destroy(&build_label);
-    rohr_graphics_text_destroy(&collision_mask_name_field);
-    rohr_graphics_text_destroy(&add_label);
-    rohr_graphics_text_destroy(&collision_category_label);
-    rohr_graphics_text_destroy(&collide_with_label);
-    rohr_graphics_text_destroy(&collision_label);
     rohr_graphics_text_destroy(&particle_label);
     rohr_graphics_text_destroy(&particle_ring_color_label);
     rohr_graphics_text_destroy(&particle_fill_color_label);
     rohr_graphics_text_destroy(&auto_fit_label);
-    for(size_t i = 0; i < EDITOR_COLLISION_MASK_MAX; i += 1) {
-        rohr_graphics_text_destroy(&collision_mask_labels[i]);
-    }
     rohr_graphics_text_destroy(&file_label);
     rohr_graphics_text_destroy(&redo_label);
     rohr_graphics_text_destroy(&undo_label);
@@ -5000,18 +4804,10 @@ fail:
     rohr_graphics_text_destroy(&compile_label);
     rohr_graphics_text_destroy(&build_project_label);
     rohr_graphics_text_destroy(&build_label);
-    rohr_graphics_text_destroy(&collision_mask_name_field);
-    rohr_graphics_text_destroy(&add_label);
-    rohr_graphics_text_destroy(&collision_category_label);
-    rohr_graphics_text_destroy(&collide_with_label);
-    rohr_graphics_text_destroy(&collision_label);
     rohr_graphics_text_destroy(&particle_label);
     rohr_graphics_text_destroy(&particle_ring_color_label);
     rohr_graphics_text_destroy(&particle_fill_color_label);
     rohr_graphics_text_destroy(&auto_fit_label);
-    for(size_t i = 0; i < EDITOR_COLLISION_MASK_MAX; i += 1) {
-        rohr_graphics_text_destroy(&collision_mask_labels[i]);
-    }
     rohr_graphics_text_destroy(&file_label);
     rohr_graphics_text_destroy(&redo_label);
     rohr_graphics_text_destroy(&undo_label);

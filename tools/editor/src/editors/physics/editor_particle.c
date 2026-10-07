@@ -38,11 +38,15 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
         editor_particle_editor_destroy(editor);
         return false;
     }
+    if(!editor_collision_controls_create(&editor->collision, font)) {
+        editor_particle_editor_destroy(editor); return false;
+    }
     return true;
 }
 
 void editor_particle_editor_destroy(EditorParticleEditor *editor) {
     if(editor == NULL) return;
+    editor_collision_controls_destroy(&editor->collision);
     editor_center_of_mass_editor_destroy(&editor->center_of_mass);
     rohr_graphics_text_destroy(&editor->title);
     rohr_graphics_text_destroy(&editor->visibility_label);
@@ -77,6 +81,8 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
     body = object == NULL ? NULL : editor_project_rigid_body_get(object,
         context->viewport->selected_rigid_body);
     if(body == NULL || !body->particle) return false;
+    EditorSelectionRef collision_target = {EDITOR_SELECTION_PARTICLE, object->id, 0, 0, body->id};
+    editor_collision_controls_selection_set(&editor->collision, &collision_target, 1);
     rohr_ui_label(&editor->title,
         (UIRect){context->x + 10.0f, 42.0f, context->width - 20.0f, 30.0f});
     {
@@ -200,8 +206,13 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
     float layer_height = context->layer_control == NULL ? 0.0f :
         body->graphics_layer.layer == 0 || context->layer_control->adding ||
         context->layer_control->edited_layer != 0 ? 86.0f : 48.0f;
+    EditorSelectionRef target = {EDITOR_SELECTION_PARTICLE, object->id, 0, 0, body->id};
+    EditorCollisionDrawResult collision = editor_collision_controls_draw(&editor->collision,
+        "editor.particle.collision", context->project, context->history, &target, 1,
+        context->x + 10, layer_y + layer_height + 6, context->width - 20, true);
+    if(collision.changed) return true;
     editor_mode_accordion_layout_measure_include(layer_y + layer_height);
-    return com_active || radius.active || rigid_vertices.active || origin_x.active ||
+    return collision.active || com_active || radius.active || rigid_vertices.active || origin_x.active ||
         origin_y.active || layer_active;
 }
 

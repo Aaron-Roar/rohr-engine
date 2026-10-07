@@ -58,7 +58,6 @@ static const EditorBulkProperty rigid_body_properties[] = {
     {"Motion", EDITOR_BULK_PROPERTY, EDITOR_BULK_MOTION_DROPDOWN, EDITOR_PROPERTY_STATIC},
     {"Rotation", EDITOR_BULK_PROPERTY, EDITOR_BULK_ROTATION_DROPDOWN,
         EDITOR_PROPERTY_ROTATION_LOCKED},
-    {"Collision", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_COLLISION},
     {"Particle", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_PARTICLE},
     {"Particle Radius", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_PARTICLE_RADIUS},
@@ -118,7 +117,6 @@ static const EditorBulkProperty soft_node_properties[] = {
     {"Restitution", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_RESTITUTION},
     {"Gravity", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_GRAVITY},
-    {"Collision", EDITOR_BULK_PROPERTY, EDITOR_BULK_CHECKBOX, EDITOR_PROPERTY_COLLISION},
     {"Radius", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_NODE_RADIUS},
     {"Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR, EDITOR_PROPERTY_COLOR}
@@ -238,13 +236,17 @@ static const EditorBulkProperty *editor_bulk_mixed_properties_get(
     return mixed_position_properties;
 }
 
-float editor_bulk_panel_content_height_get(const EditorViewportState *state) {
+float editor_bulk_panel_content_height_get(const EditorBulkPanel *panel,
+        EditorProject *project, const EditorViewportState *state) {
     size_t count = 0;
     if(state == NULL || state->selected_item_count < 2) return 0.0f;
     if(editor_viewport_selection_homogeneous_check(state))
         (void)editor_bulk_properties_get(state->selected_items[0].kind, &count);
     else (void)editor_bulk_mixed_properties_get(state, &count);
-    return 150.0f + (float)count * 36.0f +
+    EditorCollisionValues values;
+    float collision_height = editor_collision_values_get(project, state->selected_items,
+        state->selected_item_count, &values) ? editor_collision_controls_height_get(&panel->collision, project, true) : 0;
+    return 150.0f + (float)count * 36.0f + collision_height +
         (editor_viewport_selection_homogeneous_check(state) &&
             (state->selected_items[0].kind == EDITOR_SELECTION_VERTEX ||
              state->selected_items[0].kind == EDITOR_SELECTION_SOFT_NODE) ?
@@ -692,11 +694,15 @@ bool editor_bulk_panel_create(EditorBulkPanel *panel, FontAsset *font) {
             return false;
         }
     }
+    if(!editor_collision_controls_create(&panel->collision, font)) {
+        editor_bulk_panel_destroy(panel); return false;
+    }
     return true;
 }
 
 void editor_bulk_panel_destroy(EditorBulkPanel *panel) {
     if(panel == NULL) return;
+    editor_collision_controls_destroy(&panel->collision);
     rohr_graphics_text_destroy(&panel->title);
     rohr_graphics_text_destroy(&panel->delete_label);
     rohr_graphics_text_destroy(&panel->auto_shape_label);
@@ -750,7 +756,11 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         editor_bulk_properties_get(state->selected_items[0].kind,
             &property_count) : editor_bulk_mixed_properties_get(state,
                 &property_count);
-    if(property_count == 0 || properties == NULL) return false;
+    editor_collision_controls_selection_set(&panel->collision, state->selected_items, state->selected_item_count);
+    EditorCollisionValues collision_values;
+    bool collision_supported = editor_collision_values_get(project, state->selected_items,
+        state->selected_item_count, &collision_values);
+    if(property_count == 0 && !collision_supported) return false;
     if(property_count > EDITOR_BULK_PROPERTY_MAX) return false;
     if(panel->kind != (editor_viewport_selection_homogeneous_check(state) ?
             state->selected_items[0].kind : EDITOR_SELECTION_NONE) ||
@@ -872,6 +882,15 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         }
     }
     float footer_y = 96.0f + (float)property_count * 36.0f;
+    if(collision_supported) {
+        EditorCollisionDrawResult collision = editor_collision_controls_draw(&panel->collision,
+            "editor.bulk.collision", project, history, state->selected_items, state->selected_item_count,
+            x + 10, footer_y, width - 20, true);
+        if(collision.changed) return true;
+        editing |= collision.active;
+        footer_y = collision.bottom + 6;
+    }
+
     if(auto_shape != NULL && editor_viewport_selection_homogeneous_check(state) &&
             (state->selected_items[0].kind == EDITOR_SELECTION_VERTEX ||
                 state->selected_items[0].kind == EDITOR_SELECTION_SOFT_NODE)) {
@@ -934,5 +953,6 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
                 (UIRect){x + 10.0f, y, width - 20.0f, 32.0f}, &style).clicked)
             (void)editor_navigation_multi_selection_delete(project, state, history);
     }
+    editor_mode_accordion_layout_measure_include(footer_y + 38);
     return editing;
 }

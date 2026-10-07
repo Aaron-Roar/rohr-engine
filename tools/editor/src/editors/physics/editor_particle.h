@@ -7,9 +7,11 @@
 
 #include "editors/editor_mode_context.h"
 #include "editor_center_of_mass.h"
+#include "editors/editor_collision_controls.h"
 
 typedef struct EditorParticleEditor {
     EditorCenterOfMassEditor center_of_mass;
+    EditorCollisionControls collision;
     TextAsset title;
     TextAsset visibility_label;
     TextAsset visible_label;

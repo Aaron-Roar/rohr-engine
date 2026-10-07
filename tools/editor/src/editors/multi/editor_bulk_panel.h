@@ -6,6 +6,7 @@
 #define ROHR_EDITOR_BULK_PANEL_H
 
 #include "editor_history.h"
+#include "editors/editor_collision_controls.h"
 #include "editor_viewport.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
 
@@ -16,6 +17,7 @@ typedef void (*EditorBulkColorOpen)(void *context, uint32_t *color,
 
 typedef struct EditorBulkPanel {
     EditorHierarchySelection kind;
+    EditorCollisionControls collision;
     TextAsset title;
     TextAsset delete_label;
     TextAsset auto_shape_label;
@@ -45,7 +47,8 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
     EditorViewportState *state, EditorHistory *history,
     EditorAutoShapeEditor *auto_shape, float x, float width,
     float delete_y, EditorBulkColorOpen color_open, void *color_context);
-float editor_bulk_panel_content_height_get(const EditorViewportState *state);
+float editor_bulk_panel_content_height_get(const EditorBulkPanel *panel,
+        EditorProject *project, const EditorViewportState *state);
 bool editor_bulk_property_set(EditorProject *project, EditorViewportState *state,
     EditorHistory *history, const EditorPropertySetCommand *property);
 

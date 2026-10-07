@@ -358,9 +358,19 @@ Rigid bodies expose mass, friction, restitution, gravity, motion type, rotation
 locking, colors, and collision filtering. Collision filtering has two sets:
 
 - **Collision Category** describes what the body is.
-- **Collide With** describes categories it accepts.
+- **Collides With** describes categories it accepts.
 
 A pair responds only when both directional filters accept one another.
+
+Rigid bodies, particles, soft nodes, and soft beams share collision controls.
+Multi-selection shows these controls when every selected item supports them,
+including selections mixing those types. Each filter button expands its own
+list immediately below it; both lists can remain open, including while collision
+is disabled. A dash indicates mixed values. Clicking a mixed or unchecked box
+enables it for every selected item; clicking a checked box disables it for all.
+Changing one category preserves every other category on each item. Each bulk
+edit is one undo step and rolls back entirely if any item rejects it. Adding a
+category from either list also assigns it to the selection in the same undo step.
 
 ## Center of mass authoring and persistence
 

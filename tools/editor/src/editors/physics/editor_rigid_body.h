@@ -6,14 +6,9 @@
 #define EDITOR_RIGID_BODY_H
 
 #include "editors/editor_mode_context.h"
+#include "editors/editor_collision_controls.h"
 #include "editor_center_of_mass.h"
 #include "editors/editor_mode_controls.h"
-
-typedef bool (*EditorRigidBodyCollisionMenuFunction)(void *context,
-    const char *id_prefix, EditorProject *project, uint64_t *active_masks,
-    EditorObjectId object, EditorRigidBodyId body,
-    EditorCollisionFilterKind filter, float x, float y, float width,
-    bool *field_active, size_t *row_count);
 
 typedef struct EditorRigidBodyEditor {
     FontAsset *font;
@@ -26,8 +21,7 @@ typedef struct EditorRigidBodyEditor {
     TextAsset parent_label, none_label;
     TextAsset gravity_label, dynamic_label, static_label;
     TextAsset rotation_unlocked_label, rotation_locked_label;
-    TextAsset collision_label, particle_label;
-    TextAsset collision_category_label, collide_with_label;
+    TextAsset particle_label;
     TextAsset origin_label, active_hitbox_label, add_hitbox_label, delete_label;
     TextAsset bind_frames_label;
     TextAsset visibility_label, visible_label, hidden_label;
@@ -43,8 +37,7 @@ typedef struct EditorRigidBodyEditor {
     char parent_cache[EDITOR_RIGID_BODY_MAX][EDITOR_OBJECT_NAME_MAX];
     char hitbox_cache[EDITOR_BODY_HITBOX_MAX][EDITOR_OBJECT_NAME_MAX];
     char frame_cache[MAX_ANIMATIONS_FRAMES][EDITOR_OBJECT_NAME_MAX];
-    bool collision_category_open;
-    bool collide_with_open;
+    EditorCollisionControls collision;
     EditorHitboxId binding_hitbox_open;
     EditorModeAccordionSection transform_section;
     EditorModeAccordionSection initial_motion_section;
@@ -60,8 +53,6 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     FontAsset *font);
 void editor_rigid_body_editor_destroy(EditorRigidBodyEditor *editor);
 bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
-    const EditorModeContext *context,
-    EditorRigidBodyCollisionMenuFunction collision_menu,
-    void *collision_menu_context);
+    const EditorModeContext *context);
 
 #endif

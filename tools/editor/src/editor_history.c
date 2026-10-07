@@ -37,6 +37,7 @@ struct EditorHistoryAggregateChange {
 };
 
 struct EditorHistoryCollisionChange {
+    bool tracked;
     EditorCollisionMask *masks;
     size_t count;
 };
@@ -1919,6 +1920,29 @@ bool editor_history_transaction_project_hierarchy_track(EditorHistory *history) 
     return true;
 }
 
+bool editor_history_transaction_collision_track(EditorHistory *history) {
+    if(history == NULL || !history->transaction_active || history->transaction_commands == NULL) return false;
+    EditorHistoryEntry *entry = history->transaction_commands;
+    for(size_t i = 0; i < entry->command_count; i += 1)
+        if(entry->commands[i].forward.kind == EDITOR_HISTORY_ACTION_COLLISION) return true;
+    EditorHistoryCollisionChange *forward = editor_history_collision_capture(history->project);
+    EditorHistoryCollisionChange *inverse = editor_history_collision_capture(history->project);
+    EditorHistoryCommandPair *commands = NULL;
+    if(forward != NULL && inverse != NULL)
+        commands = realloc(entry->commands, (entry->command_count + 1) * sizeof(*commands));
+    if(commands == NULL) {
+        editor_history_collision_destroy(forward); editor_history_collision_destroy(inverse); return false;
+    }
+    forward->tracked = true;
+    entry->commands = commands;
+    entry->commands[entry->command_count++] = (EditorHistoryCommandPair){
+        .forward = {.kind = EDITOR_HISTORY_ACTION_COLLISION, .data.collision = forward},
+        .inverse = {.kind = EDITOR_HISTORY_ACTION_COLLISION, .data.collision = inverse}};
+    entry->memory += sizeof(*commands) + sizeof(*forward) + sizeof(*inverse) +
+        (forward->count + inverse->count) * sizeof(*forward->masks);
+    return true;
+}
+
 bool editor_history_transaction_input_track(EditorHistory *history) {
     EditorHistoryInputChange *forward;
     EditorHistoryInputChange *inverse;
@@ -1988,6 +2012,12 @@ static bool editor_history_transaction_tracks_finalize(EditorHistory *history) {
                 free(pair.inverse.data.order);
                 continue;
             }
+        } else if(pair.forward.kind == EDITOR_HISTORY_ACTION_COLLISION &&
+                pair.forward.data.collision != NULL && pair.forward.data.collision->tracked) {
+            EditorHistoryCollisionChange *updated = editor_history_collision_capture(history->project);
+            if(updated == NULL) return false;
+            editor_history_collision_destroy(pair.forward.data.collision);
+            pair.forward.data.collision = updated;
         } else if(pair.forward.kind == EDITOR_HISTORY_ACTION_INPUT &&
                 pair.forward.data.input != NULL &&
                 (pair.forward.data.input->input_tracked ||
