@@ -54,6 +54,23 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Reliable Particle–Beam Contacts** milestone is complete.
+
+Correct particle clipping and preserve restitution when beam contacts interact
+with other collisions, using the existing shared physics pipeline.
+
+1. [x] **Fix beam penetration correction and rebound preservation** — Correct
+   separation depth for contained projections and retain the initial rebound
+   target throughout the iterative contact solve. Preserve mass-dependent
+   response, material mixing, collision filters, and endpoint handling. Verify
+   isolated impacts, floor-supported beams, the reported generated scene,
+   sanitizers, and Linux/Windows builds. No public API or project-format changes;
+   continuous collision detection remains outside this goal. Verified with 67
+   native tests, six ASan/UBSan/leak checks, Linux and Windows compilation, and
+   installed-SDK application/example startup checks. The supplied scene's first
+   impact produces relative rebound 54.9956 from approach 68.7445, matching its
+   effective restitution of 0.8. Its normal application build was refreshed.
+
 The user-selected **Independent Beam Materials** milestone is complete.
 
 Give soft-body beams independent collision friction and restitution across the

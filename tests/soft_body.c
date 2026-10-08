@@ -282,6 +282,8 @@ int main(void) {
                 wall_position.result.value.y != 0.0f ||
                 frictions[collision_node_index.result.value] != 0.5f ||
                 restitutions[collision_node_index.result.value] != 0.3f) goto fail;
+        if(rohr_error_check(rohr_entity_delete(wall.result.value)) ||
+                rohr_error_check(rohr_entity_delete(collision_body.result.value))) goto fail;
     }
     {
         EntityResult boundary_body = rohr_physics_soft_body_create();
@@ -316,6 +318,7 @@ int main(void) {
             boundary_body.result.value, boundary_a.result.value,
             boundary_b.result.value, 10.0f, 1.0f);
         if(rohr_error_check(boundary_area) || rohr_error_check(boundary_beam) ||
+                rohr_error_check(rohr_physics_friction_set(boundary_beam.result.value, 1.0f)) ||
                 rohr_error_check(rohr_physics_soft_body_beam_collision_disable(
                     boundary_beam.result.value)) ||
                 rohr_error_check(rohr_physics_position_set(

@@ -580,6 +580,17 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(beam_materials_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
 
+    add_executable(beam_contacts_test tests/beam_contacts.c)
+    target_include_directories(beam_contacts_test PRIVATE src)
+    target_link_libraries(beam_contacts_test PRIVATE rohr_engine)
+    set_target_properties(beam_contacts_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME beam_contacts COMMAND beam_contacts_test)
+    set_tests_properties(beam_contacts PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(beam_contacts_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+
     add_executable(soft_body_areas_test tests/soft_body_areas.c
         tests/soft_body_areas_visual.c)
     target_include_directories(soft_body_areas_test PRIVATE src)
@@ -850,6 +861,7 @@ if(ROHR_BUILD_TESTS)
         joints_test
         soft_body_test
         beam_materials_test
+        beam_contacts_test
         soft_body_areas_test
         node_loop_geometry_test
         auto_shape_test

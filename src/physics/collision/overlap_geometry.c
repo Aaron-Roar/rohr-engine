@@ -7,22 +7,31 @@
 #include "shape_decomposition.h"
 
 #include <float.h>
+#include <math.h>
 
 static bool physics_sat_piece_axes_apply(
     Shape first,
     Shape second,
     const Shape *source,
     uint8_t piece_index,
+    Vec2D center_delta,
     OverlapInfo *overlap
 ) {
     Vec2DList axes = math_vectors_normalize(math_normals_create(first));
 
     for(uint8_t edge = 0; edge < axes.amount_of_vectors; edge += 1) {
         Axis axis = axes.vectors[edge];
+        if(math_dot_product(axis, center_delta) < 0.0f) {
+            axis.x = -axis.x;
+            axis.y = -axis.y;
+        }
         Projection first_projection = math_project_shape_on_axis(first, axis);
         Projection second_projection = math_project_shape_on_axis(second, axis);
         float depth = math_projection_overlap(first_projection, second_projection);
         if(depth <= 0.0f) return false;
+        /* Intersection length is not separation distance when either interval
+         * contains the other (notably a thin beam inside a particle). */
+        depth = first_projection.max - second_projection.min;
         if(physics_shape_collision_piece_edge_boundary_check(
                 source, piece_index, edge) && depth < overlap->depth) {
             overlap->depth = depth;
@@ -43,14 +52,15 @@ OverlapInfo physics_sat_collision_piece_overlap_get(
     OverlapInfo overlap = {.detected = true, .depth = FLT_MAX};
     Vec2D center_delta;
 
-    if(!physics_sat_piece_axes_apply(first, second, first_source, first_index,
-            &overlap) ||
-            !physics_sat_piece_axes_apply(second, first, second_source,
-                second_index, &overlap) || overlap.depth == FLT_MAX)
-        return (OverlapInfo){0};
     center_delta = math_vector_subtract(
         math_polygon_centroid(*second_source),
         math_polygon_centroid(*first_source));
+    if(!physics_sat_piece_axes_apply(first, second, first_source, first_index,
+            center_delta, &overlap) ||
+            !physics_sat_piece_axes_apply(second, first, second_source,
+                second_index, (Vec2D){-center_delta.x, -center_delta.y},
+                &overlap) || overlap.depth == FLT_MAX)
+        return (OverlapInfo){0};
     if(math_dot_product(center_delta, overlap.normal) < 0.0f) {
         overlap.normal.x *= -1.0f;
         overlap.normal.y *= -1.0f;

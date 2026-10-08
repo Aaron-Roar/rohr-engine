@@ -269,6 +269,16 @@ materials, so both the beam and particle need nonzero restitution for bounce.
 Friction combines as the geometric mean. Endpoint interpolation still determines
 contact velocity and impulse distribution, independently of materials.
 
+Beam contacts participate in the shared iterative contact solve alongside rigid
+contacts and joints. Each impact retains its initial relative rebound target
+throughout the substep, accumulating normal and friction impulses as supporting
+contacts change node velocities. Restitution is not reapplied on each iteration.
+A heavy particle can continue forward while pushing a light beam away; bounce
+specifies relative separation speed, not an unconditional direction reversal.
+Separation uses the distance needed to leave the contact, including when a thin
+beam's projection is fully inside the other collider's projection. This does not
+provide continuous collision detection between simulation steps.
+
 ### Runtime visual areas
 
 An area owns a copied outer node loop and up to 16 copied hole loops. Each loop

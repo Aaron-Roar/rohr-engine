@@ -31,6 +31,14 @@ typedef struct SystemSoftBoundaryQuery {
     float t;
     bool solving;
     bool solved;
+    /* Fixed impact geometry and velocity target for this substep's solve.
+     * Position correction may change the current overlap independently. */
+    Axis velocity_normal;
+    Vec2D rigid_offset;
+    float velocity_t;
+    float rebound_speed;
+    float normal_impulse;
+    float tangent_impulse;
     float position_fraction;
     ContactInfo contact;
 } SystemSoftBoundaryQuery;
