@@ -1152,8 +1152,11 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         (void)editor_project_particle_hitbox_sync(project, body);
                 }
                 else if(set->property == EDITOR_PROPERTY_PARTICLE_AUTO_FIT &&
-                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     body->particle_auto_fit = set->value.boolean;
+                    if(body->particle_auto_fit)
+                        body->particle_radius = editor_project_particle_auto_radius_get(body);
+                }
                 else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
                         set->value.integer < body->hitbox_count)

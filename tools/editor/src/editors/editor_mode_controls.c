@@ -801,6 +801,7 @@ const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
     switch(mode) {
         case EDITOR_VIEWPORT_OBJECT: return "editor.object.name";
         case EDITOR_VIEWPORT_RIGID_BODY: return "editor.rigid_body.name";
+        case EDITOR_VIEWPORT_PARTICLE: return "editor.particle.name";
         case EDITOR_VIEWPORT_HITBOX: return "editor.hitbox.name";
         case EDITOR_VIEWPORT_JOINT: return "editor.joint.name";
         case EDITOR_VIEWPORT_ANCHOR: return "editor.anchor.name";

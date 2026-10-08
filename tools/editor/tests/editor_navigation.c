@@ -64,7 +64,7 @@ static bool accordion_layout_metrics_check(void) {
 static bool created_name_focus_mapping_check(void) {
     const EditorViewportMode modes[] = {
         EDITOR_VIEWPORT_OBJECT, EDITOR_VIEWPORT_RIGID_BODY, EDITOR_VIEWPORT_HITBOX,
-        EDITOR_VIEWPORT_JOINT, EDITOR_VIEWPORT_ANCHOR,
+        EDITOR_VIEWPORT_JOINT, EDITOR_VIEWPORT_ANCHOR, EDITOR_VIEWPORT_PARTICLE,
         EDITOR_VIEWPORT_SOFT_BODY, EDITOR_VIEWPORT_SOFT_NODE,
         EDITOR_VIEWPORT_SOFT_BEAM,
         EDITOR_VIEWPORT_LINE, EDITOR_VIEWPORT_VERTEX,
@@ -78,8 +78,7 @@ static bool created_name_focus_mapping_check(void) {
     EditorViewportState state = {0};
     for(size_t i = 0; i < sizeof(modes) / sizeof(modes[0]); i += 1)
         if(editor_mode_name_field_id_get(modes[i]) == NULL) return false;
-    if(editor_mode_name_field_id_get(EDITOR_VIEWPORT_HIERARCHY) != NULL ||
-            editor_mode_name_field_id_get(EDITOR_VIEWPORT_PARTICLE) != NULL)
+    if(editor_mode_name_field_id_get(EDITOR_VIEWPORT_HIERARCHY) != NULL)
         return false;
     state.mode = EDITOR_VIEWPORT_INPUT_ACTION;
     if(!editor_mode_name_focus_request(&state) ||

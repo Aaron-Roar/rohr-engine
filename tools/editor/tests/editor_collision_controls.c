@@ -44,7 +44,7 @@ int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
     FontAsset font = rohr_graphics_font_default_get();
-    EditorProject project; EditorHistory history; EditorViewportState state;
+    EditorProject project; EditorHistory history; EditorViewportState state = {0};
     editor_project_init(&project); editor_viewport_state_init(&state);
     EditorObject *object = editor_project_object_add(&project, (Position){0});
     assert(object != NULL);
@@ -150,7 +150,8 @@ int main(void) {
         }
         editor_collision_controls_selection_set(panels[p],p < 4 ? &refs[p] : state.selected_items,p < 4 ? 1 : 2);
         panels[p]->open[0] = panels[p]->open[1] = true;
-        rb.collision_section.expanded = node.collision_section.expanded = true;
+        rb.collision_section.expanded = pe.collision_section.expanded =
+            node.collision_section.expanded = true;
         rohr_ui_frame_begin((UIInput){0});
         EditorModeContext context = {.project=&project,.history=&history,.viewport=&state,.width=400};
         if(p == 0) (void)editor_rigid_body_editor_draw(&rb,&context);

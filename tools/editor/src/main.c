@@ -876,9 +876,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
         }
     }
     if(state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) return height;
-    if(state->mode == EDITOR_VIEWPORT_PARTICLE ||
-            state->mode == EDITOR_VIEWPORT_SPRITE)
-        return height + (state->mode == EDITOR_VIEWPORT_PARTICLE ? 122.0f : 86.0f);
+    if(state->mode == EDITOR_VIEWPORT_SPRITE) return height + 86.0f;
 
     if(state->mode == EDITOR_VIEWPORT_SOFT_AREA || state->mode == EDITOR_VIEWPORT_SOFT_HOLE) {
         EditorSoftBody *soft = editor_soft_body_get((EditorObject *)object, state->selected_soft_body);
@@ -939,6 +937,7 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_AUTO_SHAPE &&
         mode != EDITOR_VIEWPORT_OBJECT &&
         mode != EDITOR_VIEWPORT_RIGID_BODY &&
+        mode != EDITOR_VIEWPORT_PARTICLE &&
         mode != EDITOR_VIEWPORT_ANCHOR &&
         mode != EDITOR_VIEWPORT_JOINT &&
         mode != EDITOR_VIEWPORT_SOFT_BODY &&

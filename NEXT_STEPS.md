@@ -54,6 +54,19 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Particle Editor Parity** milestone is complete.
+
+Expose applicable particle properties in the same measured accordion structure
+as rigid bodies, preserving standalone particle restrictions and radius editing.
+
+1. [x] **Add missing particle fields and matching accordions** — Add Mass,
+   transform, initial motion, physics, material, collision, parenting, appearance,
+   and geometry sections. Use commands/history for edits including Auto Fit;
+   verify UI input, persistence, generated configuration, and platform builds.
+   Native tests (64), focused ASan/UBSan/leak tests (4), Linux and Windows
+   compilation, and installed-SDK generated application/example smoke checks
+   pass. Standalone restrictions and the dedicated radius editor are preserved.
+
 The user-selected **COM Selection Priority** goal is complete, including its
 dedicated COM editor and persistent automatic selection.
 
