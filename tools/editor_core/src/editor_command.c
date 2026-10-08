@@ -1358,6 +1358,14 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_DAMPING &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) beam->damping = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_FRICTION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
+                        isfinite(set->value.number) && set->value.number >= 0.0f)
+                    beam->friction = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_RESTITUTION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
+                        isfinite(set->value.number) && set->value.number >= 0.0f &&
+                        set->value.number <= 1.0f) beam->restitution = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_COLLISION &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                     if(set->value.boolean && !collision_valid) goto property_invalid;

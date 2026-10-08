@@ -512,6 +512,8 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
             .stiffness = stiffness,
             .damping = damping,
             .collision_thickness = collision_thickness,
+            .friction = 0.0f,
+            .restitution = 0.25f,
             .collision_enabled = collision_enabled,
             .category = filter_a.category | filter_b.category,
             .collides_with = filter_a.collides_with | filter_b.collides_with

@@ -122,6 +122,8 @@ static const EditorBulkProperty soft_node_properties[] = {
     {"Color", EDITOR_BULK_PROPERTY, EDITOR_BULK_COLOR, EDITOR_PROPERTY_COLOR}
 };
 static const EditorBulkProperty soft_beam_properties[] = {
+    {"Friction", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_FRICTION},
+    {"Restitution", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_RESTITUTION},
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"Stiffness", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_STIFFNESS},

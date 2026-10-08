@@ -487,6 +487,15 @@ or disable it when no thickness is valid; growing a node does not grow or
 re-enable an existing beam. Collision, thickness, and both filter masks remain
 individually editable in the beam panel.
 
+The beam's **Material** accordion provides independent **Friction** and
+**Restitution**, also available when multiple beams are selected. Edits support
+undo/redo, JSON persistence, CLI property commands, and generated applications.
+New beams and older projects without saved beam materials use friction 0 and
+restitution 0.25; custom endpoint materials no longer affect beam response.
+To bounce a particle inside a visual hole, enable collision on beams around the
+hole and give both the particle and those beams nonzero restitution. The hole
+itself is visual geometry and does not create colliders.
+
 Open a soft body to find the **Areas** accordion. **Add Area** creates a draft
 and opens its editor. Single-click an area row to select it; double-click to
 open it. Areas have their own name, visibility, color, and layer. Drag area rows

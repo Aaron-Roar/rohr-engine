@@ -1848,6 +1848,9 @@ EngineResult rohr_physics_restitution_set(Entity entity, Restitution restitution
 
 Sets an entity restitution value.
 
+For soft-body beams, stores an independent coefficient without enabling
+collision. Beam values must be finite and in [0, 1]; errors preserve state.
+
 | Parameter | Description |
 | --- | --- |
 | `entity` | Entity to modify. |
@@ -1986,6 +1989,9 @@ EngineResult rohr_physics_friction_set(Entity entity, float friction);
 ```
 
 Sets an entity friction value.
+
+For soft-body beams, stores an independent coefficient without enabling
+collision. Beam values must be finite and nonnegative; errors preserve state.
 
 | Parameter | Description |
 | --- | --- |
@@ -2400,6 +2406,8 @@ Initial collision settings are copied from the endpoints: collision is
 enabled only when both nodes can collide, filters are combined, and
 
 thickness uses the smaller endpoint diameter. They do not remain inherited.
+
+Beams start with independent friction 0 and restitution 0.25.
 
 | Parameter | Description |
 | --- | --- |

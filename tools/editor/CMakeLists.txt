@@ -221,6 +221,27 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_particle_authoring PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
+    add_executable(editor_beam_materials_test
+        tests/editor_beam_materials.c
+        src/editor_history.c
+        src/editor_navigation.c
+        src/editor_viewport.c
+        src/editors/editor_mode_controls.c
+        src/editors/editor_collision_controls.c
+        src/editors/geometry/editor_auto_shape.c
+        src/editors/physics/editor_center_of_mass.c
+        src/editors/soft_body/editor_soft_beam.c
+        src/editors/multi/editor_bulk_panel.c
+        src/viewport/controls/editor_rotation_control.c)
+    target_include_directories(editor_beam_materials_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_beam_materials_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_beam_materials_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_beam_materials COMMAND editor_beam_materials_test)
+    set_tests_properties(editor_beam_materials PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_collision_controls_test
         tests/editor_collision_controls.c
         src/editor_history.c
@@ -289,7 +310,7 @@ if(ROHR_BUILD_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS AND ROHR_ENABLE_SANITIZERS)
-    foreach(area_editor_target editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test)
+    foreach(area_editor_target editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test)
         target_compile_options(${area_editor_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endforeach()
 endif()

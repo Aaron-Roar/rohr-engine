@@ -7,6 +7,7 @@
 
 #include "editors/editor_mode_context.h"
 #include "editors/editor_collision_controls.h"
+#include "editors/editor_mode_controls.h"
 
 typedef struct EditorSoftBeamEditor {
     FontAsset *font;
@@ -20,6 +21,8 @@ typedef struct EditorSoftBeamEditor {
     char beam_cache[EDITOR_SOFT_BEAM_MAX][EDITOR_OBJECT_NAME_MAX];
     char node_cache[EDITOR_SOFT_NODE_MAX][EDITOR_OBJECT_NAME_MAX];
     EditorCollisionControls collision;
+    EditorModeAccordionSection material_section;
+    TextAsset friction_label, restitution_label, friction_field, restitution_field;
 } EditorSoftBeamEditor;
 
 bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,

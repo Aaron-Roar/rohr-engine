@@ -570,6 +570,16 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(soft_body_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME soft_body COMMAND soft_body_test)
 
+    add_executable(beam_materials_test tests/beam_materials.c)
+    target_link_libraries(beam_materials_test PRIVATE rohr_engine)
+    set_target_properties(beam_materials_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME beam_materials COMMAND beam_materials_test)
+    set_tests_properties(beam_materials PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(beam_materials_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+
     add_executable(soft_body_areas_test tests/soft_body_areas.c
         tests/soft_body_areas_visual.c)
     target_include_directories(soft_body_areas_test PRIVATE src)
@@ -839,6 +849,7 @@ if(ROHR_BUILD_TESTS)
         ui_dropdown_test
         joints_test
         soft_body_test
+        beam_materials_test
         soft_body_areas_test
         node_loop_geometry_test
         auto_shape_test

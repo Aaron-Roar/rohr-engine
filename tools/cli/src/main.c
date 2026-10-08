@@ -75,7 +75,8 @@ static const CliHelpDomain cli_help_domains[] = {
         "collision <true|false>, node-radius <number>, color <hex>, "
         "visibility <true|false>",
         "--soft-body cloth --node corner --property mass 1", 2},
-    {"--beam", "soft-body beam", "stiffness <number>, damping <number>, "
+    {"--beam", "soft-body beam", "friction <number>, restitution <0..1>, "
+        "stiffness <number>, damping <number>, "
         "color <hex>, visibility <true|false>, node-a <node|none>, node-b <node|none>",
         "--soft-body cloth --beam edge_1 --property damping 0.2", 2},
     {"--area", "soft-body area", "nodes <ordered names...>, node-ids <ordered ids...>, "

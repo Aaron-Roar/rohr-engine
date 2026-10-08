@@ -258,10 +258,7 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
         float maximum_friction;
 
         restitution = query->solved ? 0.0f : fminf(
-            (restitutions_pool.used[query->a] ? restitutions[query->a] : 0.0f) *
-                weight_a +
-            (restitutions_pool.used[query->b] ? restitutions[query->b] : 0.0f) *
-                weight_b,
+            soft_body_beams[query->beam_index].restitution,
             restitutions_pool.used[rigid] ? restitutions[rigid] : 0.0f);
         float normal_lever = math_cross_2d(rigid_offset, overlap.normal);
         impulse_magnitude = -(1.0f + restitution) * normal_velocity /
@@ -310,11 +307,7 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, void *context) 
             };
         }
         tangent_length = math_vector_magnitude(tangent);
-        edge_friction =
-            (frictions_pool.used[query->a] ? frictions[query->a] : 0.0f) *
-                weight_a +
-            (frictions_pool.used[query->b] ? frictions[query->b] : 0.0f) *
-                weight_b;
+        edge_friction = soft_body_beams[query->beam_index].friction;
         rigid_friction = frictions_pool.used[rigid] ? frictions[rigid] : 0.0f;
         friction = sqrtf(edge_friction * rigid_friction);
         if(tangent_length > 0.0001f && friction > 0.0f) {

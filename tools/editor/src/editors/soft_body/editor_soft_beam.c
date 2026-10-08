@@ -60,6 +60,8 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Node B", node_b_label); CREATE("Stiffness", stiffness_label);
     CREATE("Damping", damping_label);
     CREATE("Thickness", thickness_label);
+    CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
+    CREATE("", friction_field); CREATE("", restitution_field);
 
     CREATE("Beam Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("None", none_label);
@@ -68,6 +70,8 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
     CREATE("", damping_field); CREATE("", thickness_field);
 #undef CREATE
+    if(!editor_mode_accordion_section_create(&editor->material_section, font,
+            "Material", false)) goto fail;
     if(!editor_collision_controls_create(&editor->collision, font)) {
         editor_soft_beam_editor_destroy(editor); return false;
     }
@@ -80,6 +84,11 @@ fail:
 void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
     if(editor == NULL) return;
     editor_collision_controls_destroy(&editor->collision);
+    editor_mode_accordion_section_destroy(&editor->material_section);
+    rohr_graphics_text_destroy(&editor->friction_label);
+    rohr_graphics_text_destroy(&editor->restitution_label);
+    rohr_graphics_text_destroy(&editor->friction_field);
+    rohr_graphics_text_destroy(&editor->restitution_field);
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(node_a_label); DESTROY(node_b_label);
     DESTROY(stiffness_label); DESTROY(damping_label);
@@ -216,10 +225,36 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     if(thickness_result.changed) float_set(context->project, object->id,
         body->id, beam->id, EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS,
         fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, thickness));
+    const float material_rows[] = {26, 26};
+    EditorModeAccordionLayoutCursor cursor = editor_mode_accordion_layout_cursor_get(
+        context->x, context->width, 304);
+    EditorModeAccordionLayoutResult material = editor_mode_accordion_layout_section(
+        &cursor, &editor->material_section, "editor.soft_beam.section.material",
+        material_rows, 2, 6);
+    if(material.expanded) {
+        float values[] = {beam->friction, beam->restitution};
+        TextAsset *labels[] = {&editor->friction_label, &editor->restitution_label};
+        TextAsset *fields[] = {&editor->friction_field, &editor->restitution_field};
+        const char *ids[] = {"editor.soft_beam.friction", "editor.soft_beam.restitution"};
+        EditorPropertyKind properties[] = {EDITOR_PROPERTY_FRICTION, EDITOR_PROPERTY_RESTITUTION};
+        UIButtonStyle style = editor_mode_section_field_style_get();
+        for(size_t i = 0; i < 2; i += 1) {
+            float y = editor_mode_accordion_layout_row_y(&material, material_rows, i, 6);
+            rohr_ui_label(labels[i], (UIRect){context->x + 8, y, 96, 26});
+            UIFieldResult result = editor_mode_field(ids[i],
+                (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &values[i]}, fields[i],
+                (UIRect){context->x + 106, y, context->width - 116, 26}, &style);
+            if(result.changed) {
+                float_set(context->project, object->id, body->id, beam->id, properties[i], values[i]);
+                return true;
+            }
+            field_active |= result.active;
+        }
+    }
     EditorSelectionRef target = {EDITOR_SELECTION_SOFT_BEAM, object->id, body->id, 0, beam->id};
     EditorCollisionDrawResult collision = editor_collision_controls_draw(&editor->collision,
         "editor.soft_beam.collision", context->project, context->history, &target, 1,
-        context->x + 10, 304, context->width - 20, true);
+        context->x + 10, cursor.y, context->width - 20, true);
     if(collision.changed) return true;
     field_active |= collision.active;
     color_y = collision.bottom + 4;
@@ -247,6 +282,10 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
             "editor.soft_beam", context->project, &beam->graphics_layer,
             &beam->graphics_layer_inherited, context->x, layer_y,
             context->width);
+    float layer_height = context->layer_control == NULL ? 0.0f :
+        beam->graphics_layer.layer == 0 || context->layer_control->adding ||
+        context->layer_control->edited_layer != 0 ? 86.0f : 48.0f;
+    editor_mode_accordion_layout_measure_include(layer_y + layer_height);
     if(context->delete_y_get != NULL && context->delete_open_item != NULL &&
             !context->delete_footer) {
         UIButtonStyle style = editor_mode_delete_style_get();

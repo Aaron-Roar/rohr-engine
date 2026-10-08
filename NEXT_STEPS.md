@@ -54,6 +54,21 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Independent Beam Materials** milestone is complete.
+
+Give soft-body beams independent collision friction and restitution across the
+engine, editor, CLI, saved projects, and generated applications.
+
+1. [x] **Add beam friction and restitution across engine, editor, and generated
+   projects** — Use beam materials for beam contact response, with friction 0
+   and restitution 0.25 as independent defaults. Add a Material accordion and
+   multi-select editing, history, persistence, and end-to-end verification.
+   Existing projects missing the values use these defaults: custom endpoint
+   materials no longer determine beam response. Node contacts remain unchanged.
+   Verified with 66 native tests, four focused ASan/UBSan/leak tests, Linux and
+   Windows builds, and installed-SDK application/example smoke checks. The
+   generated particle-in-hole scene confirms repeated beam contacts and rebound.
+
 The user-selected **Particle Editor Parity** milestone is complete.
 
 Expose applicable particle properties in the same measured accordion structure

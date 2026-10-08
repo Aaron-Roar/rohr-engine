@@ -424,6 +424,9 @@ typedef struct SoftBodyBeam {
     float damping;
     /** Full width of the centroid-to-centroid collision segment. */
     float collision_thickness;
+    /** Independent contact materials; endpoint node materials do not affect these. */
+    Friction friction;
+    Restitution restitution;
     bool collision_enabled;
     RohrCollisionCategoryMask category;
     RohrCollisionCategoryMask collides_with;

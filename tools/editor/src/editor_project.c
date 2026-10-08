@@ -2888,6 +2888,8 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
         .graphics_layer_inherited = true,
         .node_a = node_a,
         .node_b = node_b,
+        .friction = 0.0f,
+        .restitution = 0.25f,
         .stiffness = 1.0f,
         .damping = 0.0f,
         .collision_enabled = a != NULL && b != NULL &&

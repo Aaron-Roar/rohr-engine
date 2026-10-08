@@ -254,9 +254,20 @@ the solver removes the portion inside an endpoint node only when that node's
 filter allows it to handle the target. This avoids duplicate node/beam response
 without preventing a differently filtered beam from reaching the endpoint.
 Beam contacts belong to the beam's stable entity handle, and endpoint ordering
-does not change the interpolated material response. Areas provide
+does not change material response. Areas provide
 rendering only and do not participate in collision; physical holes are simply
 open spaces in the beam topology.
+
+Beams own independent `friction` and `restitution`, initially 0 and 0.25.
+Use `rohr_physics_friction_set(beam, value)` and
+`rohr_physics_restitution_set(beam, value)`, and read the stored values through
+`rohr_physics_soft_body_beam_get`. Beam setters reject nonfinite values, negative
+friction, and restitution outside [0, 1] without changing state or enabling
+collision. Endpoint materials no longer determine beam response; node contacts
+still use node materials. Contact restitution is the lower of the two contacting
+materials, so both the beam and particle need nonzero restitution for bounce.
+Friction combines as the geometric mean. Endpoint interpolation still determines
+contact velocity and impulse distribution, independently of materials.
 
 ### Runtime visual areas
 

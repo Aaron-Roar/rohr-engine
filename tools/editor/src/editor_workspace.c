@@ -1277,6 +1277,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body->name, node_a->name, node_b->name, beam->stiffness,
                     beam->damping, beam->name);
                 fprintf(source,
+                    "    result = rohr_physics_friction_set(object->%s, %#.9gf);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n"
+                    "    result = rohr_physics_restitution_set(object->%s, %#.9gf);\n"
+                    "    if(rohr_error_check(result)) goto fail;\n",
+                    beam->name, beam->friction, beam->name, beam->restitution);
+                fprintf(source,
                     "    result = rohr_physics_soft_body_beam_collision_config_set("
                     "object->%s, (SoftBodyBeamCollisionConfig){"
                     ".enabled = %s, .thickness = %#.9gf, .filter = {"

@@ -1156,6 +1156,8 @@ ShapeResult rohr_physics_global_hit_box_get(Entity entity);
 
 /**
  * @brief Sets an entity restitution value.
+ * For soft-body beams, stores an independent coefficient without enabling
+ * collision. Beam values must be finite and in [0, 1]; errors preserve state.
  * @param entity Entity to modify.
  * @param restitution Restitution value.
  * @return EngineResult describing success or failure.
@@ -1226,6 +1228,8 @@ EngineResult rohr_physics_axis_lock_set(Entity entity, Axis axis, Position axis_
 
 /**
  * @brief Sets an entity friction value.
+ * For soft-body beams, stores an independent coefficient without enabling
+ * collision. Beam values must be finite and nonnegative; errors preserve state.
  * @param entity Entity to modify.
  * @param friction Friction value.
  * @return EngineResult describing success or failure.
@@ -1464,6 +1468,7 @@ SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(
  * Initial collision settings are copied from the endpoints: collision is
  * enabled only when both nodes can collide, filters are combined, and
  * thickness uses the smaller endpoint diameter. They do not remain inherited.
+ * Beams start with independent friction 0 and restitution 0.25.
  * @param soft_body Owning soft body.
  * @param node_a First node.
  * @param node_b Second node.

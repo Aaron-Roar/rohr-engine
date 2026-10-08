@@ -544,6 +544,8 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "node_b", beam->node_b);
         yyjson_mut_obj_add_real(document, item, "stiffness", beam->stiffness);
         yyjson_mut_obj_add_real(document, item, "damping", beam->damping);
+        yyjson_mut_obj_add_real(document, item, "friction", beam->friction);
+        yyjson_mut_obj_add_real(document, item, "restitution", beam->restitution);
         yyjson_mut_obj_add_bool(document, item, "collision_enabled",
             beam->collision_enabled);
         yyjson_mut_obj_add_real(document, item, "collision_thickness",
@@ -1462,7 +1464,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         EditorSoftBeam *beam = &body->beams[i];
         yyjson_val *damping = yyjson_obj_get(item, "damping");
         *beam = (EditorSoftBeam){.graphics_layer_inherited = true,
-            .damping = 0.0f, .color = body->beam_color};
+            .damping = 0.0f, .friction = 0.0f, .restitution = 0.25f,
+            .color = body->beam_color};
         if(!yyjson_is_obj(item) || !editor_json_uint(item, "id", &beam->id) || beam->id == 0 ||
                 !editor_json_name(item, beam->name) ||
                 !editor_json_uint(item, "node_a", &beam->node_a) ||
@@ -1477,6 +1480,13 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                 !editor_json_uint64(item, "collision_with",
                     &beam->collision_with) ||
                 !editor_json_bool(item, "visible", &beam->visible)) return false;
+        if((yyjson_obj_get(item, "friction") != NULL &&
+                !editor_json_real(item, "friction", &beam->friction)) ||
+                (yyjson_obj_get(item, "restitution") != NULL &&
+                !editor_json_real(item, "restitution", &beam->restitution)) ||
+                !isfinite(beam->friction) || beam->friction < 0.0f ||
+                !isfinite(beam->restitution) || beam->restitution < 0.0f ||
+                beam->restitution > 1.0f) return false;
         if(!isfinite(beam->collision_thickness) ||
                 beam->collision_thickness <
                     ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) return false;

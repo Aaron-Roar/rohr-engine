@@ -269,6 +269,8 @@ typedef struct EditorSoftBeam {
     bool graphics_layer_inherited;
     EditorSoftNodeId node_a;
     EditorSoftNodeId node_b;
+    float friction;
+    float restitution;
     float stiffness;
     float damping;
     bool collision_enabled;
