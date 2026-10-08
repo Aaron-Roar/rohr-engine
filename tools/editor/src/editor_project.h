@@ -33,8 +33,8 @@
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 7 removes beam-derived areas and their editor navigation kinds. */
 #define EDITOR_PROJECT_FORMAT_VERSION 7
-#define EDITOR_NAVIGATION_MODE_MAX 30
-#define EDITOR_NAVIGATION_SELECTION_MAX 27
+#define EDITOR_NAVIGATION_MODE_MAX 31
+#define EDITOR_NAVIGATION_SELECTION_MAX 28
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;

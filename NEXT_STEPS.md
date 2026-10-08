@@ -54,6 +54,9 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **COM Selection Priority** goal is complete, including its
+dedicated COM editor and persistent automatic selection.
+
 The user-selected **Consistent Collision Controls** single-goal milestone and
 Node-Loop Soft-Body Areas are complete. Editor Forces and Torques remains next.
 
@@ -129,6 +132,23 @@ last.
 - Keep generated output deterministic and compile it on Linux and Windows.
 - Document physics behavior changes before implementing them.
 - Preserve explicit ownership, lifetime, and allocation-failure handling.
+
+## Single-Goal Milestone: COM Selection Priority
+
+Make visible COM markers render and select above scene objects and other handles,
+opening their own editor for both automatic and explicit COM.
+
+1. [x] **Prioritize COM rendering and selection, with a dedicated COM editor** —
+   Give automatic and explicit COM first priority for ordinary viewport clicks,
+   including autoshape. Persistent COM selection opens COM Properties; automatic
+   coordinates remain read-only and explicit COM preserves dragging and undo.
+   Dedicated and inline controls share values and commands. Back returns to the
+   body; missing owners exit safely. Preserve zoom sizing, visibility, selection
+   modifiers, and menu capture. Verified with 63 native tests, four focused
+   ASan/UBSan/LSan tests, Linux and Windows builds, and an installed-SDK example
+   build/startup check. Tests cover the main selection completion path, panel
+   input, navigation persistence, mode switching, and undo/redo. Interactive
+   visual review remains a user follow-up.
 
 ## Single-Goal Milestone: Consistent Collision Controls
 

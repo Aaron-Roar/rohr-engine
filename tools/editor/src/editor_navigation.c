@@ -16,6 +16,11 @@ typedef struct EditorReorderStorage {
     size_t stride;
 } EditorReorderStorage;
 
+_Static_assert(EDITOR_VIEWPORT_CENTER_OF_MASS == EDITOR_NAVIGATION_MODE_MAX,
+    "Navigation mode persistence bound must include COM");
+_Static_assert(EDITOR_SELECTION_CENTER_OF_MASS == EDITOR_NAVIGATION_SELECTION_MAX,
+    "Navigation selection persistence bound must include COM");
+
 static bool editor_selection_equal(EditorSelectionRef first,
     EditorSelectionRef second);
 
@@ -1235,6 +1240,12 @@ bool editor_navigation_selected_open(EditorProject *project,
                 EDITOR_VIEWPORT_RIGID_BODY;
             return true;
         }
+        case EDITOR_SELECTION_CENTER_OF_MASS: {
+            EditorRigidBody *body = editor_navigation_rigid_body_get(selected, state);
+            if(body == NULL || body->standalone_particle) return false;
+            state->mode = EDITOR_VIEWPORT_CENTER_OF_MASS;
+            return true;
+        }
         case EDITOR_SELECTION_HITBOX:
             if(hitbox == NULL) return false;
             if(editor_navigation_rigid_body_get(selected, state)->standalone_particle) {
@@ -1318,6 +1329,9 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_PARTICLE:
             state->selection = EDITOR_SELECTION_PARTICLE;
+            return true;
+        case EDITOR_VIEWPORT_CENTER_OF_MASS:
+            state->selection = EDITOR_SELECTION_CENTER_OF_MASS;
             return true;
         case EDITOR_VIEWPORT_PARTICLE_RADIUS:
             state->selection = EDITOR_SELECTION_PARTICLE;
@@ -1418,4 +1432,102 @@ bool editor_navigation_viewport_transform_history_update(EditorProject *project,
     }
     editor_history_transaction_commands_suppress_set(history, true);
     return true;
+}
+
+/* Complete a consumed, non-transform viewport press. Shared with main so
+ * read-only selections take the same path in interaction regressions. */
+bool editor_navigation_pointer_selection_finish(EditorProject *project,
+        EditorViewportState *state, EditorSelectionRef prior, bool prior_valid,
+        bool additive) {
+    EditorSelectionRef selection;
+    if(!editor_viewport_selection_ref_get(project, state, &selection)) return false;
+    if(additive && state->selected_item_count == 0 && prior_valid)
+        (void)editor_viewport_selection_set(project, state, prior, false);
+    if(!editor_viewport_selection_set(project, state, selection, additive)) return false;
+    if(selection.kind == EDITOR_SELECTION_SPRITE ||
+            selection.kind == EDITOR_SELECTION_ANIMATED_SPRITE ||
+            selection.kind == EDITOR_SELECTION_CENTER_OF_MASS)
+        (void)editor_navigation_selected_open(project, state);
+    return true;
+}
+
+EditorNavigationState editor_navigation_state_get(
+        const EditorProject *project, const EditorViewportState *state) {
+    EditorViewportMode persisted_mode;
+    if(project == NULL || state == NULL) return (EditorNavigationState){0};
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
+            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR)
+        return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
+            .selection = EDITOR_SELECTION_NONE};
+    persisted_mode = state->mode == EDITOR_VIEWPORT_AUTO_SHAPE ?
+        state->auto_shape_parent_mode : state->mode;
+    return (EditorNavigationState){
+        .mode = (uint32_t)persisted_mode,
+        .selection = (uint32_t)state->selection,
+        .object = project->selected,
+        .selected_line = state->selected_line,
+        .selected_vertex = state->selected_vertex,
+        .rigid_body = state->selected_rigid_body,
+        .hitbox = state->selected_hitbox,
+        .joint = state->selected_joint,
+        .anchor = state->selected_anchor,
+        .soft_body = state->selected_soft_body,
+        .soft_node = state->selected_soft_node,
+        .soft_beam = state->selected_soft_beam,
+        .soft_area = state->selected_soft_area,
+        .soft_hole = state->selected_soft_hole,
+        .sprite = state->selected_sprite,
+        .animated_sprite = state->selected_animated_sprite,
+        .camera = state->selected_camera_entity,
+        .animation_frame = state->selected_animation_frame,
+        .input_controller = state->selected_input_controller,
+        .input_action = state->selected_input_action,
+        .input_binding = state->selected_input_binding,
+        .origin_kind = (uint32_t)state->selected_origin_kind
+    };
+}
+
+void editor_navigation_state_apply(EditorProject *project,
+        EditorViewportState *state, const EditorNavigationState *navigation) {
+    if(project == NULL || state == NULL || navigation == NULL) return;
+    project->selected = navigation->object;
+    state->mode = (EditorViewportMode)navigation->mode;
+    state->selection = (EditorHierarchySelection)navigation->selection;
+    state->selected_line = navigation->selected_line;
+    state->selected_vertex = navigation->selected_vertex;
+    state->selected_rigid_body = navigation->rigid_body;
+    state->selected_hitbox = navigation->hitbox;
+    state->selected_joint = navigation->joint;
+    state->selected_anchor = navigation->anchor;
+    state->selected_soft_body = navigation->soft_body;
+    state->selected_soft_node = navigation->soft_node;
+    state->selected_soft_beam = navigation->soft_beam;
+    state->selected_soft_area = navigation->soft_area;
+    state->selected_soft_hole = navigation->soft_hole;
+    state->soft_area_picking = false;
+    state->selected_sprite = navigation->sprite;
+    state->selected_animated_sprite = navigation->animated_sprite;
+    state->selected_camera_entity = navigation->camera;
+    state->selected_animation_frame = navigation->animation_frame;
+    state->selected_input_controller = navigation->input_controller;
+    state->selected_input_action = navigation->input_action;
+    state->selected_input_binding = navigation->input_binding;
+    state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
+    if(state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS) {
+        EditorObject *object = editor_project_selected_get(project);
+        EditorRigidBody *body = editor_project_rigid_body_get(object, state->selected_rigid_body);
+        if(body == NULL || body->standalone_particle) {
+            editor_viewport_transform_cancel(state);
+            editor_viewport_object_editor_enter(state);
+            if(object == NULL) state->mode = EDITOR_VIEWPORT_HIERARCHY;
+        } else if(state->selection == EDITOR_SELECTION_CENTER_OF_MASS) {
+            (void)editor_viewport_selection_set(project, state,
+                (EditorSelectionRef){EDITOR_SELECTION_CENTER_OF_MASS, object->id, 0, 0, body->id}, false);
+        }
+    }
 }

@@ -20,4 +20,7 @@ bool editor_center_of_mass_editor_draw(EditorCenterOfMassEditor *editor,
     const EditorModeContext *context, EditorObject *object,
     EditorRigidBody *body, float y);
 
+bool editor_center_of_mass_panel_draw(EditorCenterOfMassEditor *editor,
+    const EditorModeContext *context);
+
 #endif

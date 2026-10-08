@@ -335,7 +335,7 @@ static void center_of_mass_interaction_check(void) {
     assert(viewport_pointer_update(&history, &viewport, &project, press,
         MOUSE_BUTTON_STATE_PRESSED));
     assert(viewport.dragged_center_of_mass && !viewport.dragged_origin &&
-        !viewport.dragged_body && viewport.selected_center_of_mass);
+        !viewport.dragged_body && viewport.selection == EDITOR_SELECTION_CENTER_OF_MASS);
     Position drag = {press.x + 20, press.y - 30};
     assert(viewport_pointer_update(&history, &viewport, &project, drag,
         MOUSE_BUTTON_STATE_DOWN));
@@ -354,7 +354,7 @@ static void center_of_mass_interaction_check(void) {
     assert(editor_history_undo(&history));
     body = editor_project_rigid_body_get(&project.objects[0], id);
     assert(body->center_of_mass_explicit && body->center_of_mass_offset.x == 0);
-    assert(viewport.mode == EDITOR_VIEWPORT_VERTEX);
+    assert(viewport.mode == EDITOR_VIEWPORT_CENTER_OF_MASS);
     assert(editor_history_redo(&history));
     object = &project.objects[0];
     body = editor_project_rigid_body_get(object, id);
@@ -381,18 +381,17 @@ static void center_of_mass_interaction_check(void) {
     editor_command_executing_callback_set(NULL, NULL);
     editor_command_finished_callback_set(NULL, NULL);
     callback_history = NULL;
-    /* A covering body owns a new press; selected COM cannot click through it. */
+    /* COM overlay wins over covering geometry, regardless of scene order. */
     object = &project.objects[0];
     EditorRigidBody *front = editor_project_rigid_body_add(&project, object);
     assert(front != NULL);
     front->position = (Position){70, 0};
-    EditorRigidBodyId front_id = front->id;
     viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
     viewport.selection = EDITOR_SELECTION_RIGID_BODY;
     viewport.selected_rigid_body = id;
     assert(editor_viewport_update(&viewport, &project, center,
         MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false));
-    assert(!viewport.dragged_center_of_mass && viewport.selected_rigid_body == front_id);
+    assert(viewport.dragged_center_of_mass && viewport.selected_rigid_body == id);
     editor_viewport_transform_cancel(&viewport);
     front->visible = false;
     viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
@@ -410,10 +409,11 @@ static void center_of_mass_interaction_check(void) {
     cover->position = (Position){70, 0};
     cover->size = (Scale){40, 40};
     cover->visible = true;
-    /* Sprites occupy a higher editor render layer than body controls. */
+    /* A sprite with a higher authored layer cannot cover COM interaction. */
+    cover->graphics_layer.value = 1000000;
     (void)editor_viewport_update(&viewport, &project, center,
         MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
-    assert(!viewport.dragged_center_of_mass && viewport.selection == EDITOR_SELECTION_SPRITE);
+    assert(viewport.dragged_center_of_mass && viewport.selection == EDITOR_SELECTION_CENTER_OF_MASS);
     editor_viewport_transform_cancel(&viewport);
     cover->visible = false;
     viewport.mode = EDITOR_VIEWPORT_RIGID_BODY;
@@ -428,6 +428,14 @@ static void center_of_mass_interaction_check(void) {
     (void)editor_viewport_update(&viewport, &project, center,
         MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_UP, false, 0, false);
     assert(!viewport.dragged_center_of_mass && !body->center_of_mass_explicit);
+    assert(viewport.selection == EDITOR_SELECTION_CENTER_OF_MASS && !editor_viewport_transform_active_check(&viewport));
+    Position previous_position = body->position;
+    size_t previous_undo = history.undo_count;
+    (void)editor_viewport_update(&viewport, &project, (Position){center.x + 30, center.y},
+        MOUSE_BUTTON_STATE_DOWN, MOUSE_BUTTON_STATE_UP, false, 0, false);
+    assert(!body->center_of_mass_explicit && body->position.x == previous_position.x &&
+        body->position.y == previous_position.y && history.undo_count == previous_undo);
+
     editor_viewport_transform_cancel(&viewport);
     body->center_of_mass_explicit = true;
     body->center_of_mass_offset = (Position){150, 120};
@@ -1621,6 +1629,9 @@ int main(void) {
         assert(body != NULL);
         local_vertex = body->hitboxes[0].vertices[0].position;
         body->position = (Position){100.0f, -150.0f};
+        /* Keep COM away from the origin under test. */
+        body->center_of_mass_explicit = true;
+        body->center_of_mass_offset = (Position){200, 0};
         /* Attached anchors and joints render above the origin. Hide them to expose the
          * origin for this transform-history test. */
         for(size_t i = 0; i < object->anchor_count; i += 1)

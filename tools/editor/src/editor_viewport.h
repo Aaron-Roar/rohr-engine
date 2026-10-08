@@ -41,7 +41,8 @@ typedef enum EditorViewportMode {
     EDITOR_VIEWPORT_INPUT_ACTION,
     EDITOR_VIEWPORT_INPUT_BINDING,
     EDITOR_VIEWPORT_SOFT_AREA,
-    EDITOR_VIEWPORT_SOFT_HOLE
+    EDITOR_VIEWPORT_SOFT_HOLE,
+    EDITOR_VIEWPORT_CENTER_OF_MASS
 } EditorViewportMode;
 
 typedef enum EditorHierarchySelection {
@@ -72,7 +73,8 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_INPUT_ACTION,
     EDITOR_SELECTION_INPUT_BINDING,
     EDITOR_SELECTION_SOFT_AREA,
-    EDITOR_SELECTION_SOFT_HOLE
+    EDITOR_SELECTION_SOFT_HOLE,
+    EDITOR_SELECTION_CENTER_OF_MASS
 } EditorHierarchySelection;
 
 typedef enum EditorOriginKind {
@@ -116,7 +118,6 @@ typedef struct EditorViewportState {
     bool selected_viewport_ui_text_child;
     bool dragged_origin;
     bool dragged_center_of_mass;
-    bool selected_center_of_mass;
     bool group_dragging;
     bool group_rotating;
     bool camera_panning;

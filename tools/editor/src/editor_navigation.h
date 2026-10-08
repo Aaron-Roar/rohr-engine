@@ -29,4 +29,13 @@ bool editor_navigation_selection_name_get(EditorProject *project,
 bool editor_navigation_selection_name_set(EditorProject *project,
     EditorSelectionRef selection, const char *name);
 
+bool editor_navigation_pointer_selection_finish(EditorProject *project,
+    EditorViewportState *state, EditorSelectionRef prior, bool prior_valid,
+    bool additive);
+
+EditorNavigationState editor_navigation_state_get(const EditorProject *project,
+    const EditorViewportState *state);
+void editor_navigation_state_apply(EditorProject *project,
+    EditorViewportState *state, const EditorNavigationState *navigation);
+
 #endif

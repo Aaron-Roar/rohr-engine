@@ -409,12 +409,21 @@ angular response disabled while still showing inertia from their authored mass
 and valid geometry. Missing values read **Unavailable**.
 
 With one body selected, including while editing its geometry, a larger COM
-circle containing an anvil is drawn after the origin. The circle and anvil are
-blue with white borders and turn yellow when selected. Explicit COM handles
-take priority over coincident origins; dragging changes only the local offset,
-with no origin or geometry movement. Layer/order occlusion applies to new
-presses, hidden bodies expose no handle, and a drag makes one undo entry.
+circle containing an anvil is drawn above scene geometry and other handles,
+regardless of layer or order. The circle and anvil are blue with white borders
+and turn yellow when selected. Both automatic and explicit COM take priority
+for ordinary viewport clicks; automatic COM is selectable but read-only.
+Dragging explicit COM changes only its local offset, with no origin or geometry
+movement, and makes one undo entry. The marker keeps its screen size across zoom
+levels. Hidden bodies expose no handle; editor panels and menus retain input
+capture, and selection modifiers retain their normal behavior.
 The marker and readouts update immediately after edits and undo/redo.
+Selecting either COM marker opens its dedicated **COM Properties** editor.
+Automatic COM stays selected after release and shows read-only coordinates;
+explicit COM supports coordinates and viewport dragging. The mode, coordinates,
+inertia, and angular-response controls remain available inline in the body
+panel and share the same values and undo history. Back returns to the owning
+rigid body. COM cannot be independently deleted, duplicated, or multi-selected.
 COM configuration is retained by duplication, saving, and generated previews.
 
 Standalone particles expose centroid coordinates as read-only values in their

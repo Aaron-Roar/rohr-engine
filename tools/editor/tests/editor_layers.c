@@ -4,6 +4,7 @@
 #include "editor_viewport.h"
 #include "editor_layout.h"
 #include "editor_command.h"
+#include "editor_mass_properties.h"
 #include "editor_soft_area.h"
 #include <limits.h>
 #include <math.h>
@@ -141,6 +142,33 @@ static bool body_layers_check(void) {
     CHECK(hit.kind == EDITOR_SELECTION_SPRITE && hit.item == sprite->id);
     sprite->visible = false;
     animation->visible = false;
+
+    /* COM overlays the largest scene layer; automatic selection is yellow too. */
+    EditorGraphicsLayerBinding previous_a = a->graphics_layer, previous_b = b->graphics_layer;
+    a->graphics_layer = (EditorGraphicsLayerBinding){.value=INT_MAX};
+    b->graphics_layer = (EditorGraphicsLayerBinding){.value=INT_MIN};
+    state.mode = EDITOR_VIEWPORT_RIGID_BODY;
+    state.selected_rigid_body = b->id;
+    for(int explicit = 0; explicit < 2; explicit += 1) {
+        b->center_of_mass_explicit = explicit != 0;
+        EditorMassProperties properties = editor_mass_properties_get(b);
+        CHECK(properties.center_available);
+        Position marker = {center.x + properties.center.x + 2, center.y - properties.center.y - 4};
+        state.selection = EDITOR_SELECTION_RIGID_BODY;
+        draw(&project, &state);
+        CHECK(pixel_check(marker, (Color){45,140,255,255}));
+        state.selection = EDITOR_SELECTION_CENTER_OF_MASS;
+        draw(&project, &state);
+        CHECK(pixel_check(marker, (Color){255,215,70,255}));
+        rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_TOP_MENU);
+        (void)rohr_graphics_screen_rect_draw(marker.x-2, marker.y-2, 4, 4, (Color){0,255,0,255});
+        draw(&project, &state);
+        CHECK(pixel_check(marker, (Color){0,255,0,255}));
+    }
+    b->center_of_mass_explicit = false;
+    a->graphics_layer = previous_a;
+    b->graphics_layer = previous_b;
+    editor_viewport_selection_clear(&state);
 
     /* Camera previews retain authored scene layers and keep editor overlays on top. */
     EditorCamera *camera = editor_project_camera_add(&project, object);

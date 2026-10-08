@@ -669,75 +669,6 @@ static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspac
     return result;
 }
 
-static EditorNavigationState editor_navigation_state_get(
-        const EditorProject *project, const EditorViewportState *state) {
-    EditorViewportMode persisted_mode;
-    if(project == NULL || state == NULL) return (EditorNavigationState){0};
-    if(state->mode == EDITOR_VIEWPORT_LAYOUT ||
-            state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
-            state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR)
-        return (EditorNavigationState){.mode = EDITOR_VIEWPORT_HIERARCHY,
-            .selection = EDITOR_SELECTION_NONE};
-    persisted_mode = state->mode == EDITOR_VIEWPORT_AUTO_SHAPE ?
-        state->auto_shape_parent_mode : state->mode;
-    return (EditorNavigationState){
-        .mode = (uint32_t)persisted_mode,
-        .selection = (uint32_t)state->selection,
-        .object = project->selected,
-        .selected_line = state->selected_line,
-        .selected_vertex = state->selected_vertex,
-        .rigid_body = state->selected_rigid_body,
-        .hitbox = state->selected_hitbox,
-        .joint = state->selected_joint,
-        .anchor = state->selected_anchor,
-        .soft_body = state->selected_soft_body,
-        .soft_node = state->selected_soft_node,
-        .soft_beam = state->selected_soft_beam,
-        .soft_area = state->selected_soft_area,
-        .soft_hole = state->selected_soft_hole,
-        .sprite = state->selected_sprite,
-        .animated_sprite = state->selected_animated_sprite,
-        .camera = state->selected_camera_entity,
-        .animation_frame = state->selected_animation_frame,
-        .input_controller = state->selected_input_controller,
-        .input_action = state->selected_input_action,
-        .input_binding = state->selected_input_binding,
-        .origin_kind = (uint32_t)state->selected_origin_kind
-    };
-}
-
-static void editor_navigation_state_apply(EditorProject *project,
-        EditorViewportState *state, const EditorNavigationState *navigation) {
-    if(project == NULL || state == NULL || navigation == NULL) return;
-    project->selected = navigation->object;
-    state->mode = (EditorViewportMode)navigation->mode;
-    state->selection = (EditorHierarchySelection)navigation->selection;
-    state->selected_line = navigation->selected_line;
-    state->selected_vertex = navigation->selected_vertex;
-    state->selected_rigid_body = navigation->rigid_body;
-    state->selected_hitbox = navigation->hitbox;
-    state->selected_joint = navigation->joint;
-    state->selected_anchor = navigation->anchor;
-    state->selected_soft_body = navigation->soft_body;
-    state->selected_soft_node = navigation->soft_node;
-    state->selected_soft_beam = navigation->soft_beam;
-    state->selected_soft_area = navigation->soft_area;
-    state->selected_soft_hole = navigation->soft_hole;
-    state->soft_area_picking = false;
-    state->selected_sprite = navigation->sprite;
-    state->selected_animated_sprite = navigation->animated_sprite;
-    state->selected_camera_entity = navigation->camera;
-    state->selected_animation_frame = navigation->animation_frame;
-    state->selected_input_controller = navigation->input_controller;
-    state->selected_input_action = navigation->input_action;
-    state->selected_input_binding = navigation->input_binding;
-    state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
-}
-
 static void editor_window_layout_sync(void) {
     Scale output = rohr_graphics_render_output_size_get();
     float logical_width;
@@ -1001,7 +932,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_INPUT_BINDING;
 }
 
-#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_SOFT_HOLE + 1)
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_CENTER_OF_MASS + 1)
 
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
@@ -1039,6 +970,7 @@ static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_SOFT_BEAM: return "Beam Properties";
         case EDITOR_VIEWPORT_SOFT_AREA: return "Area Properties";
         case EDITOR_VIEWPORT_SOFT_HOLE: return "Hole Properties";
+        case EDITOR_VIEWPORT_CENTER_OF_MASS: return "COM Properties";
         case EDITOR_VIEWPORT_ORIGIN: return "Origin Properties";
         case EDITOR_VIEWPORT_LINE: return "Line Properties";
         case EDITOR_VIEWPORT_VERTEX: return "Vertex Properties";
@@ -3008,6 +2940,11 @@ int main(int argc, char **argv) {
                 EDITOR_TOOLS_WIDTH, editor_panel_delete_y_get(&project,
                     &viewport_state, &rigid_body_editor),
                 editor_bulk_color_picker_open, &bulk_color);
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_CENTER_OF_MASS) {
+            field_editing = editor_center_of_mass_panel_draw(&rigid_body_editor.center_of_mass,
+                &(EditorModeContext){.history = &history, .project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ORIGIN) {
             field_editing = editor_origin_panel_draw(&origin_panel,
                 &(EditorPanelContext){
@@ -4545,21 +4482,9 @@ int main(int argc, char **argv) {
                     !editor_viewport_transform_active_check(&viewport_state) &&
                     !selection_modifier_press &&
                     viewport_state.mode != EDITOR_VIEWPORT_AUTO_SHAPE) {
-                EditorSelectionRef selection;
-                if(editor_viewport_selection_ref_get(
-                        &project, &viewport_state, &selection)) {
-                    if(pan_modifier && viewport_state.selected_item_count == 0 &&
-                            prior_pointer_selection_valid)
-                        (void)editor_viewport_selection_set(&project, &viewport_state,
-                            prior_pointer_selection, false);
-                    (void)editor_viewport_selection_set(&project, &viewport_state,
-                        selection, pan_modifier);
-                    if(selection.kind == EDITOR_SELECTION_SPRITE ||
-                            selection.kind == EDITOR_SELECTION_ANIMATED_SPRITE)
-                        (void)editor_navigation_selected_open(
-                            &project, &viewport_state);
-                    pointer_selection_handled = true;
-                }
+                pointer_selection_handled = editor_navigation_pointer_selection_finish(
+                    &project, &viewport_state, prior_pointer_selection,
+                    prior_pointer_selection_valid, pan_modifier);
             }
 
             if(pointer_state.button_states[MOUSE_BUTTON_LEFT] == MOUSE_BUTTON_STATE_PRESSED &&

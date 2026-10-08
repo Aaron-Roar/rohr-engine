@@ -104,3 +104,21 @@ bool editor_center_of_mass_editor_draw(EditorCenterOfMassEditor *editor,
         (UIRect){x, field.y + EDITOR_COM_ROW_HEIGHT, width, 26});
     return active;
 }
+
+/* The dedicated panel and inline body controls share assets and command paths. */
+bool editor_center_of_mass_panel_draw(EditorCenterOfMassEditor *editor,
+        const EditorModeContext *context) {
+    if(editor == NULL || context == NULL || context->project == NULL ||
+            context->viewport == NULL) return false;
+    EditorObject *object = editor_project_selected_get(context->project);
+    EditorRigidBody *body = editor_project_rigid_body_get(object,
+        context->viewport->selected_rigid_body);
+    if(body == NULL || body->standalone_particle) {
+        editor_viewport_transform_cancel(context->viewport);
+        editor_viewport_object_editor_enter(context->viewport);
+        if(object == NULL) context->viewport->mode = EDITOR_VIEWPORT_HIERARCHY;
+        return false;
+    }
+    editor_mode_accordion_layout_measure_include(42 + EDITOR_COM_ROW_COUNT * EDITOR_COM_ROW_HEIGHT);
+    return editor_center_of_mass_editor_draw(editor, context, object, body, 42);
+}

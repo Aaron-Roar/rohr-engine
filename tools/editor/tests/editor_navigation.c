@@ -4,6 +4,7 @@
 
 #include "browser/editor_file_browser.h"
 #include "editor_navigation.h"
+#include "editor_mass_properties.h"
 #include "editor_layout.h"
 #include "editors/editor_mode_controls.h"
 #include "editors/multi/editor_bulk_panel.h"
@@ -355,6 +356,8 @@ static bool render_order_picking_check(void) {
     back = &object->rigid_bodies[0];
     front = &object->rigid_bodies[1];
     for(size_t i = 0; i < 2; i += 1) {
+        object->rigid_bodies[i].center_of_mass_explicit = true;
+        object->rigid_bodies[i].center_of_mass_offset = (Position){200, 0};
         EditorHitbox *box = &object->rigid_bodies[i].hitboxes[0];
         box->vertex_count = 4;
         const Position vertices[] = {{-40, -40}, {40, -40}, {40, 40}, {-40, 40}};
@@ -439,7 +442,9 @@ static bool render_order_picking_check(void) {
         state.selected_hitbox == top_box->id && state.dragged_vertex < 0);
     (void)picking_pointer_update(&project, &state, point, MOUSE_BUTTON_STATE_RELEASED);
 
-    /* A higher content layer wins over rigid-body selection and origin controls. */
+    /* Away from COM, higher layers still win over body/origin controls. */
+    front->center_of_mass_explicit = true;
+    front->center_of_mass_offset = (Position){200, 0};
     EditorSprite *sprite = editor_project_sprite_add(&project, object,
         "cover", "unused.png");
     PICK_REQUIRE(sprite != NULL);
@@ -662,6 +667,73 @@ static bool layout_render_order_picking_check(void) {
     editor_project_destroy(&project);
     return true;
 }
+static bool com_priority_check(void) {
+    const float zooms[] = {0.1f, 1.0f, 8.0f};
+    Position screen = {EDITOR_VIEWPORT_WIDTH * 0.5f,
+        EDITOR_MENU_HEIGHT + (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+    for(size_t z = 0; z < 3; z += 1) for(int explicit = 0; explicit < 2; explicit += 1)
+            for(int rotation = 0; rotation < 2; rotation += 1) {
+        EditorProject project;
+        EditorViewportState state = {0};
+        editor_project_init(&project);
+        EditorObject *object = editor_project_object_add(&project, (Position){0});
+        EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
+        PICK_REQUIRE(body != NULL);
+        EditorSprite *cover = editor_project_sprite_add(&project, object, "cover", "unused.png");
+        PICK_REQUIRE(cover != NULL);
+        float y = rotation ? EDITOR_VIEWPORT_ROTATION_ARM_LENGTH / zooms[z] : 0;
+        body->center_of_mass_explicit = explicit != 0;
+        body->center_of_mass_offset = explicit ? (Position){0,y} : (Position){0};
+        EditorHitbox *box = &body->hitboxes[0];
+        box->vertex_count = 4;
+        const Position corners[] = {{-20,-20},{20,-20},{20,20},{-20,20}};
+        for(size_t v = 0; v < 4; v += 1)
+            box->vertices[v].position = (Position){corners[v].x, corners[v].y + y};
+        PICK_REQUIRE(editor_mass_properties_get(body).center_available);
+        cover->position = (Position){0,y};
+        cover->size = (Scale){200 / zooms[z],200 / zooms[z]};
+        cover->graphics_layer.value = 1000000;
+        project.viewport_local_view = false;
+        project.viewport_camera_zoom = zooms[z];
+        for(int attempt = 0; attempt < 5; attempt += 1) {
+            editor_viewport_state_init(&state);
+            state.mode = rotation ? EDITOR_VIEWPORT_RIGID_BODY : EDITOR_VIEWPORT_ORIGIN;
+            state.selection = EDITOR_SELECTION_RIGID_BODY;
+            state.selected_rigid_body = body->id;
+            state.selected_origin_kind = EDITOR_ORIGIN_RIGID_BODY;
+            state.selection_modifier = attempt == 3;
+            body->visible = attempt != 4;
+            Position press = {screen.x + (attempt == 1 ? 14 : 12), screen.y - y * zooms[z]};
+            bool consumed = attempt == 2;
+            (void)editor_viewport_update(&state,&project,press,MOUSE_BUTTON_STATE_PRESSED,
+                MOUSE_BUTTON_STATE_UP,false,0,consumed);
+            if(attempt == 0) {
+                PICK_REQUIRE(state.selection == EDITOR_SELECTION_CENTER_OF_MASS && state.dragged_center_of_mass == (explicit != 0));
+                PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_CENTER_OF_MASS);
+                if(!explicit) PICK_REQUIRE(editor_navigation_pointer_selection_finish(
+                    &project,&state,(EditorSelectionRef){0},false,false));
+                PICK_REQUIRE(state.selection == EDITOR_SELECTION_CENTER_OF_MASS &&
+                    state.mode == EDITOR_VIEWPORT_CENTER_OF_MASS);
+                PICK_REQUIRE(!state.rotated_body && !state.dragged_origin && !state.dragged_body);
+                (void)picking_pointer_update(&project,&state,(Position){press.x + 5,press.y},MOUSE_BUTTON_STATE_DOWN);
+                PICK_REQUIRE(body->position.x == 0 && body->position.y == 0 && body->rotation == 0);
+                PICK_REQUIRE(body->center_of_mass_explicit == (explicit != 0));
+                PICK_REQUIRE(fabsf(body->center_of_mass_offset.x - (explicit ? 5 / zooms[z] : 0)) < 0.001f);
+                (void)picking_pointer_update(&project,&state,press,MOUSE_BUTTON_STATE_RELEASED);
+                PICK_REQUIRE(!state.dragged_center_of_mass && state.mode == EDITOR_VIEWPORT_CENTER_OF_MASS);
+                editor_viewport_back(&state);
+                PICK_REQUIRE(state.mode == EDITOR_VIEWPORT_RIGID_BODY && state.selection == EDITOR_SELECTION_RIGID_BODY);
+                body->center_of_mass_offset.x = 0;
+            } else {
+                PICK_REQUIRE(state.selection != EDITOR_SELECTION_CENTER_OF_MASS && !state.dragged_center_of_mass);
+                if(!consumed) PICK_REQUIRE(state.selection == EDITOR_SELECTION_SPRITE);
+            }
+            editor_viewport_state_destroy(&state);
+        }
+        editor_project_destroy(&project);
+    }
+    return true;
+}
 #undef PICK_REQUIRE
 
 static bool control_zoom_check(void) {
@@ -676,6 +748,9 @@ static bool control_zoom_check(void) {
         EditorRigidBody *body = editor_project_rigid_body_add(&project, object);
         EditorSoftBody *soft = editor_project_soft_body_add(&project, object);
         if(body == NULL || soft == NULL) return false;
+        /* Keep COM away while testing independent rotation/origin controls. */
+        body->center_of_mass_explicit = true;
+        body->center_of_mass_offset = (Position){200 / zooms[z], 0};
         /* Exterior handles must work without depending on the size of geometry. */
         body->hitboxes[0].visible = false;
         project.viewport_camera_zoom = zooms[z];
@@ -775,7 +850,7 @@ fail:
 
 int main(void) {
     if(!SDL_SaveFile("editor_navigation_frame.png", test_png, sizeof(test_png))) return 1;
-    if(!control_zoom_check()) return 1;
+    if(!control_zoom_check() || !com_priority_check()) return 1;
     if(!editor_layers_check()) return 1;
     if(!render_order_picking_check() || !layout_render_order_picking_check()) return 1;
     if(!accordion_layout_metrics_check() ||
