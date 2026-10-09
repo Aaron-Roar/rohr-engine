@@ -11,6 +11,10 @@ typedef struct EditorCenterOfMassEditor {
     TextAsset mode_label, automatic_label, explicit_label, centroid_label;
     TextAsset x_label, y_label, inertia_label, response_label;
     TextAsset x_field, y_field, inertia_field;
+    TextAsset mass_label, mass_field;
+    EditorSoftBodyId soft_body;
+    EditorObjectId soft_object;
+    bool soft_error;
 } EditorCenterOfMassEditor;
 
 bool editor_center_of_mass_editor_create(EditorCenterOfMassEditor *editor,
@@ -20,6 +24,8 @@ bool editor_center_of_mass_editor_draw(EditorCenterOfMassEditor *editor,
     const EditorModeContext *context, EditorObject *object,
     EditorRigidBody *body, float y);
 
+bool editor_soft_center_of_mass_editor_draw(EditorCenterOfMassEditor *editor,
+    const EditorModeContext *context, EditorObject *object, EditorSoftBody *body, float y);
 bool editor_center_of_mass_panel_draw(EditorCenterOfMassEditor *editor,
     const EditorModeContext *context);
 

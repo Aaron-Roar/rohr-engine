@@ -3,6 +3,7 @@
  */
 
 #include "editor_command.h"
+#include "editor_mass_properties.h"
 #include "editor_soft_area.h"
 
 #include <errno.h>
@@ -1209,7 +1210,16 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             } else if(set->kind == EDITOR_ITEM_SOFT_BODY) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->item);
                 if(body == NULL) return editor_command_not_found("soft body", set->item);
-                if(set->property == EDITOR_PROPERTY_NODE_COLOR &&
+                if(set->property == EDITOR_PROPERTY_MASS &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT) {
+                    if(!editor_soft_mass_values_set(body, false, set->value.number,
+                            (Position){0})) goto property_invalid;
+                } else if(set->property == EDITOR_PROPERTY_CENTER_OF_MASS &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_CENTER_OF_MASS) {
+                    if(!set->value.center_of_mass.explicit_mode ||
+                            !editor_soft_mass_values_set(body, true, 0,
+                                set->value.center_of_mass.offset)) goto property_invalid;
+                } else if(set->property == EDITOR_PROPERTY_NODE_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT)
                     body->node_color = set->value.integer;
                 else if(set->property == EDITOR_PROPERTY_BEAM_COLOR &&
@@ -2846,6 +2856,20 @@ collision_filter_invalid:
         bool indexed;
         int property_index;
         int value_index;
+        if(strcmp(domain, "soft-body") == 0 && count >= 7 &&
+                strcmp(arguments[6], "center-of-mass") == 0) {
+            set->kind = EDITOR_ITEM_SOFT_BODY;
+            set->property = EDITOR_PROPERTY_CENTER_OF_MASS;
+            set->value_kind = EDITOR_PROPERTY_VALUE_CENTER_OF_MASS;
+            set->value.center_of_mass.explicit_mode = true;
+            if(count != 9 || !editor_command_uint_parse(arguments[4], &set->object) ||
+                    !editor_command_uint_parse(arguments[5], &set->item) ||
+                    !editor_command_float_parse(arguments[7], &set->value.center_of_mass.offset.x) ||
+                    !editor_command_float_parse(arguments[8], &set->value.center_of_mass.offset.y))
+                goto property_parse_invalid;
+            command->type = EDITOR_COMMAND_PROPERTY_SET;
+            return editor_result_value(true);
+        }
         if(strcmp(domain, "rigid-body") == 0 && count >= 7 &&
                 strcmp(arguments[6], "center-of-mass") == 0) {
             set->kind = EDITOR_ITEM_RIGID_BODY;
@@ -3989,7 +4013,10 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                     !editor_command_text_append(output, output_capacity, &used, " "))
                 goto capacity_error;
             if(set->value_kind == EDITOR_PROPERTY_VALUE_CENTER_OF_MASS) {
-                if(set->value.center_of_mass.explicit_mode)
+                if(set->kind == EDITOR_ITEM_SOFT_BODY)
+                    snprintf(value, sizeof(value), "%.9g %.9g",
+                        set->value.center_of_mass.offset.x, set->value.center_of_mass.offset.y);
+                else if(set->value.center_of_mass.explicit_mode)
                     snprintf(value, sizeof(value), "explicit %.9g %.9g",
                         set->value.center_of_mass.offset.x, set->value.center_of_mass.offset.y);
                 else snprintf(value, sizeof(value), "automatic");

@@ -1200,6 +1200,14 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "created.result.error); goto fail; }\n"
                 "      object->%s = created.result.value; }\n",
                 body->name);
+            /* Establish the authored frame before adding world-space nodes. */
+            fprintf(source,
+                "    result = rohr_physics_position_set(object->%s, "
+                "(Position){position.x + %#.9gf, position.y + %#.9gf});\n"
+                "    if(rohr_error_check(result)) goto fail;\n"
+                "    result = rohr_physics_orientation_set(object->%s, %#.9gf);\n"
+                "    if(rohr_error_check(result)) goto fail;\n",
+                body->name, body->position.x, body->position.y, body->name, body->rotation);
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
                 const EditorSoftNode *node = &body->nodes[node_index];
                 float cosine = cosf(math_degrees_to_radians(body->rotation));

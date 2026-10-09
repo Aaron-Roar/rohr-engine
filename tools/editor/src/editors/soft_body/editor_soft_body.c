@@ -63,7 +63,9 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("", acceleration_x_field); CREATE("", acceleration_y_field);
     CREATE("", angular_velocity_field);
 #undef CREATE
-    if(!editor_soft_area_editor_create(&editor->areas, font) ||
+    if(!editor_center_of_mass_editor_create(&editor->mass_properties, font) ||
+            !editor_mode_accordion_section_create(&editor->physics_section, font, "Physics", false) ||
+            !editor_soft_area_editor_create(&editor->areas, font) ||
             !editor_mode_accordion_section_create(&editor->transform_section, font,
             "Transform", true) ||
             !editor_mode_accordion_section_create(
@@ -96,6 +98,8 @@ void editor_soft_body_editor_destroy(EditorSoftBodyEditor *editor) {
     DESTROY(angular_velocity_field);
 #undef DESTROY
     editor_soft_area_editor_destroy(&editor->areas);
+    editor_center_of_mass_editor_destroy(&editor->mass_properties);
+    editor_mode_accordion_section_destroy(&editor->physics_section);
     editor_mode_accordion_section_destroy(&editor->transform_section);
     editor_mode_accordion_section_destroy(&editor->initial_motion_section);
     editor_mode_accordion_section_destroy(&editor->appearance_section);
@@ -276,6 +280,13 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
             editor_mode_accordion_layout_nested_section(&accordion,
                 &editor->transform_section,
                 "editor.soft_body.section.transform", transform_groups, 2);
+        const float physics_rows[] = {26,26,26,26};
+        EditorModeAccordionLayoutResult physics = editor_mode_accordion_layout_section(
+            &accordion, &editor->physics_section, "editor.soft_body.section.physics",
+            physics_rows, 4, 6);
+        if(physics.expanded) field_active |= editor_soft_center_of_mass_editor_draw(
+            &editor->mass_properties, context, object, body,
+            editor_mode_accordion_layout_row_y(&physics, physics_rows, 0, 6));
         EditorModeAccordionLayoutResult appearance =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->initial_motion_section,

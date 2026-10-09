@@ -475,6 +475,26 @@ bodies during editing so authored relationships remain visible.
 
 ## Soft bodies
 
+The soft-body **Physics** accordion shows **Total Mass**, **COM Local X**, and
+**COM Local Y**, derived from all node masses and positions. Setting total mass
+scales node masses proportionally. Editing or dragging COM redistributes node
+masses while preserving total mass, node positions, and initial motion. There
+is no automatic/manual toggle or aggregate override. Unreachable COM positions
+and invalid masses leave all nodes unchanged; empty bodies show mass zero and
+COM as **Unavailable**.
+
+The blue, white-bordered COM marker uses the existing weight symbol and stays
+constant in screen size. It draws and selects above scene geometry. Selecting
+it opens **COM Properties**; dragging preserves the initial grab offset and
+creates one undo entry. Back returns to the soft-body editor. Fields, CLI edits,
+undo/redo, duplication, saved projects, and generated applications all use the
+resulting node masses, without new aggregate JSON fields.
+
+```sh
+rohr-cli --project ./objects/project.rohr.json --object Cloth --soft-body fabric --property mass 16
+rohr-cli --project ./objects/project.rohr.json --object Cloth --soft-body fabric --property center-of-mass 25 0
+```
+
 Soft bodies own nodes and beams. Nodes provide mass, radius, friction,
 restitution, gravity, particle collision filters, and color overrides. Beams
 provide stiffness, damping, endpoints, color overrides, and independent

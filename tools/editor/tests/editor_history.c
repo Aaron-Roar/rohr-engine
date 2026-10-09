@@ -1186,6 +1186,13 @@ int main(void) {
     soft_node = editor_project_soft_node_add(&project, soft_body,
         (Position){-200.0f, -100.0f});
     assert(soft_node != NULL);
+    /* Node dragging is separate from the higher-priority COM handle. */
+    EditorSoftNodeId drag_node_id = soft_node->id;
+    assert(editor_project_soft_node_add(&project, soft_body, (Position){200, 100}) != NULL);
+    soft_node = NULL;
+    for(size_t i = 0; i < soft_body->node_count; i++)
+        if(soft_body->nodes[i].id == drag_node_id) soft_node = &soft_body->nodes[i];
+    assert(soft_node != NULL);
     editor_history_reset(&history);
     editor_viewport_state_init(&viewport);
     viewport.mode = EDITOR_VIEWPORT_SOFT_NODE;
@@ -1682,6 +1689,8 @@ int main(void) {
             if(object->soft_body_items[i].id == body_id)
                 soft_body = &object->soft_body_items[i];
         assert(soft_body != NULL);
+        /* Keep COM away from this origin-handle fixture. */
+        for(size_t i = 0; i < soft_body->node_count; i++) soft_body->nodes[i].position.x += 200;
         local_node = soft_body->nodes[0].position;
         soft_body->position = (Position){-100.0f, -150.0f};
         editor_history_reset(&history);

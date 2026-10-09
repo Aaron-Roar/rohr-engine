@@ -22,4 +22,17 @@ EditorCommandResult editor_center_of_mass_set(EditorProject *project,
 EditorCommandResult editor_center_of_mass_mode_set(EditorProject *project,
     EditorObjectId object, EditorRigidBodyId body, bool explicit_mode);
 
+typedef struct EditorSoftMassProperties {
+    Position center;
+    float total;
+    bool mass_available;
+    bool center_available;
+} EditorSoftMassProperties;
+EditorSoftMassProperties editor_soft_mass_properties_get(const EditorSoftBody *body);
+/* Atomic authored-data mutation used only inside commands/history. */
+bool editor_soft_mass_values_set(EditorSoftBody *body, bool redistribute,
+    float total, Position center);
+EditorCommandResult editor_soft_center_of_mass_set(EditorProject *project,
+    EditorObjectId object, EditorSoftBodyId body, Position offset);
+
 #endif

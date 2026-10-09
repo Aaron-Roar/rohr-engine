@@ -150,6 +150,7 @@ if(ROHR_BUILD_TESTS)
         src/editors/geometry/editor_auto_shape.c
         src/editors/geometry/editor_hitbox.c
         src/editors/soft_body/editor_soft_area.c
+        src/editors/physics/editor_center_of_mass.c
         src/editors/soft_body/editor_soft_body.c
         src/editors/multi/editor_bulk_panel.c
         src/viewport/controls/editor_rotation_control.c
@@ -199,6 +200,27 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME editor_com_authoring COMMAND editor_com_authoring_test)
     set_tests_properties(editor_com_authoring PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
+    add_executable(editor_soft_mass_authoring_test
+        tests/editor_soft_mass_authoring.c
+        src/editor_history.c
+        src/editor_navigation.c
+        src/editor_viewport.c
+        src/editors/editor_mode_controls.c
+        src/editors/editor_collision_controls.c
+        src/editors/geometry/editor_auto_shape.c
+        src/editors/physics/editor_center_of_mass.c
+        src/editors/soft_body/editor_soft_body.c
+        src/editors/soft_body/editor_soft_area.c
+        src/viewport/controls/editor_rotation_control.c)
+    target_include_directories(editor_soft_mass_authoring_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_soft_mass_authoring_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_soft_mass_authoring_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_soft_mass_authoring COMMAND editor_soft_mass_authoring_test)
+    set_tests_properties(editor_soft_mass_authoring PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_particle_authoring_test

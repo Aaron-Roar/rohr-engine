@@ -805,9 +805,43 @@ static bool editor_center_of_mass_world_get(const EditorObject *object,
     return true;
 }
 
+static EditorSoftBody *editor_soft_com_body_get(EditorObject *object,
+        const EditorViewportState *state) {
+    if(state->selected_item_count > 1) return NULL;
+    bool context = state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
+        state->mode == EDITOR_VIEWPORT_SOFT_NODE || state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+        state->mode == EDITOR_VIEWPORT_SOFT_AREA || state->mode == EDITOR_VIEWPORT_SOFT_HOLE ||
+        (state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS && state->selected_rigid_body == 0) ||
+        (state->mode == EDITOR_VIEWPORT_ORIGIN && state->selected_origin_kind == EDITOR_ORIGIN_SOFT_BODY) ||
+        (state->mode == EDITOR_VIEWPORT_AUTO_SHAPE && state->auto_shape_parent_mode == EDITOR_VIEWPORT_SOFT_BODY);
+    EditorSoftBody *body = context ? editor_soft_body_get(object, state->selected_soft_body) : NULL;
+    return body != NULL && body->visible ? body : NULL;
+}
+
+static bool editor_soft_com_world_get(const EditorObject *object,
+        const EditorSoftBody *body, Position *center) {
+    EditorSoftMassProperties value = editor_soft_mass_properties_get(body);
+    if(!value.center_available) return false;
+    Vec2D offset = math_vector_rotate(value.center, body->rotation);
+    *center = (Position){object->position.x + body->position.x + offset.x,
+        object->position.y + body->position.y + offset.y};
+    return true;
+}
+
 static bool editor_center_of_mass_press(EditorProject *project, EditorObject *object,
         EditorRigidBody *body, EditorViewportState *state, Position pointer) {
     Position center;
+    EditorSoftBody *soft = editor_soft_com_body_get(object, state);
+    if(soft != NULL && object != NULL && object->visible && !state->selection_modifier &&
+            editor_soft_com_world_get(object, soft, &center) &&
+            hypotf(pointer.x - center.x, pointer.y - center.y) <= EDITOR_COM_HANDLE_RADIUS / editor_view_scale) {
+        EditorSelectionRef selected = {EDITOR_SELECTION_CENTER_OF_MASS, object->id, soft->id, 0, 0};
+        if(!editor_viewport_selection_set(project, state, selected, false)) return false;
+        state->mode = EDITOR_VIEWPORT_CENTER_OF_MASS;
+        state->dragged_center_of_mass = true;
+        state->drag_offset = (Vec2D){pointer.x - center.x, pointer.y - center.y};
+        return true;
+    }
     if(object == NULL || !object->visible || state->selection_modifier ||
             !editor_center_of_mass_visible_check(state, body) ||
             !editor_center_of_mass_world_get(object, body, &center) ||
@@ -824,7 +858,10 @@ static bool editor_center_of_mass_press(EditorProject *project, EditorObject *ob
 static void editor_center_of_mass_draw(const EditorObject *object,
         const EditorRigidBody *body, const EditorViewportState *state) {
     Position center;
-    if(!editor_center_of_mass_visible_check(state, body) ||
+    EditorSoftBody *soft = editor_soft_com_body_get((EditorObject *)object, state);
+    if(soft != NULL) {
+        if(!editor_soft_com_world_get(object, soft, &center)) return;
+    } else if(!editor_center_of_mass_visible_check(state, body) ||
             !editor_center_of_mass_world_get(object, body, &center)) return;
     Color color = state->selection == EDITOR_SELECTION_CENTER_OF_MASS ?
         (Color){255, 215, 70, 255} : (Color){45, 140, 255, 255};
@@ -960,6 +997,9 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
             selection->item = project->selected;
             return selection->item != 0;
         case EDITOR_SELECTION_CENTER_OF_MASS:
+            selection->item = state->selected_rigid_body;
+            selection->parent = selection->item == 0 ? state->selected_soft_body : 0;
+            return selection->item != 0 || selection->parent != 0;
         case EDITOR_SELECTION_RIGID_BODY:
         case EDITOR_SELECTION_PARTICLE:
             selection->item = state->selected_rigid_body;
@@ -1137,15 +1177,20 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
     object = editor_project_selected_get(project);
     if(selection.kind == EDITOR_SELECTION_CENTER_OF_MASS) {
         EditorRigidBody *body = editor_project_rigid_body_get(object, selection.item);
-        if(body == NULL || body->standalone_particle) return false;
+        if(selection.parent != 0) {
+            if(editor_soft_body_get(object, selection.parent) == NULL) return false;
+        } else if(body == NULL || body->standalone_particle) return false;
     }
     state->selection = selection.kind;
     switch(selection.kind) {
         case EDITOR_SELECTION_OBJECT: break;
         case EDITOR_SELECTION_RIGID_BODY:
         case EDITOR_SELECTION_PARTICLE:
-        case EDITOR_SELECTION_CENTER_OF_MASS:
             state->selected_rigid_body = selection.item;
+            break;
+        case EDITOR_SELECTION_CENTER_OF_MASS:
+            state->selected_rigid_body = selection.parent == 0 ? selection.item : 0;
+            if(selection.parent != 0) state->selected_soft_body = selection.parent;
             break;
         case EDITOR_SELECTION_HITBOX:
             state->selected_rigid_body = selection.parent;
@@ -1844,8 +1889,8 @@ void editor_viewport_back(EditorViewportState *state) {
         state->mode = EDITOR_VIEWPORT_RIGID_BODY;
         state->selection = EDITOR_SELECTION_RIGID_BODY;
     } else if(state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS) {
-        state->mode = EDITOR_VIEWPORT_RIGID_BODY;
-        state->selection = EDITOR_SELECTION_RIGID_BODY;
+        state->mode = state->selected_rigid_body == 0 ? EDITOR_VIEWPORT_SOFT_BODY : EDITOR_VIEWPORT_RIGID_BODY;
+        state->selection = state->selected_rigid_body == 0 ? EDITOR_SELECTION_SOFT_BODY : EDITOR_SELECTION_RIGID_BODY;
     } else if(state->mode == EDITOR_VIEWPORT_PARTICLE_RADIUS) {
         state->mode = EDITOR_VIEWPORT_PARTICLE;
         state->selection = EDITOR_SELECTION_PARTICLE;
@@ -3569,7 +3614,8 @@ static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref) {
         ref.item = ref.parent;
         break;
     case EDITOR_SELECTION_CENTER_OF_MASS:
-        ref.kind = EDITOR_SELECTION_RIGID_BODY;
+        ref.kind = ref.parent != 0 ? EDITOR_SELECTION_SOFT_BODY : EDITOR_SELECTION_RIGID_BODY;
+        if(ref.parent != 0) ref.item = ref.parent;
         break;
     case EDITOR_SELECTION_ORIGIN:
         ref.kind = ref.parent == EDITOR_ORIGIN_RIGID_BODY ?
@@ -4851,6 +4897,14 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
     if(state->dragged_center_of_mass && primary_button == MOUSE_BUTTON_STATE_DOWN) {
+        if(state->selected_rigid_body == 0) {
+            EditorSoftBody *soft = editor_soft_body_get(object, state->selected_soft_body);
+            if(soft == NULL) { state->dragged_center_of_mass = false; return false; }
+            Vec2D local = {pointer.x - object->position.x - soft->position.x - state->drag_offset.x,
+                pointer.y - object->position.y - soft->position.y - state->drag_offset.y};
+            return editor_soft_center_of_mass_set(project, object->id, soft->id,
+                math_vector_rotate(local, -soft->rotation)).kind == ERROR_RESULT_VALUE;
+        }
         if(body == NULL || !body->center_of_mass_explicit || body->standalone_particle) {
             state->dragged_center_of_mass = false;
             return false;
@@ -6314,6 +6368,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
     if(state->selected_item_count > 1 ||
             state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
             state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
+            (state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS && state->selected_rigid_body == 0) ||
             (state->mode == EDITOR_VIEWPORT_AUTO_SHAPE &&
                 state->auto_shape_parent_mode == EDITOR_VIEWPORT_SOFT_BODY) ||
             (state->mode == EDITOR_VIEWPORT_ORIGIN &&

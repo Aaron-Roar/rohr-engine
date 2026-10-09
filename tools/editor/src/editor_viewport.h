@@ -74,6 +74,7 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_INPUT_BINDING,
     EDITOR_SELECTION_SOFT_AREA,
     EDITOR_SELECTION_SOFT_HOLE,
+    /* COM references use item=rigid body, or parent=soft body with item=0. */
     EDITOR_SELECTION_CENTER_OF_MASS
 } EditorHierarchySelection;
 

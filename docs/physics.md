@@ -308,8 +308,10 @@ and nonconvergence return an error without changing any node. Total mass must
 also fit the public float `Mass` type. Existing node records carry the resulting
 masses through runtime persistence; no extra aggregate fields are needed.
 
-These controls are currently available through the engine API. Editor fields
-and marker integration are the next milestone goal.
+The editor exposes the same controls through the soft-body Physics accordion,
+a selectable/draggable COM marker, and CLI properties. Edits store only node
+masses, preserving runtime behavior in generated projects. See
+[soft-body authoring](editor.md#soft-bodies).
 
 ### Runtime visual areas
 

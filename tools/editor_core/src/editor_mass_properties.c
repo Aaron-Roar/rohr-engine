@@ -5,6 +5,7 @@
 #include "physics/physics_internal.h"
 #include "physics/collision/shape_decomposition.h"
 
+#include "physics/soft_body/soft_body_mass.h"
 #include <float.h>
 #include <math.h>
 
@@ -71,4 +72,55 @@ EditorCommandResult editor_center_of_mass_mode_set(EditorProject *project,
         editor_project_rigid_body_get(owner, body));
     return editor_center_of_mass_set(project, object, body, explicit_mode,
         current.center_available ? current.center : (Position){0});
+}
+
+EditorSoftMassProperties editor_soft_mass_properties_get(const EditorSoftBody *body) {
+    EditorSoftMassProperties result = {0};
+    double total = 0, x = 0, y = 0;
+    if(body == NULL || body->node_count > SOFT_BODY_MAX_NODES ||
+            (body->node_count > 0 && body->nodes == NULL)) return result;
+    for(size_t i = 0; i < body->node_count; i++) {
+        const EditorSoftNode *node = &body->nodes[i];
+        if(!isfinite(node->node_mass) || node->node_mass < 0 ||
+                !isfinite(node->position.x) || !isfinite(node->position.y)) return result;
+        total += node->node_mass;
+        x += (double)node->position.x * node->node_mass;
+        y += (double)node->position.y * node->node_mass;
+    }
+    if(total > FLT_MAX) return result;
+    result.mass_available = true;
+    result.total = (float)total;
+    if(total > 0) {
+        result.center = (Position){(float)(x / total), (float)(y / total)};
+        result.center_available = true;
+    }
+    return result;
+}
+
+bool editor_soft_mass_values_set(EditorSoftBody *body, bool redistribute,
+        float total, Position center) {
+    Mass prior[SOFT_BODY_MAX_NODES], next[SOFT_BODY_MAX_NODES];
+    Position points[SOFT_BODY_MAX_NODES];
+    if(body == NULL || body->node_count == 0 || body->node_count > SOFT_BODY_MAX_NODES ||
+            body->nodes == NULL) return false;
+    for(size_t i = 0; i < body->node_count; i++) {
+        prior[i] = body->nodes[i].node_mass;
+        points[i] = body->nodes[i].position;
+    }
+    if(!(redistribute ? physics_soft_mass_distribution_get(points, prior,
+            body->node_count, center, next) : physics_soft_mass_scale_get(prior,
+            body->node_count, total, next))) return false;
+    for(size_t i = 0; i < body->node_count; i++) body->nodes[i].node_mass = next[i];
+    return true;
+}
+
+EditorCommandResult editor_soft_center_of_mass_set(EditorProject *project,
+        EditorObjectId object, EditorSoftBodyId body, Position offset) {
+    EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+        .data.property_set = {.kind = EDITOR_ITEM_SOFT_BODY,
+            .object = object, .item = body,
+            .property = EDITOR_PROPERTY_CENTER_OF_MASS,
+            .value_kind = EDITOR_PROPERTY_VALUE_CENTER_OF_MASS,
+            .value.center_of_mass = {true, offset}}};
+    return editor_command_execute(project, &command);
 }

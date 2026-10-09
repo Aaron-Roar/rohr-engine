@@ -512,6 +512,8 @@ static bool render_order_picking_check(void) {
     PICK_REQUIRE(soft != NULL);
     PICK_REQUIRE(editor_project_soft_node_add(&project, soft, (Position){25, 0}));
     PICK_REQUIRE(editor_project_soft_node_add(&project, soft, (Position){25, 0}));
+    /* Keep the derived COM clear of this node-order picking fixture. */
+    PICK_REQUIRE(editor_project_soft_node_add(&project, soft, (Position){250, 200}));
     state.mode = EDITOR_VIEWPORT_SOFT_NODE;
     state.selection = EDITOR_SELECTION_SOFT_NODE;
     state.selected_soft_body = soft->id;
@@ -750,6 +752,8 @@ static bool control_zoom_check(void) {
         /* Keep COM away while testing independent rotation/origin controls. */
         body->center_of_mass_explicit = true;
         body->center_of_mass_offset = (Position){200 / zooms[z], 0};
+        /* Offset soft geometry so its derived COM does not cover the origin. */
+        if(editor_project_soft_node_add(&project, soft, (Position){200 / zooms[z], 0}) == NULL) return false;
         /* Exterior handles must work without depending on the size of geometry. */
         body->hitboxes[0].visible = false;
         project.viewport_camera_zoom = zooms[z];

@@ -1241,6 +1241,11 @@ bool editor_navigation_selected_open(EditorProject *project,
             return true;
         }
         case EDITOR_SELECTION_CENTER_OF_MASS: {
+            if(state->selected_rigid_body == 0 &&
+                    editor_soft_body_get(selected, state->selected_soft_body) != NULL) {
+                state->mode = EDITOR_VIEWPORT_CENTER_OF_MASS;
+                return true;
+            }
             EditorRigidBody *body = editor_navigation_rigid_body_get(selected, state);
             if(body == NULL || body->standalone_particle) return false;
             state->mode = EDITOR_VIEWPORT_CENTER_OF_MASS;
@@ -1520,6 +1525,14 @@ void editor_navigation_state_apply(EditorProject *project,
     state->selected_origin_kind = (EditorOriginKind)navigation->origin_kind;
     if(state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS) {
         EditorObject *object = editor_project_selected_get(project);
+        if(state->selected_rigid_body == 0 &&
+                editor_soft_body_get(object, state->selected_soft_body) != NULL) {
+            if(state->selection == EDITOR_SELECTION_CENTER_OF_MASS)
+                (void)editor_viewport_selection_set(project, state,
+                    (EditorSelectionRef){EDITOR_SELECTION_CENTER_OF_MASS, object->id,
+                        state->selected_soft_body, 0, 0}, false);
+            return;
+        }
         EditorRigidBody *body = editor_project_rigid_body_get(object, state->selected_rigid_body);
         if(body == NULL || body->standalone_particle) {
             editor_viewport_transform_cancel(state);
