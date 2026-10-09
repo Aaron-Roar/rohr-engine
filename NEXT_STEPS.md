@@ -54,6 +54,25 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Soft-Body Mass and COM Controls** milestone is in progress,
+preceding Editor Forces and Torques. Node masses remain authoritative; total mass
+and COM are derived controls without an automatic/manual override.
+
+1. [x] **Implement derived soft-body mass and COM APIs** — Add the mass getter,
+   proportional total-mass edits, and transactional minimum-relative-entropy COM
+   redistribution. Share allocation-free calculations with future editor
+   authoring. Verify transforms, deformation, degenerate node layouts, invalid
+   edits, sanitizers, Linux/Windows, and installed-SDK consumers. Verified with
+   68 native tests, four ASan/UBSan/leak checks, Linux and Windows compilation,
+   an installed-SDK C99 API consumer, and an independently built soft-body
+   example launched outside its source directory. Windows execution remains
+   unverified. Editor integration is the next goal.
+2. [ ] **Integrate mass and COM controls into the editor** — Add derived fields
+   and the established selectable/draggable COM marker and dedicated editor.
+   Reuse the calculation routine through undoable commands and CLI properties;
+   persist and generate only resulting node masses. Verify editor interactions,
+   history, duplication, persistence, generated runtime parity, and visual review.
+
 The user-selected **Reliable Particle–Beam Contacts** milestone is complete.
 
 Correct particle clipping and preserve restitution when beam contacts interact

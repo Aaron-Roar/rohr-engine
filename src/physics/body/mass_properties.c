@@ -3,6 +3,7 @@
  */
 
 #include "physics/physics_internal.h"
+#include "physics/soft_body/soft_body_mass.h"
 #include "physics/physics_step_internal.h"
 #include <float.h>
 #include <math.h>
@@ -154,6 +155,13 @@ EngineResult physics_center_of_mass_local_position_set(Entity entity, Position o
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!physics_world_position_check(offset))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        Vec2D rotated = math_vector_rotate(offset, orientations[index]);
+        Position world = {positions[index].x + rotated.x, positions[index].y + rotated.y};
+        if(!physics_world_position_check(world))
+            return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+        return physics_soft_body_com_set(index, world);
+    }
     result = physics_mass_properties_reserve((size_t)index + 1);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(geometry_present_check(index) && entity_index_components_check(index, ROHR_MASS) &&
@@ -169,6 +177,7 @@ EngineResult physics_center_of_mass_automatic_set(Entity entity) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) return error_result_value(true);
     if(index < properties.capacity) {
         properties.objects[index].explicit_mode = false;
         properties.objects[index].explicit_com = (Position){0};
@@ -181,6 +190,8 @@ BoolResult physics_center_of_mass_automatic_check(Entity entity) {
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(BoolResult, result.result.error);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return ERROR_RESULT_MAKE_VALUE(BoolResult, true);
     return ERROR_RESULT_MAKE_VALUE(BoolResult, index >= properties.capacity ||
         !properties.objects[index].explicit_mode);
 }
@@ -190,6 +201,13 @@ PositionResult physics_center_of_mass_local_position_get(Entity entity) {
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(PositionResult, result.result.error);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+        PositionResult center = physics_soft_body_com_get(index);
+        if(center.kind == ERROR_RESULT_ERROR) return center;
+        Vec2D delta = math_vector_subtract(center.result.value, positions[index]);
+        return ERROR_RESULT_MAKE_VALUE(PositionResult,
+            math_vector_rotate(delta, -orientations[index]));
+    }
     if((index >= properties.capacity || !properties.objects[index].explicit_mode) &&
             !geometry_present_check(index))
         return ERROR_RESULT_MAKE_ERROR(PositionResult, ERROR_ENGINE_COMPONENT_MISSING);
@@ -203,6 +221,8 @@ PositionResult physics_center_of_mass_world_position_get(Entity entity) {
     if(!entity_index_get(entity, &index) || !positions_pool.used[index] ||
             !orientations_pool.used[index])
         return ERROR_RESULT_MAKE_ERROR(PositionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return physics_soft_body_com_get(index);
     Position center = physics_com_world_by_index_get(index);
     if(!isfinite(center.x) || !isfinite(center.y))
         return ERROR_RESULT_MAKE_ERROR(PositionResult, ERROR_ENGINE_STATE_INVALID);

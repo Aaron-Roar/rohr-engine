@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "physics/soft_body/soft_body_mass.h"
 
 #include "console.h"
 #include "physics/physics_internal.h"
@@ -58,6 +59,8 @@ EngineResult physics_mass_set(Entity entity, Mass mass_value) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return physics_soft_body_mass_set(index, mass_value);
     if(!isfinite(mass_value) || mass_value < 0.0f)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     entity_mask[index] |= ROHR_MASS;
@@ -66,6 +69,19 @@ EngineResult physics_mass_set(Entity entity, Mass mass_value) {
     console_debug_write(LOG_ENGINE, "Set Entity: %d Mass: %f\n",
         entity, mass_value);
     return error_result_value(true);
+}
+
+MassResult physics_mass_get(Entity entity) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(result.kind == ERROR_RESULT_ERROR)
+        return ERROR_RESULT_MAKE_ERROR(MassResult, result.result.error);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return physics_soft_body_mass_get(index);
+    if(!entity_index_components_check(index, ROHR_MASS) ||
+            index >= mass_pool.capacity || !mass_pool.used[index])
+        return ERROR_RESULT_MAKE_ERROR(MassResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(MassResult, mass[index]);
 }
 
 EngineResult physics_mass_remove(Entity entity) {

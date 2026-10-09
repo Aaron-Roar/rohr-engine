@@ -1371,7 +1371,9 @@ EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Posit
 
 Selects explicit COM using a finite origin-relative offset.
 
-Geometry is optional. Standalone particles reject overrides.
+Geometry is optional. Standalone particles reject overrides. Soft bodies instead
+redistribute positive node masses, preserving total mass and all positions and
+velocities; unreachable or unrepresentable requests fail atomically.
 
 Failure preserves configuration; success preserves origin, geometry, and velocities.
 
@@ -1385,7 +1387,8 @@ Returns the effective COM in local origin axes.
 
 Automatic COM requires valid active geometry; an explicit offset does not.
 
-Standalone particles use their circle centroid.
+Standalone particles use their circle centroid. Soft-body COM is derived from
+current node masses and positions and is unavailable for empty or zero-mass bodies.
 
 ### `rohr_physics_center_of_mass_world_position_get`
 
@@ -1404,6 +1407,7 @@ EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
 ```
 
  Discards the explicit offset and selects automatic geometry-derived COM.
+For soft bodies this succeeds without changing any node masses.
 
 ### `rohr_physics_center_of_mass_automatic_check`
 
@@ -1411,7 +1415,8 @@ EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
 BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
 ```
 
- Returns the COM mode, or an error for an invalid entity.
+ Returns the COM mode, or an error for an invalid entity. Soft bodies always
+return true.
 
 ### `rohr_physics_moment_of_inertia_get`
 
@@ -1431,7 +1436,22 @@ Static and locked bodies may report inertia without enabling angular response.
 EngineResult rohr_physics_mass_set(Entity entity, Mass m);
 ```
 
- Sets finite, non-negative mass. Zero represents an explicitly massless entity.
+ Sets finite, non-negative ordinary mass. Zero represents an explicitly massless entity.
+For a soft body, requires a finite positive total and positive existing node
+masses; scales all node masses proportionally without adding a mass component to
+the container. Failure preserves every node.
+
+### `rohr_physics_mass_get`
+
+```c
+MassResult rohr_physics_mass_get(Entity entity);
+```
+
+Returns stored ordinary mass or the sum of current soft-body node masses.
+An empty soft body returns zero. Invalid entities, missing node mass components,
+and unrepresentable totals return an error. `mass_check` and `mass_remove` retain
+their ordinary mass-component semantics; aggregate mass is not a container
+component.
 
 ### `rohr_physics_force_create`
 

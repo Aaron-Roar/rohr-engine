@@ -279,6 +279,38 @@ Separation uses the distance needed to leave the contact, including when a thin
 beam's projection is fully inside the other collider's projection. This does not
 provide continuous collision detection between simulation steps.
 
+### Derived soft-body mass and COM
+
+Node masses are authoritative. `rohr_physics_mass_get(body)` sums them, while
+`rohr_physics_center_of_mass_local_position_get` and its world counterpart
+calculate their mass-weighted center using current node positions. All nodes
+contribute, including hidden, collision-disabled, and static nodes. Empty bodies
+have total mass zero and unavailable COM; zero-total-mass bodies also lack COM.
+
+`rohr_physics_mass_set(body, total)` proportionally scales positive node masses.
+`rohr_physics_center_of_mass_local_position_set(body, offset)` redistributes them
+at fixed total mass without moving nodes or changing velocities. The offset is
+in the body's origin-relative, rotated coordinate system. Redistribution
+minimizes relative entropy between the new and previous normalized masses,
+retaining custom preferences and preserving ratios between coincident nodes.
+No separate aggregate override or mode is stored. Automatic COM checks return
+true, and enabling automatic COM is a successful no-op. Later deformation,
+node edits, and topology changes naturally update the derived values.
+
+Both edits require a nonempty body with finite positive node masses. COM must
+lie in the relative interior of the node centers' convex hull: inside a polygon,
+inside the segment for collinear nodes, or at the shared point for coincident
+nodes. Floating-point feasibility and output checks use span-relative numerical
+tolerances (up to two parts per million for COM and one for total mass).
+A bounded, allocation-free solve validates all resulting positive float masses
+before committing. Unreachable targets, nonfinite values, overflow, underflow,
+and nonconvergence return an error without changing any node. Total mass must
+also fit the public float `Mass` type. Existing node records carry the resulting
+masses through runtime persistence; no extra aggregate fields are needed.
+
+These controls are currently available through the engine API. Editor fields
+and marker integration are the next milestone goal.
+
 ### Runtime visual areas
 
 An area owns a copied outer node loop and up to 16 copied hole loops. Each loop

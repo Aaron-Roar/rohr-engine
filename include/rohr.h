@@ -923,6 +923,9 @@ PositionResult rohr_physics_position_get(Entity entity);
 /**
  * @brief Selects explicit COM using a finite origin-relative offset.
  * Geometry is optional. Standalone particles reject overrides.
+ * Soft bodies redistribute positive node masses at fixed total mass to the
+ * requested COM, preserving their prior proportions as closely as possible.
+ * Unreachable targets and numerical failures leave every node unchanged.
  * Failure preserves configuration; success preserves origin, geometry, and velocities.
  */
 EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Position local_offset);
@@ -930,6 +933,8 @@ EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Posit
  * @brief Returns the effective COM in local origin axes.
  * Automatic COM requires valid active geometry; an explicit offset does not.
  * Standalone particles use their circle centroid.
+ * Soft bodies derive COM from current node positions and masses; an empty
+ * or zero-total-mass soft body has no available COM.
  */
 PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity);
 /**
@@ -937,9 +942,9 @@ PositionResult rohr_physics_center_of_mass_local_position_get(Entity entity);
  * Requires a transform and an available local COM.
  */
 PositionResult rohr_physics_center_of_mass_world_position_get(Entity entity);
-/** Discards the explicit offset and selects automatic geometry-derived COM. */
+/** Discards explicit COM for ordinary bodies. Soft bodies: successful no-op. */
 EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
-/** Returns the COM mode, or an error for an invalid entity. */
+/** Returns the COM mode (always true for soft bodies), or an invalid-entity error. */
 BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
 /**
  * @brief Returns derived inertia about the effective COM.
@@ -955,8 +960,12 @@ MomentOfInertiaResult rohr_physics_moment_of_inertia_get(Entity entity);
  * @param m Mass value.
  * @return EngineResult describing success or failure.
  */
-/** Sets finite, non-negative mass. Zero represents an explicitly massless entity. */
+/** Sets finite non-negative ordinary mass. For soft bodies, proportionally
+ * scales positive node masses to a positive total; failures preserve all nodes.
+ * No ROHR_MASS component is added to the soft-body container. */
 EngineResult rohr_physics_mass_set(Entity entity, Mass m);
+/** Returns stored mass, or summed node mass for a soft body (zero when empty). */
+MassResult rohr_physics_mass_get(Entity entity);
 EngineResult rohr_physics_mass_remove(Entity entity);
 bool rohr_physics_mass_check(Entity entity);
 EngineResult rohr_physics_kinematic_driven_set(Entity entity);

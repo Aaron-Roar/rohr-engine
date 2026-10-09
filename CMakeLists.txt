@@ -233,6 +233,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/rigid_body/rigid_body_step.c
     src/physics/soft_body/soft_body.c
     src/physics/soft_body/soft_body_state.c
+    src/physics/soft_body/soft_body_mass.c
     src/physics/soft_body/soft_body_area.c
     src/physics/soft_body/soft_body_solver.c
     src/state/game_state.c
@@ -580,6 +581,17 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(beam_materials_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
 
+    add_executable(soft_body_mass_test tests/soft_body_mass.c)
+    target_include_directories(soft_body_mass_test PRIVATE src)
+    target_link_libraries(soft_body_mass_test PRIVATE rohr_engine)
+    set_target_properties(soft_body_mass_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME soft_body_mass COMMAND soft_body_mass_test)
+    set_tests_properties(soft_body_mass PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(soft_body_mass_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+
     add_executable(beam_contacts_test tests/beam_contacts.c)
     target_include_directories(beam_contacts_test PRIVATE src)
     target_link_libraries(beam_contacts_test PRIVATE rohr_engine)
@@ -862,6 +874,7 @@ if(ROHR_BUILD_TESTS)
         soft_body_test
         beam_materials_test
         beam_contacts_test
+        soft_body_mass_test
         soft_body_areas_test
         node_loop_geometry_test
         auto_shape_test
