@@ -3,6 +3,7 @@
  */
 
 #include "editor_error.h"
+#include "editor_log.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -34,5 +35,6 @@ bool editor_result_check(EditorResult result) {
 }
 
 void editor_result_stderr_print(EditorResult result) {
-    if(editor_result_check(result)) fprintf(stderr, "%s\n", result.result.error.message);
+    if(editor_result_check(result)) editor_log_error("editor_result", "editor error %d: %s",
+        (int)result.result.error.code, result.result.error.message);
 }

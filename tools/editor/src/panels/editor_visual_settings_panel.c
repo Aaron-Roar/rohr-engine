@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "editor_log.h"
 #include "editor_visual_settings_panel.h"
 #include "editor_layout.h"
 
@@ -66,7 +67,7 @@ static void editor_visual_settings_apply(EditorVisualSettingsPanel *panel) {
             mode_names[panel->window_mode_index]);
         result = editor_gui_state_save(&panel->state, panel->state_path);
         if(editor_result_check(result))
-            fprintf(stderr, "%s\n", result.result.error.message);
+            editor_log_error("editor_visual_settings_panel", "%s\n", result.result.error.message);
     }
 }
 

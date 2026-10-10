@@ -54,6 +54,32 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+The user-selected **Project Editor Error Logging** milestone is complete and
+precedes the remaining text-capacity investigation.
+
+1. [x] **Add project-level editor logs** — Record editor errors in
+   `logs/editor.log`, rotate at 1 MiB with three backups, summarize consecutive
+   repeats, and handle project lifecycle and logging failures without UI assets.
+   Verified 70 native tests, logging/selection ASan/UBSan/leak checks, and
+   Linux/Windows builds. A full-editor project-creation probe recorded error 35
+   once with 99 repeats and verified the generated ignore rule. Windows
+   execution remains unverified.
+
+The **Soft-Body Selection Follow-up** still needs the text-asset capacity fix;
+the navigation fixes below are complete but empty-panel recovery is unfinished.
+
+1. [ ] **Fix node editor navigation and area selection** — Verify sibling node
+   clicks open the matching editor, preserve soft-body context after COM selection,
+   and require viewport double-clicks to select/open areas. Preserve modal node
+   picking, layer order, COM priority, and existing hierarchy interactions.
+   Fixed stale drag capture when releases are consumed by UI or occur outside
+   the viewport. Verified sequential node selection/panel contents, consumed and
+   outside releases, COM-to-node navigation, and area double-clicks, including
+   the eight-node saved project in `/tmp/rohr-projects/project-dir`. All 69 native
+   tests and four ASan/UBSan/leak checks pass; Linux and Windows builds pass.
+   Windows execution remains unverified. Remaining work: resolve text-asset
+   exhaustion causing empty panels, then repeat manual editor verification.
+
 The user-selected **Soft-Body Mass and COM Controls** milestone is complete,
 preceding Editor Forces and Torques. Node masses remain authoritative; total mass
 and COM are derived controls without an automatic/manual override.

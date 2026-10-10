@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "editor_log.h"
 #include "editor_auto_shape_editor.h"
 
 #include "editors/editor_mode_controls.h"
@@ -175,7 +176,7 @@ bool editor_auto_shape_editor_begin(EditorAutoShapeEditor *editor,
     EditorResult result = editor_auto_shape_size_get(&sized, points, count,
         ordered_polygon, &sized);
     if(editor_result_check(result)) {
-        fprintf(stderr, "%s\n", result.result.error.message);
+        editor_log_error("editor_auto_shape", "%s\n", result.result.error.message);
         return false;
     }
     editor->config = sized;
@@ -391,7 +392,7 @@ bool editor_auto_shape_editor_apply(EditorAutoShapeEditor *editor,
         command.data.auto_shape.point_count * sizeof(*viewport->auto_shape_points));
     result = editor_command_execute(project, &command);
     if(result.kind == ERROR_RESULT_ERROR) {
-        fprintf(stderr, "%s\n", result.result.error.message);
+        editor_log_error("editor_auto_shape", "%s\n", result.result.error.message);
         return false;
     }
     return true;

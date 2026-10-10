@@ -3,6 +3,7 @@
 
 add_library(rohr_editor_core STATIC
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_error.c
+    ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_log.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project_json.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c

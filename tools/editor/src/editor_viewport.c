@@ -3903,13 +3903,10 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     EditorSelectionRef front = {0};
 
     if(state == NULL || project == NULL) return false;
+    /* Release ends capture even when a panel consumes it or the pointer has
+     * left the viewport. Otherwise the next press continues the old drag. */
     if(primary_button == MOUSE_BUTTON_STATE_RELEASED)
-        state->dragged_center_of_mass = false;
-    if(primary_button == MOUSE_BUTTON_STATE_RELEASED &&
-            (state->group_dragging || state->group_rotating)) {
-        state->group_dragging = false;
-        state->group_rotating = false;
-    }
+        editor_viewport_transform_cancel(state);
     object = editor_project_selected_get(project);
     if(pan_button == MOUSE_BUTTON_STATE_RELEASED ||
             (state->camera_pan_with_primary &&
@@ -5525,13 +5522,19 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(front.kind == EDITOR_SELECTION_SOFT_AREA) {
         EditorSoftBody *soft = editor_group_soft_body_get(object, front.parent);
         if(soft != NULL) {
+            Uint64 now = SDL_GetTicks();
             bool editing = state->selected_soft_body == soft->id &&
-                (state->mode == EDITOR_VIEWPORT_SOFT_BODY || state->mode == EDITOR_VIEWPORT_SOFT_AREA ||
-                 state->mode == EDITOR_VIEWPORT_SOFT_HOLE || state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
-                 state->mode == EDITOR_VIEWPORT_SOFT_BEAM);
-            EditorSelectionRef selection = editing ? front : editor_pick_owner_get(front);
+                state->selected_soft_area == front.item &&
+                state->mode == EDITOR_VIEWPORT_SOFT_AREA;
+            bool double_clicked = state->last_viewport_click_selection == EDITOR_SELECTION_SOFT_AREA &&
+                state->last_viewport_click_object == object->id &&
+                state->selected_soft_body == soft->id &&
+                state->last_viewport_click_index == front.item &&
+                now - state->last_viewport_click_at <= 400;
+            bool open = editing || double_clicked;
+            EditorSelectionRef selection = open ? front : editor_pick_owner_get(front);
             (void)editor_viewport_selection_set(project, state, selection, state->selection_modifier);
-            if(!state->selection_modifier && editing) {
+            if(!state->selection_modifier && open) {
                 state->mode = EDITOR_VIEWPORT_SOFT_AREA;
                 state->soft_area_picking = false;
             } else if(!state->selection_modifier) {
@@ -5539,8 +5542,11 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 state->dragged_soft_body = true;
                 state->drag_offset = (Vec2D){pointer.x - object->position.x - soft->position.x,
                     pointer.y - object->position.y - soft->position.y};
-                state->last_viewport_click_selection = EDITOR_SELECTION_NONE;
             }
+            state->last_viewport_click_selection = open ? EDITOR_SELECTION_NONE : EDITOR_SELECTION_SOFT_AREA;
+            state->last_viewport_click_object = object->id;
+            state->last_viewport_click_index = front.item;
+            state->last_viewport_click_at = now;
             return true;
         }
     }
@@ -5555,6 +5561,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             bool body_focused = (state->mode == EDITOR_VIEWPORT_SOFT_BODY ||
                     state->mode == EDITOR_VIEWPORT_SOFT_NODE ||
                     state->mode == EDITOR_VIEWPORT_SOFT_BEAM ||
+                    (state->mode == EDITOR_VIEWPORT_CENTER_OF_MASS && state->selected_rigid_body == 0) ||
                     state->mode == EDITOR_VIEWPORT_SOFT_AREA || state->mode == EDITOR_VIEWPORT_SOFT_HOLE) &&
                 state->selected_soft_body == soft_body->id;
             bool internal_only = editor_soft_body_internal_selection_check(state,

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "editor_log.h"
 #include "editor_mode_controls.h"
 #include "editor_layout.h"
 
@@ -26,6 +27,7 @@ static void editor_mode_text_error_set(const char *message) {
     snprintf(editor_mode_text_error, sizeof(editor_mode_text_error), "%s",
         message == NULL || message[0] == '\0' ? "unknown text creation failure" :
         message);
+    editor_log_error("editor_text", "%s", editor_mode_text_error);
 }
 
 void editor_mode_text_error_clear(void) {
@@ -49,7 +51,6 @@ bool editor_mode_text_create_color(const FontAsset *font, const char *value,
         snprintf(message, sizeof(message), "error %d: %s",
             (int)result.result.error, rohr_error_message_get(result));
         editor_mode_text_error_set(message);
-        fprintf(stderr, "%s\n", message);
         return false;
     }
     *output = result.result.value;

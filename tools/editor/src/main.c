@@ -9,6 +9,7 @@
 #define _XOPEN_SOURCE 700
 #endif
 
+#include "editor_log.h"
 #include "rohr.h"
 #include "editor_project.h"
 #include "editor_workspace.h"
@@ -405,7 +406,7 @@ static bool editor_gui_state_presentation_apply(const EditorGuiState *state) {
     else return false;
     result = rohr_graphics_window_presentation_set(config);
     if(!rohr_error_check(result)) return true;
-    fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+    editor_log_error("main", "error %d: %s\n", (int)result.result.error,
         rohr_error_message_get(result));
     return false;
 }
@@ -643,7 +644,6 @@ static void editor_operation_command_finished(const EditorCommand *command,
             result->kind == ERROR_RESULT_ERROR) {
         EditorResult error = {.kind = ERROR_RESULT_ERROR,
             .result.error = result->result.error};
-        editor_result_stderr_print(error);
         editor_error_notification_failure(notifications, "Editor command", error);
     }
 }
@@ -653,6 +653,9 @@ static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspac
     EditorResult result = editor_workspace_command_execute(
         workspace, project, workspace_command);
     char command[3072];
+    if(editor_result_check(result) &&
+            workspace_command->type == EDITOR_WORKSPACE_COMMAND_GENERATE_C)
+        editor_result_stderr_print(result);
     if(!editor_result_check(result) &&
             workspace_command->type != EDITOR_WORKSPACE_COMMAND_CREATE &&
             workspace_command->type != EDITOR_WORKSPACE_COMMAND_LOAD &&
@@ -664,8 +667,10 @@ static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspac
         editor_terminal_panel_operation_write(editor_operation_terminal, command);
     if(!editor_result_check(result) &&
             (workspace_command->type == EDITOR_WORKSPACE_COMMAND_CREATE ||
-                workspace_command->type == EDITOR_WORKSPACE_COMMAND_LOAD))
+                workspace_command->type == EDITOR_WORKSPACE_COMMAND_LOAD)) {
+        editor_log_open(workspace->directory);
         editor_mode_named_text_clear_all();
+    }
     return result;
 }
 
@@ -686,7 +691,7 @@ static void editor_window_layout_sync(void) {
 
 static bool editor_result_ok(EngineResult result) {
     if(!rohr_error_check(result)) return true;
-    fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+    editor_log_error("main", "error %d: %s\n", (int)result.result.error,
         rohr_error_message_get(result));
     return false;
 }
@@ -706,7 +711,7 @@ static void editor_startup_failure_report(const char *stage, const char *detail)
             "Rohr GUI could not start during: %s\n"
             "See rohr_gui_error.txt beside rohr-gui for details.", stage);
     }
-    fprintf(stderr, "%s\n", message);
+    editor_log_error("main", "%s\n", message);
     fflush(stderr);
     log = fopen("rohr_gui_error.txt", "wb");
     if(log != NULL) {
@@ -2337,7 +2342,7 @@ int main(int argc, char **argv) {
         };
         result = rohr_viewport_create(config);
         if(rohr_error_check(result)) {
-            fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+            editor_log_error("main", "error %d: %s\n", (int)result.result.error,
                 rohr_error_message_get(result));
             goto fail;
         }
@@ -2353,7 +2358,7 @@ int main(int argc, char **argv) {
         });
 
         if(rohr_error_check(result)) {
-            fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+            editor_log_error("main", "error %d: %s\n", (int)result.result.error,
                 rohr_error_message_get(result));
             goto fail;
         }
@@ -2368,7 +2373,7 @@ int main(int argc, char **argv) {
         });
 
         if(rohr_error_check(result)) {
-            fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+            editor_log_error("main", "error %d: %s\n", (int)result.result.error,
                 rohr_error_message_get(result));
             goto fail;
         }
@@ -3813,7 +3818,6 @@ int main(int argc, char **argv) {
                     EditorResult result = editor_workspace_operation_execute(
                         &workspace, &project, &command);
                     if(editor_result_check(result)) {
-                        editor_result_stderr_print(result);
                         editor_error_notification_failure(&notification_panel,
                             "Save project", result);
                     } else {
@@ -3923,7 +3927,6 @@ int main(int argc, char **argv) {
                             &visual_settings_panel,
                             !visual_settings_panel.state.grid_visible);
                     if(editor_result_check(result)) {
-                        editor_result_stderr_print(result);
                         editor_error_notification_failure(&notification_panel,
                             "Visual settings", result);
                     }
@@ -3953,7 +3956,6 @@ int main(int argc, char **argv) {
                 EditorResult result = editor_build_settings_panel_open(
                     &build_settings_panel, workspace.directory);
                 if(editor_result_check(result)) {
-                    editor_result_stderr_print(result);
                     editor_error_notification_failure(&notification_panel,
                         "Build settings", result);
                 }
@@ -3970,6 +3972,7 @@ int main(int argc, char **argv) {
                 editor_hidden_build_cancel(&hidden_build_process,
                     &hidden_compile_pending);
                 editor_workspace_close(&workspace, &project);
+                editor_log_close();
                 editor_mode_named_text_clear_all();
                 editor_app_state_transition(&app_state,
                     EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -4045,6 +4048,7 @@ int main(int argc, char **argv) {
                         editor_hidden_build_cancel(&hidden_build_process,
                             &hidden_compile_pending);
                         editor_workspace_close(&workspace, &project);
+                        editor_log_close();
                         editor_mode_named_text_clear_all();
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -4057,7 +4061,6 @@ int main(int argc, char **argv) {
                     }
                     close_action = EDITOR_CLOSE_NONE;
                 } else {
-                    editor_result_stderr_print(result);
                     editor_error_notification_failure(&notification_panel,
                         "Save project", result);
                 }
@@ -4071,6 +4074,7 @@ int main(int argc, char **argv) {
                     editor_hidden_build_cancel(&hidden_build_process,
                         &hidden_compile_pending);
                     editor_workspace_close(&workspace, &project);
+                    editor_log_close();
                     editor_mode_named_text_clear_all();
                     editor_app_state_transition(&app_state,
                         EDITOR_APP_STATE_PROJECT_LAUNCHER);
@@ -4338,7 +4342,6 @@ int main(int argc, char **argv) {
                         }
                     }
                 } else {
-                    editor_result_stderr_print(load_result);
                     editor_error_notification_failure(&notification_panel,
                         workspace_browser_action == EDITOR_WORKSPACE_BROWSER_NEW ?
                             "Create project" :
@@ -4560,6 +4563,7 @@ int main(int argc, char **argv) {
                 EDITOR_WINDOW_HEIGHT - EDITOR_MENU_HEIGHT,
                 (Color){75, 84, 100, 255});
         }
+        editor_log_update();
         rohr_graphics_show();
     }
 
@@ -4651,6 +4655,7 @@ int main(int argc, char **argv) {
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
     rohr_graphics_stop();
     rohr_engine_stop();
+    editor_log_close();
     return 0;
 
 fail:
@@ -4743,5 +4748,6 @@ fail:
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
     rohr_graphics_stop();
     rohr_engine_stop();
+    editor_log_close();
     return 1;
 }

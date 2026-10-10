@@ -72,6 +72,18 @@ install(TARGETS rohr_editor_gui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_BINDIR}/assets)
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_log_test tests/editor_log.c src/editors/editor_mode_controls.c)
+    target_include_directories(editor_log_test PRIVATE src)
+    target_link_libraries(editor_log_test PRIVATE rohr_editor_core)
+    set_target_properties(editor_log_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_log_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME editor_log COMMAND editor_log_test)
+    set_tests_properties(editor_log PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_text_input_test
         tests/editor_text_input.c
         src/browser/editor_file_browser.c
@@ -80,7 +92,7 @@ if(ROHR_BUILD_TESTS)
     target_compile_definitions(editor_text_input_test PRIVATE
         ROHR_TEST_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/assets/jetbrains_mono_bold_italic.ttf"
         ROHR_TEST_BROWSER_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/assets")
-    target_link_libraries(editor_text_input_test PRIVATE rohr_engine rohr_terminal)
+    target_link_libraries(editor_text_input_test PRIVATE rohr_engine rohr_terminal rohr_editor_core)
     if(ROHR_ENABLE_SANITIZERS)
         target_compile_options(editor_text_input_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
@@ -172,6 +184,7 @@ if(ROHR_BUILD_TESTS)
         src/editors/editor_mode_controls.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
+        src/editors/soft_body/editor_soft_node.c
         src/editors/soft_body/editor_soft_area.c
         src/viewport/controls/editor_rotation_control.c)
     target_include_directories(editor_area_authoring_test PRIVATE

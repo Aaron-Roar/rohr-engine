@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "editor_log.h"
 #include "editor_terminal_panel.h"
 #include "editor_layout.h"
 
@@ -68,7 +69,7 @@ bool editor_terminal_panel_project_open(EditorTerminalPanel *panel,
     config.working_directory = project_directory;
     result = rohr_terminal_create(&panel->terminal, &config);
     if(!result.success) {
-        fprintf(stderr, "Could not start project terminal: %s\n",
+        editor_log_error("editor_terminal_panel", "Could not start project terminal: %s\n",
             rohr_terminal_error_message_get(&result));
         return false;
     }
@@ -102,7 +103,7 @@ bool editor_terminal_panel_interrupt(EditorTerminalPanel *panel) {
     if(panel == NULL || panel->terminal == NULL) return false;
     result = rohr_terminal_interrupt(panel->terminal);
     if(!result.success) {
-        fprintf(stderr, "Terminal interrupt failed: %s\n",
+        editor_log_error("editor_terminal_panel", "Terminal interrupt failed: %s\n",
             rohr_terminal_error_message_get(&result));
         return false;
     }
@@ -117,7 +118,7 @@ static void editor_terminal_input_write(EditorTerminalPanel *panel,
     RohrTerminalResult result;
     if(panel->terminal == NULL) return;
     result = rohr_terminal_input_write(panel->terminal, text, length);
-    if(!result.success) fprintf(stderr, "Terminal input failed: %s\n",
+    if(!result.success) editor_log_error("editor_terminal_panel", "Terminal input failed: %s\n",
         rohr_terminal_error_message_get(&result));
 }
 
@@ -195,7 +196,7 @@ void editor_terminal_panel_update(EditorTerminalPanel *panel) {
     RohrTerminalResult result;
     if(panel == NULL || panel->terminal == NULL) return;
     result = rohr_terminal_update(panel->terminal);
-    if(!result.success) fprintf(stderr, "Terminal update failed: %s\n",
+    if(!result.success) editor_log_error("editor_terminal_panel", "Terminal update failed: %s\n",
         rohr_terminal_error_message_get(&result));
     if(panel->tracked_pending) {
         size_t line_count = rohr_terminal_line_count_get(panel->terminal);
@@ -232,7 +233,7 @@ void editor_terminal_panel_operation_write(EditorTerminalPanel *panel,
         result = rohr_terminal_output_write(panel->terminal, command, strlen(command));
     if(result.success)
         result = rohr_terminal_output_write(panel->terminal, "\r\n", 2);
-    if(!result.success) fprintf(stderr, "Terminal operation output failed: %s\n",
+    if(!result.success) editor_log_error("editor_terminal_panel", "Terminal operation output failed: %s\n",
         rohr_terminal_error_message_get(&result));
     panel->scroll_offset = 0;
 }
@@ -245,7 +246,7 @@ bool editor_terminal_panel_command_execute(EditorTerminalPanel *panel,
     result = rohr_terminal_input_write(panel->terminal, command, strlen(command));
     if(result.success) result = rohr_terminal_input_write(panel->terminal, "\r", 1);
     if(!result.success) {
-        fprintf(stderr, "Terminal command failed: %s\n",
+        editor_log_error("editor_terminal_panel", "Terminal command failed: %s\n",
             rohr_terminal_error_message_get(&result));
         return false;
     }
@@ -290,7 +291,7 @@ bool editor_terminal_panel_output_write(EditorTerminalPanel *panel,
     if(panel == NULL || panel->terminal == NULL || output == NULL) return false;
     result = rohr_terminal_output_write(panel->terminal, output, strlen(output));
     if(!result.success) {
-        fprintf(stderr, "Terminal output failed: %s\n",
+        editor_log_error("editor_terminal_panel", "Terminal output failed: %s\n",
             rohr_terminal_error_message_get(&result));
         return false;
     }

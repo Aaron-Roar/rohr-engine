@@ -518,7 +518,14 @@ itself is visual geometry and does not create colliders.
 
 Open a soft body to find the **Areas** accordion. **Add Area** creates a draft
 and opens its editor. Single-click an area row to select it; double-click to
-open it. Areas have their own name, visibility, color, and layer. Drag area rows
+open it. In the viewport, single-clicking a fill selects its soft-body parent;
+double-clicking selects the area and opens its editor. A click on the area
+already being edited keeps that editor open. Node picking for area/hole loops
+continues to use single clicks. Switching nodes opens the selected node editor,
+including from COM Properties. Releasing a drag over the panel or outside the
+viewport ends that drag before another node can be selected.
+Areas have their own name, visibility, color,
+and layer. Drag area rows
 to reorder them: later entries draw above earlier entries on the same layer.
 
 In the area editor, click the box beneath **Select nodes to define area** to
@@ -575,3 +582,25 @@ without replacing node IDs, names, or beams.
 The editor authors structural data and generates object creation/destruction and
 drawing support. Controls, gameplay rules, torque, timed spawning, scoring,
 recording, and other runtime behavior belong in developer-owned C source.
+
+## Project error logs
+
+While a project is open, editor errors are appended to `logs/editor.log` under
+that project directory. Each record includes a UTC timestamp, severity, source,
+and an error code when available. Sessions append to the existing log. Files
+rotate at 1 MiB with up to three backups (`editor.log.1` through `editor.log.3`,
+newest first). Consecutive identical errors are summarized every second and
+when a different error arrives or the project closes; summaries count additional
+occurrences after the first. The terminal receives the same repeat suppression.
+
+For an editor bug report, reproduce the issue and include the current log and
+relevant backups. Review logs before sharing: error messages can contain local
+paths and project details. Newly created projects ignore `logs/` in Git; add
+that rule yourself to existing projects if desired.
+
+Logging follows the open project and stops when it closes. Without an open
+project, existing stderr/startup reporting remains available. An unwritable log
+produces one stderr warning per logging session and does not prevent editing.
+This log captures editor-reported failures, including text-asset exhaustion;
+it is not a crash dump or a capture of embedded shell/generated game output.
+No engine API or project JSON changes are required.

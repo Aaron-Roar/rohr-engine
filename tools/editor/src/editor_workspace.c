@@ -2351,7 +2351,7 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
     int cmake_length;
-    static const char *gitignore = "build/\n";
+    static const char *gitignore = "build/\nlogs/\n";
 
     cmake_length = snprintf(cmake, sizeof(cmake),
         "cmake_minimum_required(VERSION 3.20)\n"

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "editor_log.h"
 #include "editor_origin_panel.h"
 
 #include "editors/editor_mode_controls.h"
@@ -16,7 +17,7 @@ static bool editor_origin_panel_text_create(FontAsset *font, const char *value,
     if(font == NULL || value == NULL || output == NULL) return false;
     result = rohr_graphics_text_create(font, value, (Color){230, 234, 242, 255});
     if(rohr_error_check(result)) {
-        fprintf(stderr, "error %d: %s\n", (int)result.result.error,
+        editor_log_error("editor_origin_panel", "error %d: %s\n", (int)result.result.error,
             rohr_error_message_get(result));
         return false;
     }

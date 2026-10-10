@@ -4,6 +4,8 @@
 
 #include "panels/editor_error_notifications.h"
 
+#include "editor_log.h"
+
 #include <stdio.h>
 
 void editor_error_notification_failure(EditorNotificationPanel *system,
@@ -11,7 +13,10 @@ void editor_error_notification_failure(EditorNotificationPanel *system,
     char summary[EDITOR_NOTIFICATION_SUMMARY_MAX];
     char detail[EDITOR_NOTIFICATION_DETAIL_MAX];
 
-    if(system == NULL || operation == NULL || !editor_result_check(result)) return;
+    if(operation == NULL || !editor_result_check(result)) return;
+    editor_log_error(operation, "editor error %d: %s", (int)result.result.error.code,
+        result.result.error.message);
+    if(system == NULL) return;
     snprintf(summary, sizeof(summary), "%s - FAIL", operation);
     snprintf(detail, sizeof(detail), "Editor error code: %d\n\n%s",
         (int)result.result.error.code,

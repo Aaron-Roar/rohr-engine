@@ -5,6 +5,7 @@
 #include "panels/editor_build_notifications.h"
 
 #include "editor_workspace.h"
+#include "editor_log.h"
 
 #include <stdio.h>
 
@@ -43,6 +44,7 @@ void editor_build_notification_process_failure(EditorNotificationPanel *system,
     snprintf(detail, sizeof(detail), "%s command exited with status %d.%s",
         stage, exit_code, terminal_output_shown ?
             "\n\nSee the terminal output for the complete build report." : "");
+    editor_log_error("build", "%s", detail);
     editor_notification_panel_push(system, "Build project - FAIL", detail);
 }
 
@@ -51,6 +53,7 @@ void editor_build_notification_start_failure(EditorNotificationPanel *system,
     char summary[EDITOR_NOTIFICATION_SUMMARY_MAX];
     if(system == NULL || operation == NULL || reason == NULL) return;
     snprintf(summary, sizeof(summary), "%s - FAIL", operation);
+    editor_log_error("build", "%s: %s", operation, reason);
     editor_notification_panel_push(system, summary, reason);
 }
 
@@ -62,6 +65,7 @@ void editor_build_notification_configuration_failure(
     snprintf(detail, sizeof(detail), "Parser error:\n%s\n\nLua error:\n%s",
         parser_error, lua_error == NULL || lua_error[0] == '\0' ?
             "No Lua runtime error." : lua_error);
+    editor_log_error("build_configuration", "%s", detail);
     editor_notification_panel_push(system,
         "Build configuration (GUI) - FAIL", detail);
 }
