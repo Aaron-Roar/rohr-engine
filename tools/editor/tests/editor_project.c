@@ -50,6 +50,46 @@ static bool file_contains(const char *path, const char *text) {
     return found;
 }
 
+/* Check the generated velocities against the physical tangential motion,
+ * including clockwise units, COM offset, and explicit per-node overrides. */
+static bool generated_soft_motion_check(const char *path, const EditorSoftBody *body) {
+    char *text = SDL_LoadFile(path, NULL);
+    double total = 0, cx = 0, cy = 0;
+    bool valid = text != NULL;
+    if(!valid || body == NULL) { SDL_free(text); return false; }
+    for(size_t i = 0; i < body->node_count; i += 1) {
+        total += body->nodes[i].node_mass;
+        cx += body->nodes[i].node_mass * (double)body->nodes[i].position.x;
+        cy += body->nodes[i].node_mass * (double)body->nodes[i].position.y;
+    }
+    if(total <= 0) { SDL_free(text); return false; }
+    cx /= total; cy /= total;
+    double angle = body->rotation * (3.141592653589793 / 180.0);
+    double omega = body->initial_angular_velocity * (3.141592653589793 / 180.0);
+    for(size_t i = 0; i < body->node_count && valid; i += 1) {
+        const EditorSoftNode *node = &body->nodes[i];
+        char prefix[256];
+        snprintf(prefix, sizeof(prefix), "rohr_physics_velocity_set(object->%s, (Velocity){", node->name);
+        const char *at = strstr(text, prefix);
+        float x, y;
+        if(at == NULL || sscanf(at + strlen(prefix), "%ff, %ff", &x, &y) != 2) {
+            valid = false; break;
+        }
+        if(!node->initial_motion_inherited) {
+            valid = fabs(x - node->initial_velocity.x) < .001 &&
+                fabs(y - node->initial_velocity.y) < .001;
+        } else {
+            double lx = node->position.x - cx, ly = node->position.y - cy;
+            double rx = cos(angle) * lx + sin(angle) * ly;
+            double ry = -sin(angle) * lx + cos(angle) * ly;
+            valid = fabs(x - body->initial_velocity.x - omega * ry) < .002 &&
+                fabs(y - body->initial_velocity.y + omega * rx) < .002;
+        }
+    }
+    SDL_free(text);
+    return valid;
+}
+
 static size_t file_occurrence_count(const char *path, const char *text) {
     char *contents;
     char *at;
@@ -804,6 +844,7 @@ int main(void) {
         EditorResult cli_result = editor_workspace_command_cli_write(
             &workspace_command, cli_command, sizeof(cli_command));
         if(editor_result_check(generation_result) || editor_result_check(cli_result) ||
+                !generated_soft_motion_check(path, &loaded_project.objects[0].soft_body_items[0]) ||
                 strstr(cli_command, "rohr-cli --project ") != cli_command ||
                 strstr(cli_command, " generate-c") == NULL ||
                 !file_contains(path, "7.00000000f") ||

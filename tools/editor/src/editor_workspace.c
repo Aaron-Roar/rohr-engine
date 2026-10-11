@@ -4,6 +4,7 @@
 
 #include "editor_workspace.h"
 #include "editor_soft_area.h"
+#include "physics/soft_body/soft_body_motion.h"
 
 #include "editor_config.h"
 
@@ -1208,6 +1209,25 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "    result = rohr_physics_orientation_set(object->%s, %#.9gf);\n"
                 "    if(rohr_error_check(result)) goto fail;\n",
                 body->name, body->position.x, body->position.y, body->name, body->rotation);
+            bool inherited_motion = false;
+            Position motion_points[SOFT_BODY_MAX_NODES];
+            Mass motion_masses[SOFT_BODY_MAX_NODES];
+            Velocity motion_velocities[SOFT_BODY_MAX_NODES];
+            if(body->node_count > SOFT_BODY_MAX_NODES) {
+                fclose(header); fclose(source); return false;
+            }
+            for(size_t i = 0; i < body->node_count; i += 1) {
+                motion_points[i] = math_vector_rotate(body->nodes[i].position, body->rotation);
+                motion_masses[i] = body->nodes[i].node_mass;
+                motion_velocities[i] = body->initial_velocity;
+                inherited_motion |= body->nodes[i].initial_motion_inherited;
+            }
+            if(inherited_motion && body->initial_angular_velocity != 0.0f &&
+                    !physics_soft_angular_velocities_get(motion_points, motion_masses,
+                        motion_velocities, (uint32_t)body->node_count,
+                        body->initial_angular_velocity, motion_velocities)) {
+                fclose(header); fclose(source); return false;
+            }
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
                 const EditorSoftNode *node = &body->nodes[node_index];
                 float cosine = cosf(math_degrees_to_radians(body->rotation));
@@ -1216,16 +1236,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body->position.x + node->position.x * cosine - node->position.y * sine,
                     body->position.y + node->position.x * sine + node->position.y * cosine
                 };
-                Vec2D rotated_offset = {
-                    node->position.x * cosine - node->position.y * sine,
-                    node->position.x * sine + node->position.y * cosine};
                 Velocity velocity = node->initial_motion_inherited ?
-                    (Velocity){
-                        body->initial_velocity.x -
-                            body->initial_angular_velocity * rotated_offset.y,
-                        body->initial_velocity.y +
-                            body->initial_angular_velocity * rotated_offset.x} :
-                    node->initial_velocity;
+                    motion_velocities[node_index] : node->initial_velocity;
                 Acceleration acceleration = node->initial_motion_inherited ?
                     body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,

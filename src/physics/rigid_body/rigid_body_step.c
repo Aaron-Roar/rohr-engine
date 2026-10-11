@@ -96,6 +96,7 @@ void system_orientations_update(double dt) {
             continue;
         }
         if(physics_entity_movable_get(i) &&
+                !entity_index_components_check(i, ROHR_SOFT_BODY) &&
                 !entity_index_components_check(i, ROHR_PARTICLE)) {
             physics_com_orientation_set(i, orientations[i] + angular_velocities[i]*dt);
         }
@@ -110,7 +111,8 @@ void system_angular_velocities_update(double dt) {
         if(!physics_step_alive_index_at(alive_position, &i)) {
             continue;
         }
-        if(physics_entity_movable_get(i)) {
+        if(physics_entity_movable_get(i) &&
+                !entity_index_components_check(i, ROHR_SOFT_BODY)) {
             if(entity_index_components_check(i, ROHR_PARTICLE)) {
                 angular_velocities[i] = 0.0f;
                 continue;

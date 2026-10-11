@@ -1775,7 +1775,10 @@ EngineResult rohr_physics_orientation_radians_set(Entity entity, Orientation ang
 EngineResult rohr_physics_angular_velocity_set(Entity entity, AngularVelocity v);
 ```
 
-Sets an entity angular velocity component value.
+Sets clockwise angular velocity in degrees per second. For soft bodies this
+adjusts node velocities around COM once, preserving COM translation, residual
+deformation, and node body modes. Invalid or unrepresentable edits fail without
+mutation; no container angular-velocity component is created.
 
 | Parameter | Description |
 | --- | --- |
@@ -1798,7 +1801,10 @@ EngineResult rohr_physics_angular_velocity_radians_set(Entity entity, AngularVel
 AngularVelocityResult rohr_physics_angular_velocity_get(Entity entity);
 ```
 
-Returns an entity angular velocity.
+Returns an entity angular velocity. For soft bodies this derives clockwise
+angular momentum divided by node inertia about COM, converted to degrees per
+second. Empty or degenerate bodies return an error. See
+[soft-body angular velocity](physics.md#soft-body-angular-velocity).
 
 | Parameter | Description |
 | --- | --- |

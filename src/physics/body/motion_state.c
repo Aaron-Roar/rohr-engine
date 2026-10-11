@@ -5,6 +5,7 @@
 #include "physics.h"
 
 #include "console.h"
+#include "physics/soft_body/soft_body_motion.h"
 #include "physics/physics_internal.h"
 
 #include <math.h>
@@ -176,6 +177,8 @@ EngineResult physics_angular_velocity_set(
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(!isfinite(velocity)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return physics_soft_body_angular_velocity_set(index, velocity);
     result = physics_dynamic_set(entity);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     (void)AngularVelocityPool_store_at(
@@ -192,6 +195,8 @@ AngularVelocityResult physics_angular_velocity_get(Entity entity) {
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(
             AngularVelocityResult, result.result.error);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        return physics_soft_body_angular_velocity_get(index);
     if(!angular_velocities_pool.used[index])
         return ERROR_RESULT_MAKE_ERROR(
             AngularVelocityResult, ERROR_ENGINE_COMPONENT_MISSING);

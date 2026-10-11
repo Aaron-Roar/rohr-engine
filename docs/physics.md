@@ -28,6 +28,32 @@ angular impulse adds `degrees(impulse / inertia)` to angular velocity.
 See the [complete angle contract](angle_convention_contract.md) for conversion
 rules and the breaking project/state format versions.
 
+## Soft-body angular velocity
+
+The ordinary angular-velocity setter/getter also accepts soft-body entities,
+including the explicit radians variants. Nodes remain the source of truth.
+The getter measures clockwise angular momentum divided by point-mass inertia
+about the current mass-weighted COM. This is an aggregate angular rate, not a
+unique orientation for a deforming shape.
+
+Setting a rate adjusts each node velocity by the difference between requested
+and current aggregate rotation. COM translation and residual deformation motion
+are preserved. Setting zero removes aggregate rotation without stopping other
+motion. The edit happens once; subsequent simulation can change the rate, and
+beam stretch and tension develop through the existing spring solver. Each node
+retains its static/dynamic/held state. Empty bodies, coincident nodes with zero
+inertia, invalid masses/motion, and unrepresentable results fail atomically.
+
+The soft-body container's stored orientation is not integrated independently,
+including stale angular-velocity state from old saves. Explicit orientation
+edits still rotate the node group around the authored origin.
+
+Editor-generated inherited initial velocities use clockwise degrees/second and
+COM-relative offsets. Explicit per-node motion overrides remain authoritative,
+so a mix of inherited and overridden nodes can yield a different aggregate
+rate than the authored inherited value. Regenerate existing projects to apply
+this correction; project JSON does not change.
+
 ## Origin-relative geometry
 
 Hitbox vertices are local offsets from the entity origin. World geometry is

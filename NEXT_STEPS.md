@@ -54,8 +54,30 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
-The user-selected **Project Editor Error Logging** milestone is complete and
-precedes the remaining text-capacity investigation.
+The user-selected **Correct Soft-Body Angular Velocity** milestone is complete.
+
+Make angular-velocity control update node motion around COM, preserving
+translation and deformation, with matching editor-generated initial motion.
+
+1. [x] **Implement node-based soft-body angular-velocity control and verify
+   editor/runtime parity** — Derive aggregate angular velocity from node
+   momentum and inertia; set it atomically through node velocity changes.
+   Prevent independent container angle integration. Correct generated units,
+   direction, and COM offsets while preserving explicit node overrides. Verify
+   invalid-state rollback, substep motion and beam response, generated/runtime
+   parity, sanitizers, and Linux/Windows builds. Verified 71 native tests,
+   three ASan/UBSan/leak checks, and Linux/Windows engine/editor builds without
+   compiler warnings. Installed-SDK generated applications compile on both
+   platforms; Linux runtime checks confirm direct/generated parity, explicit
+   node overrides, and independent instances. The generated application and
+   standalone soft-body example pass headless startup checks outside their
+   source directories. Windows execution remains unverified. Existing projects
+   must regenerate C to receive the initial-motion correction.
+
+The user-selected **Unified Forces and Torques** milestone remains next. Resume
+its shared API contract only when explicitly selected; see its checklist below.
+
+The user-selected **Project Editor Error Logging** milestone is complete.
 
 1. [x] **Add project-level editor logs** — Record editor errors in
    `logs/editor.log`, rotate at 1 MiB with three backups, summarize consecutive
@@ -65,10 +87,11 @@ precedes the remaining text-capacity investigation.
    once with 99 repeats and verified the generated ignore rule. Windows
    execution remains unverified.
 
-The **Soft-Body Selection Follow-up** still needs the text-asset capacity fix;
-the navigation fixes below are complete but empty-panel recovery is unfinished.
+The user reports that the **Soft-Body Selection Follow-up** now passes manual
+verification: node/beam editors open correctly and the capacity error no longer
+appears. No additional capacity fix is claimed; investigate further if it recurs.
 
-1. [ ] **Fix node editor navigation and area selection** — Verify sibling node
+1. [x] **Fix node editor navigation and area selection** — Verify sibling node
    clicks open the matching editor, preserve soft-body context after COM selection,
    and require viewport double-clicks to select/open areas. Preserve modal node
    picking, layer order, COM priority, and existing hierarchy interactions.
@@ -77,8 +100,8 @@ the navigation fixes below are complete but empty-panel recovery is unfinished.
    outside releases, COM-to-node navigation, and area double-clicks, including
    the eight-node saved project in `/tmp/rohr-projects/project-dir`. All 69 native
    tests and four ASan/UBSan/leak checks pass; Linux and Windows builds pass.
-   Windows execution remains unverified. Remaining work: resolve text-asset
-   exhaustion causing empty panels, then repeat manual editor verification.
+   Windows execution remains unverified. User manual verification now passes;
+   retain project logging for any recurrence.
 
 The user-selected **Soft-Body Mass and COM Controls** milestone is complete,
 preceding Editor Forces and Torques. Node masses remain authoritative; total mass
@@ -154,7 +177,7 @@ The user-selected **COM Selection Priority** goal is complete, including its
 dedicated COM editor and persistent automatic selection.
 
 The user-selected **Consistent Collision Controls** single-goal milestone and
-Node-Loop Soft-Body Areas are complete. Editor Forces and Torques remains next.
+Node-Loop Soft-Body Areas are complete. Unified Forces and Torques remains next.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -163,9 +186,9 @@ The user-selected **Beam-Bounded Soft-Body Area Colors** milestone is complete.
 It supersedes the material-position fill behavior of **Stable Soft-Body Areas**.
 
 The user-selected **Bugs Identified by Rohr User** milestone is complete.
-The proposed **Editor Forces and Torques** milestone is next, before numbered
-priority 4. Pursue only an explicitly selected goal, beginning with its open
-authoring and runtime decisions.
+The **Unified Forces and Torques** milestone is next, before numbered priority
+4. Pursue only an explicitly selected goal, beginning with its shared API
+contract.
 
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
@@ -666,105 +689,119 @@ shape applies. Recording this milestone does not resolve those details or
 authorize starting a goal. Complete and verify only the goal the user selects,
 then stop for review and a user-created commit.
 
-## Proposed Milestone: Editor Forces and Torques
+## Milestone: Unified Forces and Torques
 
-Author initial one-tick and persistent forces and torques as top-level items
-in the object editor, with dedicated property editors and the same interaction
-rules as other items. This work follows **Bugs Identified by Rohr User** and
-precedes priority 4, cross-path feature parity. This entry records planning; implementation goals
-have not been started, and the decisions below still require clarification.
+Support one shared force API and one shared torque API across rigid bodies,
+standalone particles, soft-body nodes, beams, and whole soft bodies. Finish
+with editor authoring and manipulation. This replaces the proposed Editor
+Forces and Torques milestone and precedes numbered priority 4.
 
-1. [ ] **Finalize the authoring and runtime contract** — Resolve the open
-   questions below, agree on public API/data additions and failure behavior,
-   and define acceptance checks before changing physics behavior.
-2. [ ] **Implement force-at-point and persistent source support** — Add the
-   agreed direct/public APIs, application-point and direction-following data,
-   COM-based torque response, lifecycle behavior, and runtime serialization.
-   Verify one-tick and persistent behavior across physics substeps and the
-   supported target types.
-3. [ ] **Add authored definitions, commands, and persistence** — Add object-owned
-   force/torque records, target references, CLI operations, project JSON,
-   validation, duplication/deletion rules, and undoable commands with round-trip
-   and invalid-edit coverage.
-4. [ ] **Generate runtime sources and initial applications** — Generate instance
-   creation/destruction and code-accessible source references. Apply initial
-   actions at the agreed lifecycle point, preserve developer-owned entry
-   points, and verify repeated instances and deterministic output.
-5. [ ] **Implement force editor interactions** — Add top-level object rows,
-   dedicated properties, contact-dot/arrow rendering, and the agreed position,
-   direction, and magnitude controls. Integrate selection, render-order picking,
-   visibility, context menus, multi-edit, clipboard, and transactional history.
-6. [ ] **Implement torque editor interactions** — Add top-level object rows,
-   dedicated properties, and a 270-degree curved arrow with a tangential
-   arrowhead. Reuse shared force/item interaction machinery and verify signed
-   direction, zero magnitude, marker placement, and history.
-7. [ ] **Verify integrated parity and examples** — Exercise editor, CLI, JSON,
-   generated C, direct APIs, and runtime changes together. Add an editable
-   demonstration, update public documentation, run focused sanitizers, build
-   Linux/Windows installed-SDK consumers, and request visual review.
+The user selected Goal 1. Its contract is awaiting the decisions below;
+no force/torque API or physics changes have been implemented in this milestone.
+
+1. [ ] **Finalize the shared API contract (awaiting clarification)** — Specify
+   signatures, source data, application-point coordinates, rotation following,
+   and defaults. Settle beam distribution, degenerate geometry, invalid inputs,
+   target deletion, and migration of soft-body-specific APIs. Record usage
+   examples and acceptance criteria before implementation.
+2. [ ] **Implement shared sources and rigid-body/particle behavior** — Add
+   force-at-point support, consistent one-tick and persistent source handling,
+   mutation, and deletion. Verify translation and rotation, particle position
+   ignoring, particle torque no-ops, and rigid bodies containing particles.
+3. [ ] **Implement local beam loads** — Distribute force and torque to endpoint
+   nodes without child source entities. Verify net force and torque, local
+   deformation, collapsed beams, endpoint changes, and deletion.
+4. [ ] **Implement whole-soft-body loads** — Distribute translation and turning
+   contributions across nodes. Verify COM acceleration, off-centre forces,
+   pure torque, changing masses/geometry, and natural beam stretching. Complete
+   migration to the shared API.
+5. [ ] **Add authored definitions and persistence** — Add object-owned source
+   descriptions, target references, CLI operations, project/runtime
+   serialization, validation, history, copying, duplication, and deletion.
+   Preserve initial versus persistent behavior and zero-magnitude sources.
+6. [ ] **Generate runtime sources and verify API parity** — Generate initial
+   applications, persistent source references, and instance cleanup. Verify
+   independent instances, runtime mutation, and direct/generated parity. Add
+   a focused demonstration and API documentation.
+7. [ ] **Implement the force editor** — Add top-level object rows, dedicated
+   properties, target selection, application-dot/arrow rendering, and
+   position/direction/magnitude controls. Integrate selection, visibility,
+   ordering, clipboard, multi-edit, and history. Verify saved projects in app.
+8. [ ] **Implement the torque editor and complete visual verification** — Add
+   dedicated properties and movable 270-degree arrow markers. Reuse source
+   interactions; show particle torque as having no physical effect. Verify
+   both editors across all targets and request final manual review.
 
 ### Agreed behavior
 
-- Forces and torques are top-level object-editor items, each with its own
-  editor and the established editor interaction rules.
-- A force is drawn as an arrow pointing away from its contact/application dot.
-  A torque is drawn as a three-quarter-circle arrow whose head points along
-  the curve, continuing toward its tail if the circle were completed.
-- Support persistent sources and initial one-tick forces/torques. Runtime
-  changes remain developer-owned code; no delayed editor event system is added.
-- A persistent source may begin at zero magnitude and be increased later in
-  code. Existing `force_apply`/`torque_apply` operations last one engine physics
-  tick; immediate linear/angular impulses are separate operations.
-- Retain clockwise-positive degrees and physical force/torque units from the
-  completed conventions milestones.
+- The target entity determines how the common API applies or distributes a
+  load. One-tick and persistent sources use the same target behavior.
+- Each persistent source has one ID for updating and deletion. Distributed
+  loads do not create child force/torque entities. Deleting a source stops
+  future contributions without undoing motion already produced.
+- Rigid-body forces act at an application point and produce the corresponding
+  torque about COM. Rigid bodies containing particles retain angular response.
+- Pure standalone particles and individual soft nodes ignore force position;
+  their forces act through their centroid. Torque succeeds but has no effect,
+  including persistent sources that can still be updated and deleted.
+- Beam loads act locally through endpoint nodes and propagate through the
+  existing structure. Whole-soft-body loads distribute across all nodes,
+  preserving requested net force and torque while permitting deformation.
+- A whole-soft-body force through COM adds uniform linear acceleration;
+  off-centre force adds turning about COM. Pure torque adds no net linear force.
+  These loads do not impose rigid transforms or overwrite node velocities.
+- Recalculate distributed contributions each physics substep using current
+  geometry and masses. Angular motion can naturally stretch beams.
+- Torque marker placement is visual only; it does not establish a physical
+  pivot. Physical torque remains clockwise-positive and uses physical units.
+- Forces and torques are top-level object-editor items with dedicated editors
+  and established interaction rules. Forces use an arrow pointing away from
+  their application dot; torques use a three-quarter-circle tangential arrow.
+- The editor authors persistent sources and initial one-tick applications.
+  Sources can begin at zero magnitude and change later in developer-owned C.
+  No delayed event system is introduced. Immediate impulses remain separate.
+- Angles remain clockwise degrees by default, with zero heading up.
 
-### Open decisions and recommendations
+### Goal 1 decisions pending
 
-These recommendations are recorded for discussion, not approved requirements.
+The following questions have been submitted to the user. Recommendations are
+not approved behavior and must not be implemented by assumption.
 
-1. **Targets:** confirm rigid bodies, standalone particles, whole soft bodies,
-   and/or individual soft nodes. Suggested initial scope: rigid bodies plus
-   forces on standalone particles; particles retain their nonrotating behavior.
-2. **Application point:** confirm an origin-relative offset preserved on origin
-   mutation, and whether points may lie inside or outside geometry. Recommended:
-   permit either; the dot need not coincide with a collision surface. Off-centre
-   application derives torque about COM.
-3. **Rotation following:** confirm independent settings for the application
-   point and force direction, following existing attachment conventions.
-4. **Values:** recommend nonnegative force magnitude plus a clockwise degree
-   direction, retaining direction at zero magnitude. Torque uses signed
-   magnitude, reversing its arrow for negative values; settle its zero display.
-5. **Force manipulation:** decide arrow-length scaling and whether its tip edits
-   magnitude. Recommended: dot drag edits application point, the shared rotation
-   handle edits direction, and a tip handle edits magnitude. Zero sources must
-   remain visible and selectable.
-6. **Torque marker:** decide COM-centred placement versus a movable display-only
-   offset. Recommended: COM by default with an optional display offset so
-   multiple sources on one target remain accessible; this offset has no physics
-   meaning.
-7. **Initial timing:** confirm application during the first physics tick of
-   each newly created object instance, including later runtime spawns.
-8. **References and lifetime:** recommended target deletion removes its authored
-   sources, undo restores both, whole-object duplication remaps targets, and
-   duplicating a source alone preserves its target.
+1. **Force value representation:** keep the current X/Y vector within a richer
+   force description, with editor magnitude/angle conversion (recommended),
+   or use magnitude plus clockwise angle in the API description.
+2. **Whole-soft-body point following:** follow the current COM with a fixed
+   world-axis offset (recommended), or introduce an estimated physical body
+   orientation so offsets also follow rotation. The existing soft-body origin
+   and orientation provide authoring/group transforms, not a unique physical
+   pose under deformation. Rigid-body local points must preserve the existing
+   origin-offset contract; node and beam attachments remain local controls.
+3. **Degenerate persistent targets:** when a beam collapses or all soft nodes
+   coincide and a turning contribution is impossible, suspend the entire
+   affected source until valid again (recommended), or retain linear force
+   while skipping its turning contribution. Newly requested unrepresentable
+   loads should fail without partial mutation. Particle torque remains the
+   explicitly agreed successful no-op.
 
-### Existing support and remaining gaps
+The contract must also specify independent point/direction coordinate settings,
+beam point resolution, atomic validation and source mutation, target lifetime,
+initial tick timing, API migration, and acceptance scenarios. Editor handle
+presentation details can be finalized before their respective editor goals.
 
-The engine already supports persistent source creation, setters/getters,
-`entity_delete` lifetime, one-tick application, separate impulse APIs, COM and
-derived inertia, clockwise torque response, and basic runtime JSON storage for
-force/torque/target components. Soft bodies have dedicated one-tick distribution
-APIs, but their inclusion in this milestone is undecided.
+### Existing support and verification
 
-Ordinary force sources currently contain a vector and target, without an
-application point or automatic offset-induced torque. A private joint helper
-performs force-at-point calculations, but no general public force-at-point API
-or persistent attachment description exists. Editor definitions, panels,
-glyphs/handles, commands, project persistence, generated source ownership, and
-their parity tests remain to be implemented.
+Existing force/torque create/set/get/apply APIs store vector/scalar values and
+an entity target. They have no general public force application point. Current
+whole-soft-body helper APIs distribute one-tick loads via node sources; the
+new contract replaces that implementation with one source and substep
+accumulation. A private joint helper calculates force-at-point response, but
+it creates separate force and torque source entities and is not the proposed
+shared implementation.
 
-Complete and verify one approved goal at a time. Resolve the open decisions
-before implementation, and wait for the user to select each goal.
+Each implementation goal includes relevant regression tests, sanitizer checks,
+and Linux/Windows builds. Generated-code changes require application checks;
+editor goals require visual review. Register and pursue only one Codex goal at
+a time; the user selects each subsequent goal explicitly.
 
 ## Completed Milestone: Clockwise Angles with Degrees by Default
 
@@ -999,7 +1036,7 @@ camera or debug visualization of physical bodies.
 ## 4. Authored Motion, Forces, and Torques
 
 Initial motion authoring and COM semantics are implemented. The proposed
-**Editor Forces and Torques** milestone above is authoritative for the next
+**Unified Forces and Torques** milestone above is authoritative for the next
 work, including initial one-tick applications, persistent sources, top-level
 editors, visual representations, and unresolved target/attachment decisions.
 Do not treat earlier force-emitter sketches as approval of those open choices.
