@@ -74,8 +74,13 @@ translation and deformation, with matching editor-generated initial motion.
    source directories. Windows execution remains unverified. Existing projects
    must regenerate C to receive the initial-motion correction.
 
-The user-selected **Unified Forces and Torques** milestone remains next. Resume
-its shared API contract only when explicitly selected; see its checklist below.
+The user-selected **System Update Reports** milestone is the next prerequisite,
+before resuming Goal 1 of **Unified Forces and Torques**. Establish per-system
+timings and diagnostics first; preserve the agreed force/torque API design.
+The user revised the goal sequence: shared reporting infrastructure, physics,
+console/JSON output, then remaining systems. Simulation-failure recovery comes
+after all reporting integrations and their coverage audit. The contract work is
+preserved; this reorganization does not start an implementation goal.
 
 The user-selected **Project Editor Error Logging** milestone is complete.
 
@@ -177,7 +182,8 @@ The user-selected **COM Selection Priority** goal is complete, including its
 dedicated COM editor and persistent automatic selection.
 
 The user-selected **Consistent Collision Controls** single-goal milestone and
-Node-Loop Soft-Body Areas are complete. Unified Forces and Torques remains next.
+Node-Loop Soft-Body Areas are complete. System Update Reports precedes Unified
+Forces and Torques.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -186,9 +192,8 @@ The user-selected **Beam-Bounded Soft-Body Area Colors** milestone is complete.
 It supersedes the material-position fill behavior of **Stable Soft-Body Areas**.
 
 The user-selected **Bugs Identified by Rohr User** milestone is complete.
-The **Unified Forces and Torques** milestone is next, before numbered priority
-4. Pursue only an explicitly selected goal, beginning with its shared API
-contract.
+The **System Update Reports** prerequisite and then **Unified Forces and
+Torques** precede numbered priority 4. Pursue only an explicitly selected goal.
 
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
@@ -689,6 +694,132 @@ shape applies. Recording this milestone does not resolve those details or
 authorize starting a goal. Complete and verify only the goal the user selects,
 then stop for review and a user-created commit.
 
+## Prerequisite Milestone: System Update Reports
+
+Give each top-level engine system its own update report containing timings,
+system-specific statistics, recoverable warnings, and fatal failure details.
+Use one shared diagnostic format with system-owned storage, not an engine-wide
+queue or an additional simulation pipeline. Complete this milestone before
+resuming Unified Forces and Torques. Build the shared reporting system first,
+integrate physics next, then add console/JSON output and the remaining system
+reports. Address simulation-failure recovery only after reporting coverage is
+complete. The [reporting contract](docs/physics_reporting_contract.md) preserves
+the agreed design; finalize system-specific runnable boundaries in each
+integration goal before modifying that system.
+
+1. [x] **Implement and verify the shared report system** — Finalize and add
+   the common types, enum IDs, constructors, collection helpers, report merging,
+   and public/direct APIs in one goal. Verify value ownership, default records,
+   aggregation rules, copied details, overflow, saturation, and fatal preservation.
+   One shared fixed-size `Report` uses enum IDs such as `ROHR_PHYSICS_REPORT`,
+   with 32 entries, 64 statistics, and 256 diagnostics defined by named constants.
+   Include NONE severity for default records, visible overflow, and reserved
+   fatal details. Collection and merging must not allocate, print, or run any
+   simulation. Public helpers support developer-built reports and reserved custom
+   report/metric ID ranges; custom metrics state their aggregation rule. Copy
+   diagnostic text into a named 256-byte detail buffer and flag truncation.
+   Preserve the first critical message in dedicated fatal storage even when the
+   ordinary diagnostic list is full; that retained fatal is not counted as
+   dropped. Merge order determines first fatal and latest-value statistics;
+   successful children cannot clear failure or overwrite parent elapsed time.
+   Do not integrate systems or console/JSON output in this goal.
+   Completed: shared/public helpers, custom IDs, owned diagnostic text, bounded
+   aggregation/merging, saturation, and reserved first-fatal preservation.
+   Verified 72 native tests, focused ASan/UBSan/LeakSanitizer, Linux and Windows
+   builds, installed-SDK consumers (Linux executed; Windows compiled), and an
+   independent installed-SDK joints example with headless startup/shutdown.
+   Windows execution remains unverified. See [Shared reports](docs/reports.md).
+2. [ ] **Integrate and verify physics reports** — Finalize directly runnable
+   physics entry points and their prerequisites, including the editor's
+   joints-only use case. Return the shared `Report` by value and combine child
+   reports in full updates; internal helpers contribute without generating
+   reports themselves. Migrate return types and callers, remove obsolete report
+   getters, and preserve metric meaning. Verify standalone/full-update parity,
+   substeps, custom composition, warning/fatal propagation, and retained values.
+   Preserve current quarantine/simulation-failure behavior until Goal 10. Prepare
+   for future force geometry diagnostics without implementing the force API.
+3. [ ] **Add console printing and JSON report export** — Implement explicit
+   report printing through the engine console and pretty/compact JSON file output
+   using existing yyjson. Increase the named console buffer to 1,024 bytes,
+   format reports line by line, and detect truncation. Keep its 100-entry history
+   distinct from full terminal output. Verify readable names, complete report
+   content, overflow/fatal details, truncation and I/O errors, and temporary
+   allocation cleanup. Output errors do not mutate source reports; collection
+   remains independent of printing and serialization.
+4. [ ] **Define and integrate graphics update reports** — Audit rendering entry
+   points and define submission/frame/presentation boundaries and compatibility
+   changes. Reuse the shared report format for rendering-stage
+   timings, counters, skipped work, and fatal failures. Cover drawing, cameras,
+   screens/viewports, recording, and presentation. Preserve rendering order and
+   resource ownership; verify recovery and retained diagnostics after failure.
+5. [ ] **Define and integrate audio update reports** — Define the report boundary for audio
+   processing, collect relevant timings/statistics and diagnostics, and publish
+   them safely to game code. Preserve callback constraints and resource lifetime;
+   verify recoverable failures, shutdown, and independent report ownership.
+6. [ ] **Define and integrate input update reports** — Specify the input-frame
+   boundary, event ingestion, action evaluation, and text/IME truncation
+   diagnostics. Preserve input behavior and verify reset boundaries and recovery.
+7. [ ] **Define and integrate UI reports** — Cover the independent UI begin/end
+   lifecycle, interaction/layout work, and recoverable capacity failures. Assign
+   internal helpers to their runnable owner. Preserve UI behavior and distinguish
+   UI failures from graphics failures without duplicating the same diagnostic.
+8. [ ] **Integrate engine-tick and remaining system reports** — Cover clock/tick
+   advancement and entity lifetime cleanup. Audit remaining top-level update
+   entry points for missing report owners. Verify update boundaries, warning
+   context, failure propagation, and independence from other system reports.
+9. [ ] **Verify system-wide coverage and document usage** — Audit every entry
+   in the accumulated system inventory against the final implementation. Document checking
+   update results and reading reports, with examples of successful updates with
+   warnings and fatal updates with retained details. Verify report isolation,
+   overflow, repeated warnings, public/direct API parity, relevant examples and
+   generated consumers, sanitizers, and Linux/Windows builds. All systems must
+   have reporting coverage before selecting simulation-failure recovery.
+10. [ ] **Define and implement simulation-failure recovery** — After all systems
+    have reporting, decide how a failed entity is excluded without destructively
+    rewriting its normal authored/physical state. Compare a reserved failure
+    flag with per-update retries, define developer repair/reset and automatic
+    revalidation, and specify repeated diagnostics. Clarify state preservation,
+    partial integration, contacts, joints, and soft-body dependencies. Implement
+    only the approved policy; verify unaffected entities continue safely, failed
+    entities can recover, and failures remain observable. Setter/creator
+    validation remains immediate. No flag, retry, or rollback policy is approved
+    yet; settle those choices when this goal is selected. Resume the force
+    contract only on subsequent explicit user instruction.
+
+### Agreed reporting behavior
+
+- A physics update returns a self-contained report directly, including whether
+  it completed. The developer retains that returned value if needed; normal
+  report access does not require a separate latest-report getter. Recoverable
+  warnings do not turn a completed update into a fatal failure. Fatal failures
+  stop processing where continuing is unsafe and retain the collected report.
+- Each system owns its collection and update boundary. Updating a system does
+  not mutate previously returned report values. Reports contain no pointers to
+  mutable engine storage. Define other systems' specific return/callback
+  boundaries in their respective goals.
+- Directly runnable pipelines return independent reports. Internal stages and
+  helpers contribute to their pipeline's collector without generating reports
+  themselves. System updates combine the reports of pipelines they execute;
+  custom callers can inspect or combine the same reports. Preserve prerequisites,
+  stage/source context, repeat counts, overflow, and fatal details when merging;
+  merging executes no simulation and must not double-count nested work.
+- Aggregate equivalent repeated warnings within an update with an occurrence
+  count. Physics retains up to 256 distinct diagnostics, counts dropped
+  occurrences, and reserves fatal details even when full. Timings/statistics
+  remain system-specific.
+- Invalid setter arguments continue to return immediate errors and preserve
+  previous state. Intentionally incomplete force sources are suspended, not
+  automatically warning-generating failures. Unexpected runtime invalidity is
+  reported by the owning update when the force milestone implements it.
+- Force/torque failures discovered after an apply call returns belong in the
+  physics report, including source/target identifiers even if a one-tick source
+  later expires. Do not add a separate force-error queue.
+
+Each implementation goal includes focused failure/recovery tests and applicable
+sanitizer, example, and Linux/Windows verification. Register each selected goal
+as a Codex goal, complete only that goal, then stop for user review. Implementation
+details affecting subsystem behavior require their routed instructions first.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,
@@ -696,17 +827,22 @@ standalone particles, soft-body nodes, beams, and whole soft bodies. Finish
 with editor authoring and manipulation. This replaces the proposed Editor
 Forces and Torques milestone and precedes numbered priority 4.
 
-The user selected Goal 1. Its contract is awaiting the decisions below;
+Goal 1 resumes after the System Update Reports prerequisite. Its contract
+incorporates the agreed API lifecycle below and remains open for the remaining
+decisions;
 no force/torque API or physics changes have been implemented in this milestone.
 
-1. [ ] **Finalize the shared API contract (awaiting clarification)** — Specify
-   signatures, source data, application-point coordinates, rotation following,
-   and defaults. Settle beam distribution, degenerate geometry, invalid inputs,
-   target deletion, and migration of soft-body-specific APIs. Record usage
-   examples and acceptance criteria before implementation.
+1. [ ] **Finalize the shared API contract (in discussion)** — Specify direct
+   ECS creation/configuration and typed creation from standalone descriptions,
+   with shared validation, entity setters, and whole-description get/set.
+   Define signatures, source data, independent application-point/direction
+   references, defaults, and suspension behavior. Finish beam distribution,
+   tick timing, invalid-input rules, and migration of soft-body-specific APIs.
+   Record usage examples and acceptance criteria before implementation.
 2. [ ] **Implement shared sources and rigid-body/particle behavior** — Add
    force-at-point support, consistent one-tick and persistent source handling,
-   mutation, and deletion. Verify translation and rotation, particle position
+   direct and description-based creation, mutation, and deletion. Verify
+   shared validation, source suspension, translation and rotation, particle position
    ignoring, particle torque no-ops, and rigid bodies containing particles.
 3. [ ] **Implement local beam loads** — Distribute force and torque to endpoint
    nodes without child source entities. Verify net force and torque, local
@@ -762,31 +898,96 @@ no force/torque API or physics changes have been implemented in this milestone.
   No delayed event system is introduced. Immediate impulses remain separate.
 - Angles remain clockwise degrees by default, with zero heading up.
 
-### Goal 1 decisions pending
+### Goal 1 agreed API lifecycle
 
-The following questions have been submitted to the user. Recommendations are
-not approved behavior and must not be implemented by assumption.
+These are design requirements, not currently implemented signatures.
 
-1. **Force value representation:** keep the current X/Y vector within a richer
-   force description, with editor magnitude/angle conversion (recommended),
-   or use magnitude plus clockwise angle in the API description.
-2. **Whole-soft-body point following:** follow the current COM with a fixed
-   world-axis offset (recommended), or introduce an estimated physical body
-   orientation so offsets also follow rotation. The existing soft-body origin
-   and orientation provide authoring/group transforms, not a unique physical
-   pose under deformation. Rigid-body local points must preserve the existing
-   origin-offset contract; node and beam attachments remain local controls.
-3. **Degenerate persistent targets:** when a beam collapses or all soft nodes
-   coincide and a turning contribution is impossible, suspend the entire
-   affected source until valid again (recommended), or retain linear force
-   while skipping its turning contribution. Newly requested unrepresentable
-   loads should fail without partial mutation. Particle torque remains the
-   explicitly agreed successful no-op.
+- `rohr_physics_force_create()` and `rohr_physics_torque_create()` create ECS
+  source entities immediately, returning `EntityResult`. They begin incomplete
+  and suspended; entity setters configure them initially and modify them later.
+  There is no separate add step for this direct workflow.
+- Developers can instead prepare standalone `ForceDescription` or
+  `TorqueDescription` values and call
+  `rohr_physics_force_from_description_add(description)` or
+  `rohr_physics_torque_from_description_add(description)`. These typed wrappers
+  require a complete, valid configuration and return `EntityResult`. Failure
+  leaves no source entity. A generic entity-description factory is out of scope.
+- Description-based creation copies configuration into the source; later edits
+  to the original value do not mutate it. Referenced entities remain references,
+  not cloned targets. Descriptions can be reused for multiple sources.
+- Both creation paths produce the same source representation and share
+  configuration/validation logic. Either supports the same entity setters and
+  whole-description get/set after creation. Do not duplicate every entity setter
+  as a separate description-building API; callers may fill description values
+  directly, as with existing configurations.
+- Setters and whole-description replacement may change the target entity or
+  leave an existing persistent source incomplete. Such sources suspend until
+  valid again. Malformed values, including nonfinite numbers, return an error
+  and preserve the previous state. Whole-description replacement is atomic.
+- Zero magnitude is allowed and does not require a usable direction. This is
+  an inactive configuration, not an error. Other required references still
+  follow the creation and suspension rules.
+- A deleted reference suspends an existing source until repaired; recycled
+  entity slots must not silently retarget it. Source deletion uses the existing
+  entity lifetime API and does not delete referenced targets.
+- Incomplete one-tick requests fail immediately. A persistent source whose
+  current geometry cannot represent its turning contribution suspends entirely,
+  rather than applying only its linear contribution, until valid again.
+  Pure-particle/node torque remains the successful no-op described above.
+- Agreed creation defaults are no target, application at the target's COM,
+  unset direction, and zero magnitude. A valid target makes the default source
+  inactive; a nonzero force also requires a usable direction.
+- One-tick attachments resolve each substep. If references or geometry become
+  invalid, skip that substep without extending the source lifetime. Report the
+  failure through the physics update report established by the prerequisite;
+  validation failures during the apply call still return immediately.
 
-The contract must also specify independent point/direction coordinate settings,
-beam point resolution, atomic validation and source mutation, target lifetime,
-initial tick timing, API migration, and acceptance scenarios. Editor handle
-presentation details can be finalized before their respective editor goals.
+### Goal 1 agreed location and direction model
+
+- Force configuration separates target entity, target location, direction, and
+  magnitude. Target physics type is inferred from the entity, not duplicated
+  in the description. Location and direction references are independent of the
+  receiving target and do not imply an equal-and-opposite reaction.
+- Direction supports a fixed vector, a vector between two locations, a
+  rigid-body orientation reference, or a beam direction. Resolve and normalize
+  the direction before multiplying by magnitude. Use existing math APIs for
+  ordinary vector construction rather than force-specific math helpers.
+- Locations support world points, entity-origin offsets, COM-relative points
+  with world-axis offsets, and explicit beam locations. Rigid-body local
+  offsets follow origin and rotation. Soft-body stored origin/orientation are
+  authoring transforms, not an estimated physical pose; do not infer physical
+  soft-body orientation for direction following.
+- Beam locations use start/center/end references, an along offset expressed
+  as distance or fraction of current full beam length, and a perpendicular
+  distance offset. Start/end follow stored node order, not screen left/right.
+  Positive along offsets point start-to-end; positive perpendicular offsets
+  point to its left. Center plus a fraction of 0.5 reaches the end.
+- Application points beyond the beam segment are permitted. Endpoint weighting,
+  off-center torque distribution, fixed/held endpoint treatment, and collapsed
+  beam force-only behavior still require final contract agreement.
+
+### Goal 1 remaining decisions
+
+The following details still need final contract definitions; they are not
+approval to implement a particular default or policy:
+
+1. **Public signatures and defaults:** finalize the complete type/enum/helper
+   inventory, initial field values, direction angle-offset representation, and
+   detailed source-status queries, including the distinction between malformed
+   descriptions and incomplete or temporarily unresolvable references.
+2. **Beam load distribution:** specify endpoint weighting, off-center torque,
+   fixed/held endpoint treatment, and force-only behavior at coincident endpoints.
+   External application points are already permitted; do not clamp them silently.
+3. **One-tick timing:** specify first/last participating substeps and map failure
+   details to the prerequisite report API. Per-substep reference resolution,
+   skipping invalid contributions, reporting failures, and unchanged expiry
+   are already agreed.
+4. **Migration and acceptance:** finalize replacement of the current vector/
+   scalar APIs and soft-body-specific helpers, breaking-format requirements,
+   usage examples, and test scenarios for both creation paths.
+
+Editor handle presentation details can be finalized before their respective
+editor goals. Goal 1 stays incomplete until the remaining contract is settled.
 
 ### Existing support and verification
 

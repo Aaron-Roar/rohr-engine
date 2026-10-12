@@ -13,6 +13,14 @@ void console_vwrite(LogSourceType source, const char *fmt, va_list args);
 void console_debug_vwrite(LogSourceType source, const char *fmt, va_list args);
 
 EngineResult rohr_engine_start(void) { return engine_start(); }
+Report rohr_report_create(void) { return report_create(); }
+bool rohr_report_valid_check(const Report *report) { return report_valid_check(report); }
+EngineResult rohr_report_header_set(Report *report, ReportHeader header) { return report_header_set(report, header); }
+EngineResult rohr_report_entry_add(Report *report, ReportEntry entry) { return report_entry_add(report, entry); }
+EngineResult rohr_report_statistic_add(Report *report, ReportStatistic statistic) { return report_statistic_add(report, statistic); }
+EngineResult rohr_report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail) { return report_diagnostic_detail_set(diagnostic, detail); }
+EngineResult rohr_report_diagnostic_add(Report *report, ReportDiagnostic diagnostic) { return report_diagnostic_add(report, diagnostic); }
+EngineResult rohr_report_merge(Report *destination, const Report *source) { return report_merge(destination, source); }
 void rohr_engine_stop(void) { engine_stop(); }
 void rohr_engine_time_update(void) { engine_time_update(); }
 Time rohr_engine_time_get(void) { return engine_time_get(); }

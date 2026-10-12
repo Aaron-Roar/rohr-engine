@@ -4608,6 +4608,78 @@ Returns a random float in a range.
 
 ## Other
 
+### `rohr_report_create`
+
+```c
+Report rohr_report_create(void);
+```
+
+ Returns an empty caller-owned report builder, independent of engine startup.
+
+### `rohr_report_valid_check`
+
+```c
+bool rohr_report_valid_check(const Report *report);
+```
+
+ Checks populated report fields, custom IDs, and reserved-fatal consistency.
+
+### `rohr_report_header_set`
+
+```c
+EngineResult rohr_report_header_set(Report *report, ReportHeader header);
+```
+
+ Sets report identity, completion status, and measured time; failure is sticky.
+
+### `rohr_report_entry_add`
+
+```c
+EngineResult rohr_report_entry_add(Report *report, ReportEntry entry);
+```
+
+ Adds/aggregates a child summary without changing the parent's elapsed time.
+
+### `rohr_report_statistic_add`
+
+```c
+EngineResult rohr_report_statistic_add(Report *report, ReportStatistic statistic);
+```
+
+ Adds a statistic using its validated sum/max/latest aggregation rule.
+
+### `rohr_report_diagnostic_detail_set`
+
+```c
+EngineResult rohr_report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail);
+```
+
+ Copies optional detail text; NULL clears, oversized text sets detail_truncated.
+
+### `rohr_report_diagnostic_add`
+
+```c
+EngineResult rohr_report_diagnostic_add(Report *report, ReportDiagnostic diagnostic);
+```
+
+ Adds an issue, aggregating repeats and preserving the first fatal when full.
+
+### `rohr_report_merge`
+
+```c
+EngineResult rohr_report_merge(Report *destination, const Report *source);
+```
+
+Combines a child report and its descendants without allocation or simulation.
+
+Preserves source values and destination identity/time. First fatal and latest
+
+metrics follow merge order. Malformed inputs, self-merge, or incompatible
+
+metric rules fail without mutation. Capacity exhaustion succeeds with visible
+
+loss counts; the reserved first fatal is not dropped. Merge each child once.
+
 ### `rohr_audio_start`
 
 ```c

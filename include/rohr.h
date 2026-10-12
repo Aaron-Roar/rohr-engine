@@ -15,6 +15,7 @@
 #include "input.h"
 #include "math2d.h"
 #include "physics.h"
+#include "report.h"
 #include "systems.h"
 #include "tools.h"
 #include "ui.h"
@@ -38,6 +39,29 @@
  * @return EngineResult containing true on success, or an engine error.
  */
 EngineResult rohr_engine_start(void);
+
+/** Returns an empty caller-owned report builder, independent of engine startup. */
+Report rohr_report_create(void);
+/** Checks populated report fields, custom IDs, and reserved-fatal consistency. */
+bool rohr_report_valid_check(const Report *report);
+/** Sets report identity, completion status, and measured time; failure is sticky. */
+EngineResult rohr_report_header_set(Report *report, ReportHeader header);
+/** Adds/aggregates a child summary without changing the parent's elapsed time. */
+EngineResult rohr_report_entry_add(Report *report, ReportEntry entry);
+/** Adds a statistic using its validated sum/max/latest aggregation rule. */
+EngineResult rohr_report_statistic_add(Report *report, ReportStatistic statistic);
+/** Copies optional detail text; NULL clears, oversized text sets detail_truncated. */
+EngineResult rohr_report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail);
+/** Adds an issue, aggregating repeats and preserving the first fatal when full. */
+EngineResult rohr_report_diagnostic_add(Report *report, ReportDiagnostic diagnostic);
+/**
+ * Combines a child report and its descendants without allocation or simulation.
+ * Preserves source values and destination identity/time. First fatal and latest
+ * metrics follow merge order. Malformed inputs, self-merge, or incompatible
+ * metric rules fail without mutation. Capacity exhaustion succeeds with visible
+ * loss counts; the reserved first fatal is not dropped. Merge each child once.
+ */
+EngineResult rohr_report_merge(Report *destination, const Report *source);
 
 /**
  * @brief Stops the core engine service and releases its state.

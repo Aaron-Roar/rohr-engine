@@ -50,6 +50,8 @@ EngineResult error_result_error_detail(EngineError error, const char *detail) {
 
 const char *error_code_message_get(EngineError error) {
     switch(error) {
+        case ERROR_ENGINE_REPORT_INVALID:
+            return "invalid report fields or incompatible report aggregation";
         case ERROR_NONE:
             return "no error";
         case ERROR_MEMORY_POOL_NULL_POINTER:

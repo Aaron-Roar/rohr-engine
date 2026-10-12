@@ -182,6 +182,7 @@ set(ROHR_ENGINE_SOURCES
     src/core/engine.c
     src/core/error.c
     src/core/platform_process.c
+    src/core/report.c
     src/core/rohr.c
     src/core/systems.c
     src/entity/entity_components.c
@@ -466,6 +467,18 @@ if(ROHR_BUILD_TESTS)
     target_link_libraries(cameras_test PRIVATE rohr_engine)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME cameras COMMAND cameras_test)
+
+    add_executable(report_test tests/report.c)
+    target_link_libraries(report_test PRIVATE rohr_engine)
+    set_target_properties(report_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(report_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(report_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME report COMMAND report_test)
 
     add_executable(ui_instance_isolation_test tests/ui_instance_isolation.c)
     target_link_libraries(ui_instance_isolation_test PRIVATE rohr_engine)
@@ -867,6 +880,7 @@ if(ROHR_BUILD_TESTS)
     add_custom_target(rohr_tests)
     add_dependencies(
         rohr_tests
+        report_test
         audio_test
         engine_lifecycle_test
         directory_test

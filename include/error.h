@@ -179,6 +179,8 @@ typedef enum EngineError {
     ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE,
     /** SDL could not perform an audio operation. */
     ERROR_ENGINE_AUDIO_OPERATION_FAILED,
+    /** A report contains invalid fields, incompatible metric rules, or aliases itself. */
+    ERROR_ENGINE_REPORT_INVALID,
 } EngineError;
 
 /**
