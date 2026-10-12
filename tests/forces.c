@@ -64,30 +64,30 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     OK(api->force_apply(body, (Force){0,24}));
     OK(api->torque_apply(body, 20));
     OK(api->torque_apply(body, -10));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.3f) && near(velocities[index].y, 0.2f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.25f));
     /* Direct physics updates do not advance engine tick lifetimes. */
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.6f) && near(velocities[index].y, 0.4f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.5f));
     SDL_Delay(2);
     CHECK(rohr_system_tick_update() > 0);
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.8f) && near(velocities[index].y, 0.4f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
     OK(api->force_set(f, (Force){0}));
     OK(api->torque_set(t, 0));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.8f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
     OK(api->force_set(f, (Force){12,0}));
     OK(api->torque_set(t, 20));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.9f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.8f));
     OK(rohr_entity_delete(f)); OK(rohr_entity_delete(t));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(rohr_entity_alive_check(body));
     CHECK(near(velocities[index].x, 0.9f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.8f));
 
@@ -198,7 +198,7 @@ static bool persistence_check(const ForceApi *api) {
     OK(f); OK(t);
     CHECK(f.result.value.x == 24 && f.result.value.y == 0 && t.result.value == 40);
     index = rohr_entity_index_get(restored.result.value).result.value;
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.2f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.2f));
     CHECK(remove(path) == 0);
     return true;

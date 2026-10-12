@@ -20,7 +20,7 @@ static bool drive_check(float direction) {
     OK(maximum);
     CHECK(fabsf(rohr_math_degrees_to_radians(maximum.result.value) - 7.0f) < 0.001f);
     OK(wheel_drive_apply(wheel.disk, direction));
-    OK(rohr_system_physics_update(physics_tick_time));
+    CHECK((rohr_system_physics_update(physics_tick_time)).header.status != ROHR_REPORT_FAILED);
     AngularVelocityResult rate = rohr_physics_angular_velocity_get(wheel.disk); OK(rate);
     CHECK(rate.result.value * direction > 100.0f);
     CHECK(fabsf(rate.result.value) <= maximum.result.value + 0.001f);

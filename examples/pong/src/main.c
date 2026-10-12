@@ -489,7 +489,7 @@ int main(void) {
         }
 
         ticks_advanced = rohr_system_tick_update();
-        if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
+        if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
         if(rohr_physics_contact_check(ball, paddle_left) ||
                 rohr_physics_contact_check(ball, paddle_right)) {
             if(!game_ball_on_fire_set(ball, true)) {

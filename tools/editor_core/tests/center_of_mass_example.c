@@ -83,7 +83,7 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
         OK(created_anchor); anchor = created_anchor.result.value;
     }
     Position initial = rohr_physics_center_of_mass_world_position_get(body).result.value;
-    for(int i = 0; i < 120; i += 1) OK(rohr_system_physics_update(1.0 / 120.0));
+    for(int i = 0; i < 120; i += 1) CHECK((rohr_system_physics_update(1.0 / 120.0)).header.status != ROHR_REPORT_FAILED);
     snapshot->origin = rohr_physics_position_get(body).result.value;
     snapshot->com = rohr_physics_center_of_mass_world_position_get(body).result.value;
     snapshot->anchor = rohr_physics_joint_anchor_world_position_get(anchor).result.value;

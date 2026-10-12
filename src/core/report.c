@@ -46,7 +46,7 @@ static bool report_statistic_check(ReportStatistic value) {
         return value.aggregation >= ROHR_REPORT_AGGREGATION_SUM &&
             value.aggregation <= ROHR_REPORT_AGGREGATION_LATEST;
     if(value.metric_id >= ROHR_REPORT_PROCESSED_COUNT &&
-            value.metric_id <= ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT)
+            value.metric_id <= ROHR_REPORT_NARROWPHASE_NS)
         expected = ROHR_REPORT_AGGREGATION_SUM;
     else if(value.metric_id == ROHR_REPORT_TREE_HEIGHT_PEAK)
         expected = ROHR_REPORT_AGGREGATION_MAX;

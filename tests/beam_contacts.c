@@ -68,7 +68,7 @@ static void impact_test(float height, float thickness, float restitution,
     config.radius = 1; config.mass_value = 10; config.restitution = 1;
     config.gravity_enabled = false;
     EntityResult particle = rohr_physics_particle_create(config); OK(particle);
-    OK(rohr_system_physics_update(0));
+    assert((rohr_system_physics_update(0)).header.status != ROHR_REPORT_FAILED);
     EntityIndex p = index_get(particle.result.value);
     EntityIndex ai = index_get(a.result.value), bi = index_get(b.result.value);
     Vec2D normal = rohr_math_vector_rotate((Vec2D){0, 1}, angle);
@@ -114,7 +114,7 @@ static void supported_impact_test(uint32_t iterations, float restitution) {
     config.mass_value = 10; config.velocity = (Velocity){0, -60};
     config.restitution = 1; config.gravity_enabled = false;
     EntityResult particle = rohr_physics_particle_create(config); OK(particle);
-    OK(rohr_system_physics_update(0));
+    assert((rohr_system_physics_update(0)).header.status != ROHR_REPORT_FAILED);
     EntityIndex p = index_get(particle.result.value);
     EntityIndex ai = index_get(a.result.value), bi = index_get(b.result.value);
     ContactInfo c = rohr_physics_contact_get(beam.result.value, particle.result.value);
@@ -131,7 +131,7 @@ static void supported_impact_test(uint32_t iterations, float restitution) {
     /* No repeated bounce injection while the bodies separate on later steps. */
     float rebound = velocities[p].y;
     if(restitution > 0) {
-        for(int tick = 0; tick < 20; tick++) OK(rohr_system_physics_update(1.0 / 60));
+        for(int tick = 0; tick < 20; tick++) assert((rohr_system_physics_update(1.0 / 60)).header.status != ROHR_REPORT_FAILED);
         close_to(velocities[p].y, rebound, .02f);
         assert(!rohr_physics_contact_check(beam.result.value, particle.result.value));
     }

@@ -167,7 +167,7 @@ static void api_tests(void) {
     }
     world=rohr_physics_center_of_mass_world_position_get(body.result.value); OK(world);
     near(world.result.value.x,x/total,1e-5);near(world.result.value.y,y/total,1e-5);
-    OK(rohr_system_physics_update(.1));
+    assert((rohr_system_physics_update(.1)).header.status != ROHR_REPORT_FAILED);
     world=rohr_physics_center_of_mass_world_position_get(body.result.value); OK(world);
     near(world.result.value.x,(x+.1*vx)/total,1e-5);
     near(world.result.value.y,(y+.1*vy)/total,1e-5);

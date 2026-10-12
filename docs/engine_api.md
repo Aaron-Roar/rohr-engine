@@ -869,7 +869,7 @@ void rohr_physics_pipeline_gravity_apply(void);
 ### `rohr_physics_pipeline_forces_apply`
 
 ```c
-void rohr_physics_pipeline_forces_apply(void);
+Report rohr_physics_pipeline_forces_apply(void);
 ```
 
  Applies spring-joint and soft-body-beam forces.
@@ -877,7 +877,7 @@ void rohr_physics_pipeline_forces_apply(void);
 ### `rohr_physics_pipeline_integrate`
 
 ```c
-EngineResult rohr_physics_pipeline_integrate(double dt);
+Report rohr_physics_pipeline_integrate(double dt);
 ```
 
  Integrates rigid-body state and reports world-boundary failures.
@@ -885,7 +885,7 @@ EngineResult rohr_physics_pipeline_integrate(double dt);
 ### `rohr_physics_pipeline_contacts_gather`
 
 ```c
-void rohr_physics_pipeline_contacts_gather(void);
+Report rohr_physics_pipeline_contacts_gather(void);
 ```
 
  Detects contacts and gathers contact constraints.
@@ -893,7 +893,7 @@ void rohr_physics_pipeline_contacts_gather(void);
 ### `rohr_physics_pipeline_joints_gather`
 
 ```c
-void rohr_physics_pipeline_joints_gather(void);
+Report rohr_physics_pipeline_joints_gather(void);
 ```
 
  Gathers active pin and weld joint constraints.
@@ -901,7 +901,7 @@ void rohr_physics_pipeline_joints_gather(void);
 ### `rohr_physics_pipeline_constraints_solve`
 
 ```c
-void rohr_physics_pipeline_constraints_solve(uint32_t iterations);
+Report rohr_physics_pipeline_constraints_solve(uint32_t iterations);
 ```
 
  Solves currently gathered contacts and joints.
@@ -909,7 +909,7 @@ void rohr_physics_pipeline_constraints_solve(uint32_t iterations);
 ### `rohr_physics_pipeline_substep`
 
 ```c
-EngineResult rohr_physics_pipeline_substep(double dt);
+Report rohr_physics_pipeline_substep(double dt);
 ```
 
  Runs one standard physics substep.
@@ -917,7 +917,7 @@ EngineResult rohr_physics_pipeline_substep(double dt);
 ### `rohr_physics_pipeline_update`
 
 ```c
-EngineResult rohr_physics_pipeline_update(double dt);
+Report rohr_physics_pipeline_update(double dt);
 ```
 
  Runs the standard plug-and-play physics pipeline.
@@ -925,7 +925,7 @@ EngineResult rohr_physics_pipeline_update(double dt);
 ### `rohr_physics_update`
 
 ```c
-EngineResult rohr_physics_update(Tick ticks);
+Report rohr_physics_update(Tick ticks);
 ```
 
  Advances physics and returns any pipeline failure.
@@ -933,7 +933,7 @@ EngineResult rohr_physics_update(Tick ticks);
 ### `rohr_physics_dt_update`
 
 ```c
-EngineResult rohr_physics_dt_update(Time dt);
+Report rohr_physics_dt_update(Time dt);
 ```
 
  Advances physics once with an explicit exceptional delta.
@@ -2763,14 +2763,6 @@ size_t rohr_physics_contacts_get( Entity entity, EntityContact *results, size_t 
 
  Write up to capacity current contacts and return the number written.
 
-### `rohr_physics_update_report_get`
-
-```c
-PhysicsUpdateReport rohr_physics_update_report_get(void);
-```
-
- Returns a snapshot of the latest physics update report.
-
 ## Graphics
 
 ### `rohr_graphics_color_hex_create`
@@ -4113,7 +4105,7 @@ Creates an axis-aligned bounding box for a world-space shape.
 ### `rohr_system_physics_update`
 
 ```c
-EngineResult rohr_system_physics_update(double dt);
+Report rohr_system_physics_update(double dt);
 ```
 
 Runs one physics-system update.

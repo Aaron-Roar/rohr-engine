@@ -54,7 +54,7 @@ Shape system_generate_global_hitbox(Entity entity) {
         return (Shape){0};
 }
 
-static bool system_positions_update(double dt) {
+static bool system_positions_update(double dt, Report *report) {
     bool valid = true;
     for(uint32_t alive_position = 0; alive_position < entity_alive_count_get(); alive_position += 1) {
         EntityIndex i;
@@ -67,19 +67,23 @@ static bool system_positions_update(double dt) {
                 .x = positions[i].x + (velocities[i].x)*dt,
                 .y = positions[i].y + (velocities[i].y)*dt
             };
-            physics_update_report.simulated_entity_count += 1;
+            physics_report_counter_add(report, ROHR_REPORT_PROCESSED_COUNT, 1);
             if(!isfinite(next.x) || !isfinite(next.y) ||
                     fabsf(next.x) > ROHR_WORLD_COORDINATE_MAX ||
                     fabsf(next.y) > ROHR_WORLD_COORDINATE_MAX) {
                 Entity entity;
                 valid = false;
-                physics_update_report.quarantined_entity_count += 1;
+                physics_report_counter_add(report, ROHR_REPORT_QUARANTINED_COUNT, 1);
                 entity_mask[i] |= ROHR_HOLD;
                 velocities[i] = (Velocity){0};
                 accelerations[i] = (Acceleration){0};
                 force_accelerations[i] = (Acceleration){0};
-                if(physics_step_entity_from_index_get(i, &entity))
+                if(physics_step_entity_from_index_get(i, &entity)) {
+                    physics_report_issue_add(report, ROHR_PHYSICS_INTEGRATION, ROHR_REPORT_SEVERITY_FATAL,
+                        ERROR_ENGINE_POSITION_OUT_OF_RANGE, ROHR_REPORT_ENTITY_QUARANTINED,
+                        entity, 0, "predicted position exceeded the finite world range; entity quarantined");
                     (void)physics_hitbox_remove(entity);
+                }
                 continue;
             }
             positions[i] = next;
@@ -767,6 +771,7 @@ static ContactInfo system_resolve_collision_manifold(
 typedef struct SystemBroadphaseQuery {
     Entity source;
     EntityIndex source_index;
+    Report *report;
 } SystemBroadphaseQuery;
 
 static bool system_broadphase_pair_apply(Entity target, void *context) {
@@ -779,19 +784,18 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
     if(query == NULL || target <= query->source ||
             !entity_index_get(target, &target_index) ||
             !entity_index_alive_check(target_index)) return true;
-    if(physics_update_report_enabled) physics_update_report.candidate_pair_count += 1;
+    physics_report_counter_add(query->report, ROHR_REPORT_CANDIDATE_COUNT, 1);
     if(!physics_collision_between_check(query->source, target)) return true;
-    if(physics_update_report_enabled) {
-        physics_update_report.narrowphase_test_count += 1;
-        started = SDL_GetPerformanceCounter();
-    }
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_TEST_COUNT, 1);
+    started = SDL_GetPerformanceCounter();
     overlap = system_entity_overlap_get(query->source_index, target_index);
-    if(physics_update_report_enabled) physics_update_report.narrowphase_ms += physics_rigid_elapsed_ms(started);
+    physics_report_counter_add(query->report, ROHR_REPORT_NARROWPHASE_NS,
+        (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
     if(!overlap.detected) return true;
-    if(physics_update_report_enabled) physics_update_report.overlap_count += 1;
+    physics_report_counter_add(query->report, ROHR_REPORT_OVERLAP_COUNT, 1);
     responds = entity_index_components_check(query->source_index, ROHR_COLLISION) &&
         entity_index_components_check(target_index, ROHR_COLLISION);
-    return contact_constraint_list_append(&physics_step_contact_constraints,
+    bool appended = contact_constraint_list_append(&physics_step_contact_constraints,
         (SystemContactConstraint){
         .type = SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR,
         .value.rigid = {
@@ -803,6 +807,11 @@ static bool system_broadphase_pair_apply(Entity target, void *context) {
             .responds = responds
         }
     });
+    if(!appended)
+        physics_report_issue_add(query->report, ROHR_PHYSICS_CONTACT_GATHER, ROHR_REPORT_SEVERITY_FATAL,
+            ERROR_MEMORY_POOL_ALLOCATION_FAILED, ROHR_REPORT_UPDATE_ABORTED,
+            query->source, target, "could not allocate rigid contact constraint");
+    return appended;
 }
 
 void physics_rigid_contact_point_impulses_accumulate(
@@ -856,7 +865,7 @@ void physics_rigid_contact_point_impulses_accumulate(
 
 static void system_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
-    float position_fraction
+    float position_fraction, Report *report
 ) {
     ContactInfo representative = {0};
     ContactInfo previous_contacts[CONTACT_MANIFOLD_MAX] = {0};
@@ -939,9 +948,7 @@ static void system_rigid_contact_constraint_solve(
         : overlap;
     constraint->value.rigid.solved = true;
     if(responds) {
-        if(physics_update_report_enabled && first_solve) {
-            physics_update_report.contact_count += 1;
-        }
+        if(first_solve) physics_report_counter_add(report, ROHR_REPORT_CONTACT_COUNT, 1);
         physics_step_hitbox_dirty_add(first);
         physics_step_hitbox_dirty_add(second);
     }
@@ -961,7 +968,7 @@ static AABB system_broadphase_bounds_get(EntityIndex index) {
     return bounds;
 }
 
-static void system_broadphase_build(void) {
+static void system_broadphase_build(Report *report) {
     aabb_tree_clear(&physics_broadphase_tree);
     for(uint32_t alive_position = 0;
             alive_position < entity_alive_count_get();
@@ -972,16 +979,19 @@ static void system_broadphase_build(void) {
         if(!physics_step_alive_index_at(alive_position, &index) ||
                 !entity_index_components_check(index, ROHR_HIT_BOX) ||
                 !physics_step_entity_from_index_get(index, &entity)) continue;
-        if(physics_update_report_enabled) physics_update_report.collider_count += 1;
-        (void)aabb_tree_insert(
-            &physics_broadphase_tree,
-            entity,
-            system_broadphase_bounds_get(index)
-        );
+        physics_report_counter_add(report, ROHR_REPORT_COLLIDER_COUNT, 1);
+        EngineResult result = aabb_tree_insert(
+            &physics_broadphase_tree, entity, system_broadphase_bounds_get(index));
+        if(result.kind == ERROR_RESULT_ERROR) {
+            physics_report_issue_add(report, ROHR_PHYSICS_BROADPHASE, ROHR_REPORT_SEVERITY_FATAL,
+                result.result.error, ROHR_REPORT_UPDATE_ABORTED, entity, 0,
+                "could not build broadphase tree");
+            return;
+        }
     }
 }
 
-static void system_broadphase_collisions_apply(void) {
+static void system_broadphase_collisions_apply(Report *report) {
     for(uint32_t alive_position = 0;
             alive_position < entity_alive_count_get();
             alive_position += 1) {
@@ -994,7 +1004,8 @@ static void system_broadphase_collisions_apply(void) {
                 !physics_step_entity_from_index_get(index, &entity)) continue;
         query = (SystemBroadphaseQuery){
             .source = entity,
-            .source_index = index
+            .source_index = index,
+            .report = report
         };
         (void)aabb_tree_query(
             &physics_broadphase_tree,
@@ -1002,6 +1013,7 @@ static void system_broadphase_collisions_apply(void) {
             system_broadphase_pair_apply,
             &query
         );
+        if(report->has_fatal) return;
     }
 }
 
@@ -1045,7 +1057,7 @@ void system_collisions_apply(void) {
                     collision,
                     contact,
                     PHYSICS_INTERACTION_OVERLAP |
-                        (responds ? PHYSICS_INTERACTION_CONTACT : 0)
+                        (responds ? PHYSICS_INTERACTION_CONTACT : 0), NULL
                 );
 
             }
@@ -1261,14 +1273,14 @@ void physics_rigid_transform_constraints_apply(void) {
     system_transform_locks_apply();
 }
 
-EngineResult physics_rigid_integrate(double dt) {
+EngineResult physics_rigid_integrate(double dt, Report *report) {
     system_forces_apply();
     system_torques_apply();
     system_velocities_update(dt);
     system_angular_velocities_update(dt);
     system_angular_velocity_maximums_apply();
     system_orientations_update(dt);
-    if(!system_positions_update(dt))
+    if(!system_positions_update(dt, report))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     system_angle_locks_apply();
     system_axis_locks_apply();
@@ -1280,33 +1292,30 @@ void physics_rigid_accelerations_clear(void) {
     system_force_torque_accelerations_clear();
 }
 
-void physics_rigid_constraints_gather(void) {
-    uint64_t started = 0;
-
+void physics_rigid_constraints_gather(Report *report) {
+    uint64_t started;
     system_generate_global_hitboxes();
-    if(physics_update_report_enabled) started = SDL_GetPerformanceCounter();
-    system_broadphase_build();
-    if(physics_update_report_enabled) {
-        physics_update_report.broadphase_build_ms +=
-            physics_rigid_elapsed_ms(started);
-        physics_update_report.tree_node_count = physics_broadphase_tree.count;
-        physics_update_report.tree_height =
-            physics_broadphase_tree.root == AABB_TREE_NODE_INVALID
-                ? 0
-                : physics_broadphase_tree.nodes[physics_broadphase_tree.root].height;
-    }
-    system_broadphase_collisions_apply();
+    started = SDL_GetPerformanceCounter();
+    system_broadphase_build(report);
+    physics_report_counter_add(report, ROHR_REPORT_BROADPHASE_BUILD_NS,
+        (uint64_t)(physics_rigid_elapsed_ms(started) * 1000000.0));
+    physics_report_counter_add(report, ROHR_REPORT_TREE_NODES_CURRENT, physics_broadphase_tree.count);
+    physics_report_counter_add(report, ROHR_REPORT_TREE_HEIGHT_PEAK,
+        physics_broadphase_tree.root == AABB_TREE_NODE_INVALID ? 0 :
+        (uint64_t)physics_broadphase_tree.nodes[physics_broadphase_tree.root].height);
+    if(report->has_fatal) return;
+    system_broadphase_collisions_apply(report);
 }
 
 void physics_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
-    float position_fraction
+    float position_fraction, Report *report
 ) {
-    system_rigid_contact_constraint_solve(constraint, position_fraction);
+    system_rigid_contact_constraint_solve(constraint, position_fraction, report);
 }
 
 void physics_rigid_contact_constraint_finalize(
-    const SystemContactConstraint *constraint
+    const SystemContactConstraint *constraint, Report *report
 ) {
     if(constraint == NULL) return;
     physics_step_interaction_by_index_record(
@@ -1316,5 +1325,5 @@ void physics_rigid_contact_constraint_finalize(
         constraint->value.rigid.contact,
         PHYSICS_INTERACTION_OVERLAP |
             (constraint->value.rigid.responds
-                ? PHYSICS_INTERACTION_CONTACT : 0));
+                ? PHYSICS_INTERACTION_CONTACT : 0), report);
 }

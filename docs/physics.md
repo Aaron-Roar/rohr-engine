@@ -3,6 +3,9 @@
 Rohr provides a standard 2D physics pipeline and exposes its stages for games
 that need custom orchestration. Most games should call
 `rohr_system_physics_update(dt)` or `rohr_physics_pipeline_update(dt)`.
+Both return an owned `Report`; check `report.header.status` for failure. See
+[Physics reports](reports.md#physics-reports) for the report tree, custom pipeline
+prerequisites, metrics, diagnostics, and migration from `EngineResult`.
 
 The [origin and COM contract](physics_origin_contract.md) specifies this
 milestone's behavior. Origin-relative geometry, automatic/explicit COM,

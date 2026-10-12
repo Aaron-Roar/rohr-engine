@@ -120,7 +120,7 @@ static bool runtime_check(void) {
     CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(body).result.value, (Position){5,3}));
     CHECK(fabsf(rohr_physics_particle_radius_get(body).result.value - 2) < 0.001f);
     OK(rohr_physics_angular_velocity_set(body, 5));
-    OK(rohr_system_physics_update(0.01));
+    CHECK((rohr_system_physics_update(0.01)).header.status != ROHR_REPORT_FAILED);
     EntityIndex index = rohr_entity_index_get(body).result.value;
     CHECK(orientations[index] == 0 && angular_velocities[index] == 0);
     OK(rohr_entity_delete(body));
@@ -264,7 +264,7 @@ static bool project_check(void) {
     CHECK(automatic != NULL);
     snprintf(automatic->name, sizeof(automatic->name), "auto_body");
     hitbox = &automatic->hitboxes[0];
-    CHECK(editor_project_hitbox_vertex_insert(&project, hitbox, 0));
+    CHECK(hitbox->vertex_count == 4);
     for(size_t i=0;i<4;i+=1) hitbox->vertices[i].position = vertices[i];
     EditorRigidBody *particle = editor_project_rigid_body_add(&project, object);
     CHECK(particle != NULL);

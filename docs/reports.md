@@ -1,9 +1,8 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics and other system updates do not yet return this type: their integration
-is scheduled in later System Update Reports goals. Console printing and JSON
-export are likewise not implemented by the shared-library goal.
+Physics updates return this type as described below; other system integrations,
+console printing, JSON export, and latest-report retrieval remain scheduled work.
 
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
 functions. Both paths use the same implementation and have the same behavior.
@@ -157,3 +156,97 @@ lifetimes; callers synchronize concurrent writes to the same report themselves.
 
 Future physics integration, output, and recovery requirements remain in the
 [reporting contract](physics_reporting_contract.md) and [roadmap](../NEXT_STEPS.md).
+
+## Physics reports
+
+Physics updates now return `Report` through both direct and `rohr_` APIs. This
+breaks the former `EngineResult` return type and removes `PhysicsUpdateReport`
+and the old physics-specific latest-report getters. Check the returned status:
+
+```c
+Report report = rohr_physics_update(ticks);
+if(report.header.status == ROHR_REPORT_FAILED) {
+    /* report.first_fatal contains the reason and any source/target evidence. */
+}
+```
+
+`rohr_error_check()` continues to accept ordinary result objects; it does not
+accept a report. Setters and creators retain their existing result types.
+Existing developer-owned project entry points need this explicit call-site
+migration. Newly generated entry points and bundled examples use the new return.
+
+The report tree is:
+
+```text
+ROHR_PHYSICS_REPORT                   full update, including preparation when applicable
+└── ROHR_PHYSICS_SUBSTEP_REPORT        each executed substep, aggregated by ID
+    ├── ROHR_PHYSICS_LOADS_REPORT      spring and beam loads
+    ├── ROHR_PHYSICS_INTEGRATION_REPORT
+    ├── ROHR_PHYSICS_CONTACTS_REPORT   broadphase and contact gathering
+    ├── ROHR_PHYSICS_JOINTS_REPORT     joint gathering
+    └── ROHR_PHYSICS_CONSTRAINTS_REPORT  iterative solve and interaction publication
+```
+
+| Runnable API (prefix `rohr_` optional) | Prerequisites and behavior |
+| --- | --- |
+| `physics_update(ticks)` | Converts ticks to one total duration; zero ticks is NOT_RUN. |
+| `physics_dt_update(dt)` | Finite nonpositive duration is NOT_RUN. |
+| `system_physics_update(dt)` | Updates animated hitboxes, then runs all substeps. |
+| `physics_pipeline_update(dt)` | Advances interactions and runs all substeps; caller handles animated-hitbox preparation. |
+| `physics_pipeline_substep(dt)` | Clears constraints/acceleration, applies gravity and loads, integrates, gathers, solves. Call `step_begin()` first when beginning a new interaction update. |
+| `physics_pipeline_forces_apply()` | Applies spring/beam loads to prepared acceleration buffers. Persistent force sources remain in integration, as before. |
+| `physics_pipeline_integrate(dt)` | Integrates current state and prepared loads; preserves existing world-range quarantine. |
+| `physics_pipeline_contacts_gather()` | Refreshes hitboxes/tree and appends contacts. Call `substep_begin()` first to clear old constraints. |
+| `physics_pipeline_joints_gather()` | Replaces gathered joint constraints; can run without contacts or integration. |
+| `physics_pipeline_constraints_solve(iterations)` | Requires successful gathering. Zero iterations is NOT_RUN; contact and joint iterations retain their existing ordering. |
+
+Initialize the engine before simulation. Preparation helpers `step_begin`,
+`substep_begin`, `accelerations_clear`, and `gravity_apply` remain report-free;
+using them does not create child report entries. Internal solver iterations and
+per-entity helpers contribute to their owning report. All nonfinite durations
+fail before simulation. Direct system/pipeline/substep/integration zero-duration
+calls still execute their existing zero-time work, including collision response;
+negative durations fail at these lower-level entry points.
+
+For a joints-only pass, call `substep_begin()`, gather joints, check that report,
+then solve and check that report. Merge both returned reports if desired. Do not
+solve partially gathered constraints after a fatal gather. Call `step_begin()`
+when this pass should also start a new interaction-history boundary.
+
+The full update records attempted/completed substep counts. Failed integration
+retains each quarantined entity's full handle, copied message, and zero-based
+substep index. Its existing HOLD, cleared motion, and removed-hitbox behavior is
+unchanged. Subsequent stages/substeps stop on fatal failure; prior work is not
+rolled back. Broken-joint cleanup and failed animated-hitbox selection produce
+warnings while independent work continues. Preparation issues have no substep.
+Allocation failures in tree construction, rigid/beam contact gathering, joint
+gathering, legacy joint force creation, and interaction publication are fatal.
+
+Metrics retain the previous meanings, with explicit owner and aggregation:
+
+- Integration PROCESSED and QUARANTINED counts count entity visits per substep.
+- Contacts COLLIDER, CANDIDATE, NARROWPHASE_TEST, and OVERLAP counts describe the
+  rigid broadphase path, including node colliders; beam-query pairs are not added
+  to these legacy counters. Work counts sum over substeps.
+- Contacts TREE_NODES_CURRENT takes the latest tree size; TREE_HEIGHT_PEAK keeps
+  the maximum height observed across substeps.
+- Contacts BROADPHASE_BUILD_NS, BROADPHASE_QUERY_NS, and NARROWPHASE_NS are summed
+  nanoseconds. Query time excludes separately measured build and narrowphase
+  time and includes hitbox refresh and soft boundary gathering. Divide by
+  1,000,000 to compare with the former millisecond fields.
+- Constraints CONTACT_COUNT counts rigid response pairs once per substep, not
+  once per solver iteration. Its header elapsed time replaces `response_ms`.
+- Joints PROCESSED_COUNT counts gathered pin/weld joints; SKIPPED_COUNT records
+  skipped contributions where a warning is emitted.
+
+Parent/header milliseconds are inclusive wall-clock measurements. Do not sum
+parent and child elapsed times. Missing statistics represent zero observed work.
+Report collection receives explicit invocation-local pointers; there is no
+mutable latest-report collector and no report pointer retained in constraints.
+The engine's simulation state remains subject to its existing single-threaded
+physics execution requirement.
+
+The later stored-report goal will add `rohr_report_get(id)` and the combined
+`rohr_report_get(ROHR_REPORT)`. Each runnable pipeline will retain only its latest
+copy, overwritten by its next update. Updates will still return reports directly.
+That retrieval API is agreed but is not implemented in this physics goal.

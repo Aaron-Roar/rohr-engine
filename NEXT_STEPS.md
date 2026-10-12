@@ -729,15 +729,25 @@ integration goal before modifying that system.
    builds, installed-SDK consumers (Linux executed; Windows compiled), and an
    independent installed-SDK joints example with headless startup/shutdown.
    Windows execution remains unverified. See [Shared reports](docs/reports.md).
-2. [ ] **Integrate and verify physics reports** — Finalize directly runnable
+2. [x] **Integrate and verify physics reports** — Finalize directly runnable
    physics entry points and their prerequisites, including the editor's
    joints-only use case. Return the shared `Report` by value and combine child
    reports in full updates; internal helpers contribute without generating
    reports themselves. Migrate return types and callers, remove obsolete report
    getters, and preserve metric meaning. Verify standalone/full-update parity,
    substeps, custom composition, warning/fatal propagation, and retained values.
-   Preserve current quarantine/simulation-failure behavior until Goal 10. Prepare
+   Preserve current quarantine/simulation-failure behavior until Goal 11. Prepare
    for future force geometry diagnostics without implementing the force API.
+   Completed: runnable physics APIs return owned reports, aggregate child work,
+   retain substep/entity diagnostics, and preserve existing quarantine behavior.
+   Removed the old metrics-only report/getters; migrated examples, generated
+   entry points, and test callers. Previously ignored allocation failures now
+   stop dependent work and return fatal details. Verified 73 native tests,
+   ASan/UBSan/LeakSanitizer on reporting/lifecycle/beam cases, Linux and Windows
+   builds without compiler warnings, nine independent installed-SDK example
+   startup/shutdown checks, and generated-project runtime parity and startup.
+   Corrected the generated COM test fixture's stale triangle assumption.
+   Windows execution remains unverified. See [Physics reports](docs/reports.md#physics-reports).
 3. [ ] **Add console printing and JSON report export** — Implement explicit
    report printing through the engine console and pretty/compact JSON file output
    using existing yyjson. Increase the named console buffer to 1,024 bytes,
@@ -774,7 +784,16 @@ integration goal before modifying that system.
    overflow, repeated warnings, public/direct API parity, relevant examples and
    generated consumers, sanitizers, and Linux/Windows builds. All systems must
    have reporting coverage before selecting simulation-failure recovery.
-10. [ ] **Define and implement simulation-failure recovery** — After all systems
+10. [ ] **Add latest stored report retrieval and automatic composition** — Each
+    runnable pipeline keeps its latest returned report and overwrites it on its
+    next update; no history. `rohr_report_get(id)` returns an independent copy,
+    including child pipeline reports. `rohr_report_get(ROHR_REPORT)` combines the
+    latest available results without counting child work twice. Never-run
+    pipelines return NOT_RUN. Updates continue returning reports directly.
+    Define invocation provenance for children updated independently after their
+    parent, cross-system freshness, reset/lifetime, and callback synchronization
+    before implementation. Latest reports may originate at different times.
+11. [ ] **Define and implement simulation-failure recovery** — After all systems
     have reporting, decide how a failed entity is excluded without destructively
     rewriting its normal authored/physical state. Compare a reserved failure
     flag with per-update retries, define developer repair/reset and automatic

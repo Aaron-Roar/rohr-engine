@@ -3,12 +3,14 @@
 Status: design contract for the System Update Reports milestone, including its
 physics integration. This document distinguishes
 verified current behavior, agreed requirements, and proposed implementation
-details. Shared collection and merging are implemented as documented in
-[Shared reports](reports.md); system integration and output remain future work. The
+details. Shared collection, merging, and physics integration are implemented as documented
+in [Shared reports](reports.md). That page is the current API reference; the
+original physics inventory and proposed refinements below retain design context.
+Other system integrations, output, and retrieval remain scheduled work. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
 is Goal 1, physics integration Goal 2, and console/JSON output Goal 3.
-Simulation-failure recovery is Goal 10, after all systems have reporting.
+Simulation-failure recovery is Goal 11, after all systems have reporting.
 
 ## Scope and decisions
 
@@ -17,7 +19,7 @@ owner, followed by console/JSON output, graphics, audio, input, UI, and
 engine-tick cleanup. Share diagnostic
 concepts without making physics depend on another system or a global queue.
 The force/torque milestone will consume this reporting mechanism later.
-Goal 9 verifies reporting coverage; Goal 10 then addresses simulation-failure
+Goal 9 verifies reporting coverage; Goal 11 then addresses simulation-failure
 recovery. Do not change recovery policy during a reporting integration goal.
 
 Agreed requirements:
@@ -53,7 +55,7 @@ Settled decisions:
    No pointers into mutable engine storage or borrowed diagnostic strings.
 3. **Simulation recovery is deferred:** currently quarantining an entity also
    fails the update. Preserve that behavior during reporting implementation.
-   Goal 10, after all reporting integrations and their audit, will decide failure flags,
+   Goal 11, after all reporting integrations and their audit, will decide failure flags,
    per-update retries, restoration, and state preservation. Neither a particular
    recovery policy nor rollback behavior is approved yet. Setter/creator errors
    remain immediate and are not the simulation-recovery problem being deferred.
@@ -84,7 +86,7 @@ The remaining system integration definitions below are the proposed contract for
 They must not be treated as already shipped API or approval to change runtime
 behavior before its relevant implementation goal is explicitly selected.
 
-## Verified entry points and ownership
+## Pre-integration entry-point inventory (historical)
 
 | Entry point | Current behavior | Reporting responsibility |
 | --- | --- | --- |
@@ -108,7 +110,7 @@ Physics does not own engine clock advancement or lifetime cleanup; those remain
 in `system_tick_update()` and later receive their own report. A timing report
 must not cause extra physics steps, advance engine time, or change source expiry.
 
-## Stage inventory
+## Audited stage inventory
 
 | Stage identity | Work covered | Current observation |
 | --- | --- | --- |
@@ -274,8 +276,8 @@ Proposed lifecycle rules:
 4. Low-level stage sequences must run inside an owning runnable pipeline to
    obtain an aggregate report. Final API review must document how existing
    direct-stage callers migrate without creating a report per internal helper.
-5. A legitimate zero-work top-level invocation returns a fresh complete
-   report with zero work counts. Preserve existing nonpositive-duration no-op
+5. A legitimate no-op invocation returns a fresh NOT_RUN
+   report with zero work counts; an executed empty pipeline returns COMPLETE. Preserve existing nonpositive-duration no-op
    behavior where it exists; reject nonfinite durations before simulation.
    Document that this fresh-report behavior differs from today's early returns.
 6. Before the first update, there is no report to fetch. A zero-initialized
@@ -295,7 +297,7 @@ so callers can make informed decisions.
 | Invalid setter argument | Immediate error; previous successful value preserved; no deferred warning. |
 | Deliberately disabled, held, collision-filtered, or incomplete source | Expected behavior; no warning solely for inactivity. |
 | A runtime contribution becomes unrepresentable | Warning plus skipped contribution when safe; other sources continue. Future force behavior is implemented in its own milestone. |
-| Out-of-range integrated position | Preserve existing fatal/quarantine behavior during reporting integration. Goal 10 determines its replacement recovery policy. |
+| Out-of-range integrated position | Preserve existing fatal/quarantine behavior during reporting integration. Goal 11 determines its replacement recovery policy. |
 | Contact/joint storage allocation failure | Fatal; do not simulate as if missing constraints were a complete valid solve. Retain first failure and partial progress. |
 | Diagnostic storage full | Count dropped occurrences and keep processing according to the underlying condition; always preserve first-fatal details. |
 | Nonfinite update duration | Fatal validation failure before simulation; report identifies validation stage. |
@@ -483,7 +485,7 @@ system-wide coverage audit.
 
 ## Deferred simulation-failure recovery
 
-Goal 10 must distinguish rejecting an invalid attempted step from mutating or
+Goal 11 must distinguish rejecting an invalid attempted step from mutating or
 rolling back already-committed state. Decide whether a reserved failure flag
 excludes an entity until explicit repair/reset, or whether later updates retry
 it automatically and report each repeated failure. Define contacts, joints,
@@ -491,6 +493,18 @@ soft-body dependencies, and developer restoration before implementing either.
 Do not implement a new flag, destructive quarantine replacement, or automatic
 retry as part of reporting. Setters/creators keep immediate validation semantics.
 
-Goal 1 implements shared report values and collection/merge APIs. Pipeline return
-types, console/JSON output, and recovery remain scheduled work; their acceptance
-criteria above are requirements for later goals, not claims of implementation.
+Goals 1 and 2 implement shared report values, collection/merging, and physics
+pipeline return types. Console/JSON output, other systems, stored-report retrieval,
+and recovery remain scheduled work. Later-goal acceptance criteria are not claims
+of implementation.
+
+## Agreed latest-report retrieval (Goal 10)
+
+After reporting coverage, add `Report rohr_report_get(ReportId id)`. Each runnable
+pipeline stores its latest report, overwritten by its next update, including
+individually runnable children. Return independent copies; do not retain history.
+`ROHR_REPORT` requests automatic composition of the latest available reports
+without counting parent-included child work twice. Systems may have updated at
+different times. Never-run pipelines yield NOT_RUN; updates keep returning reports
+directly. Resolve invocation provenance, independent child updates, and lifecycle
+and callback synchronization in that goal; no retrieval API ships in Goal 2.

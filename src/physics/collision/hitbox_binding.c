@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "physics/physics_step_internal.h"
 
 #include "graphics.h"
 #include "physics/physics_internal.h"
@@ -234,7 +235,7 @@ void physics_hitbox_animation_bindings_entity_clear(EntityIndex index) {
         entity_mask[index] &= ~ROHR_HITBOX_ANIMATION_BINDING;
 }
 
-void physics_hitbox_animation_bindings_update(void) {
+void physics_hitbox_animation_bindings_report_update(Report *report) {
     for(EntityIndex index = 0; index < MAX_ENTITIES; index += 1) {
         HitboxAnimationBindingList *list;
         AnimatedSprite *sprite;
@@ -262,9 +263,19 @@ void physics_hitbox_animation_bindings_update(void) {
         for(size_t i = 0; i < list->count; i += 1) {
             if(list->values[i].animation_id != info.result.value.id ||
                     list->values[i].frame_id != frame_id) continue;
-            (void)physics_hitbox_active_id_set(entity.result.value,
+            EngineResult result = physics_hitbox_active_id_set(entity.result.value,
                 list->values[i].hitbox_id);
+            if(result.kind == ERROR_RESULT_ERROR) {
+                physics_report_issue_add(report, ROHR_PHYSICS_PREPARATION, ROHR_REPORT_SEVERITY_WARNING,
+                    result.result.error, ROHR_REPORT_CONTRIBUTION_SKIPPED, entity.result.value, 0,
+                    "animated hitbox selection failed; previous hitbox retained");
+                physics_report_counter_add(report, ROHR_REPORT_SKIPPED_COUNT, 1);
+            }
             break;
         }
     }
+}
+
+void physics_hitbox_animation_bindings_update(void) {
+    physics_hitbox_animation_bindings_report_update(NULL);
 }

@@ -28,7 +28,7 @@ static bool turn_check(float direction) {
     MomentOfInertiaResult inertia = rohr_physics_moment_of_inertia_get(fly.result.value);
     OK(inertia);
     OK(fly_turn_apply(fly.result.value, direction));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     float rate = rohr_math_degrees_to_radians(angular_velocities[fi]);
     CHECK(rate * direction > 0);
     CHECK(fabsf(rate - direction * large_fly_control_torque * 0.1f /

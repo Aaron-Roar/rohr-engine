@@ -13,14 +13,14 @@ Tick system_tick_update(void);
 /**
  * Run the physics pipeline for one frame.
  *
- * The current pipeline applies spring forces, integrates movement, solves
- * rigid joint constraints, applies locks, updates hitboxes/AABBs, then
- * resolves collisions.
+ * Prepare animated hitboxes, then apply loads, integrate, gather contacts and
+ * joints, and solve constraints for each configured substep. Returns owned
+ * timings, statistics, and diagnostics. A fatal report describes partial work;
+ * existing quarantine behavior is preserved. Zero dt still gathers and solves.
  *
  * @param dt Delta time in seconds.
  */
-EngineResult system_physics_update(double dt);
-PhysicsUpdateReport system_physics_update_report_get(void);
+Report system_physics_update(double dt);
 
 /**
  * Delete entities whose lifetime has expired.

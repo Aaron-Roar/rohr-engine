@@ -105,7 +105,7 @@ int main(void) {
             jump_queued = false;
         }
 
-        if(!ok(rohr_physics_update(ticks_advanced)) ||
+        if(rohr_physics_update(ticks_advanced).header.status == ROHR_REPORT_FAILED ||
                 !player_speed_limit_apply(objects.player_world.player)) goto fail;
         rohr_graphics_show();
     }

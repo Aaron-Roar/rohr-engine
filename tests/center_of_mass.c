@@ -122,7 +122,7 @@ static bool motion_check(void) {
     OK(rohr_physics_dynamic_set(e));
     OK(rohr_physics_velocity_set(e,(Velocity){2,0}));
     OK(rohr_physics_angular_velocity_radians_set(e,-1));
-    OK(rohr_system_physics_update(0.25));
+    CHECK((rohr_system_physics_update(0.25)).header.status != ROHR_REPORT_FAILED);
     CHECK(point_near(rohr_physics_position_get(e).result.value,(Position){0.5f,0}));
     CHECK(!rohr_entity_components_check(e,ROHR_HIT_BOX));
     CHECK(!rohr_physics_overlap_check(e,e));
@@ -130,14 +130,14 @@ static bool motion_check(void) {
     OK(rohr_physics_orientation_set(e,0));
     OK(rohr_physics_velocity_set(e,(Velocity){0}));
     Position com=rohr_physics_center_of_mass_world_position_get(e).result.value;
-    OK(rohr_system_physics_update(0.25));
+    CHECK((rohr_system_physics_update(0.25)).header.status != ROHR_REPORT_FAILED);
     CHECK(point_near(rohr_physics_center_of_mass_world_position_get(e).result.value,com));
     CHECK(!near(rohr_physics_position_get(e).result.value.y,0));
     OK(rohr_physics_hitbox_set(e,rectangle));
     OK(rohr_physics_mass_set(e,12));
     OK(rohr_physics_center_of_mass_automatic_set(e));
     com=rohr_physics_center_of_mass_world_position_get(e).result.value;
-    OK(rohr_system_physics_update(0.25));
+    CHECK((rohr_system_physics_update(0.25)).header.status != ROHR_REPORT_FAILED);
     CHECK(point_near(rohr_physics_center_of_mass_world_position_get(e).result.value,com));
     Position origin=rohr_physics_position_get(e).result.value;
     OK(rohr_physics_orientation_set(e,0));
@@ -148,32 +148,32 @@ static bool motion_check(void) {
     OK(rohr_physics_angular_velocity_set(e,0));
     EntityResult torque=rohr_physics_torque_create(e,-20);
     OK(torque);
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near((-rohr_math_degrees_to_radians(angular_velocities[i])),0.1f));
     OK(rohr_physics_hitbox_remove(e));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near((-rohr_math_degrees_to_radians(angular_velocities[i])),0.1f));
     OK(rohr_physics_hitbox_set(e,rectangle));
     OK(rohr_physics_kinematic_driven_set(e));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near((-rohr_math_degrees_to_radians(angular_velocities[i])),0.1f));
     OK(rohr_physics_entity_hold(e));
     origin=rohr_physics_position_get(e).result.value;
     float angle=orientations[i];
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(point_near(positions[i],origin) && orientations[i]==angle);
     OK(rohr_physics_entity_unhold(e));
     OK(rohr_physics_static_set(e));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(point_near(positions[i],origin) && orientations[i]==angle);
     OK(rohr_physics_dynamic_set(e));
     OK(rohr_physics_kinematic_driven_remove(e));
     OK(rohr_physics_particle_radius_set(e,2));
     OK(rohr_physics_angular_velocity_radians_set(e,-3));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(angular_velocities[i]==0 && orientations[i]==angle);
     OK(rohr_physics_mass_set(e,0));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(isfinite(positions[i].x) && angular_velocities[i]==0);
     return true;
 }
@@ -191,19 +191,19 @@ static bool locks_check(void) {
     OK(rohr_physics_center_of_mass_local_position_set(e,(Position){2,0}));
     OK(rohr_physics_angular_velocity_radians_set(e,-1));
     OK(rohr_physics_axis_lock_set(e,(Axis){1,0},(Position){0}));
-    OK(rohr_system_physics_update(0.2));
+    CHECK((rohr_system_physics_update(0.2)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(positions[i].y,0));
     /* Origin velocity is COM velocity minus omega cross COM offset. */
     CHECK(near(velocities[i].y-(-rohr_math_degrees_to_radians(angular_velocities[i]))*2*cosf(rohr_math_degrees_to_radians(orientations[i])),0));
     OK(rohr_physics_angle_lock_set(e,0,0));
-    OK(rohr_system_physics_update(0.2));
+    CHECK((rohr_system_physics_update(0.2)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(orientations[i],0) && near(positions[i].y,0) && angular_velocities[i]==0);
     OK(rohr_entity_components_delete(e,ROHR_AXIS_LOCK | ROHR_ANGLE_LOCK));
     OK(rohr_physics_angular_velocity_radians_set(e,-1));
     OK(rohr_physics_center_of_mass_local_position_set(f,(Position){0,3}));
     OK(rohr_physics_dynamic_set(f));
     OK(rohr_physics_transform_lock_set(f,e,(Vec2D){4,0},0,true,true,true));
-    OK(rohr_system_physics_update(0.1));
+    CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     Vec2D r=rohr_math_vector_rotate((Vec2D){4,0},orientations[i]);
     CHECK(point_near(positions[j],(Position){positions[i].x+r.x,positions[i].y+r.y}));
     Position ca=rohr_physics_center_of_mass_world_position_get(e).result.value;
@@ -268,7 +268,7 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
         if(kind==3) OK(rohr_physics_joint_spring_set(joint.result.value,
             aa.result.value,bb.result.value,1,8,0.5f));
     }
-    for(int step=0;step<100;step+=1) OK(rohr_system_physics_update(0.01));
+    for(int step=0;step<100;step+=1) CHECK((rohr_system_physics_update(0.01)).header.status != ROHR_REPORT_FAILED);
     EntityIndex i=rohr_entity_index_get(a).result.value;
     snapshot->com=rohr_physics_center_of_mass_world_position_get(a).result.value;
     snapshot->velocity=velocities[i];

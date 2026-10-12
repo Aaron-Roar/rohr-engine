@@ -2337,7 +2337,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
         "            if(event.type == SDL_EVENT_QUIT) goto done;\n"
         "        }\n"
         "        if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;\n"
-        "        if(!ok(rohr_physics_update(rohr_system_tick_update()))) goto fail;\n"
+        "        if(rohr_physics_update(rohr_system_tick_update()).header.status == ROHR_REPORT_FAILED) goto fail;\n"
         "        rohr_graphics_sprite_frames_update(rohr_engine_tick_get(), "
         "rohr_engine_time_get());\n"
         "        rohr_graphics_show();\n"

@@ -23,8 +23,6 @@
 Shape system_generate_global_hitbox(Entity entity);
 
 AABBTree physics_broadphase_tree = {.root = AABB_TREE_NODE_INVALID};
-PhysicsUpdateReport physics_update_report;
-bool physics_update_report_enabled = true;
 ContactConstraintList physics_step_contact_constraints;
 JointConstraintList physics_step_joint_constraints;
 static bool system_hitbox_dirty[MAX_ENTITIES];
@@ -36,14 +34,50 @@ double physics_step_elapsed_ms(uint64_t start) {
         (double)SDL_GetPerformanceFrequency();
 }
 
-PhysicsUpdateReport system_physics_update_report_get(void) {
-    return physics_update_report;
+Report physics_report_create(ReportId id) {
+    Report report = report_create();
+    report.header = (ReportHeader){id, ROHR_REPORT_COMPLETE, 0};
+    return report;
 }
 
-PhysicsUpdateReport physics_update_report_get(void) {
-    return system_physics_update_report_get();
+void physics_report_counter_add(Report *report, ReportMetricId metric, uint64_t value) {
+    if(report == NULL) return;
+    ReportAggregation rule = metric == ROHR_REPORT_TREE_HEIGHT_PEAK
+        ? ROHR_REPORT_AGGREGATION_MAX : metric == ROHR_REPORT_TREE_NODES_CURRENT
+        ? ROHR_REPORT_AGGREGATION_LATEST : ROHR_REPORT_AGGREGATION_SUM;
+    (void)report_statistic_add(report, (ReportStatistic){report->header.id, metric, rule, value});
 }
 
+void physics_report_issue_add(Report *report, uint32_t stage, ReportSeverity severity,
+        EngineError code, ReportRecovery recovery, Entity source, Entity target, const char *detail) {
+    if(report == NULL) return;
+    ReportDiagnostic diagnostic = {
+        .report_id = report->header.id, .internal_stage = stage,
+        .severity = severity, .code = code, .recovery = recovery,
+        .source = {source ? ROHR_REPORT_OBJECT_ENTITY : ROHR_REPORT_OBJECT_NONE, source},
+        .target = {target ? ROHR_REPORT_OBJECT_ENTITY : ROHR_REPORT_OBJECT_NONE, target},
+        .occurrence_count = 1
+    };
+    (void)report_diagnostic_detail_set(&diagnostic, detail ? detail : error_code_message_get(code));
+    (void)report_diagnostic_add(report, diagnostic);
+}
+
+void physics_report_elapsed_set(Report *report, uint64_t started) {
+    report->header.total_ms = physics_step_elapsed_ms(started);
+}
+
+void physics_report_substep_set(Report *report, uint32_t substep) {
+    for(size_t i = 0; i < report->diagnostic_count; i += 1) {
+        report->diagnostics[i].has_substep = true;
+        report->diagnostics[i].first_substep = substep;
+        report->diagnostics[i].last_substep = substep;
+    }
+    if(report->has_fatal) {
+        report->first_fatal.has_substep = true;
+        report->first_fatal.first_substep = substep;
+        report->first_fatal.last_substep = substep;
+    }
+}
 
 EngineResult physics_broadphase_init(void) {
     EngineResult result = aabb_tree_init(&physics_broadphase_tree, 0);
@@ -97,16 +131,20 @@ void physics_step_interaction_by_index_record(
     EntityIndex entity_2,
     OverlapInfo overlap,
     ContactInfo contact,
-    PhysicsInteractionFlags flags
+    PhysicsInteractionFlags flags, Report *report
 ) {
     Entity entity_1_id;
     Entity entity_2_id;
 
     if(!physics_step_entity_from_index_get(entity_1, &entity_1_id) ||
             !physics_step_entity_from_index_get(entity_2, &entity_2_id)) return;
-    (void)physics_interaction_record(
+    EngineResult result = physics_interaction_record(
         entity_1_id, entity_2_id, overlap, contact, flags
     );
+    if(result.kind == ERROR_RESULT_ERROR)
+        physics_report_issue_add(report, ROHR_PHYSICS_FINALIZATION, ROHR_REPORT_SEVERITY_FATAL,
+            result.result.error, ROHR_REPORT_UPDATE_ABORTED, entity_1_id, entity_2_id,
+            "could not publish physics interaction");
 }
 
 static void system_generate_global_hitbox_by_index(EntityIndex index) {
@@ -157,14 +195,14 @@ void physics_pipeline_contact_constraints_solve(
     float position_fraction,
     void *context
 ) {
-    (void)context;
     for(size_t i = 0; i < constraints->count; i += 1) {
+        if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];
 
         if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR) {
-            physics_rigid_contact_constraint_solve(constraint, position_fraction);
+            physics_rigid_contact_constraint_solve(constraint, position_fraction, context);
         } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
-            physics_soft_body_constraint_solve(constraint, position_fraction);
+            physics_soft_body_constraint_solve(constraint, position_fraction, context);
         }
     }
 }
@@ -173,28 +211,39 @@ void physics_pipeline_contact_constraints_finalize(
     ContactConstraintList *constraints,
     void *context
 ) {
-    (void)context;
     for(size_t i = 0; i < constraints->count; i += 1) {
+        if(context != NULL && ((Report *)context)->has_fatal) break;
         SystemContactConstraint *constraint = &constraints->values[i];
 
         if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_RIGID_PAIR) {
-            physics_rigid_contact_constraint_finalize(constraint);
+            physics_rigid_contact_constraint_finalize(constraint, context);
         } else if(constraint->type == SYSTEM_CONTACT_CONSTRAINT_SOFT_BOUNDARY) {
-            physics_soft_body_constraint_finalize(constraint);
+            physics_soft_body_constraint_finalize(constraint, context);
         }
     }
 }
 
 void physics_pipeline_joint_constraints_solve(void *context) {
-    (void)context;
-    physics_joint_constraints_solve();
+    if(context != NULL && ((Report *)context)->has_fatal) return;
+    physics_joint_constraints_solve(context);
     physics_rigid_transform_constraints_apply();
     physics_step_hitbox_dirty_flush();
 }
 
-EngineResult system_physics_update(double dt) {
-    physics_hitbox_animation_bindings_update();
-    return physics_pipeline_update(dt);
+Report system_physics_update(double dt) {
+    uint64_t started = SDL_GetPerformanceCounter();
+    Report preparation = physics_report_create(ROHR_PHYSICS_REPORT);
+    Report report;
+    if(isfinite(dt) && dt >= 0.0) physics_hitbox_animation_bindings_report_update(&preparation);
+    report = physics_pipeline_update(dt);
+    /* Preparation is internal: copy its issues, not a second physics invocation. */
+    for(size_t i = 0; i < preparation.diagnostic_count; i += 1)
+        (void)report_diagnostic_add(&report, preparation.diagnostics[i]);
+    for(size_t i = 0; i < preparation.statistic_count; i += 1)
+        (void)report_statistic_add(&report, preparation.statistics[i]);
+    report.dropped_diagnostic_occurrences += preparation.dropped_diagnostic_occurrences;
+    physics_report_elapsed_set(&report, started);
+    return report;
 }
 
 void print_entity_movement(Entity entity) {

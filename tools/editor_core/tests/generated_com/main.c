@@ -50,7 +50,7 @@ static bool scenario(bool generated, Snapshot *snapshot) {
     CHECK(orientations[index] == -450.0f && angular_velocities[index] == 810.0f);
     Position initial = rohr_physics_center_of_mass_world_position_get(body).result.value;
     CHECK(point_equal(initial, (Position){12,23}));
-    for(int i=0;i<100;i+=1) OK(rohr_system_physics_update(0.01));
+    for(int i=0;i<100;i+=1) CHECK((rohr_system_physics_update(0.01)).header.status != ROHR_REPORT_FAILED);
     snapshot->origin = rohr_physics_position_get(body).result.value;
     snapshot->com = rohr_physics_center_of_mass_world_position_get(body).result.value;
     snapshot->angle = orientations[rohr_entity_index_get(body).result.value];

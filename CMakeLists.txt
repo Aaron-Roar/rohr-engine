@@ -468,6 +468,24 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME cameras COMMAND cameras_test)
 
+    add_executable(physics_reports_test tests/physics_reports.c)
+    target_link_libraries(physics_reports_test PRIVATE rohr_engine)
+    target_include_directories(physics_reports_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(physics_reports_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(physics_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(physics_reports_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(physics_reports_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME physics_reports COMMAND physics_reports_test)
+
     add_executable(report_test tests/report.c)
     target_link_libraries(report_test PRIVATE rohr_engine)
     set_target_properties(report_test PROPERTIES
@@ -840,6 +858,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     set_tests_properties(
+        physics_reports
         audio
         engine_lifecycle
         directory
@@ -881,6 +900,7 @@ if(ROHR_BUILD_TESTS)
     add_dependencies(
         rohr_tests
         report_test
+        physics_reports_test
         audio_test
         engine_lifecycle_test
         directory_test

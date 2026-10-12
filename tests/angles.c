@@ -116,7 +116,7 @@ static bool physics_check(void) {
     OK(physics_angular_acceleration_set(e,0));
     OK(physics_angular_impulse_apply(e,PI_F));
     CHECK(near(angular_velocities[i],90));
-    OK(system_physics_update(1));
+    CHECK((system_physics_update(1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(orientations[i],90));
     CHECK(point(math_vector_rotate((Vec2D){0,1},orientations[i]),(Vec2D){1,0}));
     OK(entity_delete(e));
@@ -127,7 +127,7 @@ static bool physics_check(void) {
     EntityResult bottom=physics_soft_body_node_create(soft.result.value,(Position){0,-2},1,0.1f);
     OK(top); OK(bottom);
     OK(physics_soft_body_torque_apply(soft.result.value,8));
-    OK(system_physics_update(0.1));
+    CHECK((system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(velocities[rohr_entity_index_get(top.result.value).result.value].x > 0);
     CHECK(velocities[rohr_entity_index_get(bottom.result.value).result.value].x < 0);
     OK(entity_delete(soft.result.value));

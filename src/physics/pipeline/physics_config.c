@@ -5,6 +5,7 @@
 #include "physics.h"
 
 #include "systems.h"
+#include "physics/physics_step_internal.h"
 
 #include <math.h>
 
@@ -56,12 +57,20 @@ uint32_t physics_substeps_get(void) {
     return physics_substeps;
 }
 
-EngineResult physics_update(Tick ticks) {
-    if(ticks == 0) return error_result_value(true);
+Report physics_update(Tick ticks) {
+    if(ticks == 0) {
+        Report report = physics_report_create(ROHR_PHYSICS_REPORT);
+        report.header.status = ROHR_REPORT_NOT_RUN;
+        return report;
+    }
     return system_physics_update(physics_dt_per_tick_get() * (Time)ticks);
 }
 
-EngineResult physics_dt_update(Time dt) {
-    if(dt <= 0.0) return error_result_value(true);
+Report physics_dt_update(Time dt) {
+    if(isfinite(dt) && dt <= 0.0) {
+        Report report = physics_report_create(ROHR_PHYSICS_REPORT);
+        report.header.status = ROHR_REPORT_NOT_RUN;
+        return report;
+    }
     return system_physics_update(dt);
 }

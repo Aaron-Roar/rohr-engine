@@ -68,6 +68,22 @@ int main(void) {
             goto fail;
     }
 
+    {
+        EntityIndexResult index = rohr_entity_index_get(entity);
+        if(rohr_error_check(index)) goto fail;
+        HitboxAnimationBinding *binding = &hitbox_animation_bindings_pool.objects[index.result.value].values[0];
+        HitboxId valid_id = binding->hitbox_id;
+        binding->hitbox_id = UINT32_MAX; /* Inject an unexpected runtime-stale binding. */
+        Report report = rohr_system_physics_update(0);
+        binding->hitbox_id = valid_id;
+        active = rohr_physics_hitbox_active_index_get(entity);
+        if(report.header.status != ROHR_REPORT_COMPLETE || report.diagnostic_count != 1 ||
+                report.diagnostics[0].internal_stage != ROHR_PHYSICS_PREPARATION ||
+                report.diagnostics[0].has_substep || report.diagnostics[0].source.id != entity ||
+                report.diagnostics[0].severity != ROHR_REPORT_SEVERITY_WARNING ||
+                rohr_error_check(active) || active.result.value != 0) goto fail;
+    }
+
     rohr_physics_hitbox_animation_bindings_update();
     active = rohr_physics_hitbox_active_index_get(entity);
     if(rohr_error_check(active) || active.result.value != 1) goto fail;

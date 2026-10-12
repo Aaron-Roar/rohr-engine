@@ -595,7 +595,7 @@ int main(void) {
                 if(!result_ok(wheel_drive_apply(
                             wheels[0].disk, torque_axis))) goto fail;
             }
-            if(rohr_error_check(rohr_physics_update(ticks))) goto fail;
+            if(((rohr_physics_update(ticks)).header.status == ROHR_REPORT_FAILED)) goto fail;
             if(!collision_zoom_started) {
                 for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
                     if(!rohr_physics_contact_check(chassis, particles[i])) continue;

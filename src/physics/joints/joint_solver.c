@@ -9,6 +9,17 @@
 #include "math2d.h"
 #include <math.h>
 
+static void system_broken_joint_remove(EntityIndex index, Entity target,
+        EngineError code, Report *report) {
+    Entity source = 0;
+    (void)physics_step_entity_from_index_get(index, &source);
+    physics_report_issue_add(report, ROHR_PHYSICS_JOINT_TARGET, ROHR_REPORT_SEVERITY_WARNING,
+        code, ROHR_REPORT_CONTRIBUTION_SKIPPED, source, target,
+        "joint endpoint or anchor unavailable; broken joint removed");
+    physics_report_counter_add(report, ROHR_REPORT_SKIPPED_COUNT, 1);
+    physics_step_entity_by_index_delete(index);
+}
+
 static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
     EntityIndex index;
 
@@ -81,7 +92,7 @@ static void system_joint_torque_for_one_tick_add(Entity target, Torque torque) {
     //);
 }
 
-static void system_joint_force_at_point_for_one_tick_add(Entity target, Position world_point, Force force) {
+static void system_joint_force_at_point_for_one_tick_add(Entity target, Position world_point, Force force, Report *report, Entity source) {
     EntityIndex target_index;
 
     if(!entity_index_get(target, &target_index) || !entity_index_alive_check(target_index)) {
@@ -93,6 +104,12 @@ static void system_joint_force_at_point_for_one_tick_add(Entity target, Position
     }
 
     EntityResult force_result = physics_force_create(target, force);
+    if(force_result.kind == ERROR_RESULT_ERROR) {
+        physics_report_issue_add(report, ROHR_PHYSICS_CONSTRAINT_RESPONSE, ROHR_REPORT_SEVERITY_FATAL,
+            force_result.result.error, ROHR_REPORT_UPDATE_ABORTED, source, target,
+            "could not create joint force contribution");
+        return;
+    }
 
     if(force_result.kind == ERROR_RESULT_VALUE) {
         entity_life_time_set(force_result.result.value, 0.0, engine_tick_get() + 1);
@@ -106,6 +123,12 @@ static void system_joint_force_at_point_for_one_tick_add(Entity target, Position
     Torque torque = -math_cross_2d(r, force);
 
     EntityResult torque_result = physics_torque_create(target, torque);
+    if(torque_result.kind == ERROR_RESULT_ERROR) {
+        physics_report_issue_add(report, ROHR_PHYSICS_CONSTRAINT_RESPONSE, ROHR_REPORT_SEVERITY_FATAL,
+            torque_result.result.error, ROHR_REPORT_UPDATE_ABORTED, source, target,
+            "could not create joint torque contribution; force already applied");
+        return;
+    }
 
     if(torque_result.kind == ERROR_RESULT_VALUE) {
         entity_life_time_set(torque_result.result.value, 0.0, engine_tick_get() + 1);
@@ -153,7 +176,7 @@ static void system_rigid_anchor_axis_solve(
     angular_velocities[b] += math_radians_to_degrees(lever_b * velocity_impulse * inverse_inertia_b);
 }
 
-static void system_pin_joint_apply(Entity joint_entity) {
+static void system_pin_joint_apply(Entity joint_entity, Report *report) {
     Joint joint = joints[joint_entity];
 
     Entity a = joint.a;
@@ -162,7 +185,9 @@ static void system_pin_joint_apply(Entity joint_entity) {
     EntityIndex b_index;
 
     if(!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index) || !entity_index_get(b, &b_index) || !entity_index_alive_check(b_index)) {
-        physics_step_entity_by_index_delete(joint_entity);
+        system_broken_joint_remove(joint_entity,
+            (!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index)) ? a : b,
+            ERROR_ENGINE_INVALID_ENTITY, report);
         return;
     }
 
@@ -175,7 +200,10 @@ static void system_pin_joint_apply(Entity joint_entity) {
         JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
         JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
         if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
-            physics_step_entity_by_index_delete(joint_entity);
+            system_broken_joint_remove(joint_entity,
+                anchor_a.kind == ERROR_RESULT_ERROR ? a : b,
+                anchor_a.kind == ERROR_RESULT_ERROR ? anchor_a.result.error : anchor_b.result.error,
+                report);
             return;
         }
         world_anchor_a = anchor_a.result.value;
@@ -222,20 +250,15 @@ static void system_pin_joint_apply(Entity joint_entity) {
         .y = -force_on_a.y
     };
 
-    system_joint_force_at_point_for_one_tick_add(
-        a,
-        world_anchor_a,
-        force_on_a
-    );
+    Entity source = 0;
+    (void)physics_step_entity_from_index_get(joint_entity, &source);
+    system_joint_force_at_point_for_one_tick_add(a, world_anchor_a, force_on_a, report, source);
+    if(report != NULL && report->has_fatal) return;
 
-    system_joint_force_at_point_for_one_tick_add(
-        b,
-        world_anchor_b,
-        force_on_b
-    );
+    system_joint_force_at_point_for_one_tick_add(b, world_anchor_b, force_on_b, report, source);
 }
 
-static void system_weld_joint_apply(Entity joint_entity) {
+static void system_weld_joint_apply(Entity joint_entity, Report *report) {
     Joint joint = joints[joint_entity];
     EntityIndex a_index;
     EntityIndex b_index;
@@ -245,7 +268,8 @@ static void system_weld_joint_apply(Entity joint_entity) {
     float angle_error;
     float angular_velocity_error;
 
-    system_pin_joint_apply(joint_entity);
+    system_pin_joint_apply(joint_entity, report);
+    if(report != NULL && report->has_fatal) return;
     if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
             !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return;
     inverse_inertia_a = physics_inverse_inertia_by_index_get(a_index);
@@ -260,7 +284,7 @@ static void system_weld_joint_apply(Entity joint_entity) {
     angular_velocities[b_index] -= angular_velocity_error * inverse_inertia_b / inverse_inertia_sum;
 }
 
-static void system_spring_joint_apply(Entity joint_entity) {
+static void system_spring_joint_apply(Entity joint_entity, Report *report) {
         Joint joint = joints[joint_entity];
         if(joint.type != JOINT_SPRING) {
             return;
@@ -272,7 +296,9 @@ static void system_spring_joint_apply(Entity joint_entity) {
         EntityIndex b_index;
 
         if(!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index) || !entity_index_get(b, &b_index) || !entity_index_alive_check(b_index)) {
-            physics_step_entity_by_index_delete(joint_entity);
+            system_broken_joint_remove(joint_entity,
+                (!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index)) ? a : b,
+                ERROR_ENGINE_INVALID_ENTITY, report);
             return;
         }
 
@@ -284,7 +310,10 @@ static void system_spring_joint_apply(Entity joint_entity) {
             JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
             JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
             if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
-                physics_step_entity_by_index_delete(joint_entity);
+                system_broken_joint_remove(joint_entity,
+                    anchor_a.kind == ERROR_RESULT_ERROR ? a : b,
+                    anchor_a.kind == ERROR_RESULT_ERROR ? anchor_a.result.error : anchor_b.result.error,
+                    report);
                 return;
             }
             world_anchor_a = anchor_a.result.value;
@@ -362,16 +391,16 @@ static void system_spring_joint_apply(Entity joint_entity) {
         system_joint_torque_for_one_tick_add(b, torque_on_b);
 
 }
-static void system_joint_spring_forces_apply(void) {
+static void system_joint_spring_forces_apply(Report *report) {
     for(Entity joint_entity = 0; joint_entity < MAX_ENTITIES; joint_entity += 1) {
         if(!entity_index_alive_check(joint_entity) ||
                 !entity_index_components_check(joint_entity, ROHR_JOINT) ||
                 joints[joint_entity].type != JOINT_SPRING) continue;
-        system_spring_joint_apply(joint_entity);
+        system_spring_joint_apply(joint_entity, report);
     }
 }
 
-static void physics_step_joint_constraints_gather(void) {
+static void physics_step_joint_constraints_gather(Report *report) {
     joint_constraint_list_clear(&physics_step_joint_constraints);
     for(EntityIndex joint_entity = 0;
             joint_entity < joints_pool.capacity;
@@ -381,37 +410,44 @@ static void physics_step_joint_constraints_gather(void) {
                 !entity_index_components_check(joint_entity, ROHR_JOINT)) continue;
         if(joints[joint_entity].type == JOINT_PIN ||
                 joints[joint_entity].type == JOINT_WELD) {
-            (void)joint_constraint_list_append(
-                &physics_step_joint_constraints,
-                joint_entity);
+            Entity source = 0;
+            (void)physics_step_entity_from_index_get(joint_entity, &source);
+            physics_report_counter_add(report, ROHR_REPORT_PROCESSED_COUNT, 1);
+            if(!joint_constraint_list_append(&physics_step_joint_constraints, joint_entity)) {
+                physics_report_issue_add(report, ROHR_PHYSICS_JOINT_GATHER, ROHR_REPORT_SEVERITY_FATAL,
+                    ERROR_MEMORY_POOL_ALLOCATION_FAILED, ROHR_REPORT_UPDATE_ABORTED,
+                    source, 0, "could not allocate joint constraint");
+                return;
+            }
         }
     }
 }
 
-static void physics_step_joint_constraints_apply(void) {
+static void physics_step_joint_constraints_apply(Report *report) {
     for(size_t i = 0; i < physics_step_joint_constraints.count; i += 1) {
         EntityIndex joint_entity = physics_step_joint_constraints.values[i];
+        if(report != NULL && report->has_fatal) return;
 
         if(!entity_index_alive_check(joint_entity) ||
                 !entity_index_components_check(joint_entity, ROHR_JOINT)) continue;
         if(joints[joint_entity].type == JOINT_PIN) {
-            system_pin_joint_apply(joint_entity);
+            system_pin_joint_apply(joint_entity, report);
         } else if(joints[joint_entity].type == JOINT_WELD) {
-            system_weld_joint_apply(joint_entity);
+            system_weld_joint_apply(joint_entity, report);
         }
     }
 }
 
-void physics_joint_spring_forces_apply(void) {
-    system_joint_spring_forces_apply();
+void physics_joint_spring_forces_apply(Report *report) {
+    system_joint_spring_forces_apply(report);
 }
 
-void physics_joint_constraints_gather(void) {
-    physics_step_joint_constraints_gather();
+void physics_joint_constraints_gather(Report *report) {
+    physics_step_joint_constraints_gather(report);
 }
 
-void physics_joint_constraints_solve(void) {
-    physics_step_joint_constraints_apply();
+void physics_joint_constraints_solve(Report *report) {
+    physics_step_joint_constraints_apply(report);
     for(size_t i = 0; i < physics_step_joint_constraints.count; i += 1) {
         EntityIndex joint_entity = physics_step_joint_constraints.values[i];
         EntityIndex index;

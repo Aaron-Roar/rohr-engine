@@ -92,7 +92,7 @@ int main(void) {
     {
         EntityResult runaway = rohr_entity_add();
         PositionResult position;
-        PhysicsUpdateReport report;
+        Report report;
         if(!rohr_physics_world_position_check((Position){
                     ROHR_WORLD_COORDINATE_MAX, -ROHR_WORLD_COORDINATE_MAX}) ||
                 rohr_physics_world_position_check((Position){
@@ -113,18 +113,17 @@ int main(void) {
                     (Position){ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f})) ||
                 !rohr_error_check(rohr_physics_acceleration_toward_position_set(
                     runaway.result.value, 1.0f, (Position){NAN, 0.0f})) ||
-                !rohr_error_check(rohr_physics_pipeline_update(0.2))) {
+                (report = rohr_physics_pipeline_update(0.2)).header.status != ROHR_REPORT_FAILED) {
             rohr_engine_stop();
             return 1;
         }
-        report = rohr_physics_update_report_get();
         position = rohr_physics_position_get(runaway.result.value);
         if(rohr_error_check(position) ||
                 position.result.value.x != ROHR_WORLD_COORDINATE_MAX ||
                 !rohr_entity_components_check(runaway.result.value, ROHR_HOLD) ||
                 rohr_entity_components_check(runaway.result.value, ROHR_HIT_BOX) ||
-                report.quarantined_entity_count != 1 ||
-                report.simulated_entity_count == 0 || report.total_ms < 0.0 ||
+                !report.has_fatal || report.first_fatal.source.id != runaway.result.value ||
+                report.first_fatal.code != ERROR_ENGINE_POSITION_OUT_OF_RANGE || report.header.total_ms < 0.0 ||
                 rohr_error_check(rohr_entity_delete(runaway.result.value))) {
             rohr_engine_stop();
             return 1;

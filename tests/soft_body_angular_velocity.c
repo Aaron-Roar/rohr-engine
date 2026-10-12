@@ -109,7 +109,7 @@ static void simulation_check(void) {
     OK(AngularVelocityPool_store_at(&angular_velocities_pool, index, 720));
     OK(rohr_physics_angular_acceleration_set(body, 100));
     rohr_physics_substeps_set(1);
-    OK(rohr_physics_pipeline_update(.1));
+    assert((rohr_physics_pipeline_update(.1)).header.status != ROHR_REPORT_FAILED);
     near(orientations[index], 23, 1e-6);
     PositionResult pa = rohr_physics_position_get(a), pb = rohr_physics_position_get(b);
     OK(pa); OK(pb);
@@ -118,7 +118,7 @@ static void simulation_check(void) {
     double dy = pb.result.value.y - pa.result.value.y;
     assert(hypot(dx, dy) > 20);
     near(rate_get(body), rohr_math_radians_to_degrees(1.0f / 1.01f), 1e-3);
-    OK(rohr_physics_pipeline_update(.1));
+    assert((rohr_physics_pipeline_update(.1)).header.status != ROHR_REPORT_FAILED);
     assert(velocity_get(a).x > 0 && velocity_get(b).x < 0);
     near(orientations[index], 23, 1e-6);
     OK(rohr_physics_orientation_set(body, 113));

@@ -252,7 +252,7 @@ int main(void) {
         }
 
         //physics
-        if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
+        if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
 
         rohr_graphics_show();
 

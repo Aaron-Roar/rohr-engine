@@ -146,7 +146,7 @@ int main(void) {
         //physics
         Tick ticks_advanced = rohr_system_tick_update();
         Time tick_time = rohr_engine_time_per_tick_get() * (Time)ticks_advanced;
-        if(rohr_error_check(rohr_physics_update(ticks_advanced))) goto fail;
+        if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
 
         rohr_graphics_show();
 
