@@ -21,11 +21,11 @@ static void finish(const EditorCommand *command, const EditorCommandResult *resu
 #define OK(expr) assert(!editor_result_check(expr))
 static void frame(EditorCollisionControls *ui, EditorProject *project, EditorHistory *history,
         EditorSelectionRef *refs, size_t count, Position pointer, MouseButtonState button, float shift) {
-    rohr_ui_frame_begin((UIInput){pointer,button});
+    rohr_ui_input_set((UIInput){pointer,button});
     rohr_ui_clip_begin((UIRect){0,0,400,720});
     rohr_ui_translation_y_push(shift);
     (void)editor_collision_controls_draw(ui, "test.collision", project, history, refs, count, 10,40,350,true);
-    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_frame_end();
+    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_update();
 }
 static void click(EditorCollisionControls *ui, EditorProject *project, EditorHistory *history,
         EditorSelectionRef *refs, size_t count, Position pointer, float shift) {
@@ -152,23 +152,23 @@ int main(void) {
         panels[p]->open[0] = panels[p]->open[1] = true;
         rb.collision_section.expanded = pe.collision_section.expanded =
             node.collision_section.expanded = true;
-        rohr_ui_frame_begin((UIInput){0});
+        rohr_ui_input_set((UIInput){0});
         EditorModeContext context = {.project=&project,.history=&history,.viewport=&state,.width=400};
         if(p == 0) (void)editor_rigid_body_editor_draw(&rb,&context);
         if(p == 1) (void)editor_particle_editor_draw(&pe,&context);
         if(p == 2) (void)editor_soft_node_editor_draw(&node,&context);
         if(p == 3) (void)editor_soft_beam_editor_draw(&beam,&context);
         if(p == 4) (void)editor_bulk_panel_draw(&bulk,&project,&state,&history,NULL,0,400,650,NULL,NULL);
-        rohr_ui_frame_end();
+        rohr_ui_update();
         layout_check(panels[p]);
         if(p == 4) {
             size_t prior_undo = history.undo_count;
             Position pointer = {50, panels[p]->header_bounds[0].y - 22};
             MouseButtonState buttons[] = {MOUSE_BUTTON_STATE_PRESSED, MOUSE_BUTTON_STATE_RELEASED};
             for(size_t i = 0; i < 2; i += 1) {
-                rohr_ui_frame_begin((UIInput){pointer,buttons[i]});
+                rohr_ui_input_set((UIInput){pointer,buttons[i]});
                 (void)editor_bulk_panel_draw(&bulk,&project,&state,&history,NULL,0,400,650,NULL,NULL);
-                rohr_ui_frame_end();
+                rohr_ui_update();
             }
             assert(history.undo_count == prior_undo + 1);
             assert(editor_collision_values_get(&project,state.selected_items,2,&values) && values.enabled_all);

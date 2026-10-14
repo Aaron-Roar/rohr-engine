@@ -22,12 +22,12 @@ static void finish(const EditorCommand *command, const EditorCommandResult *resu
 }
 static void panel(EditorSoftBeamEditor *ui, EditorModeContext *context,
         Position pointer, MouseButtonState button, float shift) {
-    rohr_ui_frame_begin((UIInput){pointer, button});
+    rohr_ui_input_set((UIInput){pointer, button});
     rohr_ui_clip_begin((UIRect){0, 0, 400, 720});
     rohr_ui_translation_y_push(shift);
     editor_mode_accordion_layout_measure_reset();
     (void)editor_soft_beam_editor_draw(ui, context);
-    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_frame_end();
+    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_update();
 }
 static void click(EditorSoftBeamEditor *ui, EditorModeContext *context, Position pointer) {
     panel(ui, context, pointer, MOUSE_BUTTON_STATE_PRESSED, 0);
@@ -177,9 +177,9 @@ int main(int argc, char **argv) {
         assert(editor_viewport_selection_set(&project, &state, selection, true));
     }
     EditorBulkPanel bulk; assert(editor_bulk_panel_create(&bulk, &font));
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     (void)editor_bulk_panel_draw(&bulk, &project, &state, &history, NULL, 0, 400, 700, NULL, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     assert(bulk.property_count == 6);
     EditorPropertySetCommand property = {.property=EDITOR_PROPERTY_RESTITUTION,
         .value_kind=EDITOR_PROPERTY_VALUE_FLOAT, .value.number=1};

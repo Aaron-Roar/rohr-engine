@@ -23,7 +23,7 @@ float editor_viewport_bottom = 720.0f;
 static int picker_frame(EditorAutoShapeEditor *editor, bool *open,
         float translation, UIRect clip, Position pointer, MouseButtonState primary,
         size_t count, bool escape) {
-    rohr_ui_frame_begin((UIInput){pointer, primary});
+    rohr_ui_input_set((UIInput){pointer, primary});
     rohr_ui_clip_begin(clip);
     rohr_ui_translation_y_push(translation);
     editor_auto_shape_picker_frame_begin(editor, translation, clip);
@@ -32,7 +32,7 @@ static int picker_frame(EditorAutoShapeEditor *editor, bool *open,
     rohr_ui_translation_y_pop();
     rohr_ui_clip_end();
     editor_auto_shape_picker_frame_end(editor, pointer, primary, escape);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     return shape;
 }
 
@@ -118,7 +118,7 @@ static bool *fixture_open_get(Fixture *fixture) {
 
 static void panel_frame(Fixture *fixture, Position pointer, MouseButtonState primary) {
     UIRect clip = {0, 40, 400, 660};
-    rohr_ui_frame_begin((UIInput){pointer, primary});
+    rohr_ui_input_set((UIInput){pointer, primary});
     float scroll = rohr_ui_scroll_region_begin("panel", clip, 2000,
         fixture->scroll, 42).offset;
     rohr_ui_translation_y_push(fixture->translation);
@@ -137,7 +137,7 @@ static void panel_frame(Fixture *fixture, Position pointer, MouseButtonState pri
     rohr_ui_translation_y_pop();
     rohr_ui_scroll_region_end();
     editor_auto_shape_picker_frame_end(&fixture->shape, pointer, primary, false);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 
 static Position fixture_point_get(Fixture *fixture, size_t index) {

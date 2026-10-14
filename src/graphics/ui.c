@@ -5,11 +5,36 @@
 #include <stdint.h>
 #include <math.h>
 #include "ui.h"
+#include "core/report_internal.h"
 #include "graphics/text_assets.h"
 #include "physics.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define UI_SCOPE_MAX 64
+
+typedef enum UIReportStage {
+    UI_REPORT_SCOPE_STACK = 1,
+    UI_REPORT_SCOPE_BALANCE,
+    UI_REPORT_NAVIGATION,
+    UI_REPORT_KEY_EVENTS,
+    UI_REPORT_TEXT_EVENTS,
+    UI_REPORT_DROPDOWN,
+    UI_REPORT_SCROLL_RECORDS,
+    UI_REPORT_SCROLL_SCOPES,
+    UI_REPORT_TRANSLATION_SCOPES
+} UIReportStage;
+
+typedef enum UIScopeKind {
+    UI_SCOPE_CLIP, UI_SCOPE_SCROLL, UI_SCOPE_TRANSLATION, UI_SCOPE_MODAL
+} UIScopeKind;
+
+typedef struct UIScope {
+    UIScopeKind kind;
+    bool clipped;
+    bool modal_controls;
+} UIScope;
 
 #define UI_DROPDOWN_OPTION_MAX 512
 #define UI_SCROLL_REGION_MAX 8
@@ -48,7 +73,8 @@ typedef struct UIContext {
     bool active_seen;
     bool pointer_claimed;
     bool pointer_consumed;
-    bool frame_active;
+    UIScope scopes[UI_SCOPE_MAX];
+    size_t scope_count;
     uint64_t field_id;
     bool field_seen;
     char field_edit[UI_FIELD_EDIT_MAX];
@@ -116,6 +142,36 @@ typedef struct UIContext {
 } UIContext;
 
 static UIContext ui_context = {0};
+static Report ui_report = {.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
+
+static void ui_metric(ReportMetricId metric, uint64_t value) {
+    (void)report_statistic_add(&ui_report, (ReportStatistic){ROHR_UI_REPORT, metric,
+        metric <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT ?
+            ROHR_REPORT_AGGREGATION_SUM : ROHR_REPORT_AGGREGATION_MAX, value});
+}
+
+static void ui_warning(EngineError code, UIReportStage stage, const char *detail) {
+    ReportDiagnostic diagnostic = {.report_id = ROHR_UI_REPORT, .internal_stage = stage,
+        .severity = ROHR_REPORT_SEVERITY_WARNING, .code = code,
+        .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED, .occurrence_count = 1};
+    (void)report_diagnostic_detail_set(&diagnostic, detail);
+    report_diagnostic_collect_internal(&ui_report, diagnostic);
+}
+
+static bool ui_scope_available_check(void) {
+    if(ui_context.scope_count < UI_SCOPE_MAX) return true;
+    ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_SCOPE_STACK,
+            "UI scope stack is full");
+    return false;
+}
+
+static bool ui_scope_end_check(UIScopeKind kind) {
+    if(ui_context.scope_count != 0 &&
+            ui_context.scopes[ui_context.scope_count - 1].kind == kind) return true;
+    ui_warning(ERROR_ENGINE_UI_SCOPE_UNBALANCED, UI_REPORT_SCOPE_BALANCE,
+            "Unmatched or out-of-order UI scope end");
+    return false;
+}
 
 static uint64_t ui_hash_id(const char *id) {
     uint64_t hash = UINT64_C(14695981039346656037);
@@ -196,12 +252,18 @@ static void ui_border_raw(UIRect bounds, float thickness, Color color) {
 
 static void ui_label_raw(const TextAsset *text, UIRect bounds);
 static void ui_navigation_item_register(uint64_t id, UIRect bounds) {
-    if(id == 0 || ui_context.navigation_item_count >= UI_NAVIGATION_ITEM_MAX) return;
+    if(id == 0) return;
+    if(ui_context.navigation_item_count >= UI_NAVIGATION_ITEM_MAX) {
+        ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_NAVIGATION,
+            "UI navigation entries are full");
+        return;
+    }
     ui_context.navigation_items[ui_context.navigation_item_count++] =
         (UINavigationItem){.id = id,
             .dropdown_id = ui_context.dropdown_option_interaction ?
                 ui_context.dropdown_id : 0,
             .bounds = bounds};
+    ui_metric(ROHR_REPORT_UI_NAVIGATION_ENTRIES_PEAK, ui_context.navigation_item_count);
 }
 static void ui_surface_raw(UIRect bounds, Color color) {
     (void)graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width, bounds.height, color);
@@ -241,6 +303,7 @@ static float ui_scrollbar_update(uint64_t id, UIRect bounds,
 
     if(id == 0 || bounds.width <= 0.0f || bounds.height <= 0.0f ||
             visible_amount <= 0.0f || total_amount <= visible_amount) return offset;
+    ui_metric(ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT, 1);
     handle_height = fmaxf(16.0f, bounds.height * visible_amount / total_amount);
     if(handle_height > bounds.height) handle_height = bounds.height;
     maximum = total_amount - visible_amount;
@@ -312,17 +375,23 @@ void ui_quad(Position center, float width, float height, float angle, Color colo
 
 bool ui_clip_begin(UIRect bounds) {
     bounds = ui_bounds_resolve(bounds);
-    return ui_clip_raw_begin(bounds);
+    if(!ui_scope_available_check() || !ui_clip_raw_begin(bounds)) return false;
+    ui_context.scopes[ui_context.scope_count++] = (UIScope){.kind = UI_SCOPE_CLIP,
+        .clipped = true};
+    return true;
 }
 
 void ui_clip_end(void) {
+    if(!ui_scope_end_check(UI_SCOPE_CLIP)) return;
+    ui_context.scope_count -= 1;
     graphics_screen_clip_pop();
 }
 
 static UIButtonResult ui_interaction_id(uint64_t interaction_id, bool hovered) {
     UIButtonResult result = {0};
 
-    if(!ui_context.frame_active || interaction_id == 0) return result;
+    ui_metric(ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT, 1);
+    if(interaction_id == 0) return result;
     if(ui_context.field_capture_id != 0 &&
             ui_context.field_capture_id != interaction_id) {
         ui_context.pointer_consumed = true;
@@ -373,10 +442,13 @@ static UIButtonResult ui_interaction_id(uint64_t interaction_id, bool hovered) {
 
 static UIButtonResult ui_interaction_resolved(const char *id, UIRect bounds) {
     uint64_t interaction_id = ui_hash_id(id);
-    if(ui_context.modal_active && !ui_context.modal_controls)
+    if(ui_context.modal_active && !ui_context.modal_controls) {
+        ui_metric(ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT, 1);
         return (UIButtonResult){0};
+    }
     ui_navigation_item_register(interaction_id, bounds);
     if(ui_dropdown_pointer_capture_check(interaction_id)) {
+        ui_metric(ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT, 1);
         ui_context.pointer_consumed = true;
         return (UIButtonResult){0};
     }
@@ -557,16 +629,11 @@ static bool ui_point_in_oriented_square(
             <= size * 0.5f;
 }
 
-void ui_frame_begin(UIInput input) {
+void ui_input_set(UIInput input) {
     ui_context.input = input;
     ui_context.dropdown_capture_id = ui_context.dropdown_id;
     ui_context.dropdown_capture_bounds = ui_context.dropdown_bounds;
     ui_context.dropdown_capture_option_count = ui_context.dropdown_option_count;
-    ui_context.active_seen = false;
-    ui_context.field_seen = false;
-    ui_context.dropdown_seen = false;
-    ui_context.pointer_claimed = false;
-    ui_context.pointer_consumed = false;
     if(input.primary_button == MOUSE_BUTTON_STATE_UP) {
         if(ui_context.active_id == ui_context.field_capture_id)
             ui_context.active_id = 0;
@@ -583,18 +650,9 @@ void ui_frame_begin(UIInput input) {
             ui_context.pointer_consumed = true;
         }
     }
-    ui_context.translation_y = 0.0f;
-    ui_context.scoped_translation_depth = 0;
-    ui_context.scroll_depth = 0;
-    ui_context.scroll_record_count = 0;
-    ui_context.modal_active = false;
-    ui_context.modal_controls = false;
-    ui_context.navigation_item_count = 0;
-    ui_context.frame_active = true;
 }
 
 void ui_modal_set(UIRect bounds) {
-    if(!ui_context.frame_active) return;
     if(ui_context.field_id != 0 && !ui_context.field_in_modal)
         ui_field_focus_clear();
     ui_context.modal_active = true;
@@ -602,35 +660,54 @@ void ui_modal_set(UIRect bounds) {
 }
 
 void ui_modal_controls_begin(void) {
+    if(!ui_scope_available_check()) return;
+    ui_context.scopes[ui_context.scope_count++] = (UIScope){.kind = UI_SCOPE_MODAL,
+        .modal_controls = ui_context.modal_controls};
     if(ui_context.modal_active) ui_context.modal_controls = true;
 }
 
 void ui_modal_controls_end(void) {
-    ui_context.modal_controls = false;
+    if(!ui_scope_end_check(UI_SCOPE_MODAL)) return;
+    ui_context.modal_controls = ui_context.scopes[--ui_context.scope_count].modal_controls;
 }
 
 void ui_event_add(const SDL_Event *event) {
     if(event == NULL) return;
+    if(event->type != SDL_EVENT_MOUSE_WHEEL && event->type != SDL_EVENT_TEXT_INPUT &&
+            event->type != SDL_EVENT_KEY_DOWN) return;
+    ui_metric(ROHR_REPORT_UI_EVENT_RECEIVED_COUNT, 1);
     if(event->type == SDL_EVENT_MOUSE_WHEEL) {
         ui_context.wheel_y += event->wheel.y;
         return;
     }
     if(event->type == SDL_EVENT_TEXT_INPUT) {
         size_t used = strlen(ui_context.field_text);
-        size_t added = strlen(event->text.text);
+        size_t added = event->text.text == NULL ? 0 : strlen(event->text.text);
         if(used + added < sizeof(ui_context.field_text) &&
                 ui_context.field_text_event_count < UI_FIELD_KEY_EVENT_MAX) {
             ui_context.field_text_events[ui_context.field_text_event_count++] =
                 (UIFieldTextEvent){ui_context.field_key_count, used, added};
-            memcpy(ui_context.field_text + used, event->text.text, added + 1);
+            if(added != 0) memcpy(ui_context.field_text + used, event->text.text, added);
+            ui_context.field_text[used + added] = '\0';
+            ui_metric(ROHR_REPORT_UI_TEXT_BYTES_PEAK, used + added);
+            ui_metric(ROHR_REPORT_UI_TEXT_EVENT_SLOTS_PEAK, ui_context.field_text_event_count);
+        } else {
+            ui_metric(ROHR_REPORT_UI_EVENT_DROPPED_COUNT, 1);
+            ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_TEXT_EVENTS,
+            "UI text event buffer is full");
         }
         return;
     }
-    if(event->type != SDL_EVENT_KEY_DOWN ||
-            ui_context.field_key_count >= UI_FIELD_KEY_EVENT_MAX) return;
+    if(ui_context.field_key_count >= UI_FIELD_KEY_EVENT_MAX) {
+        ui_metric(ROHR_REPORT_UI_EVENT_DROPPED_COUNT, 1);
+        ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_KEY_EVENTS,
+            "UI key event buffer is full");
+        return;
+    }
     ui_context.field_keys[ui_context.field_key_count] = event->key.key;
     ui_context.field_modifiers[ui_context.field_key_count] = event->key.mod;
     ui_context.field_key_count += 1;
+    ui_metric(ROHR_REPORT_UI_KEY_EVENT_SLOTS_PEAK, ui_context.field_key_count);
 }
 
 void ui_field_event_add(const SDL_Event *event) {
@@ -956,7 +1033,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
     UIFieldResult result = {0};
     UIButtonStyle resolved = style == NULL ? ui_button_style_default_get() : *style;
     uint64_t field_id = ui_hash_id(id);
-    if(!ui_context.frame_active || field_id == 0 || bounds.width <= 0 || bounds.height <= 0)
+    if(field_id == 0 || bounds.width <= 0 || bounds.height <= 0)
         return result;
     UIButtonResult interaction = ui_interaction(id, bounds);
     UIRect resolved_bounds = ui_bounds_resolve(bounds);
@@ -1118,7 +1195,7 @@ static UIFieldResult ui_field_draw(const char *id, UIFieldBinding binding,
         bool clipped = ui_clip_raw_begin(resolved_bounds);
         if(focused) ui_field_selection_draw(display, origin, multiline);
         (void)graphics_text_draw(display, origin);
-        if(clipped) ui_clip_end();
+        if(clipped) graphics_screen_clip_pop();
         if(focused && multiline)
             ui_scrollbar_raw(resolved_bounds, resolved_bounds.height,
                 display->size.y + 2 * UI_FIELD_PADDING, ui_context.field_scroll_y);
@@ -1165,13 +1242,17 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     UIRect resolved_bounds = ui_bounds_resolve(bounds);
     size_t visible_count;
 
-    if(!ui_context.frame_active || dropdown_id == 0 || options == NULL ||
+    if(dropdown_id == 0 || options == NULL ||
             option_count == 0 || selected_index >= option_count ||
             bounds.width <= 0.0f || bounds.height <= 0.0f) return result;
     visible_count = config.visible_row_limit == 0 ||
             config.visible_row_limit > option_count ?
         option_count : config.visible_row_limit;
-    if(visible_count > UI_DROPDOWN_OPTION_MAX) return result;
+    if(visible_count > UI_DROPDOWN_OPTION_MAX) {
+        ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_DROPDOWN,
+            "UI dropdown visible options exceed capacity");
+        return result;
+    }
     button = ui_button(id, label, bounds, style);
     ui_border_raw(resolved_bounds, 2.0f, (Color){0, 0, 0, 255});
     result.button_hovered = button.hovered;
@@ -1318,9 +1399,14 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     uint64_t wheel_target = 0;
     size_t target_depth = 0;
     bool dropdown_over_pointer = false;
-    if(!ui_context.frame_active || scroll_id == 0 || bounds.width <= 0.0f ||
-            bounds.height <= 0.0f || content_height < 0.0f || wheel_step <= 0.0f ||
-            ui_context.scroll_depth >= UI_SCROLL_REGION_MAX) return result;
+    if(scroll_id == 0 || bounds.width <= 0.0f ||
+            bounds.height <= 0.0f || content_height < 0.0f || wheel_step <= 0.0f) return result;
+    if(ui_context.scroll_depth >= UI_SCROLL_REGION_MAX) {
+        ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_SCROLL_SCOPES,
+            "UI scroll scope stack is full");
+        return result;
+    }
+    if(!ui_scope_available_check()) return result;
     resolved_bounds = ui_bounds_resolve(bounds);
     for(size_t i = 0; i < ui_context.scroll_previous_count; i += 1) {
         const UIScrollRecord *record = &ui_context.scroll_previous[i];
@@ -1342,6 +1428,9 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     if(ui_context.scroll_record_count < UI_SCROLL_RECORD_MAX)
         ui_context.scroll_records[ui_context.scroll_record_count++] =
             (UIScrollRecord){scroll_id, resolved_bounds, ui_context.scroll_depth};
+    else ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_SCROLL_RECORDS,
+            "UI scroll records are full");
+    ui_metric(ROHR_REPORT_UI_SCROLL_RECORDS_PEAK, ui_context.scroll_record_count);
     result.hovered = ui_point_in_rect(ui_context.input.pointer, resolved_bounds) &&
         ui_point_in_scroll_clip(ui_context.input.pointer);
     maximum = fmaxf(0.0f, content_height - bounds.height);
@@ -1366,7 +1455,9 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
     ui_context.scroll_content_stack[ui_context.scroll_depth] = content_height;
     ui_context.scroll_depth += 1;
     ui_context.translation_y -= result.offset;
-    (void)ui_clip_raw_begin(resolved_bounds);
+    ui_context.scopes[ui_context.scope_count++] = (UIScope){.kind = UI_SCOPE_SCROLL,
+        .clipped = ui_clip_raw_begin(resolved_bounds)};
+    ui_metric(ROHR_REPORT_UI_SCROLL_SCOPE_DEPTH_PEAK, ui_context.scroll_depth);
     return result;
 }
 
@@ -1375,29 +1466,35 @@ void ui_scroll_region_end(void) {
     float offset;
     float content_height;
 
-    if(!ui_context.frame_active || ui_context.scroll_depth == 0) return;
+    if(!ui_scope_end_check(UI_SCOPE_SCROLL)) return;
     ui_context.scroll_depth -= 1;
     bounds = ui_context.scroll_clip_stack[ui_context.scroll_depth];
     offset = ui_context.scroll_offset_stack[ui_context.scroll_depth];
     content_height = ui_context.scroll_content_stack[ui_context.scroll_depth];
     ui_context.translation_y = ui_context.translation_stack[ui_context.scroll_depth];
-    ui_clip_end();
+    if(ui_context.scopes[--ui_context.scope_count].clipped) graphics_screen_clip_pop();
     if(content_height > bounds.height) {
         ui_scrollbar_raw(bounds, bounds.height, content_height, offset);
     }
 }
 
 void ui_translation_y_push(float offset) {
-    if(!ui_context.frame_active ||
-            ui_context.scoped_translation_depth >= UI_TRANSLATION_STACK_MAX)
+    if(ui_context.scoped_translation_depth >= UI_TRANSLATION_STACK_MAX) {
+        ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_TRANSLATION_SCOPES,
+            "UI translation scope stack is full");
         return;
+    }
+    if(!ui_scope_available_check()) return;
+    ui_context.scopes[ui_context.scope_count++] = (UIScope){.kind = UI_SCOPE_TRANSLATION};
     ui_context.scoped_translation_stack[ui_context.scoped_translation_depth++] =
         ui_context.translation_y;
     ui_context.translation_y += offset;
+    ui_metric(ROHR_REPORT_UI_TRANSLATION_SCOPE_DEPTH_PEAK, ui_context.scoped_translation_depth);
 }
 
 void ui_translation_y_pop(void) {
-    if(!ui_context.frame_active || ui_context.scoped_translation_depth == 0) return;
+    if(!ui_scope_end_check(UI_SCOPE_TRANSLATION)) return;
+    ui_context.scope_count -= 1;
     ui_context.scoped_translation_depth -= 1;
     ui_context.translation_y =
         ui_context.scoped_translation_stack[ui_context.scoped_translation_depth];
@@ -1426,7 +1523,7 @@ UISliderResult ui_slider_with_text(
 
     resolved.center.y += ui_context.translation_y;
 
-    if(!ui_context.frame_active || slider_id == 0
+    if(slider_id == 0
             || !isfinite(value) || !isfinite(resolved.length)
             || !isfinite(resolved.angle) || !isfinite(resolved.min_value)
             || !isfinite(resolved.max_value) || !isfinite(resolved.step)
@@ -1603,7 +1700,7 @@ static void ui_label_raw(const TextAsset *text, UIRect bounds) {
     };
     clipped = ui_clip_raw_begin(bounds);
     (void)graphics_text_draw(text, position);
-    if(clipped) ui_clip_end();
+    if(clipped) graphics_screen_clip_pop();
 }
 
 void ui_label(const TextAsset *text, UIRect bounds) {
@@ -1620,9 +1717,19 @@ bool ui_pointer_consumed_get(void) {
     return ui_context.pointer_consumed;
 }
 
-void ui_frame_end(void) {
-    if(!ui_context.frame_active) {
-        return;
+Report ui_update(void) {
+    Uint64 started = SDL_GetPerformanceCounter();
+    /* Recover only our scopes, in reverse order, before drawing overlays. */
+    while(ui_context.scope_count != 0) {
+        UIScopeKind kind = ui_context.scopes[ui_context.scope_count - 1].kind;
+        ui_warning(ERROR_ENGINE_UI_SCOPE_UNBALANCED, UI_REPORT_SCOPE_BALANCE,
+            "Unclosed UI scope recovered at update");
+        switch(kind) {
+            case UI_SCOPE_CLIP: ui_clip_end(); break;
+            case UI_SCOPE_SCROLL: ui_scroll_region_end(); break;
+            case UI_SCOPE_TRANSLATION: ui_translation_y_pop(); break;
+            case UI_SCOPE_MODAL: ui_modal_controls_end(); break;
+        }
     }
     if(ui_context.dropdown_id != 0 &&
             ui_context.dropdown_render_id == ui_context.dropdown_id) {
@@ -1707,7 +1814,29 @@ void ui_frame_end(void) {
     ui_context.field_text[0] = '\0';
     ui_context.field_text_event_count = 0;
     ui_context.wheel_y = 0.0f;
-    ui_context.frame_active = false;
+    ui_context.input = (UIInput){0};
+    ui_context.active_seen = false;
+    ui_context.field_seen = false;
+    ui_context.dropdown_seen = false;
+    ui_context.pointer_claimed = false;
+    ui_context.pointer_consumed = false;
+    ui_context.dropdown_render_id = 0;
+    ui_context.dropdown_capture_id = ui_context.dropdown_id;
+    ui_context.dropdown_capture_bounds = ui_context.dropdown_bounds;
+    ui_context.dropdown_capture_option_count = ui_context.dropdown_option_count;
+    ui_context.translation_y = 0.0f;
+    ui_context.scoped_translation_depth = 0;
+    ui_context.scroll_depth = 0;
+    ui_context.scroll_record_count = 0;
+    ui_context.modal_active = false;
+    ui_context.modal_controls = false;
+    ui_context.navigation_item_count = 0;
+
+    ui_report.header.total_ms = (double)(SDL_GetPerformanceCounter() - started) *
+        1000.0 / (double)SDL_GetPerformanceFrequency();
+    Report result = ui_report;
+    ui_report = (Report){.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
+    return result;
 }
 
 void ui_radians_quad(Position center, float width, float height, float angle, Color color) {

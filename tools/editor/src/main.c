@@ -2820,7 +2820,7 @@ int main(int argc, char **argv) {
             EDITOR_VIEWPORT_WIDTH, 0.0f, EDITOR_TOOLS_WIDTH, EDITOR_WINDOW_HEIGHT);
         bool ui_history_capturing = workspace.open &&
             editor_history_ui_change_begin(&history);
-        rohr_ui_frame_begin((UIInput){
+        rohr_ui_input_set((UIInput){
             .pointer = rohr_graphics_mouse_screen_position_get(),
             .primary_button = pointer_state.button_states[MOUSE_BUTTON_LEFT]
         });
@@ -4556,7 +4556,7 @@ int main(int argc, char **argv) {
             viewport_state.dragged_viewport_vertex ||
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
-        rohr_ui_frame_end();
+        rohr_ui_update();
         if(!file_browser.active) {
             (void)rohr_graphics_screen_rect_draw(
                 EDITOR_VIEWPORT_WIDTH - 1.0f, EDITOR_MENU_HEIGHT, 3.0f,

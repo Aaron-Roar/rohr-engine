@@ -875,7 +875,7 @@ uint32_t rohr_tools_sizeof_string(char *str, char delimiter) { return tool_sizeo
 int rohr_tools_random_range(int min, int max) { return tools_random_range(min, max); }
 float rohr_tools_random_range_float(float min, float max) { return tools_random_range_float(min, max); }
 
-void rohr_ui_frame_begin(UIInput input) { ui_frame_begin(input); }
+void rohr_ui_input_set(UIInput input) { ui_input_set(input); }
 void rohr_ui_modal_set(UIRect bounds) { ui_modal_set(bounds); }
 void rohr_ui_modal_controls_begin(void) { ui_modal_controls_begin(); }
 void rohr_ui_modal_controls_end(void) { ui_modal_controls_end(); }
@@ -908,7 +908,7 @@ bool rohr_ui_navigation_focus_bounds_get(UIRect *bounds) { return ui_navigation_
 void rohr_ui_label(const TextAsset *text, UIRect bounds) { ui_label(text, bounds); }
 void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style) { ui_button_disabled(bounds, style); }
 bool rohr_ui_pointer_consumed_get(void) { return ui_pointer_consumed_get(); }
-void rohr_ui_frame_end(void) { ui_frame_end(); }
+Report rohr_ui_update(void) { return ui_update(); }
 UIButtonStyle rohr_ui_button_style_default_get(void) { return ui_button_style_default_get(); }
 UISliderConfig rohr_ui_slider_config_default_get(void) { return ui_slider_config_default_get(); }
 UISliderResult rohr_ui_slider(const char *id, float value, const UISliderConfig *config) { return ui_slider(id, value, config); }

@@ -58,6 +58,12 @@ static bool report_statistic_check(ReportStatistic value) {
             value.metric_id == ROHR_REPORT_AUDIO_FRAMES_COUNT ||
             value.metric_id == ROHR_REPORT_CANCELLED_COMMAND_COUNT)
         expected = ROHR_REPORT_AGGREGATION_SUM;
+    else if(value.metric_id >= ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT &&
+            value.metric_id <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT)
+        expected = ROHR_REPORT_AGGREGATION_SUM;
+    else if(value.metric_id >= ROHR_REPORT_UI_NAVIGATION_ENTRIES_PEAK &&
+            value.metric_id <= ROHR_REPORT_UI_TRANSLATION_SCOPE_DEPTH_PEAK)
+        expected = ROHR_REPORT_AGGREGATION_MAX;
     else return false;
     return value.aggregation == expected;
 }
@@ -70,7 +76,7 @@ static bool report_diagnostic_check(const ReportDiagnostic *value) {
     return report_id_check(value->report_id) &&
         (value->severity == ROHR_REPORT_SEVERITY_WARNING ||
          value->severity == ROHR_REPORT_SEVERITY_FATAL) &&
-        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED &&
+        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_UI_SCOPE_UNBALANCED &&
         value->recovery >= ROHR_REPORT_RECOVERY_NONE &&
         value->recovery <= ROHR_REPORT_UPDATE_ABORTED &&
         report_object_check(value->source) && report_object_check(value->target) &&

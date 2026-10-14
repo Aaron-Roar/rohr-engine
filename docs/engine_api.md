@@ -5215,13 +5215,13 @@ EngineResult rohr_camera_detach(CameraId camera);
 
  Detaches a camera while preserving its resolved transform.
 
-### `rohr_ui_frame_begin`
+### `rohr_ui_input_set`
 
 ```c
-void rohr_ui_frame_begin(UIInput input);
+void rohr_ui_input_set(UIInput input);
 ```
 
- @brief Starts a UI frame with logical screen-space pointer input.
+ @brief Replaces logical screen-space input without resetting widgets or events.
 
 ### `rohr_ui_component_bounds_get`
 
@@ -5429,15 +5429,19 @@ void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style);
 bool rohr_ui_pointer_consumed_get(void);
 ```
 
- @brief Returns whether UI consumed pointer input during this frame.
+ Return current pointer consumption; read before rohr_ui_update().
 
-### `rohr_ui_frame_end`
+### `rohr_ui_update`
 
 ```c
-void rohr_ui_frame_end(void);
+Report rohr_ui_update(void);
 ```
 
- @brief Finishes the current UI frame.
+ Finalize overlays/focus and return one owned ROHR_UI_REPORT, then clear
+
+transient input and registration. Empty frames return COMPLETE. Timing covers
+
+only this call, excluding earlier widget execution and application time.
 
 ### `rohr_ui_button_style_default_get`
 

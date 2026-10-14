@@ -52,6 +52,15 @@ int main(void) {
     Report final_audio = rohr_audio_update();
     if(!rohr_report_valid_check(&stopped) || memcmp(&stopped, &final_audio, sizeof(stopped)) != 0 ||
             rohr_audio_update().header.status != ROHR_REPORT_NOT_RUN) return 1;
+    rohr_ui_input_set((UIInput){0});
+    (void)rohr_ui_interaction("sdk-ui", (UIRect){0, 0, 30, 30});
+    Report ui = rohr_ui_update();
+    if(!rohr_report_valid_check(&ui) || ui.header.id != ROHR_UI_REPORT ||
+            ui.header.status != ROHR_REPORT_COMPLETE || ui.entry_count != 0) return 1;
+    ui_input_set((UIInput){0});
+    Report direct_ui = ui_update();
+    if(!report_valid_check(&direct_ui) || direct_ui.header.id != ROHR_UI_REPORT ||
+            direct_ui.header.status != ROHR_REPORT_COMPLETE) return 1;
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

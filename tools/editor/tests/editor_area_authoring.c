@@ -19,12 +19,12 @@ float editor_viewport_bottom = 720.0f;
 
 static void panel(EditorSoftAreaEditor *ui, EditorModeContext *context,
         bool list, Position pointer, MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){pointer, button});
+    rohr_ui_input_set((UIInput){pointer, button});
     editor_mode_accordion_layout_measure_reset();
     if(list) (void)editor_soft_area_list_draw(ui, context,
         &context->project->objects[0].soft_body_items[0], 80);
     else (void)editor_soft_area_editor_draw(ui, context);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 static void click(EditorSoftAreaEditor *ui, EditorModeContext *context,
         bool list, Position pointer) {
@@ -75,9 +75,9 @@ static void node_switch_check(FontAsset *font, const char *path) {
             (void)editor_viewport_update(&state,&project,release_pointer,MOUSE_BUTTON_STATE_RELEASED,
                 MOUSE_BUTTON_STATE_UP,false,0,release_kind == 1);
             assert(!editor_viewport_transform_active_check(&state));
-            rohr_ui_frame_begin((UIInput){0});
+            rohr_ui_input_set((UIInput){0});
             (void)editor_soft_node_editor_draw(&ui,&context);
-            rohr_ui_frame_end();
+            rohr_ui_update();
             assert(strcmp(ui.node_cache[i],body->nodes[i].name) == 0);
         }
     }

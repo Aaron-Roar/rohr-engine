@@ -97,17 +97,17 @@ static bool created_name_focus_replacement_check(void) {
     UIRect bounds = {0.0f, 0.0f, 100.0f, 30.0f};
     if(!editor_mode_name_focus_request(&state)) return false;
     editor_mode_name_focus_apply(&state);
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     if(!editor_mode_field("editor.input.action.name", binding, NULL,
             bounds, NULL).active) return false;
-    rohr_ui_frame_end();
+    rohr_ui_update();
     typed.type = SDL_EVENT_TEXT_INPUT;
     typed.text.text = "j";
     rohr_ui_field_event_add(&typed);
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     if(!editor_mode_field("editor.input.action.name", binding, NULL,
             bounds, NULL).changed || strcmp(name, "j") != 0) return false;
-    rohr_ui_frame_end();
+    rohr_ui_update();
     rohr_ui_field_focus_clear();
     return true;
 }

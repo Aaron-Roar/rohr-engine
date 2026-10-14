@@ -78,9 +78,9 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-**System Update Reports** is complete through Goal 5 (audio). Goal 6 (input)
-is next, only on explicit user instruction, before resuming Goal 1 of
-**Unified Forces and Torques**. Establish
+**System Update Reports** is complete through Goal 6 (UI), which the user selected
+ahead of input reporting. Goal 7 (input) remains pending and requires explicit
+user instruction, before resuming Goal 1 of **Unified Forces and Torques**. Establish
 per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
@@ -826,13 +826,24 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    output sink, including full diagnostic storage. Windows execution and audible
    playback on real hardware remain unverified. See [Audio reports](docs/reports.md#audio-reports).
 
-6. [ ] **Define and integrate input update reports** — Specify the input-frame
+6. [x] **Define and integrate UI reports** — Completed ahead of input reporting.
+   Replaced begin/end without aliases: `ui_input_set()` replaces the snapshot,
+   immediate widgets retain their behavior, and `ui_update()` returns one owned
+   `ROHR_UI_REPORT`. Evidence includes events received before input/widgets,
+   interaction evaluation counts, named capacity peaks, and recoverable capacity
+   and scope warnings. Update clears transient input and registration, preserves
+   ongoing controls, and unwinds only UI-owned scopes; graphics failures remain
+   in graphics reports. Timing covers only update execution. Migrated editor,
+   examples, wrappers, tests and documentation; audited generated templates.
+   Verified 77 native tests, ten focused ASan/UBSan/LeakSanitizer tests, and
+   Linux/Windows builds without compiler warnings. Installed-SDK consumers build
+   on both platforms (Linux executed); audio and user-interface examples build
+   independently on both and pass Linux headless startup/shutdown outside their
+   source directories. Windows execution remains unverified. Manual editor/UI
+   rendering review remains a follow-up. See [UI reports](docs/reports.md#ui-reports).
+7. [ ] **Define and integrate input update reports** — Specify the input-frame
    boundary, event ingestion, action evaluation, and text/IME truncation
    diagnostics. Preserve input behavior and verify reset boundaries and recovery.
-7. [ ] **Define and integrate UI reports** — Cover the independent UI begin/end
-   lifecycle, interaction/layout work, and recoverable capacity failures. Assign
-   internal helpers to their runnable owner. Preserve UI behavior and distinguish
-   UI failures from graphics failures without duplicating the same diagnostic.
 8. [ ] **Integrate engine-tick and remaining system reports** — Cover clock/tick
    advancement and entity lifetime cleanup. Audit remaining top-level update
    entry points for missing report owners. Verify update boundaries, warning

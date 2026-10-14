@@ -3128,8 +3128,12 @@ bool graphics_screen_clip_push(float x, float y, float width, float height) {
     int right;
     int bottom;
 
-    if(sdl_renderer == NULL || width <= 0.0f || height <= 0.0f ||
-            graphics_clip_stack_count >= GRAPHICS_CLIP_STACK_MAX) return false;
+    if(sdl_renderer == NULL || width <= 0.0f || height <= 0.0f) return false;
+    if(graphics_clip_stack_count >= GRAPHICS_CLIP_STACK_MAX) {
+        graphics_submission_issue(ERROR_ENGINE_GRAPHICS_STATE_FAILED,
+            (ReportObjectRef){0}, "Graphics clip stack is full");
+        return false;
+    }
     left = (int)ceilf(x);
     top = (int)ceilf(y);
     right = (int)floorf(x + width);

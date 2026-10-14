@@ -222,8 +222,9 @@ typedef struct UISliderDefinition {
 
 ERROR_DECLARE_RESULT_TYPE(UISliderDefinitionResult, UISliderDefinition);
 
-/** Start a UI frame with pointer coordinates in logical screen space. */
-void ui_frame_begin(UIInput input);
+/** Replace logical screen-space input without clearing events or widgets.
+ * UI works on first use. A new frame begins only after ui_update(). */
+void ui_input_set(UIInput input);
 void ui_modal_set(UIRect bounds);
 void ui_modal_controls_begin(void);
 void ui_modal_controls_end(void);
@@ -318,11 +319,12 @@ void ui_label(const TextAsset *text, UIRect bounds);
 /** Draw a disabled button that cannot capture or consume input. */
 void ui_button_disabled(UIRect bounds, const UIButtonStyle *style);
 
-/** Return whether a UI control consumed pointer input this frame. */
+/** Return whether a UI control consumed pointer input; read before ui_update(). */
 bool ui_pointer_consumed_get(void);
 
-/** Finish a UI frame and release stale pointer capture when appropriate. */
-void ui_frame_end(void);
+/** Finalize overlays/focus and return owned evidence; reset transient state.
+ * Timing covers only this call, excluding earlier widget and application work. */
+Report ui_update(void);
 
 /** Return the engine default button colors. */
 UIButtonStyle ui_button_style_default_get(void);

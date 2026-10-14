@@ -58,7 +58,7 @@ static bool rename_to_element_check(void) {
 static bool inline_rename_frame(EditorViewportContextMenu *menu, Position pointer,
         MouseButtonState button, bool *submitted) {
     UIRect row = {100, 100, 200, 30};
-    rohr_ui_frame_begin((UIInput){.pointer = pointer, .primary_button = button});
+    rohr_ui_input_set((UIInput){.pointer = pointer, .primary_button = button});
     if(editor_viewport_context_menu_modal_check(menu))
         rohr_ui_modal_set((UIRect){0, 0, 500, 500});
     /* Match the real column order: the element button precedes the rename field. */
@@ -69,7 +69,7 @@ static bool inline_rename_frame(EditorViewportContextMenu *menu, Position pointe
     bool passed = !element.pressed && !element.clicked && !element.double_clicked &&
         !element.focus_changed && !neighbor.pressed && !neighbor.clicked;
     if(submitted != NULL) *submitted = field.submitted;
-    rohr_ui_frame_end();
+    rohr_ui_update();
     return passed;
 }
 
@@ -123,12 +123,12 @@ static bool inline_rename_check(void) {
     editor_viewport_context_menu_cancel(&menu);
     passed = passed && !editor_viewport_context_menu_modal_check(&menu);
     rohr_ui_field_focus_clear();
-    rohr_ui_frame_begin((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_PRESSED});
+    rohr_ui_input_set((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     passed = passed && rohr_ui_button("element", NULL, (UIRect){100,100,200,30}, NULL).pressed;
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_RELEASED});
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = caret, .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     passed = passed && rohr_ui_button("element", NULL, (UIRect){100,100,200,30}, NULL).clicked;
-    rohr_ui_frame_end();
+    rohr_ui_update();
 done:
     rohr_ui_field_focus_clear();
     editor_viewport_context_menu_destroy(&menu);

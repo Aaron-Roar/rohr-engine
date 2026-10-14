@@ -29,9 +29,9 @@ static UIFieldResult field_draw(FieldFixture *f) {
 }
 
 static UIFieldResult frame(FieldFixture *f, Position p, MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){.pointer=p, .primary_button=button});
+    rohr_ui_input_set((UIInput){.pointer=p, .primary_button=button});
     UIFieldResult result = field_draw(f);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     return result;
 }
 
@@ -200,28 +200,28 @@ static bool capture_check(void) {
     Position p=point(&f,2), outside={450,140};
     (void)frame(&f,p,MOUSE_BUTTON_STATE_PRESSED);
     for(int release=0;release<2;release+=1) {
-        rohr_ui_frame_begin((UIInput){.pointer=outside,.primary_button=release ?
+        rohr_ui_input_set((UIInput){.pointer=outside,.primary_button=release ?
             MOUSE_BUTTON_STATE_RELEASED : MOUSE_BUTTON_STATE_DOWN});
         CHECK(!rohr_ui_button("neighbor",NULL,(UIRect){410,100,100,80},NULL).hovered);
         CHECK(!field_draw(&f).changed);
         CHECK(rohr_ui_pointer_consumed_get());
         CHECK(!rohr_ui_button("later-neighbor",NULL,(UIRect){410,100,100,80},NULL).hovered);
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
     text_input("X");
     CHECK(frame(&f,outside,MOUSE_BUTTON_STATE_UP).changed && strcmp(f.value,"abX")==0);
     fixture_stop(&f);
     CHECK(fixture_start(&f,"abcdef",false));
     (void)frame(&f,point(&f,2),MOUSE_BUTTON_STATE_PRESSED);
-    rohr_ui_frame_begin((UIInput){.pointer=outside,.primary_button=MOUSE_BUTTON_STATE_DOWN});
+    rohr_ui_input_set((UIInput){.pointer=outside,.primary_button=MOUSE_BUTTON_STATE_DOWN});
     rohr_ui_modal_set((UIRect){400,90,150,100});
     CHECK(!field_draw(&f).active);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     text_input("X");
     CHECK(!frame(&f,outside,MOUSE_BUTTON_STATE_UP).changed && strcmp(f.value,"abcdef")==0);
     (void)frame(&f,point(&f,2),MOUSE_BUTTON_STATE_PRESSED);
-    rohr_ui_frame_begin((UIInput){.primary_button=MOUSE_BUTTON_STATE_DOWN});
-    rohr_ui_frame_end(); /* Field disappeared. */
+    rohr_ui_input_set((UIInput){.primary_button=MOUSE_BUTTON_STATE_DOWN});
+    rohr_ui_update(); /* Field disappeared. */
     text_input("X");
     CHECK(!frame(&f,outside,MOUSE_BUTTON_STATE_UP).changed && strcmp(f.value,"abcdef")==0);
     fixture_stop(&f);
@@ -273,7 +273,7 @@ static bool overflow_and_translation_check(void) {
     Position a=point(&f,1), b=point(&f,4);
     a.y-=5; b.y-=5;
     for(int step=0;step<3;step+=1) {
-        rohr_ui_frame_begin((UIInput){.pointer=step ? b : a,
+        rohr_ui_input_set((UIInput){.pointer=step ? b : a,
             .primary_button=step==0 ? MOUSE_BUTTON_STATE_PRESSED :
                 step==1 ? MOUSE_BUTTON_STATE_DOWN : MOUSE_BUTTON_STATE_RELEASED});
         (void)rohr_ui_scroll_region_begin("panel",(UIRect){100,90,300,45},200,20,10);
@@ -281,18 +281,18 @@ static bool overflow_and_translation_check(void) {
         CHECK(!field_draw(&f).changed);
         rohr_ui_translation_y_pop();
         rohr_ui_scroll_region_end();
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
     text_input("X");
     CHECK(frame(&f,(Position){0},MOUSE_BUTTON_STATE_UP).changed && strcmp(f.value,"aXef")==0);
     rohr_ui_field_focus_clear();
-    rohr_ui_frame_begin((UIInput){.pointer={250,137},.primary_button=MOUSE_BUTTON_STATE_PRESSED});
+    rohr_ui_input_set((UIInput){.pointer={250,137},.primary_button=MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_scroll_region_begin("panel",(UIRect){100,90,300,45},200,20,10);
     rohr_ui_translation_y_push(15);
     CHECK(!field_draw(&f).active);
     rohr_ui_translation_y_pop();
     rohr_ui_scroll_region_end();
-    rohr_ui_frame_end();
+    rohr_ui_update();
     fixture_stop(&f);
     return true;
 }
@@ -382,11 +382,11 @@ static bool keyboard_and_field_transfer_check(void) {
             key(SDLK_A, SDL_KMOD_CTRL);
             text_input("replacement");
         }
-        rohr_ui_frame_begin((UIInput){.pointer = {250, 140},
+        rohr_ui_input_set((UIInput){.pointer = {250, 140},
             .primary_button = step == 0 ? MOUSE_BUTTON_STATE_PRESSED :
                 step == 1 ? MOUSE_BUTTON_STATE_RELEASED : MOUSE_BUTTON_STATE_UP});
         CHECK(rohr_ui_field("other", binding, &f.text, f.bounds, NULL).active);
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
     CHECK(strcmp(other, "replacement") == 0 && f.number == 129);
     fixture_stop(&f);

@@ -232,6 +232,10 @@ const char *error_code_message_get(EngineError error) {
             return "music capacity exceeded";
         case ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE:
             return "music is not the active track";
+        case ERROR_ENGINE_UI_CAPACITY_EXCEEDED:
+            return "UI capacity exceeded";
+        case ERROR_ENGINE_UI_SCOPE_UNBALANCED:
+            return "unbalanced UI scope";
         case ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED:
             return "audio request capacity exceeded";
         case ERROR_ENGINE_AUDIO_OPERATION_FAILED:

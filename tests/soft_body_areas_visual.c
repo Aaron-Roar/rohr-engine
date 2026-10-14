@@ -167,7 +167,7 @@ static void area_visual_draw(CameraId camera, void *context) {
     if(rohr_input_mouse_button_pressed_check(INPUT_MOUSE_BUTTON_LEFT)) button = MOUSE_BUTTON_STATE_PRESSED;
     else if(rohr_input_mouse_button_released_check(INPUT_MOUSE_BUTTON_LEFT)) button = MOUSE_BUTTON_STATE_RELEASED;
     else if(rohr_input_mouse_button_down_check(INPUT_MOUSE_BUTTON_LEFT)) button = MOUSE_BUTTON_STATE_DOWN;
-    rohr_ui_frame_begin((UIInput){.pointer=rohr_graphics_mouse_screen_position_get(),.primary_button=button});
+    rohr_ui_input_set((UIInput){.pointer=rohr_graphics_mouse_screen_position_get(),.primary_button=button});
     for(unsigned i = 0; i < 3; i += 1) {
         UIButtonStyle style = rohr_ui_button_style_default_get();
         if(visual->selected == i) style.idle = (Color){45,100,160,255};
@@ -179,7 +179,7 @@ static void area_visual_draw(CameraId camera, void *context) {
         }
     }
     rohr_ui_label(&visual->labels[3],(UIRect){20,70,740,30});
-    rohr_ui_frame_end();
+    rohr_ui_update();
     rohr_graphics_layer_active_set(0);
 }
 

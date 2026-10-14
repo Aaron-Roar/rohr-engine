@@ -25,7 +25,7 @@ semantics. Public manual audio mixing/output remains deferred.
 ## Scope and decisions
 
 Build the shared report system first. Physics is the first integrated report
-owner, followed by console/JSON output, graphics, audio, input, UI, and
+owner, followed by console/JSON output, graphics, audio, UI, input, and
 engine-tick cleanup. Share diagnostic
 concepts without making physics depend on another system or a global queue.
 The force/torque milestone will consume this reporting mechanism later.

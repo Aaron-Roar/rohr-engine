@@ -20,12 +20,12 @@ static void finish(const EditorCommand *command, const EditorCommandResult *resu
 }
 static void panel(EditorParticleEditor *ui, EditorModeContext *context,
         Position pointer, MouseButtonState button, float shift) {
-    rohr_ui_frame_begin((UIInput){pointer, button});
+    rohr_ui_input_set((UIInput){pointer, button});
     rohr_ui_clip_begin((UIRect){0, 0, 400, 720});
     rohr_ui_translation_y_push(shift);
     editor_mode_accordion_layout_measure_reset();
     (void)editor_particle_editor_draw(ui, context);
-    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_frame_end();
+    rohr_ui_translation_y_pop(); rohr_ui_clip_end(); rohr_ui_update();
 }
 static void click(EditorParticleEditor *ui, EditorModeContext *context, Position pointer) {
     panel(ui, context, pointer, MOUSE_BUTTON_STATE_PRESSED, 0);
@@ -181,9 +181,9 @@ int main(int argc, char **argv) {
     number(&ui, &context, 502, "-8");
     values_check(body);
     /* The dedicated radius editor remains available. */
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     assert(!editor_particle_radius_editor_draw(&ui, &context));
-    rohr_ui_frame_end();
+    rohr_ui_update();
     only_section(&ui, &ui.collision_section);
     panel(&ui, &context, (Position){0}, MOUSE_BUTTON_STATE_UP, 0);
     click(&ui, &context, (Position){100, ui.collision.header_bounds[0].y + 10});

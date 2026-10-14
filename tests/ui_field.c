@@ -57,7 +57,7 @@ int main(void) {
     if(fabsf(sized.width - 64.0f) > 0.001f ||
             fabsf(sized.height - 26.0f) > 0.001f) return 1;
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_interaction("primitive", bounds);
     rohr_ui_surface(bounds, (Color){20, 30, 40, 255});
@@ -66,13 +66,13 @@ int main(void) {
     rohr_ui_quad((Position){50.0f, 15.0f}, 10.0f, 10.0f, 0.0f,
         (Color){255, 255, 255, 255});
     if(rohr_ui_clip_begin(bounds)) rohr_ui_clip_end();
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_interaction("primitive", bounds).clicked) return 1;
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 35.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 35.0f}});
     (void)rohr_ui_scroll_region_begin("translated-scroll",
         (UIRect){0.0f, 0.0f, 100.0f, 60.0f}, 100.0f, 10.0f, 10.0f);
     rohr_ui_translation_y_push(20.0f);
@@ -82,19 +82,19 @@ int main(void) {
     if(rohr_ui_button("untranslated-button", NULL,
             (UIRect){0.0f, 20.0f, 100.0f, 20.0f}, NULL).hovered) return 1;
     rohr_ui_scroll_region_end();
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     snprintf(string, sizeof(string), "line");
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_multiline_field("multiline", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, (UIRect){0.0f, 0.0f, 100.0f, 90.0f}, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add(SDLK_RETURN);
     key_add('x');
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_multiline_field("multiline", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -103,37 +103,37 @@ int main(void) {
         fprintf(stderr, "multiline field produced '%s'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     (void)rohr_ui_multiline_field("multiline", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, (UIRect){0.0f, 0.0f, 100.0f, 90.0f}, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     rohr_ui_modal_set((UIRect){0.0f, 0.0f, 100.0f, 100.0f});
     if(rohr_ui_button("behind-modal", NULL, bounds, NULL).pressed) return 1;
     rohr_ui_modal_controls_begin();
     if(!rohr_ui_button("inside-modal", NULL, bounds, NULL).pressed) return 1;
     rohr_ui_modal_controls_end();
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.primary_button = MOUSE_BUTTON_STATE_RELEASED});
-    rohr_ui_frame_end();
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.primary_button = MOUSE_BUTTON_STATE_RELEASED});
+    rohr_ui_update();
 
     snprintf(string, sizeof(string), "abcd");
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_field("repeated-delete-string", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     repeated_key_add(SDLK_BACKSPACE);
     repeated_key_add(SDLK_BACKSPACE);
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("repeated-delete-string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -141,16 +141,16 @@ int main(void) {
         fprintf(stderr, "repeated backspace produced '%s' instead of 'ab'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add(SDLK_HOME);
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     (void)rohr_ui_field("repeated-delete-string", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     repeated_key_add(SDLK_DELETE);
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("repeated-delete-string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -158,21 +158,21 @@ int main(void) {
         fprintf(stderr, "repeated delete produced '%s' instead of 'b'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     snprintf(string, sizeof(string), "a b");
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_field("whitespace-cursor-string", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add(SDLK_HOME);
     key_add(SDLK_RIGHT);
     key_add(SDLK_RIGHT);
     key_add('X');
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("whitespace-cursor-string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -180,10 +180,10 @@ int main(void) {
         fprintf(stderr, "whitespace cursor produced '%s' instead of 'a Xb'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     snprintf(string, sizeof(string), "a");
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED
     });
@@ -191,18 +191,18 @@ int main(void) {
         .kind = UI_FIELD_FLOAT,
         .number = &number
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add('1'); key_add('2'); key_add(','); key_add('.'); key_add('3'); key_add('4');
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("number", (UIFieldBinding){
             .kind = UI_FIELD_FLOAT, .number = &number
         }, NULL, bounds, NULL).changed || fabsf(number - 12.34f) > 0.001f) {
         fprintf(stderr, "numeric field produced %.3f instead of 12.34\n", number);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED
     });
@@ -211,9 +211,9 @@ int main(void) {
         .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add('b');
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("string", (UIFieldBinding){
             .kind = UI_FIELD_STRING,
             .string = string,
@@ -222,11 +222,11 @@ int main(void) {
         fprintf(stderr, "string field produced '%s' instead of 'ab'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     key_add_mod(SDLK_A, SDL_KMOD_CTRL);
     key_add('z');
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -234,11 +234,11 @@ int main(void) {
         fprintf(stderr, "Ctrl+A replacement produced '%s' instead of 'z'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     key_add_mod(SDLK_A, SDL_KMOD_CTRL);
     key_add(SDLK_DELETE);
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -246,21 +246,21 @@ int main(void) {
         fprintf(stderr, "Ctrl+A delete produced '%s' instead of empty text\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     snprintf(string, sizeof(string), "abcd");
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_field("cursor-string", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     key_add(SDLK_LEFT);
     key_add(SDLK_LEFT);
     key_add('X');
     key_add(SDLK_DELETE);
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f}});
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f}});
     if(!rohr_ui_field("cursor-string", (UIFieldBinding){
             .kind = UI_FIELD_STRING, .string = string,
             .string_capacity = sizeof(string)
@@ -268,22 +268,22 @@ int main(void) {
         fprintf(stderr, "cursor editing produced '%s' instead of 'abXd'\n", string);
         return 1;
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     (void)rohr_ui_field("cursor-string", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = string,
         .string_capacity = sizeof(string)
     }, NULL, bounds, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED
     });
     (void)rohr_ui_button("double-click", NULL, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED
     });
@@ -291,14 +291,14 @@ int main(void) {
         fprintf(stderr, "first button click failed\n");
         return 1;
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED
     });
     (void)rohr_ui_button("double-click", NULL, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){
         .pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED
     });
@@ -306,91 +306,91 @@ int main(void) {
         fprintf(stderr, "double button click failed\n");
         return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
         dropdown_config, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
             dropdown_config, bounds, NULL).open) return 1;
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_UP});
     {
         UIDropdownResult result = rohr_ui_dropdown(
             "dropdown", dropdown_options, 2, 0, dropdown_config, bounds, NULL);
         if(!result.open || result.hovered_index != 1) return 1;
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown("dropdown", dropdown_options, 2, 0,
         dropdown_config, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 70.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 70.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     {
         UIDropdownResult result = rohr_ui_dropdown(
             "dropdown", dropdown_options, 2, 0, dropdown_config, bounds, NULL);
         if(!result.changed || result.selected_index != 1 || result.open) return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown(
         "keyboard-dropdown", dropdown_options, 2, 0,
         dropdown_config, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_dropdown("keyboard-dropdown", dropdown_options,
             2, 0, dropdown_config, bounds, NULL).open) return 1;
-    rohr_ui_frame_end();
+    rohr_ui_update();
     if(!rohr_ui_navigation_move(UI_NAVIGATION_DOWN) ||
             !rohr_ui_navigation_move(UI_NAVIGATION_DOWN) ||
             !rohr_ui_navigation_activate()) return 1;
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     {
         UIDropdownResult result = rohr_ui_dropdown(
             "keyboard-dropdown", dropdown_options, 2, 0,
             dropdown_config, bounds, NULL);
         if(result.open || !result.changed || result.selected_index != 1) return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0,
         limited_dropdown_config, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     if(!rohr_ui_dropdown("long-dropdown", long_dropdown_options,
             10, 0, limited_dropdown_config, bounds, NULL).open) return 1;
-    rohr_ui_frame_end();
+    rohr_ui_update();
     {
         SDL_Event wheel = {0};
         UIDropdownResult result;
         wheel.type = SDL_EVENT_MOUSE_WHEEL;
         wheel.wheel.y = -1.0f;
         rohr_ui_field_event_add(&wheel);
-        rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f}});
+        rohr_ui_input_set((UIInput){.pointer = {10.0f, 40.0f}});
         result = rohr_ui_dropdown("long-dropdown", long_dropdown_options,
             10, 0, limited_dropdown_config, bounds, NULL);
         if(!result.open || result.hovered_index != 1) return 1;
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 40.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_dropdown("long-dropdown", long_dropdown_options, 10, 0,
         limited_dropdown_config, bounds, NULL);
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 40.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     {
         UIDropdownResult result = rohr_ui_dropdown(
@@ -398,7 +398,7 @@ int main(void) {
             limited_dropdown_config, bounds, NULL);
         if(result.open || !result.changed || result.selected_index != 1) return 1;
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
     {
         SDL_Event wheel = {0};
@@ -406,7 +406,7 @@ int main(void) {
         wheel.type = SDL_EVENT_MOUSE_WHEEL;
         wheel.wheel.y = -1.0f;
         rohr_ui_field_event_add(&wheel);
-        rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 35.0f}});
+        rohr_ui_input_set((UIInput){.pointer = {10.0f, 35.0f}});
         scroll = rohr_ui_scroll_region_begin("scroll", (UIRect){0.0f, 0.0f,
             100.0f, 50.0f}, 100.0f, 0.0f, 10.0f);
         if(!scroll.changed || fabsf(scroll.offset - 10.0f) > 0.001f ||
@@ -415,10 +415,10 @@ int main(void) {
                 rohr_ui_button("clipped-button", NULL,
                     (UIRect){0.0f, 100.0f, 100.0f, 20.0f}, NULL).hovered) return 1;
         rohr_ui_scroll_region_end();
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
 
-    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 45.0f},
+    rohr_ui_input_set((UIInput){.pointer = {98.0f, 45.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     {
         UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
@@ -427,8 +427,8 @@ int main(void) {
         if(!scroll.changed || fabsf(scroll.offset - 50.0f) > 0.001f) return 1;
         rohr_ui_scroll_region_end();
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 25.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {98.0f, 25.0f},
         .primary_button = MOUSE_BUTTON_STATE_DOWN});
     {
         UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
@@ -437,8 +437,8 @@ int main(void) {
         if(!scroll.changed || fabsf(scroll.offset - 25.0f) > 0.001f) return 1;
         rohr_ui_scroll_region_end();
     }
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {98.0f, 12.5f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {98.0f, 12.5f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     {
         UIScrollRegionResult scroll = rohr_ui_scroll_region_begin(
@@ -447,9 +447,9 @@ int main(void) {
         if(!scroll.changed || fabsf(scroll.offset) > 0.001f) return 1;
         rohr_ui_scroll_region_end();
     }
-    rohr_ui_frame_end();
+    rohr_ui_update();
 
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_PRESSED});
     (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
         100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
@@ -457,15 +457,15 @@ int main(void) {
         "nested-dropdown", long_dropdown_options, 10, 0,
         limited_dropdown_config, bounds, NULL);
     rohr_ui_scroll_region_end();
-    rohr_ui_frame_end();
-    rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 10.0f},
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){.pointer = {10.0f, 10.0f},
         .primary_button = MOUSE_BUTTON_STATE_RELEASED});
     (void)rohr_ui_scroll_region_begin("dropdown-parent", (UIRect){0.0f, 0.0f,
         100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
     if(!rohr_ui_dropdown("nested-dropdown", long_dropdown_options,
             10, 0, limited_dropdown_config, bounds, NULL).open) return 1;
     rohr_ui_scroll_region_end();
-    rohr_ui_frame_end();
+    rohr_ui_update();
     {
         SDL_Event wheel = {0};
         UIScrollRegionResult parent;
@@ -473,7 +473,7 @@ int main(void) {
         wheel.type = SDL_EVENT_MOUSE_WHEEL;
         wheel.wheel.y = -1.0f;
         rohr_ui_field_event_add(&wheel);
-        rohr_ui_frame_begin((UIInput){.pointer = {10.0f, 40.0f}});
+        rohr_ui_input_set((UIInput){.pointer = {10.0f, 40.0f}});
         parent = rohr_ui_scroll_region_begin("dropdown-parent",
             (UIRect){0.0f, 0.0f, 100.0f, 200.0f}, 400.0f, 0.0f, 10.0f);
         dropdown = rohr_ui_dropdown(
@@ -482,14 +482,14 @@ int main(void) {
         rohr_ui_scroll_region_end();
         if(parent.changed || fabsf(parent.offset) > 0.001f ||
                 !dropdown.open || dropdown.hovered_index != 1) return 1;
-        rohr_ui_frame_end();
+        rohr_ui_update();
     }
 
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     (void)rohr_ui_button("nav-a", NULL, (UIRect){0.0f, 0.0f, 80.0f, 20.0f}, NULL);
     (void)rohr_ui_button("nav-b", NULL, (UIRect){120.0f, 0.0f, 80.0f, 20.0f}, NULL);
     (void)rohr_ui_button("nav-c", NULL, (UIRect){0.0f, 40.0f, 80.0f, 20.0f}, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     {
         UIRect focused;
         if(!rohr_ui_navigation_move(UI_NAVIGATION_DOWN) ||
@@ -500,7 +500,7 @@ int main(void) {
                 fabsf(focused.x - 120.0f) > 0.001f ||
                 !rohr_ui_navigation_activate()) return 1;
     }
-    rohr_ui_frame_begin((UIInput){0});
+    rohr_ui_input_set((UIInput){0});
     (void)rohr_ui_button("nav-a", NULL, (UIRect){0.0f, 0.0f, 80.0f, 20.0f}, NULL);
     {
         UIButtonResult activated = rohr_ui_button(
@@ -510,6 +510,6 @@ int main(void) {
                 !activated.focus_changed) return 1;
     }
     (void)rohr_ui_button("nav-c", NULL, (UIRect){0.0f, 40.0f, 80.0f, 20.0f}, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     return 0;
 }

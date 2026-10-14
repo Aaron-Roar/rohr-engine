@@ -77,7 +77,7 @@ static void render_scene(CameraId camera, void *context_value) {
     rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw((Color){20, 25, 34, 255});
     rohr_graphics_layer_active_set(0);
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_input_set((UIInput){
         .pointer = rohr_graphics_mouse_screen_position_get(),
         .primary_button = example_input_mouse_button_state_get(
             INPUT_MOUSE_BUTTON_LEFT),
@@ -98,7 +98,7 @@ static void render_scene(CameraId camera, void *context_value) {
     }
     context->quit_clicked = rohr_ui_button("audio.quit", context->quit_label,
         (UIRect){490.0f, 535.0f, 300.0f, 55.0f}, NULL).clicked;
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 
 int main(void) {

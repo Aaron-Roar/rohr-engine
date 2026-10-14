@@ -2563,8 +2563,8 @@ int rohr_tools_random_range(int min, int max);
  */
 float rohr_tools_random_range_float(float min, float max);
 
-/** @brief Starts a UI frame with logical screen-space pointer input. */
-void rohr_ui_frame_begin(UIInput input);
+/** @brief Replaces logical screen-space input without resetting widgets or events. */
+void rohr_ui_input_set(UIInput input);
 void rohr_ui_modal_set(UIRect bounds);
 void rohr_ui_modal_controls_begin(void);
 void rohr_ui_modal_controls_end(void);
@@ -2653,11 +2653,13 @@ void rohr_ui_label(const TextAsset *text, UIRect bounds);
 /** @brief Draws a disabled button that cannot capture input. */
 void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style);
 
-/** @brief Returns whether UI consumed pointer input during this frame. */
+/** Return current pointer consumption; read before rohr_ui_update(). */
 bool rohr_ui_pointer_consumed_get(void);
 
-/** @brief Finishes the current UI frame. */
-void rohr_ui_frame_end(void);
+/** Finalize overlays/focus and return one owned ROHR_UI_REPORT, then clear
+ * transient input and registration. Empty frames return COMPLETE. Timing covers
+ * only this call, excluding earlier widget execution and application time. */
+Report rohr_ui_update(void);
 
 /** @brief Returns the default button colors. */
 UIButtonStyle rohr_ui_button_style_default_get(void);

@@ -52,11 +52,11 @@ static void key_add(SDL_Keycode key, SDL_Keymod modifiers, bool modal) {
 }
 
 static UIFieldResult field_frame(char *value, Position point, MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){.pointer = point, .primary_button = button});
+    rohr_ui_input_set((UIInput){.pointer = point, .primary_button = button});
     UIFieldResult result = rohr_ui_field("name", (UIFieldBinding){
         .kind = UI_FIELD_STRING, .string = value, .string_capacity = 64},
         &display, (UIRect){100, 100, 300, 40}, NULL);
-    rohr_ui_frame_end();
+    rohr_ui_update();
     return result;
 }
 
@@ -102,13 +102,13 @@ static bool terminal_transfer_check(void) {
 
 static void browser_frame(EditorFileBrowser *browser, Position point,
         MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){.pointer = point, .primary_button = button});
+    rohr_ui_input_set((UIInput){.pointer = point, .primary_button = button});
     rohr_ui_modal_set((UIRect){0, 34, 1000, 686});
     rohr_ui_modal_controls_begin();
     (void)editor_file_browser_draw(browser, &display, NULL, NULL, NULL, NULL,
         editor_window_width, editor_viewport_bottom);
     rohr_ui_modal_controls_end();
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 
 static bool project_name_check(void) {

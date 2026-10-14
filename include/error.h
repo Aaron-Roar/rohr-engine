@@ -195,6 +195,10 @@ typedef enum EngineError {
     ERROR_ENGINE_GRAPHICS_RECORDING_FAILED,
     /** The bounded audio request queue is full; no request was accepted. */
     ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED,
+    /** UI-owned bounded collection rejected work. */
+    ERROR_ENGINE_UI_CAPACITY_EXCEEDED,
+    /** UI scope end was unmatched or a scope remained open at update. */
+    ERROR_ENGINE_UI_SCOPE_UNBALANCED,
 } EngineError;
 
 /**

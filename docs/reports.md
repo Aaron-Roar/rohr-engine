@@ -1,7 +1,7 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics, graphics, and audio updates return this type as described below. Console, JSON,
+Physics, graphics, audio, and UI updates return this type as described below. Console, JSON,
 and text-file output are implemented; other system integrations and latest-report retrieval
 remain scheduled work.
 
@@ -502,3 +502,75 @@ The current Vorbis backend still performs incremental decoding/file access in
 the callback. Added reporting introduces no callback allocation, application
 mutex acquisition, logging, or serialization; this does not promise that existing
 SDL/decoder work is entirely free of allocation or blocking I/O.
+
+## UI reports
+
+`rohr_ui_update()` (direct API: `ui_update()`) finalizes immediate UI work and
+returns one owned `ROHR_UI_REPORT`, with no child pipelines. The UI is ready on
+first use, including before input is supplied. Each update consumes evidence
+collected since the preceding update, including events received before widgets
+or input setting. An empty update still runs, clears focus for missing controls,
+and returns COMPLETE.
+
+```c
+rohr_ui_input_set(input);
+/* Forward relevant SDL events with rohr_ui_event_add(), before widgets. */
+if(rohr_ui_button("save", label, bounds, NULL).clicked) {
+    save_document(); /* Widget results remain immediate. */
+}
+bool pointer_consumed = rohr_ui_pointer_consumed_get();
+Report ui = rohr_ui_update();
+/* Inspect ui here; graphics submission/execution diagnostics remain separate. */
+```
+
+This is a breaking API change: replace `rohr_ui_frame_begin(input)` with
+`rohr_ui_input_set(input)` and `rohr_ui_frame_end()` with `rohr_ui_update()`;
+the direct APIs change identically. There are no compatibility aliases.
+Input setting replaces the snapshot and prepares input-dependent capture, but
+never clears events, widget registration, pointer consumption, or UI scopes.
+Repeated setters do not create frame boundaries. Read pointer consumption
+before update; it describes only the current frame.
+
+Update draws pending dropdown overlays after ordinary controls, finalizes
+navigation/focus, and resets temporary registration, modal state, buffered keys,
+text, wheel input, navigation activation, and the pointer snapshot. Presses and
+releases cannot replay without fresh input. Focused fields, open dropdowns, and
+ongoing drag identity persist while the relevant controls remain present.
+Applications should supply a fresh snapshot before evaluating widgets each frame.
+The report's `total_ms` measures execution inside `ui_update()` only, including
+scope recovery, overlays and finalization. It excludes earlier widget execution
+and time spent in application code; it is not total UI CPU time for the frame.
+
+All metrics use the `ROHR_REPORT_` prefix and the UI report ID:
+
+| Metric | Meaning and aggregation |
+| --- | --- |
+| `UI_INTERACTION_EVALUATION_COUNT` | SUM of interaction evaluations, including filtered controls, dropdown options, slider step controls and eligible scrollbar evaluations; repeated IDs count repeatedly, not as unique widgets. Disabled drawing and invalid controls rejected before interaction do not count. |
+| `UI_EVENT_RECEIVED_COUNT` | SUM of key-down, text-input and wheel events submitted, including events later dropped. Unrelated events and null event pointers are ignored. |
+| `UI_EVENT_DROPPED_COUNT` | SUM of relevant events rejected for UI buffer capacity. Text events are accepted or dropped whole. |
+| `UI_NAVIGATION_ENTRIES_PEAK` | MAX registered navigation entries (capacity 512). |
+| `UI_TEXT_BYTES_PEAK` | MAX buffered text-input bytes, excluding NUL (capacity `UI_FIELD_EDIT_MAX - 1`). |
+| `UI_KEY_EVENT_SLOTS_PEAK`, `UI_TEXT_EVENT_SLOTS_PEAK` | MAX occupied slots in the two independent event buffers (each `UI_FIELD_KEY_EVENT_MAX`). |
+| `UI_SCROLL_RECORDS_PEAK` | MAX scroll records retained for next-frame wheel targeting (capacity 64). |
+| `UI_SCROLL_SCOPE_DEPTH_PEAK`, `UI_TRANSLATION_SCOPE_DEPTH_PEAK` | MAX simultaneous scopes of each kind (each capacity 8). |
+
+Absent metrics mean zero work. Navigation, event, dropdown-visible-option (512),
+scroll-record and scope capacity failures produce recoverable
+`ERROR_ENGINE_UI_CAPACITY_EXCEEDED` warnings. The combined UI scope stack has
+64 entries. Normal filtering, disabled controls, field length/type validation,
+and unchanged values are not failures.
+
+Close UI clip, scroll, translation and modal-control scopes in reverse opening
+order; call clip end only after a successful clip begin. Unmatched/out-of-order
+ends produce `ERROR_ENGINE_UI_SCOPE_UNBALANCED` and leave open scopes unchanged.
+Update warns for each unclosed scope and unwinds UI-owned scopes before drawing
+overlays. Surrounding graphics clips remain owned by the application. Do not
+mutate the graphics clip stack directly inside an open UI clip/scroll scope.
+Failed graphics clip pushes are never popped by UI cleanup. Graphics failures
+remain in graphics reports and are not copied into UI reports.
+
+Collection allocates, prints and serializes nothing. Explicit text/JSON output
+supports these metric/error names. Shared aggregation, saturation, diagnostic
+overflow, first-fatal preservation and copied-message ownership rules apply.
+Retained report copies remain independent after later updates and shutdown.
+Latest stored-report retrieval remains a separate pending milestone goal.

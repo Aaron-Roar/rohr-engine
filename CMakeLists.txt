@@ -636,6 +636,22 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(timing_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME timing COMMAND timing_test)
 
+    add_executable(ui_reports_test tests/ui_reports.c)
+    target_link_libraries(ui_reports_test PRIVATE rohr_engine)
+    set_target_properties(ui_reports_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME ui_reports COMMAND ui_reports_test)
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(ui_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(UNIX AND NOT APPLE)
+        target_compile_definitions(ui_reports_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(ui_reports_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(ui_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+
     add_executable(ui_field_test tests/ui_field.c)
     target_link_libraries(ui_field_test PRIVATE rohr_engine)
     set_target_properties(ui_field_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -935,6 +951,7 @@ if(ROHR_BUILD_TESTS)
         font_assets
         text_assets
         timing
+        ui_reports
         ui_field
         ui_field_selection
         ui_dropdown
@@ -980,6 +997,7 @@ if(ROHR_BUILD_TESTS)
         font_assets_test
         text_assets_test
         timing_test
+        ui_reports_test
         ui_field_test
         ui_field_selection_test
         ui_dropdown_test

@@ -40,7 +40,7 @@ static void render_scene(CameraId camera, void *context_value) {
     rohr_graphics_layer_active_set(-100);
     rohr_graphics_background_draw((Color){18, 22, 30, 255});
     rohr_graphics_layer_active_set(0);
-    rohr_ui_frame_begin((UIInput){
+    rohr_ui_input_set((UIInput){
         .pointer = rohr_graphics_mouse_screen_position_get(),
         .primary_button = example_input_mouse_button_state_get(
             INPUT_MOUSE_BUTTON_LEFT),
@@ -59,7 +59,7 @@ static void render_scene(CameraId camera, void *context_value) {
         &(UISliderText){.label = context->slider_label,
             .value = context->slider_value_label, .minus = context->slider_minus,
             .plus = context->slider_plus});
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 
 int main(void) {

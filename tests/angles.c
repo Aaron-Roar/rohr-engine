@@ -201,10 +201,10 @@ static bool graphics_check(void) {
     /* A clockwise 45-degree slider runs down-right in screen coordinates. */
     UISliderConfig slider=ui_slider_config_default_get();
     slider.center=(Position){200,200}; slider.length=100; slider.angle=45;
-    ui_frame_begin((UIInput){.pointer={225,225},.primary_button=MOUSE_BUTTON_STATE_PRESSED});
+    ui_input_set((UIInput){.pointer={225,225},.primary_button=MOUSE_BUTTON_STATE_PRESSED});
     UISliderResult hit=ui_slider("clockwise",0,&slider);
     CHECK(hit.hovered && hit.value > 0.8f);
-    ui_frame_end();
+    ui_update();
     graphics_show();
     ViewportIdResult viewport=rohr_viewport_create((ViewportConfig){
         .rectangle={0,0,1100,480},.background_color={0,0,0,255}});

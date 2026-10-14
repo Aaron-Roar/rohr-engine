@@ -19,13 +19,13 @@ static void finish(const EditorCommand *command, const EditorCommandResult *resu
 }
 static void panel(EditorCenterOfMassEditor *ui, EditorModeContext *context,
         bool inline_panel, Position pointer, MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){pointer,button});
+    rohr_ui_input_set((UIInput){pointer,button});
     if(inline_panel) {
         EditorObject *object = editor_project_selected_get(context->project);
         (void)editor_center_of_mass_editor_draw(ui,context,object,
             editor_project_rigid_body_get(object,context->viewport->selected_rigid_body),42);
     } else (void)editor_center_of_mass_panel_draw(ui,context);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 static void click(EditorCenterOfMassEditor *ui, EditorModeContext *context,
         bool inline_panel, Position pointer) {

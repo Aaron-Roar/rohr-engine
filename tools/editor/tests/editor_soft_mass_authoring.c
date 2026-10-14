@@ -23,11 +23,11 @@ static void finish(const EditorCommand *c, const EditorCommandResult *r, void *h
 }
 static void panel(EditorSoftBodyEditor *ui, EditorAutoShapeEditor *shape,
         EditorModeContext *context, bool dedicated, Position pointer, MouseButtonState button) {
-    rohr_ui_frame_begin((UIInput){pointer, button});
+    rohr_ui_input_set((UIInput){pointer, button});
     editor_mode_accordion_layout_measure_reset();
     if(dedicated) (void)editor_center_of_mass_panel_draw(&ui->mass_properties, context);
     else (void)editor_soft_body_editor_draw(ui, shape, context);
-    rohr_ui_frame_end();
+    rohr_ui_update();
 }
 static void number(EditorSoftBodyEditor *ui, EditorAutoShapeEditor *shape,
         EditorModeContext *context, bool dedicated, float y, const char *text) {
