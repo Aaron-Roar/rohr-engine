@@ -10,15 +10,15 @@
         "solver_iterations": 12
     },
     "viewport_camera_offset": {
-        "x": 155.5577392578125,
-        "y": -159.25289916992188
+        "x": 128.40185546875,
+        "y": -141.32257080078125
     },
-    "viewport_camera_zoom": 0.4114832580089569,
+    "viewport_camera_zoom": 0.322592556476593,
     "viewport_local_view": false,
     "navigation": {
         "mode": 0,
-        "selection": 18,
-        "object": 0,
+        "selection": 1,
+        "object": 1,
         "line": 0,
         "vertex": 0,
         "rigid_body": 0,
@@ -28,16 +28,18 @@
         "soft_body": 0,
         "soft_node": 0,
         "soft_beam": 0,
+        "soft_area": 0,
+        "soft_hole": 0,
         "sprite": 0,
         "animated_sprite": 0,
         "animation_frame": 0,
         "camera": 0,
-        "input_controller": 0,
-        "input_action": 0,
+        "input_controller": 1,
+        "input_action": 1,
         "input_binding": 0,
         "origin_kind": 0
     },
-    "selected": 0,
+    "selected": 1,
     "next_object_id": 2,
     "next_vertex_id": 9,
     "next_rigid_body_id": 3,
@@ -155,7 +157,6 @@
                     "id": 1,
                     "parent": 0,
                     "name": "floor",
-                    "center_of_mass": {"mode": "automatic"},
                     "graphics_layer_value": 0,
                     "graphics_layer": 0,
                     "position": {
@@ -172,6 +173,9 @@
                         "y": 0.0
                     },
                     "initial_angular_velocity": 0.0,
+                    "center_of_mass": {
+                        "mode": "automatic"
+                    },
                     "mass": 1.0,
                     "friction": 0.800000011920929,
                     "restitution": 0.15000000596046448,
@@ -253,7 +257,6 @@
                     "id": 2,
                     "parent": 0,
                     "name": "player",
-                    "center_of_mass": {"mode": "automatic"},
                     "graphics_layer_value": 0,
                     "graphics_layer": 0,
                     "position": {
@@ -270,6 +273,9 @@
                         "y": 0.0
                     },
                     "initial_angular_velocity": 0.0,
+                    "center_of_mass": {
+                        "mode": "automatic"
+                    },
                     "mass": 5.0,
                     "friction": 0.3499999940395355,
                     "restitution": 0.0,

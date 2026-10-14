@@ -109,6 +109,8 @@ int main(void) {
         if(rohr_physics_update(ticks_advanced).header.status == ROHR_REPORT_FAILED ||
                 !player_speed_limit_apply(objects.player_world.player)) goto fail;
         rohr_graphics_show();
+        //ReportResult report = rohr_report_get(ROHR_REPORT);
+        //rohr_report_console_write(&report.result.value);
     }
 
 done:
