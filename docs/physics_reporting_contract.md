@@ -14,6 +14,14 @@ is Goal 1, physics integration Goal 2, console/JSON output Goal 3, and
 [graphics integration](reports.md#graphics-reports) Goal 4.
 Simulation-failure recovery is Goal 11, after all systems have reporting.
 
+The separate Reporting Workflow Standards and Audio Contract documentation
+milestone precedes audio Goal 5 without renumbering this milestone. Follow the
+[reporting instructions](agent_instructions/system_reporting.md); the
+[audio contract](audio_reporting_contract.md) preserves the approved deferred
+controls and asynchronous report delivery design, not yet implemented. Its
+explicitly approved audio behavior does not change physics setter or recovery
+semantics. Resume audio implementation only on explicit user instruction.
+
 ## Scope and decisions
 
 Build the shared report system first. Physics is the first integrated report

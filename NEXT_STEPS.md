@@ -74,9 +74,13 @@ translation and deformation, with matching editor-generated initial motion.
    source directories. Windows execution remains unverified. Existing projects
    must regenerate C to receive the initial-motion correction.
 
-The user-selected **System Update Reports** milestone is the next prerequisite,
-before resuming Goal 1 of **Unified Forces and Torques**. Establish per-system
-timings and diagnostics first; preserve the agreed force/torque API design.
+The user-selected **Reporting Workflow Standards and Audio Contract** milestone
+is complete. Reporting instructions and the agreed audio contract are preserved
+in the single-goal documentation prerequisite below.
+
+Then resume **System Update Reports** at Goal 5 (audio), only on explicit user
+instruction, before resuming Goal 1 of **Unified Forces and Torques**. Establish
+per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -694,6 +698,26 @@ shape applies. Recording this milestone does not resolve those details or
 authorize starting a goal. Complete and verify only the goal the user selects,
 then stop for review and a user-created commit.
 
+## Prerequisite Milestone: Reporting Workflow Standards and Audio Contract
+
+Preserve reusable reporting standards and the agreed audio design before
+resuming System Update Reports. This is documentation-only work; audio
+implementation remains Goal 5 of the existing milestone, with numbering intact.
+
+1. [x] **Document reporting instructions and the audio Goal 5 contract** — Add
+   mandatory [reporting instructions](docs/agent_instructions/system_reporting.md)
+   routed from `AGENTS.md`; preserve the approved but unimplemented
+   [audio contract](docs/audio_reporting_contract.md), explicitly separating open
+   implementation details. Update roadmap priority and contract links, then
+   verify documentation consistency without runtime changes. Stop before audio
+   implementation and wait for explicit instruction to resume Goal 5.
+   Completed: reporting instructions and root routing, approved audio behavior
+   separated from open implementation details, and roadmap/contract links.
+   Verified local links, contract consistency, milestone numbering, and a
+   documentation-only diff. Runtime builds and sanitizers are not applicable.
+   `AGENTS.md` and `docs/agent_instructions/` remain locally maintained under the
+   existing Git ignore rules; the audio contract and roadmap are versioned.
+
 ## Prerequisite Milestone: System Update Reports
 
 Give each top-level engine system its own update report containing timings,
@@ -705,7 +729,8 @@ integrate physics next, then add console/JSON output and the remaining system
 reports. Address simulation-failure recovery only after reporting coverage is
 complete. The [reporting contract](docs/physics_reporting_contract.md) preserves
 the agreed design; finalize system-specific runnable boundaries in each
-integration goal before modifying that system.
+integration goal before modifying that system. The documentation prerequisite
+above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract.md).
 
 1. [x] **Implement and verify the shared report system** — Finalize and add
    the common types, enum IDs, constructors, collection helpers, report merging,
@@ -783,10 +808,16 @@ integration goal before modifying that system.
    startup/shutdown checks, and generated-application build/startup/shutdown.
    Windows execution remains unverified. User visual review of editor/application
    rendering parity remains a follow-up. See [Graphics reports](docs/reports.md#graphics-reports).
-5. [ ] **Define and integrate audio update reports** — Define the report boundary for audio
-   processing, collect relevant timings/statistics and diagnostics, and publish
-   them safely to game code. Preserve callback constraints and resource lifetime;
-   verify recoverable failures, shutdown, and independent report ownership.
+5. [ ] **Define and integrate audio update reports** — Implement the approved
+   [audio contract](docs/audio_reporting_contract.md): deferred FIFO playback
+   controls and setters, synchronous resource/service lifecycle, applied-state
+   getters, and update submission plus collection of completed callback reports.
+   Commands, sounds, music, and output report actual work, including later
+   failures from earlier requests. Preserve independent callback playback,
+   bounded storage, safe resource lifetime, and copied diagnostics. Resolve the
+   contract's open implementation details before coding; verify delayed failures,
+   overflow, shutdown, report ownership, and affected callers. Begin only on
+   explicit user instruction after the documentation prerequisite is complete.
 6. [ ] **Define and integrate input update reports** — Specify the input-frame
    boundary, event ingestion, action evaluation, and text/IME truncation
    diagnostics. Preserve input behavior and verify reset boundaries and recovery.

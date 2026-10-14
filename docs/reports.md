@@ -5,6 +5,11 @@ Physics and graphics updates return this type as described below. Console, JSON,
 and text-file output are implemented; other system integrations and latest-report retrieval
 remain scheduled work.
 
+For implementation work, follow the
+[reporting instructions](agent_instructions/system_reporting.md). The approved
+[audio Goal 5 contract](audio_reporting_contract.md) is future design, not a
+shipped API; the reference below continues to describe implemented behavior.
+
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
 functions. Both paths use the same implementation and have the same behavior.
 
