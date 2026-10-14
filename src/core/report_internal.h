@@ -11,5 +11,8 @@
  * revalidation so callback collection scans only the bounded diagnostic list.
  * Public report_diagnostic_add remains fully checked. */
 void report_diagnostic_collect_internal(Report *report, ReportDiagnostic diagnostic);
+/* Completed engine-owned values only. Does not allocate or call other systems.
+ * A nonzero version is already published (e.g. retained audio shutdown). */
+void report_publish_internal(Report *report);
 
 #endif

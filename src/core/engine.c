@@ -192,8 +192,7 @@ SDL_Event engine_event_poll(void) {
 /* Each report owns its evidence; no report collection occurs in tick-only calls. */
 static void engine_report_statistic_add(Report *report, ReportMetricId metric,
         uint64_t value) {
-    (void)report_statistic_add(report, (ReportStatistic){report->header.id, metric,
-        ROHR_REPORT_AGGREGATION_SUM, value});
+    (void)report_statistic_add(report, (ReportStatistic){.report_id = report->header.id, .metric_id = metric, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = value});
 }
 
 static void engine_report_issue(Report *report, uint32_t stage, EngineError code,
@@ -211,6 +210,7 @@ static void engine_report_issue(Report *report, uint32_t stage, EngineError code
 static void engine_report_finish(Report *report, Uint64 started) {
     report->header.total_ms = (double)(SDL_GetPerformanceCounter() - started) *
         1000.0 / (double)SDL_GetPerformanceFrequency();
+    report_publish_internal(report);
 }
 
 Report engine_lifecycle_update(void) {

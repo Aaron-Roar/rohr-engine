@@ -4662,6 +4662,18 @@ Returns a random float in a range.
 
 ## Other
 
+### `rohr_report_get`
+
+```c
+ReportResult rohr_report_get(ReportId id);
+```
+
+Returns an independent, non-consuming copy of the latest published result, or
+ERROR_ENGINE_REPORT_INVALID for an unsupported ID. ROHR_REPORT composes distinct
+stored versions while omitting covered children. Never-published supported IDs
+return NOT_RUN. Thread-safe retrieval persists across shutdown/restart; see
+[Stored reports](reports.md#stored-reports).
+
 ### `rohr_report_create`
 
 ```c
@@ -4749,7 +4761,7 @@ Preserves the report; returns output failures separately from reported failures.
 EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty);
 ```
 
-Replaces a file with version 1 report JSON. Pretty mode changes whitespace only.
+Replaces a file with version 2 report JSON, including publication and group metadata. Pretty mode changes whitespace only.
 Uses temporary allocation; invalid reports and serialization failures do not open
 the destination. I/O failure may leave a partial file. Does not create directories.
 

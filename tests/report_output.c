@@ -99,11 +99,9 @@ static void string_is(yyjson_val *v, const char *s) {
 static Report sample(void) {
     Report r = report_create();
     OK(report_header_set(&r, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, .42}));
-    OK(report_entry_add(&r, (ReportEntry){{ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_COMPLETE, .12}, UINT64_MAX}));
-    OK(report_statistic_add(&r, (ReportStatistic){ROHR_PHYSICS_INTEGRATION_REPORT,
-        ROHR_REPORT_PROCESSED_COUNT, ROHR_REPORT_AGGREGATION_SUM, UINT64_MAX}));
-    OK(report_statistic_add(&r, (ReportStatistic){ROHR_REPORT_CUSTOM_ID_BEGIN,
-        ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN, ROHR_REPORT_AGGREGATION_LATEST, 9007199254740993ULL}));
+    OK(report_entry_add(&r, (ReportEntry){.header = {ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_COMPLETE, .12}, .invocation_count = UINT64_MAX}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_PHYSICS_INTEGRATION_REPORT, .metric_id = ROHR_REPORT_PROCESSED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = UINT64_MAX}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN, .metric_id = ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN, .aggregation = ROHR_REPORT_AGGREGATION_LATEST, .value = 9007199254740993ULL}));
     ReportDiagnostic d = {
         .report_id = ROHR_PHYSICS_INTEGRATION_REPORT, .internal_stage = ROHR_PHYSICS_INTEGRATION,
         .severity = ROHR_REPORT_SEVERITY_WARNING, .code = ERROR_ENGINE_POSITION_OUT_OF_RANGE,
@@ -131,7 +129,7 @@ static void json_and_ownership(void) {
     yyjson_doc *compact = json_read(json_path), *pretty = json_read(pretty_path);
     yyjson_val *root = yyjson_doc_get_root(compact);
     assert(yyjson_equals(root, yyjson_doc_get_root(pretty)));
-    assert(yyjson_get_uint(get(root, "format_version")) == 1);
+    assert(yyjson_get_uint(get(root, "format_version")) == 2);
     assert(yyjson_obj_get(root, "diagnostic_count") == NULL);
     yyjson_val *header = get(root, "header");
     string_is(get(get(header, "id"), "name"), "ROHR_PHYSICS_REPORT");
@@ -229,10 +227,9 @@ static void capacities_and_truncation(void) {
     Report r = report_create();
     OK(report_header_set(&r, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, DBL_MAX}));
     for(unsigned i = 0; i < ROHR_REPORT_ENTRY_CAPACITY + 1; i++)
-        OK(report_entry_add(&r, (ReportEntry){{ROHR_REPORT_CUSTOM_ID_BEGIN + i, ROHR_REPORT_COMPLETE, .1}, 1}));
+        OK(report_entry_add(&r, (ReportEntry){.header = {ROHR_REPORT_CUSTOM_ID_BEGIN + i, ROHR_REPORT_COMPLETE, .1}, .invocation_count = 1}));
     for(unsigned i = 0; i < ROHR_REPORT_STATISTIC_CAPACITY + 1; i++)
-        OK(report_statistic_add(&r, (ReportStatistic){ROHR_PHYSICS_REPORT,
-            ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN + i, ROHR_REPORT_AGGREGATION_MAX, i}));
+        OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_PHYSICS_REPORT, .metric_id = ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN + i, .aggregation = ROHR_REPORT_AGGREGATION_MAX, .value = i}));
     ReportDiagnostic d = {.report_id = ROHR_PHYSICS_REPORT, .severity = ROHR_REPORT_SEVERITY_WARNING,
         .code = ERROR_ENGINE_STATE_INVALID, .occurrence_count = 1};
     for(unsigned i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; i++) {
@@ -320,6 +317,7 @@ static void builtin_names(void) {
         {ROHR_AUDIO_MUSIC_REPORT, "ROHR_AUDIO_MUSIC_REPORT"},
         {ROHR_AUDIO_OUTPUT_REPORT, "ROHR_AUDIO_OUTPUT_REPORT"},
         {ROHR_ENGINE_LIFECYCLE_REPORT, "ROHR_ENGINE_LIFECYCLE_REPORT"},
+        {ROHR_REPORT, "ROHR_REPORT"},
     };
     static const struct { ReportMetricId id; const char *name; ReportAggregation rule; } metrics[] = {
         {ROHR_REPORT_PROCESSED_COUNT, "ROHR_REPORT_PROCESSED_COUNT", ROHR_REPORT_AGGREGATION_SUM},
@@ -354,14 +352,14 @@ static void builtin_names(void) {
         {ROHR_REPORT_TICKS_ADVANCED_COUNT, "ROHR_REPORT_TICKS_ADVANCED_COUNT", ROHR_REPORT_AGGREGATION_SUM},
         {ROHR_REPORT_EXPIRED_ENTITY_COUNT, "ROHR_REPORT_EXPIRED_ENTITY_COUNT", ROHR_REPORT_AGGREGATION_SUM},
     };
-    assert(sizeof(owners) / sizeof(owners[0]) == ROHR_ENGINE_LIFECYCLE_REPORT);
+    assert(sizeof(owners) / sizeof(owners[0]) == ROHR_REPORT);
     assert(sizeof(metrics) / sizeof(metrics[0]) == ROHR_REPORT_EXPIRED_ENTITY_COUNT);
     Report r = report_create();
     OK(report_header_set(&r, (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, 0}));
     for(size_t i = 0; i < sizeof(owners) / sizeof(owners[0]); ++i)
-        OK(report_entry_add(&r, (ReportEntry){{owners[i].id, ROHR_REPORT_COMPLETE, 0}, 1}));
+        OK(report_entry_add(&r, (ReportEntry){.header = {owners[i].id, ROHR_REPORT_COMPLETE, 0}, .invocation_count = 1}));
     for(size_t i = 0; i < sizeof(metrics) / sizeof(metrics[0]); ++i) {
-        ReportStatistic s = {ROHR_REPORT_CUSTOM_ID_BEGIN, metrics[i].id, metrics[i].rule, 1};
+        ReportStatistic s = {.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN, .metric_id = metrics[i].id, .aggregation = metrics[i].rule, .value = 1};
         OK(report_statistic_add(&r, s));
         s.aggregation = s.aggregation == ROHR_REPORT_AGGREGATION_SUM ?
             ROHR_REPORT_AGGREGATION_MAX : ROHR_REPORT_AGGREGATION_SUM;
@@ -374,7 +372,8 @@ static void builtin_names(void) {
     yyjson_val *root = yyjson_doc_get_root(doc);
     for(size_t i = 0; i < sizeof(owners) / sizeof(owners[0]); ++i) {
         char readable[128];
-        snprintf(readable, sizeof(readable), "  %.*s (%u)  COMPLETE",
+        if(owners[i].id == ROHR_REPORT) snprintf(readable, sizeof(readable), "  REPORT (%u)  COMPLETE", (unsigned)ROHR_REPORT);
+        else snprintf(readable, sizeof(readable), "  %.*s (%u)  COMPLETE",
             (int)(strlen(owners[i].name) - strlen("ROHR_") - strlen("_REPORT")),
             owners[i].name + strlen("ROHR_"), (unsigned)owners[i].id);
         assert(strstr(text, readable));
@@ -389,10 +388,46 @@ static void builtin_names(void) {
     free(text); yyjson_doc_free(doc);
 }
 
+static void versioned_output(void) {
+    Report r = {.header = {ROHR_REPORT, ROHR_REPORT_COMPLETE, 0}, .version = 9};
+    for(uint64_t v = 7; v <= 8; ++v) {
+        OK(report_entry_add(&r, (ReportEntry){.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 1},
+            .invocation_count = 1, .group_version = v, .group_root = true}));
+        OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_UI_REPORT,
+            .metric_id = ROHR_REPORT_PROCESSED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM,
+            .value = v, .group_version = v}));
+        ReportDiagnostic d = {.report_id = ROHR_UI_REPORT, .severity = ROHR_REPORT_SEVERITY_FATAL,
+            .code = ERROR_ENGINE_STATE_INVALID, .occurrence_count = 1, .group_version = v};
+        OK(report_diagnostic_add(&r, d));
+    }
+    r.included_versions[ROHR_UI_REPORT] = 8;
+    OK(report_json_write(&r, json_path, false));
+    yyjson_doc *doc = json_read(json_path);
+    yyjson_val *root = yyjson_doc_get_root(doc);
+    string_is(get(root, "version"), "9");
+    assert(yyjson_arr_size(get(root, "diagnostics")) == 2);
+    string_is(get(get(root, "first_fatal"), "group_version"), "7");
+    yyjson_val *entry = yyjson_arr_get(get(root, "entries"), 1);
+    string_is(get(entry, "group_version"), "8");
+    assert(yyjson_get_bool(get(entry, "group_root")));
+    string_is(get(yyjson_arr_get(get(root, "statistics"), 0), "group_version"), "7");
+    string_is(get(yyjson_arr_get(get(root, "included_versions"), 0), "version"), "8");
+    yyjson_doc_free(doc);
+    OK(report_text_write(&r, text_path));
+    char *text = file_read(text_path);
+    assert(strstr(text, "Snapshot version: 7") && strstr(text, "Snapshot version: 8"));
+    free(text);
+    ReportEntry invalid = {.header = {ROHR_UI_REPORT, ROHR_REPORT_NOT_RUN, 0}, .group_root = true};
+    FAIL(report_entry_add(&r, invalid), ERROR_ENGINE_REPORT_INVALID);
+    Report empty = report_create(); empty.version = 1;
+    assert(!report_valid_check(&empty));
+}
+
 int main(void) {
 #ifdef _WIN32
     assert(_setmode(fileno(stdout), _O_BINARY) != -1);
 #endif
+    versioned_output();
     builtin_names();
     json_and_ownership();
     empty_and_invalid();

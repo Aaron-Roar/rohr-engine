@@ -124,6 +124,10 @@ static void delayed_and_failures(void) {
     }
     pump(64);
     assert(audio_sound_playing_check(sound.result.value) && sample_energy > 0);
+    ReportResult before_collection = report_get(ROHR_AUDIO_REPORT);
+    OK(before_collection);
+    assert(before_collection.result.value.version == report.version);
+    assert(before_collection.result.value.entry_count == 0);
     report = audio_update();
     assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 1);
     assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 64);
@@ -269,6 +273,16 @@ static void overflow_test(void) {
     assert(report.header.status == ROHR_REPORT_FAILED);
     assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_SKIPPED_COUNT) == 256);
     assert(report_valid_check(&report));
+    ReportResult stored_output = rohr_report_get(ROHR_AUDIO_OUTPUT_REPORT);
+    OK(stored_output);
+    assert(stored_output.result.value.has_fatal);
+    assert(stored_output.result.value.first_fatal.occurrence_count == 2);
+    assert(stored_output.result.value.dropped_diagnostic_occurrences == 0);
+    assert(stored_output.result.value.invocation_count == 2);
+    ReportResult stored_music = rohr_report_get(ROHR_AUDIO_MUSIC_REPORT);
+    OK(stored_music);
+    assert(stored_music.result.value.dropped_diagnostic_occurrences == 1);
+    assert(report.included_versions[ROHR_AUDIO_OUTPUT_REPORT] == stored_output.result.value.version);
     OK(rohr_report_json_write(&report, "audio_report.json", false));
     OK(rohr_report_text_write(&report, "audio_report.txt"));
     FILE *file = fopen("audio_report.json", "rb"); assert(file);

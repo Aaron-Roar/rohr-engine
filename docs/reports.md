@@ -3,7 +3,7 @@
 The shared report API is implemented independently of engine initialization.
 Engine, physics, graphics, audio, and UI updates return this type as described below.
 Console, JSON, and text-file output are implemented. Input reporting is explicitly
-deferred; latest-report retrieval and simulation-failure recovery remain scheduled work.
+deferred. Latest-report retrieval is implemented; simulation-failure recovery remains scheduled work.
 
 For implementation work, follow the
 [reporting instructions](agent_instructions/system_reporting.md). The
@@ -55,7 +55,7 @@ Report-free boundaries are deliberate:
 - Input events, queries, and text/IME truncation keep existing behavior.
   `ROHR_INPUT_REPORT` is reserved and printable, without an input producer.
 - Report builders, validation, composition, and output operate on values;
-  they do not run systems. Goal 10's retrieval API is not implemented.
+  they do not run systems. Stored getters read published values only.
 
 ### Coverage evidence
 
@@ -127,6 +127,118 @@ merging included descendants. Audio stop and its next-update delivery describe
 the same work; do not merge both. Inclusive/asynchronous child times do not sum
 to frame duration. Budget retained values explicitly; see [Cost and boundaries](#cost-and-boundaries).
 
+## Stored reports
+
+```c
+ReportResult result = rohr_report_get(ROHR_PHYSICS_REPORT);
+if(rohr_error_check(result)) {
+    /* Unsupported selector: ERROR_ENGINE_REPORT_INVALID. */
+} else {
+    Report snapshot = result.result.value;
+    if(snapshot.header.status == ROHR_REPORT_FAILED) {
+        /* The getter succeeded; the stored update failed. */
+    }
+}
+ReportResult all = rohr_report_get(ROHR_REPORT);
+/* Check all.kind before reading all.result.value. */
+```
+
+`report_get()` is the equivalent direct API. Getters return independent copies,
+never consume evidence, never execute updates, and work before initialization or
+from another thread during publication. Supported never-published IDs yield
+NOT_RUN with version zero. NONE, unknown IDs, custom IDs, and deferred input
+return an error. Custom reports remain caller-owned; there is no public cache
+registration/publication API.
+
+Each completed runnable invocation replaces its owner's stored value, including
+FAILED and NOT_RUN. Reports persist across startup, shutdown, and clock reset;
+those operations do not clear storage. Shutdown may itself execute a reporting
+operation, such as audio stop, which publishes normally. Older failures can
+therefore remain visible until their owner next publishes. Getters cannot change
+pending UI events, queued graphics commands, or audio evidence awaiting collection.
+
+`Report.version` is a process-wide increasing publication sequence, not a frame
+number, engine tick, or wall-clock timestamp. `invocation_count` is one for a
+normal executed snapshot and zero for NOT_RUN. Ordinary unpublished builders
+with zero invocation count retain the existing implicit-one merge convention.
+`included_versions[id]` records the last included publication of each built-in
+owner, independently of entry/statistic/diagnostic capacity. This provenance is
+engine-owned metadata; callers should not fabricate it. Repeated substeps still
+aggregate within parents, while child getters return the latest individual
+invocation, annotated before publication.
+
+Audio children are the exception: their snapshots contain the aggregate from
+the last audio update/stop collection interval, with the actual callback
+invocation count. Children that did not execute publish NOT_RUN, potentially
+with queued-command statistics. Callbacks never publish to this cache. Getters
+see only collected evidence, and do not force callback execution or collection.
+Repeated stop and the subsequent retained shutdown delivery preserve the same
+version and timing; a fresh later NOT_RUN result replaces that snapshot.
+
+### Automatic composition
+
+`ROHR_REPORT` observes the cache under one lock. It selects every latest
+published snapshot except those whose exact execution is included in another
+selected parent. For example, physics containing joints version 10 covers that
+child; independently running joints version 12 keeps both the old physics
+snapshot and the newer joints snapshot. It does not replace part of the old
+physics report or count its included version 10 twice. A newer NOT_RUN parent
+has no earlier children, so previously published child work can reappear as
+separate retained observations. This is a view of stored results, not a frame
+history or a claim that everything ran together.
+
+Selected snapshots compose in publication order. Their records carry separate
+`group_version` values, so equal report IDs, metrics, and diagnostic keys from
+different snapshots stay separate. Root entries have `group_root = true` and
+retain their status, inclusive timing, and invocation count; even published
+NOT_RUN snapshots have root entries with zero invocations. Ordinary entries
+summarize included children. Root entries share the existing bounded entry
+capacity; overflow is visible and never affects provenance-based selection.
+
+The combined report's version is the registry sequence observed by that read.
+Its `total_ms` is zero (unmeasured); nested/asynchronous timings must not be
+summed into frame duration. Status is FAILED if any selected report failed,
+COMPLETE if any completed, otherwise NOT_RUN. First fatal follows publication
+order. Shared overflow, saturation, copied-message, and reserved-fatal rules
+apply. Lost root entries do not erase the numeric group tags on retained records.
+
+Public `report_merge()` remains explicit aggregation, not a deduplicating cache
+operation. It preserves group tags when merging an already-composed report;
+ordinary report records with group zero still aggregate as before. Re-merging
+any source deliberately counts its work again.
+
+### Storage and synchronization
+
+The process-lived cache reserves 2,208,384 bytes on the verified native ABI,
+including unused enum slots. Publication/getters use a static SDL spin lock over
+bounded copies/composition, with no allocations, output, SDL service startup,
+or live-system queries. Simulation and callbacks never run under that lock.
+Concurrent getters are safe; this does not make concurrent execution of existing
+physics/graphics/UI producers safe. The audio application gate remains its
+existing publication serialization boundary.
+
+Update timers end before their own final cache copy. Inclusive parent timings
+can include child publication costs; the registry benchmark measures retrieval
+separately from system execution.
+
+Versions are never reused. If the 64-bit sequence exhausts, updates still return
+values with the saturation flag, and retrieval returns REPORT_INVALID rather
+than silently presenting an obsolete cache as current. There is no reset API.
+
+The native `report_storage` stress test exercises concurrent readers, publication,
+full-capacity composition, and allocation guards. It prints report/cache sizes
+and the time for 100 combined reads; the first native run measured approximately
+1.5 ms for those reads. A separate installed-SDK benchmark filled every supported
+cache slot's entries, statistics, and diagnostics, including reserved fatal
+details: 100 combined reads took about 54 ms (0.54 ms/read), and 100 full-report
+publications took about 0.15 ms. These are workload measurements, not real-time
+latency guarantees. Child cache copying is application-side, including audio;
+callback storage adds only bounded per-child fatal/loss evidence.
+
+The C struct layout changed: rebuild the engine and consumers together. Use
+zero/designated initializers for the new fields. Existing enum numeric values
+are preserved; `ROHR_REPORT` is appended. JSON export is now version 2.
+
 ## Build a report
 
 ```c
@@ -173,10 +285,11 @@ array slots do not matter. Prefer helpers over editing counts or collected slots
 ## Add entries and statistics
 
 An entry summarizes a directly runnable child: its ID, status, time, and number
-of invocations. `report_entry_add()` combines equal IDs, sums time and invocation
-count, and propagates the strongest status. It does not modify the parent's time.
+of invocations. `report_entry_add()` combines equal IDs within the same group and
+root kind, sums time and invocation count, and propagates the strongest status.
+It does not modify the parent's time.
 
-`report_statistic_add()` combines `(report_id, metric_id)` keys. Engine metrics
+`report_statistic_add()` combines `(report_id, metric_id, group_version)` keys. Engine metrics
 have fixed rules:
 
 | Metric | Rule |
@@ -253,7 +366,7 @@ elapsed-time accumulation saturates at DBL_MAX. Both set `counters_saturated`.
 ## Diagnostics and first fatal
 
 Diagnostics aggregate on report ID, pipeline-local `internal_stage`, severity,
-error code, recovery action, source, and target. Zero internal stage means no
+error code, recovery action, source, target, and group version. Zero internal stage means no
 additional stage context. Occurrence counts add; known substep ranges widen.
 For unknown substep context, use `has_substep = false` and zero indices. Source
 and target are copied tagged 64-bit IDs, preserving entity generations without
@@ -276,7 +389,7 @@ the first reason the operation failed.
 
 ## Cost and boundaries
 
-On the verified native build, `sizeof(Report)` is 88,728 bytes. Layout is a C ABI,
+On the verified native build, `sizeof(Report)` is 92,016 bytes. Layout is a C ABI,
 not a portable serialized byte format. Keep retained reports in deliberately
 budgeted storage; avoid large arrays on small stacks. Validation uses bounded
 linear/quadratic scans over populated slots and collection uses no heap allocation.
@@ -376,10 +489,10 @@ mutable latest-report collector and no report pointer retained in constraints.
 The engine's simulation state remains subject to its existing single-threaded
 physics execution requirement.
 
-The later stored-report goal will add `rohr_report_get(id)` and the combined
-`rohr_report_get(ROHR_REPORT)`. Each runnable pipeline will retain only its latest
-copy, overwritten by its next update. Updates will still return reports directly.
-That retrieval API is agreed but is not implemented in this physics goal.
+Each runnable pipeline now publishes its latest invocation. Parent reports keep
+substep aggregates; child getters return the final individual invocation with
+its substep context. Same-owner forwarding functions publish the complete outer
+result once, including animated-hitbox preparation.
 
 ## Console and file output
 
@@ -427,18 +540,26 @@ stops further output. Text files do not inherit the console's line limit.
 Existing void console APIs keep their signatures and use the same checked
 backend internally, discarding its return value.
 
-### JSON format version 1
+### JSON format version 2
 
 The root object contains `format_version`, `header`, `entries`, `statistics`,
 `diagnostics`, `first_fatal`, `dropped_entry_count`, `dropped_statistic_count`,
-`dropped_diagnostic_occurrences`, and `counters_saturated`. Arrays contain only
+`dropped_diagnostic_occurrences`, `counters_saturated`, `version`,
+`invocation_count`, and `included_versions`. Version 2 adds publication and
+group metadata; version 1 consumers must explicitly accept the new format.
+Arrays contain only
 populated records in collection order, so redundant counts/capacities are omitted.
 A child entry remains a summary; export does not invent nested child reports.
 
 - Enums use `{ "value": number, "name": "EXACT_C_ENUM_NAME" }`. Unknown custom
   names are `null`. Numeric values already exported by version 1 must not be
   renumbered when extending enums.
-- Every `uint64_t` field uses a decimal string, including statistic values,
+- `included_versions` contains `{report_id, version}` objects for nonzero
+  built-in provenance slots. `report_id` is an enum object; `version` is a string.
+  Every entry/statistic/diagnostic also has `group_version`; entries additionally
+  have `group_root`. Zero group means ordinary within-report aggregation.
+- Every `uint64_t` field uses a decimal string, including publication/group
+  versions, statistic values,
   invocation/occurrence/drop counts, and object IDs. This preserves values larger
   than JavaScript's exact-integer range. Enum/stage/substep IDs are numbers.
 - Header `total_ms` is a number. Boolean fields remain booleans. No engine tick,
@@ -504,7 +625,7 @@ Draw calls queue commands before or during camera callbacks. Submission warnings
 and accepted-command counts accumulate in bounded, graphics-owned storage until
 the next commands execution call. That call consumes this evidence exactly once,
 adds execution results, and clears it for the next invocation. Previously returned
-reports never change. There is no latest-report cache or automatic report output.
+reports never change. Completed values are published to the latest-report cache; output remains explicit.
 
 Camera callbacks execute once per visible screen, preserving existing enabled and
 pause rules. Camera setup/restoration errors belong to the cameras report; errors
@@ -603,7 +724,7 @@ service with no retained shutdown evidence returns NOT_RUN.
 These four child boundaries remain callback-owned; public manual mixing/output
 is explicitly deferred. They are not a public independently callable pipeline
 API. Helpers and individual sounds/tracks contribute to their owning report.
-The future latest-report retrieval API remains Goal 10.
+Child getters return the latest published interval aggregate; see [Stored reports](#stored-reports).
 
 Commands referencing destroyed resources are skipped with warnings identifying
 the original generation-checked handle. Seek/decode failures report commands or
@@ -698,7 +819,7 @@ Collection allocates, prints and serializes nothing. Explicit text/JSON output
 supports these metric/error names. Shared aggregation, saturation, diagnostic
 overflow, first-fatal preservation and copied-message ownership rules apply.
 Retained report copies remain independent after later updates and shutdown.
-Latest stored-report retrieval remains a separate pending milestone goal.
+The completed value is published for non-consuming retrieval; pending widget/event evidence is not visible to getters.
 
 
 ## Engine reports
@@ -727,7 +848,7 @@ returns `ROHR_ENGINE_REPORT`, advances the clock once, then merges one
 `ROHR_ENGINE_LIFECYCLE_REPORT` from cleanup. Its elapsed time independently
 covers both operations and collection. The lifecycle report measures its own
 sweep. Physics, graphics, audio and UI are never run or merged here. There is no
-separate clock report and no implicit latest-report storage.
+separate clock report. Completed engine/lifecycle values are independently stored for retrieval.
 
 `engine_tick_get()` returns the accumulated tick count. `engine_tick_delta_get()`
 returns the latest tick-update result, replaced even when zero; repeated reads
@@ -790,4 +911,4 @@ The top-level audit leaves startup and configuration operations on their immedia
 results, low-level time advancement on its existing API, and input reporting
 deferred by user choice. Existing physics, graphics, audio and UI report owners
 remain independent. The [coverage inventory](#system-coverage-inventory) records
-their boundaries. Latest-report retrieval/composition remains Goal 10.
+their boundaries. [Stored reports](#stored-reports) describes latest-report retrieval and composition.

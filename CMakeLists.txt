@@ -569,6 +569,25 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME report_output COMMAND report_output_test)
 
     add_executable(system_reports_test tests/system_reports.c)
+    add_executable(report_storage_test tests/report_storage.c)
+    target_link_libraries(report_storage_test PRIVATE rohr_engine)
+    target_include_directories(report_storage_test PRIVATE src)
+    set_target_properties(report_storage_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(report_storage_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(report_storage_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(report_storage_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(report_storage_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME report_storage COMMAND report_storage_test)
+    set_tests_properties(report_storage PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
     target_link_libraries(system_reports_test PRIVATE rohr_engine)
     set_target_properties(system_reports_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -1016,6 +1035,7 @@ if(ROHR_BUILD_TESTS)
         report_test
         report_output_test
         system_reports_test
+        report_storage_test
         graphics_reports_test
         physics_reports_test
         audio_reports_test

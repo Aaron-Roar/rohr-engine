@@ -40,6 +40,7 @@ typedef enum ReportId {
     ROHR_AUDIO_MUSIC_REPORT,
     ROHR_AUDIO_OUTPUT_REPORT,
     ROHR_ENGINE_LIFECYCLE_REPORT,
+    ROHR_REPORT,
     ROHR_REPORT_CUSTOM_ID_BEGIN = 0x10000,
     ROHR_REPORT_CUSTOM_ID_END = 0x7fffffff
 } ReportId;
@@ -141,6 +142,10 @@ typedef struct ReportHeader {
 typedef struct ReportEntry {
     ReportHeader header;
     uint64_t invocation_count;
+    /** Zero for ordinary aggregation; otherwise the selected snapshot version. */
+    uint64_t group_version;
+    /** Marks the selected snapshot's own header, including NOT_RUN snapshots. */
+    bool group_root;
 } ReportEntry;
 
 typedef struct ReportStatistic {
@@ -148,6 +153,7 @@ typedef struct ReportStatistic {
     ReportMetricId metric_id;
     ReportAggregation aggregation;
     uint64_t value;
+    uint64_t group_version;
 } ReportStatistic;
 
 typedef struct ReportDiagnostic {
@@ -165,6 +171,7 @@ typedef struct ReportDiagnostic {
     uint32_t last_substep;
     char detail[ROHR_REPORT_DETAIL_CAPACITY];
     bool detail_truncated;
+    uint64_t group_version;
 } ReportDiagnostic;
 
 /** Self-contained value. No allocation, retained resources, or engine lifetime. */
@@ -182,7 +189,22 @@ typedef struct Report {
     bool counters_saturated;
     bool has_fatal;
     ReportDiagnostic first_fatal;
+    /** Process-lifetime publication sequence; zero means unpublished. */
+    uint64_t version;
+    /** Actual root invocations (audio intervals may contain more than one).
+     * Zero on unpublished builders means one when status is not NOT_RUN. */
+    uint64_t invocation_count;
+    /** Latest included publication per built-in ID; independent of record loss.
+     * Engine-owned provenance. Zero means no included publication. */
+    uint64_t included_versions[ROHR_REPORT];
 } Report;
+
+ERROR_DECLARE_RESULT_TYPE(ReportResult, Report);
+
+/** Copy the latest published report, or compose ROHR_REPORT. Thread-safe and
+ * non-consuming; no engine startup needed. Unsupported IDs return
+ * ERROR_ENGINE_REPORT_INVALID. Stored values survive shutdown and restart. */
+ReportResult report_get(ReportId id);
 
 /** Empty NOT_RUN builder; set its header before publishing a completed report. */
 Report report_create(void);
@@ -190,9 +212,9 @@ Report report_create(void);
 bool report_valid_check(const Report *report);
 /** Set identity/status/measured parent timing. A failed report cannot be cleared. */
 EngineResult report_header_set(Report *report, ReportHeader header);
-/** Accumulate matching child IDs; never change measured parent time. */
+/** Accumulate matching IDs within a group/root kind; preserve parent time. */
 EngineResult report_entry_add(Report *report, ReportEntry entry);
-/** Collect by report/metric ID. Rules must agree, including custom metrics. */
+/** Collect by report/metric ID and group. Rules must agree within that key. */
 EngineResult report_statistic_add(Report *report, ReportStatistic statistic);
 /** Copy optional text (NULL clears it), with visible truncation in the value. */
 EngineResult report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail);

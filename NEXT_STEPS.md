@@ -78,10 +78,10 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-**System Update Reports** Goals 1–6, 8 (engine/lifecycle reports), and 9 (coverage
-and documentation) are complete.
+**System Update Reports** Goals 1–6 and 8–10 (through stored retrieval and
+composition) are complete.
 Goal 7 (input) is deferred by user choice; retain its current API and direct
-errors. Goal 10 (latest-report retrieval and composition) awaits explicit selection,
+errors. Goal 11 (simulation-failure recovery) awaits explicit selection and policy decisions,
 before resuming Goal 1 of **Unified Forces and Torques**. Establish
 per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
@@ -888,15 +888,31 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    directories. Windows execution remains unverified. No public API or recovery
    policy changes; input stays deferred. See the
    [coverage inventory](docs/reports.md#system-coverage-inventory).
-10. [ ] **Add latest stored report retrieval and automatic composition** — Each
+10. [x] **Add latest stored report retrieval and automatic composition** — Each
     runnable pipeline keeps its latest returned report and overwrites it on its
     next update; no history. `rohr_report_get(id)` returns an independent copy,
     including child pipeline reports. `rohr_report_get(ROHR_REPORT)` combines the
     latest available results without counting child work twice. Never-run
     pipelines return NOT_RUN. Updates continue returning reports directly.
-    Define invocation provenance for children updated independently after their
-    parent, cross-system freshness, reset/lifetime, and callback synchronization
-    before implementation. Latest reports may originate at different times.
+    Completed: errorable public/direct getters return independent copies, reject
+    unsupported/custom/input IDs, and preserve snapshots across shutdown/restart
+    until replaced, including by NOT_RUN. Process-wide publication versions and
+    bounded provenance omit covered child snapshots while preserving independent
+    versions as separate groups. Children expose the latest invocation; audio
+    children expose the last published callback interval, without callback-side
+    cache access. Retained audio shutdown delivery preserves its version.
+    Concurrent getters observe complete published values and one consistent
+    combined registry view. Added version/group validation and text/JSON version 2
+    output; rebuild consumers for the changed Report ABI. Fixed storage is about
+    2.2 MB on the native ABI; 100 combined reads measured about 1.5 ms in the
+    stress fixture and 54 ms with every supported slot full; 100 full-report
+    publications took about 0.15 ms. Verified 80 native tests, ten focused ASan/UBSan/LeakSanitizer
+    tests, allocation guards, concurrent readers/publication, and Linux/Windows
+    engine/editor builds without compiler warnings. Both installed-SDK consumers,
+    all 12 standalone examples, and a generated application build on both
+    platforms; Linux execution/startup/shutdown checks pass outside source
+    directories. Windows execution remains unverified. See
+    [Stored reports](docs/reports.md#stored-reports).
 11. [ ] **Define and implement simulation-failure recovery** — After all applicable systems
     have reporting, decide how a failed entity is excluded without destructively
     rewriting its normal authored/physical state. Compare a reserved failure

@@ -14,10 +14,12 @@
 extern AABBTree physics_broadphase_tree;
 /** Internal collection helpers; NULL is allowed for legacy report-free helpers. */
 Report physics_report_create(ReportId id);
+Report physics_pipeline_update_internal(double dt, bool publish);
+void physics_report_context_set(bool active, uint32_t substep);
 void physics_report_counter_add(Report *report, ReportMetricId metric, uint64_t value);
 void physics_report_issue_add(Report *report, uint32_t stage, ReportSeverity severity,
     EngineError code, ReportRecovery recovery, Entity source, Entity target, const char *detail);
-void physics_report_elapsed_set(Report *report, uint64_t started);
+void physics_report_finish(Report *report, uint64_t started);
 void physics_report_substep_set(Report *report, uint32_t substep);
 void physics_hitbox_animation_bindings_report_update(Report *report);
 extern ContactConstraintList physics_step_contact_constraints;

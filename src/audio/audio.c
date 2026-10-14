@@ -139,8 +139,10 @@ static const ReportId audio_report_ids[AUDIO_PIPELINE_COUNT] = {
 };
 
 typedef struct AudioPipelineEvidence {
-    uint64_t invocations, nanoseconds, processed, skipped, frames;
+    uint64_t invocations, nanoseconds, processed, skipped, frames, dropped;
     bool failed;
+    bool has_fatal;
+    ReportDiagnostic first_fatal;
 } AudioPipelineEvidence;
 
 typedef struct AudioEvidence {
@@ -151,6 +153,7 @@ typedef struct AudioEvidence {
 } AudioEvidence;
 
 static AudioEvidence audio_evidence[2];
+static const AudioEvidence audio_empty_evidence;
 static unsigned int audio_evidence_index;
 static Report audio_shutdown_report;
 static bool audio_shutdown_pending;
@@ -187,7 +190,27 @@ static void audio_issue(unsigned int pipeline, EngineError code, bool fatal,
     AudioEvidence *evidence = audio_evidence_current();
     evidence->issues.header.id = ROHR_AUDIO_REPORT;
     (void)report_diagnostic_detail_set(&diagnostic, detail);
+    AudioPipelineEvidence *owner = &evidence->pipeline[pipeline];
+    bool own_fatal = false;
+    if(fatal) {
+        if(!owner->has_fatal) {
+            owner->first_fatal = diagnostic;
+            owner->has_fatal = true;
+            own_fatal = true;
+        } else if(owner->first_fatal.code == diagnostic.code &&
+                owner->first_fatal.source.kind == source.kind &&
+                owner->first_fatal.source.id == source.id) {
+            audio_count_add(&owner->first_fatal.occurrence_count, 1);
+            own_fatal = true;
+        }
+    }
+    uint64_t before = evidence->issues.dropped_diagnostic_occurrences;
     report_diagnostic_collect_internal(&evidence->issues, diagnostic);
+    uint64_t after = evidence->issues.dropped_diagnostic_occurrences;
+    /* The child's reserved fatal remains available even if the parent's full
+     * ordinary list cannot retain it. It is not lost from that child. */
+    if(!own_fatal) audio_count_add(&owner->dropped,
+        before == UINT64_MAX ? 1 : after - before);
     evidence->pipeline[pipeline].failed |= fatal;
     audio_count_add(&evidence->pipeline[pipeline].skipped, 1);
 }
@@ -198,6 +221,32 @@ static void audio_statistic_add(Report *report, ReportId id,
         .report_id = id, .metric_id = metric,
         .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = value,
     });
+}
+
+/* Build child snapshots only on the application thread at collection. */
+static void audio_children_publish(Report *parent, const AudioEvidence *evidence) {
+    for(unsigned int i = 0; i < AUDIO_PIPELINE_COUNT; ++i) {
+        const AudioPipelineEvidence *p = &evidence->pipeline[i];
+        Report child = {.header = {audio_report_ids[i],
+            p->invocations ? (p->failed ? ROHR_REPORT_FAILED : ROHR_REPORT_COMPLETE) : ROHR_REPORT_NOT_RUN,
+            (double)p->nanoseconds / 1000000.0}, .invocation_count = p->invocations};
+        for(size_t n = 0; n < parent->statistic_count; ++n)
+            if(parent->statistics[n].report_id == child.header.id)
+                (void)report_statistic_add(&child, parent->statistics[n]);
+        bool fatal_copied = false;
+        for(size_t n = 0; n < parent->diagnostic_count; ++n) {
+            ReportDiagnostic d = parent->diagnostics[n];
+            if(d.report_id != child.header.id) continue;
+            report_diagnostic_collect_internal(&child, d);
+            if(d.severity == ROHR_REPORT_SEVERITY_FATAL) fatal_copied = true;
+        }
+        if(p->has_fatal && !fatal_copied)
+            report_diagnostic_collect_internal(&child, p->first_fatal);
+        child.dropped_diagnostic_occurrences = p->dropped;
+        child.counters_saturated = parent->counters_saturated;
+        report_publish_internal(&child);
+        parent->included_versions[child.header.id] = child.version;
+    }
 }
 
 static Report audio_report_collect(const AudioEvidence *evidence,
@@ -225,6 +274,7 @@ static Report audio_report_collect(const AudioEvidence *evidence,
         audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_CANCELLED_COMMAND_COUNT, cancelled);
         report.header.total_ms = (double)(SDL_GetTicksNS() - started) / 1000000.0;
     }
+    audio_children_publish(&report, evidence);
     return report;
 }
 
@@ -767,9 +817,7 @@ static EngineResult audio_start_impl(void) {
 static Report audio_stop_impl(uint64_t start) {
     if(!audio_started) {
         if(audio_shutdown_pending) return audio_shutdown_report;
-        Report empty = report_create();
-        empty.header.id = ROHR_AUDIO_REPORT;
-        return empty;
+        return audio_report_collect(&audio_empty_evidence, 0, 0, start, false);
     }
     if(audio_stream != NULL) {
         SDL_DestroyAudioStream(audio_stream);
@@ -805,9 +853,7 @@ static Report audio_update_impl(uint64_t start) {
             audio_shutdown_pending = false;
             return audio_shutdown_report;
         }
-        Report empty = report_create();
-        empty.header.id = ROHR_AUDIO_REPORT;
-        return empty;
+        return audio_report_collect(&audio_empty_evidence, 0, 0, start, false);
     }
     unsigned int previous = audio_evidence_index;
     unsigned int next = previous ^ 1u;
@@ -1371,16 +1417,27 @@ EngineResult audio_start(void) {
 
 Report audio_stop(void) {
     uint64_t start = SDL_GetTicksNS();
-    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError(), start); }
+    if(!audio_gate_lock()) {
+        Report failure = audio_failure_report(SDL_GetError(), start);
+        report_publish_internal(&failure);
+        return failure;
+    }
     Report result = audio_stop_impl(start);
+    report_publish_internal(&result);
+    if(audio_shutdown_pending) audio_shutdown_report = result;
     audio_gate_unlock();
     return result;
 }
 
 Report audio_update(void) {
     uint64_t start = SDL_GetTicksNS();
-    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError(), start); }
+    if(!audio_gate_lock()) {
+        Report failure = audio_failure_report(SDL_GetError(), start);
+        report_publish_internal(&failure);
+        return failure;
+    }
     Report result = audio_update_impl(start);
+    report_publish_internal(&result);
     audio_gate_unlock();
     return result;
 }

@@ -145,9 +145,8 @@ static UIContext ui_context = {0};
 static Report ui_report = {.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
 
 static void ui_metric(ReportMetricId metric, uint64_t value) {
-    (void)report_statistic_add(&ui_report, (ReportStatistic){ROHR_UI_REPORT, metric,
-        metric <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT ?
-            ROHR_REPORT_AGGREGATION_SUM : ROHR_REPORT_AGGREGATION_MAX, value});
+    (void)report_statistic_add(&ui_report, (ReportStatistic){.report_id = ROHR_UI_REPORT, .metric_id = metric, .aggregation = metric <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT ?
+            ROHR_REPORT_AGGREGATION_SUM : ROHR_REPORT_AGGREGATION_MAX, .value = value});
 }
 
 static void ui_warning(EngineError code, UIReportStage stage, const char *detail) {
@@ -1834,6 +1833,7 @@ Report ui_update(void) {
 
     ui_report.header.total_ms = (double)(SDL_GetPerformanceCounter() - started) *
         1000.0 / (double)SDL_GetPerformanceFrequency();
+    report_publish_internal(&ui_report);
     Report result = ui_report;
     ui_report = (Report){.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
     return result;

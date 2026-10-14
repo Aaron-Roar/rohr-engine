@@ -34,11 +34,11 @@ Report physics_pipeline_substep(double dt) {
     child = physics_pipeline_constraints_solve(physics_solver_iterations_get());
     (void)report_merge(&report, &child);
 done:
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 
-Report physics_pipeline_update(double dt) {
+Report physics_pipeline_update_internal(double dt, bool publish) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_REPORT);
     uint32_t substeps = physics_substeps_get();
@@ -52,13 +52,19 @@ Report physics_pipeline_update(double dt) {
     for(uint32_t substep = 0; substep < substeps; substep += 1) {
         Report child;
         physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT, 1);
+        physics_report_context_set(true, substep);
         child = physics_pipeline_substep(dt / (double)substeps);
-        physics_report_substep_set(&child, substep);
+        physics_report_context_set(false, 0);
         (void)report_merge(&report, &child);
         if(report.has_fatal) break;
         physics_report_counter_add(&report, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT, 1);
     }
 done:
-    physics_report_elapsed_set(&report, started);
+    if(publish) physics_report_finish(&report, started);
+    else report.header.total_ms = physics_step_elapsed_ms(started);
     return report;
+}
+
+Report physics_pipeline_update(double dt) {
+    return physics_pipeline_update_internal(dt, true);
 }

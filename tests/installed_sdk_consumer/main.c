@@ -9,6 +9,10 @@
 #include <string.h>
 
 int main(void) {
+    ReportResult latest = rohr_report_get(ROHR_ENGINE_REPORT);
+    if(rohr_error_check(latest) || latest.result.value.version != 0 ||
+            latest.result.value.header.status != ROHR_REPORT_NOT_RUN) return 1;
+    if(!rohr_error_check(rohr_report_get(ROHR_INPUT_REPORT))) return 1;
     Report parent = rohr_report_create();
     Report child = rohr_report_create();
     ReportDiagnostic diagnostic = {
@@ -63,6 +67,11 @@ int main(void) {
             direct_ui.header.status != ROHR_REPORT_COMPLETE) return 1;
     rohr_engine_pause();
     Report engine = rohr_engine_update();
+    latest = report_get(ROHR_ENGINE_REPORT);
+    if(rohr_error_check(latest) || memcmp(&latest.result.value, &engine, sizeof(engine))) return 1;
+    latest = rohr_report_get(ROHR_REPORT);
+    if(rohr_error_check(latest) || latest.result.value.header.id != ROHR_REPORT ||
+            !report_valid_check(&latest.result.value)) return 1;
     if(!rohr_report_valid_check(&engine) || engine.header.id != ROHR_ENGINE_REPORT ||
             engine.header.status != ROHR_REPORT_COMPLETE || engine.entry_count != 1 ||
             engine.entries[0].header.id != ROHR_ENGINE_LIFECYCLE_REPORT) return 1;

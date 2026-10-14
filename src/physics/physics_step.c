@@ -4,6 +4,7 @@
 
 #include "entity_components.h"
 #include "core/engine_internal.h"
+#include "core/report_internal.h"
 #include "systems.h"
 #include "console.h"
 #include "physics/broadphase/aabb_tree.h"
@@ -45,7 +46,7 @@ void physics_report_counter_add(Report *report, ReportMetricId metric, uint64_t 
     ReportAggregation rule = metric == ROHR_REPORT_TREE_HEIGHT_PEAK
         ? ROHR_REPORT_AGGREGATION_MAX : metric == ROHR_REPORT_TREE_NODES_CURRENT
         ? ROHR_REPORT_AGGREGATION_LATEST : ROHR_REPORT_AGGREGATION_SUM;
-    (void)report_statistic_add(report, (ReportStatistic){report->header.id, metric, rule, value});
+    (void)report_statistic_add(report, (ReportStatistic){.report_id = report->header.id, .metric_id = metric, .aggregation = rule, .value = value});
 }
 
 void physics_report_issue_add(Report *report, uint32_t stage, ReportSeverity severity,
@@ -62,8 +63,18 @@ void physics_report_issue_add(Report *report, uint32_t stage, ReportSeverity sev
     (void)report_diagnostic_add(report, diagnostic);
 }
 
-void physics_report_elapsed_set(Report *report, uint64_t started) {
+static bool physics_report_context_active;
+static uint32_t physics_report_context_substep;
+void physics_report_context_set(bool active, uint32_t substep) {
+    physics_report_context_active = active;
+    physics_report_context_substep = substep;
+}
+
+void physics_report_finish(Report *report, uint64_t started) {
     report->header.total_ms = physics_step_elapsed_ms(started);
+    if(physics_report_context_active)
+        physics_report_substep_set(report, physics_report_context_substep);
+    report_publish_internal(report);
 }
 
 void physics_report_substep_set(Report *report, uint32_t substep) {
@@ -235,14 +246,14 @@ Report system_physics_update(double dt) {
     Report preparation = physics_report_create(ROHR_PHYSICS_REPORT);
     Report report;
     if(isfinite(dt) && dt >= 0.0) physics_hitbox_animation_bindings_report_update(&preparation);
-    report = physics_pipeline_update(dt);
+    report = physics_pipeline_update_internal(dt, false);
     /* Preparation is internal: copy its issues, not a second physics invocation. */
     for(size_t i = 0; i < preparation.diagnostic_count; i += 1)
         (void)report_diagnostic_add(&report, preparation.diagnostics[i]);
     for(size_t i = 0; i < preparation.statistic_count; i += 1)
         (void)report_statistic_add(&report, preparation.statistics[i]);
     report.dropped_diagnostic_occurrences += preparation.dropped_diagnostic_occurrences;
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 

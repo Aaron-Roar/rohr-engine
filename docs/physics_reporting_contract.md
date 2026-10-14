@@ -7,8 +7,8 @@ details. Shared collection, merging, and physics integration are implemented as 
 in [Shared reports](reports.md). That page is the current API reference; the
 original physics inventory and proposed refinements below retain design context.
 Console, JSON, text-file output, graphics, audio, UI, and engine/lifecycle reports
-are also implemented. Input reporting is explicitly deferred; retrieval remains
-scheduled work. The [current coverage inventory](reports.md#system-coverage-inventory)
+are also implemented. Input reporting is explicitly deferred; stored retrieval
+is implemented in Goal 10. The [current coverage inventory](reports.md#system-coverage-inventory)
 supersedes the historical inventories below. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
@@ -449,7 +449,7 @@ EngineResult written = rohr_report_json_write(&report, "physics_report.json", tr
 ```
 
 Text files share the console formatter without console prefixes. The general
-file API is deferred. See [the version 1 export contract](reports.md#json-format-version-1)
+file API is deferred. See [the version 2 export contract](reports.md#json-format-version-2)
 for enum objects, exact integer strings, diagnostics, and failure behavior.
 
 ## Acceptance criteria for implementation
@@ -511,18 +511,17 @@ soft-body dependencies, and developer restoration before implementing either.
 Do not implement a new flag, destructive quarantine replacement, or automatic
 retry as part of reporting. Setters/creators keep immediate validation semantics.
 
-Goals 1 through 5 implement shared report values, collection/merging, physics
-pipeline return types, console/JSON/text-file output, graphics pipelines, and audio reporting. Other systems,
-stored-report retrieval, and recovery remain scheduled work. Later-goal acceptance criteria are not claims
-of implementation.
+Goals 1–6 and 8–10 implement the selected reporting systems, coverage audit,
+and stored retrieval. Input reporting is deferred; simulation recovery remains
+Goal 11 and requires a separately selected policy.
 
-## Agreed latest-report retrieval (Goal 10)
+## Latest-report retrieval (Goal 10)
 
-After reporting coverage, add `Report rohr_report_get(ReportId id)`. Each runnable
-pipeline stores its latest report, overwritten by its next update, including
-individually runnable children. Return independent copies; do not retain history.
-`ROHR_REPORT` requests automatic composition of the latest available reports
-without counting parent-included child work twice. Systems may have updated at
-different times. Never-run pipelines yield NOT_RUN; updates keep returning reports
-directly. Resolve invocation provenance, independent child updates, and lifecycle
-and callback synchronization in that goal; no retrieval API ships in Goal 2.
+Implemented as `ReportResult rohr_report_get(ReportId id)` and direct `report_get`.
+Supported IDs return independent latest copies; unsupported IDs return
+ERROR_ENGINE_REPORT_INVALID. ROHR_REPORT composes retained versions without
+counting covered children twice. Values persist across service restarts and are
+replaced only by subsequent publication, including NOT_RUN. Audio children expose
+published interval aggregates; other children expose their latest invocation.
+See [Stored reports](reports.md#stored-reports) for version groups, provenance,
+concurrency, timing, ownership, and version-2 output.

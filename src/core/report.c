@@ -4,6 +4,7 @@
 #include "report.h"
 #include "core/report_internal.h"
 
+#include <SDL3/SDL_atomic.h>
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -17,7 +18,7 @@ static EngineResult report_invalid(void) {
 }
 
 static bool report_id_check(ReportId id) {
-    return (id > ROHR_REPORT_NONE && id <= ROHR_ENGINE_LIFECYCLE_REPORT) ||
+    return (id > ROHR_REPORT_NONE && id <= ROHR_REPORT) ||
         (id >= ROHR_REPORT_CUSTOM_ID_BEGIN && id <= ROHR_REPORT_CUSTOM_ID_END);
 }
 
@@ -35,8 +36,10 @@ static bool report_object_check(ReportObjectRef ref) {
 }
 
 static bool report_entry_check(ReportEntry entry) {
-    return report_header_check(entry.header, false) && entry.invocation_count > 0 &&
-        entry.header.status != ROHR_REPORT_NOT_RUN;
+    return report_header_check(entry.header, false) &&
+        (entry.group_root ? entry.group_version != 0 : true) &&
+        (entry.header.status == ROHR_REPORT_NOT_RUN
+            ? entry.group_root && entry.invocation_count == 0 : entry.invocation_count > 0);
 }
 
 static bool report_statistic_check(ReportStatistic value) {
@@ -71,7 +74,8 @@ static bool report_statistic_check(ReportStatistic value) {
 }
 
 static bool report_statistic_same(ReportStatistic a, ReportStatistic b) {
-    return a.report_id == b.report_id && a.metric_id == b.metric_id;
+    return a.report_id == b.report_id && a.metric_id == b.metric_id &&
+        a.group_version == b.group_version;
 }
 
 static bool report_diagnostic_check(const ReportDiagnostic *value) {
@@ -92,7 +96,8 @@ static bool report_diagnostic_same(const ReportDiagnostic *a, const ReportDiagno
     return a->report_id == b->report_id && a->internal_stage == b->internal_stage &&
         a->severity == b->severity && a->code == b->code && a->recovery == b->recovery &&
         a->source.kind == b->source.kind && a->source.id == b->source.id &&
-        a->target.kind == b->target.kind && a->target.id == b->target.id;
+        a->target.kind == b->target.kind && a->target.id == b->target.id &&
+        a->group_version == b->group_version;
 }
 
 static bool report_diagnostic_equal(const ReportDiagnostic *a, const ReportDiagnostic *b) {
@@ -108,11 +113,17 @@ bool report_valid_check(const Report *report) {
             report->entry_count > ROHR_REPORT_ENTRY_CAPACITY ||
             report->statistic_count > ROHR_REPORT_STATISTIC_CAPACITY ||
             report->diagnostic_count > ROHR_REPORT_DIAGNOSTIC_CAPACITY) return false;
-    if(report->header.id == ROHR_REPORT_NONE)
+    if(report->included_versions[ROHR_REPORT_NONE] != 0 ||
+            report->included_versions[ROHR_INPUT_REPORT] != 0) return false;
+    if(report->header.id == ROHR_REPORT_NONE) {
+        for(size_t i = 1; i < ROHR_REPORT; ++i)
+            if(report->included_versions[i] != 0) return false;
         return report->entry_count == 0 && report->statistic_count == 0 &&
             report->diagnostic_count == 0 && !report->has_fatal &&
             report->dropped_entry_count == 0 && report->dropped_statistic_count == 0 &&
-            report->dropped_diagnostic_occurrences == 0 && !report->counters_saturated;
+            report->dropped_diagnostic_occurrences == 0 && !report->counters_saturated &&
+            report->version == 0 && report->invocation_count == 0;
+    }
     if(report->has_fatal && (!report_diagnostic_check(&report->first_fatal) ||
             report->first_fatal.severity != ROHR_REPORT_SEVERITY_FATAL ||
             report->header.status != ROHR_REPORT_FAILED)) return false;
@@ -121,7 +132,9 @@ bool report_valid_check(const Report *report) {
         if(report->entries[i].header.status == ROHR_REPORT_FAILED &&
                 report->header.status != ROHR_REPORT_FAILED) return false;
         for(size_t j = 0; j < i; j += 1)
-            if(report->entries[i].header.id == report->entries[j].header.id) return false;
+            if(report->entries[i].header.id == report->entries[j].header.id &&
+                    report->entries[i].group_version == report->entries[j].group_version &&
+                    report->entries[i].group_root == report->entries[j].group_root) return false;
     }
     for(size_t i = 0; i < report->statistic_count; i += 1) {
         if(!report_statistic_check(report->statistics[i])) return false;
@@ -181,7 +194,8 @@ static void report_entry_collect(Report *report, ReportEntry entry) {
     report_status_combine(report, entry.header.status);
     for(size_t i = 0; i < report->entry_count; i += 1) {
         ReportEntry *stored = &report->entries[i];
-        if(stored->header.id != entry.header.id) continue;
+        if(stored->header.id != entry.header.id || stored->group_version != entry.group_version ||
+                stored->group_root != entry.group_root) continue;
         if(entry.header.status > stored->header.status) stored->header.status = entry.header.status;
         stored->header.total_ms = report_time_sum(report, stored->header.total_ms, entry.header.total_ms);
         stored->invocation_count = report_sum(report, stored->invocation_count, entry.invocation_count);
@@ -298,29 +312,41 @@ EngineResult report_diagnostic_add(Report *report, ReportDiagnostic diagnostic) 
     return report_ok();
 }
 
-EngineResult report_merge(Report *destination, const Report *source) {
+/* Validated public inputs or trusted immutable engine snapshots. */
+static void report_merge_collect(Report *destination, const Report *source, uint64_t group) {
     bool fatal_in_list = false;
-    if(destination == source || !report_valid_check(destination) || !report_valid_check(source) ||
-            destination->header.id == ROHR_REPORT_NONE) return report_invalid();
-    for(size_t i = 0; i < source->statistic_count; i += 1)
-        if(!report_statistic_compatible(destination, source->statistics[i])) return report_invalid();
-
     report_status_combine(destination, source->header.status);
     if(source->header.status != ROHR_REPORT_NOT_RUN)
-        report_entry_collect(destination, (ReportEntry){source->header, 1});
-    for(size_t i = 0; i < source->entry_count; i += 1)
-        report_entry_collect(destination, source->entries[i]);
-    for(size_t i = 0; i < source->statistic_count; i += 1)
-        report_statistic_collect(destination, source->statistics[i]);
+        report_entry_collect(destination, (ReportEntry){.header = source->header,
+            .invocation_count = source->invocation_count ? source->invocation_count : 1,
+            .group_version = group, .group_root = group != 0});
+    else if(group != 0)
+        report_entry_collect(destination, (ReportEntry){.header = source->header,
+            .group_version = group, .group_root = true});
+    for(size_t i = 0; i < source->entry_count; i += 1) {
+        ReportEntry entry = source->entries[i];
+        if(group) entry.group_version = group;
+        report_entry_collect(destination, entry);
+    }
+    for(size_t i = 0; i < source->statistic_count; i += 1) {
+        ReportStatistic statistic = source->statistics[i];
+        if(group) statistic.group_version = group;
+        report_statistic_collect(destination, statistic);
+    }
 
     /* Preserve ordinary order/capacity, then capture any reserved-only fatal. */
     for(size_t i = 0; i < source->diagnostic_count; i += 1) {
         const ReportDiagnostic *value = &source->diagnostics[i];
         if(source->has_fatal && report_diagnostic_same(value, &source->first_fatal)) fatal_in_list = true;
-        report_diagnostic_collect(destination, value);
+        ReportDiagnostic copy = *value;
+        if(group) copy.group_version = group;
+        report_diagnostic_collect(destination, &copy);
     }
-    if(source->has_fatal && !fatal_in_list)
-        report_diagnostic_collect(destination, &source->first_fatal);
+    if(source->has_fatal && !fatal_in_list) {
+        ReportDiagnostic copy = source->first_fatal;
+        if(group) copy.group_version = group;
+        report_diagnostic_collect(destination, &copy);
+    }
     destination->dropped_entry_count = report_sum(destination,
         destination->dropped_entry_count, source->dropped_entry_count);
     destination->dropped_statistic_count = report_sum(destination,
@@ -328,5 +354,90 @@ EngineResult report_merge(Report *destination, const Report *source) {
     destination->dropped_diagnostic_occurrences = report_sum(destination,
         destination->dropped_diagnostic_occurrences, source->dropped_diagnostic_occurrences);
     destination->counters_saturated |= source->counters_saturated;
+    for(size_t i = 1; i < ROHR_REPORT; ++i)
+        if(source->included_versions[i] > destination->included_versions[i])
+            destination->included_versions[i] = source->included_versions[i];
+}
+
+EngineResult report_merge(Report *destination, const Report *source) {
+    if(destination == source || !report_valid_check(destination) || !report_valid_check(source) ||
+            destination->header.id == ROHR_REPORT_NONE) return report_invalid();
+    for(size_t i = 0; i < source->statistic_count; i += 1)
+        if(!report_statistic_compatible(destination, source->statistics[i])) return report_invalid();
+
+    report_merge_collect(destination, source, 0);
     return report_ok();
+}
+
+/* Fixed process-lifetime cache; never touched by an audio callback. The lock
+ * protects only bounded copies/composition, never system execution or output. */
+static SDL_SpinLock report_store_lock;
+static Report report_store[ROHR_REPORT];
+static uint64_t report_sequence;
+static bool report_sequence_exhausted;
+
+static bool report_stored_id_check(ReportId id) {
+    return id > ROHR_REPORT_NONE && id < ROHR_REPORT && id != ROHR_INPUT_REPORT;
+}
+
+void report_publish_internal(Report *report) {
+    if(report->version != 0 || !report_stored_id_check(report->header.id)) return;
+    SDL_LockSpinlock(&report_store_lock);
+    if(report_sequence == UINT64_MAX) {
+        /* Never reuse a version. Retrieval reports failure rather than claiming
+         * the old cache is current after sequence exhaustion. */
+        report_sequence_exhausted = true;
+        report->counters_saturated = true;
+    } else {
+        report->version = ++report_sequence;
+        if(report->header.status != ROHR_REPORT_NOT_RUN && report->invocation_count == 0)
+            report->invocation_count = 1;
+        report->included_versions[report->header.id] = report->version;
+        report_store[report->header.id] = *report;
+    }
+    SDL_UnlockSpinlock(&report_store_lock);
+}
+
+ReportResult report_get(ReportId id) {
+    ReportResult result = {.kind = ERROR_RESULT_VALUE};
+    if(id != ROHR_REPORT && !report_stored_id_check(id))
+        return ERROR_RESULT_MAKE_ERROR(ReportResult, ERROR_ENGINE_REPORT_INVALID);
+    SDL_LockSpinlock(&report_store_lock);
+    if(report_sequence_exhausted) {
+        result.kind = ERROR_RESULT_ERROR;
+        result.result.error = ERROR_ENGINE_REPORT_INVALID;
+    } else if(id != ROHR_REPORT) {
+        result.result.value = report_store[id];
+        result.result.value.header.id = id;
+    } else {
+        Report *combined = &result.result.value;
+        ReportId selected[ROHR_REPORT];
+        size_t count = 0;
+        combined->header.id = ROHR_REPORT;
+        combined->version = report_sequence;
+        for(ReportId candidate = 1; candidate < ROHR_REPORT; ++candidate) {
+            const Report *value = &report_store[candidate];
+            if(value->version == 0) continue;
+            bool included = false;
+            for(ReportId parent = 1; parent < ROHR_REPORT; ++parent)
+                if(parent != candidate && report_store[parent].version != 0 &&
+                        report_store[parent].included_versions[candidate] == value->version) {
+                    included = true;
+                    break;
+                }
+            if(included) continue;
+            size_t at = count++;
+            while(at > 0 && report_store[selected[at - 1]].version > value->version) {
+                selected[at] = selected[at - 1];
+                --at;
+            }
+            selected[at] = candidate;
+        }
+        for(size_t i = 0; i < count; ++i) {
+            const Report *value = &report_store[selected[i]];
+            report_merge_collect(combined, value, value->version);
+        }
+    }
+    SDL_UnlockSpinlock(&report_store_lock);
+    return result;
 }

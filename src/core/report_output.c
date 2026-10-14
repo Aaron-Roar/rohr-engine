@@ -16,6 +16,7 @@
 static const char *report_id_name(uint32_t value) {
     switch(value) {
         case ROHR_REPORT_NONE: return "ROHR_REPORT_NONE";
+        case ROHR_REPORT: return "ROHR_REPORT";
         case ROHR_PHYSICS_REPORT: return "ROHR_PHYSICS_REPORT";
         case ROHR_PHYSICS_SUBSTEP_REPORT: return "ROHR_PHYSICS_SUBSTEP_REPORT";
         case ROHR_PHYSICS_LOADS_REPORT: return "ROHR_PHYSICS_LOADS_REPORT";
@@ -360,7 +361,8 @@ static bool diagnostic_key_same(const ReportDiagnostic *a, const ReportDiagnosti
     return a->report_id == b->report_id && a->internal_stage == b->internal_stage &&
         a->severity == b->severity && a->code == b->code && a->recovery == b->recovery &&
         a->source.kind == b->source.kind && a->source.id == b->source.id &&
-        a->target.kind == b->target.kind && a->target.id == b->target.id;
+        a->target.kind == b->target.kind && a->target.id == b->target.id &&
+        a->group_version == b->group_version;
 }
 
 static void diagnostic_text(ReportTextOutput *out, const ReportDiagnostic *d) {
@@ -371,6 +373,7 @@ static void diagnostic_text(ReportTextOutput *out, const ReportDiagnostic *d) {
         code_name(d->code), (unsigned)d->code);
     text_line(out, "  Message: %s\n", error_code_message_get(d->code));
     text_line(out, "  Pipeline: %s (%u)\n", report_label(d->report_id, owner), (unsigned)d->report_id);
+    if(d->group_version) text_line(out, "  Snapshot version: %" PRIu64 "\n", d->group_version);
     if(d->internal_stage != 0)
         text_line(out, "  Stage: %s (%" PRIu32 ")\n",
             label(stage_name(d->report_id, d->internal_stage), d->internal_stage,
@@ -391,6 +394,7 @@ static void report_text(ReportTextOutput *out, const Report *report) {
     char owner[64], metric[64];
     text_line(out, "%s (%u) - %s\n", report_label(report->header.id, owner), (unsigned)report->header.id,
         status_name(report->header.status) + strlen("ROHR_REPORT_"));
+    text_line(out, "Version: %" PRIu64 "  Root invocations: %" PRIu64 "\n", report->version, report->invocation_count);
     text_line(out, "Total time: %.3f ms\n\nPipelines:\n", report->header.total_ms);
     if(report->entry_count == 0) text_line(out, "  None.\n");
     for(size_t i = 0; i < report->entry_count; i++) {
@@ -398,6 +402,8 @@ static void report_text(ReportTextOutput *out, const Report *report) {
         text_line(out, "  %s (%u)  %s  %.3f ms  %" PRIu64 " invocation(s)\n",
             report_label(e->header.id, owner), (unsigned)e->header.id,
             status_name(e->header.status) + strlen("ROHR_REPORT_"), e->header.total_ms, e->invocation_count);
+        if(e->group_version) text_line(out, "    Snapshot version: %" PRIu64 "%s\n",
+            e->group_version, e->group_root ? " (selected root)" : "");
     }
     text_line(out, "\nStatistics:\n");
     if(report->statistic_count == 0) text_line(out, "  None.\n");
@@ -407,6 +413,7 @@ static void report_text(ReportTextOutput *out, const Report *report) {
             (unsigned)s->report_id, label(metric_name(s->metric_id), s->metric_id,
                 "ROHR_REPORT_", false, metric), (unsigned)s->metric_id, s->value,
             aggregation_name(s->aggregation) + strlen("ROHR_REPORT_AGGREGATION_"));
+        if(s->group_version) text_line(out, "    Snapshot version: %" PRIu64 "\n", s->group_version);
     }
     text_line(out, "\nFirst fatal:\n");
     if(report->has_fatal) diagnostic_text(out, &report->first_fatal);
@@ -486,6 +493,7 @@ static yyjson_mut_val *json_object(ReportJson *j, ReportObjectRef ref) {
 static yyjson_mut_val *json_diagnostic(ReportJson *j, const ReportDiagnostic *d) {
     yyjson_mut_val *object = yyjson_mut_obj(j->doc);
     json_put(j, object, "report_id", json_enum(j, d->report_id, report_id_name(d->report_id)));
+    json_put(j, object, "group_version", json_u64(j, d->group_version));
     json_put(j, object, "internal_stage", json_enum(j, d->internal_stage, stage_name(d->report_id, d->internal_stage)));
     json_put(j, object, "severity", json_enum(j, d->severity, severity_name(d->severity)));
     json_put(j, object, "code", json_enum(j, d->code, code_name(d->code)));
@@ -509,14 +517,27 @@ EngineResult report_json_write(const Report *report, const char *path, bool pret
     if(j.doc == NULL) return output_result(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     yyjson_mut_val *root = yyjson_mut_obj(j.doc);
     yyjson_mut_doc_set_root(j.doc, root);
-    json_put(&j, root, "format_version", yyjson_mut_uint(j.doc, 1));
+    json_put(&j, root, "format_version", yyjson_mut_uint(j.doc, 2));
     json_put(&j, root, "header", json_header(&j, report->header));
+    json_put(&j, root, "version", json_u64(&j, report->version));
+    json_put(&j, root, "invocation_count", json_u64(&j, report->invocation_count));
+    yyjson_mut_val *coverage = yyjson_mut_arr(j.doc);
+    json_put(&j, root, "included_versions", coverage);
+    for(size_t i = 1; i < ROHR_REPORT; ++i) {
+        if(!report->included_versions[i]) continue;
+        yyjson_mut_val *object = yyjson_mut_obj(j.doc);
+        json_put(&j, object, "report_id", json_enum(&j, (uint32_t)i, report_id_name((uint32_t)i)));
+        json_put(&j, object, "version", json_u64(&j, report->included_versions[i]));
+        if(!yyjson_mut_arr_append(coverage, object)) j.failed = true;
+    }
     yyjson_mut_val *entries = yyjson_mut_arr(j.doc);
     json_put(&j, root, "entries", entries);
     for(size_t i = 0; i < report->entry_count; i++) {
         yyjson_mut_val *object = yyjson_mut_obj(j.doc);
         json_put(&j, object, "header", json_header(&j, report->entries[i].header));
         json_put(&j, object, "invocation_count", json_u64(&j, report->entries[i].invocation_count));
+        json_put(&j, object, "group_version", json_u64(&j, report->entries[i].group_version));
+        json_put(&j, object, "group_root", yyjson_mut_bool(j.doc, report->entries[i].group_root));
         if(!yyjson_mut_arr_append(entries, object)) j.failed = true;
     }
     yyjson_mut_val *statistics = yyjson_mut_arr(j.doc);
@@ -526,6 +547,7 @@ EngineResult report_json_write(const Report *report, const char *path, bool pret
         yyjson_mut_val *object = yyjson_mut_obj(j.doc);
         json_put(&j, object, "report_id", json_enum(&j, s->report_id, report_id_name(s->report_id)));
         json_put(&j, object, "metric_id", json_enum(&j, s->metric_id, metric_name(s->metric_id)));
+        json_put(&j, object, "group_version", json_u64(&j, s->group_version));
         json_put(&j, object, "aggregation", json_enum(&j, s->aggregation, aggregation_name(s->aggregation)));
         json_put(&j, object, "value", json_u64(&j, s->value));
         if(!yyjson_mut_arr_append(statistics, object)) j.failed = true;

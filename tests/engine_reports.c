@@ -207,10 +207,8 @@ static void formatting(void) {
         assert(strstr(buffer, "ENGINE_LIFECYCLE") && strstr(buffer, "TICKS_ADVANCED_COUNT"));
         assert(strstr(buffer, "EXPIRED_ENTITY_COUNT")); assert(remove(paths[i]) == 0);
     }
-    OK(report_statistic_add(&r, (ReportStatistic){ROHR_ENGINE_REPORT,
-        ROHR_REPORT_TICKS_ADVANCED_COUNT, ROHR_REPORT_AGGREGATION_SUM, UINT64_MAX}));
-    OK(report_statistic_add(&r, (ReportStatistic){ROHR_ENGINE_REPORT,
-        ROHR_REPORT_TICKS_ADVANCED_COUNT, ROHR_REPORT_AGGREGATION_SUM, 1}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = UINT64_MAX}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = 1}));
     assert(r.counters_saturated);
     engine_stop();
 }

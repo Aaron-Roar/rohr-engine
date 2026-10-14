@@ -29,7 +29,7 @@ static ReportDiagnostic issue(uint64_t object, ReportSeverity severity) {
 }
 
 static ReportStatistic stat(ReportMetricId metric, ReportAggregation rule, uint64_t value) {
-    return (ReportStatistic){ROHR_PHYSICS_JOINTS_REPORT, metric, rule, value};
+    return (ReportStatistic){.report_id = ROHR_PHYSICS_JOINTS_REPORT, .metric_id = metric, .aggregation = rule, .value = value};
 }
 
 static void construction(void) {
@@ -185,8 +185,7 @@ static void mirrored_fatal(void) {
 static void overflow_and_saturation(void) {
     Report a = make_report(ROHR_PHYSICS_REPORT), b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
     for(size_t i = 0; i < ROHR_REPORT_ENTRY_CAPACITY; i += 1)
-        OK(rohr_report_entry_add(&a, (ReportEntry){
-            {(ReportId)(ROHR_REPORT_CUSTOM_ID_BEGIN+i), ROHR_REPORT_COMPLETE, 1}, 1}));
+        OK(rohr_report_entry_add(&a, (ReportEntry){.header = {(ReportId)(ROHR_REPORT_CUSTOM_ID_BEGIN+i), ROHR_REPORT_COMPLETE, 1}, .invocation_count = 1}));
     for(size_t i = 0; i < ROHR_REPORT_STATISTIC_CAPACITY; i += 1)
         OK(rohr_report_statistic_add(&a, stat((ReportMetricId)(ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN+i),
             ROHR_REPORT_AGGREGATION_SUM, 1)));
@@ -198,8 +197,7 @@ static void overflow_and_saturation(void) {
     assert(a.dropped_diagnostic_occurrences == 4 && a.header.status == ROHR_REPORT_COMPLETE);
     a.entries[0].invocation_count = UINT64_MAX;
     a.entries[0].header.total_ms = DBL_MAX;
-    OK(rohr_report_entry_add(&a, (ReportEntry){
-        {ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, DBL_MAX}, 1}));
+    OK(rohr_report_entry_add(&a, (ReportEntry){.header = {ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, DBL_MAX}, .invocation_count = 1}));
     assert(a.entries[0].header.total_ms == DBL_MAX && a.entries[0].invocation_count == UINT64_MAX);
     a.statistics[0].value = UINT64_MAX;
     OK(rohr_report_statistic_add(&a, stat(ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN, ROHR_REPORT_AGGREGATION_SUM, 1)));

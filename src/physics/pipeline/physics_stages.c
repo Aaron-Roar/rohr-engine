@@ -29,7 +29,7 @@ Report physics_pipeline_forces_apply(void) {
     Report report = physics_report_create(ROHR_PHYSICS_LOADS_REPORT);
     physics_joint_spring_forces_apply(&report);
     physics_soft_body_beams_apply();
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 
@@ -46,7 +46,7 @@ Report physics_pipeline_integrate(double dt) {
             physics_report_issue_add(&report, ROHR_PHYSICS_INTEGRATION, ROHR_REPORT_SEVERITY_FATAL,
                 result.result.error, ROHR_REPORT_UPDATE_ABORTED, 0, 0, NULL);
     }
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 
@@ -63,7 +63,7 @@ Report physics_pipeline_contacts_gather(void) {
     uint64_t elapsed_ns = (uint64_t)(physics_step_elapsed_ms(started) * 1000000.0);
     physics_report_counter_add(&report, ROHR_REPORT_BROADPHASE_QUERY_NS,
         elapsed_ns > excluded_ns ? elapsed_ns - excluded_ns : 0);
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 
@@ -71,7 +71,7 @@ Report physics_pipeline_joints_gather(void) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_JOINTS_REPORT);
     physics_joint_constraints_gather(&report);
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }
 
@@ -87,6 +87,6 @@ Report physics_pipeline_constraints_solve(uint32_t iterations) {
             physics_pipeline_contact_constraints_finalize,
             &report);
     } else report.header.status = ROHR_REPORT_NOT_RUN;
-    physics_report_elapsed_set(&report, started);
+    physics_report_finish(&report, started);
     return report;
 }

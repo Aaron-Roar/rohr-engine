@@ -42,6 +42,8 @@ EngineResult rohr_engine_start(void);
 
 /** Returns an empty caller-owned report builder, independent of engine startup. */
 Report rohr_report_create(void);
+/** Return a non-consuming owned snapshot, or an unsupported-ID error. */
+ReportResult rohr_report_get(ReportId id);
 /** Checks populated report fields, custom IDs, and reserved-fatal consistency. */
 bool rohr_report_valid_check(const Report *report);
 /** Sets report identity, completion status, and measured time; failure is sticky. */

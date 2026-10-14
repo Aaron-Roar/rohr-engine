@@ -3,6 +3,7 @@
  */
 
 #include "graphics.h"
+#include "core/report_internal.h"
 #include "graphics/triangle_draw.h"
 #include "physics/collision/shape_decomposition.h"
 #include "core/engine_internal.h"
@@ -77,8 +78,7 @@ static void graphics_report_issue(Report *report, uint32_t stage,
 }
 
 static void graphics_report_count(Report *report, ReportMetricId metric, uint64_t value) {
-    if(value != 0) (void)report_statistic_add(report, (ReportStatistic){
-        report->header.id, metric, ROHR_REPORT_AGGREGATION_SUM, value});
+    if(value != 0) (void)report_statistic_add(report, (ReportStatistic){.report_id = report->header.id, .metric_id = metric, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = value});
 }
 
 static void graphics_submission_issue(EngineError code, ReportObjectRef source,
@@ -4175,7 +4175,10 @@ Report graphics_pipeline_cameras_update(void) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_CAMERAS_REPORT);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_CAMERA_CALLBACK};
-    if(!graphics_pipeline_begin(&context, &report)) return report;
+    if(!graphics_pipeline_begin(&context, &report)) {
+        report_publish_internal(&report);
+        return report;
+    }
     graphics_camera_motions_update();
     graphics_render_viewport_cameras();
     graphics_render_state_restore();
@@ -4185,6 +4188,7 @@ Report graphics_pipeline_cameras_update(void) {
         graphics_commands_discard();
     }
     graphics_pipeline_end(&context, start);
+    report_publish_internal(&report);
     return report;
 }
 
@@ -4194,16 +4198,19 @@ Report graphics_pipeline_commands_execute(void) {
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_COMMAND_EXECUTION};
     if(graphics_report_context != NULL) {
         (void)graphics_pipeline_begin(&context, &report);
+        report_publish_internal(&report);
         return report;
     }
     report = graphics_pending_commands;
     graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
     if(!graphics_pipeline_begin(&context, &report)) {
         graphics_commands_discard();
+        report_publish_internal(&report);
         return report;
     }
     graphics_commands_execute();
     graphics_pipeline_end(&context, start);
+    report_publish_internal(&report);
     return report;
 }
 
@@ -4211,10 +4218,14 @@ Report graphics_pipeline_viewports_draw(void) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_VIEWPORTS_REPORT);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_VIEWPORT_COMPOSITION};
-    if(!graphics_pipeline_begin(&context, &report)) return report;
+    if(!graphics_pipeline_begin(&context, &report)) {
+        report_publish_internal(&report);
+        return report;
+    }
     graphics_viewports_draw();
     graphics_render_state_restore();
     graphics_pipeline_end(&context, start);
+    report_publish_internal(&report);
     return report;
 }
 
@@ -4222,12 +4233,16 @@ Report graphics_pipeline_recording_update(void) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_RECORDING_REPORT);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_RECORDING_CAPTURE};
-    if(!graphics_pipeline_begin(&context, &report)) return report;
+    if(!graphics_pipeline_begin(&context, &report)) {
+        report_publish_internal(&report);
+        return report;
+    }
     if(!screen_recorder.recording) report.header.status = ROHR_REPORT_NOT_RUN;
     else if(graphics_record_frame()) {
         if(context.skipped == 0) context.processed++;
     } else context.skipped++;
     graphics_pipeline_end(&context, start);
+    report_publish_internal(&report);
     return report;
 }
 
@@ -4235,7 +4250,10 @@ Report graphics_pipeline_present(void) {
     Uint64 start = SDL_GetTicksNS();
     Report report = graphics_report_create(ROHR_GRAPHICS_PRESENTATION_REPORT);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_PRESENTATION};
-    if(!graphics_pipeline_begin(&context, &report)) return report;
+    if(!graphics_pipeline_begin(&context, &report)) {
+        report_publish_internal(&report);
+        return report;
+    }
     if(!graphics_vsync_enabled) {
         int effective_limit = graphics_frame_limit > 0 ?
             graphics_frame_limit : GRAPHICS_FRAME_LIMIT_FALLBACK;
@@ -4251,6 +4269,7 @@ Report graphics_pipeline_present(void) {
     else context.skipped++;
     graphics_frame_start_ns = SDL_GetTicksNS();
     graphics_pipeline_end(&context, start);
+    report_publish_internal(&report);
     return report;
 }
 
@@ -4260,6 +4279,7 @@ Report graphics_show(void) {
     if(graphics_frame_active || graphics_report_context != NULL) {
         graphics_report_issue(&report, 0, ERROR_ENGINE_STATE_INVALID, true,
             (ReportObjectRef){0}, (ReportObjectRef){0}, "Recursive graphics frame call rejected");
+        report_publish_internal(&report);
         return report;
     }
     graphics_frame_active = true;
@@ -4291,6 +4311,7 @@ Report graphics_show(void) {
     }
     graphics_frame_active = false;
     report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    report_publish_internal(&report);
     return report;
 }
 
@@ -5272,6 +5293,7 @@ Report graphics_sprite_frames_update(Tick current_tick, Time current_time) {
     graphics_report_count(&report, ROHR_REPORT_PROCESSED_COUNT, processed);
     graphics_report_count(&report, ROHR_REPORT_SKIPPED_COUNT, skipped);
     report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    report_publish_internal(&report);
     return report;
 }
 

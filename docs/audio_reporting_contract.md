@@ -93,8 +93,10 @@ both counts it twice. Returned values remain valid after resource teardown.
 Successful restart begins a fresh reporting lifetime and discards any uncollected
 shutdown copy; failed startup does not consume that copy.
 
-This bounded callback handoff is distinct from Goal 10's future
-`rohr_report_get(id)` latest-report API. No report history, per-request completion
+This bounded callback handoff is distinct from the non-consuming
+`rohr_report_get(id)` latest-report API. Audio child getters expose the latest
+published collection-interval aggregate; callbacks never access the stored-report
+registry. Retained shutdown delivery preserves its publication version. No report history, per-request completion
 query, or manual sample-buffer API is implemented here.
 
 ## Verification requirements
