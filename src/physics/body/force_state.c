@@ -6,6 +6,7 @@
 
 #include "console.h"
 #include "physics/physics_internal.h"
+#include "physics/physics_operation.h"
 
 #include <float.h>
 #include <math.h>
@@ -22,6 +23,7 @@ EngineResult physics_impulse_apply(Entity entity, Vec2D impulse) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(impulse)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!physics_entity_simulated_get(index)) return error_result_value(true);
     if(!entity_index_components_check(index, ROHR_MASS))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
@@ -30,6 +32,7 @@ EngineResult physics_impulse_apply(Entity entity, Vec2D impulse) {
         .x = velocities[index].x + impulse.x / mass[index],
         .y = velocities[index].y + impulse.y / mass[index]
     };
+    if(!physics_vector_finite_check(velocity)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     (void)VelocityPool_store_at(&velocities_pool, index, velocity);
     console_debug_write(
         LOG_ENGINE,
@@ -69,6 +72,8 @@ EntityResult physics_force_create(Entity entity, Force force) {
 
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    if(!physics_vector_finite_check(force))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
     force_result = entity_add();
     if(force_result.kind == ERROR_RESULT_ERROR) return force_result;
     force_entity = force_result.result.value;
@@ -89,6 +94,7 @@ EngineResult physics_force_set(Entity entity, Force force) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(force)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(ForcePool_store_at(&forces_pool, index, force).kind
             == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
@@ -129,6 +135,7 @@ EngineResult physics_acceleration_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(acceleration)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     (void)AccelerationPool_store_at(
         &accelerations_pool, index, acceleration);
     console_debug_write(
@@ -148,6 +155,7 @@ EngineResult physics_acceleration_toward_position_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(acceleration_magnitude)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!physics_world_position_check(position))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     direction = physics_direction_between_positions(positions[index], position);
@@ -155,6 +163,7 @@ EngineResult physics_acceleration_toward_position_set(
         .x = direction.x * acceleration_magnitude,
         .y = direction.y * acceleration_magnitude
     };
+    if(!physics_vector_finite_check(acceleration)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     (void)AccelerationPool_store_at(
         &accelerations_pool, index, acceleration);
     console_debug_write(
@@ -210,6 +219,8 @@ EntityResult physics_torque_create(Entity entity, Torque torque) {
 
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    if(!isfinite(torque))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
     torque_result = entity_add();
     if(torque_result.kind == ERROR_RESULT_ERROR) return torque_result;
     torque_entity = torque_result.result.value;
@@ -230,6 +241,7 @@ EngineResult physics_torque_set(Entity entity, Torque torque) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!isfinite(torque)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(TorquePool_store_at(&torques_pool, index, torque).kind
             == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);

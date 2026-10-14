@@ -20,7 +20,24 @@ typedef enum PhysicsReportStage {
     ROHR_PHYSICS_JOINT_GATHER,
     ROHR_PHYSICS_FINALIZATION,
     ROHR_PHYSICS_CONSTRAINT_RESPONSE,
-    ROHR_PHYSICS_JOINT_TARGET
+    ROHR_PHYSICS_JOINT_TARGET,
+    ROHR_PHYSICS_POSITION,
+    ROHR_PHYSICS_ORIENTATION,
+    ROHR_PHYSICS_VELOCITY,
+    ROHR_PHYSICS_ANGULAR_VELOCITY,
+    ROHR_PHYSICS_FORCE_CONTRIBUTION,
+    ROHR_PHYSICS_TORQUE_CONTRIBUTION,
+    ROHR_PHYSICS_BEAM_CONTRIBUTION,
+    ROHR_PHYSICS_SPRING_CONTRIBUTION,
+    ROHR_PHYSICS_NORMAL_IMPULSE,
+    ROHR_PHYSICS_FRICTION_IMPULSE,
+    ROHR_PHYSICS_POSITION_CORRECTION,
+    ROHR_PHYSICS_JOINT_POSITION,
+    ROHR_PHYSICS_JOINT_VELOCITY,
+    ROHR_PHYSICS_ANGLE_LOCK,
+    ROHR_PHYSICS_AXIS_LOCK,
+    ROHR_PHYSICS_TRANSFORM_LOCK,
+    ROHR_PHYSICS_GEOMETRY
 } PhysicsReportStage;
 
 #define PHYSICS_SOLVER_ITERATIONS_DEFAULT 8u
@@ -43,7 +60,7 @@ void physics_pipeline_accelerations_clear(void);
 void physics_pipeline_gravity_apply(void);
 /** Apply spring/beam loads after acceleration reset; return owned diagnostics. */
 Report physics_pipeline_forces_apply(void);
-/** Integrate prepared accelerations; return owned results, preserving quarantine. */
+/** Integrate prepared accelerations; reject invalid operations without changing their prior state. */
 Report physics_pipeline_integrate(double dt);
 /** Gather rigid/soft contacts after substep_begin; stop dependent work on failure. */
 Report physics_pipeline_contacts_gather(void);

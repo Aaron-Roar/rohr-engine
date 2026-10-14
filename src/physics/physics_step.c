@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <time.h>
 
-Shape system_generate_global_hitbox(Entity entity);
 
 AABBTree physics_broadphase_tree = {.root = AABB_TREE_NODE_INVALID};
 ContactConstraintList physics_step_contact_constraints;
@@ -158,26 +157,17 @@ void physics_step_interaction_by_index_record(
             "could not publish physics interaction");
 }
 
-static void system_generate_global_hitbox_by_index(EntityIndex index) {
-    Entity entity;
-
-    if(!physics_step_entity_from_index_get(index, &entity)) {
-        return;
-    }
-    system_generate_global_hitbox(entity);
-}
-
 void physics_step_hitbox_dirty_add(EntityIndex index) {
     if(index >= MAX_ENTITIES || system_hitbox_dirty[index]) return;
     system_hitbox_dirty[index] = true;
     system_hitbox_dirty_entities[system_hitbox_dirty_count++] = index;
 }
 
-void physics_step_hitbox_dirty_flush(void) {
+void physics_step_hitbox_dirty_flush(Report *report) {
     for(size_t i = 0; i < system_hitbox_dirty_count; i += 1) {
         EntityIndex index = system_hitbox_dirty_entities[i];
 
-        system_generate_global_hitbox_by_index(index);
+        (void)physics_step_hitbox_update(index, report);
         system_hitbox_dirty[index] = false;
     }
     system_hitbox_dirty_count = 0;
@@ -237,8 +227,8 @@ void physics_pipeline_contact_constraints_finalize(
 void physics_pipeline_joint_constraints_solve(void *context) {
     if(context != NULL && ((Report *)context)->has_fatal) return;
     physics_joint_constraints_solve(context);
-    physics_rigid_transform_constraints_apply();
-    physics_step_hitbox_dirty_flush();
+    physics_rigid_transform_constraints_apply(context);
+    physics_step_hitbox_dirty_flush(context);
 }
 
 Report system_physics_update(double dt) {

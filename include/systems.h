@@ -13,7 +13,7 @@
  * Prepare animated hitboxes, then apply loads, integrate, gather contacts and
  * joints, and solve constraints for each configured substep. Returns owned
  * timings, statistics, and diagnostics. A fatal report describes partial work;
- * existing quarantine behavior is preserved. Zero dt still gathers and solves.
+ * contained rejections preserve prior state and warn. Zero dt still gathers and solves.
  *
  * @param dt Delta time in seconds.
  */

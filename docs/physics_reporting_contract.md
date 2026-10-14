@@ -14,7 +14,8 @@ capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
 is Goal 1, physics integration Goal 2, console/JSON output Goal 3, and
 [graphics integration](reports.md#graphics-reports) Goal 4.
-Simulation-failure recovery is Goal 11, after all applicable systems have reporting.
+Goal 11 implements operation-level rejection and retry, described below and in the
+[current recovery reference](reports.md#physics-operation-rejection-and-retry).
 
 The separate Reporting Workflow Standards and Audio Contract documentation
 milestone precedes audio Goal 5 without renumbering this milestone. Follow the
@@ -31,8 +32,9 @@ owner, followed by console/JSON output, graphics, audio, UI, and
 engine-tick cleanup; input was deferred by user choice. Share diagnostic
 concepts without making physics depend on another system or a global queue.
 The force/torque milestone will consume this reporting mechanism later.
-Goal 9 verifies reporting coverage; Goal 11 then addresses simulation-failure
-recovery. Do not change recovery policy during a reporting integration goal.
+Goal 9 verified reporting coverage. Goal 11 replaces destructive quarantine with
+operation-level rejection and retry; the historical inventories below describe
+the earlier integration boundaries.
 
 Agreed requirements:
 
@@ -65,12 +67,11 @@ Settled decisions:
 2. **Report ownership:** self-contained value returned directly by the update,
    including diagnostic records, that callers can retain after subsequent updates.
    No pointers into mutable engine storage or borrowed diagnostic strings.
-3. **Simulation recovery is deferred:** currently quarantining an entity also
-   fails the update. Preserve that behavior during reporting implementation.
-   Goal 11, after all reporting integrations and their audit, will decide failure flags,
-   per-update retries, restoration, and state preservation. Neither a particular
-   recovery policy nor rollback behavior is approved yet. Setter/creator errors
-   remain immediate and are not the simulation-recovery problem being deferred.
+3. **Simulation recovery:** validate candidate changes before committing the
+   smallest coupled operation. A contained rejection preserves prior state,
+   produces a warning, and retries on its next scheduled execution. Later work
+   may use retained valid state. No persistent quarantine or whole-update rollback
+   is introduced. Setters and creators keep immediate validation semantics.
 4. **Shared type:** all systems and runnable pipelines use the same fixed-size
    `Report`, not separate physics/graphics types. A fixed header and enum IDs
    identify the operation; bounded entries/statistics avoid system-specific
@@ -132,7 +133,7 @@ Reporting must not cause extra physics steps or change source expiry.
 | Gravity | Apply opted-in global gravity | Currently a void stage. |
 | Spring and beam loads | Spring-joint and soft-body-beam contributions | Separate from persistent force/torque source application. |
 | Force sources | Resolve/apply force and torque sources | Currently inside `physics_rigid_integrate()`, not `physics_pipeline_forces_apply()`. |
-| Integration | Velocities, angular motion, positions, limits, and transform locks | Out-of-range positions quarantine affected entities and return an error. |
+| Integration | Velocities, angular motion, positions, limits, and transform locks | Out-of-range position operations retain prior values and report recoverable warnings. |
 | Broad phase | Build spatial index and enumerate candidates | Existing timing and tree/candidate counters. |
 | Narrow phase/contact gathering | Rigid and soft-boundary geometry queries and contact allocation | Contact-list growth can fail; collectors must surface allocation failures. |
 | Joint gathering | Assemble pin/weld constraints | Some current append results are ignored; audit and propagate them. |
@@ -310,7 +311,7 @@ so callers can make informed decisions.
 | Invalid setter argument | Immediate error; previous successful value preserved; no deferred warning. |
 | Deliberately disabled, held, collision-filtered, or incomplete source | Expected behavior; no warning solely for inactivity. |
 | A runtime contribution becomes unrepresentable | Warning plus skipped contribution when safe; other sources continue. Future force behavior is implemented in its own milestone. |
-| Out-of-range integrated position | Preserve existing fatal/quarantine behavior during reporting integration. Goal 11 determines its replacement recovery policy. |
+| Out-of-range integrated position | Reject the position operation, retain prior position and other successful work, warn, and retry on the next scheduled execution. |
 | Contact/joint storage allocation failure | Fatal; do not simulate as if missing constraints were a complete valid solve. Retain first failure and partial progress. |
 | Diagnostic storage full | Count dropped occurrences and keep processing according to the underlying condition; always preserve first-fatal details. |
 | Nonfinite update duration | Fatal validation failure before simulation; report identifies validation stage. |
@@ -470,9 +471,9 @@ system-wide coverage audit.
 4. Test every inventoried stage's diagnostic path where a real failure exists;
    use focused fault injection for allocation errors rather than leaving silent
    constraint omissions. Do not invent warnings for normal filtered/no-op work.
-5. During reporting implementation, preserve the current quarantine outcome and entity
-   hold/hitbox/motion semantics. Existing `tests/engine_lifecycle.c` requires a
-   failed update and records the affected entity count; changes must be explicit.
+5. Verify operation rejection preserves prior values, components, hitboxes, and
+   successful independent work. Lifecycle and recovery tests cover warning-only
+   boundary rejection, repeated attempts, developer repair, and retained references.
 6. Verify aggregation across substeps/iterations, distinct entities and reasons,
    overflow, saturated counters, and fatal details after capacity exhaustion.
    Specifically fill ordinary diagnostics before the first fatal arrives:
@@ -501,27 +502,27 @@ system-wide coverage audit.
     to verify fields, escaping, counts, overflow, and fatal details. Cover invalid
     counts/pointers, allocation and output failures, and temporary-buffer cleanup.
 
-## Deferred simulation-failure recovery
+## Simulation-failure recovery
 
-Goal 11 must distinguish rejecting an invalid attempted step from mutating or
-rolling back already-committed state. Decide whether a reserved failure flag
-excludes an entity until explicit repair/reset, or whether later updates retry
-it automatically and report each repeated failure. Define contacts, joints,
-soft-body dependencies, and developer restoration before implementing either.
-Do not implement a new flag, destructive quarantine replacement, or automatic
-retry as part of reporting. Setters/creators keep immediate validation semantics.
+Goal 11 uses operation-level rejection and automatic retry. Candidate values are
+validated before commit. Coupled body changes commit together; independent
+velocity, position, normal impulse, friction, and separation operations retain
+successful earlier results. There is no global rollback or persistent failure flag.
 
-Goals 1–6 and 8–10 implement the selected reporting systems, coverage audit,
-and stored retrieval. Input reporting is deferred; simulation recovery remains
-Goal 11 and requires a separately selected policy.
+Retry on every next scheduled execution, including solver iterations and substeps.
+Contained rejections are warnings, and a completed substep with warnings counts as
+completed. Fatal arguments/resource failures still stop work that cannot safely
+continue. Shared report aggregation, bounded capacity, first-fatal preservation,
+owned copies, stored retrieval, and explicit formatting remain applicable.
 
-## Latest-report retrieval (Goal 10)
+Retained valid state remains usable by later operations. Invalid geometry is
+excluded from dependent collision work without removing authored hitboxes. A failed
+node, beam, or constraint does not suspend its entire soft body. Missing references
+are preserved and warned about at each attempted execution; explicit ownership
+cleanup continues to apply. Setter/creator validation rejects nonfinite inputs
+and invalid computed outputs immediately, before changing physical state.
 
-Implemented as `ReportResult rohr_report_get(ReportId id)` and direct `report_get`.
-Supported IDs return independent latest copies; unsupported IDs return
-ERROR_ENGINE_REPORT_INVALID. ROHR_REPORT composes retained versions without
-counting covered children twice. Values persist across service restarts and are
-replaced only by subsequent publication, including NOT_RUN. Audio children expose
-published interval aggregates; other children expose their latest invocation.
-See [Stored reports](reports.md#stored-reports) for version groups, provenance,
-concurrency, timing, ownership, and version-2 output.
+See [Physics operation rejection and retry](reports.md#physics-operation-rejection-and-retry)
+for operation boundaries, report semantics, and the developer repair workflow.
+Input reporting remains deferred. Resume the separate force/torque contract only
+on explicit user instruction.

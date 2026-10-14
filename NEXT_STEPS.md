@@ -78,12 +78,12 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-**System Update Reports** Goals 1–6 and 8–10 (through stored retrieval and
-composition) are complete.
+**System Update Reports** Goals 1–6 and 8–11 (through stored retrieval and
+simulation-failure recovery) are complete.
 Goal 7 (input) is deferred by user choice; retain its current API and direct
-errors. Goal 11 (simulation-failure recovery) awaits explicit selection and policy decisions,
-before resuming Goal 1 of **Unified Forces and Torques**. Establish
-per-system timings and diagnostics first; preserve the agreed force/torque API design.
+errors. Goal 11 implements operation-level rejection and retry. Resume Goal 1
+of **Unified Forces and Torques** only on explicit user instruction; preserve
+the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -913,17 +913,32 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
     platforms; Linux execution/startup/shutdown checks pass outside source
     directories. Windows execution remains unverified. See
     [Stored reports](docs/reports.md#stored-reports).
-11. [ ] **Define and implement simulation-failure recovery** — After all applicable systems
-    have reporting, decide how a failed entity is excluded without destructively
-    rewriting its normal authored/physical state. Compare a reserved failure
-    flag with per-update retries, define developer repair/reset and automatic
-    revalidation, and specify repeated diagnostics. Clarify state preservation,
-    partial integration, contacts, joints, and soft-body dependencies. Implement
-    only the approved policy; verify unaffected entities continue safely, failed
-    entities can recover, and failures remain observable. Setter/creator
-    validation remains immediate. No flag, retry, or rollback policy is approved
-    yet; settle those choices when this goal is selected. Resume the force
-    contract only on subsequent explicit user instruction.
+11. [x] **Define and implement simulation-failure recovery** — Approved policy:
+    validate candidate values and commit the smallest coupled operation. Reject
+    invalid operations without HOLD, component removal, destructive state resets,
+    or persistent quarantine. Retain successful earlier work and use retained
+    valid state for later operations. Retry at the next scheduled execution,
+    including solver iterations/substeps; aggregate warning evidence. Preserve
+    unavailable joint/lock definitions for developer repair, while retaining
+    explicit ownership cleanup. Keep failures local to affected soft-body parts.
+    Add immediate numerical setter/creator validation. Shared resource/argument
+    failures remain fatal. Verify native tests, sanitizers, Linux/Windows builds,
+    installed SDKs and affected examples before completion. Input stays deferred;
+    resume the force contract only on subsequent explicit user instruction.
+    Completed: candidate validation and coupled commits cover integration, loads,
+    contact responses, joint corrections, locks, and soft-body operations. Missing
+    runtime references remain available for repair; invalid geometry is excluded
+    without removing authored hitboxes. Numerical API validation preserves state.
+    Operation-specific warning stages support existing text/JSON output and stored
+    report retrieval. Added regression coverage for repeated attempts, paired
+    rejection, local soft-body continuation, repair, preserved contact evidence,
+    and immediate setter rejection; replaced old quarantine assertions.
+    Verified 81 native tests and 18 focused ASan/UBSan/LeakSanitizer tests;
+    Linux/Windows engine/editor/test builds have no compiler warnings. Both
+    installed-SDK consumers, all 12 standalone examples, and a generated application
+    build on both platforms; Linux consumers execute and application startup/shutdown
+    checks pass outside source directories. Windows runtime remains unverified.
+    See [Physics recovery](docs/reports.md#physics-operation-rejection-and-retry).
 
 ### Agreed reporting behavior
 

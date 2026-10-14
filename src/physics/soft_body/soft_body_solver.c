@@ -7,9 +7,10 @@
 #include "physics/soft_body/soft_body.h"
 #include "systems.h"
 #include "math2d.h"
+#include "physics/physics_operation.h"
 #include <math.h>
 
-static void system_soft_body_beams_apply(void) {
+static void system_soft_body_beams_apply(Report *report) {
     for(EntityIndex beam_index = 0; beam_index < soft_body_beams_pool.capacity; beam_index += 1) {
         SoftBodyBeam beam;
         EntityIndex a;
@@ -27,7 +28,11 @@ static void system_soft_body_beams_apply(void) {
         beam = soft_body_beams[beam_index];
         if(!entity_index_get(beam.node_a, &a) || !entity_index_alive_check(a) ||
                 !entity_index_get(beam.node_b, &b) || !entity_index_alive_check(b) ||
-                mass[a] <= 0.0f || mass[b] <= 0.0f) continue;
+                mass[a] <= 0.0f || mass[b] <= 0.0f) {
+            physics_operation_reject(report, ROHR_PHYSICS_BEAM_CONTRIBUTION,
+                ERROR_ENGINE_STATE_INVALID, physics_operation_entity_get(beam_index), beam.node_b);
+            continue;
+        }
         delta = math_vector_subtract(positions[b], positions[a]);
         length = math_vector_magnitude(delta);
         if(length <= 0.0001f) continue;
@@ -36,10 +41,16 @@ static void system_soft_body_beams_apply(void) {
         relative_speed = math_dot_product(relative_velocity, normal);
         force_magnitude = beam.stiffness * (length - beam.rest_length) + beam.damping * relative_speed;
         force = (Vec2D){normal.x * force_magnitude, normal.y * force_magnitude};
-        force_accelerations[a].x += force.x / mass[a];
-        force_accelerations[a].y += force.y / mass[a];
-        force_accelerations[b].x -= force.x / mass[b];
-        force_accelerations[b].y -= force.y / mass[b];
+        PhysicsChange changes[] = {
+            physics_change_get(a, PHYSICS_CHANGE_FORCE_ACCELERATION),
+            physics_change_get(b, PHYSICS_CHANGE_FORCE_ACCELERATION)
+        };
+        changes[0].force_acceleration.x += force.x / mass[a];
+        changes[0].force_acceleration.y += force.y / mass[a];
+        changes[1].force_acceleration.x -= force.x / mass[b];
+        changes[1].force_acceleration.y -= force.y / mass[b];
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_BEAM_CONTRIBUTION,
+            physics_operation_entity_get(beam_index), beam.node_b);
     }
 }
 
@@ -157,11 +168,21 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
     bool overlapping;
 
     if(query == NULL) return true;
+    if(!physics_world_position_check(positions[query->a]) ||
+            !physics_world_position_check(positions[query->b]) ||
+            !isfinite(query->radius) || query->radius < 0) {
+        physics_operation_reject(report, ROHR_PHYSICS_GEOMETRY, ERROR_ENGINE_STATE_INVALID,
+            physics_operation_entity_get(query->beam_index), rigid_entity);
+        query->overlap = (OverlapInfo){0};
+        query->contact = (ContactInfo){0};
+        return true;
+    }
     if(!query->solving) {
         if(rigid_entity == query->node_a || rigid_entity == query->node_b ||
                 !entity_index_get(rigid_entity, &rigid) || !entity_index_alive_check(rigid) ||
                 !entity_index_components_check(rigid, ROHR_HIT_BOX | ROHR_COLLISION) ||
-                !system_soft_boundary_filter_allows(query, rigid)) return true;
+                !system_soft_boundary_filter_allows(query, rigid) ||
+                world_hit_boxes[rigid].amount_of_vertices == 0) return true;
         query->shape = system_soft_boundary_pair_shape_get(query, rigid_entity);
         if(!system_soft_boundary_overlap_get(query, world_hit_boxes[rigid]))
             return true;
@@ -196,6 +217,11 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
             !soft_body_beams_pool.used[query->beam_index] ||
             !soft_body_beams[query->beam_index].collision_enabled ||
             !entity_index_components_check(rigid, ROHR_HIT_BOX | ROHR_COLLISION)) return true;
+    if(!physics_step_hitbox_update(rigid, report)) {
+        query->overlap = (OverlapInfo){0};
+        query->contact = (ContactInfo){0};
+        return true;
+    }
     query->start = positions[query->a];
     query->end = positions[query->b];
     query->shape = system_soft_boundary_pair_shape_get(query, rigid_entity);
@@ -253,10 +279,15 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
         rigid_point_velocity.y - node_velocity_a.y * weight_a - node_velocity_b.y * weight_b
     };
     normal_velocity = math_dot_product(relative_velocity, normal);
+    bool previously_solved = query->solved;
+    bool normal_applied = false;
     if(!query->solved) {
         float restitution = fminf(soft_body_beams[query->beam_index].restitution,
             restitutions_pool.used[rigid] ? restitutions[rigid] : 0.0f);
-        query->rebound_speed = -restitution * fminf(normal_velocity, 0.0f);
+        query->rebound_speed = isfinite(normal_velocity) &&
+                isfinite(soft_body_beams[query->beam_index].restitution) &&
+                (!restitutions_pool.used[rigid] || isfinite(restitutions[rigid])) ?
+            -restitution * fminf(normal_velocity, 0.0f) : NAN;
     }
     contact = (ContactInfo){
         .detected = true,
@@ -264,25 +295,36 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
         .depth = overlap.depth,
         .points = {{.position = contact_position,
             .relative_velocity = query->solved
-                ? query->contact.points[0].relative_velocity : relative_velocity}},
+                ? query->contact.points[0].relative_velocity :
+                    (physics_vector_finite_check(relative_velocity) ? relative_velocity : (Velocity){0})}},
         .point_count = 1
     };
-    if(normal_denominator > 0.0f) {
+    if(!isfinite(normal_denominator) || normal_denominator > 0.0f) {
         float previous_impulse = query->normal_impulse;
-        query->normal_impulse = fmaxf(0.0f, previous_impulse +
-            (query->rebound_speed - normal_velocity) / normal_denominator);
-        float impulse_delta = query->normal_impulse - previous_impulse;
+        float candidate = previous_impulse + (query->rebound_speed - normal_velocity) / normal_denominator;
+        float next_impulse = isfinite(candidate) && isfinite(normal_denominator) ? fmaxf(0.0f, candidate) : NAN;
+        float impulse_delta = next_impulse - previous_impulse;
         Vec2D impulse = {normal.x * impulse_delta, normal.y * impulse_delta};
-        velocities[query->a].x -= impulse.x * weight_a * inverse_mass_a;
-        velocities[query->a].y -= impulse.y * weight_a * inverse_mass_a;
-        velocities[query->b].x -= impulse.x * weight_b * inverse_mass_b;
-        velocities[query->b].y -= impulse.y * weight_b * inverse_mass_b;
-        velocities[rigid].x += impulse.x * inverse_mass_rigid;
-        velocities[rigid].y += impulse.y * inverse_mass_rigid;
-        angular_velocities[rigid] -= math_radians_to_degrees(
+        PhysicsChange changes[] = {
+            physics_change_get(query->a, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(query->b, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(rigid, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
+        };
+        changes[0].velocity.x -= impulse.x * weight_a * inverse_mass_a;
+        changes[0].velocity.y -= impulse.y * weight_a * inverse_mass_a;
+        changes[1].velocity.x -= impulse.x * weight_b * inverse_mass_b;
+        changes[1].velocity.y -= impulse.y * weight_b * inverse_mass_b;
+        changes[2].velocity.x += impulse.x * inverse_mass_rigid;
+        changes[2].velocity.y += impulse.y * inverse_mass_rigid;
+        changes[2].angular_velocity -= math_radians_to_degrees(
             normal_lever * impulse_delta * inverse_inertia_rigid);
+        if(physics_changes_commit(changes, 3, report, ROHR_PHYSICS_NORMAL_IMPULSE,
+            physics_operation_entity_get(query->beam_index), rigid_entity)) {
+            query->normal_impulse = next_impulse;
+            normal_applied = true;
+        }
     }
-    if(tangent_denominator > 0.0f) {
+    if(!isfinite(tangent_denominator) || tangent_denominator > 0.0f) {
         float friction = sqrtf(soft_body_beams[query->beam_index].friction *
             (frictions_pool.used[rigid] ? frictions[rigid] : 0.0f));
         float maximum_friction = query->normal_impulse * friction;
@@ -294,25 +336,35 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
             rigid_point_velocity.x - node_velocity_a.x * weight_a - node_velocity_b.x * weight_b,
             rigid_point_velocity.y - node_velocity_a.y * weight_a - node_velocity_b.y * weight_b
         };
-        query->tangent_impulse = fmaxf(-maximum_friction, fminf(maximum_friction,
-            previous_impulse - math_dot_product(relative_velocity, tangent) / tangent_denominator));
-        float impulse_delta = query->tangent_impulse - previous_impulse;
+        float candidate = previous_impulse - math_dot_product(relative_velocity, tangent) / tangent_denominator;
+        float next_impulse = isfinite(candidate) && isfinite(maximum_friction) && isfinite(tangent_denominator) ?
+            fmaxf(-maximum_friction, fminf(maximum_friction, candidate)) : NAN;
+        float impulse_delta = next_impulse - previous_impulse;
         Vec2D impulse = {tangent.x * impulse_delta, tangent.y * impulse_delta};
-        velocities[query->a].x -= impulse.x * weight_a * inverse_mass_a;
-        velocities[query->a].y -= impulse.y * weight_a * inverse_mass_a;
-        velocities[query->b].x -= impulse.x * weight_b * inverse_mass_b;
-        velocities[query->b].y -= impulse.y * weight_b * inverse_mass_b;
-        velocities[rigid].x += impulse.x * inverse_mass_rigid;
-        velocities[rigid].y += impulse.y * inverse_mass_rigid;
-        angular_velocities[rigid] -= math_radians_to_degrees(
+        PhysicsChange changes[] = {
+            physics_change_get(query->a, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(query->b, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(rigid, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
+        };
+        changes[0].velocity.x -= impulse.x * weight_a * inverse_mass_a;
+        changes[0].velocity.y -= impulse.y * weight_a * inverse_mass_a;
+        changes[1].velocity.x -= impulse.x * weight_b * inverse_mass_b;
+        changes[1].velocity.y -= impulse.y * weight_b * inverse_mass_b;
+        changes[2].velocity.x += impulse.x * inverse_mass_rigid;
+        changes[2].velocity.y += impulse.y * inverse_mass_rigid;
+        changes[2].angular_velocity -= math_radians_to_degrees(
             tangent_lever * impulse_delta * inverse_inertia_rigid);
+        if(physics_changes_commit(changes, 3, report, ROHR_PHYSICS_FRICTION_IMPULSE,
+            physics_operation_entity_get(query->beam_index), rigid_entity))
+            query->tangent_impulse = next_impulse;
     }
     contact.points[0].normal_impulse = (Vec2D){
         normal.x * query->normal_impulse, normal.y * query->normal_impulse};
     contact.points[0].friction_impulse = (Vec2D){
         tangent.x * query->tangent_impulse, tangent.y * query->tangent_impulse};
     query->contact = contact;
-    query->solved = true;
+    query->solved = previously_solved || normal_applied;
+    if(!query->solved) query->rebound_speed = 0;
 
     /* Current geometry drives separation; the impact geometry above drives
      * velocity throughout the solve, even if correction removes the overlap. */
@@ -320,28 +372,32 @@ static bool system_soft_boundary_pair_apply(Entity rigid_entity, SystemSoftBound
     weight_b = query->t;
     inverse_mass_sum = weight_a * weight_a * inverse_mass_a +
         weight_b * weight_b * inverse_mass_b + inverse_mass_rigid;
-    positions[query->a].x -= overlap.normal.x * overlap.depth *
+    PhysicsChange changes[] = {
+        physics_change_get(query->a, PHYSICS_CHANGE_POSITION),
+        physics_change_get(query->b, PHYSICS_CHANGE_POSITION),
+        physics_change_get(rigid, PHYSICS_CHANGE_POSITION)
+    };
+    changes[0].position.x -= overlap.normal.x * overlap.depth *
         query->position_fraction *
         weight_a * inverse_mass_a / inverse_mass_sum;
-    positions[query->a].y -= overlap.normal.y * overlap.depth *
+    changes[0].position.y -= overlap.normal.y * overlap.depth *
         query->position_fraction *
         weight_a * inverse_mass_a / inverse_mass_sum;
-    positions[query->b].x -= overlap.normal.x * overlap.depth *
+    changes[1].position.x -= overlap.normal.x * overlap.depth *
         query->position_fraction *
         weight_b * inverse_mass_b / inverse_mass_sum;
-    positions[query->b].y -= overlap.normal.y * overlap.depth *
+    changes[1].position.y -= overlap.normal.y * overlap.depth *
         query->position_fraction *
         weight_b * inverse_mass_b / inverse_mass_sum;
-    positions[rigid].x += overlap.normal.x * overlap.depth *
+    changes[2].position.x += overlap.normal.x * overlap.depth *
         query->position_fraction *
         inverse_mass_rigid / inverse_mass_sum;
-    positions[rigid].y += overlap.normal.y * overlap.depth *
+    changes[2].position.y += overlap.normal.y * overlap.depth *
         query->position_fraction *
         inverse_mass_rigid / inverse_mass_sum;
 
-    physics_step_hitbox_dirty_add(query->a);
-    physics_step_hitbox_dirty_add(query->b);
-    physics_step_hitbox_dirty_add(rigid);
+    (void)physics_changes_commit(changes, 3, report, ROHR_PHYSICS_POSITION_CORRECTION,
+            physics_operation_entity_get(query->beam_index), rigid_entity);
     return true;
 }
 
@@ -398,169 +454,8 @@ static void system_soft_body_boundary_collisions_apply(Report *report) {
     }
 }
 
-static bool system_soft_node_rigid_filter_allows(EntityIndex node, EntityIndex rigid) {
-    CollisionFilterConfig rigid_filter = physics_collision_filter_config_default_get();
-
-    if(entity_index_components_check(rigid, ROHR_COLLISION_FILTER) &&
-            rigid < collision_filters_pool.capacity && collision_filters_pool.used[rigid]) {
-        rigid_filter = collision_filters[rigid];
-    }
-    return (soft_body_nodes[node].collides_with & rigid_filter.category) != 0 &&
-        (rigid_filter.collides_with & soft_body_nodes[node].category) != 0;
-}
-
-static void system_soft_body_node_rigid_collisions_apply(void) {
-    for(EntityIndex node = 0; node < soft_body_nodes_pool.capacity; node += 1) {
-        Shape node_shape;
-
-        if(!soft_body_nodes_pool.used[node] || !entity_index_alive_check(node) ||
-                !entity_index_components_check(node, ROHR_SOFT_BODY_NODE | ROHR_HIT_BOX)) continue;
-        node_shape = physics_shape_world_translate(
-            math_circle_create(soft_body_nodes[node].radius, 8),
-            positions[node],
-            0.0f
-        );
-        for(EntityIndex rigid = 0; rigid < world_hit_boxes_pool.capacity; rigid += 1) {
-            OverlapInfo collision;
-            float inverse_mass_node;
-            float inverse_mass_rigid;
-            float inverse_mass_sum;
-            Vec2D relative_velocity;
-            float normal_velocity;
-            float impulse_magnitude;
-            float restitution;
-            ContactInfo contact_info;
-
-            if(node == rigid || !entity_index_alive_check(rigid) ||
-                    !entity_index_components_check(rigid, ROHR_HIT_BOX | ROHR_COLLISION) ||
-                    entity_index_components_check(rigid, ROHR_SOFT_BODY_NODE) ||
-                    !system_soft_node_rigid_filter_allows(node, rigid)) continue;
-            collision = physics_sat_overlap_get(node_shape, world_hit_boxes[rigid]);
-            if(!collision.detected) continue;
-            Position contact_point = {positions[node].x + collision.normal.x * soft_body_nodes[node].radius,
-                positions[node].y + collision.normal.y * soft_body_nodes[node].radius};
-            Vec2D normal_offset = math_vector_subtract(contact_point,
-                physics_com_world_by_index_get(rigid));
-            float normal_inverse_inertia = physics_inverse_inertia_by_index_get(rigid);
-            relative_velocity = math_vector_subtract(
-                physics_point_velocity_by_index_get(rigid, contact_point),
-                physics_point_velocity_by_index_get(node, contact_point));
-            contact_info = (ContactInfo){
-                .detected = true,
-                .normal = collision.normal,
-                .depth = collision.depth,
-                .points = {{
-                    .position = {
-                        positions[node].x +
-                            collision.normal.x * soft_body_nodes[node].radius,
-                        positions[node].y +
-                            collision.normal.y * soft_body_nodes[node].radius
-                    },
-                    .relative_velocity = relative_velocity
-                }},
-                .point_count = 1
-            };
-            physics_step_interaction_by_index_record(
-                node,
-                rigid,
-                collision,
-                contact_info,
-                PHYSICS_INTERACTION_OVERLAP | PHYSICS_INTERACTION_CONTACT, NULL
-            );
-            inverse_mass_node = physics_entity_simulated_get(node) ? 1.0f / mass[node] : 0.0f;
-            inverse_mass_rigid = physics_entity_simulated_get(rigid) ? 1.0f / mass[rigid] : 0.0f;
-            inverse_mass_sum = inverse_mass_node + inverse_mass_rigid;
-            if(inverse_mass_sum <= 0.0f) continue;
-            positions[node].x -= collision.normal.x * collision.depth * inverse_mass_node / inverse_mass_sum;
-            positions[node].y -= collision.normal.y * collision.depth * inverse_mass_node / inverse_mass_sum;
-            positions[rigid].x += collision.normal.x * collision.depth * inverse_mass_rigid / inverse_mass_sum;
-            positions[rigid].y += collision.normal.y * collision.depth * inverse_mass_rigid / inverse_mass_sum;
-            normal_velocity = math_dot_product(relative_velocity, collision.normal);
-            if(normal_velocity >= 0.0f) continue;
-            restitution = fminf(
-                restitutions_pool.used[node] ? restitutions[node] : 0.25f,
-                restitutions_pool.used[rigid] ? restitutions[rigid] : 0.25f
-            );
-            float normal_lever = math_cross_2d(normal_offset, collision.normal);
-            impulse_magnitude = -(1.0f + restitution) * normal_velocity /
-                (inverse_mass_sum + normal_lever * normal_lever * normal_inverse_inertia);
-            angular_velocities[rigid] -= math_radians_to_degrees(normal_lever * impulse_magnitude * normal_inverse_inertia);
-            velocities[node].x -= collision.normal.x * impulse_magnitude * inverse_mass_node;
-            velocities[node].y -= collision.normal.y * impulse_magnitude * inverse_mass_node;
-            velocities[rigid].x += collision.normal.x * impulse_magnitude * inverse_mass_rigid;
-            velocities[rigid].y += collision.normal.y * impulse_magnitude * inverse_mass_rigid;
-            contact_info.points[0].normal_impulse = (Vec2D){
-                collision.normal.x * impulse_magnitude,
-                collision.normal.y * impulse_magnitude
-            };
-            physics_step_interaction_by_index_record(
-                node,
-                rigid,
-                collision,
-                contact_info,
-                PHYSICS_INTERACTION_OVERLAP | PHYSICS_INTERACTION_CONTACT, NULL
-            );
-            {
-                float node_friction = frictions_pool.used[node] ? frictions[node] : 0.0f;
-                float rigid_friction = frictions_pool.used[rigid] ? frictions[rigid] : 0.0f;
-                float coefficient = sqrtf(node_friction * rigid_friction);
-                Vec2D tangent = {-collision.normal.y, collision.normal.x};
-                Vec2D rigid_offset = {
-                    positions[node].x + collision.normal.x * soft_body_nodes[node].radius - physics_com_world_by_index_get(rigid).x,
-                    positions[node].y + collision.normal.y * soft_body_nodes[node].radius - physics_com_world_by_index_get(rigid).y
-                };
-                float inverse_inertia_rigid = 0.0f;
-                float tangent_speed;
-                float tangent_impulse;
-                float maximum_friction;
-                float denominator;
-
-                if(physics_entity_simulated_get(rigid) &&
-                        entity_index_components_check(rigid, ROHR_MASS | ROHR_HIT_BOX)) {
-                    inverse_inertia_rigid = physics_inverse_inertia_by_index_get(rigid);
-                }
-                {
-                    Vec2D angular_velocity = math_angular_velocity_cross_vec(
-                        angular_velocities[rigid], rigid_offset);
-                    relative_velocity = (Vec2D){
-                        velocities[rigid].x + angular_velocity.x - velocities[node].x,
-                        velocities[rigid].y + angular_velocity.y - velocities[node].y
-                    };
-                }
-                tangent_speed = math_dot_product(relative_velocity, tangent);
-                denominator = inverse_mass_sum +
-                    powf(math_cross_2d(rigid_offset, tangent), 2.0f) * inverse_inertia_rigid;
-                if(coefficient <= 0.0f || denominator <= 0.0f) continue;
-                tangent_impulse = -tangent_speed / denominator;
-                maximum_friction = fabsf(impulse_magnitude) * coefficient;
-                tangent_impulse = fmaxf(-maximum_friction,
-                    fminf(tangent_impulse, maximum_friction));
-                velocities[node].x -= tangent.x * tangent_impulse * inverse_mass_node;
-                velocities[node].y -= tangent.y * tangent_impulse * inverse_mass_node;
-                velocities[rigid].x += tangent.x * tangent_impulse * inverse_mass_rigid;
-                velocities[rigid].y += tangent.y * tangent_impulse * inverse_mass_rigid;
-                angular_velocities[rigid] -= math_radians_to_degrees(math_cross_2d(
-                    rigid_offset,
-                    (Vec2D){tangent.x * tangent_impulse, tangent.y * tangent_impulse}
-                ) * inverse_inertia_rigid);
-                contact_info.points[0].friction_impulse = (Vec2D){
-                    tangent.x * tangent_impulse,
-                    tangent.y * tangent_impulse
-                };
-                physics_step_interaction_by_index_record(
-                    node,
-                    rigid,
-                    collision,
-                    contact_info,
-                    PHYSICS_INTERACTION_OVERLAP | PHYSICS_INTERACTION_CONTACT, NULL
-                );
-            }
-        }
-    }
-}
-
-void physics_soft_body_beams_apply(void) {
-    system_soft_body_beams_apply();
+void physics_soft_body_beams_apply(Report *report) {
+    system_soft_body_beams_apply(report);
 }
 
 void physics_soft_body_constraints_gather(Report *report) {
@@ -585,6 +480,7 @@ void physics_soft_body_constraint_finalize(
 
     if(constraint == NULL) return;
     soft = &constraint->value.soft;
+    if(!soft->overlap.detected) return;
     physics_step_interaction_by_index_record(
         soft->beam_index, soft->rigid, soft->overlap, soft->contact,
         PHYSICS_INTERACTION_OVERLAP | PHYSICS_INTERACTION_CONTACT, report);

@@ -18,7 +18,7 @@ Report physics_pipeline_substep(double dt) {
     }
     physics_pipeline_substep_begin();
     physics_pipeline_accelerations_clear();
-    physics_pipeline_gravity_apply();
+    physics_rigid_gravity_apply(physics_gravity_get(), &report);
     child = physics_pipeline_forces_apply();
     (void)report_merge(&report, &child);
     if(report.has_fatal) goto done;

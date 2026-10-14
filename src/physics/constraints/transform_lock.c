@@ -5,6 +5,7 @@
 #include "physics.h"
 
 #include "physics/physics_internal.h"
+#include "physics/physics_operation.h"
 #include <math.h>
 
 EngineResult physics_angle_lock_set(
@@ -31,11 +32,13 @@ EngineResult physics_axis_lock_set(
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(axis)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!physics_world_position_check(axis_point))
         return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    normalized_axis = math_vector_normalize(axis);
+    if(!physics_vector_finite_check(normalized_axis)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = entity_components_add(entity, ROHR_AXIS_LOCK);
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    normalized_axis = math_vector_normalize(axis);
     (void)AxisLockPool_store_at(&axis_locks_pool, index, (AxisLock){
         .axis = (Axis){
             .x = normalized_axis.x,
@@ -64,6 +67,7 @@ EngineResult physics_transform_lock_set(
     if(result.kind == ERROR_RESULT_ERROR) return result;
     result = physics_live_index_get(driver, &driver_index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(local_offset)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(!isfinite(local_angle)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     result = entity_components_add(driven, ROHR_TRANSFORM_LOCK);
     if(result.kind == ERROR_RESULT_ERROR) return result;

@@ -21,14 +21,14 @@ void physics_pipeline_accelerations_clear(void) {
 }
 
 void physics_pipeline_gravity_apply(void) {
-    physics_rigid_gravity_apply(physics_gravity_get());
+    physics_rigid_gravity_apply(physics_gravity_get(), NULL);
 }
 
 Report physics_pipeline_forces_apply(void) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_LOADS_REPORT);
     physics_joint_spring_forces_apply(&report);
-    physics_soft_body_beams_apply();
+    physics_soft_body_beams_apply(&report);
     physics_report_finish(&report, started);
     return report;
 }

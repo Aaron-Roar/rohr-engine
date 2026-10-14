@@ -438,7 +438,7 @@ ROHR_PHYSICS_REPORT                   full update, including preparation when ap
 | `physics_pipeline_update(dt)` | Advances interactions and runs all substeps; caller handles animated-hitbox preparation. |
 | `physics_pipeline_substep(dt)` | Clears constraints/acceleration, applies gravity and loads, integrates, gathers, solves. Call `step_begin()` first when beginning a new interaction update. |
 | `physics_pipeline_forces_apply()` | Applies spring/beam loads to prepared acceleration buffers. Persistent force sources remain in integration, as before. |
-| `physics_pipeline_integrate(dt)` | Integrates current state and prepared loads; preserves existing world-range quarantine. |
+| `physics_pipeline_integrate(dt)` | Integrates current state and prepared loads; rejects invalid changes and retains prior values. |
 | `physics_pipeline_contacts_gather()` | Refreshes hitboxes/tree and appends contacts. Call `substep_begin()` first to clear old constraints. |
 | `physics_pipeline_joints_gather()` | Replaces gathered joint constraints; can run without contacts or integration. |
 | `physics_pipeline_constraints_solve(iterations)` | Requires successful gathering. Zero iterations is NOT_RUN; contact and joint iterations retain their existing ordering. |
@@ -456,14 +456,55 @@ then solve and check that report. Merge both returned reports if desired. Do not
 solve partially gathered constraints after a fatal gather. Call `step_begin()`
 when this pass should also start a new interaction-history boundary.
 
-The full update records attempted/completed substep counts. Failed integration
-retains each quarantined entity's full handle, copied message, and zero-based
-substep index. Its existing HOLD, cleared motion, and removed-hitbox behavior is
-unchanged. Subsequent stages/substeps stop on fatal failure; prior work is not
-rolled back. Broken-joint cleanup and failed animated-hitbox selection produce
-warnings while independent work continues. Preparation issues have no substep.
-Allocation failures in tree construction, rigid/beam contact gathering, joint
-gathering, legacy joint force creation, and interaction publication are fatal.
+The full update records attempted/completed substep counts. A contained rejection
+is a warning with `ROHR_REPORT_CONTRIBUTION_SKIPPED`; the pipeline remains COMPLETE
+when its scheduled work finishes. Diagnostics identify the operation through a
+`PhysicsReportStage`, preserve source/target handles, and aggregate repeated
+attempts with occurrence counts and zero-based first/last substeps. Skipped-work
+metrics count rejected operations, not unique entities. Preparation issues have
+no substep. Allocation failures in tree construction, rigid/beam contact gathering,
+joint gathering, legacy joint force creation, and interaction publication remain
+fatal; dependent stages stop and earlier successful work remains committed.
+
+### Physics operation rejection and retry
+
+Simulation calculates candidate changes before committing them. Invalid position,
+velocity, angular motion, load, lock, or constraint results preserve that
+operation's prior state. It does not set HOLD, clear physical state, remove a
+hitbox, or permanently suspend a body. Every next scheduled execution retries,
+including later solver iterations and substeps. There is no replay of an entire
+update and no extension of one-tick contribution lifetimes.
+
+Each operation commits the values that must remain consistent together:
+center-of-mass rotation includes its origin adjustment; an impulse or positional
+correction includes all participating bodies; a beam or spring contribution
+includes both endpoints. Normal response, friction response, and separation are
+separate operations. A rejected friction impulse preserves a previously committed
+normal impulse. Contact records include only committed impulses.
+
+Later operations may use retained valid state. Only operations whose own inputs
+or required results are unavailable are skipped. A failing node or beam does not
+suspend the whole soft body. Invalid derived geometry is unavailable to collision
+work until it can be regenerated; obsolete geometry is not reused.
+
+Unavailable joint endpoints/anchors and transform-lock drivers produce warnings
+while their definitions remain available for developer repair. Explicit deletion
+and ownership cleanup retain their existing semantics. Developers can repair
+properties, remove constraints, pause entities, or delete them using existing APIs;
+no failure flag or reset API is required.
+
+Numerical setters, creators, and immediate apply calls validate inputs and
+computed results before committing them. They return immediate errors; simulation
+also guards invalid existing state. Valid earlier operations and earlier members
+of group operations are not rolled back. Finite values retain existing domain
+limits, without additional speed or force limits. The old quarantine recovery
+and metric enum values remain available for compatibility; this physics path no
+longer emits them.
+
+The report-free gravity primitive validates its contribution but does not publish
+report evidence. Complete substeps collect gravity rejection into their own report.
+The other report-free preparation helpers reset temporary state and create no
+child report entries.
 
 Metrics retain the previous meanings, with explicit owner and aggregation:
 

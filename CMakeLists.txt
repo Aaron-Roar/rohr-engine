@@ -227,6 +227,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/physics.c
     src/physics/physics_entity.c
     src/physics/physics_step.c
+    src/physics/physics_operation.c
     src/physics/pipeline/physics_pipeline.c
     src/physics/pipeline/physics_config.c
     src/physics/pipeline/physics_stages.c
@@ -526,6 +527,19 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(physics_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
     add_test(NAME physics_reports COMMAND physics_reports_test)
+
+    add_executable(physics_recovery_test tests/physics_recovery.c)
+    target_link_libraries(physics_recovery_test PRIVATE rohr_engine)
+    target_include_directories(physics_recovery_test PRIVATE src)
+    set_target_properties(physics_recovery_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(physics_recovery_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(physics_recovery_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME physics_recovery COMMAND physics_recovery_test)
 
     add_executable(graphics_reports_test tests/graphics_reports.c)
     target_link_libraries(graphics_reports_test PRIVATE rohr_engine)
@@ -989,6 +1003,7 @@ if(ROHR_BUILD_TESTS)
     )
 
     set_tests_properties(
+        physics_recovery
         physics_reports
         audio
         engine_lifecycle
@@ -1038,6 +1053,7 @@ if(ROHR_BUILD_TESTS)
         report_storage_test
         graphics_reports_test
         physics_reports_test
+        physics_recovery_test
         audio_reports_test
         audio_test
         engine_lifecycle_test

@@ -135,17 +135,6 @@ float physics_inverse_inertia_by_index_get(EntityIndex index) {
     return (float)(1.0 / inertia);
 }
 
-/* Simulation and solver angle changes hold COM fixed, unlike the public
- * orientation setter, which intentionally holds the authored origin fixed. */
-void physics_com_orientation_set(EntityIndex index, float orientation) {
-    if(orientations[index] == orientation) return;
-    Position center = physics_com_world_by_index_get(index);
-    Vec2D offset = math_vector_rotate(physics_com_local_by_index_get(index), orientation);
-    orientations[index] = orientation;
-    positions[index] = (Position){center.x - offset.x, center.y - offset.y};
-    physics_step_hitbox_dirty_add(index);
-}
-
 EngineResult physics_center_of_mass_local_position_set(Entity entity, Position offset) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(entity, &index);

@@ -7,6 +7,7 @@
 
 #include "physics/physics_internal.h"
 #include "math2d.h"
+#include "physics/physics_operation.h"
 
 #include <math.h>
 
@@ -75,6 +76,9 @@ EngineResult physics_soft_body_origin_orientation_set(
         offset = math_vector_subtract(positions[node_index], positions[body_index]);
         offset = math_vector_rotate(offset, delta);
         rotated = physics_soft_body_vector_add(positions[body_index], offset);
+        if((velocities_pool.used[node_index] && !physics_vector_finite_check(math_vector_rotate(velocities[node_index], delta))) ||
+                (accelerations_pool.used[node_index] && !physics_vector_finite_check(math_vector_rotate(accelerations[node_index], delta))))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
         if(!physics_world_position_check(rotated))
             return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     }

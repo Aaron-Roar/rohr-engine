@@ -7,6 +7,7 @@
 #include "console.h"
 #include "physics/soft_body/soft_body_motion.h"
 #include "physics/physics_internal.h"
+#include "physics/physics_operation.h"
 
 #include <math.h>
 
@@ -64,6 +65,7 @@ EngineResult physics_velocity_set(Entity entity, Velocity velocity) {
     EngineResult result = physics_live_index_get(entity, &index);
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
+    if(!physics_vector_finite_check(velocity)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     (void)VelocityPool_store_at(&velocities_pool, index, velocity);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Velocity: {x: %f, y: %f}\n",
         entity, velocity.x, velocity.y);

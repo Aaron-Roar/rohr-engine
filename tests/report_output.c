@@ -423,12 +423,39 @@ static void versioned_output(void) {
     assert(!report_valid_check(&empty));
 }
 
+static void physics_recovery_names(void) {
+    Report r = report_create();
+    OK(report_header_set(&r, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, 0}));
+    for(uint32_t stage = ROHR_PHYSICS_POSITION; stage <= ROHR_PHYSICS_GEOMETRY; ++stage) {
+        OK(report_diagnostic_add(&r, (ReportDiagnostic){
+            .report_id = ROHR_PHYSICS_INTEGRATION_REPORT, .internal_stage = stage,
+            .severity = ROHR_REPORT_SEVERITY_WARNING, .code = ERROR_ENGINE_STATE_INVALID,
+            .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED, .occurrence_count = 2
+        }));
+    }
+    OK(report_json_write(&r, json_path, false));
+    OK(report_text_write(&r, text_path));
+    yyjson_doc *doc = json_read(json_path);
+    yyjson_val *diags = get(yyjson_doc_get_root(doc), "diagnostics");
+    assert(yyjson_arr_size(diags) == r.diagnostic_count);
+    for(size_t i = 0; i < r.diagnostic_count; ++i) {
+        yyjson_val *stage = get(yyjson_arr_get(diags, i), "internal_stage");
+        assert(yyjson_is_str(get(stage, "name")));
+    }
+    string_is(get(get(yyjson_arr_get(diags, 0), "internal_stage"), "name"), "ROHR_PHYSICS_POSITION");
+    yyjson_doc_free(doc);
+    char *text = file_read(text_path);
+    assert(strstr(text, "POSITION") && strstr(text, "GEOMETRY"));
+    free(text);
+}
+
 int main(void) {
 #ifdef _WIN32
     assert(_setmode(fileno(stdout), _O_BINARY) != -1);
 #endif
     versioned_output();
     builtin_names();
+    physics_recovery_names();
     json_and_ownership();
     empty_and_invalid();
     text_and_history();

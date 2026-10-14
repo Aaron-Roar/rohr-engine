@@ -18,7 +18,6 @@ Position physics_com_local_by_index_get(EntityIndex index);
 Position physics_com_world_by_index_get(EntityIndex index);
 float physics_inverse_inertia_by_index_get(EntityIndex index);
 Velocity physics_point_velocity_by_index_get(EntityIndex index, Position point);
-void physics_com_orientation_set(EntityIndex index, float orientation);
 EngineResult physics_live_index_get(Entity entity, EntityIndex *index);
 typedef EngineResult (*PhysicsGroupEntityFn)(Entity entity);
 typedef EngineResult (*PhysicsGroupEntityTargetFn)(

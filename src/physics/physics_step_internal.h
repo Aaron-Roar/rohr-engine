@@ -36,7 +36,8 @@ void physics_step_interaction_by_index_record(
     PhysicsInteractionFlags flags, Report *report
 );
 void physics_step_hitbox_dirty_add(EntityIndex index);
-void physics_step_hitbox_dirty_flush(void);
+bool physics_step_hitbox_update(EntityIndex index, Report *report);
+void physics_step_hitbox_dirty_flush(Report *report);
 void physics_step_entity_by_index_delete(EntityIndex index);
 void physics_step_transform_lock_by_index_remove(EntityIndex index);
 double physics_step_elapsed_ms(uint64_t start);
@@ -52,9 +53,9 @@ void physics_pipeline_contact_constraints_finalize(
 void physics_pipeline_joint_constraints_solve(void *context);
 
 EngineResult physics_rigid_integrate(double dt, Report *report);
-void physics_rigid_transform_constraints_apply(void);
+void physics_rigid_transform_constraints_apply(Report *report);
 void physics_rigid_accelerations_clear(void);
-void physics_rigid_gravity_apply(Acceleration gravity);
+void physics_rigid_gravity_apply(Acceleration gravity, Report *report);
 void physics_rigid_constraints_gather(Report *report);
 void physics_rigid_contact_constraint_solve(
     SystemContactConstraint *constraint,
@@ -72,7 +73,7 @@ void physics_joint_spring_forces_apply(Report *report);
 void physics_joint_constraints_gather(Report *report);
 void physics_joint_constraints_solve(Report *report);
 
-void physics_soft_body_beams_apply(void);
+void physics_soft_body_beams_apply(Report *report);
 void physics_soft_body_constraints_gather(Report *report);
 void physics_soft_body_constraint_solve(
     SystemContactConstraint *constraint,

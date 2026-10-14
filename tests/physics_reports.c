@@ -143,18 +143,21 @@ static void warning_and_fatal(void) {
     assert(report.diagnostic_count == 1 && report.diagnostics[0].severity == ROHR_REPORT_SEVERITY_WARNING);
     assert(report.diagnostics[0].source.id == spring && report.diagnostics[0].has_substep);
     assert(position(a).x == .25f); /* Warning did not prevent unrelated integration. */
-    assert(rohr_error_check(rohr_entity_index_get(spring)));
+    OK(rohr_entity_index_get(spring));
+    joints[index.result.value].a = a; /* Developer repairs the retained definition. */
+    OK(rohr_entity_delete(spring));
     OK(rohr_physics_position_set(a, (Position){ROHR_WORLD_COORDINATE_MAX, 0}));
     OK(rohr_physics_substeps_set(4));
     report = rohr_physics_dt_update(1);
-    assert(report.header.status == ROHR_REPORT_FAILED && report.has_fatal);
-    assert(report.first_fatal.source.id == a && report.first_fatal.has_substep);
-    assert(report.first_fatal.first_substep == 0 && report.first_fatal.last_substep == 0);
-    assert(report.first_fatal.recovery == ROHR_REPORT_ENTITY_QUARANTINED);
-    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_QUARANTINED_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 0);
-    assert(entry(&report, ROHR_PHYSICS_CONTACTS_REPORT) == NULL);
+    assert(report.header.status == ROHR_REPORT_COMPLETE && !report.has_fatal);
+    assert(report.diagnostics[0].source.id == a && report.diagnostics[0].has_substep);
+    assert(report.diagnostics[0].first_substep == 0 && report.diagnostics[0].last_substep == 3);
+    assert(report.diagnostics[0].occurrence_count == 4);
+    assert(report.diagnostics[0].recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
+    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_SKIPPED_COUNT) == 4);
+    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT) == 4);
+    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 4);
+    assert(entry(&report, ROHR_PHYSICS_CONTACTS_REPORT) != NULL);
     Report saved = report;
     OK(rohr_entity_delete(a));
     (void)body(0, false); /* Reuse may not alter copied evidence. */
@@ -162,8 +165,8 @@ static void warning_and_fatal(void) {
     assert(report.header.status == ROHR_REPORT_COMPLETE);
     rohr_engine_stop();
     OK(rohr_engine_start());
-    assert(rohr_report_valid_check(&saved) && saved.first_fatal.source.id == a);
-    assert(strstr(saved.first_fatal.detail, "quarantined") != NULL);
+    assert(rohr_report_valid_check(&saved) && saved.diagnostics[0].source.id == a);
+    assert(strstr(saved.diagnostics[0].detail, "retained") != NULL);
     rohr_engine_stop();
 }
 
@@ -176,10 +179,10 @@ static void diagnostic_overflow(void) {
         OK(rohr_physics_velocity_set(e, (Velocity){1, 0}));
     }
     Report report = rohr_system_physics_update(1);
-    assert(report.has_fatal && report.first_fatal.source.id == first);
+    assert(!report.has_fatal && report.diagnostics[0].source.id == first);
     assert(report.diagnostic_count == ROHR_REPORT_DIAGNOSTIC_CAPACITY);
     assert(report.dropped_diagnostic_occurrences == 4);
-    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_QUARANTINED_COUNT)
+    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_SKIPPED_COUNT)
         == ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4);
     assert(rohr_report_valid_check(&report));
     rohr_engine_stop();

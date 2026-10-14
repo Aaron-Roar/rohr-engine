@@ -7,17 +7,18 @@
 #include "systems.h"
 #include "core/engine_internal.h"
 #include "math2d.h"
+#include "physics/physics_operation.h"
 #include <math.h>
 
-static void system_broken_joint_remove(EntityIndex index, Entity target,
+static void system_unavailable_joint_skip(EntityIndex index, Entity target,
         EngineError code, Report *report) {
     Entity source = 0;
     (void)physics_step_entity_from_index_get(index, &source);
     physics_report_issue_add(report, ROHR_PHYSICS_JOINT_TARGET, ROHR_REPORT_SEVERITY_WARNING,
         code, ROHR_REPORT_CONTRIBUTION_SKIPPED, source, target,
-        "joint endpoint or anchor unavailable; broken joint removed");
+        "joint endpoint or anchor unavailable; operation skipped; definition retained");
     physics_report_counter_add(report, ROHR_REPORT_SKIPPED_COUNT, 1);
-    physics_step_entity_by_index_delete(index);
+
 }
 
 static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
@@ -39,99 +40,48 @@ static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
         .y = velocities[index].y + angular_part.y
     };
 }
-static void system_joint_force_for_one_tick_add(Entity target, Force force) {
-    EntityIndex target_index;
-
-    if(!entity_index_get(target, &target_index) || !entity_index_alive_check(target_index)) {
-        return;
+/* Legacy pin loads retain their one-tick lifetime. Prepare both endpoints
+ * before creating anything; allocation failure releases this operation's
+ * temporary entities without undoing earlier operations. */
+static void system_joint_load_pair_add(Entity a, Entity b, Position point_a,
+        Position point_b, Force force, Report *report, Entity source) {
+    Entity targets_pair[] = {a, b};
+    Position points[] = {point_a, point_b};
+    Force values[] = {force, {-force.x, -force.y}};
+    Torque torque[2];
+    bool active[2] = {false, false};
+    Entity created[4];
+    size_t count = 0;
+    EngineError failure = ERROR_NONE;
+    for(size_t n = 0; n < 2; ++n) {
+        EntityIndex i;
+        if(!entity_index_get(targets_pair[n], &i) || !physics_entity_simulated_get(i)) continue;
+        active[n] = true;
+        torque[n] = -math_cross_2d(math_vector_subtract(points[n],
+            physics_com_world_by_index_get(i)), values[n]);
+        if(!physics_vector_finite_check(values[n]) || !isfinite(torque[n])) {
+            physics_operation_reject(report, ROHR_PHYSICS_FORCE_CONTRIBUTION,
+                ERROR_ENGINE_STATE_INVALID, source, targets_pair[n]);
+            return;
+        }
     }
-    if(!physics_entity_simulated_get(target_index)) {
-        return;
+    for(size_t n = 0; n < 2; ++n) {
+        if(!active[n]) continue;
+        EntityResult force_result = physics_force_create(targets_pair[n], values[n]);
+        if(force_result.kind == ERROR_RESULT_ERROR) { failure = force_result.result.error; break; }
+        created[count++] = force_result.result.value;
+        EntityResult torque_result = physics_torque_create(targets_pair[n], torque[n]);
+        if(torque_result.kind == ERROR_RESULT_ERROR) { failure = torque_result.result.error; break; }
+        created[count++] = torque_result.result.value;
     }
-    if(!entity_index_components_check(target_index, ROHR_MASS) || mass[target_index] == 0.0f) {
-        return;
+    for(size_t n = 0; failure == ERROR_NONE && n < count; ++n) {
+        EngineResult result = entity_life_time_set(created[n], 0.0, engine_tick_get() + 1);
+        if(result.kind == ERROR_RESULT_ERROR) failure = result.result.error;
     }
-    //Entity force_entity = set_force(target, force);
-    force_accelerations[target_index].x += force.x/mass[target_index];
-    force_accelerations[target_index].y += force.y/mass[target_index];
-
-    //if(force_entity == 0) {
-    //    return;
-    //}
-
-    //set_life_time(
-    //    force_entity,
-    //    0.0,
-    //    engine_tick_get() + 1
-    //);
-}
-static void system_joint_torque_for_one_tick_add(Entity target, Torque torque) {
-    EntityIndex target_index;
-
-    if(!entity_index_get(target, &target_index) || !entity_index_alive_check(target_index)) {
-        return;
-    }
-    if(!physics_entity_simulated_get(target_index)) {
-        return;
-    }
-    if(!entity_index_components_check(target_index, ROHR_MASS) || mass[target_index] == 0.0f) {
-        return;
-    }
-    torque_angular_accelerations[target_index] += math_radians_to_degrees(torque *
-        physics_inverse_inertia_by_index_get(target_index));
-    //Entity torque_entity = set_torque(target, torque);
-
-    //if(torque_entity == 0) {
-    //    return;
-    //}
-
-    //set_life_time(
-    //    torque_entity,
-    //    0.0,
-    //    engine_tick_get() + 1
-    //);
-}
-
-static void system_joint_force_at_point_for_one_tick_add(Entity target, Position world_point, Force force, Report *report, Entity source) {
-    EntityIndex target_index;
-
-    if(!entity_index_get(target, &target_index) || !entity_index_alive_check(target_index)) {
-        return;
-    }
-
-    if(!physics_entity_simulated_get(target_index)) {
-        return;
-    }
-
-    EntityResult force_result = physics_force_create(target, force);
-    if(force_result.kind == ERROR_RESULT_ERROR) {
+    if(failure != ERROR_NONE) {
+        for(size_t n = 0; n < count; ++n) (void)entity_delete(created[n]);
         physics_report_issue_add(report, ROHR_PHYSICS_CONSTRAINT_RESPONSE, ROHR_REPORT_SEVERITY_FATAL,
-            force_result.result.error, ROHR_REPORT_UPDATE_ABORTED, source, target,
-            "could not create joint force contribution");
-        return;
-    }
-
-    if(force_result.kind == ERROR_RESULT_VALUE) {
-        entity_life_time_set(force_result.result.value, 0.0, engine_tick_get() + 1);
-    }
-
-    Vec2D r = {
-        .x = world_point.x - physics_com_world_by_index_get(target_index).x,
-        .y = world_point.y - physics_com_world_by_index_get(target_index).y
-    };
-
-    Torque torque = -math_cross_2d(r, force);
-
-    EntityResult torque_result = physics_torque_create(target, torque);
-    if(torque_result.kind == ERROR_RESULT_ERROR) {
-        physics_report_issue_add(report, ROHR_PHYSICS_CONSTRAINT_RESPONSE, ROHR_REPORT_SEVERITY_FATAL,
-            torque_result.result.error, ROHR_REPORT_UPDATE_ABORTED, source, target,
-            "could not create joint torque contribution; force already applied");
-        return;
-    }
-
-    if(torque_result.kind == ERROR_RESULT_VALUE) {
-        entity_life_time_set(torque_result.result.value, 0.0, engine_tick_get() + 1);
+            failure, ROHR_REPORT_UPDATE_ABORTED, source, b, "could not allocate paired joint contributions");
     }
 }
 
@@ -146,7 +96,7 @@ static void system_rigid_anchor_axis_solve(
         Vec2D offset_b,
         Vec2D position_error,
         Vec2D velocity_error,
-        Vec2D axis
+        Vec2D axis, Report *report, Entity source
 ) {
     float inverse_mass_a = physics_entity_simulated_get(a) ? 1.0f / mass[a] : 0.0f;
     float inverse_mass_b = physics_entity_simulated_get(b) ? 1.0f / mass[b] : 0.0f;
@@ -162,18 +112,32 @@ static void system_rigid_anchor_axis_solve(
     if(effective_inverse_mass <= 0.0f) return;
     position_impulse = math_dot_product(position_error, axis) / effective_inverse_mass;
     velocity_impulse = math_dot_product(velocity_error, axis) / effective_inverse_mass;
-    positions[a].x += axis.x * position_impulse * inverse_mass_a;
-    positions[a].y += axis.y * position_impulse * inverse_mass_a;
-    physics_com_orientation_set(a, orientations[a] - math_radians_to_degrees(lever_a * position_impulse * inverse_inertia_a));
-    positions[b].x -= axis.x * position_impulse * inverse_mass_b;
-    positions[b].y -= axis.y * position_impulse * inverse_mass_b;
-    physics_com_orientation_set(b, orientations[b] + math_radians_to_degrees(lever_b * position_impulse * inverse_inertia_b));
-    velocities[a].x += axis.x * velocity_impulse * inverse_mass_a;
-    velocities[a].y += axis.y * velocity_impulse * inverse_mass_a;
-    angular_velocities[a] -= math_radians_to_degrees(lever_a * velocity_impulse * inverse_inertia_a);
-    velocities[b].x -= axis.x * velocity_impulse * inverse_mass_b;
-    velocities[b].y -= axis.y * velocity_impulse * inverse_mass_b;
-    angular_velocities[b] += math_radians_to_degrees(lever_b * velocity_impulse * inverse_inertia_b);
+    {
+        PhysicsChange changes[] = {
+            physics_change_get(a, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION),
+            physics_change_get(b, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION)
+        };
+        changes[0].position.x += axis.x * position_impulse * inverse_mass_a;
+        changes[0].position.y += axis.y * position_impulse * inverse_mass_a;
+        physics_change_orientation_set(&changes[0], changes[0].orientation - math_radians_to_degrees(lever_a * position_impulse * inverse_inertia_a));
+        changes[1].position.x -= axis.x * position_impulse * inverse_mass_b;
+        changes[1].position.y -= axis.y * position_impulse * inverse_mass_b;
+        physics_change_orientation_set(&changes[1], changes[1].orientation + math_radians_to_degrees(lever_b * position_impulse * inverse_inertia_b));
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_POSITION, source, physics_operation_entity_get(b));
+    }
+    {
+        PhysicsChange changes[] = {
+            physics_change_get(a, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(b, PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ANGULAR_VELOCITY)
+        };
+        changes[0].velocity.x += axis.x * velocity_impulse * inverse_mass_a;
+        changes[0].velocity.y += axis.y * velocity_impulse * inverse_mass_a;
+        changes[0].angular_velocity -= math_radians_to_degrees(lever_a * velocity_impulse * inverse_inertia_a);
+        changes[1].velocity.x -= axis.x * velocity_impulse * inverse_mass_b;
+        changes[1].velocity.y -= axis.y * velocity_impulse * inverse_mass_b;
+        changes[1].angular_velocity += math_radians_to_degrees(lever_b * velocity_impulse * inverse_inertia_b);
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_VELOCITY, source, physics_operation_entity_get(b));
+    }
 }
 
 static void system_pin_joint_apply(Entity joint_entity, Report *report) {
@@ -185,12 +149,13 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
     EntityIndex b_index;
 
     if(!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index) || !entity_index_get(b, &b_index) || !entity_index_alive_check(b_index)) {
-        system_broken_joint_remove(joint_entity,
+        system_unavailable_joint_skip(joint_entity,
             (!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index)) ? a : b,
             ERROR_ENGINE_INVALID_ENTITY, report);
         return;
     }
 
+    if(a_index == b_index) return;
     Vec2D offset_a;
     Vec2D offset_b;
     Position world_anchor_a;
@@ -200,7 +165,7 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
         JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
         JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
         if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
-            system_broken_joint_remove(joint_entity,
+            system_unavailable_joint_skip(joint_entity,
                 anchor_a.kind == ERROR_RESULT_ERROR ? a : b,
                 anchor_a.kind == ERROR_RESULT_ERROR ? anchor_a.result.error : anchor_b.result.error,
                 report);
@@ -234,9 +199,9 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
 
     if(joint.anchor_a != JOINT_ANCHOR_INVALID && joint.anchor_b != JOINT_ANCHOR_INVALID) {
         system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-            error, relative_velocity, (Vec2D){1.0f, 0.0f});
+            error, relative_velocity, (Vec2D){1.0f, 0.0f}, report, physics_operation_entity_get(joint_entity));
         system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-            error, relative_velocity, (Vec2D){0.0f, 1.0f});
+            error, relative_velocity, (Vec2D){0.0f, 1.0f}, report, physics_operation_entity_get(joint_entity));
         return;
     }
 
@@ -250,12 +215,15 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
         .y = -force_on_a.y
     };
 
-    Entity source = 0;
-    (void)physics_step_entity_from_index_get(joint_entity, &source);
-    system_joint_force_at_point_for_one_tick_add(a, world_anchor_a, force_on_a, report, source);
-    if(report != NULL && report->has_fatal) return;
-
-    system_joint_force_at_point_for_one_tick_add(b, world_anchor_b, force_on_b, report, source);
+    Entity source = physics_operation_entity_get(joint_entity);
+    if(!physics_vector_finite_check(force_on_a) ||
+            !isfinite(math_cross_2d(offset_a, force_on_a)) ||
+            !isfinite(math_cross_2d(offset_b, force_on_b))) {
+        physics_operation_reject(report, ROHR_PHYSICS_FORCE_CONTRIBUTION,
+            ERROR_ENGINE_STATE_INVALID, source, b);
+        return;
+    }
+    system_joint_load_pair_add(a, b, world_anchor_a, world_anchor_b, force_on_a, report, source);
 }
 
 static void system_weld_joint_apply(Entity joint_entity, Report *report) {
@@ -272,16 +240,33 @@ static void system_weld_joint_apply(Entity joint_entity, Report *report) {
     if(report != NULL && report->has_fatal) return;
     if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
             !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return;
+    if(a_index == b_index) return;
     inverse_inertia_a = physics_inverse_inertia_by_index_get(a_index);
     inverse_inertia_b = physics_inverse_inertia_by_index_get(b_index);
     inverse_inertia_sum = inverse_inertia_a + inverse_inertia_b;
     if(inverse_inertia_sum <= 0.0f) return;
     angle_error = (orientations[b_index] - orientations[a_index]) - joint.rest_angle;
     angular_velocity_error = angular_velocities[b_index] - angular_velocities[a_index];
-    physics_com_orientation_set(a_index, orientations[a_index] + angle_error * inverse_inertia_a / inverse_inertia_sum);
-    physics_com_orientation_set(b_index, orientations[b_index] - angle_error * inverse_inertia_b / inverse_inertia_sum);
-    angular_velocities[a_index] += angular_velocity_error * inverse_inertia_a / inverse_inertia_sum;
-    angular_velocities[b_index] -= angular_velocity_error * inverse_inertia_b / inverse_inertia_sum;
+    {
+        PhysicsChange changes[] = {
+            physics_change_get(a_index, PHYSICS_CHANGE_ORIENTATION),
+            physics_change_get(b_index, PHYSICS_CHANGE_ORIENTATION)
+        };
+        physics_change_orientation_set(&changes[0], changes[0].orientation + angle_error * inverse_inertia_a / inverse_inertia_sum);
+        physics_change_orientation_set(&changes[1], changes[1].orientation - angle_error * inverse_inertia_b / inverse_inertia_sum);
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_POSITION,
+                physics_operation_entity_get(joint_entity), joint.b);
+    }
+    {
+        PhysicsChange changes[] = {
+            physics_change_get(a_index, PHYSICS_CHANGE_ANGULAR_VELOCITY),
+            physics_change_get(b_index, PHYSICS_CHANGE_ANGULAR_VELOCITY)
+        };
+        changes[0].angular_velocity += angular_velocity_error * inverse_inertia_a / inverse_inertia_sum;
+        changes[1].angular_velocity -= angular_velocity_error * inverse_inertia_b / inverse_inertia_sum;
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_JOINT_VELOCITY,
+                physics_operation_entity_get(joint_entity), joint.b);
+    }
 }
 
 static void system_spring_joint_apply(Entity joint_entity, Report *report) {
@@ -296,12 +281,13 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
         EntityIndex b_index;
 
         if(!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index) || !entity_index_get(b, &b_index) || !entity_index_alive_check(b_index)) {
-            system_broken_joint_remove(joint_entity,
+            system_unavailable_joint_skip(joint_entity,
                 (!entity_index_get(a, &a_index) || !entity_index_alive_check(a_index)) ? a : b,
                 ERROR_ENGINE_INVALID_ENTITY, report);
             return;
         }
 
+        if(a_index == b_index) return;
         Vec2D offset_a;
         Vec2D offset_b;
         Position world_anchor_a;
@@ -310,7 +296,7 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
             JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
             JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
             if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
-                system_broken_joint_remove(joint_entity,
+                system_unavailable_joint_skip(joint_entity,
                     anchor_a.kind == ERROR_RESULT_ERROR ? a : b,
                     anchor_a.kind == ERROR_RESULT_ERROR ? anchor_a.result.error : anchor_b.result.error,
                     report);
@@ -384,11 +370,22 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
         Torque torque_on_a = -math_cross_2d(r_a, force_on_a);
         Torque torque_on_b = -math_cross_2d(r_b, force_on_b);
 
-        system_joint_force_for_one_tick_add(a, force_on_a);
-        system_joint_force_for_one_tick_add(b, force_on_b);
-
-        system_joint_torque_for_one_tick_add(a, torque_on_a);
-        system_joint_torque_for_one_tick_add(b, torque_on_b);
+        PhysicsChange changes[] = {
+            physics_change_get(a_index, 0), physics_change_get(b_index, 0)
+        };
+        Force pair_forces[] = {force_on_a, force_on_b};
+        Torque pair_torques[] = {torque_on_a, torque_on_b};
+        for(size_t n = 0; n < 2; ++n) {
+            EntityIndex i = changes[n].index;
+            if(!physics_entity_simulated_get(i) || !entity_index_components_check(i, ROHR_MASS) || mass[i] == 0) continue;
+            changes[n].fields = PHYSICS_CHANGE_FORCE_ACCELERATION | PHYSICS_CHANGE_TORQUE_ACCELERATION;
+            changes[n].force_acceleration.x += pair_forces[n].x / mass[i];
+            changes[n].force_acceleration.y += pair_forces[n].y / mass[i];
+            changes[n].torque_acceleration += math_radians_to_degrees(pair_torques[n] *
+                physics_inverse_inertia_by_index_get(i));
+        }
+        (void)physics_changes_commit(changes, 2, report, ROHR_PHYSICS_SPRING_CONTRIBUTION,
+            physics_operation_entity_get(joint_entity), b);
 
 }
 static void system_joint_spring_forces_apply(Report *report) {
@@ -448,17 +445,5 @@ void physics_joint_constraints_gather(Report *report) {
 
 void physics_joint_constraints_solve(Report *report) {
     physics_step_joint_constraints_apply(report);
-    for(size_t i = 0; i < physics_step_joint_constraints.count; i += 1) {
-        EntityIndex joint_entity = physics_step_joint_constraints.values[i];
-        EntityIndex index;
-
-        if(!entity_index_alive_check(joint_entity)) continue;
-        if(entity_index_get(joints[joint_entity].a, &index)) {
-            physics_step_hitbox_dirty_add(index);
-        }
-        if(entity_index_get(joints[joint_entity].b, &index)) {
-            physics_step_hitbox_dirty_add(index);
-        }
-    }
-    physics_step_hitbox_dirty_flush();
+    physics_step_hitbox_dirty_flush(report);
 }

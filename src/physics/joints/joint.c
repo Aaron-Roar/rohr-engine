@@ -7,6 +7,8 @@
 #include "physics/physics_internal.h"
 
 #include <string.h>
+#include <math.h>
+#include "physics/physics_operation.h"
 
 static JointAnchor joint_anchors[MAX_JOINT_ANCHORS];
 static uint32_t joint_anchor_generations[MAX_JOINT_ANCHORS];
@@ -72,6 +74,10 @@ EngineResult physics_joint_component_set(Entity entity, Joint joint) {
     if(result.kind == ERROR_RESULT_ERROR) {
         return result;
     }
+    if(!physics_vector_finite_check(joint.local_anchor_a) || !physics_vector_finite_check(joint.local_anchor_b) ||
+            !isfinite(joint.rest_length) || !isfinite(joint.stiffness) || !isfinite(joint.damping) ||
+            !isfinite(joint.rest_angle) || !isfinite(joint.angular_stiffness) || !isfinite(joint.angular_damping))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(joint.type < JOINT_SPRING || joint.type > JOINT_PIN) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
@@ -99,6 +105,8 @@ JointAnchorIdResult physics_joint_anchor_create(Entity entity, Vec2D local_offse
     if(result.kind == ERROR_RESULT_ERROR) {
         return ERROR_RESULT_MAKE_ERROR(JointAnchorIdResult, result.result.error);
     }
+    if(!physics_world_position_check(local_offset))
+        return ERROR_RESULT_MAKE_ERROR(JointAnchorIdResult, ERROR_ENGINE_POSITION_OUT_OF_RANGE);
     for(uint32_t slot = 0; slot < MAX_JOINT_ANCHORS; slot += 1) {
         if(joint_anchor_used[slot] && joint_anchors[slot].entity == entity) owned_count += 1;
     }
@@ -244,7 +252,8 @@ EngineResult physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointA
 
 EngineResult physics_joint_spring_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b,
         float rest_length, float stiffness, float damping) {
-    if(rest_length < 0.0f || stiffness < 0.0f || damping < 0.0f) {
+    if(!isfinite(rest_length) || !isfinite(stiffness) || !isfinite(damping) ||
+            rest_length < 0.0f || stiffness < 0.0f || damping < 0.0f) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
     return physics_joint_anchors_set(joint, anchor_a, anchor_b, JOINT_SPRING,
@@ -269,6 +278,9 @@ EntityResult physics_joint_create(
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     }
 
+    if(!physics_vector_finite_check(local_anchor_a) || !physics_vector_finite_check(local_anchor_b) ||
+            !isfinite(stiffness) || !isfinite(damping))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
     joint_result = entity_add();
     if(joint_result.kind == ERROR_RESULT_ERROR) {
         return joint_result;

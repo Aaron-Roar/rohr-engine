@@ -113,17 +113,17 @@ int main(void) {
                     (Position){ROHR_WORLD_COORDINATE_MAX + 1.0f, 0.0f})) ||
                 !rohr_error_check(rohr_physics_acceleration_toward_position_set(
                     runaway.result.value, 1.0f, (Position){NAN, 0.0f})) ||
-                (report = rohr_physics_pipeline_update(0.2)).header.status != ROHR_REPORT_FAILED) {
+                (report = rohr_physics_pipeline_update(0.2)).header.status != ROHR_REPORT_COMPLETE) {
             rohr_engine_stop();
             return 1;
         }
         position = rohr_physics_position_get(runaway.result.value);
         if(rohr_error_check(position) ||
                 position.result.value.x != ROHR_WORLD_COORDINATE_MAX ||
-                !rohr_entity_components_check(runaway.result.value, ROHR_HOLD) ||
-                rohr_entity_components_check(runaway.result.value, ROHR_HIT_BOX) ||
-                !report.has_fatal || report.first_fatal.source.id != runaway.result.value ||
-                report.first_fatal.code != ERROR_ENGINE_POSITION_OUT_OF_RANGE || report.header.total_ms < 0.0 ||
+                rohr_entity_components_check(runaway.result.value, ROHR_HOLD) ||
+                !rohr_entity_components_check(runaway.result.value, ROHR_HIT_BOX) ||
+                report.has_fatal || report.diagnostic_count == 0 || report.diagnostics[0].source.id != runaway.result.value ||
+                report.diagnostics[0].code != ERROR_ENGINE_POSITION_OUT_OF_RANGE || report.header.total_ms < 0.0 ||
                 rohr_error_check(rohr_entity_delete(runaway.result.value))) {
             rohr_engine_stop();
             return 1;
