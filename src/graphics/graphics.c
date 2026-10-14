@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 static SDL_Renderer *sdl_renderer = NULL;
 static SDL_Window *sdl_window = NULL;
@@ -39,6 +40,110 @@ static int graphics_logical_width = WINDOW_WIDTH;
 static int graphics_logical_height = WINDOW_HEIGHT;
 static bool graphics_aspect_ratio_auto = false;
 static GraphicsWindowMode graphics_window_mode = GRAPHICS_WINDOW_MODE_WINDOWED;
+
+/* Renderer work is single-threaded. This borrowed context exists only during a
+ * pipeline call; pending submission evidence owns its bytes between calls. */
+typedef struct GraphicsReportContext {
+    Report *report;
+    ReportObjectRef source;
+    ReportObjectRef target;
+    uint32_t stage;
+    bool item_failed;
+    uint64_t processed;
+    uint64_t skipped;
+} GraphicsReportContext;
+static GraphicsReportContext *graphics_report_context;
+static Report graphics_pending_commands = {
+    .header = {ROHR_GRAPHICS_COMMANDS_REPORT, ROHR_REPORT_COMPLETE, 0}
+};
+static bool graphics_frame_active;
+
+static Report graphics_report_create(ReportId id) {
+    Report report = report_create();
+    report.header = (ReportHeader){id, ROHR_REPORT_COMPLETE, 0};
+    return report;
+}
+
+static void graphics_report_issue(Report *report, uint32_t stage,
+        EngineError code, bool fatal, ReportObjectRef source,
+        ReportObjectRef target, const char *detail) {
+    ReportDiagnostic diagnostic = {.report_id = report->header.id,
+        .internal_stage = stage, .code = code,
+        .severity = fatal ? ROHR_REPORT_SEVERITY_FATAL : ROHR_REPORT_SEVERITY_WARNING,
+        .recovery = fatal ? ROHR_REPORT_UPDATE_ABORTED : ROHR_REPORT_CONTRIBUTION_SKIPPED,
+        .source = source, .target = target, .occurrence_count = 1};
+    (void)report_diagnostic_detail_set(&diagnostic, detail);
+    (void)report_diagnostic_add(report, diagnostic);
+}
+
+static void graphics_report_count(Report *report, ReportMetricId metric, uint64_t value) {
+    if(value != 0) (void)report_statistic_add(report, (ReportStatistic){
+        report->header.id, metric, ROHR_REPORT_AGGREGATION_SUM, value});
+}
+
+static void graphics_submission_issue(EngineError code, ReportObjectRef source,
+        const char *detail) {
+    graphics_report_issue(&graphics_pending_commands, ROHR_GRAPHICS_SUBMISSION,
+        code, false, source, (ReportObjectRef){0}, detail);
+    graphics_report_count(&graphics_pending_commands, ROHR_REPORT_SKIPPED_COUNT, 1);
+}
+
+static bool graphics_backend_check(bool success, bool fatal, const char *operation) {
+    if(success || graphics_report_context == NULL) return success;
+    char detail[2 * ROHR_REPORT_DETAIL_CAPACITY];
+    snprintf(detail, sizeof(detail), "%s: %s", operation, SDL_GetError());
+    GraphicsReportContext *context = graphics_report_context;
+    context->item_failed = true;
+    graphics_report_issue(context->report, context->stage,
+        fatal ? ERROR_ENGINE_GRAPHICS_STATE_FAILED : ERROR_ENGINE_GRAPHICS_DRAW_FAILED,
+        fatal, context->source, context->target, detail);
+    return false;
+}
+
+static void graphics_item_issue(EngineError code, const char *detail) {
+    GraphicsReportContext *context = graphics_report_context;
+    if(context == NULL) return;
+    context->item_failed = true;
+    graphics_report_issue(context->report, context->stage, code, false,
+        context->source, context->target, detail);
+}
+
+/* State failures stop dependent backend calls. Restoration is checked directly
+ * so it is still attempted after a fatal failure. */
+#define GRAPHICS_BACKEND(call, fatal) \
+    ((graphics_report_context == NULL || graphics_report_context->report->header.status != ROHR_REPORT_FAILED) && \
+        graphics_backend_check((call), (fatal), #call))
+#define GRAPHICS_DRAW(call) GRAPHICS_BACKEND(call, false)
+#define GRAPHICS_STATE(call) GRAPHICS_BACKEND(call, true)
+
+static bool graphics_pipeline_begin(GraphicsReportContext *context, Report *report) {
+    if(graphics_report_context != NULL || sdl_renderer == NULL) {
+        graphics_report_issue(report, 0, graphics_report_context != NULL
+            ? ERROR_ENGINE_STATE_INVALID : ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED,
+            true, (ReportObjectRef){0}, (ReportObjectRef){0},
+            graphics_report_context != NULL ? "Recursive graphics pipeline call rejected"
+                : "Graphics renderer is not initialized");
+        return false;
+    }
+    context->report = report;
+    graphics_report_context = context;
+    return true;
+}
+
+static void graphics_pipeline_end(GraphicsReportContext *context, Uint64 start) {
+    graphics_report_count(context->report, ROHR_REPORT_PROCESSED_COUNT, context->processed);
+    graphics_report_count(context->report, ROHR_REPORT_SKIPPED_COUNT, context->skipped);
+    context->report->header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    graphics_report_context = NULL;
+}
+
+static void graphics_render_state_restore(void) {
+    graphics_report_context->stage = ROHR_GRAPHICS_RESTORE;
+    (void)graphics_backend_check(SDL_SetRenderTarget(sdl_renderer, NULL), true, "restore render target");
+    (void)graphics_backend_check(SDL_SetRenderViewport(sdl_renderer, NULL), true, "restore viewport");
+    (void)graphics_backend_check(SDL_SetRenderClipRect(sdl_renderer, NULL), true, "restore clip");
+    (void)graphics_backend_check(SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f), true, "restore scale");
+}
 
 #define GRAPHICS_FRAME_LIMIT_FALLBACK 120
 #define GRAPHICS_NANOSECONDS_PER_SECOND UINT64_C(1000000000)
@@ -66,6 +171,7 @@ typedef struct GraphicsCommand {
     uint32_t screen;
     GraphicsClipState clip;
     GraphicsCommandType type;
+    ReportObjectRef source;
     union {
         struct { Color color; } clear;
         struct { SDL_FRect rectangle; Color color; } rect;
@@ -253,7 +359,10 @@ static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
     GraphicsLayer *layers;
     GraphicsCommand *commands;
     GraphicsCommand *command;
-    if(sdl_renderer == NULL) return NULL;
+    if(sdl_renderer == NULL) {
+        graphics_submission_issue(ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED, (ReportObjectRef){0}, "Draw requested without a renderer");
+        return NULL;
+    }
     if(graphics_active_layer_index < graphics_layer_count &&
             graphics_layers[graphics_active_layer_index].order.layer ==
                 graphics_active_layer) {
@@ -272,7 +381,10 @@ static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
             size_t capacity = graphics_layer_capacity == 0 ? 8 :
                 graphics_layer_capacity * 2;
             layers = realloc(graphics_layers, capacity * sizeof(*layers));
-            if(layers == NULL) return NULL;
+            if(layers == NULL) {
+                graphics_submission_issue(ERROR_MEMORY_POOL_ALLOCATION_FAILED, (ReportObjectRef){0}, "Unable to allocate command layers");
+                return NULL;
+            }
             memset(layers + graphics_layer_capacity, 0,
                 (capacity - graphics_layer_capacity) * sizeof(*layers));
             graphics_layers = layers;
@@ -286,7 +398,10 @@ static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
     if(layer->count == layer->capacity) {
         size_t capacity = layer->capacity == 0 ? 64 : layer->capacity * 2;
         commands = realloc(layer->commands, capacity * sizeof(*commands));
-        if(commands == NULL) return NULL;
+        if(commands == NULL) {
+            graphics_submission_issue(ERROR_MEMORY_POOL_ALLOCATION_FAILED, (ReportObjectRef){0}, "Unable to allocate drawing commands");
+            return NULL;
+        }
         layer->commands = commands;
         layer->capacity = capacity;
     }
@@ -296,12 +411,19 @@ static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
         .clip = graphics_clip_state,
         .type = type
     };
+    graphics_report_count(&graphics_pending_commands, ROHR_REPORT_QUEUED_COMMAND_COUNT, 1);
     return command;
 }
 
 static bool graphics_lines_draw(const SDL_FPoint *points, int count, Color color) {
     GraphicsCommand *command;
     if(points == NULL || count < 2 || count > MAX_VERTICIES + 1) return false;
+    for(int i = 0; i < count; i++) {
+        if(!isfinite(points[i].x) || !isfinite(points[i].y)) {
+            graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Nonfinite line vertex");
+            return false;
+        }
+    }
     command = graphics_command_append(GRAPHICS_COMMAND_LINES);
     if(command == NULL) return false;
     memcpy(command->data.lines.points, points,
@@ -597,8 +719,13 @@ typedef struct ScreenRecorder {
 static ScreenRecorder screen_recorder = {0};
 
 static void graphics_recording_disable(const char *reason) {
-    if(reason != NULL) {
-        console_write(LOG_ENGINE, "%s\n", reason);
+    if(reason != NULL && graphics_report_context != NULL) {
+        char detail[2 * ROHR_REPORT_DETAIL_CAPACITY];
+        snprintf(detail, sizeof(detail), "%s: %s", reason,
+            graphics_report_context->stage == ROHR_GRAPHICS_RECORDING_WRITE
+                ? (errno != 0 ? strerror(errno) : "output operation failed") : SDL_GetError());
+        graphics_report_issue(graphics_report_context->report, graphics_report_context->stage,
+            ERROR_ENGINE_GRAPHICS_RECORDING_FAILED, true, (ReportObjectRef){0}, (ReportObjectRef){0}, detail);
     }
 
     if(screen_recorder.ffmpeg_pipe != NULL) {
@@ -830,14 +957,6 @@ static bool graphics_recording_ffmpeg_open(int width, int height) {
     screen_recorder.width = width;
     screen_recorder.height = height;
 
-    console_write(
-        LOG_ENGINE,
-        "Started recording %dx%d at %d FPS\n",
-        width,
-        height,
-        screen_recorder.fps
-    );
-
     return true;
 }
 
@@ -864,8 +983,8 @@ static bool graphics_record_frame(void)
         .h = (int)presentation_frect.h
     };
 
-    if(presentation_rect.w <= 0 ||
-       presentation_rect.h <= 0) {
+    if(presentation_rect.w <= 0 || presentation_rect.h <= 0) {
+        graphics_report_context->skipped++;
         return true;
     }
 
@@ -908,13 +1027,14 @@ static bool graphics_record_frame(void)
         return true;
     }
 
+    graphics_report_context->stage = ROHR_GRAPHICS_RECORDING_WRITE;
     if(screen_recorder.ffmpeg_pipe == NULL) {
         if(!graphics_recording_ffmpeg_open(
             RECORDING_WIDTH,
             RECORDING_HEIGHT
         )) {
             SDL_DestroySurface(rgba_surface);
-            return true;
+            return false;
         }
     }
 
@@ -925,6 +1045,7 @@ static bool graphics_record_frame(void)
         (uint8_t *)rgba_surface->pixels;
 
     for(int y = 0; y < RECORDING_HEIGHT; y++) {
+        errno = 0;
         uint8_t *row =
             pixels + y * rgba_surface->pitch;
 
@@ -941,6 +1062,10 @@ static bool graphics_record_frame(void)
     }
 
     SDL_DestroySurface(rgba_surface);
+    if(fflush(screen_recorder.ffmpeg_pipe) != 0) {
+        graphics_recording_disable("Failed flushing recorded frame; recording disabled");
+        return false;
+    }
     return true;
 }
 void graphics_recording_stop(void) {
@@ -1490,13 +1615,13 @@ static EngineResult graphics_screen_begin(ScreenId id) {
         EngineResult result = graphics_camera_active_set(screens[slot].camera);
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
-    if(!SDL_SetRenderTarget(sdl_renderer, screens[slot].texture)) {
+    if(!graphics_backend_check(SDL_SetRenderTarget(sdl_renderer, screens[slot].texture), true, "camera render target")) {
         (void)graphics_camera_active_set(camera_before_screen);
         camera_before_screen = CAMERA_INVALID;
         return error_result_error(ERROR_ENGINE_GRAPHICS_INIT_FAILED);
     }
-    (void)SDL_SetRenderViewport(sdl_renderer, NULL);
-    (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
+    (void)graphics_backend_check(SDL_SetRenderViewport(sdl_renderer, NULL), true, "camera viewport");
+    (void)graphics_backend_check(SDL_SetRenderClipRect(sdl_renderer, NULL), true, "camera clip");
     graphics_clip_state = (GraphicsClipState){0};
     graphics_clip_stack_count = 0;
     drawing_screen = id;
@@ -1507,14 +1632,14 @@ static EngineResult graphics_screen_end(void) {
     if(drawing_screen == SCREEN_INVALID) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
-    (void)SDL_SetRenderTarget(sdl_renderer, NULL);
+    (void)graphics_backend_check(SDL_SetRenderTarget(sdl_renderer, NULL), true, "restore camera target");
     drawing_screen = SCREEN_INVALID;
     if(camera_before_screen != CAMERA_INVALID) {
         (void)graphics_camera_active_set(camera_before_screen);
     }
     camera_before_screen = CAMERA_INVALID;
-    (void)SDL_SetRenderViewport(sdl_renderer, NULL);
-    (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
+    (void)graphics_backend_check(SDL_SetRenderViewport(sdl_renderer, NULL), true, "camera viewport");
+    (void)graphics_backend_check(SDL_SetRenderClipRect(sdl_renderer, NULL), true, "camera clip");
     return error_result_value(true);
 }
 
@@ -2868,6 +2993,7 @@ EngineResult graphics_start(void) {
 void graphics_renderer_end(void) {
     size_t screen_slot;
     graphics_commands_discard();
+    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
     graphics_ui_elements_clear();
     graphics_text_assets_clear();
     graphics_animation_assets_clear();
@@ -2941,10 +3067,16 @@ void graphics_background_draw(Color color) {
         Scale output = graphics_render_output_size_get();
         int width = output.y > 0.0f ? (int)roundf(
             (float)graphics_logical_height * output.x / output.y) : 0;
-        if(width > 0 && width != graphics_logical_width &&
-                SDL_SetRenderLogicalPresentation(sdl_renderer, width,
+        if(width > 0 && width != graphics_logical_width) {
+            if(SDL_SetRenderLogicalPresentation(sdl_renderer, width,
                     graphics_logical_height, SDL_LOGICAL_PRESENTATION_LETTERBOX))
-            graphics_logical_width = width;
+                graphics_logical_width = width;
+            else {
+                graphics_submission_issue(ERROR_ENGINE_GRAPHICS_STATE_FAILED,
+                    (ReportObjectRef){0}, SDL_GetError());
+                return;
+            }
+        }
     }
     command = graphics_command_append(GRAPHICS_COMMAND_CLEAR);
     if(command != NULL) command->data.clear.color = color;
@@ -2953,9 +3085,11 @@ void graphics_background_draw(Color color) {
 bool graphics_screen_rect_draw(float x, float y, float width, float height, Color color) {
     GraphicsCommand *command;
 
-    if(sdl_renderer == NULL || width <= 0.0f || height <= 0.0f) {
+    if(!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Nonfinite rectangle");
         return false;
     }
+    if(width <= 0.0f || height <= 0.0f) return false;
     command = graphics_command_append(GRAPHICS_COMMAND_RECT);
     if(command == NULL) return false;
     command->data.rect.rectangle = (SDL_FRect){x, y, width, height};
@@ -3034,10 +3168,12 @@ bool graphics_screen_quad_draw(
 ) {
     GraphicsCommand *command;
 
-    if(sdl_renderer == NULL || width <= 0.0f || height <= 0.0f
-            || !isfinite(angle)) {
+    if(!isfinite(angle) || !isfinite(center.x) || !isfinite(center.y) ||
+            !isfinite(width) || !isfinite(height)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Nonfinite quad");
         return false;
     }
+    if(width <= 0.0f || height <= 0.0f) return false;
     command = graphics_command_append(GRAPHICS_COMMAND_QUAD);
     if(command == NULL) return false;
     command->data.quad.center = center;
@@ -3095,6 +3231,7 @@ static void graphics_camera_motions_update(void) {
 }
 
 static void graphics_render_viewport_cameras(void) {
+    GraphicsReportContext *context = graphics_report_context;
     bool rendered[MAX_SCREENS] = {0};
     size_t viewport_slot;
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
@@ -3118,11 +3255,25 @@ static void graphics_render_viewport_cameras(void) {
             runtime = &camera_runtime[camera_slot];
             if(!runtime->enabled || runtime->callback == NULL
                     || (runtime->pause_with_engine && engine_paused_get())) continue;
-            if(graphics_screen_begin(
-                    viewports[viewport_slot].items[item].value.screen).kind ==
-                    ERROR_RESULT_ERROR) continue;
-            runtime->callback(camera_id, runtime->context);
-            (void)graphics_camera_end();
+            if(context->report->header.status == ROHR_REPORT_FAILED) return;
+            context->source = (ReportObjectRef){ROHR_REPORT_OBJECT_CAMERA, camera_id};
+            context->target = (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN,
+                viewports[viewport_slot].items[item].value.screen};
+            context->item_failed = false;
+            EngineResult begun = graphics_screen_begin(viewports[viewport_slot].items[item].value.screen);
+            if(begun.kind == ERROR_RESULT_ERROR && !context->report->has_fatal)
+                graphics_report_issue(context->report, context->stage, begun.result.error, true,
+                    context->source, context->target, "Cannot begin camera screen");
+            if(context->report->header.status != ROHR_REPORT_FAILED)
+                runtime->callback(camera_id, runtime->context);
+            if(drawing_screen != SCREEN_INVALID) {
+                EngineResult ended = graphics_camera_end();
+                if(ended.kind == ERROR_RESULT_ERROR && !context->report->has_fatal)
+                    graphics_report_issue(context->report, context->stage, ended.result.error, true,
+                        context->source, context->target, "Cannot restore camera screen");
+            }
+            if(context->report->header.status == ROHR_REPORT_FAILED) context->skipped++;
+            else context->processed++;
         }
     }
 }
@@ -3202,7 +3353,7 @@ static void graphics_viewport_ui_line_draw(Position start, Position end,
         .position = {points[i].x, points[i].y},
         .color = {color.red / 255.0f, color.green / 255.0f,
             color.blue / 255.0f, color.alpha / 255.0f}};
-    (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6);
+    (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6));
 }
 
 static void graphics_viewport_ui_slider_thumb_draw(
@@ -3233,7 +3384,7 @@ static void graphics_viewport_ui_slider_thumb_draw(
     if(point_count == 4) {
         const int rectangle_indices[6] = {0, 1, 2, 0, 2, 3};
         memcpy(indices, rectangle_indices, sizeof(rectangle_indices));
-        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6);
+        (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6));
     } else {
         Position point = graphics_viewport_ui_local_point_get(viewport, item, center);
         vertices[16] = (SDL_Vertex){.position = {point.x, point.y},
@@ -3244,7 +3395,7 @@ static void graphics_viewport_ui_slider_thumb_draw(
             indices[i * 3 + 1] = i;
             indices[i * 3 + 2] = (i + 1) % 16;
         }
-        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 17, indices, 48);
+        (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 17, indices, 48));
     }
 }
 
@@ -3341,12 +3492,18 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
     Scale asset_size;
     Scale scale;
     SDL_FRect destination;
-    if(viewport == NULL || text == NULL || text->text.handle ==
-            TEXT_HANDLE_INVALID || !graphics_text_internal_size_get(
-                text->text.handle, &asset_size)) return;
+    if(viewport == NULL || text == NULL || text->text.handle == TEXT_HANDLE_INVALID) return;
+    if(!graphics_text_internal_size_get(text->text.handle, &asset_size)) {
+        graphics_item_issue(ERROR_ENGINE_TEXT_NOT_FOUND, "Viewport text is unavailable");
+        return;
+    }
     payload = graphics_text_internal_payload_get(text->text.handle);
+    if(payload == NULL && (asset_size.x == 0 || asset_size.y == 0)) return;
     texture = graphics_text_payload_texture_get(payload);
-    if(texture == NULL) return;
+    if(texture == NULL) {
+        graphics_item_issue(ERROR_ENGINE_TEXT_NOT_FOUND, "Viewport text payload is unavailable");
+        return;
+    }
     scale = text->scale;
     if(scale.x <= 0.0f) scale.x = 1.0f;
     if(scale.y <= 0.0f) scale.y = 1.0f;
@@ -3358,9 +3515,9 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
     destination = (SDL_FRect){anchor.x - asset_size.x * scale.x * 0.5f,
         anchor.y - asset_size.y * scale.y * 0.5f,
         asset_size.x * scale.x, asset_size.y * scale.y};
-    (void)SDL_RenderTextureRotated(sdl_renderer, texture, NULL,
+    (void)GRAPHICS_DRAW(SDL_RenderTextureRotated(sdl_renderer, texture, NULL,
         &destination, (double)(item->orientation + item->content_orientation +
-            inherited_orientation + text->orientation), NULL, SDL_FLIP_NONE);
+            inherited_orientation + text->orientation), NULL, SDL_FLIP_NONE));
 }
 
 static bool graphics_viewport_ui_text_point_inside(
@@ -3430,7 +3587,10 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
     Position pointer;
     bool hovered;
     if(viewport == NULL || shape == NULL || shape->shape.amount_of_vertices < 3 ||
-            !physics_shape_collision_prepare(shape->shape, &prepared)) return;
+            !physics_shape_collision_prepare(shape->shape, &prepared)) {
+        graphics_item_issue(ERROR_ENGINE_INVALID_SHAPE, "Viewport UI geometry is invalid");
+        return;
+    }
     for(size_t i = 0; i < shape->shape.amount_of_vertices; i += 1)
         points[i] = graphics_viewport_ui_point_get(viewport, item, shape,
             shape->shape.vertices[i]);
@@ -3468,8 +3628,8 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
             indices[index_count++] =
                 prepared.concave_pieces[piece].vertex_indices[vertex];
     if(shape->border_enabled) {
-        (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices,
-            shape->shape.amount_of_vertices, indices, index_count);
+        (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices,
+            shape->shape.amount_of_vertices, indices, index_count));
         graphics_viewport_ui_border_draw(points,
             shape->shape.amount_of_vertices, shape, border);
     }
@@ -3570,6 +3730,7 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
 }
 
 static void graphics_viewports_draw(void) {
+    GraphicsReportContext *context = graphics_report_context;
     size_t viewport_slot;
     bool has_viewport = false;
     bool has_enabled_viewport = false;
@@ -3599,9 +3760,9 @@ static void graphics_viewports_draw(void) {
         } else graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
     }
     graphics_ui_drag_pointer = pointer;
-    (void)SDL_SetRenderTarget(sdl_renderer, NULL);
-    (void)SDL_SetRenderViewport(sdl_renderer, NULL);
-    (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
+    (void)GRAPHICS_STATE(SDL_SetRenderTarget(sdl_renderer, NULL));
+    (void)GRAPHICS_STATE(SDL_SetRenderViewport(sdl_renderer, NULL));
+    (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, NULL));
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
         if(!viewports_used[viewport_slot]) continue;
         has_viewport = true;
@@ -3611,8 +3772,8 @@ static void graphics_viewports_draw(void) {
         }
     }
     if(!has_viewport) {
-        SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-        (void)SDL_RenderClear(sdl_renderer);
+        GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
+        (void)GRAPHICS_DRAW(SDL_RenderClear(sdl_renderer));
         graphics_ui_drag_mouse_down = mouse_down;
         return;
     }
@@ -3620,24 +3781,28 @@ static void graphics_viewports_draw(void) {
         graphics_ui_drag_mouse_down = mouse_down;
         return;
     }
-    SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-    (void)SDL_RenderClear(sdl_renderer);
+    GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, 0, 0, 0, SDL_ALPHA_OPAQUE));
+    (void)GRAPHICS_DRAW(SDL_RenderClear(sdl_renderer));
     for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
         GraphicsViewport *viewport;
         SDL_Rect clip;
         bool drawn[MAX_VIEWPORT_ITEMS] = {0};
         if(!viewports_used[viewport_slot] || !viewports[viewport_slot].enabled) continue;
+        if(context->report->header.status == ROHR_REPORT_FAILED) break;
         viewport = &viewports[viewport_slot];
+        context->source = (ReportObjectRef){ROHR_REPORT_OBJECT_VIEWPORT,
+            graphics_resource_id(viewport_generations[viewport_slot], viewport_slot)};
+        context->target = (ReportObjectRef){0};
         clip = (SDL_Rect){
             (int)viewport->rectangle.x,
             (int)viewport->rectangle.y,
             (int)viewport->rectangle.width,
             (int)viewport->rectangle.height,
         };
-        (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
-        SDL_SetRenderDrawColor(sdl_renderer, viewport->background_color.red,
+        (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &clip));
+        GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, viewport->background_color.red,
             viewport->background_color.green, viewport->background_color.blue,
-            viewport->background_color.alpha);
+            viewport->background_color.alpha));
         {
             SDL_FRect background = {
                 viewport->rectangle.x,
@@ -3645,7 +3810,7 @@ static void graphics_viewports_draw(void) {
                 viewport->rectangle.width,
                 viewport->rectangle.height,
             };
-            (void)SDL_RenderFillRect(sdl_renderer, &background);
+            (void)GRAPHICS_DRAW(SDL_RenderFillRect(sdl_renderer, &background));
         }
         for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
             viewport->items[item].hovered = false;
@@ -3661,13 +3826,19 @@ static void graphics_viewports_draw(void) {
             float scale_x;
             float scale_y;
             float scale;
-            if(item == MAX_VIEWPORT_ITEMS) break;
+            if(item == MAX_VIEWPORT_ITEMS || context->report->header.status == ROHR_REPORT_FAILED) break;
+            context->item_failed = false;
             drawn[item] = true;
             config = &viewport->items[item].config;
             if(viewport->items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI) {
                 size_t ui_slot;
-                if(!graphics_ui_slot(viewport->items[item].value.ui, &ui_slot))
+                context->target = (ReportObjectRef){ROHR_REPORT_OBJECT_UI, viewport->items[item].value.ui};
+                if(!graphics_ui_slot(viewport->items[item].value.ui, &ui_slot)) {
+                    graphics_report_issue(context->report, context->stage, ERROR_ENGINE_UI_DEFINITION_NOT_FOUND,
+                        false, context->source, context->target, "Viewport UI is unavailable");
+                    context->skipped++;
                     continue;
+                }
                 if(config->clip_enabled && config->clip_rectangle.width > 0.0f &&
                         config->clip_rectangle.height > 0.0f) {
                     float left = fmaxf(viewport->rectangle.x,
@@ -3683,7 +3854,7 @@ static void graphics_viewports_draw(void) {
                     SDL_Rect item_clip = {(int)left, (int)top,
                         (int)fmaxf(0.0f, right - left),
                         (int)fmaxf(0.0f, bottom - top)};
-                    (void)SDL_SetRenderClipRect(sdl_renderer, &item_clip);
+                    (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &item_clip));
                 }
                 if(graphics_ui_elements[ui_slot].kind == GRAPHICS_UI_SHAPE)
                     graphics_viewport_ui_shape_draw(viewport, config,
@@ -3724,12 +3895,18 @@ static void graphics_viewports_draw(void) {
                         config->drag_mode != VIEWPORT_ITEM_DRAG_NONE)
                     drag_candidate = viewport->items[item].id;
                 if(config->clip_enabled)
-                    (void)SDL_SetRenderClipRect(sdl_renderer, &clip);
+                    (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, &clip));
+                if(context->item_failed) context->skipped++;
+                else context->processed++;
                 continue;
             }
-            if(!graphics_screen_slot(viewport->items[item].value.screen,
-                    &screen_slot))
+            context->target = (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN, viewport->items[item].value.screen};
+            if(!graphics_screen_slot(viewport->items[item].value.screen, &screen_slot)) {
+                graphics_report_issue(context->report, context->stage, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND,
+                    false, context->source, context->target, "Viewport screen is unavailable");
+                context->skipped++;
                 continue;
+            }
             screen = &screens[screen_slot];
             viewport->items[item].hovered =
                 config->drag_mode != VIEWPORT_ITEM_DRAG_NONE &&
@@ -3770,15 +3947,17 @@ static void graphics_viewports_draw(void) {
                     config->rectangle.height * 0.5f + content_offset.y -
                     destination.h * 0.5f;
             }
-            (void)SDL_RenderTextureRotated(sdl_renderer, screen->texture, NULL,
+            (void)GRAPHICS_DRAW(SDL_RenderTextureRotated(sdl_renderer, screen->texture, NULL,
                 &destination, (double)(config->orientation + config->content_orientation),
-                NULL, SDL_FLIP_NONE);
+                NULL, SDL_FLIP_NONE));
+            if(context->item_failed) context->skipped++;
+            else context->processed++;
         }
     }
     if(mouse_pressed && drag_candidate != VIEWPORT_ITEM_INVALID)
         graphics_ui_dragging_item = drag_candidate;
     graphics_ui_drag_mouse_down = mouse_down;
-    (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
+    (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, NULL));
 }
 
 static void graphics_commands_discard(void) {
@@ -3807,6 +3986,7 @@ static void graphics_commands_discard(void) {
 
 static void graphics_commands_execute(void) {
     ScreenId target = UINT32_MAX;
+    GraphicsReportContext *context = graphics_report_context;
     GraphicsClipState clip = {0};
     bool clip_known = false;
     if(graphics_layer_count > 1)
@@ -3817,13 +3997,29 @@ static void graphics_commands_execute(void) {
         for(size_t command_index = 0; command_index < layer->count;
             command_index += 1) {
             GraphicsCommand *command = &layer->commands[command_index];
+            context->stage = ROHR_GRAPHICS_COMMAND_EXECUTION;
+            context->source = command->source;
+            context->target = command->screen == SCREEN_INVALID ? (ReportObjectRef){0}
+                : (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN, command->screen};
+            context->item_failed = false;
+            if(context->report->header.status == ROHR_REPORT_FAILED) {
+                context->skipped++;
+                continue;
+            }
+            size_t valid_slot;
+            if(command->screen != SCREEN_INVALID && !graphics_screen_slot(command->screen, &valid_slot)) {
+                graphics_report_issue(context->report, context->stage, ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND,
+                    false, context->source, context->target, "Queued screen no longer exists");
+                context->skipped++;
+                continue;
+            }
             if(command->screen != target) {
                 size_t slot;
                 SDL_Texture *texture = graphics_screen_slot(command->screen, &slot)
                                            ? screens[slot].texture
                                            : NULL;
-                (void)SDL_SetRenderTarget(sdl_renderer, texture);
-                (void)SDL_SetRenderViewport(sdl_renderer, NULL);
+                (void)GRAPHICS_STATE(SDL_SetRenderTarget(sdl_renderer, texture));
+                (void)GRAPHICS_STATE(SDL_SetRenderViewport(sdl_renderer, NULL));
                 target = command->screen;
                 clip_known = false;
             }
@@ -3831,26 +4027,26 @@ static void graphics_commands_execute(void) {
                (command->clip.active &&
                 memcmp(&command->clip.rectangle, &clip.rectangle,
                        sizeof(clip.rectangle)) != 0)) {
-                (void)SDL_SetRenderClipRect(sdl_renderer, command->clip.active
+                (void)GRAPHICS_STATE(SDL_SetRenderClipRect(sdl_renderer, command->clip.active
                                                               ? &command->clip.rectangle
-                                                              : NULL);
+                                                              : NULL));
                 clip = command->clip;
                 clip_known = true;
             }
             switch(command->type) {
                 case GRAPHICS_COMMAND_CLEAR: {
                     Color color = command->data.clear.color;
-                    (void)SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
-                                                 color.blue, color.alpha);
-                    (void)SDL_RenderClear(sdl_renderer);
+                    (void)GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
+                                                 color.blue, color.alpha));
+                    (void)GRAPHICS_DRAW(SDL_RenderClear(sdl_renderer));
                     break;
                 }
                 case GRAPHICS_COMMAND_RECT: {
                     Color color = command->data.rect.color;
-                    (void)SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
-                                                 color.blue, color.alpha);
-                    (void)SDL_RenderFillRect(sdl_renderer,
-                                             &command->data.rect.rectangle);
+                    (void)GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
+                                                 color.blue, color.alpha));
+                    (void)GRAPHICS_DRAW(SDL_RenderFillRect(sdl_renderer,
+                                             &command->data.rect.rectangle));
                     break;
                 }
                 case GRAPHICS_COMMAND_QUAD: {
@@ -3878,16 +4074,16 @@ static void graphics_commands_execute(void) {
                             (SDL_FColor){color.red / 255.0f, color.green / 255.0f,
                                          color.blue / 255.0f, color.alpha / 255.0f};
                     }
-                    (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices,
-                                             6);
+                    (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices,
+                                             6));
                     break;
                 }
                 case GRAPHICS_COMMAND_LINES: {
                     Color color = command->data.lines.color;
-                    (void)SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
-                                                 color.blue, color.alpha);
-                    (void)SDL_RenderLines(sdl_renderer, command->data.lines.points,
-                                          command->data.lines.count);
+                    (void)GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, color.red, color.green,
+                                                 color.blue, color.alpha));
+                    (void)GRAPHICS_DRAW(SDL_RenderLines(sdl_renderer, command->data.lines.points,
+                                          command->data.lines.count));
                     break;
                 }
                 case GRAPHICS_COMMAND_SHAPE_FILLED: {
@@ -3901,15 +4097,16 @@ static void graphics_commands_execute(void) {
                     }
                     SDL_BlendMode previous_blend = SDL_BLENDMODE_NONE;
                     if(command->data.shape.alpha_blend) {
-                        (void)SDL_GetRenderDrawBlendMode(sdl_renderer, &previous_blend);
-                        (void)SDL_SetRenderDrawBlendMode(sdl_renderer, SDL_BLENDMODE_BLEND);
+                        (void)GRAPHICS_STATE(SDL_GetRenderDrawBlendMode(sdl_renderer, &previous_blend));
+                        (void)GRAPHICS_STATE(SDL_SetRenderDrawBlendMode(sdl_renderer, SDL_BLENDMODE_BLEND));
                     }
-                    (void)SDL_RenderGeometry(sdl_renderer, NULL, vertices,
+                    (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices,
                                              command->data.shape.count,
                                              command->data.shape.indices,
-                                             command->data.shape.index_count);
+                                             command->data.shape.index_count));
                     if(command->data.shape.alpha_blend)
-                        (void)SDL_SetRenderDrawBlendMode(sdl_renderer, previous_blend);
+                        (void)graphics_backend_check(SDL_SetRenderDrawBlendMode(sdl_renderer, previous_blend),
+                            true, "restore blend mode");
                     break;
                 }
                 case GRAPHICS_COMMAND_TEXT: {
@@ -3917,29 +4114,30 @@ static void graphics_commands_execute(void) {
                         SDL_Texture *texture =
                             graphics_text_payload_texture_get(
                                 command->data.text.payload);
-                        if(texture != NULL)
-                            (void)SDL_RenderTextureRotated(sdl_renderer,
+                        if(texture == NULL)
+                            graphics_item_issue(ERROR_ENGINE_TEXT_NOT_FOUND, "Queued text texture is unavailable");
+                        else
+                            (void)GRAPHICS_DRAW(SDL_RenderTextureRotated(sdl_renderer,
                                 texture, NULL,
                                 &command->data.text.destination,
                                 command->data.text.degrees,
-                                &command->data.text.center, SDL_FLIP_NONE);
+                                &command->data.text.center, SDL_FLIP_NONE));
                     } else {
                         TTF_Text *text = graphics_text_payload_native_get(
                             command->data.text.payload);
                         if(text != NULL) {
-                            (void)SDL_SetRenderScale(sdl_renderer,
+                            (void)GRAPHICS_STATE(SDL_SetRenderScale(sdl_renderer,
                                 command->data.text.scale.x,
-                                command->data.text.scale.y);
-                            (void)TTF_DrawRendererText(text,
+                                command->data.text.scale.y));
+                            (void)GRAPHICS_DRAW(TTF_DrawRendererText(text,
                                 command->data.text.position.x /
                                     command->data.text.scale.x,
                                 command->data.text.position.y /
-                                    command->data.text.scale.y);
-                            (void)SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f);
-                        }
+                                    command->data.text.scale.y));
+                            (void)graphics_backend_check(SDL_SetRenderScale(sdl_renderer, 1.0f, 1.0f),
+                                true, "restore text scale");
+                        } else graphics_item_issue(ERROR_ENGINE_TEXT_NOT_FOUND, "Queued text payload is unavailable");
                     }
-                    graphics_text_command_reference_remove(
-                        command->data.text.payload);
                     break;
                 }
                 case GRAPHICS_COMMAND_TEXTURE: {
@@ -3947,55 +4145,149 @@ static void graphics_commands_execute(void) {
                             TEXTURE_HANDLE_INVALID
                         ? graphics_texture_native_get(command->data.texture.asset)
                         : command->data.texture.unmanaged_texture;
-                    if(texture != NULL)
-                        (void)SDL_RenderTextureRotated(
+                    if(texture == NULL) {
+                        graphics_report_issue(context->report, context->stage, ERROR_ENGINE_TEXTURE_NOT_FOUND,
+                            false, context->source, context->target, "Queued texture is unavailable");
+                        context->item_failed = true;
+                    } else
+                        (void)GRAPHICS_DRAW(SDL_RenderTextureRotated(
                             sdl_renderer, texture, NULL,
                             &command->data.texture.destination,
                             command->data.texture.degrees,
                             &command->data.texture.center,
-                            command->data.texture.flip);
-                    if(command->data.texture.asset != TEXTURE_HANDLE_INVALID)
-                        graphics_texture_command_reference_remove(
-                            command->data.texture.asset);
+                            command->data.texture.flip));
                     break;
                 }
             }
+            if(context->item_failed) context->skipped++;
+            else context->processed++;
         }
     }
-    (void)SDL_SetRenderTarget(sdl_renderer, NULL);
-    (void)SDL_SetRenderViewport(sdl_renderer, NULL);
-    (void)SDL_SetRenderClipRect(sdl_renderer, NULL);
-    for(size_t i = 0; i < graphics_layer_count; i += 1)
-        graphics_layers[i].count = 0;
-    graphics_layer_count = 0;
-    graphics_active_layer = 0;
-    graphics_active_layer_index = SIZE_MAX;
-    graphics_clip_state = (GraphicsClipState){0};
-    graphics_clip_stack_count = 0;
+    graphics_render_state_restore();
+    graphics_commands_discard();
 }
 
-void graphics_show(void) {
+Report graphics_pipeline_cameras_update(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_CAMERAS_REPORT);
+    GraphicsReportContext context = {.stage = ROHR_GRAPHICS_CAMERA_CALLBACK};
+    if(!graphics_pipeline_begin(&context, &report)) return report;
     graphics_camera_motions_update();
     graphics_render_viewport_cameras();
-    graphics_commands_execute();
-    graphics_viewports_draw();
-    if(screen_recorder.recording) {
-        if(!graphics_record_frame()) {
-            graphics_recording_stop();
-        }
+    graphics_render_state_restore();
+    if(report.header.status == ROHR_REPORT_FAILED) {
+        for(size_t i = 0; i < graphics_layer_count; i++)
+            graphics_report_count(&graphics_pending_commands, ROHR_REPORT_SKIPPED_COUNT, graphics_layers[i].count);
+        graphics_commands_discard();
     }
+    graphics_pipeline_end(&context, start);
+    return report;
+}
+
+Report graphics_pipeline_commands_execute(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    GraphicsReportContext context = {.stage = ROHR_GRAPHICS_COMMAND_EXECUTION};
+    if(graphics_report_context != NULL) {
+        (void)graphics_pipeline_begin(&context, &report);
+        return report;
+    }
+    report = graphics_pending_commands;
+    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    if(!graphics_pipeline_begin(&context, &report)) {
+        graphics_commands_discard();
+        return report;
+    }
+    graphics_commands_execute();
+    graphics_pipeline_end(&context, start);
+    return report;
+}
+
+Report graphics_pipeline_viewports_draw(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_VIEWPORTS_REPORT);
+    GraphicsReportContext context = {.stage = ROHR_GRAPHICS_VIEWPORT_COMPOSITION};
+    if(!graphics_pipeline_begin(&context, &report)) return report;
+    graphics_viewports_draw();
+    graphics_render_state_restore();
+    graphics_pipeline_end(&context, start);
+    return report;
+}
+
+Report graphics_pipeline_recording_update(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_RECORDING_REPORT);
+    GraphicsReportContext context = {.stage = ROHR_GRAPHICS_RECORDING_CAPTURE};
+    if(!graphics_pipeline_begin(&context, &report)) return report;
+    if(!screen_recorder.recording) report.header.status = ROHR_REPORT_NOT_RUN;
+    else if(graphics_record_frame()) {
+        if(context.skipped == 0) context.processed++;
+    } else context.skipped++;
+    graphics_pipeline_end(&context, start);
+    return report;
+}
+
+Report graphics_pipeline_present(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_PRESENTATION_REPORT);
+    GraphicsReportContext context = {.stage = ROHR_GRAPHICS_PRESENTATION};
+    if(!graphics_pipeline_begin(&context, &report)) return report;
     if(!graphics_vsync_enabled) {
         int effective_limit = graphics_frame_limit > 0 ?
             graphics_frame_limit : GRAPHICS_FRAME_LIMIT_FALLBACK;
-        Uint64 target_ns = GRAPHICS_NANOSECONDS_PER_SECOND /
-            (Uint64)effective_limit;
+        Uint64 target_ns = GRAPHICS_NANOSECONDS_PER_SECOND / (Uint64)effective_limit;
         Uint64 now = SDL_GetTicksNS();
         Uint64 elapsed = now - graphics_frame_start_ns;
-
-        if(elapsed < target_ns) SDL_DelayPrecise(target_ns - elapsed);
+        if(elapsed < target_ns) {
+            SDL_DelayPrecise(target_ns - elapsed);
+            graphics_report_count(&report, ROHR_REPORT_FRAME_LIMIT_WAIT_NS, SDL_GetTicksNS() - now);
+        }
     }
-    SDL_RenderPresent(sdl_renderer);
+    if(GRAPHICS_STATE(SDL_RenderPresent(sdl_renderer))) context.processed++;
+    else context.skipped++;
     graphics_frame_start_ns = SDL_GetTicksNS();
+    graphics_pipeline_end(&context, start);
+    return report;
+}
+
+Report graphics_show(void) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_REPORT);
+    if(graphics_frame_active || graphics_report_context != NULL) {
+        graphics_report_issue(&report, 0, ERROR_ENGINE_STATE_INVALID, true,
+            (ReportObjectRef){0}, (ReportObjectRef){0}, "Recursive graphics frame call rejected");
+        return report;
+    }
+    graphics_frame_active = true;
+    Report child = graphics_pipeline_cameras_update();
+    (void)report_merge(&report, &child);
+    if(child.header.status != ROHR_REPORT_FAILED) {
+        child = graphics_pipeline_commands_execute();
+        (void)report_merge(&report, &child);
+    } else {
+        /* Keep submission evidence even when unsafe camera state prevents execution. */
+        child = graphics_pending_commands;
+        child.header.status = ROHR_REPORT_NOT_RUN;
+        for(size_t i = 0; i < graphics_layer_count; i++)
+            graphics_report_count(&child, ROHR_REPORT_SKIPPED_COUNT, graphics_layers[i].count);
+        (void)report_merge(&report, &child);
+        graphics_commands_discard();
+        graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    }
+    if(report.header.status != ROHR_REPORT_FAILED) {
+        child = graphics_pipeline_viewports_draw();
+        (void)report_merge(&report, &child);
+    }
+    if(report.header.status != ROHR_REPORT_FAILED) {
+        child = graphics_pipeline_recording_update();
+        (void)report_merge(&report, &child);
+        /* Recording does not invalidate the composed image. */
+        child = graphics_pipeline_present();
+        (void)report_merge(&report, &child);
+    }
+    graphics_frame_active = false;
+    report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    return report;
 }
 
 EngineResult graphics_vsync_set(bool enabled) {
@@ -4024,7 +4316,8 @@ EngineResult graphics_frame_limit_set(int frames_per_second) {
 }
 
 bool graphics_shape_outline_draw(Shape shape, Color color) {
-    if (shape.amount_of_vertices < 2) {
+    if(shape.amount_of_vertices < 2 || shape.amount_of_vertices > MAX_VERTICIES) {
+        graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Invalid outline vertices");
         return false;
     }
 
@@ -4044,11 +4337,10 @@ bool graphics_shape_outline_draw(Shape shape, Color color) {
 bool graphics_shape_filled_draw(Shape shape, Color color)
 {
     Shape prepared;
-    if (shape.amount_of_vertices < 3) {
+    if(shape.amount_of_vertices < 3 || !physics_shape_collision_prepare(shape, &prepared)) {
+        graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Invalid filled shape");
         return false;
     }
-
-    if(!physics_shape_collision_prepare(shape, &prepared)) return false;
 
     GraphicsCommand *command;
 
@@ -4083,9 +4375,15 @@ bool graphics_shape_filled_draw(Shape shape, Color color)
 }
 
 bool graphics_screen_triangles_draw(const Position *vertices, size_t count, Color color) {
-    if((count > 0 && vertices == NULL) || count % 3 != 0) return false;
+    if((count > 0 && vertices == NULL) || count % 3 != 0) {
+        graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Invalid triangle vertices");
+        return false;
+    }
     for(size_t i = 0; i < count; i += 1)
-        if(!isfinite(vertices[i].x) || !isfinite(vertices[i].y)) return false;
+        if(!isfinite(vertices[i].x) || !isfinite(vertices[i].y)) {
+            graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Nonfinite triangle vertex");
+            return false;
+        }
     for(size_t start = 0; start < count;) {
         GraphicsCommand *command = graphics_command_append(GRAPHICS_COMMAND_SHAPE_FILLED);
         if(command == NULL) return false;
@@ -4108,7 +4406,10 @@ bool graphics_screen_shape_filled_draw(Shape shape, Color color) {
     Shape prepared;
     GraphicsCommand *command;
     if(shape.amount_of_vertices < 3 ||
-            !physics_shape_collision_prepare(shape, &prepared)) return false;
+            !physics_shape_collision_prepare(shape, &prepared)) {
+        graphics_submission_issue(ERROR_ENGINE_INVALID_SHAPE, (ReportObjectRef){0}, "Invalid filled shape");
+        return false;
+    }
     command = graphics_command_append(GRAPHICS_COMMAND_SHAPE_FILLED);
     if(command == NULL) return false;
     command->data.shape.count = shape.amount_of_vertices;
@@ -4133,6 +4434,8 @@ bool graphics_screen_shape_filled_draw(Shape shape, Color color) {
 void graphics_hit_box_draw(Entity entity, Fill fill_type) {
     ShapeResult shape_result = physics_global_hit_box_get(entity);
     if(shape_result.kind == ERROR_RESULT_ERROR) {
+        graphics_submission_issue(shape_result.result.error,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity}, "Hitbox geometry is unavailable");
         return;
     }
     Shape shape = shape_result.result.value;
@@ -4149,6 +4452,8 @@ void graphics_hit_box_draw(Entity entity, Fill fill_type) {
 void graphics_hit_box_colored_draw(Entity entity, Fill fill_type, Color color) {
     ShapeResult shape_result = physics_global_hit_box_get(entity);
     if(shape_result.kind == ERROR_RESULT_ERROR) {
+        graphics_submission_issue(shape_result.result.error,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity}, "Hitbox geometry is unavailable");
         return;
     }
     Shape shape = shape_result.result.value;
@@ -4215,15 +4520,29 @@ bool graphics_text_draw(const TextAsset *text, Position position) {
 }
 
 bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale scale) {
+    if(!isfinite(position.x) || !isfinite(position.y)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Nonfinite text position or orientation");
+        return false;
+    }
     GraphicsCommand *command;
     GraphicsTextPayload *payload;
     Scale current_size;
     bool built_in;
-    if(text == NULL || scale.x <= 0.0f || scale.y <= 0.0f ||
-            !graphics_text_command_reference_add(*text, &payload)) return false;
+    if(text == NULL || !isfinite(scale.x) || !isfinite(scale.y)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Invalid text draw arguments");
+        return false;
+    }
+    if(scale.x <= 0.0f || scale.y <= 0.0f) return false;
+    if(!graphics_text_command_reference_add(*text, &payload)) {
+        graphics_submission_issue(ERROR_ENGINE_TEXT_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle}, "Cannot queue unavailable text");
+        return false;
+    }
     if(payload == NULL) return true;
     if(!graphics_text_internal_size_get(text->handle, &current_size)) {
         graphics_text_command_reference_remove(payload);
+        graphics_submission_issue(ERROR_ENGINE_TEXT_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle}, "Text dimensions are unavailable");
         return false;
     }
     built_in = graphics_text_payload_builtin_check(payload);
@@ -4232,6 +4551,7 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
         graphics_text_command_reference_remove(payload);
         return false;
     }
+    command->source = (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle};
     command->data.text.payload = payload;
     command->data.text.position = position;
     command->data.text.scale = scale;
@@ -4246,14 +4566,28 @@ bool graphics_text_scaled_draw(const TextAsset *text, Position position, Scale s
 
 bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
         Position center, Scale scale, Orientation orientation) {
+    if(!isfinite(center.x) || !isfinite(center.y) || !isfinite(orientation)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Nonfinite text position or orientation");
+        return false;
+    }
     GraphicsCommand *command;
     GraphicsTextPayload *payload;
     Scale current_size;
-    if(text == NULL || scale.x <= 0.0f || scale.y <= 0.0f ||
-            !graphics_text_command_reference_add(*text, &payload)) return false;
+    if(text == NULL || !isfinite(scale.x) || !isfinite(scale.y)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID, (ReportObjectRef){0}, "Invalid text draw arguments");
+        return false;
+    }
+    if(scale.x <= 0.0f || scale.y <= 0.0f) return false;
+    if(!graphics_text_command_reference_add(*text, &payload)) {
+        graphics_submission_issue(ERROR_ENGINE_TEXT_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle}, "Cannot queue unavailable text");
+        return false;
+    }
     if(payload == NULL) return true;
     if(!graphics_text_internal_size_get(text->handle, &current_size)) {
         graphics_text_command_reference_remove(payload);
+        graphics_submission_issue(ERROR_ENGINE_TEXT_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle}, "Text dimensions are unavailable");
         return false;
     }
     command = graphics_command_append(GRAPHICS_COMMAND_TEXT);
@@ -4261,6 +4595,7 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
         graphics_text_command_reference_remove(payload);
         return false;
     }
+    command->source = (ReportObjectRef){ROHR_REPORT_OBJECT_TEXT, text->handle};
     command->data.text.payload = payload;
     command->data.text.texture_draw = true;
     command->data.text.destination = (SDL_FRect){
@@ -4328,6 +4663,13 @@ void graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick,
 
 static void graphics_texture_draw_flipped(TextureAsset texture_asset, Position pos,
         Orientation ort, SDL_FlipMode flip) {
+    if(!isfinite(pos.x) || !isfinite(pos.y) || !isfinite(ort) ||
+            !isfinite(texture_asset.size.x) || !isfinite(texture_asset.size.y)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle}, "Nonfinite texture transform");
+        return;
+    }
+    if(texture_asset.size.x == 0 || texture_asset.size.y == 0) return;
     SDL_FRect dst_rect = {0};
     float output_width = WINDOW_WIDTH;
     float output_height = WINDOW_HEIGHT;
@@ -4351,12 +4693,17 @@ static void graphics_texture_draw_flipped(TextureAsset texture_asset, Position p
     };
     double degrees = (double)(ort - camera.orientation);
     GraphicsCommand *command;
-    if(!graphics_texture_command_reference_add(texture_asset.handle)) return;
+    if(!graphics_texture_command_reference_add(texture_asset.handle)) {
+        graphics_submission_issue(ERROR_ENGINE_TEXTURE_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle}, "Cannot queue an unavailable texture");
+        return;
+    }
     command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
     if(command == NULL) {
         graphics_texture_command_reference_remove(texture_asset.handle);
         return;
     }
+    command->source = (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle};
     command->data.texture.asset = texture_asset.handle;
     command->data.texture.destination = dst_rect;
     command->data.texture.center = center;
@@ -4385,13 +4732,24 @@ void graphics_screen_texture_direction_draw(TextureAsset texture_asset, Position
         center.y - size.y * 0.5f, size.x, size.y};
     SDL_FPoint rotation_center = {size.x * 0.5f, size.y * 0.5f};
 
-    if(size.x <= 0.0f || size.y <= 0.0f ||
-            !graphics_texture_command_reference_add(texture_asset.handle)) return;
+    if(size.x == 0.0f || size.y == 0.0f) return;
+    if(!isfinite(size.x) || !isfinite(size.y) || !isfinite(orientation) ||
+            !isfinite(center.x) || !isfinite(center.y)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_INVALID,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle}, "Nonfinite texture transform");
+        return;
+    }
+    if(!graphics_texture_command_reference_add(texture_asset.handle)) {
+        graphics_submission_issue(ERROR_ENGINE_TEXTURE_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle}, "Cannot queue an unavailable texture");
+        return;
+    }
     command = graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
     if(command == NULL) {
         graphics_texture_command_reference_remove(texture_asset.handle);
         return;
     }
+    command->source = (ReportObjectRef){ROHR_REPORT_OBJECT_TEXTURE, texture_asset.handle};
     command->data.texture.asset = texture_asset.handle;
     command->data.texture.destination = destination;
     command->data.texture.center = rotation_center;
@@ -4401,7 +4759,12 @@ void graphics_screen_texture_direction_draw(TextureAsset texture_asset, Position
 
 static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
         Position pos, Orientation ort) {
-    if(sprite.player.frame_index >= sprite.frame_count) return;
+    if(sprite.frame_count == 0) return;
+    if(sprite.frame_count > MAX_ANIMATIONS_FRAMES || sprite.player.frame_index >= sprite.frame_count) {
+        graphics_submission_issue(ERROR_ENGINE_INDEX_OUT_OF_RANGE,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ANIMATION, sprite.player.animation.handle}, "Animation frame is unavailable");
+        return;
+    }
     AnimationFrame frame = sprite.frames[sprite.player.frame_index];
     TextureAsset asset = frame.texture;
     asset.size.x *= sprite.scale.x * frame.scale.x;
@@ -4524,8 +4887,12 @@ bool graphics_sprite_draw(Entity entity) {
 
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index) ||
             !entity_index_components_check(index, ROHR_SPRITE) ||
-            index >= sprites_pool.capacity || !sprites_pool.used[index] ||
-            !sprite_components[index].visible) return false;
+            index >= sprites_pool.capacity || !sprites_pool.used[index]) {
+        graphics_submission_issue(ERROR_ENGINE_COMPONENT_MISSING,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity}, "Sprite entity is unavailable");
+        return false;
+    }
+    if(!sprite_components[index].visible) return false;
     asset = sprite_components[index].texture;
     asset.size.x *= sprite_components[index].scale.x;
     asset.size.y *= sprite_components[index].scale.y;
@@ -4848,8 +5215,12 @@ bool graphics_animated_sprite_draw(Entity entity) {
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index) ||
             !entity_index_components_check(index, ROHR_ANIMATED_SPRITE) ||
             index >= animated_sprites_pool.capacity ||
-            !animated_sprites_pool.used[index] || !animated_sprites[index].visible)
+            !animated_sprites_pool.used[index]) {
+        graphics_submission_issue(ERROR_ENGINE_COMPONENT_MISSING,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity}, "Animated sprite entity is unavailable");
         return false;
+    }
+    if(!animated_sprites[index].visible) return false;
     int previous_layer = graphics_component_layer_begin(
         graphics_animation_layer_bindings, entity);
     graphics_animated_sprite_value_draw(animated_sprites[index],
@@ -4874,14 +5245,30 @@ void graphics_animated_sprites_draw(void) {
     }
 }
 
-void graphics_sprite_frames_update(Tick current_tick, Time current_time) {
-    RohrComponentMask filter = ROHR_ANIMATED_SPRITE;
-    for(int i = 0; i < MAX_ENTITIES; i += 1) {
-        if(entity_index_alive_check(i) && entity_index_components_check(i, filter)) {
-            graphics_animated_sprite_update(&animated_sprites[i], current_tick,
-                current_time);
+Report graphics_sprite_frames_update(Tick current_tick, Time current_time) {
+    Uint64 start = SDL_GetTicksNS();
+    Report report = graphics_report_create(ROHR_GRAPHICS_ANIMATIONS_REPORT);
+    uint64_t processed = 0, skipped = 0;
+    for(int i = 0; i < MAX_ENTITIES; i++) {
+        if(!entity_index_alive_check(i) || !entity_index_components_check(i, ROHR_ANIMATED_SPRITE)) continue;
+        if((size_t)i >= animated_sprites_pool.capacity || !animated_sprites_pool.used[i] ||
+                animated_sprites[i].frame_count > MAX_ANIMATIONS_FRAMES ||
+                animated_sprites[i].player.frame_count != animated_sprites[i].frame_count) {
+            EntityResult entity = entity_from_index_get(i);
+            graphics_report_issue(&report, ROHR_GRAPHICS_ANIMATION, ERROR_ENGINE_STATE_INVALID,
+                false, entity.kind == ERROR_RESULT_VALUE
+                    ? (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity.result.value} : (ReportObjectRef){0},
+                (ReportObjectRef){0}, "Animated sprite frame configuration is invalid");
+            skipped++;
+            continue;
         }
+        graphics_animated_sprite_update(&animated_sprites[i], current_tick, current_time);
+        processed++;
     }
+    graphics_report_count(&report, ROHR_REPORT_PROCESSED_COUNT, processed);
+    graphics_report_count(&report, ROHR_REPORT_SKIPPED_COUNT, skipped);
+    report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    return report;
 }
 
 void graphics_local_origin_draw(Entity entity) {
@@ -5089,9 +5476,17 @@ bool graphics_joint_draw(Entity joint_entity, Color color) {
 
     if(sdl_renderer == NULL || !entity_index_get(joint_entity, &index) ||
             !entity_index_alive_check(index) || !entity_index_components_check(index, ROHR_JOINT) ||
-            index >= joints_pool.capacity || !joints_pool.used[index]) return false;
+            index >= joints_pool.capacity || !joints_pool.used[index]) {
+        graphics_submission_issue(ERROR_ENGINE_COMPONENT_MISSING,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, joint_entity}, "Joint drawing is unavailable");
+        return false;
+    }
     joint = joints[index];
-    if(!graphics_joint_world_anchors_get(joint, &world_a, &world_b)) return false;
+    if(!graphics_joint_world_anchors_get(joint, &world_a, &world_b)) {
+        graphics_submission_issue(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, joint_entity}, "Joint drawing anchors are unavailable");
+        return false;
+    }
     screen_a = graphics_world_to_screen_get(world_a);
     screen_b = graphics_world_to_screen_get(world_b);
     center = (Position){(screen_a.x + screen_b.x) * 0.5f, (screen_a.y + screen_b.y) * 0.5f};
@@ -5131,7 +5526,11 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
     SoftBody body;
     int previous_layer;
 
-    if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) return false;
+    if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) {
+        graphics_submission_issue(sdl_renderer == NULL ? ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED : body_result.result.error,
+            (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, soft_body_entity}, "Soft-body drawing is unavailable");
+        return false;
+    }
     body = body_result.result.value;
     previous_layer = graphics_entity_layer_begin(soft_body_entity);
     for(uint32_t i = 0; i < body.area_count; i += 1) {
@@ -5140,7 +5539,10 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         const SoftBodyAreaState *area = &soft_body_area_states[area_index];
         if(!area->value.visible) continue;
         const NodeLoopFill *fill;
-        if(error_check(physics_soft_body_area_fill_get(body.areas[i], &fill))) {
+        EngineResult fill_result = physics_soft_body_area_fill_get(body.areas[i], &fill);
+        if(error_check(fill_result)) {
+            graphics_submission_issue(fill_result.result.error,
+                (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, body.areas[i]}, "Soft-body area fill failed");
             graphics_layer_active_set(previous_layer);
             return false;
         }

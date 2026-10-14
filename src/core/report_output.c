@@ -3,6 +3,7 @@
  */
 #include "report.h"
 #include "physics.h"
+#include "graphics.h"
 #include "core/console_internal.h"
 #include "yyjson/yyjson.h"
 #include <inttypes.h>
@@ -26,6 +27,12 @@ static const char *report_id_name(uint32_t value) {
         case ROHR_AUDIO_REPORT: return "ROHR_AUDIO_REPORT";
         case ROHR_INPUT_REPORT: return "ROHR_INPUT_REPORT";
         case ROHR_UI_REPORT: return "ROHR_UI_REPORT";
+        case ROHR_GRAPHICS_CAMERAS_REPORT: return "ROHR_GRAPHICS_CAMERAS_REPORT";
+        case ROHR_GRAPHICS_COMMANDS_REPORT: return "ROHR_GRAPHICS_COMMANDS_REPORT";
+        case ROHR_GRAPHICS_VIEWPORTS_REPORT: return "ROHR_GRAPHICS_VIEWPORTS_REPORT";
+        case ROHR_GRAPHICS_RECORDING_REPORT: return "ROHR_GRAPHICS_RECORDING_REPORT";
+        case ROHR_GRAPHICS_PRESENTATION_REPORT: return "ROHR_GRAPHICS_PRESENTATION_REPORT";
+        case ROHR_GRAPHICS_ANIMATIONS_REPORT: return "ROHR_GRAPHICS_ANIMATIONS_REPORT";
         case ROHR_ENGINE_TICK_REPORT: return "ROHR_ENGINE_TICK_REPORT";
         default: return NULL;
     }
@@ -76,6 +83,8 @@ static const char *metric_name(uint32_t value) {
         case ROHR_REPORT_BROADPHASE_QUERY_NS: return "ROHR_REPORT_BROADPHASE_QUERY_NS";
         case ROHR_REPORT_NARROWPHASE_NS: return "ROHR_REPORT_NARROWPHASE_NS";
         case ROHR_REPORT_TREE_HEIGHT_PEAK: return "ROHR_REPORT_TREE_HEIGHT_PEAK";
+        case ROHR_REPORT_QUEUED_COMMAND_COUNT: return "ROHR_REPORT_QUEUED_COMMAND_COUNT";
+        case ROHR_REPORT_FRAME_LIMIT_WAIT_NS: return "ROHR_REPORT_FRAME_LIMIT_WAIT_NS";
         case ROHR_REPORT_TREE_NODES_CURRENT: return "ROHR_REPORT_TREE_NODES_CURRENT";
         default: return NULL;
     }
@@ -199,6 +208,9 @@ static const char *code_name(uint32_t value) {
         case ERROR_ENGINE_REPORT_INVALID: return "ERROR_ENGINE_REPORT_INVALID";
         case ERROR_ENGINE_OUTPUT_IO_FAILED: return "ERROR_ENGINE_OUTPUT_IO_FAILED";
         case ERROR_ENGINE_OUTPUT_TRUNCATED: return "ERROR_ENGINE_OUTPUT_TRUNCATED";
+        case ERROR_ENGINE_GRAPHICS_DRAW_FAILED: return "ERROR_ENGINE_GRAPHICS_DRAW_FAILED";
+        case ERROR_ENGINE_GRAPHICS_STATE_FAILED: return "ERROR_ENGINE_GRAPHICS_STATE_FAILED";
+        case ERROR_ENGINE_GRAPHICS_RECORDING_FAILED: return "ERROR_ENGINE_GRAPHICS_RECORDING_FAILED";
         case ERROR_ENGINE_OUTPUT_FORMAT_FAILED: return "ERROR_ENGINE_OUTPUT_FORMAT_FAILED";
         default: return NULL;
     }
@@ -219,9 +231,26 @@ static const char *physics_stage_name(uint32_t value) {
     }
 }
 
+static const char *graphics_stage_name(uint32_t value) {
+    switch(value) {
+        case ROHR_GRAPHICS_SUBMISSION: return "ROHR_GRAPHICS_SUBMISSION";
+        case ROHR_GRAPHICS_CAMERA_CALLBACK: return "ROHR_GRAPHICS_CAMERA_CALLBACK";
+        case ROHR_GRAPHICS_COMMAND_EXECUTION: return "ROHR_GRAPHICS_COMMAND_EXECUTION";
+        case ROHR_GRAPHICS_VIEWPORT_COMPOSITION: return "ROHR_GRAPHICS_VIEWPORT_COMPOSITION";
+        case ROHR_GRAPHICS_RECORDING_CAPTURE: return "ROHR_GRAPHICS_RECORDING_CAPTURE";
+        case ROHR_GRAPHICS_RECORDING_WRITE: return "ROHR_GRAPHICS_RECORDING_WRITE";
+        case ROHR_GRAPHICS_PRESENTATION: return "ROHR_GRAPHICS_PRESENTATION";
+        case ROHR_GRAPHICS_ANIMATION: return "ROHR_GRAPHICS_ANIMATION";
+        case ROHR_GRAPHICS_RESTORE: return "ROHR_GRAPHICS_RESTORE";
+        default: return NULL;
+    }
+}
+
 static const char *stage_name(ReportId owner, uint32_t stage) {
     if(owner >= ROHR_PHYSICS_REPORT && owner <= ROHR_PHYSICS_CONSTRAINTS_REPORT)
         return physics_stage_name(stage);
+    if(owner == ROHR_GRAPHICS_REPORT || (owner >= ROHR_GRAPHICS_CAMERAS_REPORT &&
+            owner <= ROHR_GRAPHICS_ANIMATIONS_REPORT)) return graphics_stage_name(stage);
     return NULL;
 }
 

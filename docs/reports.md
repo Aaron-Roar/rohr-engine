@@ -1,8 +1,8 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics updates return this type as described below. Console, JSON, and text-file
-output are implemented; other system integrations and latest-report retrieval
+Physics and graphics updates return this type as described below. Console, JSON,
+and text-file output are implemented; other system integrations and latest-report retrieval
 remain scheduled work.
 
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
@@ -329,3 +329,117 @@ A child entry remains a summary; export does not invent nested child reports.
 - Pretty and compact output differ only in whitespace. Invalid UTF-8 is rejected
   rather than replaced. This is diagnostic export, not a report-loading or
   project-persistence schema.
+
+## Graphics reports
+
+`rohr_graphics_show()` now returns an owned `Report` with ID
+`ROHR_GRAPHICS_REPORT`. It runs the following directly callable pipelines in
+order; each also has a direct API without `rohr_`:
+
+| API returning `Report` | Report ID | Work measured |
+| --- | --- | --- |
+| `rohr_graphics_pipeline_cameras_update()` | `ROHR_GRAPHICS_CAMERAS_REPORT` | Camera motion/zoom and callbacks for enabled visible screens. |
+| `rohr_graphics_pipeline_commands_execute()` | `ROHR_GRAPHICS_COMMANDS_REPORT` | Layer ordering and execution of queued clears, shapes, lines, text, and textures. |
+| `rohr_graphics_pipeline_viewports_draw()` | `ROHR_GRAPHICS_VIEWPORTS_REPORT` | Composition of screens and viewport UI, including transforms and clipping. |
+| `rohr_graphics_pipeline_recording_update()` | `ROHR_GRAPHICS_RECORDING_REPORT` | Capture, conversion, and writing/flushing one frame to the recording process. |
+| `rohr_graphics_pipeline_present()` | `ROHR_GRAPHICS_PRESENTATION_REPORT` | Frame limiting and window presentation. |
+
+Animation advances only when `rohr_graphics_sprite_frames_update(tick, time)` is
+called. It now returns `ROHR_GRAPHICS_ANIMATIONS_REPORT`, independently of the
+frame reports. Existing camera callbacks may continue to call this animation
+update. `graphics_show()` neither advances animations itself nor merges an
+animation report returned earlier or inside a callback.
+
+These return-type changes require recompiling applications against the new SDK.
+Ordinary calls that ignore the result remain valid C; function-pointer types
+must change from `void` to `Report`. Check `header.status`, not
+`rohr_error_check(report)`. Draw primitives, asset loading, and setters retain
+their existing immediate return types.
+
+```c
+Report frame = rohr_graphics_show();
+if(frame.header.status == ROHR_REPORT_FAILED || frame.diagnostic_count != 0) {
+    EngineResult output = rohr_report_console_write(&frame);
+    /* Check output separately; decide whether to continue the application. */
+}
+```
+
+### Boundaries, prerequisites, and ownership
+
+Initialize graphics before running frame pipelines. A missing renderer produces
+a failed report. Successfully invoked empty pipelines are COMPLETE; recording
+is NOT_RUN when disabled. Disabled recording does not create a child entry in
+the combined report. Hidden items, paused callbacks, empty text, and collapsed
+zero-scale drawings are intentional omissions, not warnings.
+
+Draw calls queue commands before or during camera callbacks. Submission warnings
+and accepted-command counts accumulate in bounded, graphics-owned storage until
+the next commands execution call. That call consumes this evidence exactly once,
+adds execution results, and clears it for the next invocation. Previously returned
+reports never change. There is no latest-report cache or automatic report output.
+
+Camera callbacks execute once per visible screen, preserving existing enabled and
+pause rules. Camera setup/restoration errors belong to the cameras report; errors
+from draw calls inside a callback belong to the commands report. Calling a frame
+pipeline or `graphics_show()` recursively from a camera callback returns a failed
+report without consuming the outer queue or changing its collector. Animation
+updates are independent and remain permitted inside callbacks.
+
+For manual orchestration, run cameras before commands, commands before viewport
+composition, recording after composition, and presentation last. Each pipeline
+returns only its own invocation; it does not automatically run prerequisites or
+merge previously returned reports. Merge each returned child once if building a
+custom parent. Repeat calls perform another invocation, not a cached lookup.
+
+Execution or discard releases every queued text/texture reference exactly once,
+including on fatal failure. A failed camera pass discards unsafe queued drawing
+but keeps its submission evidence and discard counts for the commands report.
+The full-frame call collects that evidence even when commands cannot execute.
+Graphics shutdown discards pending commands and diagnostics. Engine rendering
+remains single-threaded; callbacks must not destroy the renderer mid-pipeline.
+
+### Failure policy and measurements
+
+A failed item draw produces a warning and independent drawing continues. Missing
+queued resources and invalid submission geometry retain available asset/entity
+and screen evidence. Backend diagnostic text is copied before cleanup or later
+backend calls can overwrite it. `GraphicsReportStage` identifies submission,
+camera callback/setup, command execution, viewport composition, recording capture
+or write, presentation, and restoration context.
+
+A required target, clipping, scale, or other render-state failure is fatal to
+its pipeline. Dependent work is not rendered against an unknown state. Restoration
+is attempted and queued references are released; successful earlier drawing is
+not rolled back. The next invocation retries normally. No persistent failure flag
+or physics-recovery policy is introduced.
+
+Recording failure disables recording and fails the recording report. Presentation
+still executes; the parent remains FAILED even when presentation succeeds.
+Recording start/stop retain their immediate APIs; reports describe capture and
+output failures observed during updates, not later encoder exit status at stop.
+Viewport interaction behavior remains unchanged; separate UI interaction reports
+belong to the later UI goal.
+
+- Header milliseconds measure CPU-side elapsed wall time, not GPU execution time.
+  Camera time includes callback work. Command time starts when execution is called;
+  it does not include earlier application time spent submitting commands.
+- `PROCESSED_COUNT` counts successful callbacks for cameras, successful commands
+  for commands, successful visible screen/UI items for viewports, captured frames
+  for recording, presented frames for presentation, and visited valid animated
+  sprites for animation. A viewport background is included in time/diagnostics,
+  but is not a separate item count. Camera motion is included in time.
+- `SKIPPED_COUNT` counts failed/aborted work in the corresponding units. Commands
+  additionally count rejected submissions; one rejected request may otherwise
+  have produced multiple commands. Minimized zero-area recording frames are
+  skipped without a warning. Intentionally hidden/paused content is not counted.
+- Commands record `QUEUED_COMMAND_COUNT` for successfully accepted commands.
+  Discarded commands remain in this count and also contribute to skipped work.
+- Presentation records `FRAME_LIMIT_WAIT_NS` for measured deliberate frame-limit
+  waiting. It is included in the presentation/header time; do not add it again.
+  VSync blocking remains inside the presentation time.
+- All these counters sum when reports merge. Missing counters represent zero.
+  Parent times are inclusive; never sum parent and child times as separate work.
+
+Rendering order, camera/screen sharing, viewport layers, clipping, and resource
+lifetimes retain their existing contracts. No project JSON or generated-object
+format changes are required.

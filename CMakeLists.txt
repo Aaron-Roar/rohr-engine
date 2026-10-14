@@ -487,6 +487,28 @@ if(ROHR_BUILD_TESTS)
     endif()
     add_test(NAME physics_reports COMMAND physics_reports_test)
 
+    add_executable(graphics_reports_test tests/graphics_reports.c)
+    target_link_libraries(graphics_reports_test PRIVATE rohr_engine)
+    target_include_directories(graphics_reports_test PRIVATE src)
+    set_target_properties(graphics_reports_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(graphics_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(graphics_reports_test PRIVATE ROHR_TEST_GRAPHICS_WRAP)
+        target_link_options(graphics_reports_test PRIVATE
+            -Wl,--wrap=realloc -Wl,--wrap=SDL_RenderFillRect -Wl,--wrap=SDL_SetRenderTarget
+            -Wl,--wrap=SDL_RenderPresent -Wl,--wrap=SDL_RenderReadPixels
+            -Wl,--wrap=platform_process_command_check -Wl,--wrap=platform_process_open_write
+            -Wl,--wrap=platform_process_close -Wl,--wrap=fwrite -Wl,--wrap=fflush)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(graphics_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME graphics_reports COMMAND graphics_reports_test)
+    set_tests_properties(graphics_reports PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
+
     add_executable(report_output_test tests/report_output.c)
     target_link_libraries(report_output_test PRIVATE rohr_engine)
     target_include_directories(report_output_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -921,6 +943,7 @@ if(ROHR_BUILD_TESTS)
         rohr_tests
         report_test
         report_output_test
+        graphics_reports_test
         physics_reports_test
         audio_test
         engine_lifecycle_test

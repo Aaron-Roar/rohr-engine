@@ -6,11 +6,12 @@ verified current behavior, agreed requirements, and proposed implementation
 details. Shared collection, merging, and physics integration are implemented as documented
 in [Shared reports](reports.md). That page is the current API reference; the
 original physics inventory and proposed refinements below retain design context.
-Console, JSON, and text-file output are also implemented. Other system
+Console, JSON, text-file output, and graphics reports are also implemented. Other system
 integrations and retrieval remain scheduled work. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
-is Goal 1, physics integration Goal 2, and console/JSON output Goal 3.
+is Goal 1, physics integration Goal 2, console/JSON output Goal 3, and
+[graphics integration](reports.md#graphics-reports) Goal 4.
 Simulation-failure recovery is Goal 11, after all systems have reporting.
 
 ## Scope and decisions
@@ -499,8 +500,8 @@ soft-body dependencies, and developer restoration before implementing either.
 Do not implement a new flag, destructive quarantine replacement, or automatic
 retry as part of reporting. Setters/creators keep immediate validation semantics.
 
-Goals 1 through 3 implement shared report values, collection/merging, physics
-pipeline return types, and console/JSON/text-file output. Other systems,
+Goals 1 through 4 implement shared report values, collection/merging, physics
+pipeline return types, console/JSON/text-file output, and graphics pipelines. Other systems,
 stored-report retrieval, and recovery remain scheduled work. Later-goal acceptance criteria are not claims
 of implementation.
 

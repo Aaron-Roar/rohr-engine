@@ -10,6 +10,7 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include "entity_components.h"
+#include "report.h"
 #include "engine.h"
 #include "physics.h"
 #include "math2d.h"
@@ -36,6 +37,19 @@
 #define MAX_GRAPHICS_UI_ELEMENTS 128
 #define MAX_GRAPHICS_LAYERS 128
 #define GRAPHICS_LAYER_NAME_MAX 64
+
+/** Diagnostic context within a graphics pipeline; zero means unspecified. */
+typedef enum GraphicsReportStage {
+    ROHR_GRAPHICS_SUBMISSION = 1,
+    ROHR_GRAPHICS_CAMERA_CALLBACK,
+    ROHR_GRAPHICS_COMMAND_EXECUTION,
+    ROHR_GRAPHICS_VIEWPORT_COMPOSITION,
+    ROHR_GRAPHICS_RECORDING_CAPTURE,
+    ROHR_GRAPHICS_RECORDING_WRITE,
+    ROHR_GRAPHICS_PRESENTATION,
+    ROHR_GRAPHICS_ANIMATION,
+    ROHR_GRAPHICS_RESTORE,
+} GraphicsReportStage;
 
 #define RECORDING_WIDTH  WINDOW_WIDTH
 #define RECORDING_HEIGHT WINDOW_HEIGHT
@@ -551,8 +565,21 @@ bool graphics_screen_quad_radians_draw(
     Color color
 );
 
-/** Present the current frame. */
-void graphics_show(void);
+/** Return a composed frame report. Recording failure still permits presentation.
+ * Standalone order: cameras, commands, viewports, recording, presentation.
+ * Frame pipelines must not be called recursively from camera callbacks.
+ */
+Report graphics_show(void);
+/** Update camera motion and queue camera callback drawing. */
+Report graphics_pipeline_cameras_update(void);
+/** Consume pending submission diagnostics and execute queued commands. */
+Report graphics_pipeline_commands_execute(void);
+/** Compose screens and viewport UI after command execution. */
+Report graphics_pipeline_viewports_draw(void);
+/** Capture the composed frame; inactive recording returns NOT_RUN. */
+Report graphics_pipeline_recording_update(void);
+/** Apply frame limiting and present the composed frame. */
+Report graphics_pipeline_present(void);
 EngineResult graphics_vsync_set(bool enabled);
 EngineResult graphics_frame_limit_set(int frames_per_second);
 
@@ -730,7 +757,7 @@ bool graphics_animated_sprite_draw(Entity entity);
 void graphics_animated_sprites_draw(void);
 
 /** Update frame state for all live animated sprites. */
-void graphics_sprite_frames_update(Tick current_tick, Time current_time);
+Report graphics_sprite_frames_update(Tick current_tick, Time current_time);
 
 /** Scale an entity's animated sprite textures. */
 void graphics_textures_scale(Entity entity, Scale scale);

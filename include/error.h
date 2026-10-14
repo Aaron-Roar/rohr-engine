@@ -187,6 +187,12 @@ typedef enum EngineError {
     ERROR_ENGINE_OUTPUT_TRUNCATED,
     /** Text or JSON could not be formatted (including invalid UTF-8). */
     ERROR_ENGINE_OUTPUT_FORMAT_FAILED,
+    /** A graphics drawing operation failed. */
+    ERROR_ENGINE_GRAPHICS_DRAW_FAILED,
+    /** Required graphics render state could not be established or restored. */
+    ERROR_ENGINE_GRAPHICS_STATE_FAILED,
+    /** Frame capture or recording output failed. */
+    ERROR_ENGINE_GRAPHICS_RECORDING_FAILED,
 } EngineError;
 
 /**

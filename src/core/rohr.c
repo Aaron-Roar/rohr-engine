@@ -646,7 +646,13 @@ void rohr_graphics_screen_clip_clear(void) { graphics_screen_clip_clear(); }
 bool rohr_graphics_screen_clip_push(float x, float y, float width, float height) { return graphics_screen_clip_push(x, y, width, height); }
 void rohr_graphics_screen_clip_pop(void) { graphics_screen_clip_pop(); }
 bool rohr_graphics_screen_quad_draw(Position center, float width, float height, float angle, Color color) { return graphics_screen_quad_draw(center, width, height, angle, color); }
-void rohr_graphics_show(void) { graphics_show(); }
+Report rohr_graphics_show(void) { return graphics_show(); }
+Report rohr_graphics_pipeline_cameras_update(void) { return graphics_pipeline_cameras_update(); }
+Report rohr_graphics_pipeline_commands_execute(void) { return graphics_pipeline_commands_execute(); }
+Report rohr_graphics_pipeline_viewports_draw(void) { return graphics_pipeline_viewports_draw(); }
+Report rohr_graphics_pipeline_recording_update(void) { return graphics_pipeline_recording_update(); }
+Report rohr_graphics_pipeline_present(void) { return graphics_pipeline_present(); }
+
 EngineResult rohr_graphics_vsync_set(bool enabled) { return graphics_vsync_set(enabled); }
 EngineResult rohr_graphics_frame_limit_set(int frames_per_second) { return graphics_frame_limit_set(frames_per_second); }
 void rohr_graphics_hit_box_draw(Entity entity, Fill fill_type) { graphics_hit_box_draw(entity, fill_type); }
@@ -723,7 +729,7 @@ bool rohr_graphics_sprite_draw(Entity entity) { return graphics_sprite_draw(enti
 void rohr_graphics_sprites_draw(void) { graphics_sprites_draw(); }
 bool rohr_graphics_animated_sprite_draw(Entity entity) { return graphics_animated_sprite_draw(entity); }
 void rohr_graphics_animated_sprites_draw(void) { graphics_animated_sprites_draw(); }
-void rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time) { graphics_sprite_frames_update(current_tick, current_time); }
+Report rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time) { return graphics_sprite_frames_update(current_tick, current_time); }
 EngineResult rohr_graphics_animated_sprite_frame_index_set(Entity entity, size_t frame_index) { return graphics_animated_sprite_frame_index_set(entity, frame_index); }
 AnimationFrameIndexResult rohr_graphics_animated_sprite_frame_index_get(Entity entity) { return graphics_animated_sprite_frame_index_get(entity); }
 void rohr_graphics_textures_scale(Entity entity, Scale scale) { graphics_textures_scale(entity, scale); }

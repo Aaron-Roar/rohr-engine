@@ -34,5 +34,16 @@ int main(void) {
             rohr_error_check(rohr_report_text_write(&parent, "sdk_report.txt")) ||
             rohr_error_check(rohr_report_console_write(&parent))) return 1;
     if(remove("sdk_report.json") != 0 || remove("sdk_report.txt") != 0) return 1;
+    if(rohr_error_check(rohr_engine_start()) || rohr_error_check(rohr_graphics_start())) return 1;
+    Report (*pipelines[])(void) = {rohr_graphics_pipeline_cameras_update,
+        rohr_graphics_pipeline_commands_execute, rohr_graphics_pipeline_viewports_draw,
+        rohr_graphics_pipeline_recording_update, rohr_graphics_pipeline_present, rohr_graphics_show};
+    for(size_t i=0; i<sizeof(pipelines)/sizeof(pipelines[0]); i++) {
+        Report graphics = pipelines[i]();
+        if(!rohr_report_valid_check(&graphics) || graphics.header.status == ROHR_REPORT_FAILED) return 1;
+    }
+    Report animations=rohr_graphics_sprite_frames_update(0,0);
+    if(!rohr_report_valid_check(&animations) || animations.header.id != ROHR_GRAPHICS_ANIMATIONS_REPORT) return 1;
+    rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

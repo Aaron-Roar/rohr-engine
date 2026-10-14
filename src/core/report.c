@@ -16,7 +16,7 @@ static EngineResult report_invalid(void) {
 }
 
 static bool report_id_check(ReportId id) {
-    return (id > ROHR_REPORT_NONE && id <= ROHR_ENGINE_TICK_REPORT) ||
+    return (id > ROHR_REPORT_NONE && id <= ROHR_GRAPHICS_ANIMATIONS_REPORT) ||
         (id >= ROHR_REPORT_CUSTOM_ID_BEGIN && id <= ROHR_REPORT_CUSTOM_ID_END);
 }
 
@@ -52,6 +52,9 @@ static bool report_statistic_check(ReportStatistic value) {
         expected = ROHR_REPORT_AGGREGATION_MAX;
     else if(value.metric_id == ROHR_REPORT_TREE_NODES_CURRENT)
         expected = ROHR_REPORT_AGGREGATION_LATEST;
+    else if(value.metric_id == ROHR_REPORT_QUEUED_COMMAND_COUNT ||
+            value.metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS)
+        expected = ROHR_REPORT_AGGREGATION_SUM;
     else return false;
     return value.aggregation == expected;
 }
@@ -64,7 +67,7 @@ static bool report_diagnostic_check(const ReportDiagnostic *value) {
     return report_id_check(value->report_id) &&
         (value->severity == ROHR_REPORT_SEVERITY_WARNING ||
          value->severity == ROHR_REPORT_SEVERITY_FATAL) &&
-        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_OUTPUT_FORMAT_FAILED &&
+        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_GRAPHICS_RECORDING_FAILED &&
         value->recovery >= ROHR_REPORT_RECOVERY_NONE &&
         value->recovery <= ROHR_REPORT_UPDATE_ABORTED &&
         report_object_check(value->source) && report_object_check(value->target) &&

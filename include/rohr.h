@@ -1769,10 +1769,21 @@ bool rohr_graphics_screen_quad_draw(Position center, float width, float height, 
 /** Clockwise-positive radians alternative; other parameters retain their units. */
 bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color);
 
-/**
- * @brief Presents the current graphics frame.
+/** Return a composed frame report. Recording failure still permits presentation.
+ * Standalone order: cameras, commands, viewports, recording, presentation.
+ * Frame pipelines must not be called recursively from camera callbacks.
  */
-void rohr_graphics_show(void);
+Report rohr_graphics_show(void);
+/** Update camera motion and queue camera callback drawing. */
+Report rohr_graphics_pipeline_cameras_update(void);
+/** Consume pending submission diagnostics and execute queued commands. */
+Report rohr_graphics_pipeline_commands_execute(void);
+/** Compose screens and viewport UI after command execution. */
+Report rohr_graphics_pipeline_viewports_draw(void);
+/** Capture the composed frame; inactive recording returns NOT_RUN. */
+Report rohr_graphics_pipeline_recording_update(void);
+/** Apply frame limiting and present the composed frame. */
+Report rohr_graphics_pipeline_present(void);
 /** Enables or disables synchronization with the display refresh rate. */
 EngineResult rohr_graphics_vsync_set(bool enabled);
 /** Sets the non-VSync frame limit; zero uses the 120 FPS fallback. */
@@ -2028,7 +2039,7 @@ void rohr_graphics_animated_sprites_draw(void);
  * @param current_tick Current engine tick.
  * @param current_time Current engine time.
  */
-void rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time);
+Report rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time);
 
 /**
  * @brief Scales textures attached to an entity.

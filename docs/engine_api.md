@@ -2924,10 +2924,50 @@ bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float 
 ### `rohr_graphics_show`
 
 ```c
-void rohr_graphics_show(void);
+Report rohr_graphics_show(void);
 ```
 
-Presents the current graphics frame.
+Runs camera preparation, command execution, viewport composition, recording, and presentation; returns their combined report. Recording failure still permits presentation. See [graphics reporting](reports.md#graphics-reports).
+
+### `rohr_graphics_pipeline_cameras_update`
+
+```c
+Report rohr_graphics_pipeline_cameras_update(void);
+```
+
+Updates camera motion and queues drawing through camera callbacks. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+
+### `rohr_graphics_pipeline_commands_execute`
+
+```c
+Report rohr_graphics_pipeline_commands_execute(void);
+```
+
+Executes queued commands and consumes pending submission diagnostics. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+
+### `rohr_graphics_pipeline_viewports_draw`
+
+```c
+Report rohr_graphics_pipeline_viewports_draw(void);
+```
+
+Composes screens and viewport UI into the window. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+
+### `rohr_graphics_pipeline_recording_update`
+
+```c
+Report rohr_graphics_pipeline_recording_update(void);
+```
+
+Captures and writes a recording frame; returns NOT_RUN when recording is inactive. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+
+### `rohr_graphics_pipeline_present`
+
+```c
+Report rohr_graphics_pipeline_present(void);
+```
+
+Applies frame limiting and presents the composed frame. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
 
 ### `rohr_graphics_vsync_set`
 
@@ -3430,10 +3470,10 @@ Draws all animated sprite components.
 ### `rohr_graphics_sprite_frames_update`
 
 ```c
-void rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time);
+Report rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time);
 ```
 
-Updates animated sprite frames.
+Updates animated sprite frames and returns an independent animation report. Graphics presentation does not automatically advance animation.
 
 | Parameter | Description |
 | --- | --- |

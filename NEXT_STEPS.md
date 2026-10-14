@@ -766,12 +766,23 @@ integration goal before modifying that system.
    warnings, installed-SDK consumers (Linux executed; Windows compiled), and an
    independent installed-SDK joints example launched outside its source directory.
    Windows execution remains unverified. The general file API stays deferred.
-4. [ ] **Define and integrate graphics update reports** — Audit rendering entry
+4. [x] **Define and integrate graphics update reports** — Audit rendering entry
    points and define submission/frame/presentation boundaries and compatibility
    changes. Reuse the shared report format for rendering-stage
    timings, counters, skipped work, and fatal failures. Cover drawing, cameras,
    screens/viewports, recording, and presentation. Preserve rendering order and
    resource ownership; verify recovery and retained diagnostics after failure.
+   Completed: independently runnable cameras, commands, viewports, recording,
+   and presentation return shared reports composed by `graphics_show()`;
+   animation updates return an independent report. Command submission evidence
+   survives until execution; failures retain copied backend details and queued
+   resources are released on execution/abort. Recording failure still permits
+   presentation. Verified 75 native tests, six ASan/UBSan/LeakSanitizer tests,
+   Linux/Windows builds without compiler warnings, installed-SDK consumers
+   (Linux executed; Windows compiled), all 11 independently built example
+   startup/shutdown checks, and generated-application build/startup/shutdown.
+   Windows execution remains unverified. User visual review of editor/application
+   rendering parity remains a follow-up. See [Graphics reports](docs/reports.md#graphics-reports).
 5. [ ] **Define and integrate audio update reports** — Define the report boundary for audio
    processing, collect relevant timings/statistics and diagnostics, and publish
    them safely to game code. Preserve callback constraints and resource lifetime;

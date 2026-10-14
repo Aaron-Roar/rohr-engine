@@ -54,6 +54,12 @@ const char *error_code_message_get(EngineError error) {
             return "output I/O failed";
         case ERROR_ENGINE_OUTPUT_TRUNCATED:
             return "output truncated";
+        case ERROR_ENGINE_GRAPHICS_DRAW_FAILED:
+            return "A graphics drawing operation failed.";
+        case ERROR_ENGINE_GRAPHICS_STATE_FAILED:
+            return "Required graphics render state could not be established or restored.";
+        case ERROR_ENGINE_GRAPHICS_RECORDING_FAILED:
+            return "Frame capture or recording output failed.";
         case ERROR_ENGINE_OUTPUT_FORMAT_FAILED:
             return "output formatting failed";
         case ERROR_ENGINE_REPORT_INVALID:
