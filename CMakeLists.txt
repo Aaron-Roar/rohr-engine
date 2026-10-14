@@ -442,6 +442,27 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME audio COMMAND audio_test)
 
+    add_executable(audio_reports_test tests/audio_reports.c)
+    target_link_libraries(audio_reports_test PRIVATE rohr_engine)
+    set_target_properties(audio_reports_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(audio_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(audio_reports_test PRIVATE ROHR_TEST_AUDIO_WRAP)
+        target_link_options(audio_reports_test PRIVATE
+            -Wl,--wrap=SDL_OpenAudioDeviceStream -Wl,--wrap=SDL_ResumeAudioStreamDevice
+            -Wl,--wrap=SDL_PutAudioStreamData -Wl,--wrap=stb_vorbis_get_samples_float_interleaved
+            -Wl,--wrap=stb_vorbis_get_error -Wl,--wrap=stb_vorbis_seek_start)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(audio_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME audio_reports COMMAND audio_reports_test)
+    set_tests_properties(audio_reports PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy")
+
+
     add_executable(engine_lifecycle_test tests/engine_lifecycle.c)
     target_include_directories(engine_lifecycle_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(engine_lifecycle_test PRIVATE rohr_engine)
@@ -945,6 +966,7 @@ if(ROHR_BUILD_TESTS)
         report_output_test
         graphics_reports_test
         physics_reports_test
+        audio_reports_test
         audio_test
         engine_lifecycle_test
         directory_test

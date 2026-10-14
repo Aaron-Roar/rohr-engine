@@ -52,15 +52,17 @@ static bool text_create(FontAsset *font, const char *value, TextAsset *text) {
 }
 
 static bool music_labels_update(TextAsset labels[AUDIO_MUSIC_COUNT],
-        Music music[AUDIO_MUSIC_COUNT]) {
+        Music music[AUDIO_MUSIC_COUNT], unsigned char states[AUDIO_MUSIC_COUNT]) {
     char value[96];
     for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1) {
-        const char *action = "Play";
-        if(rohr_audio_music_paused_check(music[index])) action = "Resume";
-        else if(rohr_audio_music_playing_check(music[index])) action = "Pause";
+        unsigned char state = rohr_audio_music_paused_check(music[index]) ? 3 :
+            (rohr_audio_music_playing_check(music[index]) ? 2 : 1);
+        if(states[index] == state) continue;
+        const char *action = state == 3 ? "Resume" : (state == 2 ? "Pause" : "Play");
         (void)snprintf(value, sizeof(value), "%s %s", action,
             audio_music_names[index]);
         if(!rohr_graphics_text_value_set(&labels[index], value)) return false;
+        states[index] = state;
     }
     return true;
 }
@@ -112,6 +114,7 @@ int main(void) {
     TextAsset description = {0};
     TextAsset sound_label = {0};
     TextAsset music_labels[AUDIO_MUSIC_COUNT] = {0};
+    unsigned char music_label_states[AUDIO_MUSIC_COUNT] = {0};
     TextAsset quit_label = {0};
     ViewportId viewport = VIEWPORT_INVALID;
     AudioRenderContext render_context = {0};
@@ -175,7 +178,7 @@ int main(void) {
             !text_create(&font, "Quit", &quit_label)) goto cleanup;
     for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1)
         if(!text_create(&font, "", &music_labels[index])) goto cleanup;
-    if(!music_labels_update(music_labels, music)) goto cleanup;
+    if(!music_labels_update(music_labels, music, music_label_states)) goto cleanup;
 
     render_context = (AudioRenderContext){
         .title = &title,
@@ -201,6 +204,12 @@ int main(void) {
         }
         if(!running) break;
 
+        Report audio_report = rohr_audio_update();
+        if(audio_report.diagnostic_count || audio_report.has_fatal) {
+            EngineResult printed = rohr_report_console_write(&audio_report);
+            if(rohr_error_check(printed)) error_print(printed.result.error);
+        }
+        if(!music_labels_update(music_labels, music, music_label_states)) goto cleanup;
         rohr_graphics_show();
         if(render_context.quit_clicked) break;
         if(render_context.sound_clicked) {
@@ -222,7 +231,6 @@ int main(void) {
                 error_print(result.result.error);
                 goto cleanup;
             }
-            if(!music_labels_update(music_labels, music)) goto cleanup;
         }
     }
     exit_code = 0;
@@ -242,7 +250,11 @@ cleanup:
         for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1)
             if(music[index] != MUSIC_INVALID)
                 (void)rohr_audio_music_destroy(&music[index]);
-        rohr_audio_stop();
+        Report stopped = rohr_audio_stop();
+        if(stopped.diagnostic_count || stopped.has_fatal) {
+            EngineResult printed = rohr_report_console_write(&stopped);
+            if(rohr_error_check(printed)) error_print(printed.result.error);
+        }
     }
     if(graphics_started) rohr_graphics_stop();
     if(engine_started) rohr_engine_stop();

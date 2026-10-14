@@ -193,6 +193,8 @@ typedef enum EngineError {
     ERROR_ENGINE_GRAPHICS_STATE_FAILED,
     /** Frame capture or recording output failed. */
     ERROR_ENGINE_GRAPHICS_RECORDING_FAILED,
+    /** The bounded audio request queue is full; no request was accepted. */
+    ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED,
 } EngineError;
 
 /**

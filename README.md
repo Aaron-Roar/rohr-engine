@@ -56,7 +56,7 @@ radians. See the [angle convention and migration contract](docs/angle_convention
   and Linux/Nix/Windows SDK packaging workflows.
 - Optional MP4 recording through `ffmpeg`.
 
-Current limitations include no audio, swept collision/CCD, adaptive physics
+Current limitations include no swept collision/CCD, adaptive physics
 substeps, collision-polygon holes/self-intersections, or stable release-compatible editor
 schema.
 

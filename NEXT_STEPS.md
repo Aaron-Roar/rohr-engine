@@ -78,8 +78,9 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-Then resume **System Update Reports** at Goal 5 (audio), only on explicit user
-instruction, before resuming Goal 1 of **Unified Forces and Torques**. Establish
+**System Update Reports** is complete through Goal 5 (audio). Goal 6 (input)
+is next, only on explicit user instruction, before resuming Goal 1 of
+**Unified Forces and Torques**. Establish
 per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
@@ -808,16 +809,23 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    startup/shutdown checks, and generated-application build/startup/shutdown.
    Windows execution remains unverified. User visual review of editor/application
    rendering parity remains a follow-up. See [Graphics reports](docs/reports.md#graphics-reports).
-5. [ ] **Define and integrate audio update reports** — Implement the approved
-   [audio contract](docs/audio_reporting_contract.md): deferred FIFO playback
-   controls and setters, synchronous resource/service lifecycle, applied-state
-   getters, and update submission plus collection of completed callback reports.
-   Commands, sounds, music, and output report actual work, including later
-   failures from earlier requests. Preserve independent callback playback,
-   bounded storage, safe resource lifetime, and copied diagnostics. Resolve the
-   contract's open implementation details before coding; verify delayed failures,
-   overflow, shutdown, report ownership, and affected callers. Begin only on
-   explicit user instruction after the documentation prerequisite is complete.
+5. [x] **Define and integrate audio update reports** — Implemented the
+   [audio contract](docs/audio_reporting_contract.md): a 256-request FIFO supports
+   concurrent callers, deferred controls/setters, synchronous resource/service
+   lifecycle, and applied-state getters. Update submission collects completed
+   callback evidence for commands, sounds, music, and output, including later
+   failures from earlier requests. Shutdown returns a final report retained for
+   the next update once. Manual mixing/output is explicitly deferred; callback
+   report owners are not exposed for direct execution in this goal.
+   Verified 76 native tests, five ASan/UBSan/LeakSanitizer tests, deterministic
+   delayed/overflow/fatal tests and concurrent producer/destruction/shutdown
+   accounting, Linux/Windows builds without compiler warnings, installed-SDK
+   consumers (Linux executed; Windows compiled), and independent installed-SDK
+   audio example builds on both platforms with Linux startup/shutdown outside
+   its source directory. Measured callback/report collection cost with a test
+   output sink, including full diagnostic storage. Windows execution and audible
+   playback on real hardware remain unverified. See [Audio reports](docs/reports.md#audio-reports).
+
 6. [ ] **Define and integrate input update reports** — Specify the input-frame
    boundary, event ingestion, action evaluation, and text/IME truncation
    diagnostics. Preserve input behavior and verify reset boundaries and recovery.

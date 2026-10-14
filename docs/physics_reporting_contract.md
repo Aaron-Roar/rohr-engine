@@ -6,7 +6,7 @@ verified current behavior, agreed requirements, and proposed implementation
 details. Shared collection, merging, and physics integration are implemented as documented
 in [Shared reports](reports.md). That page is the current API reference; the
 original physics inventory and proposed refinements below retain design context.
-Console, JSON, text-file output, and graphics reports are also implemented. Other system
+Console, JSON, text-file output, graphics reports, and audio reports are also implemented. Other system
 integrations and retrieval remain scheduled work. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
@@ -18,9 +18,9 @@ The separate Reporting Workflow Standards and Audio Contract documentation
 milestone precedes audio Goal 5 without renumbering this milestone. Follow the
 [reporting instructions](agent_instructions/system_reporting.md); the
 [audio contract](audio_reporting_contract.md) preserves the approved deferred
-controls and asynchronous report delivery design, not yet implemented. Its
+controls and asynchronous report delivery implemented in Goal 5. Its
 explicitly approved audio behavior does not change physics setter or recovery
-semantics. Resume audio implementation only on explicit user instruction.
+semantics. Public manual audio mixing/output remains deferred.
 
 ## Scope and decisions
 
@@ -508,8 +508,8 @@ soft-body dependencies, and developer restoration before implementing either.
 Do not implement a new flag, destructive quarantine replacement, or automatic
 retry as part of reporting. Setters/creators keep immediate validation semantics.
 
-Goals 1 through 4 implement shared report values, collection/merging, physics
-pipeline return types, console/JSON/text-file output, and graphics pipelines. Other systems,
+Goals 1 through 5 implement shared report values, collection/merging, physics
+pipeline return types, console/JSON/text-file output, graphics pipelines, and audio reporting. Other systems,
 stored-report retrieval, and recovery remain scheduled work. Later-goal acceptance criteria are not claims
 of implementation.
 

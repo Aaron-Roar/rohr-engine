@@ -1,14 +1,14 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics and graphics updates return this type as described below. Console, JSON,
+Physics, graphics, and audio updates return this type as described below. Console, JSON,
 and text-file output are implemented; other system integrations and latest-report retrieval
 remain scheduled work.
 
 For implementation work, follow the
-[reporting instructions](agent_instructions/system_reporting.md). The approved
-[audio Goal 5 contract](audio_reporting_contract.md) is future design, not a
-shipped API; the reference below continues to describe implemented behavior.
+[reporting instructions](agent_instructions/system_reporting.md). The
+[audio Goal 5 contract](audio_reporting_contract.md) records deferred-control
+and callback-reporting semantics.
 
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
 functions. Both paths use the same implementation and have the same behavior.
@@ -448,3 +448,57 @@ belong to the later UI goal.
 Rendering order, camera/screen sharing, viewport layers, clipping, and resource
 lifetimes retain their existing contracts. No project JSON or generated-object
 format changes are required.
+
+## Audio reports
+
+`rohr_audio_update()` / `audio_update()` return `ROHR_AUDIO_REPORT` and submit
+pending controls to the independently running SDL callback. Collection swaps
+preallocated evidence banks before publishing requests under the stream lock;
+report construction happens after unlocking. The result describes callback work
+completed before that boundary plus the current submission count. It never
+claims that newly submitted requests have already executed. Calls from multiple
+application threads are serialized; each update collects a disjoint interval.
+
+| Child report | Invocation and measurements |
+| --- | --- |
+| `ROHR_AUDIO_COMMANDS_REPORT` | One callback invocation per nonempty submitted batch. PROCESSED counts applied requests; SKIPPED counts failed requests. QUEUED_COMMAND counts requests newly submitted by this update, not completed playback; CANCELLED_COMMAND counts requests discarded by shutdown. |
+| `ROHR_AUDIO_SOUNDS_REPORT` | One invocation per mixed chunk, including silence. PROCESSED counts active sound contributions; SKIPPED counts invalid contributions. AUDIO_FRAMES counts stereo frame slots processed once per chunk, not once per sound. |
+| `ROHR_AUDIO_MUSIC_REPORT` | One invocation per chunk with an active, unpaused, positive-rate track. PROCESSED counts successful contributions; SKIPPED counts failed contributions. AUDIO_FRAMES counts requested stereo frame slots, including any silence after EOF. |
+| `ROHR_AUDIO_OUTPUT_REPORT` | One invocation per submission attempt, including clamping. PROCESSED counts successful submissions; SKIPPED counts failed submissions. AUDIO_FRAMES counts successfully submitted stereo frames. |
+
+Metric names in the table omit `ROHR_REPORT_` and `_COUNT`; all these counters
+sum. Child times accumulate measured callback work in milliseconds and retain
+actual invocation counts. Parent time measures the update or stop call, including
+collection, not elapsed playback time or summed child times. Missing child
+entries mean those pipelines did not run in that interval. Submission-only calls
+can have a QUEUED_COMMAND statistic without a completed command invocation.
+An active-service update is COMPLETE even when no callback ran; an inactive
+service with no retained shutdown evidence returns NOT_RUN.
+
+These four child boundaries remain callback-owned; public manual mixing/output
+is explicitly deferred. They are not a public independently callable pipeline
+API. Helpers and individual sounds/tracks contribute to their owning report.
+The future latest-report retrieval API remains Goal 10.
+
+Commands referencing destroyed resources are skipped with warnings identifying
+the original generation-checked handle. Seek/decode failures report commands or
+music according to where they occur; unrelated sounds continue. Normal EOF,
+pauses, and looping do not generate warnings. An SDL output failure retains a
+fatal backend message and aborts the remaining batch; subsequent callbacks retry
+without rewinding consumed samples. Callback diagnostics use the trusted internal
+collector, with bounded linear lookup rather than public whole-report validation.
+Shared aggregation, dropped-occurrence counts, saturation, and the reserved first
+fatal still apply. Collection and merging never print or serialize.
+
+`rohr_audio_stop()` / `audio_stop()` return a final owned report after synchronizing
+shutdown, releasing resources, and counting cancelled requests. Stop retains a
+copy without consuming it; the next update returns it once, then stopped updates
+return NOT_RUN. Repeated stop calls also leave that copy unconsumed. Stop and the
+first subsequent update report the same work: do not merge both. Successful
+restart discards the uncollected copy and starts fresh; previously returned
+values remain valid. This is bounded delivery, not a report history.
+
+The current Vorbis backend still performs incremental decoding/file access in
+the callback. Added reporting introduces no callback allocation, application
+mutex acquisition, logging, or serialization; this does not promise that existing
+SDL/decoder work is entirely free of allocation or blocking I/O.

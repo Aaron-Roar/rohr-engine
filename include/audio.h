@@ -9,7 +9,9 @@
 #include <stdint.h>
 
 #include "error.h"
+#include "report.h"
 
+#define ROHR_AUDIO_REQUEST_CAPACITY 256u
 #define ROHR_AUDIO_SOUND_LIMIT 128
 #define ROHR_AUDIO_MUSIC_LIMIT 16
 
@@ -53,10 +55,21 @@ ERROR_DECLARE_RESULT_TYPE(SoundResult, Sound);
 ERROR_DECLARE_RESULT_TYPE(MusicResult, Music);
 ERROR_DECLARE_RESULT_TYPE(AudioValueResult, float);
 
+/**
+ * All runtime controls enqueue requests, including master volume. Call
+ * audio_update() to submit them to the callback. Success means accepted;
+ * getters observe applied state. Concurrent callers are serialized in enqueue
+ * order. Creation/destruction and service start/stop remain synchronous.
+ * Callers must synchronize access to their own handle variables.
+ */
+
 /** Start the optional SDL-backed audio service and its shared mixer. */
 EngineResult audio_start(void);
-/** Destroy all audio resources and stop the audio service. */
-void audio_stop(void);
+/** Stop synchronously and return final evidence without consuming it.
+ * The next update returns the same report once. Restart discards that copy. */
+Report audio_stop(void);
+/** Submit pending controls and collect completed work; never waits for playback. */
+Report audio_update(void);
 /** Return whether the audio service is currently started. */
 bool audio_started_check(void);
 

@@ -4,6 +4,7 @@
 
 #include "audio.h"
 #include "audio/audio_internal.h"
+#include "core/report_internal.h"
 #include "graphics/asset_path.h"
 
 #include <SDL3/SDL.h>
@@ -64,6 +65,7 @@ typedef struct AudioMusic {
     bool loop;
     bool playing;
     bool paused;
+    bool decode_failed;
     bool current_frame_ready;
     bool end_pending;
     bool used;
@@ -78,6 +80,153 @@ static uint16_t audio_music_generations[ROHR_AUDIO_MUSIC_LIMIT];
 static Music audio_active_music = MUSIC_INVALID;
 static float audio_master_volume = 1.0f;
 static bool audio_started = false;
+
+/* The application gate protects service lifetime, including slow resource loads.
+ * It is process-lived and never acquired by the SDL callback. SDL's stream lock
+ * protects the queue, applied state, and active evidence bank. */
+static SDL_InitState audio_gate_init;
+static SDL_Mutex *audio_gate;
+
+static bool audio_gate_lock(void) {
+    if(SDL_ShouldInit(&audio_gate_init)) {
+        SDL_Mutex *created = SDL_CreateMutex();
+        if(created == NULL) {
+            SDL_SetInitialized(&audio_gate_init, false);
+            return false;
+        }
+        audio_gate = created;
+        SDL_SetInitialized(&audio_gate_init, true);
+    }
+    SDL_LockMutex(audio_gate);
+    return true;
+}
+
+static void audio_gate_unlock(void) { SDL_UnlockMutex(audio_gate); }
+
+static Report audio_failure_report(const char *detail) {
+    Report report = report_create();
+    report.header = (ReportHeader){ROHR_AUDIO_REPORT, ROHR_REPORT_FAILED, 0.0};
+    ReportDiagnostic diagnostic = {.report_id = ROHR_AUDIO_REPORT,
+        .severity = ROHR_REPORT_SEVERITY_FATAL, .code = ERROR_ENGINE_AUDIO_OPERATION_FAILED,
+        .recovery = ROHR_REPORT_UPDATE_ABORTED, .occurrence_count = 1};
+    (void)report_diagnostic_detail_set(&diagnostic, detail);
+    (void)report_diagnostic_add(&report, diagnostic);
+    return report;
+}
+
+typedef enum AudioCommandKind {
+    AUDIO_MASTER_VOLUME,
+    AUDIO_SOUND_PLAY, AUDIO_SOUND_STOP, AUDIO_SOUND_VOLUME, AUDIO_SOUND_PAN,
+    AUDIO_SOUND_LOOP, AUDIO_SOUND_RATE,
+    AUDIO_MUSIC_PLAY, AUDIO_MUSIC_STOP, AUDIO_MUSIC_PAUSE, AUDIO_MUSIC_RESUME,
+    AUDIO_MUSIC_VOLUME, AUDIO_MUSIC_LOOP, AUDIO_MUSIC_RATE
+} AudioCommandKind;
+
+typedef struct AudioCommand {
+    AudioCommandKind kind;
+    uint32_t handle;
+    float value;
+} AudioCommand;
+
+static AudioCommand audio_commands[ROHR_AUDIO_REQUEST_CAPACITY];
+static size_t audio_command_head, audio_command_count, audio_submitted_count;
+
+enum { AUDIO_COMMANDS, AUDIO_SOUNDS, AUDIO_MUSIC, AUDIO_OUTPUT, AUDIO_PIPELINE_COUNT };
+static const ReportId audio_report_ids[AUDIO_PIPELINE_COUNT] = {
+    ROHR_AUDIO_COMMANDS_REPORT, ROHR_AUDIO_SOUNDS_REPORT,
+    ROHR_AUDIO_MUSIC_REPORT, ROHR_AUDIO_OUTPUT_REPORT
+};
+
+typedef struct AudioPipelineEvidence {
+    uint64_t invocations, nanoseconds, processed, skipped, frames;
+    bool failed;
+} AudioPipelineEvidence;
+
+typedef struct AudioEvidence {
+    /* Only diagnostics use the trusted shared collector in the callback. Pipeline
+     * counters are O(1); complete report construction happens on the caller. */
+    Report issues;
+    AudioPipelineEvidence pipeline[AUDIO_PIPELINE_COUNT];
+} AudioEvidence;
+
+static AudioEvidence audio_evidence[2];
+static unsigned int audio_evidence_index;
+static Report audio_shutdown_report;
+static bool audio_shutdown_pending;
+
+static AudioEvidence *audio_evidence_current(void) {
+    return &audio_evidence[audio_evidence_index];
+}
+
+static void audio_count_add(uint64_t *value, uint64_t amount) {
+    if(UINT64_MAX - *value < amount) {
+        *value = UINT64_MAX;
+        audio_evidence_current()->issues.counters_saturated = true;
+    } else *value += amount;
+}
+
+static void audio_pipeline_finish(unsigned int pipeline, uint64_t start,
+        uint64_t processed, uint64_t frames) {
+    AudioPipelineEvidence *value = &audio_evidence_current()->pipeline[pipeline];
+    audio_count_add(&value->invocations, 1);
+    audio_count_add(&value->nanoseconds, SDL_GetTicksNS() - start);
+    audio_count_add(&value->processed, processed);
+    audio_count_add(&value->frames, frames);
+}
+
+static void audio_issue(unsigned int pipeline, EngineError code, bool fatal,
+        ReportObjectRef source, const char *detail) {
+    ReportDiagnostic diagnostic = {
+        .report_id = audio_report_ids[pipeline],
+        .severity = fatal ? ROHR_REPORT_SEVERITY_FATAL : ROHR_REPORT_SEVERITY_WARNING,
+        .code = code,
+        .recovery = fatal ? ROHR_REPORT_UPDATE_ABORTED : ROHR_REPORT_CONTRIBUTION_SKIPPED,
+        .source = source, .occurrence_count = 1,
+    };
+    AudioEvidence *evidence = audio_evidence_current();
+    evidence->issues.header.id = ROHR_AUDIO_REPORT;
+    (void)report_diagnostic_detail_set(&diagnostic, detail);
+    report_diagnostic_collect_internal(&evidence->issues, diagnostic);
+    evidence->pipeline[pipeline].failed |= fatal;
+    audio_count_add(&evidence->pipeline[pipeline].skipped, 1);
+}
+
+static void audio_statistic_add(Report *report, ReportId id,
+        ReportMetricId metric, uint64_t value) {
+    (void)report_statistic_add(report, (ReportStatistic){
+        .report_id = id, .metric_id = metric,
+        .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = value,
+    });
+}
+
+static Report audio_report_collect(const AudioEvidence *evidence,
+        uint64_t accepted, uint64_t cancelled, uint64_t started, bool ran) {
+    Report report = evidence->issues;
+    report.header.id = ROHR_AUDIO_REPORT;
+    report.header.status = report.has_fatal ? ROHR_REPORT_FAILED :
+        (ran ? ROHR_REPORT_COMPLETE : ROHR_REPORT_NOT_RUN);
+    for(unsigned int i = 0; i < AUDIO_PIPELINE_COUNT; i += 1) {
+        const AudioPipelineEvidence *p = &evidence->pipeline[i];
+        if(p->invocations == 0) continue;
+        (void)report_entry_add(&report, (ReportEntry){
+            .header = {audio_report_ids[i],
+                p->failed ? ROHR_REPORT_FAILED : ROHR_REPORT_COMPLETE,
+                (double)p->nanoseconds / 1000000.0},
+            .invocation_count = p->invocations,
+        });
+        audio_statistic_add(&report, audio_report_ids[i], ROHR_REPORT_PROCESSED_COUNT, p->processed);
+        audio_statistic_add(&report, audio_report_ids[i], ROHR_REPORT_SKIPPED_COUNT, p->skipped);
+        if(i != AUDIO_COMMANDS)
+            audio_statistic_add(&report, audio_report_ids[i], ROHR_REPORT_AUDIO_FRAMES_COUNT, p->frames);
+    }
+    if(ran) {
+        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_QUEUED_COMMAND_COUNT, accepted);
+        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_CANCELLED_COMMAND_COUNT, cancelled);
+        report.header.total_ms = (double)(SDL_GetTicksNS() - started) / 1000000.0;
+    }
+    return report;
+}
+
 
 static float audio_unit_value_get(float value) {
     if(!(value > 0.0f)) return 0.0f;
@@ -242,6 +391,7 @@ static void audio_sound_mix(
 }
 
 static void audio_music_decode_state_reset(AudioMusic *music) {
+    music->decode_failed = false;
     music->decode_frame_count = 0;
     music->decode_frame_index = 0;
     music->phase = 0.0;
@@ -270,8 +420,15 @@ static bool audio_music_decode_refill(AudioMusic *music) {
             music->decode_frame_index = 0;
             return true;
         }
-        if(!music->loop || attempt > 0 ||
-                !stb_vorbis_seek_start(music->decoder)) break;
+        if(stb_vorbis_get_error(music->decoder) != VORBIS__no_error) {
+            music->decode_failed = true;
+            break;
+        }
+        if(!music->loop) break;
+        if(attempt > 0 || !stb_vorbis_seek_start(music->decoder)) {
+            music->decode_failed = true;
+            break;
+        }
     }
     music->decode_frame_count = 0;
     music->decode_frame_index = 0;
@@ -307,7 +464,10 @@ static bool audio_music_frames_prepare(AudioMusic *music) {
 static bool audio_music_position_set(
         AudioMusic *music,
         unsigned int position) {
-    if(!stb_vorbis_seek(music->decoder, position)) return false;
+    if(!stb_vorbis_seek(music->decoder, position)) {
+        music->decode_failed = true;
+        return false;
+    }
     music->decode_frame_count = 0;
     music->decode_frame_index = 0;
     music->current_frame_position = position;
@@ -390,6 +550,112 @@ static void audio_music_mix(
     }
 }
 
+static EngineResult audio_command_enqueue(AudioCommandKind kind,
+        uint32_t handle, float value) {
+    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
+    if(!audio_lock()) return error_result_error_detail(ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
+    EngineError error = ERROR_NONE;
+    if(kind >= AUDIO_SOUND_PLAY && kind <= AUDIO_SOUND_RATE && audio_sound_get(handle) == NULL)
+        error = ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND;
+    else if(kind >= AUDIO_MUSIC_PLAY && audio_music_get(handle) == NULL)
+        error = ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND;
+    else if(audio_command_count == ROHR_AUDIO_REQUEST_CAPACITY)
+        error = ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED;
+    if(error == ERROR_NONE) {
+        size_t tail = (audio_command_head + audio_command_count) % ROHR_AUDIO_REQUEST_CAPACITY;
+        audio_commands[tail] = (AudioCommand){kind, handle, value};
+        audio_command_count += 1;
+    }
+    audio_unlock();
+    return error == ERROR_NONE ? error_result_value(true) : error_result_error(error);
+}
+
+/* Called only by the callback, already holding SDL's stream lock. */
+static bool audio_command_apply(AudioCommand command) {
+    AudioSound *sound = NULL;
+    AudioMusic *music = NULL;
+    ReportObjectRef source = {0};
+    EngineError error = ERROR_NONE;
+    const char *detail = NULL;
+    if(command.kind >= AUDIO_SOUND_PLAY && command.kind <= AUDIO_SOUND_RATE) {
+        source = (ReportObjectRef){ROHR_REPORT_OBJECT_SOUND, command.handle};
+        sound = audio_sound_get(command.handle);
+        if(sound == NULL) error = ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND;
+    } else if(command.kind >= AUDIO_MUSIC_PLAY) {
+        source = (ReportObjectRef){ROHR_REPORT_OBJECT_MUSIC, command.handle};
+        music = audio_music_get(command.handle);
+        if(music == NULL) error = ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND;
+    }
+    if(error != ERROR_NONE) {
+        audio_issue(AUDIO_COMMANDS, error, false, source, "queued resource no longer exists");
+        return false;
+    }
+    switch(command.kind) {
+        case AUDIO_MASTER_VOLUME: audio_master_volume = command.value; break;
+        case AUDIO_SOUND_PLAY: sound->cursor = 0.0; sound->playing = true; break;
+        case AUDIO_SOUND_STOP: sound->cursor = 0.0; sound->playing = false; break;
+        case AUDIO_SOUND_VOLUME: sound->volume = command.value; break;
+        case AUDIO_SOUND_PAN: sound->pan = command.value; break;
+        case AUDIO_SOUND_LOOP: sound->loop = command.value != 0.0f; break;
+        case AUDIO_SOUND_RATE: sound->playback_rate = command.value; break;
+        case AUDIO_MUSIC_PLAY: {
+            if(!stb_vorbis_seek_start(music->decoder)) {
+                detail = "could not seek music to its beginning";
+                break;
+            }
+            audio_music_decode_state_reset(music);
+            if(!audio_music_frames_prepare(music) || music->decode_failed) {
+                audio_music_playback_clear(music);
+                detail = "could not prepare music for playback";
+                break;
+            }
+            AudioMusic *previous = audio_music_get(audio_active_music);
+            if(previous != NULL && previous != music) audio_music_playback_clear(previous);
+            music->playing = true;
+            music->paused = false;
+            audio_active_music = music->id;
+            break;
+        }
+        case AUDIO_MUSIC_STOP:
+            if(!stb_vorbis_seek_start(music->decoder)) {
+                detail = "could not reset music to its beginning";
+                break;
+            }
+            audio_music_playback_clear(music);
+            audio_music_decode_state_reset(music);
+            break;
+        case AUDIO_MUSIC_PAUSE:
+        case AUDIO_MUSIC_RESUME:
+            if(audio_active_music != music->id || !music->playing) {
+                error = ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE;
+                detail = "queued pause/resume requires an active track";
+            } else music->paused = command.kind == AUDIO_MUSIC_PAUSE;
+            break;
+        case AUDIO_MUSIC_VOLUME: music->volume = command.value; break;
+        case AUDIO_MUSIC_LOOP: music->loop = command.value != 0.0f; break;
+        case AUDIO_MUSIC_RATE: music->playback_rate = command.value; break;
+    }
+    if(detail != NULL) {
+        audio_issue(AUDIO_COMMANDS, error == ERROR_NONE ? ERROR_ENGINE_AUDIO_OPERATION_FAILED : error,
+            false, source, detail);
+        return false;
+    }
+    return true;
+}
+
+static void audio_commands_apply(void) {
+    if(audio_submitted_count == 0) return;
+    uint64_t start = SDL_GetTicksNS(), applied = 0;
+    while(audio_submitted_count > 0) {
+        AudioCommand command = audio_commands[audio_command_head];
+        audio_command_head = (audio_command_head + 1) % ROHR_AUDIO_REQUEST_CAPACITY;
+        audio_command_count -= 1;
+        audio_submitted_count -= 1;
+        if(audio_command_apply(command)) applied += 1;
+    }
+    audio_pipeline_finish(AUDIO_COMMANDS, start, applied, 0);
+}
+
 static void SDLCALL audio_mix_callback(
         void *userdata,
         SDL_AudioStream *stream,
@@ -402,6 +668,7 @@ static void SDLCALL audio_mix_callback(
     (void)total_amount;
 
     if(additional_amount <= 0) return;
+    audio_commands_apply();
     frames_remaining = ((size_t)additional_amount + frame_bytes - 1) /
         frame_bytes;
     while(frames_remaining > 0) {
@@ -409,24 +676,51 @@ static void SDLCALL audio_mix_callback(
             AUDIO_MIX_BUFFER_FRAMES : frames_remaining;
         size_t sample_count = frames * AUDIO_MIX_CHANNELS;
         memset(mixed, 0, sample_count * sizeof(*mixed));
-        for(size_t slot = 0; slot < ROHR_AUDIO_SOUND_LIMIT; slot += 1)
-            if(audio_sounds[slot].used)
-                audio_sound_mix(&audio_sounds[slot], mixed, frames);
+        uint64_t start = SDL_GetTicksNS(), processed = 0;
+        for(size_t slot = 0; slot < ROHR_AUDIO_SOUND_LIMIT; slot += 1) {
+            AudioSound *sound = &audio_sounds[slot];
+            if(!sound->used || !sound->playing || sound->playback_rate == 0.0f) continue;
+            if(sound->resource == NULL || sound->resource->frame_count == 0) {
+                sound->playing = false;
+                audio_issue(AUDIO_SOUNDS, ERROR_ENGINE_AUDIO_OPERATION_FAILED, false,
+                    (ReportObjectRef){ROHR_REPORT_OBJECT_SOUND, sound->id}, "sound has no samples");
+                continue;
+            }
+            audio_sound_mix(sound, mixed, frames);
+            processed += 1;
+        }
+        audio_pipeline_finish(AUDIO_SOUNDS, start, processed, frames);
         if(audio_active_music != MUSIC_INVALID) {
             AudioMusic *music = audio_music_get(audio_active_music);
-            if(music != NULL) audio_music_mix(music, mixed, frames);
+            if(music != NULL && music->playing && !music->paused && music->playback_rate > 0.0f) {
+                start = SDL_GetTicksNS();
+                music->decode_failed = false;
+                audio_music_mix(music, mixed, frames);
+                if(music->decode_failed) {
+                    audio_music_playback_clear(music);
+                    audio_issue(AUDIO_MUSIC, ERROR_ENGINE_AUDIO_OPERATION_FAILED, false,
+                        (ReportObjectRef){ROHR_REPORT_OBJECT_MUSIC, music->id}, "music decode or seek failed");
+                }
+                audio_pipeline_finish(AUDIO_MUSIC, start, music->decode_failed ? 0 : 1, frames);
+            }
         }
+        start = SDL_GetTicksNS();
         for(size_t sample = 0; sample < sample_count; sample += 1) {
             if(mixed[sample] > 1.0f) mixed[sample] = 1.0f;
             else if(mixed[sample] < -1.0f) mixed[sample] = -1.0f;
         }
-        if(!SDL_PutAudioStreamData(
-                stream, mixed, (int)(sample_count * sizeof(*mixed)))) return;
+        if(!SDL_PutAudioStreamData(stream, mixed, (int)(sample_count * sizeof(*mixed)))) {
+            audio_issue(AUDIO_OUTPUT, ERROR_ENGINE_AUDIO_OPERATION_FAILED, true,
+                (ReportObjectRef){0}, SDL_GetError());
+            audio_pipeline_finish(AUDIO_OUTPUT, start, 0, 0);
+            return;
+        }
+        audio_pipeline_finish(AUDIO_OUTPUT, start, 1, frames);
         frames_remaining -= frames;
     }
 }
 
-EngineResult audio_start(void) {
+static EngineResult audio_start_impl(void) {
     SDL_AudioSpec mix_spec = {
         .format = SDL_AUDIO_F32,
         .channels = AUDIO_MIX_CHANNELS,
@@ -442,6 +736,9 @@ EngineResult audio_start(void) {
     memset(audio_music, 0, sizeof(audio_music));
     audio_active_music = MUSIC_INVALID;
     audio_master_volume = 1.0f;
+    audio_command_head = audio_command_count = audio_submitted_count = 0;
+    memset(audio_evidence, 0, sizeof(audio_evidence));
+    audio_evidence_index = 0;
     audio_stream = SDL_OpenAudioDeviceStream(
         SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK,
         &mix_spec,
@@ -461,11 +758,19 @@ EngineResult audio_start(void) {
         return error_result_error_detail(ERROR_ENGINE_AUDIO_INIT_FAILED, detail);
     }
     audio_started = true;
+    audio_shutdown_pending = false;
+    audio_shutdown_report = report_create();
     return error_result_value(true);
 }
 
-void audio_stop(void) {
-    if(!audio_started) return;
+static Report audio_stop_impl(void) {
+    uint64_t start = SDL_GetTicksNS();
+    if(!audio_started) {
+        if(audio_shutdown_pending) return audio_shutdown_report;
+        Report empty = report_create();
+        empty.header.id = ROHR_AUDIO_REPORT;
+        return empty;
+    }
     if(audio_stream != NULL) {
         SDL_DestroyAudioStream(audio_stream);
         audio_stream = NULL;
@@ -482,15 +787,45 @@ void audio_stop(void) {
         SDL_free(audio_music[slot].path);
         audio_music[slot] = (AudioMusic){0};
     }
+    audio_shutdown_report = audio_report_collect(audio_evidence_current(), 0,
+        audio_command_count, start, true);
+    audio_shutdown_pending = true;
+    audio_command_head = audio_command_count = audio_submitted_count = 0;
     audio_active_music = MUSIC_INVALID;
     audio_master_volume = 1.0f;
     audio_started = false;
     SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    audio_shutdown_report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
+    return audio_shutdown_report;
 }
 
-bool audio_started_check(void) { return audio_started; }
+static Report audio_update_impl(void) {
+    uint64_t start = SDL_GetTicksNS();
+    if(!audio_started) {
+        if(audio_shutdown_pending) {
+            audio_shutdown_pending = false;
+            return audio_shutdown_report;
+        }
+        Report empty = report_create();
+        empty.header.id = ROHR_AUDIO_REPORT;
+        return empty;
+    }
+    unsigned int previous = audio_evidence_index;
+    unsigned int next = previous ^ 1u;
+    memset(&audio_evidence[next], 0, sizeof(audio_evidence[next]));
+    if(!audio_lock()) {
+        return audio_failure_report(SDL_GetError());
+    }
+    audio_evidence_index = next;
+    uint64_t accepted = audio_command_count - audio_submitted_count;
+    audio_submitted_count = audio_command_count;
+    audio_unlock();
+    return audio_report_collect(&audio_evidence[previous], accepted, 0, start, true);
+}
 
-AudioOwnershipStats audio_ownership_stats_get(void) {
+static bool audio_started_check_impl(void) { return audio_started; }
+
+static AudioOwnershipStats audio_ownership_stats_get_impl(void) {
     AudioOwnershipStats stats = {0};
     if(!audio_started || !audio_lock()) return stats;
     for(size_t slot = 0; slot < ROHR_AUDIO_SOUND_LIMIT; slot += 1) {
@@ -505,16 +840,11 @@ AudioOwnershipStats audio_ownership_stats_get(void) {
     return stats;
 }
 
-EngineResult audio_volume_set(float volume) {
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    audio_master_volume = audio_unit_value_get(volume);
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_volume_set_impl(float volume) {
+    return audio_command_enqueue(AUDIO_MASTER_VOLUME, 0, audio_unit_value_get(volume));
 }
 
-float audio_volume_get(void) {
+static float audio_volume_get_impl(void) {
     float result = audio_master_volume;
     if(audio_started && audio_lock()) {
         result = audio_master_volume;
@@ -533,7 +863,7 @@ SoundConfig audio_sound_config_default_get(void) {
     };
 }
 
-SoundResult audio_sound_create(SoundConfig config) {
+static SoundResult audio_sound_create_impl(SoundConfig config) {
     SDL_AudioSpec source_spec;
     SDL_AudioSpec mix_spec = {
         .format = SDL_AUDIO_F32,
@@ -663,7 +993,7 @@ SoundResult audio_sound_create(SoundConfig config) {
     return ERROR_RESULT_MAKE_VALUE(SoundResult, sound);
 }
 
-EngineResult audio_sound_destroy(Sound *sound) {
+static EngineResult audio_sound_destroy_impl(Sound *sound) {
     AudioSound *value;
     AudioSoundResource *resource;
     if(sound == NULL)
@@ -691,7 +1021,7 @@ EngineResult audio_sound_destroy(Sound *sound) {
     return error_result_value(true);
 }
 
-bool audio_sound_valid_check(Sound sound) {
+static bool audio_sound_valid_check_impl(Sound sound) {
     bool valid;
     if(!audio_started || !audio_lock()) return false;
     valid = audio_sound_get(sound) != NULL;
@@ -699,51 +1029,19 @@ bool audio_sound_valid_check(Sound sound) {
     return valid;
 }
 
-EngineResult audio_sound_play(Sound sound) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND);
-    }
-    value->cursor = 0.0;
-    value->playing = true;
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_sound_play_impl(Sound sound) {
+    return audio_command_enqueue(AUDIO_SOUND_PLAY, sound, 0.0f);
 }
 
-EngineResult audio_sound_stop(Sound sound) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND);
-    }
-    value->cursor = 0.0;
-    value->playing = false;
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_sound_stop_impl(Sound sound) {
+    return audio_command_enqueue(AUDIO_SOUND_STOP, sound, 0.0f);
 }
 
-EngineResult audio_sound_volume_set(Sound sound, float volume) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value != NULL) value->volume = audio_unit_value_get(volume);
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_sound_volume_set_impl(Sound sound, float volume) {
+    return audio_command_enqueue(AUDIO_SOUND_VOLUME, sound, audio_unit_value_get(volume));
 }
 
-AudioValueResult audio_sound_volume_get(Sound sound) {
+static AudioValueResult audio_sound_volume_get_impl(Sound sound) {
     AudioSound *value;
     float result;
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(
@@ -758,19 +1056,11 @@ AudioValueResult audio_sound_volume_get(Sound sound) {
         ERROR_RESULT_MAKE_VALUE(AudioValueResult, result);
 }
 
-EngineResult audio_sound_pan_set(Sound sound, float pan) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value != NULL) value->pan = audio_pan_value_get(pan);
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_sound_pan_set_impl(Sound sound, float pan) {
+    return audio_command_enqueue(AUDIO_SOUND_PAN, sound, audio_pan_value_get(pan));
 }
 
-AudioValueResult audio_sound_pan_get(Sound sound) {
+static AudioValueResult audio_sound_pan_get_impl(Sound sound) {
     AudioSound *value;
     float result;
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(
@@ -785,19 +1075,11 @@ AudioValueResult audio_sound_pan_get(Sound sound) {
         ERROR_RESULT_MAKE_VALUE(AudioValueResult, result);
 }
 
-EngineResult audio_sound_loop_set(Sound sound, bool loop) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value != NULL) value->loop = loop;
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_sound_loop_set_impl(Sound sound, bool loop) {
+    return audio_command_enqueue(AUDIO_SOUND_LOOP, sound, loop ? 1.0f : 0.0f);
 }
 
-bool audio_sound_loop_check(Sound sound) {
+static bool audio_sound_loop_check_impl(Sound sound) {
     AudioSound *value;
     bool result;
     if(!audio_started || !audio_lock()) return false;
@@ -807,20 +1089,11 @@ bool audio_sound_loop_check(Sound sound) {
     return result;
 }
 
-EngineResult audio_sound_playback_rate_set(Sound sound, float playback_rate) {
-    AudioSound *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_sound_get(sound);
-    if(value != NULL)
-        value->playback_rate = audio_playback_rate_value_get(playback_rate);
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_sound_playback_rate_set_impl(Sound sound, float playback_rate) {
+    return audio_command_enqueue(AUDIO_SOUND_RATE, sound, audio_playback_rate_value_get(playback_rate));
 }
 
-AudioValueResult audio_sound_playback_rate_get(Sound sound) {
+static AudioValueResult audio_sound_playback_rate_get_impl(Sound sound) {
     AudioSound *value;
     float result;
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(
@@ -835,7 +1108,7 @@ AudioValueResult audio_sound_playback_rate_get(Sound sound) {
         ERROR_RESULT_MAKE_VALUE(AudioValueResult, result);
 }
 
-bool audio_sound_playing_check(Sound sound) {
+static bool audio_sound_playing_check_impl(Sound sound) {
     AudioSound *value;
     bool result;
     if(!audio_started || !audio_lock()) return false;
@@ -854,7 +1127,7 @@ MusicConfig audio_music_config_default_get(void) {
     };
 }
 
-MusicResult audio_music_create(MusicConfig config) {
+static MusicResult audio_music_create_impl(MusicConfig config) {
     stb_vorbis *decoder;
     stb_vorbis_info info;
     float *decode_buffer;
@@ -959,7 +1232,7 @@ MusicResult audio_music_create(MusicConfig config) {
     return ERROR_RESULT_MAKE_VALUE(MusicResult, music);
 }
 
-EngineResult audio_music_destroy(Music *music) {
+static EngineResult audio_music_destroy_impl(Music *music) {
     AudioMusic *value;
     stb_vorbis *decoder;
     float *decode_buffer;
@@ -991,7 +1264,7 @@ EngineResult audio_music_destroy(Music *music) {
     return error_result_value(true);
 }
 
-bool audio_music_valid_check(Music music) {
+static bool audio_music_valid_check_impl(Music music) {
     bool valid;
     if(!audio_started || !audio_lock()) return false;
     valid = audio_music_get(music) != NULL;
@@ -999,111 +1272,27 @@ bool audio_music_valid_check(Music music) {
     return valid;
 }
 
-EngineResult audio_music_play(Music music) {
-    AudioMusic *value;
-    AudioMusic *active;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
-    }
-    if(!stb_vorbis_seek_start(value->decoder)) {
-        audio_unlock();
-        return error_result_error_detail(ERROR_ENGINE_AUDIO_OPERATION_FAILED,
-            "could not seek music to its beginning");
-    }
-    audio_music_decode_state_reset(value);
-    if(!audio_music_frames_prepare(value)) {
-        audio_unlock();
-        return error_result_error_detail(ERROR_ENGINE_AUDIO_OPERATION_FAILED,
-            "could not prepare music for playback");
-    }
-    active = audio_music_get(audio_active_music);
-    if(active != NULL && active != value) audio_music_playback_clear(active);
-    value->playing = true;
-    value->paused = false;
-    audio_active_music = music;
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_music_play_impl(Music music) {
+    return audio_command_enqueue(AUDIO_MUSIC_PLAY, music, 0.0f);
 }
 
-EngineResult audio_music_pause(Music music) {
-    AudioMusic *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
-    }
-    if(audio_active_music != music || !value->playing) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE);
-    }
-    value->paused = true;
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_music_pause_impl(Music music) {
+    return audio_command_enqueue(AUDIO_MUSIC_PAUSE, music, 0.0f);
 }
 
-EngineResult audio_music_resume(Music music) {
-    AudioMusic *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
-    }
-    if(audio_active_music != music || !value->playing) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE);
-    }
-    value->paused = false;
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_music_resume_impl(Music music) {
+    return audio_command_enqueue(AUDIO_MUSIC_RESUME, music, 0.0f);
 }
 
-EngineResult audio_music_stop(Music music) {
-    AudioMusic *value;
-    bool seeked;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value == NULL) {
-        audio_unlock();
-        return error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND);
-    }
-    seeked = stb_vorbis_seek_start(value->decoder) != 0;
-    if(!seeked) {
-        audio_unlock();
-        return error_result_error_detail(ERROR_ENGINE_AUDIO_OPERATION_FAILED,
-            "could not reset music to its beginning");
-    }
-    audio_music_playback_clear(value);
-    audio_music_decode_state_reset(value);
-    audio_unlock();
-    return error_result_value(true);
+static EngineResult audio_music_stop_impl(Music music) {
+    return audio_command_enqueue(AUDIO_MUSIC_STOP, music, 0.0f);
 }
 
-EngineResult audio_music_volume_set(Music music, float volume) {
-    AudioMusic *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value != NULL) value->volume = audio_unit_value_get(volume);
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_music_volume_set_impl(Music music, float volume) {
+    return audio_command_enqueue(AUDIO_MUSIC_VOLUME, music, audio_unit_value_get(volume));
 }
 
-AudioValueResult audio_music_volume_get(Music music) {
+static AudioValueResult audio_music_volume_get_impl(Music music) {
     AudioMusic *value;
     float result;
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(
@@ -1118,19 +1307,11 @@ AudioValueResult audio_music_volume_get(Music music) {
         ERROR_RESULT_MAKE_VALUE(AudioValueResult, result);
 }
 
-EngineResult audio_music_loop_set(Music music, bool loop) {
-    AudioMusic *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value != NULL) value->loop = loop;
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_music_loop_set_impl(Music music, bool loop) {
+    return audio_command_enqueue(AUDIO_MUSIC_LOOP, music, loop ? 1.0f : 0.0f);
 }
 
-bool audio_music_loop_check(Music music) {
+static bool audio_music_loop_check_impl(Music music) {
     AudioMusic *value;
     bool result;
     if(!audio_started || !audio_lock()) return false;
@@ -1140,20 +1321,11 @@ bool audio_music_loop_check(Music music) {
     return result;
 }
 
-EngineResult audio_music_playback_rate_set(Music music, float playback_rate) {
-    AudioMusic *value;
-    if(!audio_started) return error_result_error(ERROR_ENGINE_AUDIO_NOT_STARTED);
-    if(!audio_lock()) return error_result_error_detail(
-        ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
-    value = audio_music_get(music);
-    if(value != NULL)
-        value->playback_rate = audio_playback_rate_value_get(playback_rate);
-    audio_unlock();
-    return value == NULL ? error_result_error(ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND) :
-        error_result_value(true);
+static EngineResult audio_music_playback_rate_set_impl(Music music, float playback_rate) {
+    return audio_command_enqueue(AUDIO_MUSIC_RATE, music, audio_playback_rate_value_get(playback_rate));
 }
 
-AudioValueResult audio_music_playback_rate_get(Music music) {
+static AudioValueResult audio_music_playback_rate_get_impl(Music music) {
     AudioMusic *value;
     float result;
     if(!audio_started) return ERROR_RESULT_MAKE_ERROR(
@@ -1168,7 +1340,7 @@ AudioValueResult audio_music_playback_rate_get(Music music) {
         ERROR_RESULT_MAKE_VALUE(AudioValueResult, result);
 }
 
-bool audio_music_playing_check(Music music) {
+static bool audio_music_playing_check_impl(Music music) {
     AudioMusic *value;
     bool result;
     if(!audio_started || !audio_lock()) return false;
@@ -1179,7 +1351,7 @@ bool audio_music_playing_check(Music music) {
     return result;
 }
 
-bool audio_music_paused_check(Music music) {
+static bool audio_music_paused_check_impl(Music music) {
     AudioMusic *value;
     bool result;
     if(!audio_started || !audio_lock()) return false;
@@ -1187,5 +1359,258 @@ bool audio_music_paused_check(Music music) {
     result = value != NULL && audio_active_music == music && value->playing &&
         value->paused;
     audio_unlock();
+    return result;
+}
+
+/* Application entry points: lock order is gate, then SDL stream. */
+EngineResult audio_start(void) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_start_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+Report audio_stop(void) {
+    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError()); }
+    Report result = audio_stop_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+Report audio_update(void) {
+    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError()); }
+    Report result = audio_update_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_started_check(void) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_started_check_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+AudioOwnershipStats audio_ownership_stats_get(void) {
+    if(!audio_gate_lock()) { return (AudioOwnershipStats){0}; }
+    AudioOwnershipStats result = audio_ownership_stats_get_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_volume_set(float volume) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_volume_set_impl(volume);
+    audio_gate_unlock();
+    return result;
+}
+
+float audio_volume_get(void) {
+    if(!audio_gate_lock()) { return 0.0f; }
+    float result = audio_volume_get_impl();
+    audio_gate_unlock();
+    return result;
+}
+
+SoundResult audio_sound_create(SoundConfig config) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(SoundResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    SoundResult result = audio_sound_create_impl(config);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_destroy(Sound *sound) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_destroy_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_sound_valid_check(Sound sound) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_sound_valid_check_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_play(Sound sound) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_play_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_stop(Sound sound) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_stop_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_volume_set(Sound sound, float volume) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_volume_set_impl(sound, volume);
+    audio_gate_unlock();
+    return result;
+}
+
+AudioValueResult audio_sound_volume_get(Sound sound) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(AudioValueResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    AudioValueResult result = audio_sound_volume_get_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_pan_set(Sound sound, float pan) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_pan_set_impl(sound, pan);
+    audio_gate_unlock();
+    return result;
+}
+
+AudioValueResult audio_sound_pan_get(Sound sound) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(AudioValueResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    AudioValueResult result = audio_sound_pan_get_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_loop_set(Sound sound, bool loop) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_loop_set_impl(sound, loop);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_sound_loop_check(Sound sound) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_sound_loop_check_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_sound_playback_rate_set(Sound sound, float playback_rate) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_sound_playback_rate_set_impl(sound, playback_rate);
+    audio_gate_unlock();
+    return result;
+}
+
+AudioValueResult audio_sound_playback_rate_get(Sound sound) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(AudioValueResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    AudioValueResult result = audio_sound_playback_rate_get_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_sound_playing_check(Sound sound) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_sound_playing_check_impl(sound);
+    audio_gate_unlock();
+    return result;
+}
+
+MusicResult audio_music_create(MusicConfig config) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(MusicResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    MusicResult result = audio_music_create_impl(config);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_destroy(Music *music) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_destroy_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_music_valid_check(Music music) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_music_valid_check_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_play(Music music) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_play_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_pause(Music music) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_pause_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_resume(Music music) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_resume_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_stop(Music music) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_stop_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_volume_set(Music music, float volume) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_volume_set_impl(music, volume);
+    audio_gate_unlock();
+    return result;
+}
+
+AudioValueResult audio_music_volume_get(Music music) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(AudioValueResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    AudioValueResult result = audio_music_volume_get_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_loop_set(Music music, bool loop) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_loop_set_impl(music, loop);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_music_loop_check(Music music) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_music_loop_check_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+EngineResult audio_music_playback_rate_set(Music music, float playback_rate) {
+    if(!audio_gate_lock()) { return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    EngineResult result = audio_music_playback_rate_set_impl(music, playback_rate);
+    audio_gate_unlock();
+    return result;
+}
+
+AudioValueResult audio_music_playback_rate_get(Music music) {
+    if(!audio_gate_lock()) { return ERROR_RESULT_MAKE_ERROR(AudioValueResult, ERROR_ENGINE_AUDIO_OPERATION_FAILED); }
+    AudioValueResult result = audio_music_playback_rate_get_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_music_playing_check(Music music) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_music_playing_check_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+bool audio_music_paused_check(Music music) {
+    if(!audio_gate_lock()) { return false; }
+    bool result = audio_music_paused_check_impl(music);
+    audio_gate_unlock();
     return result;
 }

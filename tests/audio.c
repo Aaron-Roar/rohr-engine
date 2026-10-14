@@ -4,96 +4,13 @@
 
 #include "rohr.h"
 #include "audio/audio_internal.h"
-#include "audio_ogg_fixture.h"
 
 #include <SDL3/SDL.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 
-#define AUDIO_TEST_PATH "rohr_audio_test.wav"
-#define AUDIO_TEST_MUSIC_PATH "rohr_audio_test.ogg"
-#define AUDIO_TEST_SAMPLE_RATE 48000
-#define AUDIO_TEST_SAMPLE_COUNT 4800
-
-static void write_u16_le(FILE *file, uint16_t value) {
-    fputc((int)(value & UINT16_C(0xff)), file);
-    fputc((int)((value >> 8) & UINT16_C(0xff)), file);
-}
-
-static void write_u32_le(FILE *file, uint32_t value) {
-    fputc((int)(value & UINT32_C(0xff)), file);
-    fputc((int)((value >> 8) & UINT32_C(0xff)), file);
-    fputc((int)((value >> 16) & UINT32_C(0xff)), file);
-    fputc((int)((value >> 24) & UINT32_C(0xff)), file);
-}
-
-static bool audio_test_wav_write(void) {
-    const uint32_t data_size = AUDIO_TEST_SAMPLE_COUNT * sizeof(int16_t);
-    FILE *file = fopen(AUDIO_TEST_PATH, "wb");
-    if(file == NULL) return false;
-    fwrite("RIFF", 1, 4, file);
-    write_u32_le(file, 36 + data_size);
-    fwrite("WAVEfmt ", 1, 8, file);
-    write_u32_le(file, 16);
-    write_u16_le(file, 1);
-    write_u16_le(file, 1);
-    write_u32_le(file, AUDIO_TEST_SAMPLE_RATE);
-    write_u32_le(file, AUDIO_TEST_SAMPLE_RATE * sizeof(int16_t));
-    write_u16_le(file, sizeof(int16_t));
-    write_u16_le(file, 16);
-    fwrite("data", 1, 4, file);
-    write_u32_le(file, data_size);
-    for(size_t sample = 0; sample < AUDIO_TEST_SAMPLE_COUNT; sample += 1) {
-        double phase = (double)sample * 440.0 * 6.283185307179586 /
-            AUDIO_TEST_SAMPLE_RATE;
-        int16_t value = (int16_t)(sin(phase) * 4096.0);
-        write_u16_le(file, (uint16_t)value);
-    }
-    if(fclose(file) != 0) return false;
-    return true;
-}
-
-static int audio_test_base64_value(char value) {
-    if(value >= 'A' && value <= 'Z') return value - 'A';
-    if(value >= 'a' && value <= 'z') return value - 'a' + 26;
-    if(value >= '0' && value <= '9') return value - '0' + 52;
-    if(value == '+') return 62;
-    if(value == '/') return 63;
-    return -1;
-}
-
-static bool audio_test_ogg_write(void) {
-    FILE *file = fopen(AUDIO_TEST_MUSIC_PATH, "wb");
-    uint32_t pending = 0;
-    int pending_bits = 0;
-    if(file == NULL) return false;
-    for(size_t index = 0; audio_test_ogg_base64[index] != '\0'; index += 1) {
-        int value;
-        if(audio_test_ogg_base64[index] == '=') break;
-        value = audio_test_base64_value(audio_test_ogg_base64[index]);
-        if(value < 0) {
-            fclose(file);
-            (void)remove(AUDIO_TEST_MUSIC_PATH);
-            return false;
-        }
-        pending = (pending << 6) | (uint32_t)value;
-        pending_bits += 6;
-        if(pending_bits >= 8) {
-            pending_bits -= 8;
-            if(fputc((int)((pending >> pending_bits) & UINT32_C(0xff)), file) ==
-                    EOF) {
-                fclose(file);
-                (void)remove(AUDIO_TEST_MUSIC_PATH);
-                return false;
-            }
-            pending &= pending_bits == 0 ? 0 :
-                (UINT32_C(1) << pending_bits) - 1;
-        }
-    }
-    if(fclose(file) != 0) return false;
-    return true;
-}
+#include "audio_fixture.h"
 
 static bool result_error_is(EngineResult result, EngineError error) {
     return result.kind == ERROR_RESULT_ERROR && result.result.error == error;
@@ -125,6 +42,27 @@ static int fail(const char *message) {
     (void)remove(AUDIO_TEST_PATH);
     (void)remove(AUDIO_TEST_MUSIC_PATH);
     return 1;
+}
+
+/* Preserve this test's applied-state assertions while migrating controls to
+ * asynchronous execution. Completion is observed through reports, not a delay. */
+static EngineResult control_complete(EngineResult accepted) {
+    if(error_check(accepted)) return accepted;
+    Report report = rohr_audio_update();
+    uint64_t deadline = SDL_GetTicks() + 2000;
+    for(;;) {
+        for(size_t i = 0; i < report.diagnostic_count; i += 1)
+            if(report.diagnostics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT)
+                return error_result_error(report.diagnostics[i].code);
+        for(size_t i = 0; i < report.statistic_count; i += 1)
+            if(report.statistics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT &&
+                    report.statistics[i].metric_id == ROHR_REPORT_PROCESSED_COUNT &&
+                    report.statistics[i].value > 0) return accepted;
+        if(SDL_GetTicks() >= deadline)
+            return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+        SDL_Delay(1);
+        report = audio_update();
+    }
 }
 
 int main(void) {
@@ -182,10 +120,10 @@ int main(void) {
             !stats_check(0, 0, 0, 0, "null destruction"))
         return fail("null audio destruction changed ownership");
 
-    if(error_check(rohr_audio_volume_set(-2.0f)) ||
+    if(error_check(control_complete(rohr_audio_volume_set(-2.0f))) ||
             rohr_audio_volume_get() != 0.0f)
         return fail("negative master volume was not clamped");
-    if(error_check(rohr_audio_volume_set(2.0f)) ||
+    if(error_check(control_complete(rohr_audio_volume_set(2.0f))) ||
             rohr_audio_volume_get() != 1.0f)
         return fail("high master volume was not clamped");
 
@@ -227,14 +165,14 @@ int main(void) {
         return fail("negative playback rate was not normalized to zero");
     if(!rohr_audio_sound_loop_check(first.result.value))
         return fail("sound loop state was not retained");
-    if(error_check(rohr_audio_sound_play(first.result.value)))
+    if(error_check(control_complete(rohr_audio_sound_play(first.result.value))))
         return fail("zero-rate sound could not be armed");
     if(rohr_audio_sound_playing_check(first.result.value))
         return fail("zero-rate sound reported active playback");
-    if(error_check(rohr_audio_sound_playback_rate_set(first.result.value, 1.0f)) ||
+    if(error_check(control_complete(rohr_audio_sound_playback_rate_set(first.result.value, 1.0f))) ||
             !rohr_audio_sound_playing_check(first.result.value))
         return fail("raising playback rate did not resume the sound");
-    if(error_check(rohr_audio_sound_stop(first.result.value)) ||
+    if(error_check(control_complete(rohr_audio_sound_stop(first.result.value))) ||
             rohr_audio_sound_playing_check(first.result.value))
         return fail("sound stop did not clear playback");
 
@@ -247,10 +185,10 @@ int main(void) {
             !audio_sound_valid_check(second.result.value) ||
             !stats_check(2, 1, 2, 0, "shared decoded sound"))
         return fail("shared WAV did not create an independent sound player");
-    if(error_check(audio_sound_play(first.result.value)) ||
-            error_check(rohr_audio_sound_play(second.result.value)))
+    if(error_check(control_complete(audio_sound_play(first.result.value))) ||
+            error_check(control_complete(rohr_audio_sound_play(second.result.value))))
         return fail("overlapping sound instances could not be started");
-    if(error_check(audio_sound_stop(first.result.value)) ||
+    if(error_check(control_complete(audio_sound_stop(first.result.value))) ||
             rohr_audio_sound_playing_check(first.result.value) ||
             !audio_sound_playing_check(second.result.value))
         return fail("shared sounds did not retain independent player state");
@@ -266,7 +204,7 @@ int main(void) {
         if(!result_error_is(rohr_audio_sound_destroy(&rejected),
                 ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) ||
                 rejected != stale_sound ||
-                !result_error_is(rohr_audio_sound_stop(stale_sound),
+                !result_error_is(control_complete(rohr_audio_sound_stop(stale_sound)),
                     ERROR_ENGINE_AUDIO_SOUND_NOT_FOUND) ||
                 !stats_check(1, 1, 1, 0, "stale sound destruction"))
             return fail("stale sound ownership was accepted or cleared");
@@ -298,23 +236,23 @@ int main(void) {
         return fail("negative music rate was not normalized to zero");
     if(!rohr_audio_music_loop_check(first_music.result.value))
         return fail("music loop state was not retained");
-    if(error_check(rohr_audio_music_volume_set(first_music.result.value, -2.0f)))
+    if(error_check(control_complete(rohr_audio_music_volume_set(first_music.result.value, -2.0f))))
         return fail("music volume setter failed");
     value = rohr_audio_music_volume_get(first_music.result.value);
     if(error_check(value) || value.result.value != 0.0f)
         return fail("negative music volume was not clamped");
-    if(error_check(rohr_audio_music_volume_set(first_music.result.value, 0.75f)) ||
-            error_check(rohr_audio_music_loop_set(first_music.result.value, false)) ||
+    if(error_check(control_complete(rohr_audio_music_volume_set(first_music.result.value, 0.75f))) ||
+            error_check(control_complete(rohr_audio_music_loop_set(first_music.result.value, false))) ||
             rohr_audio_music_loop_check(first_music.result.value) ||
-            error_check(rohr_audio_music_loop_set(first_music.result.value, true)))
+            error_check(control_complete(rohr_audio_music_loop_set(first_music.result.value, true))))
         return fail("music runtime configuration was not applied");
-    if(error_check(rohr_audio_music_play(first_music.result.value)))
+    if(error_check(control_complete(rohr_audio_music_play(first_music.result.value))))
         return fail("zero-rate music could not be armed");
     if(rohr_audio_music_playing_check(first_music.result.value) ||
             rohr_audio_music_paused_check(first_music.result.value))
         return fail("zero-rate music reported active playback or pause");
-    if(error_check(rohr_audio_music_playback_rate_set(
-            first_music.result.value, 1.0f)) ||
+    if(error_check(control_complete(rohr_audio_music_playback_rate_set(
+            first_music.result.value, 1.0f))) ||
             !rohr_audio_music_playing_check(first_music.result.value))
         return fail("raising music rate did not resume advancement");
     SDL_Delay(20);
@@ -329,27 +267,27 @@ int main(void) {
             !audio_music_valid_check(second_music.result.value) ||
             !stats_check(1, 1, 1, 2, "second music creation"))
         return fail("second music resource could not be opened");
-    if(error_check(rohr_audio_music_play(second_music.result.value)) ||
+    if(error_check(control_complete(rohr_audio_music_play(second_music.result.value))) ||
             rohr_audio_music_playing_check(first_music.result.value) ||
             !rohr_audio_music_playing_check(second_music.result.value))
         return fail("music replacement did not enforce one active track");
-    if(!result_error_is(rohr_audio_music_resume(first_music.result.value),
+    if(!result_error_is(control_complete(rohr_audio_music_resume(first_music.result.value)),
             ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE))
         return fail("inactive music resume was accepted");
-    if(error_check(rohr_audio_music_pause(second_music.result.value)) ||
+    if(error_check(control_complete(rohr_audio_music_pause(second_music.result.value))) ||
             !rohr_audio_music_paused_check(second_music.result.value) ||
             rohr_audio_music_playing_check(second_music.result.value))
         return fail("music pause state was not retained");
-    if(error_check(rohr_audio_music_resume(second_music.result.value)) ||
+    if(error_check(control_complete(rohr_audio_music_resume(second_music.result.value))) ||
             rohr_audio_music_paused_check(second_music.result.value) ||
             !rohr_audio_music_playing_check(second_music.result.value))
         return fail("music resume did not continue the active track");
-    if(error_check(rohr_audio_music_stop(second_music.result.value)) ||
+    if(error_check(control_complete(rohr_audio_music_stop(second_music.result.value))) ||
             rohr_audio_music_playing_check(second_music.result.value) ||
             rohr_audio_music_paused_check(second_music.result.value))
         return fail("music stop did not reset playback state");
-    if(error_check(rohr_audio_music_loop_set(second_music.result.value, false)) ||
-            error_check(rohr_audio_music_play(second_music.result.value)))
+    if(error_check(control_complete(rohr_audio_music_loop_set(second_music.result.value, false))) ||
+            error_check(control_complete(rohr_audio_music_play(second_music.result.value))))
         return fail("finite music playback could not start");
     SDL_Delay(600);
     if(rohr_audio_music_playing_check(second_music.result.value))
@@ -366,7 +304,7 @@ int main(void) {
         if(!result_error_is(rohr_audio_music_destroy(&rejected),
                 ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND) ||
                 rejected != stale_music ||
-                !result_error_is(rohr_audio_music_play(stale_music),
+                !result_error_is(control_complete(rohr_audio_music_play(stale_music)),
                     ERROR_ENGINE_AUDIO_MUSIC_NOT_FOUND) ||
                 !stats_check(1, 1, 1, 1, "stale music destruction"))
             return fail("stale music ownership was accepted or cleared");
@@ -380,7 +318,7 @@ int main(void) {
             rohr_audio_music_valid_check(shutdown_music) ||
             !stats_check(0, 0, 0, 0, "stopped state"))
         return fail("audio stop retained live ownership");
-    if(!result_error_is(rohr_audio_volume_set(1.0f),
+    if(!result_error_is(control_complete(rohr_audio_volume_set(1.0f)),
             ERROR_ENGINE_AUDIO_NOT_STARTED))
         return fail("audio mutation after stop was accepted");
 

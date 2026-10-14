@@ -112,10 +112,19 @@ EngineResult rohr_engine_time_per_tick_set(Time time_per_tick);
 /** Returns the real-time duration required for one engine tick. */
 Time rohr_engine_time_per_tick_get(void);
 
-/** Start the optional SDL-backed audio service and shared mixer. */
+/**
+ * Start optional callback-driven audio. Runtime controls enqueue requests;
+ * call rohr_audio_update to submit them. Concurrent submissions are serialized
+ * in enqueue order; getters observe applied state, not pending requests.
+ * Creation, destruction, startup and shutdown remain synchronous. Callers
+ * synchronize their own handle variables; see docs/audio.md for lifetime rules.
+ */
 EngineResult rohr_audio_start(void);
-/** Destroy all audio resources and stop the audio service. */
-void rohr_audio_stop(void);
+/** Stop synchronously and return final evidence without consuming it.
+ * The next update returns the same report once. Restart discards that copy. */
+Report rohr_audio_stop(void);
+/** Submit pending controls and collect completed work; never waits for playback. */
+Report rohr_audio_update(void);
 /** Return whether the audio service is currently started. */
 bool rohr_audio_started_check(void);
 /** Set the shared mixer volume, clamped to 0..1. */
@@ -363,7 +372,7 @@ const char *rohr_error_code_message_get(EngineError error);
  * twice. Every generated Rohr result type supports this shared field layout.
  *
  * @param ResultValue Generated Rohr result value to describe.
- * @return Engine-owned string valid until the next error.
+ * @return Thread-local string; copy before the next error/message call on this thread.
  */
 #define rohr_error_message_get(ResultValue) \
     error_result_message_get((ResultValue).kind, (ResultValue).result.error)

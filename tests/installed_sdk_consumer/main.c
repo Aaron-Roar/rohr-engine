@@ -44,6 +44,14 @@ int main(void) {
     }
     Report animations=rohr_graphics_sprite_frames_update(0,0);
     if(!rohr_report_valid_check(&animations) || animations.header.id != ROHR_GRAPHICS_ANIMATIONS_REPORT) return 1;
+    if(rohr_error_check(rohr_audio_start())) return 1;
+    if(rohr_error_check(rohr_audio_volume_set(0.5f))) return 1;
+    Report audio = rohr_audio_update();
+    if(!rohr_report_valid_check(&audio) || audio.header.id != ROHR_AUDIO_REPORT) return 1;
+    Report stopped = rohr_audio_stop();
+    Report final_audio = rohr_audio_update();
+    if(!rohr_report_valid_check(&stopped) || memcmp(&stopped, &final_audio, sizeof(stopped)) != 0 ||
+            rohr_audio_update().header.status != ROHR_REPORT_NOT_RUN) return 1;
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

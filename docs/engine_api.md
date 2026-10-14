@@ -212,7 +212,7 @@ twice. Every generated Rohr result type supports this shared field layout.
 | --- | --- |
 | `ResultValue` | Generated Rohr result value to describe. |
 
-**Returns:** Engine-owned string valid until the next error.
+**Returns:** Thread-local string; copy before the next error/message call on this thread.
 
 ## Console
 
@@ -4747,15 +4747,33 @@ See [report output](reports.md#console-and-file-output) for errors and format de
 EngineResult rohr_audio_start(void);
 ```
 
- Start the optional SDL-backed audio service and shared mixer.
+Start optional callback-driven audio. Runtime controls enqueue requests;
+
+call rohr_audio_update to submit them. Concurrent submissions are serialized
+
+in enqueue order; getters observe applied state, not pending requests.
+
+Creation, destruction, startup and shutdown remain synchronous. Callers
+
+synchronize their own handle variables; see docs/audio.md for lifetime rules.
 
 ### `rohr_audio_stop`
 
 ```c
-void rohr_audio_stop(void);
+Report rohr_audio_stop(void);
 ```
 
- Destroy all audio resources and stop the audio service.
+ Stop synchronously and return final evidence without consuming it.
+
+The next update returns the same report once. Restart discards that copy.
+
+### `rohr_audio_update`
+
+```c
+Report rohr_audio_update(void);
+```
+
+ Submit pending controls and collect completed work; never waits for playback.
 
 ### `rohr_audio_started_check`
 

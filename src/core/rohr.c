@@ -33,7 +33,8 @@ void rohr_engine_resume(void) { engine_resume(); }
 EngineResult rohr_engine_time_per_tick_set(Time value) { return engine_time_per_tick_set(value); }
 Time rohr_engine_time_per_tick_get(void) { return engine_time_per_tick_get(); }
 EngineResult rohr_audio_start(void) { return audio_start(); }
-void rohr_audio_stop(void) { audio_stop(); }
+Report rohr_audio_stop(void) { return audio_stop(); }
+Report rohr_audio_update(void) { return audio_update(); }
 bool rohr_audio_started_check(void) { return audio_started_check(); }
 EngineResult rohr_audio_volume_set(float volume) {
     return audio_volume_set(volume);

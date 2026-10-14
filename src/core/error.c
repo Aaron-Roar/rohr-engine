@@ -8,9 +8,15 @@
 #define ERROR_DETAIL_CAPACITY 256
 #define ERROR_MESSAGE_CAPACITY 512
 
-static EngineError error_detail_code = ERROR_NONE;
-static char error_detail[ERROR_DETAIL_CAPACITY];
-static char error_message[ERROR_MESSAGE_CAPACITY];
+#if defined(_MSC_VER)
+#define ERROR_THREAD_LOCAL __declspec(thread)
+#else
+#define ERROR_THREAD_LOCAL __thread
+#endif
+
+static ERROR_THREAD_LOCAL EngineError error_detail_code = ERROR_NONE;
+static ERROR_THREAD_LOCAL char error_detail[ERROR_DETAIL_CAPACITY];
+static ERROR_THREAD_LOCAL char error_message[ERROR_MESSAGE_CAPACITY];
 
 static void error_detail_clear(void) {
     error_detail_code = ERROR_NONE;
@@ -226,6 +232,8 @@ const char *error_code_message_get(EngineError error) {
             return "music capacity exceeded";
         case ERROR_ENGINE_AUDIO_MUSIC_NOT_ACTIVE:
             return "music is not the active track";
+        case ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED:
+            return "audio request capacity exceeded";
         case ERROR_ENGINE_AUDIO_OPERATION_FAILED:
             return "audio operation failed";
         default:

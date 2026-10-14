@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "report.h"
+#include "core/report_internal.h"
 
 #include <float.h>
 #include <math.h>
@@ -16,7 +17,7 @@ static EngineResult report_invalid(void) {
 }
 
 static bool report_id_check(ReportId id) {
-    return (id > ROHR_REPORT_NONE && id <= ROHR_GRAPHICS_ANIMATIONS_REPORT) ||
+    return (id > ROHR_REPORT_NONE && id <= ROHR_AUDIO_OUTPUT_REPORT) ||
         (id >= ROHR_REPORT_CUSTOM_ID_BEGIN && id <= ROHR_REPORT_CUSTOM_ID_END);
 }
 
@@ -53,7 +54,9 @@ static bool report_statistic_check(ReportStatistic value) {
     else if(value.metric_id == ROHR_REPORT_TREE_NODES_CURRENT)
         expected = ROHR_REPORT_AGGREGATION_LATEST;
     else if(value.metric_id == ROHR_REPORT_QUEUED_COMMAND_COUNT ||
-            value.metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS)
+            value.metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS ||
+            value.metric_id == ROHR_REPORT_AUDIO_FRAMES_COUNT ||
+            value.metric_id == ROHR_REPORT_CANCELLED_COMMAND_COUNT)
         expected = ROHR_REPORT_AGGREGATION_SUM;
     else return false;
     return value.aggregation == expected;
@@ -67,7 +70,7 @@ static bool report_diagnostic_check(const ReportDiagnostic *value) {
     return report_id_check(value->report_id) &&
         (value->severity == ROHR_REPORT_SEVERITY_WARNING ||
          value->severity == ROHR_REPORT_SEVERITY_FATAL) &&
-        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_GRAPHICS_RECORDING_FAILED &&
+        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED &&
         value->recovery >= ROHR_REPORT_RECOVERY_NONE &&
         value->recovery <= ROHR_REPORT_UPDATE_ABORTED &&
         report_object_check(value->source) && report_object_check(value->target) &&
@@ -274,6 +277,10 @@ static void report_diagnostic_collect(Report *report, const ReportDiagnostic *va
         report->dropped_diagnostic_occurrences = report_sum(report,
             report->dropped_diagnostic_occurrences, value->occurrence_count);
     }
+}
+
+void report_diagnostic_collect_internal(Report *report, ReportDiagnostic diagnostic) {
+    report_diagnostic_collect(report, &diagnostic);
 }
 
 EngineResult report_diagnostic_add(Report *report, ReportDiagnostic diagnostic) {

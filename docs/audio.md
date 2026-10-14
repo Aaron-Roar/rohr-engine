@@ -11,8 +11,58 @@ if(error_check(result)) {
 }
 ```
 
-`rohr_audio_stop()` destroys every remaining audio resource. Stopping the core
-engine also stops audio before SDL shuts down.
+`rohr_audio_stop()` synchronously destroys every remaining audio resource and
+returns a final `Report`. Stopping the core engine also stops audio before SDL
+shuts down; explicitly stop audio first if you need its final report immediately.
+
+## Queued controls and updates
+
+All play/stop/pause/resume calls and runtime property setters enqueue requests.
+Success means **accepted**, not yet applied. Call `rohr_audio_update()` regularly
+to submit pending requests and collect completed callback work:
+
+```c
+EngineResult accepted = rohr_audio_sound_play(sound_handle);
+if(error_check(accepted)) {
+    fprintf(stderr, "%s\n", rohr_error_message_get(accepted));
+}
+Report report = rohr_audio_update();
+if(report.diagnostic_count || report.has_fatal) {
+    EngineResult printed = rohr_report_console_write(&report);
+    if(error_check(printed)) {
+        fprintf(stderr, "%s\n", rohr_error_message_get(printed));
+    }
+}
+```
+
+The callback applies submitted controls in FIFO order at its next buffer boundary.
+Play followed by pause is valid. Getters show applied state, so `playing_check()`
+can remain false after play was accepted. Existing sound/music playback continues
+independently of further updates; only new requests wait for submission.
+
+Concurrent callers may enqueue requests from their own threads. Successful
+enqueue order determines execution order. Application operations serialize
+resource lifetime against shutdown and synchronize with the callback; callers
+must still protect their own shared handle variables. Resource loading and
+creation/destruction remain synchronous. Service startup must obey the platform's
+SDL startup requirements. The first stateful audio API call initializes one
+process-lived application mutex; reporting and request submission allocate no
+per-request storage.
+
+The named `ROHR_AUDIO_REQUEST_CAPACITY` is 256 outstanding requests. Pending and
+submitted requests share that capacity; a full queue returns
+`ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED` without accepting the request.
+A queued handle destroyed before execution yields a later warning, never a use
+of the replacement resource. A later playback failure appears in a later report,
+even when the triggering request was accepted several updates earlier.
+
+Stop returns final evidence without consuming its retained copy. The first
+subsequent update returns that same report once; later stopped updates return
+`NOT_RUN`. Do not merge both copies. Successful restart discards any uncollected
+shutdown copy. See [Audio reports](reports.md#audio-reports).
+
+Manual mixing and direct sample output are deferred; no SDL audio handles or
+sample-buffer processing API are exposed.
 
 ## Sounds
 
@@ -28,10 +78,14 @@ config.volume = 0.8f;
 config.pan = 0.0f;
 
 SoundResult sound = rohr_audio_sound_create(config);
-if(!error_check(sound)) rohr_audio_sound_play(sound.result.value);
+if(!error_check(sound)) {
+    EngineResult accepted = rohr_audio_sound_play(sound.result.value);
+    /* Check accepted; submit through the regular audio update above. */
+    (void)accepted;
+}
 ```
 
-Calling `rohr_audio_sound_play()` restarts that instance from its beginning.
+Executing a `rohr_audio_sound_play()` request restarts that instance from its beginning.
 Create multiple `Sound` values from the same configuration when the same effect
 must overlap itself. Each created sound owns one cache reference until
 `rohr_audio_sound_destroy()` or service shutdown. The final player destruction
@@ -59,7 +113,11 @@ config.volume = 0.7f;
 config.loop = true;
 
 MusicResult music = rohr_audio_music_create(config);
-if(!error_check(music)) rohr_audio_music_play(music.result.value);
+if(!error_check(music)) {
+    EngineResult accepted = rohr_audio_music_play(music.result.value);
+    /* Check accepted; submit through the regular audio update above. */
+    (void)accepted;
+}
 ```
 
 Only one music track is active at a time. Playing a track from the beginning
