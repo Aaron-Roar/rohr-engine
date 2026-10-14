@@ -370,7 +370,8 @@ int main(void) {
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
         }
-        Tick ticks_advanced = rohr_system_tick_update();
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+        Tick ticks_advanced = rohr_engine_tick_delta_get();
 
         if(rohr_input_action_button_pressed_check(reset_action)) {
             EngineResult reset_result = reset_level(

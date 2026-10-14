@@ -185,7 +185,6 @@ set(ROHR_ENGINE_SOURCES
     src/core/report.c
     src/core/report_output.c
     src/core/rohr.c
-    src/core/systems.c
     src/entity/entity_components.c
     src/entity/entity_pair_set.c
     src/graphics/asset_path.c
@@ -489,6 +488,25 @@ if(ROHR_BUILD_TESTS)
     target_link_libraries(cameras_test PRIVATE rohr_engine)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME cameras COMMAND cameras_test)
+
+    add_executable(engine_reports_test tests/engine_reports.c)
+    target_link_libraries(engine_reports_test PRIVATE rohr_engine)
+    set_target_properties(engine_reports_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(engine_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(engine_reports_test PRIVATE ROHR_TEST_ENGINE_WRAP)
+        target_link_options(engine_reports_test PRIVATE
+            -Wl,--wrap=SDL_GetPerformanceCounter -Wl,--wrap=SDL_GetPerformanceFrequency
+            -Wl,--wrap=entity_delete -Wl,--wrap=entity_from_index_get
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(engine_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME engine_reports COMMAND engine_reports_test)
 
     add_executable(physics_reports_test tests/physics_reports.c)
     target_link_libraries(physics_reports_test PRIVATE rohr_engine)
@@ -940,6 +958,7 @@ if(ROHR_BUILD_TESTS)
         physics_reports
         audio
         engine_lifecycle
+        engine_reports
         directory
         input_actions
         cameras
@@ -986,6 +1005,7 @@ if(ROHR_BUILD_TESTS)
         audio_reports_test
         audio_test
         engine_lifecycle_test
+        engine_reports_test
         directory_test
         input_actions_test
         cameras_test

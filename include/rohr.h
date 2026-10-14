@@ -85,6 +85,18 @@ void rohr_engine_stop(void);
  */
 void rohr_engine_time_update(void);
 
+/** Advance clock/ticks, then lifecycle cleanup; returns an owned ROHR_ENGINE_REPORT.
+ * Requires engine startup. Paused/zero-tick calls still run cleanup.
+ * Does not update physics, graphics, audio or UI. */
+Report rohr_engine_update(void);
+/** Advance clock/ticks only and replace the latest tick delta (possibly zero). */
+Tick rohr_engine_tick_update(void);
+/** Delete expired entities at current time/ticks; leave clock and delta unchanged.
+ * Returns an owned ROHR_ENGINE_LIFECYCLE_REPORT. Requires engine startup. */
+Report rohr_engine_lifecycle_update(void);
+/** Latest tick-update delta; reads do not consume it. Cleared on start/stop/reset. */
+Tick rohr_engine_tick_delta_get(void);
+
 /**
  * @brief Returns the current engine time in seconds.
  * @return Current engine time.
@@ -2504,17 +2516,6 @@ AABB rohr_math_aabb_create(Shape world_shape);
  * @param dt Simulation delta time in seconds.
  */
 Report rohr_system_physics_update(double dt);
-
-/**
- * @brief Advances engine time and clears expired entities.
- * @return Number of complete fixed ticks consumed by this update.
- */
-Tick rohr_system_tick_update(void);
-
-/**
- * @brief Deletes entities whose lifetime has expired.
- */
-void rohr_system_entities_past_lifetime_clean(void);
 
 /**
  * @brief Delays execution for a number of seconds.

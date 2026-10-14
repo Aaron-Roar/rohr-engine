@@ -26,6 +26,10 @@ EngineResult rohr_report_json_write(const Report *report, const char *path, bool
 EngineResult rohr_report_text_write(const Report *report, const char *path) { return report_text_write(report, path); }
 void rohr_engine_stop(void) { engine_stop(); }
 void rohr_engine_time_update(void) { engine_time_update(); }
+Report rohr_engine_update(void) { return engine_update(); }
+Tick rohr_engine_tick_update(void) { return engine_tick_update(); }
+Report rohr_engine_lifecycle_update(void) { return engine_lifecycle_update(); }
+Tick rohr_engine_tick_delta_get(void) { return engine_tick_delta_get(); }
 Time rohr_engine_time_get(void) { return engine_time_get(); }
 Tick rohr_engine_tick_get(void) { return engine_tick_get(); }
 void rohr_engine_pause(void) { engine_pause(); }
@@ -865,8 +869,6 @@ Shape rohr_math_vertex_delete(Shape shape) { return math_vertex_delete(shape); }
 AABB rohr_math_aabb_create(Shape world_shape) { return math_aabb_create(world_shape); }
 
 Report rohr_system_physics_update(double dt) { return system_physics_update(dt); }
-Tick rohr_system_tick_update(void) { return system_tick_update(); }
-void rohr_system_entities_past_lifetime_clean(void) { system_entities_past_lifetime_clean(); }
 
 void rohr_tools_delay(int seconds) { delay(seconds); }
 void rohr_tools_binary_to_string(uint32_t value, char *buffer, size_t size) { binary_to_string(value, buffer, size); }

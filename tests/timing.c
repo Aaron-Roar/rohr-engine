@@ -47,7 +47,8 @@ int main(void) {
         }
     }
     (void)rohr_entity_delete(transient.result.value);
-    if(rohr_system_tick_update() != 0) {
+    if(rohr_engine_update().header.status != ROHR_REPORT_COMPLETE ||
+            rohr_engine_tick_delta_get() != 0) {
         rohr_engine_stop();
         return 1;
     }
@@ -59,7 +60,8 @@ int main(void) {
         return 1;
     }
     SDL_Delay(30);
-    ticks = rohr_system_tick_update();
+    if(rohr_engine_update().header.status != ROHR_REPORT_COMPLETE) return 1;
+    ticks = rohr_engine_tick_delta_get();
     if(ticks < 2 || rohr_physics_dt_per_tick_get() != 0.01 ||
             rohr_entity_alive_check(transient.result.value)) {
         rohr_engine_stop();
@@ -71,7 +73,8 @@ int main(void) {
     }
     rohr_engine_clock_reset();
     SDL_Delay(25);
-    ticks = rohr_system_tick_update();
+    if(rohr_engine_update().header.status != ROHR_REPORT_COMPLETE) return 1;
+    ticks = rohr_engine_tick_delta_get();
     if(ticks < 2 || rohr_physics_dt_per_tick_get() != 0.5) {
         rohr_engine_stop();
         return 1;

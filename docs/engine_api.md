@@ -58,6 +58,46 @@ void rohr_engine_time_update(void);
 
 Updates accumulated engine time from the platform clock.
 
+### `rohr_engine_update`
+
+```c
+Report rohr_engine_update(void);
+```
+
+Advances time/ticks, then cleans expired entities. Returns an owned
+`ROHR_ENGINE_REPORT` with one lifecycle child. Requires engine startup;
+paused and zero-tick updates still clean expired entities. Other systems remain
+independently driven.
+
+### `rohr_engine_tick_update`
+
+```c
+Tick rohr_engine_tick_update(void);
+```
+
+Advances time and consumes complete fixed ticks without lifecycle cleanup.
+Returns and stores the ticks advanced, including zero when paused or unstarted.
+
+### `rohr_engine_lifecycle_update`
+
+```c
+Report rohr_engine_lifecycle_update(void);
+```
+
+Cleans expired entities at the current time/tick without advancing the clock or
+changing the tick delta. Returns an owned `ROHR_ENGINE_LIFECYCLE_REPORT`.
+Requires engine startup; individual cleanup errors are recoverable warnings.
+
+### `rohr_engine_tick_delta_get`
+
+```c
+Tick rohr_engine_tick_delta_get(void);
+```
+
+Returns ticks advanced by the latest tick update, not total ticks or ticks since
+this getter was last called. Reads do not consume the value. Startup, shutdown,
+and clock reset clear it; time-only and lifecycle-only calls leave it unchanged.
+
 ### `rohr_engine_time_get`
 
 ```c
@@ -4153,24 +4193,6 @@ Runs one physics-system update.
 | Parameter | Description |
 | --- | --- |
 | `dt` | Simulation delta time in seconds. |
-
-### `rohr_system_tick_update`
-
-```c
-Tick rohr_system_tick_update(void);
-```
-
-Advances engine time and clears expired entities.
-
-**Returns:** Number of complete fixed ticks consumed by this update.
-
-### `rohr_system_entities_past_lifetime_clean`
-
-```c
-void rohr_system_entities_past_lifetime_clean(void);
-```
-
-Deletes entities whose lifetime has expired.
 
 ## Input
 

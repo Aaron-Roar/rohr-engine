@@ -1,7 +1,7 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics, graphics, audio, and UI updates return this type as described below. Console, JSON,
+Engine, physics, graphics, audio, and UI updates return this type as described below. Console, JSON,
 and text-file output are implemented; other system integrations and latest-report retrieval
 remain scheduled work.
 
@@ -574,3 +574,95 @@ supports these metric/error names. Shared aggregation, saturation, diagnostic
 overflow, first-fatal preservation and copied-message ownership rules apply.
 Retained report copies remain independent after later updates and shutdown.
 Latest stored-report retrieval remains a separate pending milestone goal.
+
+
+## Engine reports
+
+Use the combined update or call its two operations independently:
+
+```c
+Report engine = rohr_engine_update();
+if(engine.header.status == ROHR_REPORT_FAILED) {
+    /* Handle failure before performing dependent work. */
+} else {
+    Tick ticks = rohr_engine_tick_delta_get();
+    Report physics = rohr_physics_update(ticks);
+    /* Inspect engine and physics independently. */
+}
+```
+
+```c
+Tick ticks = rohr_engine_tick_update();
+Report lifecycle = rohr_engine_lifecycle_update();
+/* The same clock/cleanup sequence, with no combined report. */
+```
+
+The direct APIs omit `rohr_` and have identical semantics. `engine_update()`
+returns `ROHR_ENGINE_REPORT`, advances the clock once, then merges one
+`ROHR_ENGINE_LIFECYCLE_REPORT` from cleanup. Its elapsed time independently
+covers both operations and collection. The lifecycle report measures its own
+sweep. Physics, graphics, audio and UI are never run or merged here. There is no
+separate clock report and no implicit latest-report storage.
+
+`engine_tick_get()` returns the accumulated tick count. `engine_tick_delta_get()`
+returns the latest tick-update result, replaced even when zero; repeated reads
+never consume it. Startup, shutdown and clock reset clear the delta. Clock reset
+preserves accumulated time and tick count. Time-only updates accumulate elapsed
+time without consuming ticks or changing the delta. Lifecycle-only calls use
+current time/ticks without changing either or the delta. Paused tick calls store
+zero, while combined updates still perform cleanup. Resume excludes paused
+elapsed time as before.
+
+Combined and lifecycle updates require a started engine. Unstarted calls return
+FAILED with a fatal `ERROR_ENGINE_STATE_INVALID` and perform no cleanup; the
+combined report has no child when rejected. Tick-only calls safely return/store
+zero while unstarted. Started empty/paused/zero-tick updates return COMPLETE;
+ordinary inactivity is not a warning.
+
+Metrics use the `ROHR_REPORT_` prefix and SUM aggregation:
+
+| Owner | Metric | Meaning |
+| --- | --- | --- |
+| Engine | `TICKS_ADVANCED_COUNT` | Ticks consumed by this combined update. |
+| Lifecycle | `CANDIDATE_COUNT` | Live lifetime-bearing entities examined, including unexpired ones. |
+| Lifecycle | `EXPIRED_ENTITY_COUNT` | Expired entities encountered for resolution/deletion. |
+| Lifecycle | `PROCESSED_COUNT` | Successful direct deletions. |
+| Lifecycle | `SKIPPED_COUNT` | Failed resolution/deletion attempts. |
+
+Expiration still uses time **or** tick deadlines; zero disables that deadline.
+Cleanup traverses entity slots in the existing order. Cascading destruction may
+remove other entities before their slots are examined; these are not counted as
+additional direct deletions. Unexpired entities are not skipped failures.
+
+An individual entity-resolution or deletion failure is a recoverable warning:
+cleanup continues, preserving existing deletion behavior. Diagnostics own their
+error text and entity ID when resolved; resolution failures include the slot in
+the detail. Internal stage 1 identifies resolution and stage 2 deletion. Warning
+reports remain COMPLETE. Deletion may already have detached some relationships
+before failing; reporting adds no rollback, quarantine, or retry policy.
+
+Collection adds no allocation, printing or serialization. Shared diagnostic
+capacity, aggregation, overflow, saturation and first-fatal preservation apply;
+ordinary copies remain valid after subsequent updates, deletion, slot reuse and
+shutdown. Text and JSON output recognize the new IDs and metrics.
+
+### Breaking migration
+
+Replace `rohr_system_tick_update()` with `rohr_engine_update()` followed by
+`rohr_engine_tick_delta_get()` to preserve its combined behavior. For explicit
+separation, call `rohr_engine_tick_update()` then `rohr_engine_lifecycle_update()`.
+Replace `rohr_system_entities_past_lifetime_clean()` with the latter report-returning
+API. The direct names migrate identically; old functions have no aliases.
+The unused `ROHR_ENGINE_TICK_REPORT` enum becomes `ROHR_ENGINE_REPORT` at the same
+numeric value; the lifecycle ID is appended without renumbering existing IDs.
+
+New generated applications use the combined update and check its status before
+physics. Regeneration upgrades an exact match of the preceding generated entry
+point; developer-edited `main.c` files remain unchanged and require manual API
+migration. Generated modules remain editor-owned.
+
+The top-level audit leaves startup and configuration operations on their immediate
+results, low-level time advancement on its existing API, and input reporting
+deferred by user choice. Existing physics, graphics, audio and UI report owners
+remain independent. Cross-system coverage and latest-report composition are
+separate pending milestone goals.

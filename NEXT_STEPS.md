@@ -78,9 +78,10 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-**System Update Reports** is complete through Goal 6 (UI), which the user selected
-ahead of input reporting. Goal 7 (input) remains pending and requires explicit
-user instruction, before resuming Goal 1 of **Unified Forces and Torques**. Establish
+**System Update Reports** Goals 1–6 and 8 (engine/lifecycle reports) are complete.
+Goal 7 (input) is deferred by user choice; retain its current API and direct
+errors. Goal 9 (coverage and documentation) awaits explicit selection,
+before resuming Goal 1 of **Unified Forces and Torques**. Establish
 per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
@@ -841,20 +842,36 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    independently on both and pass Linux headless startup/shutdown outside their
    source directories. Windows execution remains unverified. Manual editor/UI
    rendering review remains a follow-up. See [UI reports](docs/reports.md#ui-reports).
-7. [ ] **Define and integrate input update reports** — Specify the input-frame
-   boundary, event ingestion, action evaluation, and text/IME truncation
-   diagnostics. Preserve input behavior and verify reset boundaries and recovery.
-8. [ ] **Integrate engine-tick and remaining system reports** — Cover clock/tick
+7. [ ] **Define and integrate input update reports — deferred** — The user chose
+   to leave input unchanged. Keep immediate operation results and text/IME
+   truncation flags; do not add counters, pipelines, or a report merely for
+   symmetry. Revisit only on explicit user instruction.
+8. [x] **Integrate engine-tick and remaining system reports** — Cover clock/tick
    advancement and entity lifetime cleanup. Audit remaining top-level update
    entry points for missing report owners. Verify update boundaries, warning
    context, failure propagation, and independence from other system reports.
+   Completed: `engine_update()` advances ticks and merges its sole lifecycle
+   child report once; independent tick and report-returning lifecycle updates
+   remain available. Added a non-consuming latest tick-delta getter and matching
+   public wrappers. Preserved expiration ordering and recoverable individual
+   cleanup failures, with owned diagnostics and named counters. Removed old
+   system tick/cleanup APIs without aliases; migrated examples and strictly
+   recognized generated entry points while preserving developer edits. Audited
+   remaining entry-point ownership; input stays deferred. Verified 78 native
+   tests, eight focused ASan/UBSan/LeakSanitizer tests, and Linux/Windows builds
+   without compiler warnings. Installed-SDK consumers, nine affected examples,
+   and a generated application build independently on both platforms; Linux
+   consumers execute and applications pass headless startup/shutdown outside
+   source directories. Windows execution remains unverified.
+   See [Engine reports](docs/reports.md#engine-reports).
 9. [ ] **Verify system-wide coverage and document usage** — Audit every entry
    in the accumulated system inventory against the final implementation. Document checking
    update results and reading reports, with examples of successful updates with
    warnings and fatal updates with retained details. Verify report isolation,
    overflow, repeated warnings, public/direct API parity, relevant examples and
-   generated consumers, sanitizers, and Linux/Windows builds. All systems must
-   have reporting coverage before selecting simulation-failure recovery.
+   generated consumers, sanitizers, and Linux/Windows builds. All applicable systems must
+   have reporting coverage before selecting simulation-failure recovery; input
+   reporting remains explicitly deferred.
 10. [ ] **Add latest stored report retrieval and automatic composition** — Each
     runnable pipeline keeps its latest returned report and overwrites it on its
     next update; no history. `rohr_report_get(id)` returns an independent copy,
@@ -864,7 +881,7 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
     Define invocation provenance for children updated independently after their
     parent, cross-system freshness, reset/lifetime, and callback synchronization
     before implementation. Latest reports may originate at different times.
-11. [ ] **Define and implement simulation-failure recovery** — After all systems
+11. [ ] **Define and implement simulation-failure recovery** — After all applicable systems
     have reporting, decide how a failed entity is excluded without destructively
     rewriting its normal authored/physical state. Compare a reserved failure
     flag with per-update retries, define developer repair/reset and automatic

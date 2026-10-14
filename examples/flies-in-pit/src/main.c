@@ -168,7 +168,8 @@ int main(void) {
             rohr_graphics_aabb_tree_debug_set(broadphase_debug);
             rohr_graphics_contacts_debug_set(broadphase_debug);
         }
-        Tick ticks_advanced = rohr_system_tick_update();
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+        Tick ticks_advanced = rohr_engine_tick_delta_get();
         if(!phase_1 && rohr_engine_time_get() > 3) {
             phase_1 = true;
         }

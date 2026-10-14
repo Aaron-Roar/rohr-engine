@@ -116,9 +116,10 @@ Sources: [physics_config.c](../src/physics/pipeline/physics_config.c),
 [physics_stages.c](../src/physics/pipeline/physics_stages.c),
 [physics.h](../include/physics.h), and [rohr.c](../src/core/rohr.c).
 
-Physics does not own engine clock advancement or lifetime cleanup; those remain
-in `system_tick_update()` and later receive their own report. A timing report
-must not cause extra physics steps, advance engine time, or change source expiry.
+Physics does not own engine clock advancement or lifetime cleanup. Those now
+belong to `engine_update()`, with independent `engine_tick_update()` and
+`engine_lifecycle_update()` alternatives. See [engine reports](reports.md#engine-reports).
+Reporting must not cause extra physics steps or change source expiry.
 
 ## Audited stage inventory
 

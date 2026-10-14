@@ -72,7 +72,8 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     CHECK(near(velocities[index].x, 0.6f) && near(velocities[index].y, 0.4f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.5f));
     SDL_Delay(2);
-    CHECK(rohr_system_tick_update() > 0);
+    CHECK(rohr_engine_update().header.status == ROHR_REPORT_COMPLETE);
+    CHECK(rohr_engine_tick_delta_get() > 0);
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.8f) && near(velocities[index].y, 0.4f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));

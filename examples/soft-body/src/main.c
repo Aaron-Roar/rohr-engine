@@ -567,7 +567,8 @@ int main(void) {
             exit_requested = true;
         if(exit_requested) break;
         {
-            Tick ticks = rohr_system_tick_update();
+            if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+            Tick ticks = rohr_engine_tick_delta_get();
             Tick current_tick = rohr_engine_tick_get();
             if(camera_returning && current_tick >= camera_return_end_tick) {
                 if(!result_ok(rohr_camera_attach(rohr_camera_active_get(),

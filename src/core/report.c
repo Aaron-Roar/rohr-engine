@@ -17,7 +17,7 @@ static EngineResult report_invalid(void) {
 }
 
 static bool report_id_check(ReportId id) {
-    return (id > ROHR_REPORT_NONE && id <= ROHR_AUDIO_OUTPUT_REPORT) ||
+    return (id > ROHR_REPORT_NONE && id <= ROHR_ENGINE_LIFECYCLE_REPORT) ||
         (id >= ROHR_REPORT_CUSTOM_ID_BEGIN && id <= ROHR_REPORT_CUSTOM_ID_END);
 }
 
@@ -56,7 +56,9 @@ static bool report_statistic_check(ReportStatistic value) {
     else if(value.metric_id == ROHR_REPORT_QUEUED_COMMAND_COUNT ||
             value.metric_id == ROHR_REPORT_FRAME_LIMIT_WAIT_NS ||
             value.metric_id == ROHR_REPORT_AUDIO_FRAMES_COUNT ||
-            value.metric_id == ROHR_REPORT_CANCELLED_COMMAND_COUNT)
+            value.metric_id == ROHR_REPORT_CANCELLED_COMMAND_COUNT ||
+            value.metric_id == ROHR_REPORT_TICKS_ADVANCED_COUNT ||
+            value.metric_id == ROHR_REPORT_EXPIRED_ENTITY_COUNT)
         expected = ROHR_REPORT_AGGREGATION_SUM;
     else if(value.metric_id >= ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT &&
             value.metric_id <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT)

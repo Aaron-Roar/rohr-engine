@@ -61,6 +61,18 @@ int main(void) {
     Report direct_ui = ui_update();
     if(!report_valid_check(&direct_ui) || direct_ui.header.id != ROHR_UI_REPORT ||
             direct_ui.header.status != ROHR_REPORT_COMPLETE) return 1;
+    rohr_engine_pause();
+    Report engine = rohr_engine_update();
+    if(!rohr_report_valid_check(&engine) || engine.header.id != ROHR_ENGINE_REPORT ||
+            engine.header.status != ROHR_REPORT_COMPLETE || engine.entry_count != 1 ||
+            engine.entries[0].header.id != ROHR_ENGINE_LIFECYCLE_REPORT) return 1;
+    if(rohr_engine_tick_update() != 0 || rohr_engine_tick_delta_get() != 0) return 1;
+    Report lifecycle = rohr_engine_lifecycle_update();
+    if(!report_valid_check(&lifecycle) || lifecycle.header.id != ROHR_ENGINE_LIFECYCLE_REPORT ||
+            lifecycle.header.status != ROHR_REPORT_COMPLETE || lifecycle.entry_count != 0) return 1;
+    if(engine_update().header.status != ROHR_REPORT_COMPLETE || engine_tick_update() != 0 ||
+            engine_tick_delta_get() != 0 ||
+            engine_lifecycle_update().header.status != ROHR_REPORT_COMPLETE) return 1;
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;
 }

@@ -144,7 +144,8 @@ int main(void) {
     while(true) {
 
         //physics
-        Tick ticks_advanced = rohr_system_tick_update();
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+        Tick ticks_advanced = rohr_engine_tick_delta_get();
         Time tick_time = rohr_engine_time_per_tick_get() * (Time)ticks_advanced;
         if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
 

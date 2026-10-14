@@ -7,9 +7,6 @@
 #include "entity_components.h"
 #include "physics.h"
 
-/** Advance engine time and clear entities whose lifetimes have expired. */
-Tick system_tick_update(void);
-
 /**
  * Run the physics pipeline for one frame.
  *
@@ -22,8 +19,4 @@ Tick system_tick_update(void);
  */
 Report system_physics_update(double dt);
 
-/**
- * Delete entities whose lifetime has expired.
- */
-void system_entities_past_lifetime_clean(void);
 #endif

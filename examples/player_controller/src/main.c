@@ -84,7 +84,8 @@ int main(void) {
                 player_grounded_check(objects.player_world.player))
             jump_queued = true;
 
-        ticks_advanced = rohr_system_tick_update();
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+        ticks_advanced = rohr_engine_tick_delta_get();
         if(ticks_advanced > 0) {
             move = rohr_input_action_axis_1d_get(
                 objects.controllers.action_player_move_1);

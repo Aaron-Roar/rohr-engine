@@ -58,7 +58,8 @@ int main(void) {
         while((event = rohr_engine_event_poll()).type != 0)
             if(event.type == SDL_EVENT_QUIT) quit = true;
         if(quit || rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) break;
-        if(rohr_physics_update(rohr_system_tick_update()).header.status == ROHR_REPORT_FAILED) goto done;
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto done;
+        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto done;
         rohr_graphics_show();
     }
     status = 0;

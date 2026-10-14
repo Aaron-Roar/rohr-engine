@@ -488,7 +488,8 @@ int main(void) {
             goto fail;
         }
 
-        ticks_advanced = rohr_system_tick_update();
+        if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
+        ticks_advanced = rohr_engine_tick_delta_get();
         if(((rohr_physics_update(ticks_advanced)).header.status == ROHR_REPORT_FAILED)) goto fail;
         if(rohr_physics_contact_check(ball, paddle_left) ||
                 rohr_physics_contact_check(ball, paddle_right)) {

@@ -6,7 +6,7 @@
 #define ENGINE_H
 #include <SDL3/SDL.h>
 #include <stdint.h>
-#include "error.h"
+#include "report.h"
 
 /** SDL performance counter value used for engine timing. */
 typedef Uint64 SDLTime;
@@ -31,9 +31,8 @@ EngineResult engine_start(void);
 void engine_stop(void);
 
 /**
- * Update engine time and delta time from SDL's performance counter.
- *
- * If the engine is paused, delta time is set to zero.
+ * Accumulate elapsed time without consuming ticks or changing the tick delta.
+ * Paused or unstarted calls do not advance time.
  */
 void engine_time_update(void);
 
@@ -47,7 +46,7 @@ Time engine_time_get(void);
 /**
  * Get the current engine tick count.
  *
- * @return Number of ticks advanced since initialization or reset.
+ * @return Number of ticks advanced since the latest successful engine start.
  */
 Tick engine_tick_get(void);
 
@@ -61,7 +60,18 @@ void engine_pause(void);
  */
 void engine_resume(void);
 
-/** Update elapsed time and consume every complete fixed tick. */
+/** Advance clock/ticks, then lifecycle cleanup. Returns one owned engine report.
+ * Physics, graphics, audio and UI remain independently driven.
+ * Requires engine_start(); paused and zero-tick calls still run cleanup. */
+Report engine_update(void);
+/** Delete expired entities without advancing time or changing the tick delta.
+ * Requires engine_start(); individual deletion failures are recoverable warnings. */
+Report engine_lifecycle_update(void);
+/** Ticks advanced by the latest tick update; reading does not consume it.
+ * Startup, shutdown and clock reset clear it. Time/lifecycle-only calls preserve it. */
+Tick engine_tick_delta_get(void);
+/** Update elapsed time and consume every complete fixed tick, without cleanup.
+ * Replaces the stored delta, including zero while paused or not started. */
 Tick engine_tick_update(void);
 
 /** Set the real-time duration required for one engine tick. */
