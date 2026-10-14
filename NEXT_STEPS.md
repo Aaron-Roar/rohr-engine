@@ -78,9 +78,10 @@ The user-selected **Reporting Workflow Standards and Audio Contract** milestone
 is complete. Reporting instructions and the agreed audio contract are preserved
 in the single-goal documentation prerequisite below.
 
-**System Update Reports** Goals 1–6 and 8 (engine/lifecycle reports) are complete.
+**System Update Reports** Goals 1–6, 8 (engine/lifecycle reports), and 9 (coverage
+and documentation) are complete.
 Goal 7 (input) is deferred by user choice; retain its current API and direct
-errors. Goal 9 (coverage and documentation) awaits explicit selection,
+errors. Goal 10 (latest-report retrieval and composition) awaits explicit selection,
 before resuming Goal 1 of **Unified Forces and Torques**. Establish
 per-system timings and diagnostics first; preserve the agreed force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
@@ -864,7 +865,7 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    consumers execute and applications pass headless startup/shutdown outside
    source directories. Windows execution remains unverified.
    See [Engine reports](docs/reports.md#engine-reports).
-9. [ ] **Verify system-wide coverage and document usage** — Audit every entry
+9. [x] **Verify system-wide coverage and document usage** — Audit every entry
    in the accumulated system inventory against the final implementation. Document checking
    update results and reading reports, with examples of successful updates with
    warnings and fatal updates with retained details. Verify report isolation,
@@ -872,6 +873,21 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
    generated consumers, sanitizers, and Linux/Windows builds. All applicable systems must
    have reporting coverage before selecting simulation-failure recovery; input
    reporting remains explicitly deferred.
+   Completed: consolidated the public/direct producer and report-free helper
+   inventory, prerequisites, ownership, timing/status boundaries, built-in metric
+   rules, and test coverage. Documented checked warning/fatal consumption and
+   explicit application composition; marked old inventories as historical.
+   Fixed audio parent timing to include application-gate acquisition and failed
+   lock calls while preserving retained shutdown timing. Added deterministic
+   timing, complete output-vocabulary, cross-system pending-evidence/copy isolation,
+   and installed-SDK usage coverage. Verified 79 native tests, nine focused
+   ASan/UBSan/LeakSanitizer tests, documentation links/API inventory, and
+   Linux/Windows engine/editor builds without compiler warnings. Both installed-SDK
+   consumers, all 12 standalone examples, and a generated application compile
+   on both platforms; Linux execution/startup/shutdown checks pass outside source
+   directories. Windows execution remains unverified. No public API or recovery
+   policy changes; input stays deferred. See the
+   [coverage inventory](docs/reports.md#system-coverage-inventory).
 10. [ ] **Add latest stored report retrieval and automatic composition** — Each
     runnable pipeline keeps its latest returned report and overwrites it on its
     next update; no history. `rohr_report_get(id)` returns an independent copy,

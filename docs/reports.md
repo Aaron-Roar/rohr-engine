@@ -1,9 +1,9 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Engine, physics, graphics, audio, and UI updates return this type as described below. Console, JSON,
-and text-file output are implemented; other system integrations and latest-report retrieval
-remain scheduled work.
+Engine, physics, graphics, audio, and UI updates return this type as described below.
+Console, JSON, and text-file output are implemented. Input reporting is explicitly
+deferred; latest-report retrieval and simulation-failure recovery remain scheduled work.
 
 For implementation work, follow the
 [reporting instructions](agent_instructions/system_reporting.md). The
@@ -12,6 +12,120 @@ and callback-reporting semantics.
 
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
 functions. Both paths use the same implementation and have the same behavior.
+
+## System coverage inventory
+
+This is the current Goal 9 inventory. Names omit the optional public `rohr_`
+prefix; every listed public operation has an equivalent direct API. Report IDs
+omit `ROHR_`. Entries aggregate by ID, rather than recording execution order.
+
+| Entry points | Report owner and children | Execution and collection boundary |
+| --- | --- | --- |
+| `engine_update()` | ENGINE_REPORT → ENGINE_LIFECYCLE_REPORT | Requires engine startup. Advances ticks then cleans lifetimes even while paused or with zero ticks. COMPLETE for empty work; FAILED before startup. Parent measures both operations. |
+| `engine_lifecycle_update()` | ENGINE_LIFECYCLE_REPORT | Independent sweep using current time/ticks. Individual resolution/deletion failures warn; startup failure is fatal. |
+| `physics_update(ticks)`, `physics_dt_update(dt)`, `system_physics_update(dt)`, `physics_pipeline_update(dt)` | PHYSICS_REPORT → PHYSICS_SUBSTEP_REPORT and descendants | Requires engine startup. First three include animated-hitbox preparation when executing; raw pipeline does not. Zero ticks and finite nonpositive high-level duration are NOT_RUN. Lower-level zero duration executes; negative/nonfinite lower-level duration fails. |
+| `physics_pipeline_substep(dt)` | PHYSICS_SUBSTEP_REPORT → LOADS, INTEGRATION, CONTACTS, JOINTS, CONSTRAINTS reports | Requires prepared interaction state. Runs stages in order, stopping dependent work after fatal failure. Child invocations aggregate across substeps. |
+| `physics_pipeline_forces_apply()`, `physics_pipeline_integrate(dt)` | PHYSICS_LOADS_REPORT, PHYSICS_INTEGRATION_REPORT | Requires prepared acceleration/state. Independently runnable spring/beam loads and integration. |
+| `physics_pipeline_contacts_gather()`, `physics_pipeline_joints_gather()`, `physics_pipeline_constraints_solve(iterations)` | PHYSICS_CONTACTS_REPORT, PHYSICS_JOINTS_REPORT, PHYSICS_CONSTRAINTS_REPORT | Clear constraint buffers before gathering; solve after successful gathering. Zero iterations are NOT_RUN. |
+| `graphics_show()` | GRAPHICS_REPORT → CAMERAS, COMMANDS, VIEWPORTS, RECORDING, PRESENTATION reports | Requires graphics startup. Inclusive frame timing. Stops dependent work after fatal failure; recording failure still permits presentation. |
+| `graphics_pipeline_cameras_update()`, `graphics_pipeline_commands_execute()`, `graphics_pipeline_viewports_draw()` | GRAPHICS_CAMERAS_REPORT, GRAPHICS_COMMANDS_REPORT, GRAPHICS_VIEWPORTS_REPORT | Independent stages. Commands consume pending submission evidence once. Callback draws belong to commands. Missing renderer/recursive frame calls fail. Empty valid work is COMPLETE. |
+| `graphics_pipeline_recording_update()`, `graphics_pipeline_present()` | GRAPHICS_RECORDING_REPORT, GRAPHICS_PRESENTATION_REPORT | Disabled recording is NOT_RUN after graphics initialization. Presentation includes frame-limit waiting. |
+| `graphics_sprite_frames_update(tick, time)` | GRAPHICS_ANIMATIONS_REPORT | Independent entity animation sweep after engine startup. Not implicitly run or merged by frame updates, even if invoked inside a camera callback. |
+| `audio_update()`, `audio_stop()` | AUDIO_REPORT → COMMANDS, SOUNDS, MUSIC, OUTPUT reports | Callback-owned children; no public manual execution. Update submits requests and collects completed evidence, possibly from older requests. Active empty updates are COMPLETE; inactive updates without shutdown evidence are NOT_RUN. |
+| `ui_update()` | UI_REPORT; no children | Automatic first use. Collects preceding events/widgets, finalizes the frame and consumes evidence once. Empty frames are COMPLETE. Timing covers update only. Graphics draw failures stay in graphics reports. |
+
+Detailed prerequisites, stage timing, and failure policies appear in the
+system sections below. Every producer returns an owned value without requiring
+another system to run or a global error queue to be read.
+
+Report-free boundaries are deliberate:
+
+- Creation, loading, setters, direct force/impulse application, validation, and
+  startup keep immediate results. Audio control acceptance is immediate;
+  later callback execution has separate reporting.
+- `engine_time_update()` and `engine_tick_update()` advance the clock without
+  cleanup reports; getters only read state.
+- Physics `step_begin`, `substep_begin`, `accelerations_clear`, `gravity_apply`,
+  and `physics_hitbox_animation_bindings_update()` are preparation helpers.
+  Binding failures contribute when invoked by the system update; its standalone
+  void API does not return a report.
+- Per-value animation helpers update caller-owned player/sprite values; the
+  entity sweep owns animation reports. Draw calls and immediate UI widgets
+  contribute to their respective next updates.
+- Input events, queries, and text/IME truncation keep existing behavior.
+  `ROHR_INPUT_REPORT` is reserved and printable, without an input producer.
+- Report builders, validation, composition, and output operate on values;
+  they do not run systems. Goal 10's retrieval API is not implemented.
+
+### Coverage evidence
+
+| Tests | Contract evidence |
+| --- | --- |
+| `report`, `report_output` | Validation, aggregation, all built-in output names/rules, overflow, saturation, repeats, reserved first fatal, copied details, output failures. |
+| `physics_reports` | Full/standalone composition, substeps, warning/fatal context, allocation failures, recovery preservation and wrapper parity. |
+| `graphics_reports`, asset/lifetime tests | Ordering, submission/execution ownership, skipped dependent work, backend failures, recording/presentation, queued-resource lifetime. |
+| `audio_reports` | Deterministic delayed callbacks, failures, overflow, concurrent callers, callback continuation, shutdown delivery, timing including gate acquisition. |
+| `ui_reports`, UI interaction tests | First use, events, transient-input reset, scopes/capacities, graphics ownership, persistent controls. |
+| `engine_reports`, `timing`, `engine_lifecycle` | Combined/split parity, pause/zero/reset, cleanup failures, copies after slot reuse/shutdown. |
+| `system_reports`, installed-SDK `rohr_system_reports` | Cross-system pending-evidence isolation, copies through restart, public/direct semantics, manual composition, checked warning/fatal consumption, audio shutdown isolation. |
+
+The [design contract](physics_reporting_contract.md) preserves historical
+pre-integration inventories; they do not identify additional missing pipelines.
+Tests compare semantic results without exact real-clock timings. Linux failure
+injection exercises backend failures; Windows compilation alone does not establish
+Windows runtime behavior.
+
+## Inspect and combine returned reports
+
+Check status separately from diagnostics: COMPLETE can contain warnings, FAILED
+stops dependent work, and NOT_RUN describes non-execution. Check `has_fatal`
+before reading `first_fatal`; developer-built FAILED reports can lack a fatal
+record, so do not infer status from that flag alone.
+
+```c
+static EngineResult inspect(const Report *r, bool *failed) {
+    *failed = r->header.status == ROHR_REPORT_FAILED;
+    if(*failed || r->diagnostic_count || r->dropped_entry_count ||
+            r->dropped_statistic_count || r->dropped_diagnostic_occurrences ||
+            r->counters_saturated)
+        return rohr_report_text_write(r, "system_report.txt");
+    return ERROR_RESULT_MAKE_VALUE(EngineResult, true);
+}
+```
+
+Check the returned `EngineResult` for output failure independently of `failed`,
+which describes system execution. The file is replaced per write, without history.
+Output includes severity, source/target IDs, repeats, copied detail,
+`detail_truncated`, overflow counts, and the reserved fatal even when the list
+is full. A fatal's ordinary-list mirror describes the same occurrences, not a
+second failure. Retained identifiers do not keep objects alive.
+
+Unmatched UI scopes or invalid queued textures produce COMPLETE with warnings;
+`engine_update()` before startup produces FAILED with retained startup details.
+`tests/system_reports.c` compiles and runs this helper for both outcomes in the
+source build and installed SDK.
+
+Combine already returned reports with an application-owned ID. Measure parent
+elapsed time independently; zero below means unmeasured.
+
+```c
+Report combined = rohr_report_create();
+EngineResult result = rohr_report_header_set(&combined,
+    (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, 0});
+if(rohr_error_check(result)) { /* Handle invalid builder input. */ }
+else {
+    result = rohr_report_merge(&combined, &engine_report);
+    if(!rohr_error_check(result))
+        result = rohr_report_merge(&combined, &physics_report);
+    if(rohr_error_check(result)) { /* Handle composition failure. */ }
+}
+```
+
+The variables are reports from work already executed; merging does not invoke
+systems or retrieve fresh evidence. Merge each parent once, without separately
+merging included descendants. Audio stop and its next-update delivery describe
+the same work; do not merge both. Inclusive/asynchronous child times do not sum
+to frame duration. Budget retained values explicitly; see [Cost and boundaries](#cost-and-boundaries).
 
 ## Build a report
 
@@ -67,10 +181,19 @@ have fixed rules:
 
 | Metric | Rule |
 | --- | --- |
-| PROCESSED, SKIPPED, CANDIDATE, OVERLAP, CONTACT, QUARANTINED counts | SUM |
-| SUBSTEPS_ATTEMPTED and SUBSTEPS_COMPLETED counts | SUM |
-| TREE_HEIGHT_PEAK | MAX |
-| TREE_NODES_CURRENT | LATEST |
+| PROCESSED_COUNT, SKIPPED_COUNT, CANDIDATE_COUNT, OVERLAP_COUNT, CONTACT_COUNT, QUARANTINED_COUNT | SUM; work items with owner-specific meaning |
+| SUBSTEPS_ATTEMPTED_COUNT, SUBSTEPS_COMPLETED_COUNT | SUM; substeps |
+| COLLIDER_COUNT, NARROWPHASE_TEST_COUNT | SUM; collider observations and narrow-phase tests |
+| BROADPHASE_BUILD_NS, BROADPHASE_QUERY_NS, NARROWPHASE_NS, FRAME_LIMIT_WAIT_NS | SUM; nanoseconds |
+| TREE_HEIGHT_PEAK | MAX; tree height |
+| TREE_NODES_CURRENT | LATEST; nodes |
+| QUEUED_COMMAND_COUNT, CANCELLED_COMMAND_COUNT | SUM; commands |
+| AUDIO_FRAMES_COUNT | SUM; stereo sample frames |
+| UI_INTERACTION_EVALUATION_COUNT, UI_EVENT_RECEIVED_COUNT, UI_EVENT_DROPPED_COUNT | SUM; evaluations/events, not unique widgets |
+| UI_NAVIGATION_ENTRIES_PEAK, UI_KEY_EVENT_SLOTS_PEAK, UI_TEXT_EVENT_SLOTS_PEAK, UI_SCROLL_RECORDS_PEAK | MAX; occupied entries/slots/records |
+| UI_TEXT_BYTES_PEAK | MAX; bytes excluding NUL |
+| UI_SCROLL_SCOPE_DEPTH_PEAK, UI_TRANSLATION_SCOPE_DEPTH_PEAK | MAX; simultaneous scopes |
+| TICKS_ADVANCED_COUNT, EXPIRED_ENTITY_COUNT | SUM; ticks consumed and expired entities encountered |
 
 The names above omit the common `ROHR_REPORT_` prefix for readability. Provide
 the corresponding `ROHR_REPORT_AGGREGATION_*` rule when adding a statistic.
@@ -468,9 +591,11 @@ application threads are serialized; each update collects a disjoint interval.
 
 Metric names in the table omit `ROHR_REPORT_` and `_COUNT`; all these counters
 sum. Child times accumulate measured callback work in milliseconds and retain
-actual invocation counts. Parent time measures the update or stop call, including
-collection, not elapsed playback time or summed child times. Missing child
-entries mean those pipelines did not run in that interval. Submission-only calls
+actual invocation counts. Parent time starts before application-gate acquisition
+and ends after collection (and teardown for stop). It excludes previous callback
+execution and is not the sum of child times. Retained shutdown delivery preserves
+the original stop timing. Missing child entries mean those pipelines did not run
+in that interval. Submission-only calls
 can have a QUEUED_COMMAND statistic without a completed command invocation.
 An active-service update is COMPLETE even when no callback ran; an inactive
 service with no retained shutdown evidence returns NOT_RUN.
@@ -664,5 +789,5 @@ migration. Generated modules remain editor-owned.
 The top-level audit leaves startup and configuration operations on their immediate
 results, low-level time advancement on its existing API, and input reporting
 deferred by user choice. Existing physics, graphics, audio and UI report owners
-remain independent. Cross-system coverage and latest-report composition are
-separate pending milestone goals.
+remain independent. The [coverage inventory](#system-coverage-inventory) records
+their boundaries. Latest-report retrieval/composition remains Goal 10.

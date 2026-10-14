@@ -453,6 +453,7 @@ if(ROHR_BUILD_TESTS)
         target_link_options(audio_reports_test PRIVATE
             -Wl,--wrap=SDL_OpenAudioDeviceStream -Wl,--wrap=SDL_ResumeAudioStreamDevice
             -Wl,--wrap=SDL_PutAudioStreamData -Wl,--wrap=stb_vorbis_get_samples_float_interleaved
+            -Wl,--wrap=SDL_GetTicksNS -Wl,--wrap=SDL_LockMutex -Wl,--wrap=SDL_LockAudioStream
             -Wl,--wrap=stb_vorbis_get_error -Wl,--wrap=stb_vorbis_seek_start)
     endif()
     if(ROHR_ENABLE_SANITIZERS)
@@ -566,6 +567,20 @@ if(ROHR_BUILD_TESTS)
         target_compile_options(report_output_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endif()
     add_test(NAME report_output COMMAND report_output_test)
+
+    add_executable(system_reports_test tests/system_reports.c)
+    target_link_libraries(system_reports_test PRIVATE rohr_engine)
+    set_target_properties(system_reports_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(system_reports_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(system_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME system_reports COMMAND system_reports_test)
+    set_tests_properties(system_reports PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
 
     add_executable(report_test tests/report.c)
     target_link_libraries(report_test PRIVATE rohr_engine)
@@ -1000,6 +1015,7 @@ if(ROHR_BUILD_TESTS)
         rohr_tests
         report_test
         report_output_test
+        system_reports_test
         graphics_reports_test
         physics_reports_test
         audio_reports_test

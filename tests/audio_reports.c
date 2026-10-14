@@ -29,6 +29,22 @@ static bool real_playback, fail_output, fail_decode, fail_seek;
 static unsigned int output_calls;
 static uint64_t sample_frames;
 static double sample_energy;
+static bool timing_probe, fail_stream_lock;
+static Uint64 probe_ns;
+Uint64 __real_SDL_GetTicksNS(void);
+Uint64 __wrap_SDL_GetTicksNS(void) {
+    return timing_probe ? probe_ns : __real_SDL_GetTicksNS();
+}
+void __real_SDL_LockMutex(SDL_Mutex *);
+void __wrap_SDL_LockMutex(SDL_Mutex *mutex) {
+    __real_SDL_LockMutex(mutex);
+    if(timing_probe) probe_ns += 7000000;
+}
+bool __real_SDL_LockAudioStream(SDL_AudioStream *);
+bool __wrap_SDL_LockAudioStream(SDL_AudioStream *stream) {
+    if(fail_stream_lock) return SDL_SetError("injected stream lock failure");
+    return __real_SDL_LockAudioStream(stream);
+}
 
 SDL_AudioStream *__real_SDL_OpenAudioDeviceStream(SDL_AudioDeviceID, const SDL_AudioSpec *, SDL_AudioStreamCallback, void *);
 SDL_AudioStream *__wrap_SDL_OpenAudioDeviceStream(SDL_AudioDeviceID id, const SDL_AudioSpec *spec,
@@ -70,6 +86,25 @@ static void pump(size_t frames) {
     assert(SDL_LockAudioStream(test_stream));
     callback(callback_context, test_stream, (int)(frames * 2 * sizeof(float)), 0);
     SDL_UnlockAudioStream(test_stream);
+}
+
+static void timing_boundaries(void) {
+    OK(audio_start()); /* Test stream stays paused; no callback clock races. */
+    timing_probe = true;
+    Report update = rohr_audio_update();
+    assert(update.header.status == ROHR_REPORT_COMPLETE && update.header.total_ms == 7.0);
+    fail_stream_lock = true;
+    Report failure = audio_update();
+    fail_stream_lock = false;
+    assert(failure.header.status == ROHR_REPORT_FAILED && failure.header.total_ms == 7.0);
+    assert(strstr(failure.first_fatal.detail, "injected stream lock failure"));
+    Report stopped = rohr_audio_stop();
+    assert(stopped.header.total_ms == 7.0);
+    Report repeated = audio_stop(), delivered = audio_update();
+    assert(memcmp(&stopped, &repeated, sizeof(stopped)) == 0);
+    assert(memcmp(&stopped, &delivered, sizeof(stopped)) == 0);
+    assert(audio_update().header.status == ROHR_REPORT_NOT_RUN);
+    timing_probe = false;
 }
 
 static void delayed_and_failures(void) {
@@ -350,6 +385,7 @@ int main(void) {
     assert(audio_update().header.status == ROHR_REPORT_NOT_RUN);
     assert(audio_test_wav_write() && audio_test_ogg_write());
 #ifdef ROHR_TEST_AUDIO_WRAP
+    timing_boundaries();
     delayed_and_failures();
     overflow_test();
     benchmark();

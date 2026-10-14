@@ -6,13 +6,15 @@ verified current behavior, agreed requirements, and proposed implementation
 details. Shared collection, merging, and physics integration are implemented as documented
 in [Shared reports](reports.md). That page is the current API reference; the
 original physics inventory and proposed refinements below retain design context.
-Console, JSON, text-file output, graphics reports, and audio reports are also implemented. Other system
-integrations and retrieval remain scheduled work. The
+Console, JSON, text-file output, graphics, audio, UI, and engine/lifecycle reports
+are also implemented. Input reporting is explicitly deferred; retrieval remains
+scheduled work. The [current coverage inventory](reports.md#system-coverage-inventory)
+supersedes the historical inventories below. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
 is Goal 1, physics integration Goal 2, console/JSON output Goal 3, and
 [graphics integration](reports.md#graphics-reports) Goal 4.
-Simulation-failure recovery is Goal 11, after all systems have reporting.
+Simulation-failure recovery is Goal 11, after all applicable systems have reporting.
 
 The separate Reporting Workflow Standards and Audio Contract documentation
 milestone precedes audio Goal 5 without renumbering this milestone. Follow the
@@ -25,8 +27,8 @@ semantics. Public manual audio mixing/output remains deferred.
 ## Scope and decisions
 
 Build the shared report system first. Physics is the first integrated report
-owner, followed by console/JSON output, graphics, audio, UI, input, and
-engine-tick cleanup. Share diagnostic
+owner, followed by console/JSON output, graphics, audio, UI, and
+engine-tick cleanup; input was deferred by user choice. Share diagnostic
 concepts without making physics depend on another system or a global queue.
 The force/torque milestone will consume this reporting mechanism later.
 Goal 9 verifies reporting coverage; Goal 11 then addresses simulation-failure
@@ -92,9 +94,9 @@ Settled decisions:
    retained, not counted as dropped merely because the ordinary list is full.
    Later successes or fatal errors cannot erase or replace that first failure.
 
-The remaining system integration definitions below are the proposed contract for review.
-They must not be treated as already shipped API or approval to change runtime
-behavior before its relevant implementation goal is explicitly selected.
+Historical inventories and proposed API shapes below preserve the original
+design discussion. Use the report reference for shipped signatures and boundaries;
+deferred work requires explicit selection of its implementation goal.
 
 ## Pre-integration entry-point inventory (historical)
 
@@ -121,9 +123,9 @@ belong to `engine_update()`, with independent `engine_tick_update()` and
 `engine_lifecycle_update()` alternatives. See [engine reports](reports.md#engine-reports).
 Reporting must not cause extra physics steps or change source expiry.
 
-## Audited stage inventory
+## Pre-integration stage inventory (historical)
 
-| Stage identity | Work covered | Current observation |
+| Stage identity | Work covered | Observation before integration |
 | --- | --- | --- |
 | Preparation | Animated-hitbox binding update and interaction-step initialization | Binding update precedes the current report reset. |
 | Substep begin | Clear transient contacts/joints and force-derived acceleration | Must not clear update-level warnings. |

@@ -74,7 +74,9 @@ callbacks retry output without rewinding already-consumed samples. Existing
 streamed Vorbis decoding/file access remains in the callback; this goal does
 not claim to make that backend fully real-time safe.
 
-Parent time measures the update/stop call, not previous callback work. Child
+Parent time measures the update/stop call from before application-gate acquisition
+through collection/teardown, not previous callback work. Retained shutdown
+delivery preserves the stop timing. Child
 times and invocation counts accumulate across the collected interval. Metrics
 are specified in the report reference rather than inferred from parent time.
 

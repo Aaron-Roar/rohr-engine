@@ -9,3 +9,11 @@ find_package(Rohr CONFIG REQUIRED)
 
 add_executable(rohr_installed_sdk_consumer main.c)
 target_link_libraries(rohr_installed_sdk_consumer PRIVATE Rohr::Engine)
+
+add_executable(rohr_system_reports ../system_reports.c)
+target_link_libraries(rohr_system_reports PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_system_reports PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_system_reports PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()

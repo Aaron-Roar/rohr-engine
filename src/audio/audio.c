@@ -103,7 +103,7 @@ static bool audio_gate_lock(void) {
 
 static void audio_gate_unlock(void) { SDL_UnlockMutex(audio_gate); }
 
-static Report audio_failure_report(const char *detail) {
+static Report audio_failure_report(const char *detail, uint64_t started) {
     Report report = report_create();
     report.header = (ReportHeader){ROHR_AUDIO_REPORT, ROHR_REPORT_FAILED, 0.0};
     ReportDiagnostic diagnostic = {.report_id = ROHR_AUDIO_REPORT,
@@ -111,6 +111,7 @@ static Report audio_failure_report(const char *detail) {
         .recovery = ROHR_REPORT_UPDATE_ABORTED, .occurrence_count = 1};
     (void)report_diagnostic_detail_set(&diagnostic, detail);
     (void)report_diagnostic_add(&report, diagnostic);
+    report.header.total_ms = (double)(SDL_GetTicksNS() - started) / 1000000.0;
     return report;
 }
 
@@ -763,8 +764,7 @@ static EngineResult audio_start_impl(void) {
     return error_result_value(true);
 }
 
-static Report audio_stop_impl(void) {
-    uint64_t start = SDL_GetTicksNS();
+static Report audio_stop_impl(uint64_t start) {
     if(!audio_started) {
         if(audio_shutdown_pending) return audio_shutdown_report;
         Report empty = report_create();
@@ -799,8 +799,7 @@ static Report audio_stop_impl(void) {
     return audio_shutdown_report;
 }
 
-static Report audio_update_impl(void) {
-    uint64_t start = SDL_GetTicksNS();
+static Report audio_update_impl(uint64_t start) {
     if(!audio_started) {
         if(audio_shutdown_pending) {
             audio_shutdown_pending = false;
@@ -814,7 +813,7 @@ static Report audio_update_impl(void) {
     unsigned int next = previous ^ 1u;
     memset(&audio_evidence[next], 0, sizeof(audio_evidence[next]));
     if(!audio_lock()) {
-        return audio_failure_report(SDL_GetError());
+        return audio_failure_report(SDL_GetError(), start);
     }
     audio_evidence_index = next;
     uint64_t accepted = audio_command_count - audio_submitted_count;
@@ -1371,15 +1370,17 @@ EngineResult audio_start(void) {
 }
 
 Report audio_stop(void) {
-    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError()); }
-    Report result = audio_stop_impl();
+    uint64_t start = SDL_GetTicksNS();
+    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError(), start); }
+    Report result = audio_stop_impl(start);
     audio_gate_unlock();
     return result;
 }
 
 Report audio_update(void) {
-    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError()); }
-    Report result = audio_update_impl();
+    uint64_t start = SDL_GetTicksNS();
+    if(!audio_gate_lock()) { return audio_failure_report(SDL_GetError(), start); }
+    Report result = audio_update_impl(start);
     audio_gate_unlock();
     return result;
 }
