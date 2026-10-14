@@ -233,7 +233,7 @@ void physics_pipeline_joint_constraints_solve(void *context) {
 
 Report system_physics_update(double dt) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report preparation = physics_report_create(ROHR_PHYSICS_REPORT);
+    Report preparation = physics_report_create(ROHR_PHYSICS_REPORT_ID);
     Report report;
     if(isfinite(dt) && dt >= 0.0) physics_hitbox_animation_bindings_report_update(&preparation);
     report = physics_pipeline_update_internal(dt, false);

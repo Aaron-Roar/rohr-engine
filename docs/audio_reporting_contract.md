@@ -41,11 +41,11 @@ Report rohr_audio_stop(void);
 ```
 
 ```text
-ROHR_AUDIO_REPORT
-├── ROHR_AUDIO_COMMANDS_REPORT
-├── ROHR_AUDIO_SOUNDS_REPORT
-├── ROHR_AUDIO_MUSIC_REPORT
-└── ROHR_AUDIO_OUTPUT_REPORT
+ROHR_AUDIO_REPORT_ID
+├── ROHR_AUDIO_COMMANDS_REPORT_ID
+├── ROHR_AUDIO_SOUNDS_REPORT_ID
+├── ROHR_AUDIO_MUSIC_REPORT_ID
+└── ROHR_AUDIO_OUTPUT_REPORT_ID
 ```
 
 The child boundaries are callback-owned. Unlike the public physics/graphics
@@ -94,7 +94,7 @@ Successful restart begins a fresh reporting lifetime and discards any uncollecte
 shutdown copy; failed startup does not consume that copy.
 
 This bounded callback handoff is distinct from the non-consuming
-`rohr_report_get(id)` latest-report API. Audio child getters expose the latest
+`rohr_report_get(flags)` latest-report API. Audio child getters expose the latest
 published collection-interval aggregate; callbacks never access the stored-report
 registry. Retained shutdown delivery preserves its publication version. No report history, per-request completion
 query, or manual sample-buffer API is implemented here.

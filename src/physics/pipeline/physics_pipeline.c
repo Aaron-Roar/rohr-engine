@@ -8,7 +8,7 @@
 
 Report physics_pipeline_substep(double dt) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_SUBSTEP_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_SUBSTEP_REPORT_ID);
     Report child;
     if(!isfinite(dt) || dt < 0.0) {
         physics_report_issue_add(&report, ROHR_PHYSICS_ARGUMENTS, ROHR_REPORT_SEVERITY_FATAL,
@@ -40,7 +40,7 @@ done:
 
 Report physics_pipeline_update_internal(double dt, bool publish) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_REPORT_ID);
     uint32_t substeps = physics_substeps_get();
     if(!isfinite(dt) || dt < 0.0) {
         physics_report_issue_add(&report, ROHR_PHYSICS_ARGUMENTS, ROHR_REPORT_SEVERITY_FATAL,

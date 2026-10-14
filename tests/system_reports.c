@@ -50,13 +50,13 @@ static void fixture(bool wrapped, Report *reports) {
         graphics_pipeline_commands_execute();
     reports[2] = wrapped ? rohr_ui_update() : ui_update();
     assert(reports[0].entry_count == 1);
-    assert(reports[0].entries[0].header.id == ROHR_ENGINE_LIFECYCLE_REPORT);
+    assert(reports[0].entries[0].header.id == ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(reports[1].entry_count == 6);
     assert(reports[2].diagnostic_count == 1);
     assert(reports[2].diagnostics[0].code == ERROR_ENGINE_UI_SCOPE_UNBALANCED);
     assert(metric(&reports[2], ROHR_REPORT_UI_EVENT_RECEIVED_COUNT) == 1);
     assert(reports[3].diagnostic_count == 1);
-    assert(reports[3].diagnostics[0].report_id == ROHR_GRAPHICS_COMMANDS_REPORT);
+    assert(reports[3].diagnostics[0].report_id == ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     assert(reports[3].diagnostics[0].occurrence_count == 2);
     assert(reports[4].header.status == ROHR_REPORT_NOT_RUN);
     for(size_t i = 0; i < SYSTEM_COUNT; ++i) {

@@ -55,7 +55,7 @@ typedef struct GraphicsReportContext {
 } GraphicsReportContext;
 static GraphicsReportContext *graphics_report_context;
 static Report graphics_pending_commands = {
-    .header = {ROHR_GRAPHICS_COMMANDS_REPORT, ROHR_REPORT_COMPLETE, 0}
+    .header = {ROHR_GRAPHICS_COMMANDS_REPORT_ID, ROHR_REPORT_COMPLETE, 0}
 };
 static bool graphics_frame_active;
 
@@ -2993,7 +2993,7 @@ EngineResult graphics_start(void) {
 void graphics_renderer_end(void) {
     size_t screen_slot;
     graphics_commands_discard();
-    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     graphics_ui_elements_clear();
     graphics_text_assets_clear();
     graphics_animation_assets_clear();
@@ -4173,7 +4173,7 @@ static void graphics_commands_execute(void) {
 
 Report graphics_pipeline_cameras_update(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_CAMERAS_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_CAMERAS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_CAMERA_CALLBACK};
     if(!graphics_pipeline_begin(&context, &report)) {
         report_publish_internal(&report);
@@ -4194,7 +4194,7 @@ Report graphics_pipeline_cameras_update(void) {
 
 Report graphics_pipeline_commands_execute(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_COMMAND_EXECUTION};
     if(graphics_report_context != NULL) {
         (void)graphics_pipeline_begin(&context, &report);
@@ -4202,7 +4202,7 @@ Report graphics_pipeline_commands_execute(void) {
         return report;
     }
     report = graphics_pending_commands;
-    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+    graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     if(!graphics_pipeline_begin(&context, &report)) {
         graphics_commands_discard();
         report_publish_internal(&report);
@@ -4216,7 +4216,7 @@ Report graphics_pipeline_commands_execute(void) {
 
 Report graphics_pipeline_viewports_draw(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_VIEWPORTS_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_VIEWPORTS_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_VIEWPORT_COMPOSITION};
     if(!graphics_pipeline_begin(&context, &report)) {
         report_publish_internal(&report);
@@ -4231,7 +4231,7 @@ Report graphics_pipeline_viewports_draw(void) {
 
 Report graphics_pipeline_recording_update(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_RECORDING_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_RECORDING_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_RECORDING_CAPTURE};
     if(!graphics_pipeline_begin(&context, &report)) {
         report_publish_internal(&report);
@@ -4248,7 +4248,7 @@ Report graphics_pipeline_recording_update(void) {
 
 Report graphics_pipeline_present(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_PRESENTATION_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_PRESENTATION_REPORT_ID);
     GraphicsReportContext context = {.stage = ROHR_GRAPHICS_PRESENTATION};
     if(!graphics_pipeline_begin(&context, &report)) {
         report_publish_internal(&report);
@@ -4275,7 +4275,7 @@ Report graphics_pipeline_present(void) {
 
 Report graphics_show(void) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_REPORT_ID);
     if(graphics_frame_active || graphics_report_context != NULL) {
         graphics_report_issue(&report, 0, ERROR_ENGINE_STATE_INVALID, true,
             (ReportObjectRef){0}, (ReportObjectRef){0}, "Recursive graphics frame call rejected");
@@ -4296,7 +4296,7 @@ Report graphics_show(void) {
             graphics_report_count(&child, ROHR_REPORT_SKIPPED_COUNT, graphics_layers[i].count);
         (void)report_merge(&report, &child);
         graphics_commands_discard();
-        graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT);
+        graphics_pending_commands = graphics_report_create(ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     }
     if(report.header.status != ROHR_REPORT_FAILED) {
         child = graphics_pipeline_viewports_draw();
@@ -5272,7 +5272,7 @@ void graphics_animated_sprites_draw(void) {
 
 Report graphics_sprite_frames_update(Tick current_tick, Time current_time) {
     Uint64 start = SDL_GetTicksNS();
-    Report report = graphics_report_create(ROHR_GRAPHICS_ANIMATIONS_REPORT);
+    Report report = graphics_report_create(ROHR_GRAPHICS_ANIMATIONS_REPORT_ID);
     uint64_t processed = 0, skipped = 0;
     for(int i = 0; i < MAX_ENTITIES; i++) {
         if(!entity_index_alive_check(i) || !entity_index_components_check(i, ROHR_ANIMATED_SPRITE)) continue;

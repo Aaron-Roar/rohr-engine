@@ -15,31 +15,31 @@
 /* Names are explicit wire-format labels, not inferred from numeric ranges. */
 static const char *report_id_name(uint32_t value) {
     switch(value) {
-        case ROHR_REPORT_NONE: return "ROHR_REPORT_NONE";
-        case ROHR_REPORT: return "ROHR_REPORT";
-        case ROHR_PHYSICS_REPORT: return "ROHR_PHYSICS_REPORT";
-        case ROHR_PHYSICS_SUBSTEP_REPORT: return "ROHR_PHYSICS_SUBSTEP_REPORT";
-        case ROHR_PHYSICS_LOADS_REPORT: return "ROHR_PHYSICS_LOADS_REPORT";
-        case ROHR_PHYSICS_INTEGRATION_REPORT: return "ROHR_PHYSICS_INTEGRATION_REPORT";
-        case ROHR_PHYSICS_CONTACTS_REPORT: return "ROHR_PHYSICS_CONTACTS_REPORT";
-        case ROHR_PHYSICS_JOINTS_REPORT: return "ROHR_PHYSICS_JOINTS_REPORT";
-        case ROHR_PHYSICS_CONSTRAINTS_REPORT: return "ROHR_PHYSICS_CONSTRAINTS_REPORT";
-        case ROHR_GRAPHICS_REPORT: return "ROHR_GRAPHICS_REPORT";
-        case ROHR_AUDIO_REPORT: return "ROHR_AUDIO_REPORT";
-        case ROHR_INPUT_REPORT: return "ROHR_INPUT_REPORT";
-        case ROHR_UI_REPORT: return "ROHR_UI_REPORT";
-        case ROHR_GRAPHICS_CAMERAS_REPORT: return "ROHR_GRAPHICS_CAMERAS_REPORT";
-        case ROHR_GRAPHICS_COMMANDS_REPORT: return "ROHR_GRAPHICS_COMMANDS_REPORT";
-        case ROHR_GRAPHICS_VIEWPORTS_REPORT: return "ROHR_GRAPHICS_VIEWPORTS_REPORT";
-        case ROHR_GRAPHICS_RECORDING_REPORT: return "ROHR_GRAPHICS_RECORDING_REPORT";
-        case ROHR_GRAPHICS_PRESENTATION_REPORT: return "ROHR_GRAPHICS_PRESENTATION_REPORT";
-        case ROHR_GRAPHICS_ANIMATIONS_REPORT: return "ROHR_GRAPHICS_ANIMATIONS_REPORT";
-        case ROHR_AUDIO_COMMANDS_REPORT: return "ROHR_AUDIO_COMMANDS_REPORT";
-        case ROHR_AUDIO_SOUNDS_REPORT: return "ROHR_AUDIO_SOUNDS_REPORT";
-        case ROHR_AUDIO_MUSIC_REPORT: return "ROHR_AUDIO_MUSIC_REPORT";
-        case ROHR_AUDIO_OUTPUT_REPORT: return "ROHR_AUDIO_OUTPUT_REPORT";
-        case ROHR_ENGINE_LIFECYCLE_REPORT: return "ROHR_ENGINE_LIFECYCLE_REPORT";
-        case ROHR_ENGINE_REPORT: return "ROHR_ENGINE_REPORT";
+        case ROHR_REPORT_NONE_ID: return "ROHR_REPORT_NONE_ID";
+        case ROHR_REPORT_ID: return "ROHR_REPORT_ID";
+        case ROHR_PHYSICS_REPORT_ID: return "ROHR_PHYSICS_REPORT_ID";
+        case ROHR_PHYSICS_SUBSTEP_REPORT_ID: return "ROHR_PHYSICS_SUBSTEP_REPORT_ID";
+        case ROHR_PHYSICS_LOADS_REPORT_ID: return "ROHR_PHYSICS_LOADS_REPORT_ID";
+        case ROHR_PHYSICS_INTEGRATION_REPORT_ID: return "ROHR_PHYSICS_INTEGRATION_REPORT_ID";
+        case ROHR_PHYSICS_CONTACTS_REPORT_ID: return "ROHR_PHYSICS_CONTACTS_REPORT_ID";
+        case ROHR_PHYSICS_JOINTS_REPORT_ID: return "ROHR_PHYSICS_JOINTS_REPORT_ID";
+        case ROHR_PHYSICS_CONSTRAINTS_REPORT_ID: return "ROHR_PHYSICS_CONSTRAINTS_REPORT_ID";
+        case ROHR_GRAPHICS_REPORT_ID: return "ROHR_GRAPHICS_REPORT_ID";
+        case ROHR_AUDIO_REPORT_ID: return "ROHR_AUDIO_REPORT_ID";
+        case ROHR_INPUT_REPORT_ID: return "ROHR_INPUT_REPORT_ID";
+        case ROHR_UI_REPORT_ID: return "ROHR_UI_REPORT_ID";
+        case ROHR_GRAPHICS_CAMERAS_REPORT_ID: return "ROHR_GRAPHICS_CAMERAS_REPORT_ID";
+        case ROHR_GRAPHICS_COMMANDS_REPORT_ID: return "ROHR_GRAPHICS_COMMANDS_REPORT_ID";
+        case ROHR_GRAPHICS_VIEWPORTS_REPORT_ID: return "ROHR_GRAPHICS_VIEWPORTS_REPORT_ID";
+        case ROHR_GRAPHICS_RECORDING_REPORT_ID: return "ROHR_GRAPHICS_RECORDING_REPORT_ID";
+        case ROHR_GRAPHICS_PRESENTATION_REPORT_ID: return "ROHR_GRAPHICS_PRESENTATION_REPORT_ID";
+        case ROHR_GRAPHICS_ANIMATIONS_REPORT_ID: return "ROHR_GRAPHICS_ANIMATIONS_REPORT_ID";
+        case ROHR_AUDIO_COMMANDS_REPORT_ID: return "ROHR_AUDIO_COMMANDS_REPORT_ID";
+        case ROHR_AUDIO_SOUNDS_REPORT_ID: return "ROHR_AUDIO_SOUNDS_REPORT_ID";
+        case ROHR_AUDIO_MUSIC_REPORT_ID: return "ROHR_AUDIO_MUSIC_REPORT_ID";
+        case ROHR_AUDIO_OUTPUT_REPORT_ID: return "ROHR_AUDIO_OUTPUT_REPORT_ID";
+        case ROHR_ENGINE_LIFECYCLE_REPORT_ID: return "ROHR_ENGINE_LIFECYCLE_REPORT_ID";
+        case ROHR_ENGINE_REPORT_ID: return "ROHR_ENGINE_REPORT_ID";
         default: return NULL;
     }
 }
@@ -287,10 +287,10 @@ static const char *graphics_stage_name(uint32_t value) {
 }
 
 static const char *stage_name(ReportId owner, uint32_t stage) {
-    if(owner >= ROHR_PHYSICS_REPORT && owner <= ROHR_PHYSICS_CONSTRAINTS_REPORT)
+    if(owner >= ROHR_PHYSICS_REPORT_ID && owner <= ROHR_PHYSICS_CONSTRAINTS_REPORT_ID)
         return physics_stage_name(stage);
-    if(owner == ROHR_GRAPHICS_REPORT || (owner >= ROHR_GRAPHICS_CAMERAS_REPORT &&
-            owner <= ROHR_GRAPHICS_ANIMATIONS_REPORT)) return graphics_stage_name(stage);
+    if(owner == ROHR_GRAPHICS_REPORT_ID || (owner >= ROHR_GRAPHICS_CAMERAS_REPORT_ID &&
+            owner <= ROHR_GRAPHICS_ANIMATIONS_REPORT_ID)) return graphics_stage_name(stage);
     return NULL;
 }
 
@@ -540,7 +540,7 @@ EngineResult report_json_write(const Report *report, const char *path, bool pret
     json_put(&j, root, "invocation_count", json_u64(&j, report->invocation_count));
     yyjson_mut_val *coverage = yyjson_mut_arr(j.doc);
     json_put(&j, root, "included_versions", coverage);
-    for(size_t i = 1; i < ROHR_REPORT; ++i) {
+    for(size_t i = 1; i < ROHR_REPORT_ID; ++i) {
         if(!report->included_versions[i]) continue;
         yyjson_mut_val *object = yyjson_mut_obj(j.doc);
         json_put(&j, object, "report_id", json_enum(&j, (uint32_t)i, report_id_name((uint32_t)i)));

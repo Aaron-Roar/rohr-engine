@@ -97,13 +97,13 @@ static void composition_and_joints(void) {
     OK(rohr_physics_substeps_set(3));
     Report full = rohr_physics_dt_update(.3);
     assert(rohr_report_valid_check(&full) && fabsf(position(a).x - .6f) < .0001f);
-    assert(metric(&full, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 3);
-    assert(metric(&full, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 3);
-    assert(entry(&full, ROHR_PHYSICS_INTEGRATION_REPORT)->invocation_count == 3);
-    assert(entry(&full, ROHR_PHYSICS_SUBSTEP_REPORT)->invocation_count == 3);
+    assert(metric(&full, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 3);
+    assert(metric(&full, ROHR_PHYSICS_INTEGRATION_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 3);
+    assert(entry(&full, ROHR_PHYSICS_INTEGRATION_REPORT_ID)->invocation_count == 3);
+    assert(entry(&full, ROHR_PHYSICS_SUBSTEP_REPORT_ID)->invocation_count == 3);
     OK(rohr_physics_position_set(a, (Position){0}));
     Report combined = rohr_report_create();
-    OK(rohr_report_header_set(&combined, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, 42}));
+    OK(rohr_report_header_set(&combined, (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_COMPLETE, 42}));
     rohr_physics_pipeline_step_begin();
     for(unsigned i = 0; i < 3; i++) {
         Report child = physics_pipeline_substep(.1);
@@ -111,7 +111,7 @@ static void composition_and_joints(void) {
         OK(rohr_report_merge(&combined, &child));
     }
     assert(fabsf(position(a).x - .6f) < .0001f && combined.header.total_ms == 42);
-    assert(metric(&combined, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 3);
+    assert(metric(&combined, ROHR_PHYSICS_INTEGRATION_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 3);
     OK(rohr_physics_position_set(a, (Position){0}));
     OK(rohr_physics_dt_per_tick_set(.1));
     Report tick = rohr_physics_update(3);
@@ -120,11 +120,11 @@ static void composition_and_joints(void) {
     (void)joint_make(a, b, false);
     rohr_physics_pipeline_substep_begin();
     Report joint_report = rohr_physics_pipeline_joints_gather();
-    assert(joint_report.header.id == ROHR_PHYSICS_JOINTS_REPORT && joint_report.header.status == ROHR_REPORT_COMPLETE);
+    assert(joint_report.header.id == ROHR_PHYSICS_JOINTS_REPORT_ID && joint_report.header.status == ROHR_REPORT_COMPLETE);
     Report solved = rohr_physics_pipeline_constraints_solve(8);
     assert(solved.header.status == ROHR_REPORT_COMPLETE);
     assert(fabsf(position(a).x - position(b).x) < .0001f);
-    assert(metric(&joint_report, ROHR_PHYSICS_JOINTS_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 1);
+    assert(metric(&joint_report, ROHR_PHYSICS_JOINTS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 1);
     assert(joint_report.entry_count == 0 && solved.entry_count == 0);
     rohr_engine_stop();
     assert(rohr_report_valid_check(&full) && rohr_report_valid_check(&joint_report));
@@ -154,10 +154,10 @@ static void warning_and_fatal(void) {
     assert(report.diagnostics[0].first_substep == 0 && report.diagnostics[0].last_substep == 3);
     assert(report.diagnostics[0].occurrence_count == 4);
     assert(report.diagnostics[0].recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
-    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_SKIPPED_COUNT) == 4);
-    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT) == 4);
-    assert(metric(&report, ROHR_PHYSICS_REPORT, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 4);
-    assert(entry(&report, ROHR_PHYSICS_CONTACTS_REPORT) != NULL);
+    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT) == 4);
+    assert(metric(&report, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT) == 4);
+    assert(metric(&report, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 4);
+    assert(entry(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID) != NULL);
     Report saved = report;
     OK(rohr_entity_delete(a));
     (void)body(0, false); /* Reuse may not alter copied evidence. */
@@ -182,7 +182,7 @@ static void diagnostic_overflow(void) {
     assert(!report.has_fatal && report.diagnostics[0].source.id == first);
     assert(report.diagnostic_count == ROHR_REPORT_DIAGNOSTIC_CAPACITY);
     assert(report.dropped_diagnostic_occurrences == 4);
-    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT, ROHR_REPORT_SKIPPED_COUNT)
+    assert(metric(&report, ROHR_PHYSICS_INTEGRATION_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT)
         == ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4);
     assert(rohr_report_valid_check(&report));
     rohr_engine_stop();
@@ -193,13 +193,13 @@ static void contact_metrics(void) {
     (void)body(0, true); (void)body(1, true);
     Report report = rohr_system_physics_update(0);
     assert(report.header.status == ROHR_REPORT_COMPLETE);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_COLLIDER_COUNT) == 2);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_CANDIDATE_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_NARROWPHASE_TEST_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_OVERLAP_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_CONSTRAINTS_REPORT, ROHR_REPORT_CONTACT_COUNT) == 1);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_TREE_NODES_CURRENT) == 3);
-    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT, ROHR_REPORT_TREE_HEIGHT_PEAK) == 1);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_COLLIDER_COUNT) == 2);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_CANDIDATE_COUNT) == 1);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_NARROWPHASE_TEST_COUNT) == 1);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_OVERLAP_COUNT) == 1);
+    assert(metric(&report, ROHR_PHYSICS_CONSTRAINTS_REPORT_ID, ROHR_REPORT_CONTACT_COUNT) == 1);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_TREE_NODES_CURRENT) == 3);
+    assert(metric(&report, ROHR_PHYSICS_CONTACTS_REPORT_ID, ROHR_REPORT_TREE_HEIGHT_PEAK) == 1);
     rohr_engine_stop();
 }
 

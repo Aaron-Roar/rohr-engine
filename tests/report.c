@@ -20,7 +20,7 @@ static Report make_report(ReportId id) {
 
 static ReportDiagnostic issue(uint64_t object, ReportSeverity severity) {
     ReportDiagnostic value = {0};
-    value.report_id = ROHR_PHYSICS_JOINTS_REPORT;
+    value.report_id = ROHR_PHYSICS_JOINTS_REPORT_ID;
     value.severity = severity;
     value.code = ERROR_ENGINE_STATE_INVALID;
     value.source = (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, object};
@@ -29,14 +29,14 @@ static ReportDiagnostic issue(uint64_t object, ReportSeverity severity) {
 }
 
 static ReportStatistic stat(ReportMetricId metric, ReportAggregation rule, uint64_t value) {
-    return (ReportStatistic){.report_id = ROHR_PHYSICS_JOINTS_REPORT, .metric_id = metric, .aggregation = rule, .value = value};
+    return (ReportStatistic){.report_id = ROHR_PHYSICS_JOINTS_REPORT_ID, .metric_id = metric, .aggregation = rule, .value = value};
 }
 
 static void construction(void) {
     Report value = rohr_report_create();
     ReportDiagnostic diagnostic = {0};
     assert(rohr_report_valid_check(&value));
-    assert(value.header.id == ROHR_REPORT_NONE && value.header.status == ROHR_REPORT_NOT_RUN);
+    assert(value.header.id == ROHR_REPORT_NONE_ID && value.header.status == ROHR_REPORT_NOT_RUN);
     assert(diagnostic.severity == ROHR_REPORT_SEVERITY_NONE);
     assert(!rohr_report_valid_check(NULL));
     BAD(rohr_report_header_set(NULL, (ReportHeader){0}));
@@ -44,8 +44,8 @@ static void construction(void) {
     OK(rohr_report_header_set(&value, (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_NOT_RUN, 0}));
     OK(rohr_report_header_set(&value, (ReportHeader){ROHR_REPORT_CUSTOM_ID_END, ROHR_REPORT_COMPLETE, 1}));
     BAD(rohr_report_header_set(&value, (ReportHeader){(ReportId)-1, ROHR_REPORT_COMPLETE, 0}));
-    BAD(rohr_report_header_set(&value, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, NAN}));
-    BAD(rohr_report_header_set(&value, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, -1}));
+    BAD(rohr_report_header_set(&value, (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_COMPLETE, NAN}));
+    BAD(rohr_report_header_set(&value, (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_COMPLETE, -1}));
     BAD(rohr_report_diagnostic_add(&value, diagnostic));
     diagnostic = issue(10, ROHR_REPORT_SEVERITY_WARNING);
     diagnostic.occurrence_count = 0;
@@ -54,7 +54,7 @@ static void construction(void) {
 }
 
 static void details_and_identity(void) {
-    Report value = make_report(ROHR_PHYSICS_REPORT);
+    Report value = make_report(ROHR_PHYSICS_REPORT_ID);
     ReportDiagnostic diagnostic = issue(10, ROHR_REPORT_SEVERITY_WARNING);
     char text[ROHR_REPORT_DETAIL_CAPACITY + 4];
     memset(text, 'x', sizeof(text)); text[sizeof(text)-1] = '\0';
@@ -74,7 +74,7 @@ static void details_and_identity(void) {
     assert(strcmp(value.diagnostics[0].detail, "original") == 0);
     diagnostic.source.id += UINT64_C(1) << 32; /* Reused slot, different generation. */
     OK(rohr_report_diagnostic_add(&value, diagnostic));
-    diagnostic.report_id = ROHR_GRAPHICS_REPORT;
+    diagnostic.report_id = ROHR_GRAPHICS_REPORT_ID;
     OK(rohr_report_diagnostic_add(&value, diagnostic));
     diagnostic.internal_stage = 1;
     OK(rohr_report_diagnostic_add(&value, diagnostic));
@@ -92,7 +92,7 @@ static void details_and_identity(void) {
 }
 
 static void aggregation(void) {
-    Report a = make_report(ROHR_PHYSICS_REPORT), b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report a = make_report(ROHR_PHYSICS_REPORT_ID), b = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     a.header.total_ms = 20;
     OK(rohr_report_statistic_add(&a, stat(ROHR_REPORT_PROCESSED_COUNT, ROHR_REPORT_AGGREGATION_SUM, 10)));
     OK(rohr_report_statistic_add(&b, stat(ROHR_REPORT_PROCESSED_COUNT, ROHR_REPORT_AGGREGATION_SUM, 7)));
@@ -103,7 +103,7 @@ static void aggregation(void) {
     Report before = b;
     OK(rohr_report_merge(&a, &b));
     assert(memcmp(&before, &b, sizeof(b)) == 0);
-    assert(a.header.total_ms == 20 && a.header.id == ROHR_PHYSICS_REPORT);
+    assert(a.header.total_ms == 20 && a.header.id == ROHR_PHYSICS_REPORT_ID);
     assert(a.statistics[0].value == 17 && a.statistics[1].value == 10 && a.statistics[2].value == 7);
     assert(a.entry_count == 1 && a.entries[0].invocation_count == 1 && a.entries[0].header.total_ms == 2);
     OK(rohr_report_merge(&a, &b));
@@ -126,7 +126,7 @@ static void aggregation(void) {
 }
 
 static void critical_capacity(void) {
-    Report source = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report source = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; i += 1)
         OK(rohr_report_diagnostic_add(&source, issue(i + 1, ROHR_REPORT_SEVERITY_WARNING)));
     ReportDiagnostic fatal = issue(9999, ROHR_REPORT_SEVERITY_FATAL);
@@ -143,7 +143,7 @@ static void critical_capacity(void) {
     OK(rohr_report_diagnostic_add(&source, fatal));
     assert(source.dropped_diagnostic_occurrences == 3);
     assert(source.first_fatal.source.id == 9999 && rohr_report_valid_check(&source));
-    Report destination = make_report(ROHR_PHYSICS_REPORT);
+    Report destination = make_report(ROHR_PHYSICS_REPORT_ID);
     OK(rohr_report_merge(&destination, &source));
     assert(destination.diagnostic_count == 256 && destination.dropped_diagnostic_occurrences == 3);
     assert(destination.first_fatal.occurrence_count == 2);
@@ -151,15 +151,15 @@ static void critical_capacity(void) {
     assert(destination.first_fatal.occurrence_count == 4);
     assert(destination.dropped_diagnostic_occurrences == 6);
     assert(destination.diagnostics[0].occurrence_count == 2);
-    BAD(rohr_report_header_set(&destination, (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, 0}));
-    Report success = make_report(ROHR_GRAPHICS_REPORT);
+    BAD(rohr_report_header_set(&destination, (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_COMPLETE, 0}));
+    Report success = make_report(ROHR_GRAPHICS_REPORT_ID);
     OK(rohr_report_merge(&destination, &success));
     assert(destination.header.status == ROHR_REPORT_FAILED);
     assert(strcmp(destination.first_fatal.detail, "first critical failure") == 0);
 }
 
 static void mirrored_fatal(void) {
-    Report a = make_report(ROHR_PHYSICS_REPORT), b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report a = make_report(ROHR_PHYSICS_REPORT_ID), b = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     ReportDiagnostic fatal = issue(1, ROHR_REPORT_SEVERITY_FATAL);
     OK(rohr_report_diagnostic_detail_set(&fatal, "first"));
     OK(rohr_report_diagnostic_add(&b, fatal));
@@ -174,7 +174,7 @@ static void mirrored_fatal(void) {
     assert(a.diagnostic_count == 2 && a.first_fatal.occurrence_count == 3);
     assert(a.diagnostics[0].occurrence_count == 3);
     assert(strcmp(a.first_fatal.detail, "first") == 0 && rohr_report_valid_check(&a));
-    Report full = make_report(ROHR_GRAPHICS_REPORT);
+    Report full = make_report(ROHR_GRAPHICS_REPORT_ID);
     for(size_t i = 0; i < 256; i += 1)
         OK(rohr_report_diagnostic_add(&full, issue(100+i, ROHR_REPORT_SEVERITY_WARNING)));
     OK(rohr_report_merge(&full, &b));
@@ -183,7 +183,7 @@ static void mirrored_fatal(void) {
 }
 
 static void overflow_and_saturation(void) {
-    Report a = make_report(ROHR_PHYSICS_REPORT), b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report a = make_report(ROHR_PHYSICS_REPORT_ID), b = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     for(size_t i = 0; i < ROHR_REPORT_ENTRY_CAPACITY; i += 1)
         OK(rohr_report_entry_add(&a, (ReportEntry){.header = {(ReportId)(ROHR_REPORT_CUSTOM_ID_BEGIN+i), ROHR_REPORT_COMPLETE, 1}, .invocation_count = 1}));
     for(size_t i = 0; i < ROHR_REPORT_STATISTIC_CAPACITY; i += 1)
@@ -214,12 +214,12 @@ static void overflow_and_saturation(void) {
 }
 
 static void malformed_and_parity(void) {
-    Report a = make_report(ROHR_PHYSICS_REPORT), b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report a = make_report(ROHR_PHYSICS_REPORT_ID), b = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     Report saved = a;
     b.diagnostic_count = SIZE_MAX;
     assert(!rohr_report_valid_check(&b)); BAD(rohr_report_merge(&a, &b));
     assert(memcmp(&a, &saved, sizeof(a)) == 0);
-    b = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    b = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     ReportDiagnostic diagnostic = issue(1, ROHR_REPORT_SEVERITY_WARNING);
     memset(diagnostic.detail, 'x', sizeof(diagnostic.detail));
     BAD(rohr_report_diagnostic_add(&a, diagnostic));
@@ -243,13 +243,13 @@ static void malformed_and_parity(void) {
 }
 
 static void copy_and_merge_measurement(void) {
-    Report child = make_report(ROHR_PHYSICS_JOINTS_REPORT);
+    Report child = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; i += 1)
         OK(rohr_report_diagnostic_add(&child, issue(i+1, ROHR_REPORT_SEVERITY_WARNING)));
     clock_t start = clock();
     uint64_t observed = 0;
     for(unsigned i = 0; i < 100; i += 1) {
-        Report parent = make_report(ROHR_PHYSICS_REPORT);
+        Report parent = make_report(ROHR_PHYSICS_REPORT_ID);
         OK(rohr_report_merge(&parent, &child));
         observed += parent.diagnostic_count;
     }

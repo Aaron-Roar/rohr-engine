@@ -53,10 +53,10 @@ static void complete(const Report *r, ReportId owner) {
 }
 static void lifecycle_counts(const Report *r, uint64_t examined, uint64_t expired,
         uint64_t deleted, uint64_t failed) {
-    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT, ROHR_REPORT_CANDIDATE_COUNT) == examined);
-    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT, ROHR_REPORT_EXPIRED_ENTITY_COUNT) == expired);
-    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT, ROHR_REPORT_PROCESSED_COUNT) == deleted);
-    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT, ROHR_REPORT_SKIPPED_COUNT) == failed);
+    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT_ID, ROHR_REPORT_CANDIDATE_COUNT) == examined);
+    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT_ID, ROHR_REPORT_EXPIRED_ENTITY_COUNT) == expired);
+    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == deleted);
+    assert(metric(r, ROHR_ENGINE_LIFECYCLE_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT) == failed);
 }
 static Entity entity(Time time, Tick tick) {
     EntityResult added = rohr_entity_add(); OK(added);
@@ -65,11 +65,11 @@ static Entity entity(Time time, Tick tick) {
 }
 static void unavailable(void) {
     Report r = rohr_engine_update();
-    assert(report_valid_check(&r) && r.header.id == ROHR_ENGINE_REPORT);
+    assert(report_valid_check(&r) && r.header.id == ROHR_ENGINE_REPORT_ID);
     assert(r.header.status == ROHR_REPORT_FAILED && r.has_fatal && r.entry_count == 0);
     assert(r.first_fatal.code == ERROR_ENGINE_STATE_INVALID);
     r = engine_lifecycle_update();
-    assert(report_valid_check(&r) && r.header.id == ROHR_ENGINE_LIFECYCLE_REPORT);
+    assert(report_valid_check(&r) && r.header.id == ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(r.header.status == ROHR_REPORT_FAILED && r.has_fatal && r.entry_count == 0);
     assert(rohr_engine_tick_update() == 0 && engine_tick_delta_get() == 0);
     engine_time_update(); /* No uninitialized division. */
@@ -79,16 +79,16 @@ static void independent_cleanup(void) {
     OK(rohr_engine_start()); rohr_engine_pause();
     Entity expired = entity(-1, 0), future = entity(0, 100), permanent = entity(0, 0);
     Time before = rohr_engine_time_get(); Tick tick = rohr_engine_tick_get();
-    Report r = rohr_engine_lifecycle_update(); complete(&r, ROHR_ENGINE_LIFECYCLE_REPORT);
+    Report r = rohr_engine_lifecycle_update(); complete(&r, ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(r.entry_count == 0 && r.diagnostic_count == 0);
     lifecycle_counts(&r, 3, 1, 1, 0);
     assert(!rohr_entity_alive_check(expired));
     assert(rohr_entity_alive_check(future) && rohr_entity_alive_check(permanent));
     assert(rohr_engine_time_get() == before && rohr_engine_tick_get() == tick);
-    r = rohr_engine_update(); complete(&r, ROHR_ENGINE_REPORT);
-    assert(r.entry_count == 1 && r.entries[0].header.id == ROHR_ENGINE_LIFECYCLE_REPORT);
+    r = rohr_engine_update(); complete(&r, ROHR_ENGINE_REPORT_ID);
+    assert(r.entry_count == 1 && r.entries[0].header.id == ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(r.entries[0].invocation_count == 1);
-    assert(metric(&r, ROHR_ENGINE_REPORT, ROHR_REPORT_TICKS_ADVANCED_COUNT) == 0);
+    assert(metric(&r, ROHR_ENGINE_REPORT_ID, ROHR_REPORT_TICKS_ADVANCED_COUNT) == 0);
     lifecycle_counts(&r, 2, 0, 0, 0);
     Report saved = r, snapshot = r;
     rohr_engine_stop();
@@ -111,7 +111,7 @@ static Report clock_path(bool combined) {
         r = engine_lifecycle_update();
     }
     forbid_allocation = false;
-    complete(&r, combined ? ROHR_ENGINE_REPORT : ROHR_ENGINE_LIFECYCLE_REPORT);
+    complete(&r, combined ? ROHR_ENGINE_REPORT_ID : ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(engine_tick_get() == 2 && rohr_engine_tick_get() == 2);
     assert(engine_tick_delta_get() == 2 && rohr_engine_tick_delta_get() == 2);
     assert(engine_time_get() == 0.625);
@@ -152,7 +152,7 @@ static void failures(void) {
     failed_index = rohr_entity_index_get(resolution).result.value;
     snprintf(deletion_detail, sizeof(deletion_detail), "injected relationship detach failure");
     Report r = engine_update(), saved = r, snapshot = r;
-    complete(&r, ROHR_ENGINE_REPORT); lifecycle_counts(&r, 3, 3, 1, 2);
+    complete(&r, ROHR_ENGINE_REPORT_ID); lifecycle_counts(&r, 3, 3, 1, 2);
     assert(r.entry_count == 1 && r.entries[0].invocation_count == 1);
     assert(r.diagnostic_count == 2 && r.dropped_diagnostic_occurrences == 0);
     assert(entity_alive_check(failed_entity) && entity_alive_check(resolution));
@@ -160,7 +160,7 @@ static void failures(void) {
     bool found_source = false, found_slot = false;
     for(size_t i = 0; i < r.diagnostic_count; ++i) {
         ReportDiagnostic *d = &r.diagnostics[i];
-        assert(d->report_id == ROHR_ENGINE_LIFECYCLE_REPORT);
+        assert(d->report_id == ROHR_ENGINE_LIFECYCLE_REPORT_ID);
         assert(d->severity == ROHR_REPORT_SEVERITY_WARNING && d->occurrence_count == 1);
         assert(d->recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
         if(d->source.id == failed_entity) {
@@ -174,7 +174,7 @@ static void failures(void) {
     assert(memcmp(&saved, &snapshot, sizeof(saved)) == 0);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4; ++i) (void)entity(-1, 0);
     fail_deletions = true;
-    r = rohr_engine_update(); complete(&r, ROHR_ENGINE_REPORT);
+    r = rohr_engine_update(); complete(&r, ROHR_ENGINE_REPORT_ID);
     lifecycle_counts(&r, ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4,
         ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4, 0, ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4);
     assert(r.diagnostic_count == ROHR_REPORT_DIAGNOSTIC_CAPACITY);
@@ -207,8 +207,8 @@ static void formatting(void) {
         assert(strstr(buffer, "ENGINE_LIFECYCLE") && strstr(buffer, "TICKS_ADVANCED_COUNT"));
         assert(strstr(buffer, "EXPIRED_ENTITY_COUNT")); assert(remove(paths[i]) == 0);
     }
-    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = UINT64_MAX}));
-    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = 1}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT_ID, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = UINT64_MAX}));
+    OK(report_statistic_add(&r, (ReportStatistic){.report_id = ROHR_ENGINE_REPORT_ID, .metric_id = ROHR_REPORT_TICKS_ADVANCED_COUNT, .aggregation = ROHR_REPORT_AGGREGATION_SUM, .value = 1}));
     assert(r.counters_saturated);
     engine_stop();
 }

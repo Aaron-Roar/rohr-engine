@@ -75,8 +75,8 @@ Settled decisions:
 4. **Shared type:** all systems and runnable pipelines use the same fixed-size
    `Report`, not separate physics/graphics types. A fixed header and enum IDs
    identify the operation; bounded entries/statistics avoid system-specific
-   named struct fields. `ReportId` values follow `ROHR_PHYSICS_REPORT`,
-   `ROHR_PHYSICS_JOINTS_REPORT`, and `ROHR_GRAPHICS_REPORT` naming, without
+   named struct fields. `ReportId` values follow `ROHR_PHYSICS_REPORT_ID`,
+   `ROHR_PHYSICS_JOINTS_REPORT_ID`, and `ROHR_GRAPHICS_REPORT_ID` naming, without
    `STAGE` in the identifier.
 5. **Output:** explicit console printing and JSON-file writing are part of the
    reporting API. Use the engine console and existing yyjson dependency. Increase

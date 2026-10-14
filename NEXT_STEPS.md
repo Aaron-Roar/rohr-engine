@@ -81,9 +81,10 @@ in the single-goal documentation prerequisite below.
 **System Update Reports** Goals 1–6 and 8–11 (through stored retrieval and
 simulation-failure recovery) are complete.
 Goal 7 (input) is deferred by user choice; retain its current API and direct
-errors. Goal 11 implements operation-level rejection and retry. Resume Goal 1
-of **Unified Forces and Torques** only on explicit user instruction; preserve
-the agreed force/torque API design.
+errors. Goal 11 implements operation-level rejection and retry. The single-goal
+**Report Bitmask Selection** milestone is complete. Resume Goal 1 of **Unified
+Forces and Torques** only on explicit user instruction; preserve the agreed
+force/torque API design.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -189,8 +190,8 @@ The user-selected **COM Selection Priority** goal is complete, including its
 dedicated COM editor and persistent automatic selection.
 
 The user-selected **Consistent Collision Controls** single-goal milestone and
-Node-Loop Soft-Body Areas are complete. System Update Reports precedes Unified
-Forces and Torques.
+Node-Loop Soft-Body Areas are complete. System Update Reports and then Report
+Bitmask Selection precede Unified Forces and Torques.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -199,8 +200,9 @@ The user-selected **Beam-Bounded Soft-Body Area Colors** milestone is complete.
 It supersedes the material-position fill behavior of **Stable Soft-Body Areas**.
 
 The user-selected **Bugs Identified by Rohr User** milestone is complete.
-The **System Update Reports** prerequisite and then **Unified Forces and
-Torques** precede numbered priority 4. Pursue only an explicitly selected goal.
+The **System Update Reports** prerequisite, **Report Bitmask Selection**, and
+then **Unified Forces and Torques** precede numbered priority 4. Pursue only an
+explicitly selected goal.
 
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
@@ -974,6 +976,36 @@ sanitizer, example, and Linux/Windows verification. Register each selected goal
 as a Codex goal, complete only that goal, then stop for user review. Implementation
 details affecting subsystem behavior require their routed instructions first.
 
+## Milestone: Report Bitmask Selection
+
+Support selecting and combining latest stored reports with bitwise `|`,
+preserving existing report ownership and composition behavior. This single-goal
+milestone is complete; resume Unified Forces and Torques only on explicit user
+instruction. System Update Reports goals remain complete except deferred input.
+
+1. [x] **Implement and verify report bitmask selection** — Add combinable
+   selectors and an all-reports selector, distinct from report identity IDs.
+   Preserve independent copies, consistent snapshots, and version-aware
+   parent/child deduplication. Unselected parents must not suppress selected
+   children. Reject unsupported selection bits. Migrate public/direct APIs,
+   callers, and documentation. Verify single, combined, all, and invalid
+   selections, matching and differing parent/child versions, public/direct
+   parity, sanitizers, Linux/Windows builds, affected examples, and
+   installed-SDK consumers.
+   Completed: public/direct getters take `ReportFlags`; existing selector names
+   combine with `|`, while report identities use `_ID` names with unchanged
+   numeric values. Single selections preserve snapshots; combinations deduplicate
+   only versions covered by selected parents. Zero, unsupported bits, and input
+   selection return errors. Migrated producers, formatters, callers, and docs;
+   text/JSON identity labels use the new names without changing the schema.
+   Verified 81 native tests, nine focused ASan/UBSan/LeakSanitizer tests, and
+   Linux/Windows builds without compiler warnings. Both installed-SDK consumers,
+   all 12 standalone examples, and a generated application build on both
+   platforms. Linux consumers execute and application startup/shutdown checks
+   pass outside source directories; Windows runtime remains unverified.
+   Allocation guards and concurrent publication checks pass. The report/cache
+   sizes are unchanged; 100 combined reads took about 1.48 ms in the test fixture.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,
@@ -981,7 +1013,7 @@ standalone particles, soft-body nodes, beams, and whole soft bodies. Finish
 with editor authoring and manipulation. This replaces the proposed Editor
 Forces and Torques milestone and precedes numbered priority 4.
 
-Goal 1 resumes after the System Update Reports prerequisite. Its contract
+Goal 1 resumes after System Update Reports and Report Bitmask Selection. Its contract
 incorporates the agreed API lifecycle below and remains open for the remaining
 decisions;
 no force/torque API or physics changes have been implemented in this milestone.
@@ -1428,6 +1460,14 @@ semantics are stable.
 
 - Add bounded adaptive substeps based on predicted movement and collision
   feature size, exposing the selected count through debug statistics.
+- Add bounded physics timestep handling when elapsed ticks accumulate during
+  window focus loss or other stalls. Define catch-up and backlog behavior
+  explicitly, including interactions with one-tick forces and lifecycle
+  expiry; do not silently discard elapsed simulation time or introduce a
+  focus-pause policy. Verify normal frames and long delays with a player-and-floor
+  regression. Before marking this goal complete, ask the user to retry
+  `examples/player_controller`, switch away from the window and return, and
+  confirm the player stays on the floor.
 - Add swept collision detection for fast rigid bodies, particles, and soft-body
   boundaries through the existing contact pipeline.
 - Profile concave contacts, then cache the selected convex-piece pair between

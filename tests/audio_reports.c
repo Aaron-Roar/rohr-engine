@@ -117,7 +117,7 @@ static void delayed_and_failures(void) {
     assert(!audio_sound_playing_check(sound.result.value));
     assert(sample_energy == 0);
     Report report = rohr_audio_update();
-    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_QUEUED_COMMAND_COUNT) == 1);
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_QUEUED_COMMAND_COUNT) == 1);
     for(int i = 0; i < 3; i += 1) {
         report = audio_update();
         assert(report.entry_count == 0 && report.diagnostic_count == 0);
@@ -129,13 +129,13 @@ static void delayed_and_failures(void) {
     assert(before_collection.result.value.version == report.version);
     assert(before_collection.result.value.entry_count == 0);
     report = audio_update();
-    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 1);
-    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 64);
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 1);
+    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 64);
     assert(report.entry_count == 3); /* commands, sounds, output; no music */
     Report copy = report;
     report = audio_update();
     assert(report.entry_count == 0 && report.diagnostic_count == 0);
-    assert(metric(&copy, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT) == 1);
+    assert(metric(&copy, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == 1);
 
     OK(audio_sound_volume_set(sound.result.value, 0.25f));
     assert(audio_sound_volume_get(sound.result.value).result.value == 1.0f);
@@ -168,7 +168,7 @@ static void delayed_and_failures(void) {
     pump(20000); /* Exhaust buffered decoded samples; fail after earlier play. */
     report = audio_update();
     assert(report.diagnostic_count == 1 && !report.has_fatal);
-    assert(report.diagnostics[0].report_id == ROHR_AUDIO_MUSIC_REPORT);
+    assert(report.diagnostics[0].report_id == ROHR_AUDIO_MUSIC_REPORT_ID);
     assert(report.diagnostics[0].source.id == music.result.value);
     assert(!audio_music_playing_check(music.result.value));
     assert(audio_sound_playing_check(sound.result.value));
@@ -182,7 +182,7 @@ static void delayed_and_failures(void) {
     fail_seek = true;
     pump(16);
     report = rohr_audio_update();
-    assert(report.diagnostic_count == 1 && report.diagnostics[0].report_id == ROHR_AUDIO_COMMANDS_REPORT);
+    assert(report.diagnostic_count == 1 && report.diagnostics[0].report_id == ROHR_AUDIO_COMMANDS_REPORT_ID);
     assert(strstr(report.diagnostics[0].detail, "seek"));
     Report retained = report;
 
@@ -208,12 +208,12 @@ static void delayed_and_failures(void) {
     EngineResult full = rohr_audio_volume_set(0);
     assert(error_check(full) && full.result.error == ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED);
     report = audio_update();
-    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_QUEUED_COMMAND_COUNT) == ROHR_AUDIO_REQUEST_CAPACITY);
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_QUEUED_COMMAND_COUNT) == ROHR_AUDIO_REQUEST_CAPACITY);
     full = audio_volume_set(0); /* Submission does not free capacity. */
     assert(error_check(full));
     pump(1);
     report = audio_update();
-    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT) == ROHR_AUDIO_REQUEST_CAPACITY);
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == ROHR_AUDIO_REQUEST_CAPACITY);
     assert(audio_volume_get() == 1.0f);
 
     fail_output = true;
@@ -226,11 +226,11 @@ static void delayed_and_failures(void) {
     pump(16);
     Report recovered = audio_update();
     assert(recovered.header.status == ROHR_REPORT_COMPLETE && !recovered.has_fatal);
-    assert(metric(&recovered, ROHR_AUDIO_OUTPUT_REPORT, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 16);
+    assert(metric(&recovered, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 16);
 
     OK(audio_sound_play(sound.result.value));
     Report stopped = rohr_audio_stop();
-    assert(metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_CANCELLED_COMMAND_COUNT) == 1);
+    assert(metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_CANCELLED_COMMAND_COUNT) == 1);
     assert(!audio_started_check());
     Report again = audio_stop();
     assert(memcmp(&stopped, &again, sizeof(stopped)) == 0);
@@ -271,7 +271,7 @@ static void overflow_test(void) {
     assert(report.has_fatal && report.first_fatal.occurrence_count == 2);
     assert(report.dropped_diagnostic_occurrences == 1);
     assert(report.header.status == ROHR_REPORT_FAILED);
-    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_SKIPPED_COUNT) == 256);
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT) == 256);
     assert(report_valid_check(&report));
     ReportResult stored_output = rohr_report_get(ROHR_AUDIO_OUTPUT_REPORT);
     OK(stored_output);
@@ -282,7 +282,7 @@ static void overflow_test(void) {
     ReportResult stored_music = rohr_report_get(ROHR_AUDIO_MUSIC_REPORT);
     OK(stored_music);
     assert(stored_music.result.value.dropped_diagnostic_occurrences == 1);
-    assert(report.included_versions[ROHR_AUDIO_OUTPUT_REPORT] == stored_output.result.value.version);
+    assert(report.included_versions[ROHR_AUDIO_OUTPUT_REPORT_ID] == stored_output.result.value.version);
     OK(rohr_report_json_write(&report, "audio_report.json", false));
     OK(rohr_report_text_write(&report, "audio_report.txt"));
     FILE *file = fopen("audio_report.json", "rb"); assert(file);
@@ -290,11 +290,11 @@ static void overflow_test(void) {
     long size = ftell(file); assert(size > 0); rewind(file);
     char *bytes = malloc((size_t)size + 1); assert(bytes);
     assert(fread(bytes, 1, (size_t)size, file) == (size_t)size); bytes[size] = 0;
-    assert(strstr(bytes, "ROHR_AUDIO_REPORT"));
-    assert(strstr(bytes, "ROHR_AUDIO_COMMANDS_REPORT"));
-    assert(strstr(bytes, "ROHR_AUDIO_SOUNDS_REPORT"));
-    assert(strstr(bytes, "ROHR_AUDIO_MUSIC_REPORT"));
-    assert(strstr(bytes, "ROHR_AUDIO_OUTPUT_REPORT"));
+    assert(strstr(bytes, "ROHR_AUDIO_REPORT_ID"));
+    assert(strstr(bytes, "ROHR_AUDIO_COMMANDS_REPORT_ID"));
+    assert(strstr(bytes, "ROHR_AUDIO_SOUNDS_REPORT_ID"));
+    assert(strstr(bytes, "ROHR_AUDIO_MUSIC_REPORT_ID"));
+    assert(strstr(bytes, "ROHR_AUDIO_OUTPUT_REPORT_ID"));
     assert(strstr(bytes, "ROHR_REPORT_AUDIO_FRAMES_COUNT"));
     assert(strstr(bytes, "ROHR_REPORT_CANCELLED_COMMAND_COUNT"));
     free(bytes); fclose(file);
@@ -308,7 +308,7 @@ static void benchmark(void) {
     for(int i = 0; i < 1000; i += 1) pump(1024);
     double callback_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;
     Report report = audio_update();
-    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 1024000);
+    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 1024000);
     start = SDL_GetTicksNS();
     for(int i = 0; i < 1000; i += 1) (void)audio_update();
     printf("audio callback incl reporting: %.3f us/buffer; empty update: %.3f us; Report: %zu bytes\n",
@@ -361,17 +361,17 @@ static void concurrent_test(void) {
     uint64_t processed = 0, cancelled = 0, skipped = 0;
     for(int i = 0; i < 30; i += 1) {
         Report r = audio_update();
-        processed += metric(&r, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT);
-        skipped += metric(&r, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_SKIPPED_COUNT);
+        processed += metric(&r, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT);
+        skipped += metric(&r, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT);
         SDL_Delay(1);
     }
     while(SDL_GetAtomicInt(&ready) < 8) SDL_Delay(1);
     SDL_SetAtomicInt(&go, 2); /* Producers are live across destroy and stop. */
     OK(audio_sound_destroy(&sound.result.value));
     Report stopped = audio_stop();
-    processed += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_PROCESSED_COUNT);
-    skipped += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_SKIPPED_COUNT);
-    cancelled += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_CANCELLED_COMMAND_COUNT);
+    processed += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT);
+    skipped += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT);
+    cancelled += metric(&stopped, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_CANCELLED_COMMAND_COUNT);
     unsigned int accepted = 0;
     for(size_t i = 0; i < 4; i += 1) {
         SDL_WaitThread(threads[i], NULL);
@@ -391,7 +391,7 @@ static void concurrent_test(void) {
     assert(audio_sound_playing_check(fresh.result.value));
     SDL_Delay(30); /* Playback must advance without another update. */
     Report continued = audio_update();
-    assert(metric(&continued, ROHR_AUDIO_OUTPUT_REPORT, ROHR_REPORT_AUDIO_FRAMES_COUNT) > 0);
+    assert(metric(&continued, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) > 0);
     (void)audio_stop(); (void)audio_update();
 }
 int main(void) {

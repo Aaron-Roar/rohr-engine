@@ -65,7 +65,7 @@ Report rohr_engine_update(void);
 ```
 
 Advances time/ticks, then cleans expired entities. Returns an owned
-`ROHR_ENGINE_REPORT` with one lifecycle child. Requires engine startup;
+`ROHR_ENGINE_REPORT_ID` with one lifecycle child. Requires engine startup;
 paused and zero-tick updates still clean expired entities. Other systems remain
 independently driven.
 
@@ -85,7 +85,7 @@ Report rohr_engine_lifecycle_update(void);
 ```
 
 Cleans expired entities at the current time/tick without advancing the clock or
-changing the tick delta. Returns an owned `ROHR_ENGINE_LIFECYCLE_REPORT`.
+changing the tick delta. Returns an owned `ROHR_ENGINE_LIFECYCLE_REPORT_ID`.
 Requires engine startup; individual cleanup errors are recoverable warnings.
 
 ### `rohr_engine_tick_delta_get`
@@ -4665,13 +4665,15 @@ Returns a random float in a range.
 ### `rohr_report_get`
 
 ```c
-ReportResult rohr_report_get(ReportId id);
+ReportResult rohr_report_get(ReportFlags flags);
 ```
 
-Returns an independent, non-consuming copy of the latest published result, or
-ERROR_ENGINE_REPORT_INVALID for an unsupported ID. ROHR_REPORT composes distinct
-stored versions while omitting covered children. Never-published supported IDs
-return NOT_RUN. Thread-safe retrieval persists across shutdown/restart; see
+Returns an independent, non-consuming snapshot or composes selectors combined
+with `|`. `ROHR_REPORT` selects all supported stored reports. Zero, unknown bits,
+and input selection return `ERROR_ENGINE_REPORT_INVALID`. Composition omits only
+child versions covered by selected parents. A single never-published selection
+returns NOT_RUN. Report identities use `_ID` constants, not selection flags.
+Thread-safe retrieval persists across shutdown/restart; see
 [Stored reports](reports.md#stored-reports).
 
 ### `rohr_report_create`
@@ -5471,7 +5473,7 @@ bool rohr_ui_pointer_consumed_get(void);
 Report rohr_ui_update(void);
 ```
 
- Finalize overlays/focus and return one owned ROHR_UI_REPORT, then clear
+ Finalize overlays/focus and return one owned ROHR_UI_REPORT_ID, then clear
 
 transient input and registration. Empty frames return COMPLETE. Timing covers
 

@@ -215,7 +215,7 @@ static void engine_report_finish(Report *report, Uint64 started) {
 
 Report engine_lifecycle_update(void) {
     Uint64 started = SDL_GetPerformanceCounter();
-    Report report = {.header = {ROHR_ENGINE_LIFECYCLE_REPORT, ROHR_REPORT_COMPLETE, 0}};
+    Report report = {.header = {ROHR_ENGINE_LIFECYCLE_REPORT_ID, ROHR_REPORT_COMPLETE, 0}};
     uint64_t examined = 0, expired = 0, deleted = 0, failed = 0;
     if(!engine_running) {
         engine_report_issue(&report, 0, ERROR_ENGINE_STATE_INVALID, true,
@@ -259,7 +259,7 @@ Report engine_lifecycle_update(void) {
 
 Report engine_update(void) {
     Uint64 started = SDL_GetPerformanceCounter();
-    Report report = {.header = {ROHR_ENGINE_REPORT, ROHR_REPORT_COMPLETE, 0}};
+    Report report = {.header = {ROHR_ENGINE_REPORT_ID, ROHR_REPORT_COMPLETE, 0}};
     if(!engine_running) {
         engine_report_issue(&report, 0, ERROR_ENGINE_STATE_INVALID, true,
             ENTITY_INVALID, "Engine update requires engine startup");

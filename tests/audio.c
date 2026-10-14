@@ -52,10 +52,10 @@ static EngineResult control_complete(EngineResult accepted) {
     uint64_t deadline = SDL_GetTicks() + 2000;
     for(;;) {
         for(size_t i = 0; i < report.diagnostic_count; i += 1)
-            if(report.diagnostics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT)
+            if(report.diagnostics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT_ID)
                 return error_result_error(report.diagnostics[i].code);
         for(size_t i = 0; i < report.statistic_count; i += 1)
-            if(report.statistics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT &&
+            if(report.statistics[i].report_id == ROHR_AUDIO_COMMANDS_REPORT_ID &&
                     report.statistics[i].metric_id == ROHR_REPORT_PROCESSED_COUNT &&
                     report.statistics[i].value > 0) return accepted;
         if(SDL_GetTicks() >= deadline)

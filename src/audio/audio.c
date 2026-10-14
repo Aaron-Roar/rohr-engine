@@ -105,8 +105,8 @@ static void audio_gate_unlock(void) { SDL_UnlockMutex(audio_gate); }
 
 static Report audio_failure_report(const char *detail, uint64_t started) {
     Report report = report_create();
-    report.header = (ReportHeader){ROHR_AUDIO_REPORT, ROHR_REPORT_FAILED, 0.0};
-    ReportDiagnostic diagnostic = {.report_id = ROHR_AUDIO_REPORT,
+    report.header = (ReportHeader){ROHR_AUDIO_REPORT_ID, ROHR_REPORT_FAILED, 0.0};
+    ReportDiagnostic diagnostic = {.report_id = ROHR_AUDIO_REPORT_ID,
         .severity = ROHR_REPORT_SEVERITY_FATAL, .code = ERROR_ENGINE_AUDIO_OPERATION_FAILED,
         .recovery = ROHR_REPORT_UPDATE_ABORTED, .occurrence_count = 1};
     (void)report_diagnostic_detail_set(&diagnostic, detail);
@@ -134,8 +134,8 @@ static size_t audio_command_head, audio_command_count, audio_submitted_count;
 
 enum { AUDIO_COMMANDS, AUDIO_SOUNDS, AUDIO_MUSIC, AUDIO_OUTPUT, AUDIO_PIPELINE_COUNT };
 static const ReportId audio_report_ids[AUDIO_PIPELINE_COUNT] = {
-    ROHR_AUDIO_COMMANDS_REPORT, ROHR_AUDIO_SOUNDS_REPORT,
-    ROHR_AUDIO_MUSIC_REPORT, ROHR_AUDIO_OUTPUT_REPORT
+    ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_AUDIO_SOUNDS_REPORT_ID,
+    ROHR_AUDIO_MUSIC_REPORT_ID, ROHR_AUDIO_OUTPUT_REPORT_ID
 };
 
 typedef struct AudioPipelineEvidence {
@@ -188,7 +188,7 @@ static void audio_issue(unsigned int pipeline, EngineError code, bool fatal,
         .source = source, .occurrence_count = 1,
     };
     AudioEvidence *evidence = audio_evidence_current();
-    evidence->issues.header.id = ROHR_AUDIO_REPORT;
+    evidence->issues.header.id = ROHR_AUDIO_REPORT_ID;
     (void)report_diagnostic_detail_set(&diagnostic, detail);
     AudioPipelineEvidence *owner = &evidence->pipeline[pipeline];
     bool own_fatal = false;
@@ -252,7 +252,7 @@ static void audio_children_publish(Report *parent, const AudioEvidence *evidence
 static Report audio_report_collect(const AudioEvidence *evidence,
         uint64_t accepted, uint64_t cancelled, uint64_t started, bool ran) {
     Report report = evidence->issues;
-    report.header.id = ROHR_AUDIO_REPORT;
+    report.header.id = ROHR_AUDIO_REPORT_ID;
     report.header.status = report.has_fatal ? ROHR_REPORT_FAILED :
         (ran ? ROHR_REPORT_COMPLETE : ROHR_REPORT_NOT_RUN);
     for(unsigned int i = 0; i < AUDIO_PIPELINE_COUNT; i += 1) {
@@ -270,8 +270,8 @@ static Report audio_report_collect(const AudioEvidence *evidence,
             audio_statistic_add(&report, audio_report_ids[i], ROHR_REPORT_AUDIO_FRAMES_COUNT, p->frames);
     }
     if(ran) {
-        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_QUEUED_COMMAND_COUNT, accepted);
-        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT, ROHR_REPORT_CANCELLED_COMMAND_COUNT, cancelled);
+        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_QUEUED_COMMAND_COUNT, accepted);
+        audio_statistic_add(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_CANCELLED_COMMAND_COUNT, cancelled);
         report.header.total_ms = (double)(SDL_GetTicksNS() - started) / 1000000.0;
     }
     audio_children_publish(&report, evidence);

@@ -97,15 +97,15 @@ static void render(CameraId camera,void *context) {
 static void reports_and_boundaries(void) {
     Report r=rohr_graphics_show();
     complete(r); assert(callbacks==1 && r.entry_count==4);
-    assert(entry(&r,ROHR_GRAPHICS_RECORDING_REPORT)==NULL);
-    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_QUEUED_COMMAND_COUNT)==2);
-    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==2);
-    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==1);
-    assert(metric(&r,ROHR_GRAPHICS_PRESENTATION_REPORT,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(entry(&r,ROHR_GRAPHICS_RECORDING_REPORT_ID)==NULL);
+    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_QUEUED_COMMAND_COUNT)==2);
+    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==2);
+    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(metric(&r,ROHR_GRAPHICS_PRESENTATION_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     Report saved=r, snapshot=r;
     complete(rohr_graphics_pipeline_cameras_update());
     Report commands=rohr_graphics_pipeline_commands_execute(); complete(commands);
-    assert(metric(&commands,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==2);
+    assert(metric(&commands,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==2);
     complete(rohr_graphics_pipeline_viewports_draw());
     r=rohr_graphics_pipeline_recording_update();
     assert(r.header.status==ROHR_REPORT_NOT_RUN && rohr_report_valid_check(&r));
@@ -114,10 +114,10 @@ static void reports_and_boundaries(void) {
     assert(memcmp(&saved,&snapshot,sizeof(saved))==0);
     recursive=true; bad_submission=true;
     r=rohr_graphics_show(); complete(r);
-    assert(r.diagnostic_count==1 && r.diagnostics[0].report_id==ROHR_GRAPHICS_COMMANDS_REPORT);
+    assert(r.diagnostic_count==1 && r.diagnostics[0].report_id==ROHR_GRAPHICS_COMMANDS_REPORT_ID);
     assert(r.diagnostics[0].internal_stage==ROHR_GRAPHICS_SUBMISSION);
     assert(r.diagnostics[0].source.kind==ROHR_REPORT_OBJECT_TEXTURE);
-    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_SKIPPED_COUNT)==1);
+    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_SKIPPED_COUNT)==1);
     recursive=false; bad_submission=false;
     r=rohr_graphics_show(); complete(r); assert(r.diagnostic_count==0);
     for(unsigned i=0;i<ROHR_REPORT_DIAGNOSTIC_CAPACITY+2;i++)
@@ -143,8 +143,8 @@ static void retained_assets(void) {
     assert(rohr_graphics_animated_sprite_frame_index_get(entity.result.value).result.value==0);
     Report animation=rohr_graphics_sprite_frames_update(1,0);
     complete(animation);
-    assert(animation.header.id==ROHR_GRAPHICS_ANIMATIONS_REPORT);
-    assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(animation.header.id==ROHR_GRAPHICS_ANIMATIONS_REPORT_ID);
+    assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     assert(rohr_graphics_animated_sprite_frame_index_get(entity.result.value).result.value==1);
     OK(rohr_entity_delete(entity.result.value));
     FontAsset font=rohr_graphics_font_default_get();
@@ -176,13 +176,13 @@ static void failures(void) {
     fail_draw=true;
     r=graphics_pipeline_commands_execute(); complete(r);
     assert(r.diagnostic_count==1 && strstr(r.diagnostics[0].detail,"injected draw failure"));
-    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==1);
-    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT,ROHR_REPORT_SKIPPED_COUNT)==1);
+    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(metric(&r,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_SKIPPED_COUNT)==1);
     OK(rohr_report_json_write(&r,"graphics_reports_test.json",true));
     FILE *json=fopen("graphics_reports_test.json","rb"); assert(json);
     char serialized[16384]; size_t size=fread(serialized,1,sizeof(serialized)-1,json);
     serialized[size]='\0'; assert(fclose(json)==0 && remove("graphics_reports_test.json")==0);
-    assert(strstr(serialized,"ROHR_GRAPHICS_COMMANDS_REPORT") &&
+    assert(strstr(serialized,"ROHR_GRAPHICS_COMMANDS_REPORT_ID") &&
         strstr(serialized,"ROHR_GRAPHICS_COMMAND_EXECUTION") &&
         strstr(serialized,"ERROR_ENGINE_GRAPHICS_DRAW_FAILED") &&
         strstr(serialized,"ROHR_REPORT_QUEUED_COMMAND_COUNT"));
@@ -204,28 +204,28 @@ static void failures(void) {
     fail_target=true;
     r=rohr_graphics_show();
     assert(r.header.status==ROHR_REPORT_FAILED && presents==before);
-    assert(entry(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT)==NULL);
+    assert(entry(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID)==NULL);
     complete(rohr_graphics_show());
     fail_target=true;
     r=graphics_pipeline_viewports_draw();
-    assert(r.header.status==ROHR_REPORT_FAILED && r.first_fatal.report_id==ROHR_GRAPHICS_VIEWPORTS_REPORT);
+    assert(r.header.status==ROHR_REPORT_FAILED && r.first_fatal.report_id==ROHR_GRAPHICS_VIEWPORTS_REPORT_ID);
     complete(graphics_pipeline_viewports_draw());
     fail_draw=true;
     r=graphics_pipeline_viewports_draw(); complete(r);
-    assert(r.diagnostic_count==1 && r.diagnostics[0].report_id==ROHR_GRAPHICS_VIEWPORTS_REPORT);
+    assert(r.diagnostic_count==1 && r.diagnostics[0].report_id==ROHR_GRAPHICS_VIEWPORTS_REPORT_ID);
     assert(r.diagnostics[0].source.kind==ROHR_REPORT_OBJECT_VIEWPORT);
-    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     fail_present=true;
     r=graphics_pipeline_present();
-    assert(r.header.status==ROHR_REPORT_FAILED && r.first_fatal.report_id==ROHR_GRAPHICS_PRESENTATION_REPORT);
+    assert(r.header.status==ROHR_REPORT_FAILED && r.first_fatal.report_id==ROHR_GRAPHICS_PRESENTATION_REPORT_ID);
     complete(graphics_pipeline_present());
     fake_recording=true;
     assert(graphics_recording_start("unused.mp4",60));
     before=presents; fail_capture=true;
     r=graphics_show();
     assert(r.header.status==ROHR_REPORT_FAILED && presents==before+1);
-    assert(r.first_fatal.report_id==ROHR_GRAPHICS_RECORDING_REPORT);
-    assert(entry(&r,ROHR_GRAPHICS_PRESENTATION_REPORT)->header.status==ROHR_REPORT_COMPLETE);
+    assert(r.first_fatal.report_id==ROHR_GRAPHICS_RECORDING_REPORT_ID);
+    assert(entry(&r,ROHR_GRAPHICS_PRESENTATION_REPORT_ID)->header.status==ROHR_REPORT_COMPLETE);
     r=graphics_pipeline_recording_update(); assert(r.header.status==ROHR_REPORT_NOT_RUN);
     assert(graphics_recording_start("unused.mp4",60));
     fail_write=true;
@@ -261,7 +261,7 @@ int main(void) {
     rohr_engine_resume();
     OK(rohr_viewport_disable_set(viewport.result.value));
     r=rohr_graphics_show(); complete(r); assert(callbacks==before);
-    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT,ROHR_REPORT_PROCESSED_COUNT)==0);
+    assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==0);
     assert(!graphics_screen_shape_filled_draw((Shape){0},white));
     rohr_graphics_stop(); OK(rohr_graphics_start());
     r=rohr_graphics_pipeline_commands_execute(); complete(r); assert(r.diagnostic_count==0);

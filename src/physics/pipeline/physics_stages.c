@@ -26,7 +26,7 @@ void physics_pipeline_gravity_apply(void) {
 
 Report physics_pipeline_forces_apply(void) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_LOADS_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_LOADS_REPORT_ID);
     physics_joint_spring_forces_apply(&report);
     physics_soft_body_beams_apply(&report);
     physics_report_finish(&report, started);
@@ -35,7 +35,7 @@ Report physics_pipeline_forces_apply(void) {
 
 Report physics_pipeline_integrate(double dt) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_INTEGRATION_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_INTEGRATION_REPORT_ID);
     if(!isfinite(dt) || dt < 0.0) {
         physics_report_issue_add(&report, ROHR_PHYSICS_ARGUMENTS, ROHR_REPORT_SEVERITY_FATAL,
             ERROR_ENGINE_STATE_INVALID, ROHR_REPORT_UPDATE_ABORTED, 0, 0,
@@ -52,7 +52,7 @@ Report physics_pipeline_integrate(double dt) {
 
 Report physics_pipeline_contacts_gather(void) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_CONTACTS_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_CONTACTS_REPORT_ID);
     physics_rigid_constraints_gather(&report);
     if(!report.has_fatal) physics_soft_body_constraints_gather(&report);
     uint64_t excluded_ns = 0;
@@ -69,7 +69,7 @@ Report physics_pipeline_contacts_gather(void) {
 
 Report physics_pipeline_joints_gather(void) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_JOINTS_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_JOINTS_REPORT_ID);
     physics_joint_constraints_gather(&report);
     physics_report_finish(&report, started);
     return report;
@@ -77,7 +77,7 @@ Report physics_pipeline_joints_gather(void) {
 
 Report physics_pipeline_constraints_solve(uint32_t iterations) {
     uint64_t started = SDL_GetPerformanceCounter();
-    Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT);
+    Report report = physics_report_create(ROHR_PHYSICS_CONSTRAINTS_REPORT_ID);
     if(iterations != 0) {
         constraint_solver_run(
             &physics_step_contact_constraints,

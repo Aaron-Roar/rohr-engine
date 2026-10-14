@@ -22,13 +22,13 @@ static const UIRect bounds = {0, 0, 100, 30};
 static uint64_t metric(const Report *r, ReportMetricId id) {
     assert(report_valid_check(r));
     for(size_t i = 0; i < r->statistic_count; ++i) {
-        assert(r->statistics[i].report_id == ROHR_UI_REPORT);
+        assert(r->statistics[i].report_id == ROHR_UI_REPORT_ID);
         if(r->statistics[i].metric_id == id) return r->statistics[i].value;
     }
     return 0;
 }
 static void complete(const Report *r) {
-    assert(report_valid_check(r) && r->header.id == ROHR_UI_REPORT);
+    assert(report_valid_check(r) && r->header.id == ROHR_UI_REPORT_ID);
     assert(r->header.status == ROHR_REPORT_COMPLETE && !r->has_fatal);
     assert(r->entry_count == 0 && r->header.total_ms >= 0);
 }
@@ -38,7 +38,7 @@ static uint64_t warnings(const Report *r, EngineError code) {
     complete(r);
     for(size_t i = 0; i < r->diagnostic_count; ++i) {
         assert(r->diagnostics[i].severity == ROHR_REPORT_SEVERITY_WARNING);
-        assert(r->diagnostics[i].report_id == ROHR_UI_REPORT);
+        assert(r->diagnostics[i].report_id == ROHR_UI_REPORT_ID);
         if(r->diagnostics[i].code == code) n += r->diagnostics[i].occurrence_count;
     }
     return n;
@@ -243,7 +243,7 @@ static void graphics_ownership(void) {
             clip_failures += graphics.diagnostics[i].occurrence_count;
     assert(clip_failures == 3);
     for(size_t i = 0; i < graphics.diagnostic_count; ++i)
-        assert(graphics.diagnostics[i].report_id != ROHR_UI_REPORT);
+        assert(graphics.diagnostics[i].report_id != ROHR_UI_REPORT_ID);
     rohr_graphics_stop(); rohr_engine_stop();
     assert(memcmp(&saved, &snapshot, sizeof(saved)) == 0);
     clean(ui_update());

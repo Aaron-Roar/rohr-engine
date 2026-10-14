@@ -23,7 +23,7 @@ int main(void) {
     };
     if(rohr_error_code_message_get(ERROR_NONE) == NULL ||
             rohr_error_check(rohr_report_header_set(&parent,
-                (ReportHeader){ROHR_PHYSICS_REPORT, ROHR_REPORT_COMPLETE, 5})) ||
+                (ReportHeader){ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_COMPLETE, 5})) ||
             rohr_error_check(rohr_report_header_set(&child,
                 (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, 1})) ||
             rohr_error_check(rohr_report_diagnostic_detail_set(&diagnostic, "SDK-owned detail")) ||
@@ -47,11 +47,11 @@ int main(void) {
         if(!rohr_report_valid_check(&graphics) || graphics.header.status == ROHR_REPORT_FAILED) return 1;
     }
     Report animations=rohr_graphics_sprite_frames_update(0,0);
-    if(!rohr_report_valid_check(&animations) || animations.header.id != ROHR_GRAPHICS_ANIMATIONS_REPORT) return 1;
+    if(!rohr_report_valid_check(&animations) || animations.header.id != ROHR_GRAPHICS_ANIMATIONS_REPORT_ID) return 1;
     if(rohr_error_check(rohr_audio_start())) return 1;
     if(rohr_error_check(rohr_audio_volume_set(0.5f))) return 1;
     Report audio = rohr_audio_update();
-    if(!rohr_report_valid_check(&audio) || audio.header.id != ROHR_AUDIO_REPORT) return 1;
+    if(!rohr_report_valid_check(&audio) || audio.header.id != ROHR_AUDIO_REPORT_ID) return 1;
     Report stopped = rohr_audio_stop();
     Report final_audio = rohr_audio_update();
     if(!rohr_report_valid_check(&stopped) || memcmp(&stopped, &final_audio, sizeof(stopped)) != 0 ||
@@ -59,25 +59,33 @@ int main(void) {
     rohr_ui_input_set((UIInput){0});
     (void)rohr_ui_interaction("sdk-ui", (UIRect){0, 0, 30, 30});
     Report ui = rohr_ui_update();
-    if(!rohr_report_valid_check(&ui) || ui.header.id != ROHR_UI_REPORT ||
+    if(!rohr_report_valid_check(&ui) || ui.header.id != ROHR_UI_REPORT_ID ||
             ui.header.status != ROHR_REPORT_COMPLETE || ui.entry_count != 0) return 1;
     ui_input_set((UIInput){0});
     Report direct_ui = ui_update();
-    if(!report_valid_check(&direct_ui) || direct_ui.header.id != ROHR_UI_REPORT ||
+    if(!report_valid_check(&direct_ui) || direct_ui.header.id != ROHR_UI_REPORT_ID ||
             direct_ui.header.status != ROHR_REPORT_COMPLETE) return 1;
     rohr_engine_pause();
     Report engine = rohr_engine_update();
     latest = report_get(ROHR_ENGINE_REPORT);
     if(rohr_error_check(latest) || memcmp(&latest.result.value, &engine, sizeof(engine))) return 1;
+    latest = rohr_report_get(ROHR_ENGINE_REPORT | ROHR_UI_REPORT);
+    ReportResult selected = report_get(ROHR_ENGINE_REPORT | ROHR_UI_REPORT);
+    if(rohr_error_check(latest) || error_check(selected) ||
+            latest.result.value.header.id != ROHR_REPORT_ID ||
+            latest.result.value.header.status != selected.result.value.header.status ||
+            latest.result.value.version != selected.result.value.version ||
+            latest.result.value.entry_count != selected.result.value.entry_count) return 1;
+    if(!rohr_error_check(rohr_report_get(ROHR_REPORT | ROHR_INPUT_REPORT))) return 1;
     latest = rohr_report_get(ROHR_REPORT);
-    if(rohr_error_check(latest) || latest.result.value.header.id != ROHR_REPORT ||
+    if(rohr_error_check(latest) || latest.result.value.header.id != ROHR_REPORT_ID ||
             !report_valid_check(&latest.result.value)) return 1;
-    if(!rohr_report_valid_check(&engine) || engine.header.id != ROHR_ENGINE_REPORT ||
+    if(!rohr_report_valid_check(&engine) || engine.header.id != ROHR_ENGINE_REPORT_ID ||
             engine.header.status != ROHR_REPORT_COMPLETE || engine.entry_count != 1 ||
-            engine.entries[0].header.id != ROHR_ENGINE_LIFECYCLE_REPORT) return 1;
+            engine.entries[0].header.id != ROHR_ENGINE_LIFECYCLE_REPORT_ID) return 1;
     if(rohr_engine_tick_update() != 0 || rohr_engine_tick_delta_get() != 0) return 1;
     Report lifecycle = rohr_engine_lifecycle_update();
-    if(!report_valid_check(&lifecycle) || lifecycle.header.id != ROHR_ENGINE_LIFECYCLE_REPORT ||
+    if(!report_valid_check(&lifecycle) || lifecycle.header.id != ROHR_ENGINE_LIFECYCLE_REPORT_ID ||
             lifecycle.header.status != ROHR_REPORT_COMPLETE || lifecycle.entry_count != 0) return 1;
     if(engine_update().header.status != ROHR_REPORT_COMPLETE || engine_tick_update() != 0 ||
             engine_tick_delta_get() != 0 ||

@@ -142,15 +142,15 @@ typedef struct UIContext {
 } UIContext;
 
 static UIContext ui_context = {0};
-static Report ui_report = {.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
+static Report ui_report = {.header = {ROHR_UI_REPORT_ID, ROHR_REPORT_COMPLETE, 0}};
 
 static void ui_metric(ReportMetricId metric, uint64_t value) {
-    (void)report_statistic_add(&ui_report, (ReportStatistic){.report_id = ROHR_UI_REPORT, .metric_id = metric, .aggregation = metric <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT ?
+    (void)report_statistic_add(&ui_report, (ReportStatistic){.report_id = ROHR_UI_REPORT_ID, .metric_id = metric, .aggregation = metric <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT ?
             ROHR_REPORT_AGGREGATION_SUM : ROHR_REPORT_AGGREGATION_MAX, .value = value});
 }
 
 static void ui_warning(EngineError code, UIReportStage stage, const char *detail) {
-    ReportDiagnostic diagnostic = {.report_id = ROHR_UI_REPORT, .internal_stage = stage,
+    ReportDiagnostic diagnostic = {.report_id = ROHR_UI_REPORT_ID, .internal_stage = stage,
         .severity = ROHR_REPORT_SEVERITY_WARNING, .code = code,
         .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED, .occurrence_count = 1};
     (void)report_diagnostic_detail_set(&diagnostic, detail);
@@ -1835,7 +1835,7 @@ Report ui_update(void) {
         1000.0 / (double)SDL_GetPerformanceFrequency();
     report_publish_internal(&ui_report);
     Report result = ui_report;
-    ui_report = (Report){.header = {ROHR_UI_REPORT, ROHR_REPORT_COMPLETE, 0}};
+    ui_report = (Report){.header = {ROHR_UI_REPORT_ID, ROHR_REPORT_COMPLETE, 0}};
     return result;
 }
 

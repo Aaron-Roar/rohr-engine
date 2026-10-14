@@ -60,7 +60,7 @@ uint32_t physics_substeps_get(void) {
 
 Report physics_update(Tick ticks) {
     if(ticks == 0) {
-        Report report = physics_report_create(ROHR_PHYSICS_REPORT);
+        Report report = physics_report_create(ROHR_PHYSICS_REPORT_ID);
         report.header.status = ROHR_REPORT_NOT_RUN;
         report_publish_internal(&report);
         return report;
@@ -70,7 +70,7 @@ Report physics_update(Tick ticks) {
 
 Report physics_dt_update(Time dt) {
     if(isfinite(dt) && dt <= 0.0) {
-        Report report = physics_report_create(ROHR_PHYSICS_REPORT);
+        Report report = physics_report_create(ROHR_PHYSICS_REPORT_ID);
         report.header.status = ROHR_REPORT_NOT_RUN;
         report_publish_internal(&report);
         return report;

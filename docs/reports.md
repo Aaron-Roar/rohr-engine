@@ -53,7 +53,7 @@ Report-free boundaries are deliberate:
   entity sweep owns animation reports. Draw calls and immediate UI widgets
   contribute to their respective next updates.
 - Input events, queries, and text/IME truncation keep existing behavior.
-  `ROHR_INPUT_REPORT` is reserved and printable, without an input producer.
+  `ROHR_INPUT_REPORT_ID` is reserved and printable, without an input producer.
 - Report builders, validation, composition, and output operate on values;
   they do not run systems. Stored getters read published values only.
 
@@ -139,16 +139,31 @@ if(rohr_error_check(result)) {
         /* The getter succeeded; the stored update failed. */
     }
 }
+ReportResult selected = rohr_report_get(ROHR_PHYSICS_REPORT | ROHR_AUDIO_REPORT);
+/* Check selected.kind before reading selected.result.value. */
 ReportResult all = rohr_report_get(ROHR_REPORT);
 /* Check all.kind before reading all.result.value. */
 ```
 
 `report_get()` is the equivalent direct API. Getters return independent copies,
 never consume evidence, never execute updates, and work before initialization or
-from another thread during publication. Supported never-published IDs yield
-NOT_RUN with version zero. NONE, unknown IDs, custom IDs, and deferred input
-return an error. Custom reports remain caller-owned; there is no public cache
-registration/publication API.
+from another thread during publication. The argument is a `ReportFlags` bitmask;
+combine selectors with `|`. A single selector returns that owner's complete
+snapshot, including children; a never-published owner yields NOT_RUN with version
+zero. Zero, unknown bits, and deferred input return `ERROR_ENGINE_REPORT_INVALID`,
+even when mixed with valid selectors. `ROHR_REPORT` is the OR of all supported
+selectors and excludes input. Custom reports remain caller-owned; there is no
+custom selector or public cache registration/publication API.
+
+This is a breaking source API change: `report_get` and `rohr_report_get` now take
+`ReportFlags`, not `ReportId`. Names such as `ROHR_PHYSICS_REPORT` are selectors;
+report headers, entries, statistics, diagnostics, and provenance indices use
+`ROHR_PHYSICS_REPORT_ID`. All built-in identity constants now end in `_ID`,
+including `ROHR_REPORT_NONE_ID` and `ROHR_REPORT_ID`. Their numeric values and the
+custom ID ranges are unchanged. Do not pass identity IDs as selectors: C integer
+conversion cannot distinguish an ID from a numerically valid mask. Text/JSON
+identity names also gain `_ID`; the output schema and numeric IDs are unchanged.
+Rebuild SDK consumers and migrate identity uses; no compatibility aliases remain.
 
 Each completed runnable invocation replaces its owner's stored value, including
 FAILED and NOT_RUN. Reports persist across startup, shutdown, and clock reset;
@@ -177,10 +192,14 @@ version and timing; a fresh later NOT_RUN result replaces that snapshot.
 
 ### Automatic composition
 
-`ROHR_REPORT` observes the cache under one lock. It selects every latest
-published snapshot except those whose exact execution is included in another
-selected parent. For example, physics containing joints version 10 covers that
-child; independently running joints version 12 keeps both the old physics
+Multiple selectors (including `ROHR_REPORT`) observe the cache under one lock
+and return a combined report with identity `ROHR_REPORT_ID`. Only selected,
+published snapshots participate; never-published snapshots are omitted. With no
+published selections, the result is an empty NOT_RUN report. A snapshot is omitted
+when its exact execution is included in another selected parent. An unselected
+parent cannot suppress a selected child. Selection chooses whole snapshots, not
+individual records inside a parent. For example, physics containing joints
+version 10 covers that child; independently running joints version 12 keeps both the old physics
 snapshot and the newer joints snapshot. It does not replace part of the old
 physics report or count its included version 10 twice. A newer NOT_RUN parent
 has no earlier children, so previously published child work can reappear as
@@ -237,21 +256,21 @@ callback storage adds only bounded per-child fatal/loss evidence.
 
 The C struct layout changed: rebuild the engine and consumers together. Use
 zero/designated initializers for the new fields. Existing enum numeric values
-are preserved; `ROHR_REPORT` is appended. JSON export is now version 2.
+are preserved; `ROHR_REPORT_ID` is appended. JSON export is now version 2.
 
 ## Build a report
 
 ```c
 Report report = rohr_report_create();
 EngineResult result = rohr_report_header_set(&report, (ReportHeader){
-    .id = ROHR_PHYSICS_JOINTS_REPORT,
+    .id = ROHR_PHYSICS_JOINTS_REPORT_ID,
     .status = ROHR_REPORT_COMPLETE,
     .total_ms = measured_ms
 });
 /* Check result before continuing; check subsequent helper results too. */
 
 ReportDiagnostic diagnostic = {
-    .report_id = ROHR_PHYSICS_JOINTS_REPORT,
+    .report_id = ROHR_PHYSICS_JOINTS_REPORT_ID,
     .severity = ROHR_REPORT_SEVERITY_WARNING,
     .code = ERROR_ENGINE_COMPONENT_MISSING,
     .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED,
@@ -314,8 +333,8 @@ Wrong built-in rules and conflicting rules for an existing key are rejected.
 LATEST means last collected/merged, not greatest timestamp. Statistics are
 unsigned integer work measurements; elapsed milliseconds are doubles in headers.
 
-Engine report IDs name the system/pipeline, such as `ROHR_PHYSICS_REPORT` and
-`ROHR_PHYSICS_JOINTS_REPORT`, without `STAGE` in their names. The inclusive custom
+Engine report IDs name the system/pipeline, such as `ROHR_PHYSICS_REPORT_ID` and
+`ROHR_PHYSICS_JOINTS_REPORT_ID`, without `STAGE` in their names. The inclusive custom
 report and metric ranges run from `0x10000` through `0x7fffffff`, exposed through
 `ROHR_REPORT_CUSTOM_ID_BEGIN/END` and
 `ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN/END`. Applications assign their own unique IDs
@@ -328,7 +347,7 @@ name table; output helpers display numeric custom IDs.
 ```c
 Report combined = rohr_report_create();
 EngineResult result = rohr_report_header_set(&combined, (ReportHeader){
-    .id = ROHR_PHYSICS_REPORT,
+    .id = ROHR_PHYSICS_REPORT_ID,
     .status = ROHR_REPORT_COMPLETE,
     .total_ms = parent_elapsed_ms
 });
@@ -421,13 +440,13 @@ migration. Newly generated entry points and bundled examples use the new return.
 The report tree is:
 
 ```text
-ROHR_PHYSICS_REPORT                   full update, including preparation when applicable
-└── ROHR_PHYSICS_SUBSTEP_REPORT        each executed substep, aggregated by ID
-    ├── ROHR_PHYSICS_LOADS_REPORT      spring and beam loads
-    ├── ROHR_PHYSICS_INTEGRATION_REPORT
-    ├── ROHR_PHYSICS_CONTACTS_REPORT   broadphase and contact gathering
-    ├── ROHR_PHYSICS_JOINTS_REPORT     joint gathering
-    └── ROHR_PHYSICS_CONSTRAINTS_REPORT  iterative solve and interaction publication
+ROHR_PHYSICS_REPORT_ID                   full update, including preparation when applicable
+└── ROHR_PHYSICS_SUBSTEP_REPORT_ID        each executed substep, aggregated by ID
+    ├── ROHR_PHYSICS_LOADS_REPORT_ID      spring and beam loads
+    ├── ROHR_PHYSICS_INTEGRATION_REPORT_ID
+    ├── ROHR_PHYSICS_CONTACTS_REPORT_ID   broadphase and contact gathering
+    ├── ROHR_PHYSICS_JOINTS_REPORT_ID     joint gathering
+    └── ROHR_PHYSICS_CONSTRAINTS_REPORT_ID  iterative solve and interaction publication
 ```
 
 | Runnable API (prefix `rohr_` optional) | Prerequisites and behavior |
@@ -623,19 +642,19 @@ A child entry remains a summary; export does not invent nested child reports.
 ## Graphics reports
 
 `rohr_graphics_show()` now returns an owned `Report` with ID
-`ROHR_GRAPHICS_REPORT`. It runs the following directly callable pipelines in
+`ROHR_GRAPHICS_REPORT_ID`. It runs the following directly callable pipelines in
 order; each also has a direct API without `rohr_`:
 
 | API returning `Report` | Report ID | Work measured |
 | --- | --- | --- |
-| `rohr_graphics_pipeline_cameras_update()` | `ROHR_GRAPHICS_CAMERAS_REPORT` | Camera motion/zoom and callbacks for enabled visible screens. |
-| `rohr_graphics_pipeline_commands_execute()` | `ROHR_GRAPHICS_COMMANDS_REPORT` | Layer ordering and execution of queued clears, shapes, lines, text, and textures. |
-| `rohr_graphics_pipeline_viewports_draw()` | `ROHR_GRAPHICS_VIEWPORTS_REPORT` | Composition of screens and viewport UI, including transforms and clipping. |
-| `rohr_graphics_pipeline_recording_update()` | `ROHR_GRAPHICS_RECORDING_REPORT` | Capture, conversion, and writing/flushing one frame to the recording process. |
-| `rohr_graphics_pipeline_present()` | `ROHR_GRAPHICS_PRESENTATION_REPORT` | Frame limiting and window presentation. |
+| `rohr_graphics_pipeline_cameras_update()` | `ROHR_GRAPHICS_CAMERAS_REPORT_ID` | Camera motion/zoom and callbacks for enabled visible screens. |
+| `rohr_graphics_pipeline_commands_execute()` | `ROHR_GRAPHICS_COMMANDS_REPORT_ID` | Layer ordering and execution of queued clears, shapes, lines, text, and textures. |
+| `rohr_graphics_pipeline_viewports_draw()` | `ROHR_GRAPHICS_VIEWPORTS_REPORT_ID` | Composition of screens and viewport UI, including transforms and clipping. |
+| `rohr_graphics_pipeline_recording_update()` | `ROHR_GRAPHICS_RECORDING_REPORT_ID` | Capture, conversion, and writing/flushing one frame to the recording process. |
+| `rohr_graphics_pipeline_present()` | `ROHR_GRAPHICS_PRESENTATION_REPORT_ID` | Frame limiting and window presentation. |
 
 Animation advances only when `rohr_graphics_sprite_frames_update(tick, time)` is
-called. It now returns `ROHR_GRAPHICS_ANIMATIONS_REPORT`, independently of the
+called. It now returns `ROHR_GRAPHICS_ANIMATIONS_REPORT_ID`, independently of the
 frame reports. Existing camera callbacks may continue to call this animation
 update. `graphics_show()` neither advances animations itself nor merges an
 animation report returned earlier or inside a callback.
@@ -736,7 +755,7 @@ format changes are required.
 
 ## Audio reports
 
-`rohr_audio_update()` / `audio_update()` return `ROHR_AUDIO_REPORT` and submit
+`rohr_audio_update()` / `audio_update()` return `ROHR_AUDIO_REPORT_ID` and submit
 pending controls to the independently running SDL callback. Collection swaps
 preallocated evidence banks before publishing requests under the stream lock;
 report construction happens after unlocking. The result describes callback work
@@ -746,10 +765,10 @@ application threads are serialized; each update collects a disjoint interval.
 
 | Child report | Invocation and measurements |
 | --- | --- |
-| `ROHR_AUDIO_COMMANDS_REPORT` | One callback invocation per nonempty submitted batch. PROCESSED counts applied requests; SKIPPED counts failed requests. QUEUED_COMMAND counts requests newly submitted by this update, not completed playback; CANCELLED_COMMAND counts requests discarded by shutdown. |
-| `ROHR_AUDIO_SOUNDS_REPORT` | One invocation per mixed chunk, including silence. PROCESSED counts active sound contributions; SKIPPED counts invalid contributions. AUDIO_FRAMES counts stereo frame slots processed once per chunk, not once per sound. |
-| `ROHR_AUDIO_MUSIC_REPORT` | One invocation per chunk with an active, unpaused, positive-rate track. PROCESSED counts successful contributions; SKIPPED counts failed contributions. AUDIO_FRAMES counts requested stereo frame slots, including any silence after EOF. |
-| `ROHR_AUDIO_OUTPUT_REPORT` | One invocation per submission attempt, including clamping. PROCESSED counts successful submissions; SKIPPED counts failed submissions. AUDIO_FRAMES counts successfully submitted stereo frames. |
+| `ROHR_AUDIO_COMMANDS_REPORT_ID` | One callback invocation per nonempty submitted batch. PROCESSED counts applied requests; SKIPPED counts failed requests. QUEUED_COMMAND counts requests newly submitted by this update, not completed playback; CANCELLED_COMMAND counts requests discarded by shutdown. |
+| `ROHR_AUDIO_SOUNDS_REPORT_ID` | One invocation per mixed chunk, including silence. PROCESSED counts active sound contributions; SKIPPED counts invalid contributions. AUDIO_FRAMES counts stereo frame slots processed once per chunk, not once per sound. |
+| `ROHR_AUDIO_MUSIC_REPORT_ID` | One invocation per chunk with an active, unpaused, positive-rate track. PROCESSED counts successful contributions; SKIPPED counts failed contributions. AUDIO_FRAMES counts requested stereo frame slots, including any silence after EOF. |
+| `ROHR_AUDIO_OUTPUT_REPORT_ID` | One invocation per submission attempt, including clamping. PROCESSED counts successful submissions; SKIPPED counts failed submissions. AUDIO_FRAMES counts successfully submitted stereo frames. |
 
 Metric names in the table omit `ROHR_REPORT_` and `_COUNT`; all these counters
 sum. Child times accumulate measured callback work in milliseconds and retain
@@ -793,7 +812,7 @@ SDL/decoder work is entirely free of allocation or blocking I/O.
 ## UI reports
 
 `rohr_ui_update()` (direct API: `ui_update()`) finalizes immediate UI work and
-returns one owned `ROHR_UI_REPORT`, with no child pipelines. The UI is ready on
+returns one owned `ROHR_UI_REPORT_ID`, with no child pipelines. The UI is ready on
 first use, including before input is supplied. Each update consumes evidence
 collected since the preceding update, including events received before widgets
 or input setting. An empty update still runs, clears focus for missing controls,
@@ -885,8 +904,8 @@ Report lifecycle = rohr_engine_lifecycle_update();
 ```
 
 The direct APIs omit `rohr_` and have identical semantics. `engine_update()`
-returns `ROHR_ENGINE_REPORT`, advances the clock once, then merges one
-`ROHR_ENGINE_LIFECYCLE_REPORT` from cleanup. Its elapsed time independently
+returns `ROHR_ENGINE_REPORT_ID`, advances the clock once, then merges one
+`ROHR_ENGINE_LIFECYCLE_REPORT_ID` from cleanup. Its elapsed time independently
 covers both operations and collection. The lifecycle report measures its own
 sweep. Physics, graphics, audio and UI are never run or merged here. There is no
 separate clock report. Completed engine/lifecycle values are independently stored for retrieval.
@@ -940,7 +959,7 @@ Replace `rohr_system_tick_update()` with `rohr_engine_update()` followed by
 separation, call `rohr_engine_tick_update()` then `rohr_engine_lifecycle_update()`.
 Replace `rohr_system_entities_past_lifetime_clean()` with the latter report-returning
 API. The direct names migrate identically; old functions have no aliases.
-The unused `ROHR_ENGINE_TICK_REPORT` enum becomes `ROHR_ENGINE_REPORT` at the same
+The unused `ROHR_ENGINE_TICK_REPORT` enum becomes `ROHR_ENGINE_REPORT_ID` at the same
 numeric value; the lifecycle ID is appended without renumbering existing IDs.
 
 New generated applications use the combined update and check its status before

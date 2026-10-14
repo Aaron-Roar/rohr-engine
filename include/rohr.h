@@ -42,8 +42,9 @@ EngineResult rohr_engine_start(void);
 
 /** Returns an empty caller-owned report builder, independent of engine startup. */
 Report rohr_report_create(void);
-/** Return a non-consuming owned snapshot, or an unsupported-ID error. */
-ReportResult rohr_report_get(ReportId id);
+/** Return an owned snapshot or compose selectors joined with |. Zero and
+ * unsupported bits return an error; ROHR_REPORT selects all supported reports. */
+ReportResult rohr_report_get(ReportFlags flags);
 /** Checks populated report fields, custom IDs, and reserved-fatal consistency. */
 bool rohr_report_valid_check(const Report *report);
 /** Sets report identity, completion status, and measured time; failure is sticky. */
@@ -87,14 +88,14 @@ void rohr_engine_stop(void);
  */
 void rohr_engine_time_update(void);
 
-/** Advance clock/ticks, then lifecycle cleanup; returns an owned ROHR_ENGINE_REPORT.
+/** Advance clock/ticks, then lifecycle cleanup; returns an owned ROHR_ENGINE_REPORT_ID.
  * Requires engine startup. Paused/zero-tick calls still run cleanup.
  * Does not update physics, graphics, audio or UI. */
 Report rohr_engine_update(void);
 /** Advance clock/ticks only and replace the latest tick delta (possibly zero). */
 Tick rohr_engine_tick_update(void);
 /** Delete expired entities at current time/ticks; leave clock and delta unchanged.
- * Returns an owned ROHR_ENGINE_LIFECYCLE_REPORT. Requires engine startup. */
+ * Returns an owned ROHR_ENGINE_LIFECYCLE_REPORT_ID. Requires engine startup. */
 Report rohr_engine_lifecycle_update(void);
 /** Latest tick-update delta; reads do not consume it. Cleared on start/stop/reset. */
 Tick rohr_engine_tick_delta_get(void);
@@ -2659,7 +2660,7 @@ void rohr_ui_button_disabled(UIRect bounds, const UIButtonStyle *style);
 /** Return current pointer consumption; read before rohr_ui_update(). */
 bool rohr_ui_pointer_consumed_get(void);
 
-/** Finalize overlays/focus and return one owned ROHR_UI_REPORT, then clear
+/** Finalize overlays/focus and return one owned ROHR_UI_REPORT_ID, then clear
  * transient input and registration. Empty frames return COMPLETE. Timing covers
  * only this call, excluding earlier widget execution and application time. */
 Report rohr_ui_update(void);
