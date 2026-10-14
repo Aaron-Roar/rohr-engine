@@ -1,8 +1,9 @@
 # Shared reports
 
 The shared report API is implemented independently of engine initialization.
-Physics updates return this type as described below; other system integrations,
-console printing, JSON export, and latest-report retrieval remain scheduled work.
+Physics updates return this type as described below. Console, JSON, and text-file
+output are implemented; other system integrations and latest-report retrieval
+remain scheduled work.
 
 Include `rohr.h` for the public API, or `report.h` for the direct `report_*`
 functions. Both paths use the same implementation and have the same behavior.
@@ -79,7 +80,7 @@ report and metric ranges run from `0x10000` through `0x7fffffff`, exposed throug
 `ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN/END`. Applications assign their own unique IDs
 within these ranges and explicitly choose aggregation rules for custom metrics.
 Unknown engine-range IDs are rejected. There is no registration or mutable global
-name table; later output helpers can display numeric custom IDs.
+name table; output helpers display numeric custom IDs.
 
 ## Merge completed work
 
@@ -151,10 +152,11 @@ On the verified native build, `sizeof(Report)` is 88,728 bytes. Layout is a C AB
 not a portable serialized byte format. Keep retained reports in deliberately
 budgeted storage; avoid large arrays on small stacks. Validation uses bounded
 linear/quadratic scans over populated slots and collection uses no heap allocation.
-All helpers are independent of SDL, console output, engine state, and resource
-lifetimes; callers synchronize concurrent writes to the same report themselves.
+Collection helpers are independent of SDL, console output, engine state, and
+resource lifetimes; callers synchronize concurrent writes to the same report
+themselves.
 
-Future physics integration, output, and recovery requirements remain in the
+Milestone requirements and remaining integrations/recovery are recorded in the
 [reporting contract](physics_reporting_contract.md) and [roadmap](../NEXT_STEPS.md).
 
 ## Physics reports
@@ -250,3 +252,80 @@ The later stored-report goal will add `rohr_report_get(id)` and the combined
 `rohr_report_get(ROHR_REPORT)`. Each runnable pipeline will retain only its latest
 copy, overwritten by its next update. Updates will still return reports directly.
 That retrieval API is agreed but is not implemented in this physics goal.
+
+## Console and file output
+
+Output accepts an existing report; it neither runs an update nor fetches stored
+reports. All three functions work before engine startup and preserve the source.
+The direct APIs have the same signatures without the `rohr_` prefix:
+
+```c
+EngineResult rohr_report_console_write(const Report *report);
+EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty);
+EngineResult rohr_report_text_write(const Report *report, const char *path);
+```
+
+Check each returned `EngineResult`: it describes output success or failure,
+independently of the report's simulation status. A failed physics report can be
+written successfully. Invalid reports and null/empty paths return
+`ERROR_ENGINE_REPORT_INVALID`; I/O, formatting, and console truncation return
+`ERROR_ENGINE_OUTPUT_IO_FAILED`, `ERROR_ENGINE_OUTPUT_FORMAT_FAILED`, and
+`ERROR_ENGINE_OUTPUT_TRUNCATED`, respectively. Allocation failure returns
+`ERROR_MEMORY_POOL_ALLOCATION_FAILED`. An already-truncated diagnostic detail
+is visibly marked but does not itself make output fail.
+
+Files contain one report, replacing existing contents. Relative paths use the
+current working directory; parent directories are not created. An I/O failure
+can leave a partial file. JSON is completely serialized before opening its
+file, so invalid UTF-8 or serialization allocation failures preserve the prior
+file. JSON's temporary document and output buffer are released on every path.
+The general file API remains deferred; these functions own their file handles.
+
+Console and text files share a formatter. They include the header, child summaries,
+statistics with aggregation rules and units in metric names, the first fatal,
+additional diagnostics, and all overflow/saturation fields. Enum names are
+shortened for readability; custom IDs retain numeric fallback labels. Optional
+object/substep context is shown only when present. Diagnostic control characters
+are escaped (`\n`, `\r`, `\t`, `\xNN`) and literal backslashes are doubled.
+The first fatal is printed once, even when mirrored in the ordinary list.
+
+Each console line goes through the existing engine console backend with its
+`[#]` prefix. Files omit those prefixes. `MAX_LOG_STR` is 1,024 bytes including
+prefix and NUL; the console history still keeps 100 entries. Every report line
+is sent to the terminal even when earlier lines age out of history. Lines that
+exceed capacity end with `... [truncated]`, and subsequent report lines are still
+written before returning the truncation error. An I/O or formatting failure
+stops further output. Text files do not inherit the console's line limit.
+Existing void console APIs keep their signatures and use the same checked
+backend internally, discarding its return value.
+
+### JSON format version 1
+
+The root object contains `format_version`, `header`, `entries`, `statistics`,
+`diagnostics`, `first_fatal`, `dropped_entry_count`, `dropped_statistic_count`,
+`dropped_diagnostic_occurrences`, and `counters_saturated`. Arrays contain only
+populated records in collection order, so redundant counts/capacities are omitted.
+A child entry remains a summary; export does not invent nested child reports.
+
+- Enums use `{ "value": number, "name": "EXACT_C_ENUM_NAME" }`. Unknown custom
+  names are `null`. Numeric values already exported by version 1 must not be
+  renumbered when extending enums.
+- Every `uint64_t` field uses a decimal string, including statistic values,
+  invocation/occurrence/drop counts, and object IDs. This preserves values larger
+  than JavaScript's exact-integer range. Enum/stage/substep IDs are numbers.
+- Header `total_ms` is a number. Boolean fields remain booleans. No engine tick,
+  timestamp, object name, or other live state is inferred at export time.
+- Diagnostic fields match `ReportDiagnostic`, with enum objects for
+  `report_id`, `internal_stage`, `severity`, `code`, and `recovery`. Stage names
+  are resolved only within their owning system; unknown or zero stages have a
+  null name. `message` adds the error code's static human-readable explanation;
+  `detail` is the report's copied text, never mutable last-error text.
+- `source` and `target` contain `kind` (enum object) and `id` (decimal string),
+  including NONE/zero references. `has_substep`, `first_substep`, `last_substep`,
+  and `detail_truncated` are retained explicitly.
+- `first_fatal` is `null` when absent; otherwise it is a complete diagnostic.
+  Its ordinary-list mirror is retained in JSON. Both refer to the same failure
+  and must not be added together when counting occurrences.
+- Pretty and compact output differ only in whitespace. Invalid UTF-8 is rejected
+  rather than replaced. This is diagnostic export, not a report-loading or
+  project-persistence schema.

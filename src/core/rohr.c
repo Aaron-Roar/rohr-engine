@@ -21,6 +21,9 @@ EngineResult rohr_report_statistic_add(Report *report, ReportStatistic statistic
 EngineResult rohr_report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail) { return report_diagnostic_detail_set(diagnostic, detail); }
 EngineResult rohr_report_diagnostic_add(Report *report, ReportDiagnostic diagnostic) { return report_diagnostic_add(report, diagnostic); }
 EngineResult rohr_report_merge(Report *destination, const Report *source) { return report_merge(destination, source); }
+EngineResult rohr_report_console_write(const Report *report) { return report_console_write(report); }
+EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty) { return report_json_write(report, path, pretty); }
+EngineResult rohr_report_text_write(const Report *report, const char *path) { return report_text_write(report, path); }
 void rohr_engine_stop(void) { engine_stop(); }
 void rohr_engine_time_update(void) { engine_time_update(); }
 Time rohr_engine_time_get(void) { return engine_time_get(); }

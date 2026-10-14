@@ -6,7 +6,8 @@ verified current behavior, agreed requirements, and proposed implementation
 details. Shared collection, merging, and physics integration are implemented as documented
 in [Shared reports](reports.md). That page is the current API reference; the
 original physics inventory and proposed refinements below retain design context.
-Other system integrations, output, and retrieval remain scheduled work. The
+Console, JSON, and text-file output are also implemented. Other system
+integrations and retrieval remain scheduled work. The
 capacity, shared-type, return-ownership, and output decisions below are settled;
 finalize runnable boundaries during each integration goal. Shared infrastructure
 is Goal 1, physics integration Goal 2, and console/JSON output Goal 3.
@@ -382,12 +383,13 @@ Output is explicit and separate from collecting or combining reports. Physics
 updates neither print automatically nor construct JSON. A caller can inspect a
 report, print it, write it to a file, or retain it without affecting simulation.
 
-Proposed public output APIs:
+Implemented public output APIs:
 
 ```c
-EngineResult rohr_console_report_print(const Report *report);
+EngineResult rohr_report_console_write(const Report *report);
 EngineResult rohr_report_json_write(
     const Report *report, const char *path, bool pretty);
+EngineResult rohr_report_text_write(const Report *report, const char *path);
 ```
 
 - Console printing goes through the engine console interface, not a parallel
@@ -426,13 +428,17 @@ EngineResult rohr_report_json_write(
 - This is a diagnostic export, not project persistence or a report-loading API.
   It does not change saved project formats or introduce automatic log files.
 
-Example after implementation (both output results must be checked by callers):
+Example (both output results must be checked by callers):
 
 ```c
 Report report = rohr_physics_update(ticks);
-EngineResult printed = rohr_console_report_print(&report);
+EngineResult printed = rohr_report_console_write(&report);
 EngineResult written = rohr_report_json_write(&report, "physics_report.json", true);
 ```
+
+Text files share the console formatter without console prefixes. The general
+file API is deferred. See [the version 1 export contract](reports.md#json-format-version-1)
+for enum objects, exact integer strings, diagnostics, and failure behavior.
 
 ## Acceptance criteria for implementation
 
@@ -493,9 +499,9 @@ soft-body dependencies, and developer restoration before implementing either.
 Do not implement a new flag, destructive quarantine replacement, or automatic
 retry as part of reporting. Setters/creators keep immediate validation semantics.
 
-Goals 1 and 2 implement shared report values, collection/merging, and physics
-pipeline return types. Console/JSON output, other systems, stored-report retrieval,
-and recovery remain scheduled work. Later-goal acceptance criteria are not claims
+Goals 1 through 3 implement shared report values, collection/merging, physics
+pipeline return types, and console/JSON/text-file output. Other systems,
+stored-report retrieval, and recovery remain scheduled work. Later-goal acceptance criteria are not claims
 of implementation.
 
 ## Agreed latest-report retrieval (Goal 10)

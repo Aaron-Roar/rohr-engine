@@ -50,6 +50,12 @@ EngineResult error_result_error_detail(EngineError error, const char *detail) {
 
 const char *error_code_message_get(EngineError error) {
     switch(error) {
+        case ERROR_ENGINE_OUTPUT_IO_FAILED:
+            return "output I/O failed";
+        case ERROR_ENGINE_OUTPUT_TRUNCATED:
+            return "output truncated";
+        case ERROR_ENGINE_OUTPUT_FORMAT_FAILED:
+            return "output formatting failed";
         case ERROR_ENGINE_REPORT_INVALID:
             return "invalid report fields or incompatible report aggregation";
         case ERROR_NONE:

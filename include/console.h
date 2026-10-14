@@ -6,8 +6,8 @@
 #define CONSOLE_H
 #include <stdbool.h>
 
-/** Maximum number of characters stored in one console log string. */
-#define MAX_LOG_STR 100
+/** Console log storage in bytes, including the source prefix and terminating NUL. */
+#define MAX_LOG_STR 1024
 
 /** Console input or log line storage. */
 typedef struct ConsoleLogString {

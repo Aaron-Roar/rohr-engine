@@ -64,7 +64,7 @@ static bool report_diagnostic_check(const ReportDiagnostic *value) {
     return report_id_check(value->report_id) &&
         (value->severity == ROHR_REPORT_SEVERITY_WARNING ||
          value->severity == ROHR_REPORT_SEVERITY_FATAL) &&
-        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_REPORT_INVALID &&
+        value->code > ERROR_NONE && value->code <= ERROR_ENGINE_OUTPUT_FORMAT_FAILED &&
         value->recovery >= ROHR_REPORT_RECOVERY_NONE &&
         value->recovery <= ROHR_REPORT_UPDATE_ABORTED &&
         report_object_check(value->source) && report_object_check(value->target) &&

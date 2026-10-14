@@ -63,6 +63,18 @@ EngineResult rohr_report_diagnostic_add(Report *report, ReportDiagnostic diagnos
  */
 EngineResult rohr_report_merge(Report *destination, const Report *source);
 
+/** Write a validated report through the console; no engine startup required. */
+EngineResult rohr_report_console_write(const Report *report);
+/** Replace a file with versioned JSON; pretty changes whitespace only.
+ * Uses temporary allocation. Invalid reports/paths fail before opening the file.
+ * An I/O failure can leave a partial file. The source report is never modified.
+ */
+EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty);
+/** Replace a file with readable report text, without console prefixes.
+ * Does not create directories. An I/O failure can leave a partial file.
+ */
+EngineResult rohr_report_text_write(const Report *report, const char *path);
+
 /**
  * @brief Stops the core engine service and releases its state.
  */

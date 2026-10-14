@@ -3,6 +3,7 @@
  */
 
 #include "console.h"
+#include "core/console_internal.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -84,23 +85,36 @@ bool console_read(ConsoleLogString *input) {
     return false;
 }
 
-void console_vwrite(LogSourceType source, const char *fmt, va_list args) {
+EngineResult console_checked_vwrite(LogSourceType source, const char *fmt, va_list args) {
     ConsoleLogString str_buff = {0};
-
+    static const char marker[] = "... [truncated]\n";
+    if(fmt == NULL) return ERROR_RESULT_MAKE_ERROR(EngineResult, ERROR_ENGINE_OUTPUT_FORMAT_FAILED);
     str_buff.string[0] = '[';
     str_buff.string[1] = console_source_symbol(source);
     str_buff.string[2] = ']';
-
-    vsnprintf(
-        &str_buff.string[CONSOLE_TOKEN_LENGTH],
-        sizeof(str_buff.string) - CONSOLE_TOKEN_LENGTH,
-        fmt,
-        args
-    );
-
+    int length = vsnprintf(str_buff.string + CONSOLE_TOKEN_LENGTH,
+        sizeof(str_buff.string) - CONSOLE_TOKEN_LENGTH, fmt, args);
+    if(length < 0) return ERROR_RESULT_MAKE_ERROR(EngineResult, ERROR_ENGINE_OUTPUT_FORMAT_FAILED);
+    bool truncated = (size_t)length >= sizeof(str_buff.string) - CONSOLE_TOKEN_LENGTH;
+    if(truncated) memcpy(str_buff.string + sizeof(str_buff.string) - sizeof(marker), marker, sizeof(marker));
     console_store_log(source, str_buff);
-    fputs(str_buff.string, console_stream(source));
-    fflush(console_stream(source));
+    FILE *stream = console_stream(source);
+    if(fputs(str_buff.string, stream) == EOF || fflush(stream) == EOF)
+        return ERROR_RESULT_MAKE_ERROR(EngineResult, ERROR_ENGINE_OUTPUT_IO_FAILED);
+    if(truncated) return ERROR_RESULT_MAKE_ERROR(EngineResult, ERROR_ENGINE_OUTPUT_TRUNCATED);
+    return ERROR_RESULT_MAKE_VALUE(EngineResult, true);
+}
+
+EngineResult console_checked_write(LogSourceType source, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    EngineResult result = console_checked_vwrite(source, fmt, args);
+    va_end(args);
+    return result;
+}
+
+void console_vwrite(LogSourceType source, const char *fmt, va_list args) {
+    (void)console_checked_vwrite(source, fmt, args);
 }
 
 void console_write(LogSourceType source, const char *fmt, ...)

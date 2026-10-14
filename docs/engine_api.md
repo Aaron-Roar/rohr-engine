@@ -4672,6 +4672,35 @@ metric rules fail without mutation. Capacity exhaustion succeeds with visible
 
 loss counts; the reserved first fatal is not dropped. Merge each child once.
 
+### `rohr_report_console_write`
+
+```c
+EngineResult rohr_report_console_write(const Report *report);
+```
+
+Writes an existing report through the engine console, one prefixed line at a time.
+Preserves the report; returns output failures separately from reported failures.
+
+### `rohr_report_json_write`
+
+```c
+EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty);
+```
+
+Replaces a file with version 1 report JSON. Pretty mode changes whitespace only.
+Uses temporary allocation; invalid reports and serialization failures do not open
+the destination. I/O failure may leave a partial file. Does not create directories.
+
+### `rohr_report_text_write`
+
+```c
+EngineResult rohr_report_text_write(const Report *report, const char *path);
+```
+
+Replaces a file with the console report format without console prefixes. Does not
+require engine startup or create directories. I/O failure may leave a partial file.
+See [report output](reports.md#console-and-file-output) for errors and format details.
+
 ### `rohr_audio_start`
 
 ```c

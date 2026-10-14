@@ -181,6 +181,12 @@ typedef enum EngineError {
     ERROR_ENGINE_AUDIO_OPERATION_FAILED,
     /** A report contains invalid fields, incompatible metric rules, or aliases itself. */
     ERROR_ENGINE_REPORT_INVALID,
+    /** A console or file write, flush, open, or close failed. */
+    ERROR_ENGINE_OUTPUT_IO_FAILED,
+    /** Output was visibly shortened to fit its destination buffer. */
+    ERROR_ENGINE_OUTPUT_TRUNCATED,
+    /** Text or JSON could not be formatted (including invalid UTF-8). */
+    ERROR_ENGINE_OUTPUT_FORMAT_FAILED,
 } EngineError;
 
 /**

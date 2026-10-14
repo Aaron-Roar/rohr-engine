@@ -748,14 +748,24 @@ integration goal before modifying that system.
    startup/shutdown checks, and generated-project runtime parity and startup.
    Corrected the generated COM test fixture's stale triangle assumption.
    Windows execution remains unverified. See [Physics reports](docs/reports.md#physics-reports).
-3. [ ] **Add console printing and JSON report export** — Implement explicit
-   report printing through the engine console and pretty/compact JSON file output
-   using existing yyjson. Increase the named console buffer to 1,024 bytes,
+3. [x] **Add console, JSON, and text-file report output** — Implement
+   `rohr_report_console_write`, `rohr_report_json_write`, and
+   `rohr_report_text_write`, with matching direct APIs. Share a readable text
+   formatter and use existing yyjson for versioned JSON. Defer the general file
+   API; output functions own their file handles. Increase the named console
+   buffer to 1,024 bytes,
    format reports line by line, and detect truncation. Keep its 100-entry history
    distinct from full terminal output. Verify readable names, complete report
    content, overflow/fatal details, truncation and I/O errors, and temporary
    allocation cleanup. Output errors do not mutate source reports; collection
    remains independent of printing and serialization.
+   Completed: shared console/text formatting, version 1 JSON with exact integer
+   strings and enum names, checked output errors, and visible console truncation.
+   Verified 74 native tests, three focused ASan/UBSan/LeakSanitizer tests including
+   allocation/I/O failure injection, Linux and Windows builds without compiler
+   warnings, installed-SDK consumers (Linux executed; Windows compiled), and an
+   independent installed-SDK joints example launched outside its source directory.
+   Windows execution remains unverified. The general file API stays deferred.
 4. [ ] **Define and integrate graphics update reports** — Audit rendering entry
    points and define submission/frame/presentation boundaries and compatibility
    changes. Reuse the shared report format for rendering-stage
