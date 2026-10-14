@@ -55,9 +55,11 @@ Agreed requirements:
   Report overflow is visible, never silently discarded.
 - Invalid setter arguments return immediately and preserve previous state.
   They do not become deferred pipeline errors merely because a report exists.
-- An intentionally incomplete future force source is suspended normally.
-  Unexpected runtime invalidity is reported when its contribution is skipped.
-  A one-tick failure does not extend the request's expiry.
+- Under the approved [force/torque contract](force_torque_contract.md), a future
+  zero-initialized no-target source is valid and is not warned about solely for
+  inactivity. Explicit references must resolve even at zero magnitude or with no
+  target. Runtime reference/geometry failures warn when evaluated; a one-tick
+  failure does not extend expiry. These source semantics await implementation.
 
 Settled decisions:
 
@@ -309,7 +311,7 @@ so callers can make informed decisions.
 | Condition | Proposed behavior |
 | --- | --- |
 | Invalid setter argument | Immediate error; previous successful value preserved; no deferred warning. |
-| Deliberately disabled, held, collision-filtered, or incomplete source | Expected behavior; no warning solely for inactivity. |
+| Deliberately disabled, held, collision-filtered, or valid zero/no-target source | Expected behavior; no warning solely for inactivity. Explicit source references still require validation. |
 | A runtime contribution becomes unrepresentable | Warning plus skipped contribution when safe; other sources continue. Future force behavior is implemented in its own milestone. |
 | Out-of-range integrated position | Reject the position operation, retain prior position and other successful work, warn, and retry on the next scheduled execution. |
 | Contact/joint storage allocation failure | Fatal; do not simulate as if missing constraints were a complete valid solve. Retain first failure and partial progress. |

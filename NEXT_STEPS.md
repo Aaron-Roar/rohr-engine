@@ -82,9 +82,11 @@ in the single-goal documentation prerequisite below.
 simulation-failure recovery) are complete.
 Goal 7 (input) is deferred by user choice; retain its current API and direct
 errors. Goal 11 implements operation-level rejection and retry. The single-goal
-**Report Bitmask Selection** milestone is complete. Resume Goal 1 of **Unified
-Forces and Torques** only on explicit user instruction; preserve the agreed
-force/torque API design.
+**Report Bitmask Selection** milestone is complete. The single-goal **Force/Torque
+Contract and Roadmap Reconciliation** documentation milestone is also complete;
+the approved design is recorded in [the contract](docs/force_torque_contract.md). Next define and implement **Entity Inspection**, then resume
+**Unified Forces and Torques** implementation, each only on explicit user
+instruction. No force/torque implementation is included in the documentation goal.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -190,8 +192,9 @@ The user-selected **COM Selection Priority** goal is complete, including its
 dedicated COM editor and persistent automatic selection.
 
 The user-selected **Consistent Collision Controls** single-goal milestone and
-Node-Loop Soft-Body Areas are complete. System Update Reports and then Report
-Bitmask Selection precede Unified Forces and Torques.
+Node-Loop Soft-Body Areas are complete. System Update Reports, Report Bitmask
+Selection, Force/Torque Contract and Roadmap Reconciliation, and Entity Inspection
+precede Unified Forces and Torques implementation.
 
 The user-selected **Stable Area Colors During Motion** milestone is complete.
 It fixes runtime color flashing caused by numerical region detection failures.
@@ -200,9 +203,10 @@ The user-selected **Beam-Bounded Soft-Body Area Colors** milestone is complete.
 It supersedes the material-position fill behavior of **Stable Soft-Body Areas**.
 
 The user-selected **Bugs Identified by Rohr User** milestone is complete.
-The **System Update Reports** prerequisite, **Report Bitmask Selection**, and
-then **Unified Forces and Torques** precede numbered priority 4. Pursue only an
-explicitly selected goal.
+The **System Update Reports** prerequisite, **Report Bitmask Selection**,
+**Force/Torque Contract and Roadmap Reconciliation**, **Entity Inspection**, and
+then **Unified Forces and Torques** implementation precede numbered priority 4.
+Pursue only an explicitly selected goal.
 
 1. **Audio (complete)** — Sound effects and music use a small, explicit SDL
    backend with reliable loading, playback, looping, mixing, volume control,
@@ -964,9 +968,11 @@ above preserves [audio Goal 5's approved contract](docs/audio_reporting_contract
   occurrences, and reserves fatal details even when full. Timings/statistics
   remain system-specific.
 - Invalid setter arguments continue to return immediate errors and preserve
-  previous state. Intentionally incomplete force sources are suspended, not
-  automatically warning-generating failures. Unexpected runtime invalidity is
-  reported by the owning update when the force milestone implements it.
+  previous state. Future zero-initialized no-target force/torque sources are
+  valid and produce no warning solely for inactivity. Explicit references must
+  resolve even for zero/no-target sources; failures are reported by the owning
+  update when the force milestone implements the
+  [force/torque contract](docs/force_torque_contract.md).
 - Force/torque failures discovered after an apply call returns belong in the
   physics report, including source/target identifiers even if a one-tick source
   later expires. Do not add a separate force-error queue.
@@ -980,8 +986,9 @@ details affecting subsystem behavior require their routed instructions first.
 
 Support selecting and combining latest stored reports with bitwise `|`,
 preserving existing report ownership and composition behavior. This single-goal
-milestone is complete; resume Unified Forces and Torques only on explicit user
-instruction. System Update Reports goals remain complete except deferred input.
+milestone is complete. The documentation reconciliation and Entity Inspection
+milestones precede force/torque implementation, each on explicit user instruction.
+System Update Reports goals remain complete except deferred input.
 
 1. [x] **Implement and verify report bitmask selection** — Add combinable
    selectors and an all-reports selector, distinct from report identity IDs.
@@ -1006,6 +1013,49 @@ instruction. System Update Reports goals remain complete except deferred input.
    Allocation guards and concurrent publication checks pass. The report/cache
    sizes are unchanged; 100 combined reads took about 1.48 ms in the test fixture.
 
+## Milestone: Force/Torque Contract and Roadmap Reconciliation
+
+Consolidate the agreed force/torque design and schedule entity inspection before
+implementation. This single-goal documentation milestone is complete; no runtime
+API, physics behavior, or build configuration changed.
+
+1. [x] **Finalize the force/torque contract and update implementation dependencies**
+   — Record approved types, by-value APIs, zero/no-target defaults, validation,
+   lifetime, beam calculations, ownership, migration, and acceptance tests in
+   [the authoritative contract](docs/force_torque_contract.md). Replace superseded
+   roadmap statements and reconcile reporting guidance. Schedule entity-info
+   definition, then its implementation, before force/torque implementation.
+   Verify examples, formulas, links, consistency, and `git diff --check` without
+   implementing C APIs or advancing into entity-info design.
+   Completed: consolidated the contract and removed superseded roadmap/reporting
+   assumptions. Verified relative links and anchors, C11 syntax of all examples
+   with warnings as errors, 300 beam moment/torque cases and 1,200 finite-difference
+   endpoint-work checks, and `git diff --check`. Runtime motion/energy tests,
+   sanitizers, and platform builds remain implementation acceptance requirements.
+   Entity Inspection Goal 1 is next, on explicit user instruction.
+
+## Milestone: Entity Inspection
+
+Provide one errorable current-state entity-info API with combinable section
+selectors and `ROHR_ENTITY_INFO` for all sections. Preserve separate component
+information in the combined result. Inspection must not execute operations or
+mutate reports; reports remain evidence of completed update execution. Complete
+this milestone before Unified Forces and Torques implementation, which adds its
+new source details to the shared inspection API. Select each goal explicitly.
+
+1. [ ] **Define the entity inspection contract** — Specify public/direct getter
+   signatures, result structure, section inventory, selector flags, per-component
+   configuration/eligibility details, ownership, validation, missing-component
+   behavior, and acceptance criteria. Preserve `|` composition and all-section
+   retrieval. Define how later force/torque integration reports valid zero/no-target
+   states and unresolvable references without dedicated force-status getters.
+   Do not invent one overall entity health value that hides component differences.
+2. [ ] **Implement and verify entity inspection** — Implement the approved contract
+   for existing components with shared filtering, no operation execution or report
+   mutation, public/direct parity, documentation, and relevant tests, sanitizers,
+   Linux/Windows builds, and installed-SDK checks. Leave new force/torque component
+   integration to its subsequent implementation goals.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,
@@ -1013,23 +1063,22 @@ standalone particles, soft-body nodes, beams, and whole soft bodies. Finish
 with editor authoring and manipulation. This replaces the proposed Editor
 Forces and Torques milestone and precedes numbered priority 4.
 
-Goal 1 resumes after System Update Reports and Report Bitmask Selection. Its contract
-incorporates the agreed API lifecycle below and remains open for the remaining
-decisions;
-no force/torque API or physics changes have been implemented in this milestone.
+The [force/torque contract](docs/force_torque_contract.md) is authoritative for
+approved behavior. Goal 1 is fulfilled by the documentation reconciliation
+milestone; no force/torque API or physics changes have been implemented here.
+Entity Inspection definition and implementation must complete before Goal 2.
+Editor handle presentation is finalized in the relevant editor goals.
 
-1. [ ] **Finalize the shared API contract (in discussion)** — Specify direct
-   ECS creation/configuration and typed creation from standalone descriptions,
-   with shared validation, entity setters, and whole-description get/set.
-   Define signatures, source data, independent application-point/direction
-   references, defaults, and suspension behavior. Finish beam distribution,
-   tick timing, invalid-input rules, and migration of soft-body-specific APIs.
-   Record usage examples and acceptance criteria before implementation.
+1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
+   Contract and Roadmap Reconciliation**, with types, signatures, beam behavior,
+   validation, lifetime, migration, examples, and acceptance criteria recorded.
 2. [ ] **Implement shared sources and rigid-body/particle behavior** — Add
    force-at-point support, consistent one-tick and persistent source handling,
-   direct and description-based creation, mutation, and deletion. Verify
-   shared validation, source suspension, translation and rotation, particle position
-   ignoring, particle torque no-ops, and rigid bodies containing particles.
+   one by-value description-based add path, mutation, and deletion. Verify
+   shared validation, valid zero/no-target sources, reference suspension,
+   translation and rotation, particle position ignoring, particle torque no-ops,
+   and rigid bodies containing particles. Integrate current source details into
+   the entity-info API rather than introducing dedicated status getters.
 3. [ ] **Implement local beam loads** — Distribute force and torque to endpoint
    nodes without child source entities. Verify net force and torque, local
    deformation, collapsed beams, endpoint changes, and deletion.
@@ -1054,126 +1103,27 @@ no force/torque API or physics changes have been implemented in this milestone.
    interactions; show particle torque as having no physical effect. Verify
    both editors across all targets and request final manual review.
 
-### Agreed behavior
+### Approved contract summary
 
-- The target entity determines how the common API applies or distributes a
-  load. One-tick and persistent sources use the same target behavior.
-- Each persistent source has one ID for updating and deletion. Distributed
-  loads do not create child force/torque entities. Deleting a source stops
-  future contributions without undoing motion already produced.
-- Rigid-body forces act at an application point and produce the corresponding
-  torque about COM. Rigid bodies containing particles retain angular response.
-- Pure standalone particles and individual soft nodes ignore force position;
-  their forces act through their centroid. Torque succeeds but has no effect,
-  including persistent sources that can still be updated and deleted.
-- Beam loads act locally through endpoint nodes and propagate through the
-  existing structure. Whole-soft-body loads distribute across all nodes,
-  preserving requested net force and torque while permitting deformation.
-- A whole-soft-body force through COM adds uniform linear acceleration;
-  off-centre force adds turning about COM. Pure torque adds no net linear force.
-  These loads do not impose rigid transforms or overwrite node velocities.
-- Recalculate distributed contributions each physics substep using current
-  geometry and masses. Angular motion can naturally stretch beams.
-- Torque marker placement is visual only; it does not establish a physical
-  pivot. Physical torque remains clockwise-positive and uses physical units.
-- Forces and torques are top-level object-editor items with dedicated editors
-  and established interaction rules. Forces use an arrow pointing away from
-  their application dot; torques use a three-quarter-circle tangential arrow.
-- The editor authors persistent sources and initial one-tick applications.
-  Sources can begin at zero magnitude and change later in developer-owned C.
-  No delayed event system is introduced. Immediate impulses remain separate.
-- Angles remain clockwise degrees by default, with zero heading up.
-
-### Goal 1 agreed API lifecycle
-
-These are design requirements, not currently implemented signatures.
-
-- `rohr_physics_force_create()` and `rohr_physics_torque_create()` create ECS
-  source entities immediately, returning `EntityResult`. They begin incomplete
-  and suspended; entity setters configure them initially and modify them later.
-  There is no separate add step for this direct workflow.
-- Developers can instead prepare standalone `ForceDescription` or
-  `TorqueDescription` values and call
-  `rohr_physics_force_from_description_add(description)` or
-  `rohr_physics_torque_from_description_add(description)`. These typed wrappers
-  require a complete, valid configuration and return `EntityResult`. Failure
-  leaves no source entity. A generic entity-description factory is out of scope.
-- Description-based creation copies configuration into the source; later edits
-  to the original value do not mutate it. Referenced entities remain references,
-  not cloned targets. Descriptions can be reused for multiple sources.
-- Both creation paths produce the same source representation and share
-  configuration/validation logic. Either supports the same entity setters and
-  whole-description get/set after creation. Do not duplicate every entity setter
-  as a separate description-building API; callers may fill description values
-  directly, as with existing configurations.
-- Setters and whole-description replacement may change the target entity or
-  leave an existing persistent source incomplete. Such sources suspend until
-  valid again. Malformed values, including nonfinite numbers, return an error
-  and preserve the previous state. Whole-description replacement is atomic.
-- Zero magnitude is allowed and does not require a usable direction. This is
-  an inactive configuration, not an error. Other required references still
-  follow the creation and suspension rules.
-- A deleted reference suspends an existing source until repaired; recycled
-  entity slots must not silently retarget it. Source deletion uses the existing
-  entity lifetime API and does not delete referenced targets.
-- Incomplete one-tick requests fail immediately. A persistent source whose
-  current geometry cannot represent its turning contribution suspends entirely,
-  rather than applying only its linear contribution, until valid again.
-  Pure-particle/node torque remains the successful no-op described above.
-- Agreed creation defaults are no target, application at the target's COM,
-  unset direction, and zero magnitude. A valid target makes the default source
-  inactive; a nonzero force also requires a usable direction.
-- One-tick attachments resolve each substep. If references or geometry become
-  invalid, skip that substep without extending the source lifetime. Report the
-  failure through the physics update report established by the prerequisite;
-  validation failures during the apply call still return immediately.
-
-### Goal 1 agreed location and direction model
-
-- Force configuration separates target entity, target location, direction, and
-  magnitude. Target physics type is inferred from the entity, not duplicated
-  in the description. Location and direction references are independent of the
-  receiving target and do not imply an equal-and-opposite reaction.
-- Direction supports a fixed vector, a vector between two locations, a
-  rigid-body orientation reference, or a beam direction. Resolve and normalize
-  the direction before multiplying by magnitude. Use existing math APIs for
-  ordinary vector construction rather than force-specific math helpers.
-- Locations support world points, entity-origin offsets, COM-relative points
-  with world-axis offsets, and explicit beam locations. Rigid-body local
-  offsets follow origin and rotation. Soft-body stored origin/orientation are
-  authoring transforms, not an estimated physical pose; do not infer physical
-  soft-body orientation for direction following.
-- Beam locations use start/center/end references, an along offset expressed
-  as distance or fraction of current full beam length, and a perpendicular
-  distance offset. Start/end follow stored node order, not screen left/right.
-  Positive along offsets point start-to-end; positive perpendicular offsets
-  point to its left. Center plus a fraction of 0.5 reaches the end.
-- Application points beyond the beam segment are permitted. Endpoint weighting,
-  off-center torque distribution, fixed/held endpoint treatment, and collapsed
-  beam force-only behavior still require final contract agreement.
-
-### Goal 1 remaining decisions
-
-The following details still need final contract definitions; they are not
-approval to implement a particular default or policy:
-
-1. **Public signatures and defaults:** finalize the complete type/enum/helper
-   inventory, initial field values, direction angle-offset representation, and
-   detailed source-status queries, including the distinction between malformed
-   descriptions and incomplete or temporarily unresolvable references.
-2. **Beam load distribution:** specify endpoint weighting, off-center torque,
-   fixed/held endpoint treatment, and force-only behavior at coincident endpoints.
-   External application points are already permitted; do not clamp them silently.
-3. **One-tick timing:** specify first/last participating substeps and map failure
-   details to the prerequisite report API. Per-substep reference resolution,
-   skipping invalid contributions, reporting failures, and unchanged expiry
-   are already agreed.
-4. **Migration and acceptance:** finalize replacement of the current vector/
-   scalar APIs and soft-body-specific helpers, breaking-format requirements,
-   usage examples, and test scenarios for both creation paths.
-
-Editor handle presentation details can be finalized before their respective
-editor goals. Goal 1 stays incomplete until the remaining contract is settled.
+- Persistent and one-tick sources share target behavior; `add(description)` copies
+  values immediately. Zero initialization is valid, with no target, world origin,
+  world orientation zero, and zero magnitude. Both magnitudes are signed.
+- Location and orientation have independent offsets/references. COM is explicit;
+  anonymous unions omit `.data`, and enum names end in POSITION or ORIENTATION.
+- Invalid configuration/stale API handles fail immediately and preserve state.
+  Runtime reference/geometry failures warn and retry per substep, including at
+  zero magnitude. No-target sources are valid no-ops, not unconfigured sources.
+- Beam endpoint loads preserve net force, torque, and attachment work using the
+  agreed fractional/distance formula; fixed nodes retain their shares. No bending
+  model or automatic reference reaction is added. Minimum beam length is a named
+  compile-time `0.0001f` constant; failed coupled contributions commit nothing.
+- Preserve engine-tick expiry. Entity-info inspection describes current state;
+  physics reports count source evaluations and record actual update failures.
+- Replace redundant APIs immediately with their implemented equivalents, remake
+  examples, and regenerate saved/generated formats without backward compatibility.
+  All exact types, APIs, calculations, and acceptance cases live in the
+  [contract](docs/force_torque_contract.md); do not revive superseded create/add
+  workflows, implicit COM defaults, or force-specific status getters.
 
 ### Existing support and verification
 
