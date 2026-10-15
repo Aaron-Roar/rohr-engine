@@ -410,6 +410,16 @@ separate force-status getters. Inspection does not apply reactions or retry work
 
 ## Storage and scaling
 
+The adversarial inspection suite checks selector composition, independent broken
+dependencies, malformed collection extents and active indices, nonfinite values,
+component removal, stale targets, issue-buffer boundaries, allocation failure,
+and retained ownership across engine restarts. Four fixed seeds exercise 8,000
+ownership operations across 40 restarts; 128 selector combinations check filtered
+evidence against a full capture. Inspection must preserve existing stored reports.
+Collection extents are checked before copying or using legacy getters; malformed
+storage is unavailable with an issue, while allocation-size overflow fails the
+capture. Independent dependency failures must remain individually observable.
+
 Each successful capture allocates one backing record containing the scalar
 snapshot, plus only the requested nonempty arrays and issue storage. Count-only
 queries allocate the backing record but no collection arrays. Allocation and

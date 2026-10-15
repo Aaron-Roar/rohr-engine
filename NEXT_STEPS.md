@@ -1074,6 +1074,30 @@ implemented API and ownership rules, including flat arrays and separate counts.
    and dynamic collections through 1,024 hitboxes; see the contract for costs.
    Unified Forces and Torques Goal 2 remains pending explicit user instruction.
 
+## Milestone: Diagnostic Reliability
+
+Find false success, missing evidence, incorrect warnings, and lifetime defects in
+inspection and reporting before returning to force/torque implementation. Add
+reproducible adversarial tests and fix confirmed defects within existing contracts.
+
+1. [x] **Stress entity inspection** — Exercise missing dependencies, stale
+   references, component removal, invalid numeric values, empty versus unavailable
+   fields, retained snapshots across restart, seeded ownership sequences, and
+   allocation failures. Verify diagnostics and read-only behavior under sanitizers
+   and relevant platform/SDK builds. Added six adversarial case groups, including
+   8,000 seeded ownership operations across 40 restarts and 128 selector mixes.
+   Fixed suppressed scale/beam diagnostics, unsafe hitbox metadata reads, and
+   removed hitboxes appearing available. Verified 83 native tests, both inspection
+   tests under ASan/UBSan with leak detection, Linux/Windows builds and installed
+   SDK consumers, standalone example builds, and bounded Linux example launches.
+   Windows validation is compile-only.
+2. [ ] **Stress report aggregation and storage** — Exercise overlapping selectors
+   and versions, full capacities, saturation, first-fatal preservation, reset
+   boundaries, publication ordering, and output failures.
+3. [ ] **Verify diagnostics against actual engine failures** — Inject operation
+   failures and compare engine state, inspection, and reports; verify unaffected
+   work, recovery evidence, and immutable older snapshots.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,

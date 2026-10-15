@@ -156,6 +156,36 @@ static void collection_copy(Snapshot *s, EntityInfoFlags flag, EntityInfoFlags c
     s->value.available |= flag;
 }
 
+/* Validate extents before copying or calling legacy getters that assume valid
+ * component storage. An invalid count cannot be advertised as available. */
+static bool collection_storage_check(Snapshot *s, EntityInfoFlags flag,
+        const void *values, size_t count, size_t capacity, size_t size) {
+    if(count > SIZE_MAX / size) {
+        s->failure = ERROR_MEMORY_POOL_CAPACITY_OVERFLOW;
+        return false;
+    }
+    if(count > capacity || (count != 0 && values == NULL)) {
+        invalid(s, flag, false, 0);
+        return false;
+    }
+    return true;
+}
+static bool hitbox_storage_check(Snapshot *s, EntityIndex index, EntityInfoFlags flag,
+        bool active_required) {
+    if(!(entity_mask[index] & ROHR_HIT_BOX) || !USED(hitbox_variants_pool, index)) {
+        missing(s, flag);
+        return false;
+    }
+    HitboxVariantList *list = &hitbox_variants_pool.objects[index];
+    if(!collection_storage_check(s, flag, list->values, list->count,
+            list->capacity, sizeof(*list->values))) return false;
+    if(active_required && (list->count == 0 || list->active_index >= list->count)) {
+        invalid(s, flag, false, 0);
+        return false;
+    }
+    return true;
+}
+
 static void groups_capture(Snapshot *s, EntityIndex index, bool children_query, EntityInfoFlags requested_flag) {
     EntityInfo *v = &s->value;
     EntityInfoFlags flag = children_query ? FLAG(CORE_CHILDREN) : FLAG(CORE_GROUPS);
@@ -394,9 +424,12 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         GET_CAPTURE(CollisionFilterConfigResult, physics_collision_filter_get(entity), collision_filter, true);
         break;
     case FLAG(PHYSICS_HITBOX_LOCAL):
+        if(!hitbox_storage_check(s, index, flag, true)) break;
         GET_CAPTURE(ShapeResult, physics_hitbox_get(entity), hitbox_local, shape_check(result.result.value));
         break;
     case FLAG(PHYSICS_HITBOX_WORLD):
+        if(!(mask & ROHR_HIT_BOX) || !USED(hit_boxes_pool, index)) { missing(s, flag); break; }
+        if(!shape_check(hit_boxes[index])) { invalid(s, flag, false, 0); break; }
         if((mask & ROHR_HIT_BOX) && !transform_check(s, flag, entity,
                 ROHR_ENTITY_INFO_FIELD_SHAPE, false, 0, !(mask & ROHR_PARTICLE))) break;
         GET_CAPTURE(ShapeResult, physics_global_hit_box_get(entity), hitbox_world, shape_check(result.result.value));
@@ -416,6 +449,7 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         v->available |= flag;
         break;
     case FLAG(PHYSICS_HITBOX_ACTIVE): {
+        if(!hitbox_storage_check(s, index, flag, true)) break;
         HitboxIdResult id = physics_hitbox_active_id_get(entity);
         HitboxIndexResult active = physics_hitbox_active_index_get(entity);
         if(id.kind == ERROR_RESULT_ERROR) unresolved(s, flag, id.result.error);
@@ -427,6 +461,7 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
     case FLAG(PHYSICS_HITBOXES): case FLAG(PHYSICS_HITBOX_COUNT): {
         HitboxVariantList list = USED(hitbox_variants_pool, index) && (mask & ROHR_HIT_BOX) ?
             hitbox_variants_pool.objects[index] : (HitboxVariantList){0};
+        if(!collection_storage_check(s, flag, list.values, list.count, list.capacity, sizeof(*list.values))) break;
         flag = FLAG(PHYSICS_HITBOXES);
         COPY_COLLECTION(hitboxes, hitbox_count, HitboxVariant, list.values, list.count,
             FLAG(PHYSICS_HITBOX_COUNT));
@@ -438,12 +473,22 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         HitboxAnimationBindingList list = USED(hitbox_animation_bindings_pool, index) &&
             (mask & ROHR_HITBOX_ANIMATION_BINDING) ? hitbox_animation_bindings_pool.objects[index] :
             (HitboxAnimationBindingList){0};
+        if(!collection_storage_check(s, flag, list.values, list.count, list.capacity, sizeof(*list.values))) break;
         flag = FLAG(PHYSICS_HITBOX_BINDINGS);
         COPY_COLLECTION(hitbox_bindings, hitbox_binding_count, HitboxAnimationBinding,
             list.values, list.count, FLAG(PHYSICS_HITBOX_BINDING_COUNT));
+        HitboxVariantList hitboxes = (mask & ROHR_HIT_BOX) && USED(hitbox_variants_pool, index) ?
+            hitbox_variants_pool.objects[index] : (HitboxVariantList){0};
+        bool hitboxes_valid = true;
+        if((v->available & flag) && list.count)
+            hitboxes_valid = collection_storage_check(s, flag, hitboxes.values,
+                hitboxes.count, hitboxes.capacity, sizeof(*hitboxes.values));
         if(v->available & flag) for(size_t i = 0; i < list.count; ++i) {
-            ShapeResult shape = physics_hitbox_by_id_get(entity, list.values[i].hitbox_id);
-            if(shape.kind == ERROR_RESULT_ERROR)
+            bool found = false;
+            if(hitboxes_valid) for(size_t h = 0; h < hitboxes.count; ++h)
+                if(hitboxes.values[h].id == list.values[i].hitbox_id) found = true;
+            /* Invalid storage prevents lookup; do not invent missing-ID issues. */
+            if(hitboxes_valid && !found)
                 issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_SHAPE, ROHR_ENTITY_INFO_REFERENCE_MISSING,
                     object(ROHR_ENTITY_INFO_OBJECT_HITBOX, list.values[i].hitbox_id, entity), true, i,
                     "Bound hitbox is missing");
@@ -621,11 +666,11 @@ static void dependencies_check(Snapshot *s, EntityInfoFlags flag) {
             ROHR_SOFT_BODY_NODE, false, 0);
         bool z = reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_BEAM_END, b->node_b,
             ROHR_SOFT_BODY_NODE, false, 0);
-        if(a && z) {
+        bool valid_a = a && transform_check(s, flag, b->node_a, ROHR_ENTITY_INFO_FIELD_BEAM_START, false, 0, false);
+        bool valid_b = z && transform_check(s, flag, b->node_b, ROHR_ENTITY_INFO_FIELD_BEAM_END, false, 0, false);
+        if(valid_a && valid_b) {
             PositionResult pa = physics_position_get(b->node_a), pb = physics_position_get(b->node_b);
-            bool valid_a = transform_check(s, flag, b->node_a, ROHR_ENTITY_INFO_FIELD_BEAM_START, false, 0, false);
-            bool valid_b = transform_check(s, flag, b->node_b, ROHR_ENTITY_INFO_FIELD_BEAM_END, false, 0, false);
-            if(valid_a && valid_b && pa.kind == ERROR_RESULT_VALUE && pb.kind == ERROR_RESULT_VALUE &&
+            if(pa.kind == ERROR_RESULT_VALUE && pb.kind == ERROR_RESULT_VALUE &&
                     hypotf(pa.result.value.x - pb.result.value.x, pa.result.value.y - pb.result.value.y) <= 0.0001f)
                 issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_SHAPE, ROHR_ENTITY_INFO_GEOMETRY_UNRESOLVABLE,
                     object(ROHR_ENTITY_INFO_OBJECT_ENTITY, b->node_a, 0), false, 0,
@@ -678,7 +723,10 @@ EntityInfoResult entity_info_get(Entity entity, EntityInfoFlags flags) {
     s->owners = 1;
     for(unsigned bit = 0; bit < 61 && !s->failure; ++bit) {
         EntityInfoFlags flag = UINT64_C(1) << bit;
-        if(!(flags & flag) || (s->value.available & flag)) continue;
+        if(!(flags & flag)) continue;
+        /* Full-sprite capture supplies the scale value, but an explicitly
+         * requested scale section still needs its own filtered diagnostics. */
+        if((s->value.available & flag) && flag != FLAG(GRAPHICS_SPRITE_SCALE)) continue;
         section_capture(s, index, flag);
         dependencies_check(s, flag);
     }
