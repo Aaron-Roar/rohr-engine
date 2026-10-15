@@ -16,6 +16,7 @@ smaller internal module headers and implementations.
 ## Public API
 
 - [Engine API reference](engine_api.md)
+- [Entity inspection and snapshot ownership](entity_inspection_contract.md)
 - [Tools API reference](tools_api.md)
 
 ## Editor
@@ -54,6 +55,7 @@ are generated from the Doxygen comments in the public headers under `include/`.
 
 - [Your first Rohr project](getting_started.md)
 - [Engine API reference](engine_api.md)
+- [Entity inspection and snapshot ownership](entity_inspection_contract.md)
 - [Tools API reference](tools_api.md)
 - [Architecture](architecture.md)
 - [Audio](audio.md)

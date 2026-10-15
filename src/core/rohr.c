@@ -1052,3 +1052,26 @@ void rohr_ui_radians_quad(Position center, float width, float height, float angl
 
 float rohr_math_degrees_to_radians(float degrees) { return math_degrees_to_radians(degrees); }
 float rohr_math_radians_to_degrees(float radians) { return math_radians_to_degrees(radians); }
+
+/* Entity inspection: snapshots own arrays, never live ECS resources. */
+EntityInfoResult rohr_entity_info_get(Entity entity, EntityInfoFlags flags) {
+    return entity_info_get(entity, flags);
+}
+EntityInfoResult rohr_entity_info_retain(const EntityInfo *info) {
+    return entity_info_retain(info);
+}
+EngineResult rohr_entity_info_release(EntityInfo *info) {
+    return entity_info_release(info);
+}
+bool rohr_entity_info_check(const EntityInfo *info, EntityInfoFlags flags) {
+    return entity_info_check(info, flags);
+}
+EntityInfoIssueCountResult rohr_entity_info_issues_count_get(
+    const EntityInfo *info, EntityInfoFlags flags) {
+    return entity_info_issues_count_get(info, flags);
+}
+EntityInfoIssueReadResult rohr_entity_info_issues_get(
+    const EntityInfo *info, EntityInfoFlags flags,
+    EntityInfoIssue *destination, size_t capacity) {
+    return entity_info_issues_get(info, flags, destination, capacity);
+}

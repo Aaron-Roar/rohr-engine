@@ -185,6 +185,7 @@ set(ROHR_ENGINE_SOURCES
     src/core/report.c
     src/core/report_output.c
     src/core/rohr.c
+    src/entity/entity_info.c
     src/entity/entity_components.c
     src/entity/entity_pair_set.c
     src/graphics/asset_path.c
@@ -583,6 +584,25 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME report_output COMMAND report_output_test)
 
     add_executable(system_reports_test tests/system_reports.c)
+    add_executable(entity_info_test tests/entity_info.c)
+    target_link_libraries(entity_info_test PRIVATE rohr_engine)
+    target_include_directories(entity_info_test PRIVATE src)
+    set_target_properties(entity_info_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(entity_info_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(entity_info_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(entity_info_test PRIVATE
+            -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(entity_info_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    add_test(NAME entity_info COMMAND entity_info_test)
+    set_tests_properties(entity_info PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
     add_executable(report_storage_test tests/report_storage.c)
     target_link_libraries(report_storage_test PRIVATE rohr_engine)
     target_include_directories(report_storage_test PRIVATE src)
@@ -1047,6 +1067,7 @@ if(ROHR_BUILD_TESTS)
     add_custom_target(rohr_tests)
     add_dependencies(
         rohr_tests
+        entity_info_test
         report_test
         report_output_test
         system_reports_test

@@ -9,6 +9,7 @@
 #include "console.h"
 #include "engine.h"
 #include "entity_components.h"
+#include "entity_info.h"
 #include "error.h"
 #include "graphics.h"
 #include "game_state.h"
@@ -19,6 +20,53 @@
 #include "systems.h"
 #include "tools.h"
 #include "ui.h"
+
+/**
+ * @brief Allocate a frozen current-state snapshot for the selected sections.
+ * @param entity Live entity to inspect between updates.
+ * @param flags Nonzero combination of supported ROHR_ENTITY_INFO selectors.
+ * @return Owned EntityInfo or an error. Release every owning reference.
+ */
+EntityInfoResult rohr_entity_info_get(Entity entity, EntityInfoFlags flags);
+/**
+ * @brief Acquire another owner of the same immutable snapshot without reinspection.
+ * @param info Live snapshot; plain C assignment does not retain ownership.
+ * @return Another owning EntityInfo, or an error without changing ownership.
+ */
+EntityInfoResult rohr_entity_info_retain(const EntityInfo *info);
+/**
+ * @brief Release one snapshot owner and clear its value; zero is a no-op.
+ * @param info Owning value. NULL and stale nonzero handles are errors.
+ * @return Success or an error. Final release frees all snapshot arrays.
+ */
+EngineResult rohr_entity_info_release(EntityInfo *info);
+/**
+ * @brief Check whether every selected section was captured successfully.
+ * @param info Live immutable snapshot.
+ * @param flags Nonzero supported selectors; availability is not operation success.
+ * @return False for invalid input or any unavailable section.
+ */
+bool rohr_entity_info_check(const EntityInfo *info, EntityInfoFlags flags);
+
+/**
+ * @brief Count captured issues matching the selected sections.
+ * @param info Live immutable snapshot.
+ * @param flags Supported section selectors; uncaptured sections match no issues.
+ * @return Matching count, or an error for invalid input.
+ */
+EntityInfoIssueCountResult rohr_entity_info_issues_count_get(
+    const EntityInfo *info, EntityInfoFlags flags);
+/**
+ * @brief Copy a prefix of matching issues, including owned explanatory text.
+ * @param info Live immutable snapshot.
+ * @param flags Nonzero supported section selectors.
+ * @param destination Caller array; NULL is permitted only with zero capacity.
+ * @param capacity Number of destination entries.
+ * @return Written and total counts; insufficient capacity is successful partial output.
+ */
+EntityInfoIssueReadResult rohr_entity_info_issues_get(
+    const EntityInfo *info, EntityInfoFlags flags,
+    EntityInfoIssue *destination, size_t capacity);
 
 /**
  * @file rohr.h

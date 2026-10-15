@@ -344,6 +344,96 @@ Enables or disables debug console output.
 
 ## Entities
 
+### `rohr_entity_info_get`
+
+```c
+EntityInfoResult rohr_entity_info_get(Entity entity, EntityInfoFlags flags);
+```
+
+Allocate a frozen current-state snapshot for the selected sections.
+
+| Parameter | Description |
+| --- | --- |
+| `entity` | Live entity to inspect between updates. |
+| `flags` | Nonzero combination of supported ROHR_ENTITY_INFO selectors. |
+
+**Returns:** Owned EntityInfo or an error. Release every owning reference.
+
+### `rohr_entity_info_retain`
+
+```c
+EntityInfoResult rohr_entity_info_retain(const EntityInfo *info);
+```
+
+Acquire another owner of the same immutable snapshot without reinspection.
+
+| Parameter | Description |
+| --- | --- |
+| `info` | Live snapshot; plain C assignment does not retain ownership. |
+
+**Returns:** Another owning EntityInfo, or an error without changing ownership.
+
+### `rohr_entity_info_release`
+
+```c
+EngineResult rohr_entity_info_release(EntityInfo *info);
+```
+
+Release one snapshot owner and clear its value; zero is a no-op.
+
+| Parameter | Description |
+| --- | --- |
+| `info` | Owning value. NULL and stale nonzero handles are errors. |
+
+**Returns:** Success or an error. Final release frees all snapshot arrays.
+
+### `rohr_entity_info_check`
+
+```c
+bool rohr_entity_info_check(const EntityInfo *info, EntityInfoFlags flags);
+```
+
+Check whether every selected section was captured successfully.
+
+| Parameter | Description |
+| --- | --- |
+| `info` | Live immutable snapshot. |
+| `flags` | Nonzero supported selectors; availability is not operation success. |
+
+**Returns:** False for invalid input or any unavailable section.
+
+### `rohr_entity_info_issues_count_get`
+
+```c
+EntityInfoIssueCountResult rohr_entity_info_issues_count_get( const EntityInfo *info, EntityInfoFlags flags);
+```
+
+Count captured issues matching the selected sections.
+
+| Parameter | Description |
+| --- | --- |
+| `info` | Live immutable snapshot. |
+| `flags` | Supported section selectors; uncaptured sections match no issues. |
+
+**Returns:** Matching count, or an error for invalid input.
+
+### `rohr_entity_info_issues_get`
+
+```c
+EntityInfoIssueReadResult rohr_entity_info_issues_get( const EntityInfo *info, EntityInfoFlags flags, EntityInfoIssue *destination, size_t capacity);
+```
+
+Copy a prefix of matching issues, including owned explanatory text.
+
+| Parameter | Description |
+| --- | --- |
+| `info` | Live immutable snapshot. |
+| `flags` | Nonzero supported section selectors. |
+| `destination` | Caller array; NULL is permitted only with zero capacity. |
+| `capacity` | Number of destination entries. |
+
+**Returns:** Written and total counts; insufficient capacity is successful partial output.
+
 ### `rohr_entity_alive_check`
 
 ```c

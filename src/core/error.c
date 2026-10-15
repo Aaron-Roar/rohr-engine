@@ -68,6 +68,8 @@ const char *error_code_message_get(EngineError error) {
             return "Frame capture or recording output failed.";
         case ERROR_ENGINE_OUTPUT_FORMAT_FAILED:
             return "output formatting failed";
+        case ERROR_ENGINE_ENTITY_INFO_INVALID:
+            return "Invalid entity inspection request or snapshot";
         case ERROR_ENGINE_REPORT_INVALID:
             return "invalid report fields or incompatible report aggregation";
         case ERROR_NONE:

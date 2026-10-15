@@ -199,6 +199,8 @@ typedef enum EngineError {
     ERROR_ENGINE_UI_CAPACITY_EXCEEDED,
     /** UI scope end was unmatched or a scope remained open at update. */
     ERROR_ENGINE_UI_SCOPE_UNBALANCED,
+    /** Invalid entity inspection selector, snapshot handle, or destination. */
+    ERROR_ENGINE_ENTITY_INFO_INVALID,
 } EngineError;
 
 /**

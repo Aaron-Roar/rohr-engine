@@ -144,6 +144,7 @@ static const char *recovery_name(uint32_t value) {
 static const char *code_name(uint32_t value) {
     switch(value) {
         case ERROR_ENGINE_UI_CAPACITY_EXCEEDED: return "ERROR_ENGINE_UI_CAPACITY_EXCEEDED";
+        case ERROR_ENGINE_ENTITY_INFO_INVALID: return "ERROR_ENGINE_ENTITY_INFO_INVALID";
         case ERROR_ENGINE_UI_SCOPE_UNBALANCED: return "ERROR_ENGINE_UI_SCOPE_UNBALANCED";
         case ERROR_NONE: return "ERROR_NONE";
         case ERROR_MEMORY_POOL_NULL_POINTER: return "ERROR_MEMORY_POOL_NULL_POINTER";

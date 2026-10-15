@@ -1032,7 +1032,7 @@ API, physics behavior, or build configuration changed.
    with warnings as errors, 300 beam moment/torque cases and 1,200 finite-difference
    endpoint-work checks, and `git diff --check`. Runtime motion/energy tests,
    sanitizers, and platform builds remain implementation acceptance requirements.
-   Entity Inspection Goal 1 is next, on explicit user instruction.
+   Entity Inspection follows as its own milestone.
 
 ## Milestone: Entity Inspection
 
@@ -1043,18 +1043,36 @@ mutate reports; reports remain evidence of completed update execution. Complete
 this milestone before Unified Forces and Torques implementation, which adds its
 new source details to the shared inspection API. Select each goal explicitly.
 
-1. [ ] **Define the entity inspection contract** — Specify public/direct getter
+The [entity inspection contract](docs/entity_inspection_contract.md) records the
+implemented API and ownership rules, including flat arrays and separate counts.
+
+1. [x] **Define the entity inspection contract** — Completed: public/direct getter
    signatures, result structure, section inventory, selector flags, per-component
    configuration/eligibility details, ownership, validation, missing-component
    behavior, and acceptance criteria. Preserve `|` composition and all-section
    retrieval. Define how later force/torque integration reports valid zero/no-target
    states and unresolvable references without dedicated force-status getters.
-   Do not invent one overall entity health value that hides component differences.
-2. [ ] **Implement and verify entity inspection** — Implement the approved contract
+   Flat immutable array pointers use separate counts, with get/retain/release
+   snapshot ownership and copied, filterable issues. No overall entity health
+   value hides component differences. Verified type/example consistency and
+   documentation links; runtime verification belongs to Goal 2.
+2. [x] **Implement and verify entity inspection** — Implemented the approved contract
    for existing components with shared filtering, no operation execution or report
    mutation, public/direct parity, documentation, and relevant tests, sanitizers,
    Linux/Windows builds, and installed-SDK checks. Leave new force/torque component
    integration to its subsequent implementation goals.
+   Completed: all 61 selectors, allocated immutable snapshots with explicit
+   get/retain/release, copied and filterable issues, count-only reads, read-only
+   graphics layer lookup, and removal of the colliding `children` pool macro.
+   Verified 82 native tests; inspection/report/graphics/physics ASan, UBSan, and
+   leak checks (4 tests); Linux and Windows engine/editor/example builds;
+   3 installed-SDK consumers, all 12 standalone examples, and a generated project
+   compiled on both platforms. Linux consumers ran, and all examples plus the
+   generated project passed bounded headless launches outside source directories.
+   Windows runtime execution remains unverified. Contract/type consistency,
+   strict C99 warning checks, and `git diff --check` passed. Measured snapshots
+   and dynamic collections through 1,024 hitboxes; see the contract for costs.
+   Unified Forces and Torques Goal 2 remains pending explicit user instruction.
 
 ## Milestone: Unified Forces and Torques
 

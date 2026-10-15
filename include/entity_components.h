@@ -240,8 +240,6 @@ extern EntityNamePool entity_names_pool;
 
 /** Parent table indexed by EntityIndex. */
 #define parents parents_pool.objects
-/** Children table indexed by EntityIndex. */
-#define children children_pool.objects
 /** Group membership table indexed by EntityIndex. */
 #define entity_group_memberships entity_group_memberships_pool.objects
 /** Entity group table indexed by GroupId - 1. */

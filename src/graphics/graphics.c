@@ -2469,6 +2469,15 @@ static GraphicsEntityLayerBinding *graphics_component_layer_binding_get(
     return &bindings[index];
 }
 
+/* Read-only lookup: inspection must not lazily initialize layer bindings. */
+static const GraphicsEntityLayerBinding *graphics_component_layer_binding_peek(
+        const GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || index >= MAX_ENTITIES ||
+            bindings[index].entity != entity) return NULL;
+    return &bindings[index];
+}
+
 static GraphicsEntityLayerBinding *graphics_entity_layer_binding_get(Entity entity) {
     return graphics_component_layer_binding_get(graphics_entity_layer_bindings,
         entity);
@@ -2501,7 +2510,8 @@ EngineResult graphics_layer_entity_name_set(Entity entity, const char *name) {
 }
 
 GraphicsLayerValueResult graphics_layer_entity_get(Entity entity) {
-    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    const GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_peek(
+        graphics_entity_layer_bindings, entity);
     if(entry == NULL || entry->binding.kind == GRAPHICS_LAYER_BINDING_NONE)
         return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
             ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
@@ -2509,7 +2519,8 @@ GraphicsLayerValueResult graphics_layer_entity_get(Entity entity) {
 }
 
 GraphicsLayerIdResult graphics_layer_entity_id_get(Entity entity) {
-    GraphicsEntityLayerBinding *entry = graphics_entity_layer_binding_get(entity);
+    const GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_peek(
+        graphics_entity_layer_bindings, entity);
     if(entry == NULL || entry->binding.kind != GRAPHICS_LAYER_BINDING_ID)
         return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
             ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
@@ -2558,7 +2569,7 @@ static EngineResult graphics_component_layer_id_set(
 
 static GraphicsLayerValueResult graphics_component_layer_get(
         GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
-    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+    const GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_peek(
         bindings, entity);
     if(entry == NULL || entry->binding.kind == GRAPHICS_LAYER_BINDING_NONE)
         return ERROR_RESULT_MAKE_ERROR(GraphicsLayerValueResult,
@@ -2568,7 +2579,7 @@ static GraphicsLayerValueResult graphics_component_layer_get(
 
 static GraphicsLayerIdResult graphics_component_layer_id_get(
         GraphicsEntityLayerBinding bindings[MAX_ENTITIES], Entity entity) {
-    GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_get(
+    const GraphicsEntityLayerBinding *entry = graphics_component_layer_binding_peek(
         bindings, entity);
     if(entry == NULL || entry->binding.kind != GRAPHICS_LAYER_BINDING_ID)
         return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult,
