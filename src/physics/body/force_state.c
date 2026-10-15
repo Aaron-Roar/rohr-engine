@@ -269,6 +269,57 @@ static EngineResult beam_geometry_get(Entity beam, Position *start, Vec2D *axis,
     *axis = (Vec2D){x / *length, y / *length};
     return error_result_value(true);
 }
+/* Keep the COM relative to a node: large world translations must not erase
+ * small radii or introduce turning into a force at the body's own COM. */
+typedef struct SoftLoadGeometry {
+    EntityIndex nodes[SOFT_BODY_MAX_NODES];
+    uint32_t count;
+    Position base;
+    double total_mass, x, y, inertia;
+} SoftLoadGeometry;
+
+static EngineResult soft_load_geometry_get(Entity target, bool positive_masses,
+        SoftLoadGeometry *geometry) {
+    EntityIndex body;
+    if(!entity_index_get(target, &body) || !entity_index_alive_check(body) ||
+            body >= soft_bodies_pool.capacity || !soft_bodies_pool.used[body])
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    *geometry = (SoftLoadGeometry){.count = soft_bodies[body].node_count};
+    if(geometry->count == 0 || geometry->count > SOFT_BODY_MAX_NODES)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    for(uint32_t n = 0; n < geometry->count; ++n) {
+        EntityIndex node;
+        if(!entity_index_get(soft_bodies[body].nodes[n], &node) ||
+                !entity_index_alive_check(node) ||
+                !entity_index_components_check(node, ROHR_SOFT_BODY_NODE | ROHR_MASS) ||
+                node >= soft_body_nodes_pool.capacity || !soft_body_nodes_pool.used[node] ||
+                soft_body_nodes[node].soft_body != target ||
+                node >= mass_pool.capacity || !mass_pool.used[node] ||
+                node >= positions_pool.capacity || !positions_pool.used[node] ||
+                !isfinite(mass[node]) || mass[node] < 0 || (positive_masses && mass[node] == 0) ||
+                !physics_vector_finite_check(positions[node]))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        for(uint32_t prior = 0; prior < n; ++prior)
+            if(geometry->nodes[prior] == node)
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        geometry->nodes[n] = node;
+        if(n == 0) geometry->base = positions[node];
+        geometry->total_mass += mass[node];
+        geometry->x += mass[node] * ((double)positions[node].x - geometry->base.x);
+        geometry->y += mass[node] * ((double)positions[node].y - geometry->base.y);
+    }
+    if(geometry->total_mass <= 0) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    geometry->x /= geometry->total_mass;
+    geometry->y /= geometry->total_mass;
+    for(uint32_t n = 0; n < geometry->count; ++n) {
+        EntityIndex node = geometry->nodes[n];
+        double x = ((double)positions[node].x - geometry->base.x) - geometry->x;
+        double y = ((double)positions[node].y - geometry->base.y) - geometry->y;
+        geometry->inertia += mass[node] * (x * x + y * y);
+    }
+    return error_result_value(true);
+}
+
 static EngineResult location_resolve(ForceLocation location, Position *point) {
     EngineResult result = location_validate(location);
     EntityIndex index;
@@ -277,6 +328,15 @@ static EngineResult location_resolve(ForceLocation location, Position *point) {
     switch(location.reference.kind) {
     case ROHR_FORCE_WORLD_POSITION: break;
     case ROHR_FORCE_COM_POSITION: {
+        (void)entity_index_get(location.reference.entity, &index);
+        if(entity_index_components_check(index, ROHR_SOFT_BODY)) {
+            SoftLoadGeometry geometry;
+            result = soft_load_geometry_get(location.reference.entity, false, &geometry);
+            if(error_check(result)) return result;
+            x += (double)geometry.base.x + geometry.x;
+            y += (double)geometry.base.y + geometry.y;
+            break;
+        }
         PositionResult com = physics_center_of_mass_world_position_get(location.reference.entity);
         if(error_check(com)) return error_result_error(com.result.error);
         x += com.result.value.x; y += com.result.value.y;
@@ -547,6 +607,48 @@ static EngineResult beam_source_changes_get(Entity target, bool torque, double m
     return error_result_value(true);
 }
 
+/* Every assigned share is checked, including shares absorbed by constraints.
+ * Acceleration snapshots are committed only after the complete source succeeds. */
+static EngineResult soft_source_changes_get(Entity target, bool torque, double magnitude,
+        Position point, Vec2D direction, const ForceLocation *location,
+        PhysicsSourceChanges *changes, bool *active) {
+    SoftLoadGeometry geometry;
+    EngineResult result = soft_load_geometry_get(target, true, &geometry);
+    if(error_check(result)) return result;
+    double fx = torque ? 0 : magnitude * direction.x;
+    double fy = torque ? 0 : magnitude * direction.y;
+    double px = ((double)point.x - geometry.base.x) - geometry.x;
+    double py = ((double)point.y - geometry.base.y) - geometry.y;
+    if(location && location->reference.kind == ROHR_FORCE_COM_POSITION &&
+            location->reference.entity == target) {
+        px = location->offset.x; py = location->offset.y;
+    }
+    double moment = torque ? magnitude : py * fx - px * fy;
+    if(moment != 0 && geometry.inertia <= 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    for(uint32_t n = 0; n < geometry.count; ++n) {
+        EntityIndex node = geometry.nodes[n];
+        double x = ((double)positions[node].x - geometry.base.x) - geometry.x;
+        double y = ((double)positions[node].y - geometry.base.y) - geometry.y;
+        double scale = moment == 0 ? 0 : mass[node] * moment / geometry.inertia;
+        double load_x = (mass[node] / geometry.total_mass) * fx + scale * y;
+        double load_y = (mass[node] / geometry.total_mass) * fy - scale * x;
+        if(!isfinite(load_x) || !isfinite(load_y) ||
+                fabs(load_x) > FLT_MAX || fabs(load_y) > FLT_MAX)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(!physics_entity_simulated_get(node)) continue;
+        PhysicsChange change = physics_change_get(node, PHYSICS_CHANGE_FORCE_ACCELERATION);
+        double ax = (double)change.force_acceleration.x + load_x / mass[node];
+        double ay = (double)change.force_acceleration.y + load_y / mass[node];
+        if(!isfinite(ax) || !isfinite(ay) || fabs(ax) > FLT_MAX || fabs(ay) > FLT_MAX)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        change.force_acceleration = (Acceleration){ax, ay};
+        changes->values[changes->count++] = change;
+    }
+    *active = changes->count != 0;
+    return error_result_value(true);
+}
+
 /* Prepare a complete contribution without modifying source, target, or reports. */
 EngineResult physics_source_change_get(Entity source, bool torque,
         PhysicsSourceChanges *changes, bool *active) {
@@ -559,6 +661,7 @@ EngineResult physics_source_change_get(Entity source, bool torque,
     Entity target;
     double magnitude;
     Position point = {0}; Vec2D direction = {0};
+    ForceLocation location = {0};
     if(torque) {
         TorqueDescriptionResult stored = physics_torque_description_get(source);
         if(error_check(stored)) return error_result_error(stored.result.error);
@@ -568,6 +671,7 @@ EngineResult physics_source_change_get(Entity source, bool torque,
         ForceDescriptionResult stored = physics_force_description_get(source);
         if(error_check(stored)) return error_result_error(stored.result.error);
         ForceDescription description = stored.result.value;
+        location = description.location;
         target = description.target; magnitude = description.magnitude;
         result = force_validate(description);
         if(!error_check(result)) result = location_resolve(description.location, &point);
@@ -577,9 +681,11 @@ EngineResult physics_source_change_get(Entity source, bool torque,
     if(target == ENTITY_INVALID) return error_result_value(true);
     result = physics_live_index_get(target, &target_index);
     if(error_check(result)) return result;
-    /* Whole-body distribution remains a separate roadmap goal. */
-    if(entity_index_components_check(target_index, ROHR_SOFT_BODY))
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(entity_index_components_check(target_index, ROHR_SOFT_BODY)) {
+        if(magnitude == 0 || physics_entity_held_get(index)) return error_result_value(true);
+        return soft_source_changes_get(target, torque, magnitude, point, direction,
+            torque ? NULL : &location, changes, active);
+    }
     if(entity_index_components_check(target_index, ROHR_SOFT_BODY_BEAM)) {
         if(magnitude == 0 || physics_entity_held_get(index)) return error_result_value(true);
         return beam_source_changes_get(target, torque, magnitude, point, direction, changes, active);

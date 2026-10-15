@@ -2,12 +2,10 @@
 
 This is the approved contract for the **Unified Forces and Torques** milestone.
 The shared description APIs, references, and rigid-body/particle response are
-implemented in Goal 2; beam-target loads are implemented in Goal 3. Whole-soft-body
-distribution and editor authoring remain in subsequent
-[roadmap](../NEXT_STEPS.md) goals.
-Whole-soft-body vector/scalar helpers remain until Goal 4; nodes use the shared
-API. A shared source targeting a whole soft body still suspends with an
-unsupported target contribution warning until Goal 4.
+implemented in Goal 2; beam-target loads in Goal 3; whole-soft-body loads in
+Goal 4. Editor authoring remains in subsequent [roadmap](../NEXT_STEPS.md) goals.
+All targets use shared descriptions; obsolete whole-body vector/scalar helpers
+are removed without compatibility aliases. Impulse APIs remain separate.
 
 ## Types and defaults
 
@@ -234,6 +232,35 @@ transforms or overwriting velocities. Geometry unable to represent a requested
 turning contribution suspends the whole source contribution, not merely its
 turning portion. Fixed/held nodes keep their assigned share; their constraints
 absorb it rather than redistributing it to movable nodes.
+
+For current positive node masses and finite positions, calculate total mass
+`M`, mass-weighted COM `C`, and point-mass rotational inertia `I` using double
+intermediates and coordinates relative to a node. With `r_i = position_i - C`:
+
+```text
+M = sum(m_i)
+I = sum(m_i * |r_i|^2)
+tau = requested pure torque, or moment(P - C, F)
+node_force_i = (m_i / M) * F + (m_i * tau / I) * (r_i.y, -r_i.x)
+```
+
+Omit the turning term when `tau` is zero. Accept any positive inertia when
+required node loads and simulated-node acceleration accumulators are finite
+and representable; there is no minimum inertia cutoff. Single-node and
+coincident-node bodies accept translation, but nonzero turning at zero inertia
+suspends the entire contribution. Empty bodies, invalid or duplicate membership,
+nonpositive/nonfinite masses, and nonfinite positions suspend nonzero loads.
+Include fixed/held nodes in mass, COM, inertia, and assigned-load validation;
+only simulated nodes receive acceleration changes. All contributions are
+prepared before any are committed, without allocation or child sources.
+Valid zero loads and held sources remain inactive after explicit reference
+validation; unusable explicit references still suspend them. Recompute from
+current membership, masses, and geometry every substep, including on retries.
+A force referenced to its target's COM retains its COM-relative offset when
+computing the moment, avoiding rounding through a world-space float COM.
+COM references retain their existing ability to resolve zero-mass members when
+total mass is positive; receiving a nonzero whole-body load requires every mass
+to be positive. The authored origin/orientation is not a physical rigid pose.
 
 Beams remain two-node axial springs, with no added bending model. For every
 resolved application point, use the following equivalent endpoint loads. Fraction, anchor, and distance offsets only locate the point; coincident

@@ -562,8 +562,6 @@ PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { ret
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
 EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
-EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force) { return physics_soft_body_force_apply(soft_body, force); }
-EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque) { return physics_soft_body_torque_apply(soft_body, torque); }
 SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(Entity node, JointAnchorId anchor) { return physics_soft_body_node_to_anchor_pin_create(node, anchor); }
 EntityResult rohr_physics_soft_body_beam_create(Entity soft_body, Entity node_a, Entity node_b, float stiffness, float damping) { return physics_soft_body_beam_create(soft_body, node_a, node_b, stiffness, damping); }
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam) { return physics_soft_body_beam_get(beam); }

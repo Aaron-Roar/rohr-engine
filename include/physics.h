@@ -1011,8 +1011,6 @@ EngineResult physics_soft_body_node_collision_filter_set(
     RohrCollisionCategoryMask collides_with
 );
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
-EngineResult physics_soft_body_force_apply(Entity soft_body, Force force);
-EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque);
 SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     Entity node,
     JointAnchorId anchor

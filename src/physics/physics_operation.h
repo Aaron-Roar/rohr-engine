@@ -30,9 +30,9 @@ typedef struct PhysicsChange {
     AngularAcceleration torque_acceleration;
 } PhysicsChange;
 
-/* One rigid-body change or a coupled pair of beam endpoint changes. */
+/* One source owns all coupled target changes, up to a whole soft body. */
 typedef struct PhysicsSourceChanges {
-    PhysicsChange values[2];
+    PhysicsChange values[SOFT_BODY_MAX_NODES];
     size_t count;
 } PhysicsSourceChanges;
 

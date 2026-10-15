@@ -2511,35 +2511,14 @@ Applies an immediate impulse to one soft-body node.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_force_apply`
+### Whole-soft-body loads
 
-```c
-EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force);
-```
-
-Distributes a total force across a soft body for the next physics tick.
-
-| Parameter | Description |
-| --- | --- |
-| `soft_body` | Soft-body owner entity. |
-| `force` | Total force to distribute by node mass. |
-
-**Returns:** EngineResult describing success or failure.
-
-### `rohr_physics_soft_body_torque_apply`
-
-```c
-EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque);
-```
-
-Applies body-level torque as balanced node forces for the next physics tick.
-
-| Parameter | Description |
-| --- | --- |
-| `soft_body` | Soft-body owner entity. |
-| `torque` | Total torque to distribute around the center of mass. |
-
-**Returns:** EngineResult describing success or failure.
+Whole-body forces and torques use `rohr_physics_force_apply(ForceDescription)`
+and `rohr_physics_torque_apply(TorqueDescription)`, or their persistent `add`
+equivalents, with the soft-body owner as target. Select a COM location reference
+explicitly for pure translation. Current node masses and geometry determine the
+shares each substep, including shares absorbed by fixed/held nodes. See the
+[shared contract](force_torque_contract.md) for distribution and failure rules.
 
 ### `rohr_physics_soft_body_node_to_anchor_pin_create`
 

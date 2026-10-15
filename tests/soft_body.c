@@ -219,10 +219,10 @@ int main(void) {
                 node_c.result.value, (Vec2D){0.0f, 2.0f})) ||
             rohr_error_check(rohr_physics_force_apply((ForceDescription){
                 .target = node_c.result.value, .magnitude = 1.0f})) ||
-            rohr_error_check(rohr_physics_soft_body_force_apply(
-                body.result.value, (Force){3.0f, 0.0f})) ||
-            rohr_error_check(rohr_physics_soft_body_torque_apply(
-                body.result.value, 2.0f))) goto fail;
+            rohr_error_check(rohr_physics_force_apply((ForceDescription){
+                .target = body.result.value, .magnitude = 3.0f, .orientation.offset = 90,
+                .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = body.result.value}})) ||
+            rohr_error_check(rohr_physics_torque_apply((TorqueDescription){body.result.value, 2.0f}))) goto fail;
     rigid_body = rohr_entity_add();
     if(rohr_error_check(rigid_body) ||
             rohr_error_check(rohr_physics_position_set(rigid_body.result.value, (Position){0.0f, 0.0f})) ||

@@ -322,17 +322,6 @@ EngineResult physics_soft_body_node_collision_filter_set(Entity node,
     return result;
 }
 
-static EngineResult soft_body_node_load_apply(Entity node, Force force) {
-    EntityIndex index;
-    EngineResult result = physics_live_index_get(node, &index);
-
-    if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(!entity_index_components_check(index, ROHR_SOFT_BODY_NODE)) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    return physics_force_apply(physics_force_vector_description(node, force));
-}
-
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) {
     EntityIndex index;
     EngineResult result = physics_live_index_get(node, &index);
@@ -342,80 +331,6 @@ EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     return physics_impulse_apply(node, impulse);
-}
-
-EngineResult physics_soft_body_force_apply(Entity soft_body, Force force) {
-    SoftBodyResult body_result = physics_soft_body_get(soft_body);
-    SoftBody body;
-    float total_mass = 0.0f;
-
-    if(body_result.kind == ERROR_RESULT_ERROR) return error_result_error(body_result.result.error);
-    body = body_result.result.value;
-    for(uint32_t i = 0; i < body.node_count; i += 1) {
-        EntityIndex index;
-        if(!entity_index_get(body.nodes[i], &index) || !entity_index_alive_check(index) || mass[index] <= 0.0f) {
-            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
-        }
-        total_mass += mass[index];
-    }
-    if(total_mass <= 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    for(uint32_t i = 0; i < body.node_count; i += 1) {
-        EntityIndex index;
-        EngineResult result;
-        (void)entity_index_get(body.nodes[i], &index);
-        result = soft_body_node_load_apply(body.nodes[i], (Force){
-            .x = force.x * mass[index] / total_mass,
-            .y = force.y * mass[index] / total_mass
-        });
-        if(result.kind == ERROR_RESULT_ERROR) return result;
-    }
-    return error_result_value(true);
-}
-
-EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque) {
-    SoftBodyResult body_result = physics_soft_body_get(soft_body);
-    SoftBody body;
-    Position center = {0};
-    float total_mass = 0.0f;
-    float weighted_radius_squared = 0.0f;
-
-    if(body_result.kind == ERROR_RESULT_ERROR) return error_result_error(body_result.result.error);
-    body = body_result.result.value;
-    for(uint32_t i = 0; i < body.node_count; i += 1) {
-        EntityIndex index;
-        if(!entity_index_get(body.nodes[i], &index) || !entity_index_alive_check(index) || mass[index] <= 0.0f) {
-            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
-        }
-        center.x += positions[index].x * mass[index];
-        center.y += positions[index].y * mass[index];
-        total_mass += mass[index];
-    }
-    if(total_mass <= 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    center.x /= total_mass;
-    center.y /= total_mass;
-    for(uint32_t i = 0; i < body.node_count; i += 1) {
-        EntityIndex index;
-        Vec2D offset;
-        (void)entity_index_get(body.nodes[i], &index);
-        offset = math_vector_subtract(positions[index], center);
-        weighted_radius_squared += mass[index] * math_dot_product(offset, offset);
-    }
-    if(weighted_radius_squared <= 0.0001f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    for(uint32_t i = 0; i < body.node_count; i += 1) {
-        EntityIndex index;
-        Vec2D offset;
-        float scale;
-        EngineResult result;
-        (void)entity_index_get(body.nodes[i], &index);
-        offset = math_vector_subtract(positions[index], center);
-        scale = torque * mass[index] / weighted_radius_squared;
-        result = soft_body_node_load_apply(body.nodes[i], (Force){
-            .x = offset.y * scale,
-            .y = -offset.x * scale
-        });
-        if(result.kind == ERROR_RESULT_ERROR) return result;
-    }
-    return error_result_value(true);
 }
 
 SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(

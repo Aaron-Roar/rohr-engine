@@ -1176,8 +1176,8 @@ The [force/torque contract](docs/force_torque_contract.md) is authoritative for
 approved behavior. Goal 1 is fulfilled by the documentation reconciliation
 milestone. Entity Inspection and Diagnostic Reliability are complete. Goal 2
 implements shared sources and rigid-body/particle behavior; Goal 3 adds receiving
-beam loads. Whole-soft-body loads remain Goal 4. Editor handle presentation is
-finalized in the relevant editor goals.
+beam loads; Goal 4 adds whole-soft-body loads. These runtime goals are complete.
+Editor handle presentation is finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
    Contract and Roadmap Reconciliation**, with types, signatures, beam behavior,
@@ -1209,10 +1209,22 @@ finalized in the relevant editor goals.
    installed-SDK consumers, all 12 standalone examples, and a generated project
    build on both platforms and run on Linux outside their source directories.
    Windows verification is compilation only.
-4. [ ] **Implement whole-soft-body loads** — Distribute translation and turning
-   contributions across nodes. Verify COM acceleration, off-centre forces,
-   pure torque, changing masses/geometry, and natural beam stretching. Complete
-   migration to the shared API.
+4. [x] **Implement whole-soft-body loads** — Shared sources distribute translation
+   and clockwise turning using current node masses, COM, and point-mass inertia.
+   Double intermediates and relative coordinates preserve small radii; any
+   positive inertia is accepted when loads and accumulators remain representable.
+   Every node share is validated before atomic application, with fixed/held shares
+   absorbed without redistribution. Inspection uses the same allocation-free
+   evaluator; no child sources are created. Removed obsolete direct/public
+   whole-body helpers and migrated callers and documentation. Analytic and
+   100 fixed-seed cases cover net loads, equivalent points, mutable topology,
+   full capacity, degeneracy, overflow, recovery, lifetime, and source reporting.
+   Free and constrained beam deformation and energy convergence pass, including
+   damping. All 84 native tests and 11 focused ASan/UBSan suites pass with leak
+   detection. Linux/Windows builds have no compiler warnings. Five installed-SDK
+   consumers, all 12 standalone examples, and a generated project build on both
+   platforms and run on Linux outside their source directories. Windows checks
+   are compile-only. Stop for user review before Goal 5.
 5. [ ] **Add authored definitions and persistence** — Add object-owned source
    descriptions, target references, CLI operations, project/runtime
    serialization, validation, history, copying, duplication, and deletion.
@@ -1256,15 +1268,15 @@ finalized in the relevant editor goals.
 ### Existing support and verification
 
 The shared add/description/field/apply APIs replace the old vector/scalar source
-signatures without aliases. Nodes use the shared API; whole-soft-body helper
-APIs retain their current node-source distribution until Goal 4. Joint point
-loads now use one force-at-point source per endpoint. Beam references and
-beam-target loads use the resolved application point for equivalent endpoint
-contributions. Shared sources targeting a whole soft body remain suspended
-until Goal 4. Existing runtime state serializes source descriptions; authored
+signatures without aliases. Nodes and whole soft bodies use the shared API;
+whole-body sources recompute and atomically distribute loads each substep.
+Joint point loads use one force-at-point source per endpoint. Beam references
+and beam-target loads use the resolved application point for equivalent endpoint
+contributions. Existing runtime state serializes source descriptions; authored
 source persistence and soft-body topology remain later work.
 
-Goal 4, whole-soft-body loads, is next and requires explicit user instruction.
+Goal 5, authored definitions and persistence, is next and requires explicit user
+instruction.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

@@ -1532,20 +1532,6 @@ EngineResult rohr_physics_soft_body_node_collision_filter_set(
  */
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
 /**
- * @brief Distributes a total force across a soft body for the next physics tick.
- * @param soft_body Soft-body owner entity.
- * @param force Total force to distribute by node mass.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force);
-/**
- * @brief Applies body-level torque as balanced node forces for the next physics tick.
- * @param soft_body Soft-body owner entity.
- * @param torque Total torque to distribute around the center of mass.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque);
-/**
  * @brief Pins a soft-body node to an existing anchor.
  * @param node Soft-body node entity.
  * @param anchor Existing anchor to connect to the node.

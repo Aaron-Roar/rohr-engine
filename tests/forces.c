@@ -274,6 +274,33 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
     return true;
 }
 
+static bool soft_sources_check(const ForceApi *api, unsigned substeps) {
+    EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
+    EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
+    EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    OK(a); OK(b);
+    OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    ForceDescription description=vector_description(owner.result.value,(Force){0,6});
+    EntityResult source=api->force_add(description); OK(source);
+    OK(api->force_apply(description));
+    EntityResult torque=api->torque_add((TorqueDescription){owner.result.value,10}); OK(torque);
+    OK(api->torque_apply((TorqueDescription){owner.result.value,10}));
+    OK(rohr_physics_substeps_set(substeps));
+    uint32_t count=entity_alive_count_get();
+    Report report=rohr_system_physics_update(0.01);
+    CHECK(!report.has_fatal && report.diagnostic_count==0 && entity_alive_count_get()==count);
+    EntityIndex ia=rohr_entity_index_get(a.result.value).result.value;
+    EntityIndex ib=rohr_entity_index_get(b.result.value).result.value;
+    CHECK(near(velocities[ia].y,0.03f) && near(velocities[ib].y,0.015f));
+    CHECK(near(2*velocities[ia].x+4*velocities[ib].x,0));
+    CHECK(near(2*velocities[ia].y+4*velocities[ib].y,0.12f));
+    EntityInfoResult info=rohr_entity_info_get(source.result.value,ROHR_ENTITY_INFO_PHYSICS_FORCE);
+    OK(info); CHECK(info.result.value.force_eligible);
+    OK(rohr_entity_info_release(&info.result.value));
+    return true;
+}
+
 int main(void) {
     const ForceApi apis[] = {
         {physics_force_add, physics_force_magnitude_set, physics_force_magnitude_get, physics_force_apply,
@@ -287,6 +314,10 @@ int main(void) {
         for(unsigned substeps = 1; substeps <= 4; substeps += 3) {
             if(rohr_error_check(rohr_engine_start())) return 1;
             bool passed = sources_check(&apis[api], substeps) && impulses_check(&apis[api]);
+            rohr_engine_stop();
+            if(!passed) return 1;
+            if(rohr_error_check(rohr_engine_start())) return 1;
+            passed = soft_sources_check(&apis[api], substeps);
             rohr_engine_stop();
             if(!passed) return 1;
             if(rohr_error_check(rohr_engine_start())) return 1;
