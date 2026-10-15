@@ -31,7 +31,7 @@ function(rohr_add_component_generator target source)
             OUTPUT "${host_executable}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${host_directory}"
             COMMAND "${ROHR_HOST_C_COMPILER}"
-                -std=c99
+                -std=c11
                 "-I${ROHR_HOST_TOOLS_ROOT}/include"
                 "${source}"
                 "${ROHR_HOST_TOOLS_ROOT}/src/tools/component_codegen.c"

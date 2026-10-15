@@ -30,8 +30,7 @@ PhysicsChange physics_change_get(EntityIndex i, unsigned fields) {
         .velocity = velocities[i], .angular_velocity = angular_velocities[i],
         .acceleration = accelerations[i], .angular_acceleration = angular_accelerations[i],
         .force_acceleration = force_accelerations[i],
-        .torque_acceleration = torque_angular_accelerations[i],
-        .force = forces[i], .torque = torques[i]};
+        .torque_acceleration = torque_angular_accelerations[i]};
 }
 
 void physics_change_orientation_set(PhysicsChange *c, float orientation) {
@@ -60,9 +59,7 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
            ((f & PHYSICS_CHANGE_ACCELERATION) && !physics_vector_finite_check(c->acceleration)) ||
            ((f & PHYSICS_CHANGE_ANGULAR_ACCELERATION) && !isfinite(c->angular_acceleration)) ||
            ((f & PHYSICS_CHANGE_FORCE_ACCELERATION) && !physics_vector_finite_check(c->force_acceleration)) ||
-           ((f & PHYSICS_CHANGE_TORQUE_ACCELERATION) && !isfinite(c->torque_acceleration)) ||
-           ((f & PHYSICS_CHANGE_FORCE) && !physics_vector_finite_check(c->force)) ||
-           ((f & PHYSICS_CHANGE_TORQUE) && !isfinite(c->torque))) {
+           ((f & PHYSICS_CHANGE_TORQUE_ACCELERATION) && !isfinite(c->torque_acceleration))) {
             physics_operation_reject(report, stage, ERROR_ENGINE_STATE_INVALID, source, target);
             return false;
         }
@@ -79,8 +76,6 @@ bool physics_changes_commit(PhysicsChange *changes, size_t count, Report *report
         if(f & PHYSICS_CHANGE_ANGULAR_ACCELERATION) angular_accelerations[i] = c->angular_acceleration;
         if(f & PHYSICS_CHANGE_FORCE_ACCELERATION) force_accelerations[i] = c->force_acceleration;
         if(f & PHYSICS_CHANGE_TORQUE_ACCELERATION) torque_angular_accelerations[i] = c->torque_acceleration;
-        if(f & PHYSICS_CHANGE_FORCE) forces[i] = c->force;
-        if(f & PHYSICS_CHANGE_TORQUE) torques[i] = c->torque;
         if(f & (PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION))
             physics_step_hitbox_dirty_add(i);
     }

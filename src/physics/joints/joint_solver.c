@@ -31,7 +31,7 @@ static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
         return (Velocity){0};
     }
     Vec2D angular_part = math_angular_velocity_cross_vec(
-        entity_index_components_check(index, ROHR_PARTICLE) ? 0.0f : angular_velocities[index],
+        physics_entity_nonrotating_check(index) ? 0.0f : angular_velocities[index],
         world_offset
     );
 
@@ -50,7 +50,7 @@ static void system_joint_load_pair_add(Entity a, Entity b, Position point_a,
     Force values[] = {force, {-force.x, -force.y}};
     Torque torque[2];
     bool active[2] = {false, false};
-    Entity created[4];
+    Entity created[2];
     size_t count = 0;
     EngineError failure = ERROR_NONE;
     for(size_t n = 0; n < 2; ++n) {
@@ -67,12 +67,11 @@ static void system_joint_load_pair_add(Entity a, Entity b, Position point_a,
     }
     for(size_t n = 0; n < 2; ++n) {
         if(!active[n]) continue;
-        EntityResult force_result = physics_force_create(targets_pair[n], values[n]);
+        ForceDescription description = physics_force_vector_description(targets_pair[n], values[n]);
+        description.location = (ForceLocation){.offset = points[n]};
+        EntityResult force_result = physics_force_add(description);
         if(force_result.kind == ERROR_RESULT_ERROR) { failure = force_result.result.error; break; }
         created[count++] = force_result.result.value;
-        EntityResult torque_result = physics_torque_create(targets_pair[n], torque[n]);
-        if(torque_result.kind == ERROR_RESULT_ERROR) { failure = torque_result.result.error; break; }
-        created[count++] = torque_result.result.value;
     }
     for(size_t n = 0; failure == ERROR_NONE && n < count; ++n) {
         EngineResult result = entity_life_time_set(created[n], 0.0, engine_tick_get() + 1);

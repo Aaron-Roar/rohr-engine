@@ -83,7 +83,7 @@ if(NOT MSVC)
     target_link_libraries(rohr_lua PUBLIC m)
 endif()
 
-set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
@@ -248,6 +248,7 @@ set(ROHR_ENGINE_SOURCES
 
 add_library(rohr_engine STATIC ${ROHR_ENGINE_SOURCES})
 add_library(Rohr::Engine ALIAS rohr_engine)
+target_compile_features(rohr_engine PUBLIC c_std_11)
 set_target_properties(rohr_engine PROPERTIES EXPORT_NAME Engine)
 target_include_directories(rohr_engine
     PUBLIC
@@ -935,6 +936,24 @@ if(ROHR_BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/flies-in-pit/assets
             ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests/assets/flies-in-pit)
 
+    add_executable(shared_sources_test tests/shared_sources.c)
+    target_link_libraries(shared_sources_test PRIVATE rohr_engine)
+    target_include_directories(shared_sources_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(MSVC)
+        target_compile_options(shared_sources_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(shared_sources_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(shared_sources_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(shared_sources_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(shared_sources_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(shared_sources_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME shared_sources COMMAND shared_sources_test)
+
     add_executable(forces_test tests/forces.c)
     target_link_libraries(forces_test PRIVATE rohr_engine)
     set_target_properties(forces_test PROPERTIES
@@ -1076,6 +1095,7 @@ if(ROHR_BUILD_TESTS)
         origin_offsets
         center_of_mass
         forces
+        shared_sources
         angles
         rigid_contact_stability
         component_registry
@@ -1134,6 +1154,7 @@ if(ROHR_BUILD_TESTS)
         origin_offsets_test
         center_of_mass_test
         forces_test
+        shared_sources_test
         angles_test
         example_flies_angles_test
         example_soft_body_angles_test

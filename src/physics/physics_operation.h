@@ -15,9 +15,7 @@ enum {
     PHYSICS_CHANGE_ACCELERATION = 1u << 4,
     PHYSICS_CHANGE_ANGULAR_ACCELERATION = 1u << 5,
     PHYSICS_CHANGE_FORCE_ACCELERATION = 1u << 6,
-    PHYSICS_CHANGE_TORQUE_ACCELERATION = 1u << 7,
-    PHYSICS_CHANGE_FORCE = 1u << 8,
-    PHYSICS_CHANGE_TORQUE = 1u << 9
+    PHYSICS_CHANGE_TORQUE_ACCELERATION = 1u << 7
 };
 typedef struct PhysicsChange {
     EntityIndex index;
@@ -30,9 +28,10 @@ typedef struct PhysicsChange {
     AngularAcceleration angular_acceleration;
     Acceleration force_acceleration;
     AngularAcceleration torque_acceleration;
-    Force force;
-    Torque torque;
 } PhysicsChange;
+
+EngineResult physics_source_change_get(Entity source, bool torque,
+    PhysicsChange *change, bool *active);
 
 bool physics_vector_finite_check(Vec2D value);
 PhysicsChange physics_change_get(EntityIndex index, unsigned fields);

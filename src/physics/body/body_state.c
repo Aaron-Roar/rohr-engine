@@ -185,3 +185,12 @@ EngineResult physics_group_entities_hold(GroupId group) {
 EngineResult physics_group_entities_unhold(GroupId group) {
     return physics_group_entity_apply(group, physics_entity_unhold);
 }
+
+/* Particle collision properties do not remove a rigid body's angular response. */
+bool physics_entity_nonrotating_check(EntityIndex index) {
+    return entity_index_components_check(index, ROHR_SOFT_BODY_NODE) ||
+        (entity_index_components_check(index, ROHR_PARTICLE) &&
+            (!entity_index_components_check(index, ROHR_HIT_BOX) ||
+                (particle_geometries_pool.used[index] &&
+                    particle_geometries_pool.objects[index].standalone)));
+}

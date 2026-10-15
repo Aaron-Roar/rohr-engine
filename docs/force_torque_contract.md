@@ -1,12 +1,12 @@
 # Unified force and torque contract
 
-This is the approved design for the **Unified Forces and Torques** milestone,
-not a description of shipped APIs. The current vector/scalar source APIs and
-soft-body helpers remain implemented until their replacement goals are pursued.
-The [roadmap](../NEXT_STEPS.md#milestone-unified-forces-and-torques) controls order:
-finish entity inspection definition and implementation before force/torque
-implementation. This contract settles force/torque behavior; entity-info section
-layouts and editor handle presentation are defined in their respective goals.
+This is the approved contract for the **Unified Forces and Torques** milestone.
+The shared description APIs, references, and rigid-body/particle response are
+implemented in Goal 2. Receiving beam loads, whole-soft-body distribution, and
+editor authoring remain in their subsequent [roadmap](../NEXT_STEPS.md) goals.
+Whole-soft-body vector/scalar helpers remain until Goal 4; nodes use the shared
+API. A shared source targeting a beam or whole soft body currently suspends with
+an unsupported target contribution warning.
 
 ## Types and defaults
 
@@ -16,10 +16,8 @@ including inside a force description. There is no implicit target-COM override.
 Anonymous unions expose `.reference.entity`, `.reference.beam`, and
 `.reference.between` without a `.data` member. The tag selects the valid member;
 these are plain copied values, with no owned pointers or allocation.
-Anonymous unions require standard C11. The source implementation goal must
-update affected CMake language requirements and SDK/example consumers from C99
-to at least C11, verifying both Linux and Windows rather than relying on compiler
-extensions. This documentation goal changes no build configuration.
+Anonymous unions require standard C11. The engine exports this language
+requirement to SDK consumers, and generated project scaffolds select C11.
 
 ```c
 typedef enum ForcePositionReferenceKind {
@@ -294,8 +292,8 @@ not make overflow acceptable. Resume on a later valid evaluation.
 
 ## Usage examples
 
-These examples use the proposed API and become executable acceptance fixtures
-when implementation is pursued. Check every result before using its value.
+The rigid-body examples use the implemented API; beam-target loading remains
+Goal 3. Check every result before using its value.
 
 ```c
 /* Valid no-target source; setters can configure it later. */
@@ -361,8 +359,7 @@ Replace redundant vector/scalar source signatures and soft-body force/torque
 helpers when their shared equivalents are implemented; provide no compatibility
 aliases. Keep impulse APIs separate. No backward compatibility for saved project
 or runtime formats is required: remake examples and regenerate generated code.
-Migrate documentation and direct/public callers with each relevant goal. Do not
-claim implementation or remove current functions in this documentation goal.
+Migrate documentation and direct/public callers with each relevant goal.
 
 Editor authoring supports persistent and initial one-tick sources as top-level
 object items, including zero sources later changed by developer C. Forces use an
@@ -399,6 +396,14 @@ Implementation acceptance includes:
   standalone/generated applications, serialization and independent instances,
   plus editor visual/manual review in the editor goals.
 
-Entity inspection definition is next. Its implementation precedes force/torque
-implementation, where new source details are integrated into that shared API.
-No new force-specific status API is authorized by this contract.
+Entity inspection captures copied descriptions and current eligibility in its
+force/torque sections. No force-specific status getter is added.
+
+### Constructing a force from an X/Y vector
+
+The description stores angle and signed magnitude. For a vector `v`, use
+`hypotf(v.x, v.y)` for magnitude and
+`rohr_math_radians_to_degrees(atan2f(v.x, v.y))` for the world orientation offset.
+Choose offset zero when both vector components are zero. These standard math
+operations require `<math.h>`; there is no separate vector overload. Select the
+location explicitly, including a COM reference when that is the intended point.

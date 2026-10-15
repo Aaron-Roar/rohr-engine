@@ -2,11 +2,21 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+
+#include <math.h>
 #include "physics/physics_step_internal.h"
 #include <assert.h>
 #include <float.h>
-#include <math.h>
 #include <string.h>
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 #define OK(v) assert(!rohr_error_check(v))
 #define BAD(v) assert(rohr_error_check(v))
@@ -33,6 +43,7 @@ static void stored_equal(const Report *report, ReportFlags flags) {
 static Entity body(float x, float y, bool collider) {
     Entity e = entity();
     OK(rohr_physics_position_set(e, (Position){x, y}));
+    OK(rohr_physics_orientation_set(e, 0));
     OK(rohr_physics_mass_set(e, 1));
     OK(rohr_physics_dynamic_set(e));
     if(collider) {
@@ -150,10 +161,10 @@ static void setters(void) {
     uint32_t count = entity_alive_count_get();
     BAD(rohr_physics_velocity_set(a, (Velocity){NAN, 0}));
     BAD(rohr_physics_acceleration_set(a, (Acceleration){0, INFINITY}));
-    BAD(rohr_physics_force_set(a, (Force){INFINITY, 0}));
-    BAD(rohr_physics_torque_set(a, NAN));
-    BAD(rohr_physics_force_create(a, (Force){NAN, 0}));
-    BAD(rohr_physics_torque_create(a, INFINITY));
+    BAD(rohr_physics_force_description_set(a, (ForceDescription){.magnitude = INFINITY}));
+    BAD(rohr_physics_torque_description_set(a, (TorqueDescription){.magnitude = NAN}));
+    BAD(rohr_physics_force_add(force_vector_description(a, (Force){NAN, 0})));
+    BAD(rohr_physics_torque_add((TorqueDescription){.target = a, .magnitude = INFINITY}));
     BAD(rohr_physics_impulse_apply(a, (Vec2D){NAN, 0}));
     BAD(rohr_physics_axis_lock_set(a, (Axis){NAN, 1}, (Position){0}));
     BAD(rohr_physics_transform_lock_set(a, b, (Vec2D){INFINITY, 0}, 0, true, true, true));
@@ -292,12 +303,12 @@ static void rejected_loads_and_limits(void) {
     Entity a = body(0, 0, true), b = body(10, 0, false);
     EntityIndex i = index_of(a);
     OK(rohr_physics_mass_set(a, .001f));
-    EntityResult load = rohr_physics_force_create(a, (Force){FLT_MAX, 0}); OK(load);
+    EntityResult load = rohr_physics_force_add(force_vector_description(a, (Force){FLT_MAX, 0})); OK(load);
     Report r = physics_pipeline_integrate(0);
     warning(&r, ROHR_PHYSICS_FORCE_CONTRIBUTION, load.result.value);
     assert(force_accelerations[i].x == 0 && velocities[i].x == 0);
     OK(rohr_entity_delete(load.result.value));
-    load = rohr_physics_torque_create(a, FLT_MAX); OK(load);
+    load = rohr_physics_torque_add((TorqueDescription){.target = a, .magnitude = FLT_MAX}); OK(load);
     r = physics_pipeline_integrate(0);
     warning(&r, ROHR_PHYSICS_TORQUE_CONTRIBUTION, load.result.value);
     assert(torque_angular_accelerations[i] == 0 && angular_velocities[i] == 0);

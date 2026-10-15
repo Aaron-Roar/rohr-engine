@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `4`. A state may be split across
+Game state uses yyjson and schema version `5`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -8,7 +8,7 @@ in the same call.
 Angles and offsets use clockwise degrees; angular rates use degrees/second
 and degrees/second squared. Negative values and multiple turns are preserved.
 Zero keeps authored geometry unchanged, with local +Y as the world heading.
-Torque and inertia keep their physical units. Versions before 3 are rejected
+Torque and inertia keep their physical units. Versions other than 5 are rejected
 without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 4,
+  "version": 5,
   "entities": [
     {
       "name": "player",
@@ -242,8 +242,8 @@ explicit COM. Simulated particle rotation remains disabled.
 
 Supported value keys are:
 
-- `position`, `velocity`, `acceleration`, and `force`: `{ "x", "y" }`
-- `mass`, `orientation`, `angular_velocity`, `angular_acceleration`, `torque`,
+- `position`, `velocity`, and `acceleration`: `{ "x", "y" }`
+- `mass`, `orientation`, `angular_velocity`, `angular_acceleration`,
   `friction`, and `restitution`: numbers
 - `hit_box`: an array of 3 to 50 `{ "x", "y" }` vertices
 - `center_of_mass`: automatic or explicit configuration described above
@@ -412,3 +412,21 @@ additional declarations are rejected as ambiguous.
 
 Runtime saves emit either the active named attachment or the current standalone
 transform. Compact template saves preserve the authored camera declaration.
+
+## Force and torque source components
+
+Version 5 stores copied descriptions instead of vector/scalar source values.
+`force` contains `target`, `magnitude`, `location`, and `orientation`; `torque`
+contains `target` and `magnitude`. Targets are entity names or JSON null for no
+target. Location objects contain `offset: {x, y}` and the numeric reference
+`kind`; COM/origin references add `entity`, and beam references add `entity`,
+`anchor`, and `fraction`. Orientation objects contain degree `offset` and `kind`;
+body/beam references add `entity`, and between-location references add `from`
+and `to` location objects. Enum values match the public contract.
+
+All ordinary components load before source descriptions, so referenced transforms
+can appear later in the file. Invalid descriptions roll back newly loaded entities.
+Saving a named source requires its referenced entities to have names; unresolved
+or unnamed references cause an error rather than silently becoming no-target.
+The existing runtime state format does not serialize soft-body topology; authored
+soft-body/source persistence remains a later milestone goal.

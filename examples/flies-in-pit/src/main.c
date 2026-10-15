@@ -3,9 +3,20 @@
  */
 
 #include "rohr.h"
+
+#include <math.h>
 #include "example_viewport.h"
 #include "example_input.h"
 #include <stdio.h>
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 const Color background_color = {255,255,255,255};
 const Mass large_fly_mass = 50.0f;
@@ -13,7 +24,7 @@ const float large_fly_control_acceleration = 240.0f;
 const Torque large_fly_control_torque = 2000000.0f;
 
 static EngineResult fly_turn_apply(Entity fly, float turn_axis) {
-    return rohr_physics_torque_apply(fly, turn_axis * large_fly_control_torque);
+    return rohr_physics_torque_apply((TorqueDescription){.target = fly, .magnitude = turn_axis * large_fly_control_torque});
 }
 
 #define PRINT_ENGINE_ERROR(engine_result) \
@@ -191,10 +202,10 @@ int main(void) {
         float turn_axis = rohr_error_check(turn_result) ? 0.0f :
             turn_result.result.value;
         if(ticks_advanced > 0 && (move_axis.x != 0.0f || move_axis.y != 0.0f)) {
-            EngineResult force_result = rohr_physics_force_apply(large_fly, (Force){
+            EngineResult force_result = rohr_physics_force_apply(force_vector_description(large_fly, (Force){
                 .x = move_axis.x * large_fly_mass * large_fly_control_acceleration,
                 .y = move_axis.y * large_fly_mass * large_fly_control_acceleration
-            });
+            }));
             if(rohr_error_check(force_result)) {
                 PRINT_ENGINE_ERROR(force_result);
                 goto fail;

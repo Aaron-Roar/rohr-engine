@@ -463,18 +463,26 @@ bool rohr_physics_mass_check(Entity entity) { return physics_mass_check(entity);
 EngineResult rohr_physics_kinematic_driven_set(Entity entity) { return physics_kinematic_driven_set(entity); }
 EngineResult rohr_physics_kinematic_driven_remove(Entity entity) { return physics_kinematic_driven_remove(entity); }
 bool rohr_physics_kinematic_driven_check(Entity entity) { return physics_kinematic_driven_check(entity); }
-EntityResult rohr_physics_force_create(Entity entity, Force f) { return physics_force_create(entity, f); }
-ForceResult rohr_physics_force_get(Entity entity) { return physics_force_get(entity); }
-EngineResult rohr_physics_force_set(Entity entity, Force force) {
-    return physics_force_set(entity, force);
-}
-EngineResult rohr_physics_force_apply(Entity entity, Force f) { return physics_force_apply(entity, f); }
-EntityResult rohr_physics_torque_create(Entity entity, Torque t) { return physics_torque_create(entity, t); }
-TorqueResult rohr_physics_torque_get(Entity entity) { return physics_torque_get(entity); }
-EngineResult rohr_physics_torque_set(Entity entity, Torque torque) {
-    return physics_torque_set(entity, torque);
-}
-EngineResult rohr_physics_torque_apply(Entity entity, Torque t) { return physics_torque_apply(entity, t); }
+EntityResult rohr_physics_force_add(ForceDescription description) { return physics_force_add(description); }
+EntityResult rohr_physics_torque_add(TorqueDescription description) { return physics_torque_add(description); }
+ForceDescriptionResult rohr_physics_force_description_get(Entity source) { return physics_force_description_get(source); }
+TorqueDescriptionResult rohr_physics_torque_description_get(Entity source) { return physics_torque_description_get(source); }
+EngineResult rohr_physics_force_description_set(Entity source, ForceDescription description) { return physics_force_description_set(source, description); }
+EngineResult rohr_physics_torque_description_set(Entity source, TorqueDescription description) { return physics_torque_description_set(source, description); }
+EngineResult rohr_physics_force_target_set(Entity source, Entity target) { return physics_force_target_set(source, target); }
+EntityResult rohr_physics_force_target_get(Entity source) { return physics_force_target_get(source); }
+EngineResult rohr_physics_force_location_set(Entity source, ForceLocation location) { return physics_force_location_set(source, location); }
+ForceLocationResult rohr_physics_force_location_get(Entity source) { return physics_force_location_get(source); }
+EngineResult rohr_physics_force_orientation_set(Entity source, ForceOrientation orientation) { return physics_force_orientation_set(source, orientation); }
+ForceOrientationResult rohr_physics_force_orientation_get(Entity source) { return physics_force_orientation_get(source); }
+EngineResult rohr_physics_force_magnitude_set(Entity source, float magnitude) { return physics_force_magnitude_set(source, magnitude); }
+ForceMagnitudeResult rohr_physics_force_magnitude_get(Entity source) { return physics_force_magnitude_get(source); }
+EngineResult rohr_physics_torque_target_set(Entity source, Entity target) { return physics_torque_target_set(source, target); }
+EntityResult rohr_physics_torque_target_get(Entity source) { return physics_torque_target_get(source); }
+EngineResult rohr_physics_torque_magnitude_set(Entity source, Torque magnitude) { return physics_torque_magnitude_set(source, magnitude); }
+TorqueResult rohr_physics_torque_magnitude_get(Entity source) { return physics_torque_magnitude_get(source); }
+EngineResult rohr_physics_force_apply(ForceDescription description) { return physics_force_apply(description); }
+EngineResult rohr_physics_torque_apply(TorqueDescription description) { return physics_torque_apply(description); }
 EngineResult rohr_physics_hitbox_set(Entity entity, Shape hitbox) { return physics_hitbox_set(entity, hitbox); }
 ShapeResult rohr_physics_hitbox_get(Entity entity) { return physics_hitbox_get(entity); }
 EngineResult rohr_physics_hitbox_remove(Entity entity) { return physics_hitbox_remove(entity); }
@@ -553,7 +561,6 @@ SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics
 PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
 EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
-EngineResult rohr_physics_soft_body_node_force_apply(Entity node, Force force) { return physics_soft_body_node_force_apply(node, force); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
 EngineResult rohr_physics_soft_body_force_apply(Entity soft_body, Force force) { return physics_soft_body_force_apply(soft_body, force); }
 EngineResult rohr_physics_soft_body_torque_apply(Entity soft_body, Torque torque) { return physics_soft_body_torque_apply(soft_body, torque); }

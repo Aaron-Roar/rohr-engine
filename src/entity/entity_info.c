@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "entity_info.h"
+#include "physics/physics_operation.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -397,10 +398,10 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         POOL_CAPTURE(soft_body_beams_pool, soft_body_beam, ROHR_SOFT_BODY_BEAM, true);
         break;
     case FLAG(PHYSICS_FORCE):
-        POOL_CAPTURE(forces_pool, force, ROHR_FORCE, vector_check(forces[index]));
+        POOL_CAPTURE(forces_pool, force, ROHR_FORCE, true);
         break;
     case FLAG(PHYSICS_TORQUE):
-        POOL_CAPTURE(torques_pool, torque, ROHR_TORQUE, isfinite(torques[index]));
+        POOL_CAPTURE(torques_pool, torque, ROHR_TORQUE, true);
         break;
     case FLAG(GRAPHICS_SPRITE):
         POOL_CAPTURE(sprites_pool, sprite, ROHR_SPRITE, true);
@@ -601,6 +602,64 @@ static void topology_check(Snapshot *s, EntityInfoFlags flag, const Entity *enti
     for(size_t i = 0; i < count; ++i)
         reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, entities[i], component, true, i);
 }
+static void source_beam_references_check(Snapshot *s, EntityInfoFlags flag,
+        EntityInfoField field, Entity beam) {
+    EntityIndex index;
+    if(!reference_check(s, flag, field, beam, ROHR_SOFT_BODY_BEAM, false, 0) ||
+            !entity_index_get(beam, &index)) return;
+    if(!USED(soft_body_beams_pool, index)) {
+        issue_add(s, flag, field, ROHR_ENTITY_INFO_REFERENCE_DATA_MISSING,
+            object(ROHR_ENTITY_INFO_OBJECT_ENTITY, beam, 0), false, 0,
+            "Beam configuration is absent");
+        return;
+    }
+    SoftBodyBeam b = soft_body_beams[index];
+    if(reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_BEAM_START, b.node_a,
+            ROHR_SOFT_BODY_NODE, false, 0))
+        transform_check(s, flag, b.node_a, ROHR_ENTITY_INFO_FIELD_BEAM_START, false, 0, true);
+    if(reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_BEAM_END, b.node_b,
+            ROHR_SOFT_BODY_NODE, false, 0))
+        transform_check(s, flag, b.node_b, ROHR_ENTITY_INFO_FIELD_BEAM_END, false, 0, true);
+}
+static void source_location_references_check(Snapshot *s, EntityInfoFlags flag,
+        EntityInfoField field, ForceLocation location) {
+    if(location.reference.kind == ROHR_FORCE_BEAM_POSITION)
+        source_beam_references_check(s, flag, field, location.reference.beam.entity);
+    else if(location.reference.kind == ROHR_FORCE_COM_POSITION ||
+            location.reference.kind == ROHR_FORCE_ORIGIN_POSITION) {
+        if(reference_check(s, flag, field, location.reference.entity, 0, false, 0))
+            transform_check(s, flag, location.reference.entity, field, false, 0, true);
+    }
+}
+static void source_references_check(Snapshot *s, EntityInfoFlags flag) {
+    EntityInfo *v = &s->value;
+    bool torque = flag == FLAG(PHYSICS_TORQUE);
+    Entity target = torque ? v->torque.target : v->force.target;
+    size_t before = s->issue_count;
+    if(target) reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_TARGET, target, 0, false, 0);
+    if(!torque) {
+        source_location_references_check(s, flag, ROHR_ENTITY_INFO_FIELD_APPLICATION_REFERENCE, v->force.location);
+        ForceOrientationReference ref = v->force.orientation.reference;
+        if(ref.kind == ROHR_FORCE_BEAM_ORIENTATION)
+            source_beam_references_check(s, flag, ROHR_ENTITY_INFO_FIELD_ORIENTATION_REFERENCE, ref.entity);
+        else if(ref.kind == ROHR_FORCE_BODY_ORIENTATION)
+            reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_ORIENTATION_REFERENCE, ref.entity, 0, false, 0);
+        else if(ref.kind == ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION) {
+            source_location_references_check(s, flag, ROHR_ENTITY_INFO_FIELD_ORIENTATION_REFERENCE, ref.between.from);
+            source_location_references_check(s, flag, ROHR_ENTITY_INFO_FIELD_ORIENTATION_REFERENCE, ref.between.to);
+        }
+    }
+    bool active = false;
+    PhysicsChange change;
+    EngineResult result = physics_source_change_get(v->entity, torque, &change, &active);
+    if(torque) v->torque_eligible = active;
+    else v->force_eligible = active;
+    if(error_check(result) && before == s->issue_count)
+        issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, ROHR_ENTITY_INFO_CALCULATION_FAILED,
+            object(ROHR_ENTITY_INFO_OBJECT_ENTITY, v->entity, 0), false, 0,
+            "Source contribution cannot currently be resolved; configuration retained");
+}
+
 static void dependencies_check(Snapshot *s, EntityInfoFlags flag) {
     EntityInfo *v = &s->value;
     if(!(v->available & flag)) return;
@@ -608,13 +667,8 @@ static void dependencies_check(Snapshot *s, EntityInfoFlags flag) {
         reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, v->parent, 0, false, 0);
     if(flag == FLAG(CORE_TARGET) && v->target != ENTITY_INVALID)
         reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_TARGET, v->target, 0, false, 0);
-    if(flag == FLAG(PHYSICS_FORCE) || flag == FLAG(PHYSICS_TORQUE)) {
-        EntityIndex index;
-        if(entity_index_get(v->entity, &index) && USED(targets_pool, index) && targets[index]) {
-            if(reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_TARGET, targets[index], 0, false, 0))
-                transform_check(s, flag, targets[index], ROHR_ENTITY_INFO_FIELD_TARGET, false, 0, false);
-        }
-    }
+    if(flag == FLAG(PHYSICS_FORCE) || flag == FLAG(PHYSICS_TORQUE))
+        source_references_check(s, flag);
     if(flag == FLAG(PHYSICS_TRANSFORM_LOCK)) {
         if(reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_TARGET, v->transform_lock.driver, 0, false, 0))
             transform_check(s, flag, v->transform_lock.driver, ROHR_ENTITY_INFO_FIELD_TARGET, false, 0, true);

@@ -11,7 +11,7 @@ MEMORY_DEFINE_OBJECT_POOL(ParticleGeometryPool, ParticleGeometry)
 MEMORY_DEFINE_OBJECT_POOL(VelocityPool, Velocity)
 MEMORY_DEFINE_OBJECT_POOL(AccelerationPool, Acceleration)
 MEMORY_DEFINE_OBJECT_POOL(MassPool, float)
-MEMORY_DEFINE_OBJECT_POOL(ForcePool, Force)
+MEMORY_DEFINE_OBJECT_POOL(ForcePool, ForceDescription)
 MEMORY_DEFINE_OBJECT_POOL(ShapePool, Shape)
 MEMORY_DEFINE_OBJECT_POOL(HitboxVariantListPool, HitboxVariantList)
 MEMORY_DEFINE_OBJECT_POOL(HitboxAnimationBindingListPool,
@@ -20,7 +20,7 @@ MEMORY_DEFINE_OBJECT_POOL(CollisionFilterConfigPool, CollisionFilterConfig)
 MEMORY_DEFINE_OBJECT_POOL(OrientationPool, Orientation)
 MEMORY_DEFINE_OBJECT_POOL(AngularVelocityPool, AngularVelocity)
 MEMORY_DEFINE_OBJECT_POOL(AngularAccelerationPool, AngularAcceleration)
-MEMORY_DEFINE_OBJECT_POOL(TorquePool, Torque)
+MEMORY_DEFINE_OBJECT_POOL(TorquePool, TorqueDescription)
 MEMORY_DEFINE_OBJECT_POOL(FrictionPool, Friction)
 MEMORY_DEFINE_OBJECT_POOL(RestitutionPool, Restitution)
 MEMORY_DEFINE_OBJECT_POOL(AngleLockPool, AngleLock)
@@ -61,7 +61,11 @@ SoftBodyNodePool soft_body_nodes_pool = {0};
 SoftBodyBeamPool soft_body_beams_pool = {0};
 SoftBodyAreaStatePool soft_body_area_states_pool = {0};
 
+/* Capacity shared by every table, published only after complete growth. */
+static size_t physics_tables_capacity;
+
 EngineResult physics_tables_init(void) {
+    physics_tables_capacity = 0;
     physics_config_init();
     physics_force_state_init();
     physics_joint_state_init();
@@ -108,7 +112,7 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(capacity > MAX_ENTITIES) {
         return error_result_error(ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    if(capacity <= positions_pool.capacity) {
+    if(capacity <= physics_tables_capacity) {
         return error_result_value(true);
     }
     new_capacity = positions_pool.capacity == 0 ? 16 : positions_pool.capacity;
@@ -148,10 +152,12 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > soft_body_nodes_pool.capacity && SoftBodyNodePool_expand(&soft_body_nodes_pool, new_capacity - soft_body_nodes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_beams_pool.capacity && SoftBodyBeamPool_expand(&soft_body_beams_pool, new_capacity - soft_body_beams_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_area_states_pool.capacity && SoftBodyAreaStatePool_expand(&soft_body_area_states_pool, new_capacity - soft_body_area_states_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    physics_tables_capacity = new_capacity;
     return error_result_value(true);
 }
 
 void physics_tables_destroy(void) {
+    physics_tables_capacity = 0;
     physics_mass_properties_destroy();
     physics_interaction_state_destroy();
     (void)PositionPool_destroy(&positions_pool);
@@ -193,6 +199,10 @@ void physics_tables_destroy(void) {
 
 void physics_entity_clear(Entity entity, EntityIndex index) {
     physics_body_state_entity_clear(index);
+    if(index < forces_pool.capacity && forces_pool.used[index])
+        (void)ForcePool_release_at(&forces_pool, index);
+    if(index < torques_pool.capacity && torques_pool.used[index])
+        (void)TorquePool_release_at(&torques_pool, index);
     physics_mass_properties_clear(index);
     physics_hitbox_animation_bindings_entity_clear(index);
     if(index < hitbox_variants_pool.capacity && hitbox_variants_pool.used[index]) {

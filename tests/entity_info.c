@@ -174,7 +174,7 @@ static void snapshot_checks(Entity e) {
 }
 static void geometry_and_sources(void) {
     Entity e = make_entity();
-    OK(physics_force_set(e, (Force){0})); OK(physics_torque_set(e, 0));
+    OK(physics_force_description_set(e, (ForceDescription){0})); OK(physics_torque_description_set(e, (TorqueDescription){.magnitude = 0}));
     EntityInfo info = capture(e, F(PHYSICS_FORCE) | F(PHYSICS_TORQUE));
     assert(entity_info_check(&info, info.requested));
     assert(entity_info_issues_count_get(&info, info.requested).result.value == 0);

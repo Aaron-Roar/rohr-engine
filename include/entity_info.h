@@ -218,8 +218,11 @@ typedef struct EntityInfo {
     SoftBodyArea soft_body_area;
     const EntityInteraction * overlaps;
     const EntityContact * contacts;
-    Force force;
-    Torque torque;
+    ForceDescription force;
+    TorqueDescription torque;
+    /** Current eligibility only; inspection does not execute a contribution. */
+    bool force_eligible;
+    bool torque_eligible;
     Sprite sprite;
     const AnimatedSprite * animations;
     EntityInfoLayer entity_layer;

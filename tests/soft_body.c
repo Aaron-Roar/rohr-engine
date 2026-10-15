@@ -217,8 +217,8 @@ int main(void) {
             angular_velocities[index_a.result.value] != 0.0f) goto fail;
     if(rohr_error_check(rohr_physics_soft_body_node_impulse_apply(
                 node_c.result.value, (Vec2D){0.0f, 2.0f})) ||
-            rohr_error_check(rohr_physics_soft_body_node_force_apply(
-                node_c.result.value, (Force){0.0f, 1.0f})) ||
+            rohr_error_check(rohr_physics_force_apply((ForceDescription){
+                .target = node_c.result.value, .magnitude = 1.0f})) ||
             rohr_error_check(rohr_physics_soft_body_force_apply(
                 body.result.value, (Force){3.0f, 0.0f})) ||
             rohr_error_check(rohr_physics_soft_body_torque_apply(

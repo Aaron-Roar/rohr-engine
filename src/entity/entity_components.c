@@ -92,7 +92,11 @@ static void entity_id_pool_init(void) {
     memset(entity_group_names_used, 0, sizeof(entity_group_names_used));
 }
 
+/* Capacity shared by every table, published only after complete growth. */
+static size_t entity_tables_capacity;
+
 EngineResult entity_tables_init(void) {
+    entity_tables_capacity = 0;
     if(EntityAlivePool_init(&entity_alive_pool, 0).kind == ERROR_RESULT_ERROR) {
         goto fail;
     }
@@ -134,7 +138,7 @@ EngineResult entity_tables_ensure_capacity(size_t capacity) {
     if(capacity > MAX_ENTITIES) {
         return error_result_error(ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    if(capacity <= entity_alive_pool.capacity) {
+    if(capacity <= entity_tables_capacity) {
         return error_result_value(true);
     }
     new_capacity = entity_alive_pool.capacity == 0 ? 16 : entity_alive_pool.capacity;
@@ -152,10 +156,12 @@ EngineResult entity_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > entity_group_memberships_pool.capacity && EntityGroupMembershipPool_expand(&entity_group_memberships_pool, new_capacity - entity_group_memberships_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > life_times_pool.capacity && LifeTimePool_expand(&life_times_pool, new_capacity - life_times_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > entity_names_pool.capacity && EntityNamePool_expand(&entity_names_pool, new_capacity - entity_names_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    entity_tables_capacity = new_capacity;
     return error_result_value(true);
 }
 
 void entity_tables_destroy(void) {
+    entity_tables_capacity = 0;
     size_t i;
 
     if(entity_groups_pool.objects != NULL && entity_groups_pool.used != NULL) {

@@ -12,17 +12,25 @@
 #define ERROR(c, code) do { CHECK(rohr_error_check(c)); CHECK((c).result.error == (code)); } while(0)
 
 typedef struct ForceApi {
-    EntityResult (*force_create)(Entity, Force);
-    EngineResult (*force_set)(Entity, Force);
-    ForceResult (*force_get)(Entity);
-    EngineResult (*force_apply)(Entity, Force);
-    EntityResult (*torque_create)(Entity, Torque);
+    EntityResult (*force_add)(ForceDescription);
+    EngineResult (*force_set)(Entity, float);
+    ForceMagnitudeResult (*force_get)(Entity);
+    EngineResult (*force_apply)(ForceDescription);
+    EntityResult (*torque_add)(TorqueDescription);
     EngineResult (*torque_set)(Entity, Torque);
     TorqueResult (*torque_get)(Entity);
-    EngineResult (*torque_apply)(Entity, Torque);
+    EngineResult (*torque_apply)(TorqueDescription);
     EngineResult (*impulse_apply)(Entity, Vec2D);
     EngineResult (*angular_impulse_apply)(Entity, float);
 } ForceApi;
+
+static ForceDescription vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
 
 static const Shape rectangle = {.amount_of_vertices = 4,
     .vertices = {{2,3}, {6,3}, {6,5}, {2,5}}};
@@ -33,6 +41,8 @@ static bool body_create(Entity *body, EntityIndex *index) {
     OK(result);
     *body = result.result.value;
     *index = rohr_entity_index_get(*body).result.value;
+    OK(rohr_physics_position_set(*body, (Position){0}));
+    OK(rohr_physics_orientation_set(*body, 0));
     OK(rohr_physics_hitbox_set(*body, rectangle));
     OK(rohr_physics_mass_set(*body, 12));
     OK(rohr_physics_dynamic_set(*body));
@@ -48,22 +58,22 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     rohr_engine_clock_reset();
     ERROR(api->force_get(body), ERROR_ENGINE_COMPONENT_MISSING);
     ERROR(api->torque_get(body), ERROR_ENGINE_COMPONENT_MISSING);
-    EntityResult force = api->force_create(body, (Force){12,0});
-    EntityResult torque = api->torque_create(body, 20);
+    EntityResult force = api->force_add(vector_description(body, (Force){12,0}));
+    EntityResult torque = api->torque_add((TorqueDescription){.target = body, .magnitude = 20});
     OK(force); OK(torque);
     Entity f = force.result.value, t = torque.result.value;
     CHECK(f != body && t != body && f != t);
-    CHECK(api->force_get(f).result.value.x == 12);
+    CHECK(api->force_get(f).result.value == 12);
     CHECK(api->torque_get(t).result.value == 20);
     /* Replace, rather than accumulate; preserve source targets. */
-    OK(api->force_set(f, (Force){24,0}));
+    OK(api->force_set(f, 24));
     OK(api->torque_set(t, 40));
-    CHECK(api->force_get(f).result.value.x == 24);
+    CHECK(api->force_get(f).result.value == 24);
     CHECK(api->torque_get(t).result.value == 40);
-    OK(api->force_apply(body, (Force){12,0}));
-    OK(api->force_apply(body, (Force){0,24}));
-    OK(api->torque_apply(body, 20));
-    OK(api->torque_apply(body, -10));
+    OK(api->force_apply(vector_description(body, (Force){12,0})));
+    OK(api->force_apply(vector_description(body, (Force){0,24})));
+    OK(api->torque_apply((TorqueDescription){.target = body, .magnitude = 20}));
+    OK(api->torque_apply((TorqueDescription){.target = body, .magnitude = -10}));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.3f) && near(velocities[index].y, 0.2f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.25f));
@@ -78,12 +88,12 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     CHECK(near(velocities[index].x, 0.8f) && near(velocities[index].y, 0.4f));
     CHECK(near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
-    OK(api->force_set(f, (Force){0}));
+    OK(api->force_set(f, 0));
     OK(api->torque_set(t, 0));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.8f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.7f));
     CHECK(rohr_entity_alive_check(f) && rohr_entity_alive_check(t));
-    OK(api->force_set(f, (Force){12,0}));
+    OK(api->force_set(f, 12));
     OK(api->torque_set(t, 20));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.9f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.8f));
@@ -98,20 +108,18 @@ static bool sources_check(const ForceApi *api, unsigned substeps) {
     Entity p = plain.result.value;
     ERROR(api->force_get(f), ERROR_ENGINE_INVALID_ENTITY);
     ERROR(api->torque_get(t), ERROR_ENGINE_INVALID_ENTITY);
-    ERROR(api->force_set(f, (Force){0}), ERROR_ENGINE_INVALID_ENTITY);
+    ERROR(api->force_set(f, 0), ERROR_ENGINE_INVALID_ENTITY);
     ERROR(api->torque_set(t, 0), ERROR_ENGINE_INVALID_ENTITY);
-    /* State loading can still attach components before assigning a target. */
-    OK(api->force_set(p, (Force){3,4}));
-    OK(api->torque_set(p, -5));
-    CHECK(api->force_get(p).result.value.y == 4 && api->torque_get(p).result.value == -5);
-    CHECK(!rohr_entity_components_check(p, ROHR_TARGETABLE));
+    OK(physics_force_description_set(p, (ForceDescription){.magnitude = 5}));
+    OK(physics_torque_description_set(p, (TorqueDescription){.magnitude = -5}));
+    CHECK(api->force_get(p).result.value == 5 && api->torque_get(p).result.value == -5);
     OK(rohr_entity_components_delete(p, ROHR_FORCE | ROHR_TORQUE));
     ERROR(api->force_get(p), ERROR_ENGINE_COMPONENT_MISSING);
     ERROR(api->torque_get(p), ERROR_ENGINE_COMPONENT_MISSING);
-    ERROR(api->force_create(ENTITY_INVALID, (Force){0}), ERROR_ENGINE_INVALID_ENTITY);
-    ERROR(api->torque_create(ENTITY_INVALID, 0), ERROR_ENGINE_INVALID_ENTITY);
-    ERROR(api->force_apply(ENTITY_INVALID, (Force){0}), ERROR_ENGINE_INVALID_ENTITY);
-    ERROR(api->torque_apply(ENTITY_INVALID, 0), ERROR_ENGINE_INVALID_ENTITY);
+    OK(api->force_add((ForceDescription){0}));
+    OK(api->torque_add((TorqueDescription){0}));
+    OK(api->force_apply((ForceDescription){0}));
+    OK(api->torque_apply((TorqueDescription){0}));
     ERROR(api->force_get(ENTITY_INVALID), ERROR_ENGINE_INVALID_ENTITY);
     ERROR(api->torque_get(ENTITY_INVALID), ERROR_ENGINE_INVALID_ENTITY);
     return true;
@@ -148,7 +156,7 @@ static bool impulses_check(const ForceApi *api) {
     OK(rohr_physics_mass_set(body, 12));
 
     /* No-op cases must preserve angular velocity and the body's motion type. */
-    for(int mode = 0; mode < 7; mode += 1) {
+    for(int mode = 0; mode < 6; mode += 1) {
         Entity e;
         EntityIndex i;
         CHECK(body_create(&e, &i));
@@ -158,7 +166,6 @@ static bool impulses_check(const ForceApi *api) {
         if(mode == 3) OK(rohr_physics_mass_set(e, 0));
         if(mode == 4) OK(rohr_physics_hitbox_remove(e));
         if(mode == 5) OK(rohr_physics_angle_lock_set(e, 0, 0));
-        if(mode == 6) OK(rohr_physics_particle_radius_set(e, 2));
         bool dynamic = rohr_entity_components_check(e, ROHR_DYNAMIC);
         bool kinematic = rohr_physics_kinematic_driven_check(e);
         float omega = angular_velocities[i];
@@ -181,8 +188,8 @@ static bool persistence_check(const ForceApi *api) {
     EntityIndex index;
     CHECK(body_create(&body, &index));
     OK(rohr_entity_name_set(body, "force_target"));
-    EntityResult force = api->force_create(body, (Force){24,0});
-    EntityResult torque = api->torque_create(body, 40);
+    EntityResult force = api->force_add(vector_description(body, (Force){24,0}));
+    EntityResult torque = api->torque_add((TorqueDescription){.target = body, .magnitude = 40});
     OK(force); OK(torque);
     OK(rohr_entity_name_set(force.result.value, "force_source"));
     OK(rohr_entity_name_set(torque.result.value, "torque_source"));
@@ -194,10 +201,10 @@ static bool persistence_check(const ForceApi *api) {
     force = rohr_entity_by_name_get("force_source");
     torque = rohr_entity_by_name_get("torque_source");
     OK(restored); OK(force); OK(torque);
-    ForceResult f = api->force_get(force.result.value);
+    ForceMagnitudeResult f = api->force_get(force.result.value);
     TorqueResult t = api->torque_get(torque.result.value);
     OK(f); OK(t);
-    CHECK(f.result.value.x == 24 && f.result.value.y == 0 && t.result.value == 40);
+    CHECK(f.result.value == 24 && t.result.value == 40);
     index = rohr_entity_index_get(restored.result.value).result.value;
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(velocities[index].x, 0.2f) && near(rohr_math_degrees_to_radians(angular_velocities[index]), 0.2f));
@@ -207,11 +214,11 @@ static bool persistence_check(const ForceApi *api) {
 
 int main(void) {
     const ForceApi apis[] = {
-        {physics_force_create, physics_force_set, physics_force_get, physics_force_apply,
-         physics_torque_create, physics_torque_set, physics_torque_get, physics_torque_apply,
+        {physics_force_add, physics_force_magnitude_set, physics_force_magnitude_get, physics_force_apply,
+         physics_torque_add, physics_torque_magnitude_set, physics_torque_magnitude_get, physics_torque_apply,
          physics_impulse_apply, physics_angular_impulse_apply},
-        {rohr_physics_force_create, rohr_physics_force_set, rohr_physics_force_get, rohr_physics_force_apply,
-         rohr_physics_torque_create, rohr_physics_torque_set, rohr_physics_torque_get, rohr_physics_torque_apply,
+        {rohr_physics_force_add, rohr_physics_force_magnitude_set, rohr_physics_force_magnitude_get, rohr_physics_force_apply,
+         rohr_physics_torque_add, rohr_physics_torque_magnitude_set, rohr_physics_torque_magnitude_get, rohr_physics_torque_apply,
          rohr_physics_impulse_apply, rohr_physics_angular_impulse_apply}
     };
     for(size_t api = 0; api < sizeof(apis) / sizeof(apis[0]); api += 1) {

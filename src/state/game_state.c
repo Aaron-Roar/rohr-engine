@@ -1219,6 +1219,78 @@ static EngineResult state_sprite_frames_read(yyjson_val *values, AnimatedSprite 
     return error_result_value(true);
 }
 
+static bool state_source_number(yyjson_val *object, const char *key, float *out) {
+    yyjson_val *value = yyjson_obj_get(object, key);
+    if(!yyjson_is_num(value)) return false;
+    double number = yyjson_get_num(value);
+    if(!isfinite(number) || fabs(number) > FLT_MAX) return false;
+    *out = number;
+    return true;
+}
+static bool state_source_entity(yyjson_val *object, const char *key, Entity *out) {
+    yyjson_val *value = yyjson_obj_get(object, key);
+    if(yyjson_is_null(value)) { *out = ENTITY_INVALID; return true; }
+    return !error_check(state_resolve_name(value, out));
+}
+static bool state_source_location(yyjson_val *value, ForceLocation *out) {
+    yyjson_val *kind = yyjson_obj_get(value, "kind");
+    if(!yyjson_is_obj(value) || !yyjson_is_uint(kind) ||
+            yyjson_get_uint(kind) > ROHR_FORCE_BEAM_POSITION ||
+            !state_vec2(yyjson_obj_get(value, "offset"), &out->offset)) return false;
+    out->reference.kind = yyjson_get_uint(kind);
+    switch(out->reference.kind) {
+    case ROHR_FORCE_WORLD_POSITION: return true;
+    case ROHR_FORCE_COM_POSITION: case ROHR_FORCE_ORIGIN_POSITION:
+        return state_source_entity(value, "entity", &out->reference.entity);
+    case ROHR_FORCE_BEAM_POSITION: {
+        yyjson_val *anchor = yyjson_obj_get(value, "anchor");
+        if(!yyjson_is_uint(anchor) || yyjson_get_uint(anchor) > ROHR_FORCE_BEAM_END) return false;
+        out->reference.beam.anchor = yyjson_get_uint(anchor);
+        return state_source_entity(value, "entity", &out->reference.beam.entity) &&
+            state_source_number(value, "fraction", &out->reference.beam.fraction);
+    }
+    }
+    return false;
+}
+static EngineResult state_sources_load(Entity entity, yyjson_val *components) {
+    yyjson_val *value = yyjson_obj_get(components, "force");
+    if(value != NULL) {
+        ForceDescription description = {0};
+        yyjson_val *orientation = yyjson_obj_get(value, "orientation");
+        yyjson_val *kind = yyjson_obj_get(orientation, "kind");
+        if(!yyjson_is_obj(value) || !state_source_entity(value, "target", &description.target) ||
+                !state_source_number(value, "magnitude", &description.magnitude) ||
+                !state_source_location(yyjson_obj_get(value, "location"), &description.location) ||
+                !state_source_number(orientation, "offset", &description.orientation.offset) ||
+                !yyjson_is_uint(kind) || yyjson_get_uint(kind) > ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        description.orientation.reference.kind = yyjson_get_uint(kind);
+        switch(description.orientation.reference.kind) {
+        case ROHR_FORCE_WORLD_ORIENTATION: break;
+        case ROHR_FORCE_BODY_ORIENTATION: case ROHR_FORCE_BEAM_ORIENTATION:
+            if(!state_source_entity(orientation, "entity", &description.orientation.reference.entity))
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            break;
+        case ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION:
+            if(!state_source_location(yyjson_obj_get(orientation, "from"), &description.orientation.reference.between.from) ||
+                    !state_source_location(yyjson_obj_get(orientation, "to"), &description.orientation.reference.between.to))
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            break;
+        }
+        EngineResult result = physics_force_description_set(entity, description);
+        if(error_check(result)) return result;
+    }
+    value = yyjson_obj_get(components, "torque");
+    if(value != NULL) {
+        TorqueDescription description = {0};
+        if(!yyjson_is_obj(value) || !state_source_entity(value, "target", &description.target) ||
+                !state_source_number(value, "magnitude", &description.magnitude))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        return physics_torque_description_set(entity, description);
+    }
+    return error_result_value(true);
+}
+
 static EngineResult state_components_load(
         Entity entity,
         yyjson_val *components,
@@ -1272,15 +1344,6 @@ static EngineResult state_components_load(
     LOAD_VEC2("acceleration", AccelerationPool, accelerations_pool, ROHR_DYNAMIC)
 #undef LOAD_VEC2
 
-    value = yyjson_obj_get(components, "force");
-    if(value != NULL) {
-        if(!state_vec2(value, &vector)) {
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        }
-        result = physics_force_set(entity, vector);
-        if(result.kind == ERROR_RESULT_ERROR) return result;
-    }
-
 #define LOAD_SCALAR(Key, Pool, Table, Bit) \
     value = yyjson_obj_get(components, Key); \
     if(value != NULL) { \
@@ -1306,18 +1369,6 @@ static EngineResult state_components_load(
         result = physics_angular_acceleration_set(
             entity,
             (AngularAcceleration)yyjson_get_num(value)
-        );
-        if(result.kind == ERROR_RESULT_ERROR) return result;
-    }
-
-    value = yyjson_obj_get(components, "torque");
-    if(value != NULL) {
-        if(!yyjson_is_num(value)) {
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        }
-        result = physics_torque_set(
-            entity,
-            (Torque)yyjson_get_num(value)
         );
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
@@ -2006,6 +2057,13 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
     }
 
+    /* All entity components must exist before validating source references. */
+    for(size_t source = 0; source < total_created; ++source) {
+        result = state_sources_load(loaded[source].entity,
+            yyjson_obj_get(loaded[source].description, "components"));
+        if(error_check(result)) goto cleanup;
+    }
+
     for(document_index = 0; document_index < path_count; document_index += 1) {
         if(documents[document_index].camera == NULL) continue;
         result = state_camera_load(documents[document_index].camera);
@@ -2209,6 +2267,59 @@ static void state_named_reference_write(
     EntityNameResult name = entity_name_get(entity);
     if(name.kind == ERROR_RESULT_VALUE)
         yyjson_mut_obj_add_strcpy(document, components, key, name.result.value.value);
+}
+
+static bool state_source_entity_write(yyjson_mut_doc *doc, yyjson_mut_val *object,
+        const char *key, Entity entity) {
+    if(!entity) return yyjson_mut_obj_add_null(doc, object, key);
+    EntityNameResult name = entity_name_get(entity);
+    return !error_check(name) && yyjson_mut_obj_add_strcpy(doc, object, key, name.result.value.value);
+}
+static yyjson_mut_val *state_source_location_write(yyjson_mut_doc *doc, ForceLocation location) {
+    yyjson_mut_val *value = yyjson_mut_obj(doc);
+    bool ok = value && yyjson_mut_obj_add_uint(doc, value, "kind", location.reference.kind) &&
+        yyjson_mut_obj_add_val(doc, value, "offset", state_vec2_write(doc, location.offset));
+    switch(location.reference.kind) {
+    case ROHR_FORCE_WORLD_POSITION: break;
+    case ROHR_FORCE_COM_POSITION: case ROHR_FORCE_ORIGIN_POSITION:
+        ok = ok && state_source_entity_write(doc, value, "entity", location.reference.entity); break;
+    case ROHR_FORCE_BEAM_POSITION:
+        ok = ok && state_source_entity_write(doc, value, "entity", location.reference.beam.entity) &&
+            yyjson_mut_obj_add_uint(doc, value, "anchor", location.reference.beam.anchor) &&
+            yyjson_mut_obj_add_real(doc, value, "fraction", location.reference.beam.fraction); break;
+    default: return NULL;
+    }
+    return ok ? value : NULL;
+}
+static bool state_sources_write(yyjson_mut_doc *doc, yyjson_mut_val *components, EntityIndex index) {
+    if(entity_index_components_check(index, ROHR_FORCE) && forces_pool.used[index]) {
+        ForceDescription description = forces[index];
+        yyjson_mut_val *value = yyjson_mut_obj(doc), *orientation = yyjson_mut_obj(doc);
+        bool ok = value && orientation &&
+            state_source_entity_write(doc, value, "target", description.target) &&
+            yyjson_mut_obj_add_real(doc, value, "magnitude", description.magnitude) &&
+            yyjson_mut_obj_add_val(doc, value, "location", state_source_location_write(doc, description.location)) &&
+            yyjson_mut_obj_add_uint(doc, orientation, "kind", description.orientation.reference.kind) &&
+            yyjson_mut_obj_add_real(doc, orientation, "offset", description.orientation.offset);
+        switch(description.orientation.reference.kind) {
+        case ROHR_FORCE_WORLD_ORIENTATION: break;
+        case ROHR_FORCE_BODY_ORIENTATION: case ROHR_FORCE_BEAM_ORIENTATION:
+            ok = ok && state_source_entity_write(doc, orientation, "entity", description.orientation.reference.entity); break;
+        case ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION:
+            ok = ok && yyjson_mut_obj_add_val(doc, orientation, "from", state_source_location_write(doc, description.orientation.reference.between.from)) &&
+                yyjson_mut_obj_add_val(doc, orientation, "to", state_source_location_write(doc, description.orientation.reference.between.to)); break;
+        default: return false;
+        }
+        if(!ok || !yyjson_mut_obj_add_val(doc, value, "orientation", orientation) ||
+                !yyjson_mut_obj_add_val(doc, components, "force", value)) return false;
+    }
+    if(entity_index_components_check(index, ROHR_TORQUE) && torques_pool.used[index]) {
+        yyjson_mut_val *value = yyjson_mut_obj(doc);
+        if(!value || !state_source_entity_write(doc, value, "target", torques[index].target) ||
+                !yyjson_mut_obj_add_real(doc, value, "magnitude", torques[index].magnitude) ||
+                !yyjson_mut_obj_add_val(doc, components, "torque", value)) return false;
+    }
+    return true;
 }
 
 static void state_frame_file_write(yyjson_mut_doc *document, yyjson_mut_val *record,
@@ -2480,12 +2591,14 @@ EngineResult game_state_file_save(const char *path) {
         if(positions_pool.used[index]) yyjson_mut_obj_add_val(document, components, "position", state_vec2_write(document, positions[index]));
         if(velocities_pool.used[index]) yyjson_mut_obj_add_val(document, components, "velocity", state_vec2_write(document, velocities[index]));
         if(accelerations_pool.used[index]) yyjson_mut_obj_add_val(document, components, "acceleration", state_vec2_write(document, accelerations[index]));
-        if(forces_pool.used[index]) yyjson_mut_obj_add_val(document, components, "force", state_vec2_write(document, forces[index]));
+        if(!state_sources_write(document, components, index)) {
+            yyjson_mut_doc_free(document);
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        }
         if(mass_pool.used[index]) yyjson_mut_obj_add_real(document, components, "mass", mass[index]);
         if(orientations_pool.used[index]) yyjson_mut_obj_add_real(document, components, "orientation", orientations[index]);
         if(angular_velocities_pool.used[index]) yyjson_mut_obj_add_real(document, components, "angular_velocity", angular_velocities[index]);
         if(angular_accelerations_pool.used[index]) yyjson_mut_obj_add_real(document, components, "angular_acceleration", angular_accelerations[index]);
-        if(torques_pool.used[index]) yyjson_mut_obj_add_real(document, components, "torque", torques[index]);
         if(frictions_pool.used[index]) yyjson_mut_obj_add_real(document, components, "friction", frictions[index]);
         if(restitutions_pool.used[index]) yyjson_mut_obj_add_real(document, components, "restitution", restitutions[index]);
         if(hit_boxes_pool.used[index]) {

@@ -244,6 +244,82 @@ ERROR_DECLARE_RESULT_TYPE(MassResult, Mass);
 /** Torque value. */
 typedef Orientation Torque;
 
+typedef enum ForcePositionReferenceKind {
+    ROHR_FORCE_WORLD_POSITION = 0,
+    ROHR_FORCE_COM_POSITION,
+    ROHR_FORCE_ORIGIN_POSITION,
+    ROHR_FORCE_BEAM_POSITION
+} ForcePositionReferenceKind;
+
+typedef enum ForceBeamAnchor {
+    ROHR_FORCE_BEAM_START = 0,
+    ROHR_FORCE_BEAM_CENTER,
+    ROHR_FORCE_BEAM_END
+} ForceBeamAnchor;
+
+typedef struct ForcePositionReference {
+    ForcePositionReferenceKind kind;
+    union {
+        Entity entity; /* COM or origin. */
+        struct {
+            Entity entity;
+            ForceBeamAnchor anchor;
+            float fraction;
+        } beam;
+    };
+} ForcePositionReference;
+
+typedef struct ForceLocation {
+    Vec2D offset;
+    ForcePositionReference reference;
+} ForceLocation;
+
+typedef enum ForceOrientationReferenceKind {
+    ROHR_FORCE_WORLD_ORIENTATION = 0,
+    ROHR_FORCE_BODY_ORIENTATION,
+    ROHR_FORCE_BEAM_ORIENTATION,
+    ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION
+} ForceOrientationReferenceKind;
+
+typedef struct ForceOrientationReference {
+    ForceOrientationReferenceKind kind;
+    union {
+        Entity entity; /* Body or beam. */
+        struct {
+            ForceLocation from;
+            ForceLocation to;
+        } between;
+    };
+} ForceOrientationReference;
+
+typedef struct ForceOrientation {
+    Orientation offset;
+    ForceOrientationReference reference;
+} ForceOrientation;
+
+typedef struct ForceDescription {
+    Entity target;
+    ForceLocation location;
+    ForceOrientation orientation;
+    float magnitude;
+} ForceDescription;
+
+typedef struct TorqueDescription {
+    Entity target;
+    Torque magnitude;
+} TorqueDescription;
+
+#ifndef ROHR_PHYSICS_BEAM_MIN_LENGTH
+#define ROHR_PHYSICS_BEAM_MIN_LENGTH 0.0001f
+#endif
+
+ERROR_DECLARE_RESULT_TYPE(ForceDescriptionResult, ForceDescription);
+ERROR_DECLARE_RESULT_TYPE(TorqueDescriptionResult, TorqueDescription);
+ERROR_DECLARE_RESULT_TYPE(ForceLocationResult, ForceLocation);
+ERROR_DECLARE_RESULT_TYPE(ForceOrientationResult, ForceOrientation);
+ERROR_DECLARE_RESULT_TYPE(ForceMagnitudeResult, float);
+
+
 /** Default polygon vertex count used to approximate a particle circle. */
 #define ROHR_PARTICLE_RIGID_VERTICES_DEFAULT 16u
 
@@ -488,7 +564,7 @@ MEMORY_DECLARE_OBJECT_POOL(AccelerationPool, Acceleration);
 /** Pool storing masses by EntityIndex. */
 MEMORY_DECLARE_OBJECT_POOL(MassPool, float);
 /** Pool storing forces by EntityIndex. */
-MEMORY_DECLARE_OBJECT_POOL(ForcePool, Force);
+MEMORY_DECLARE_OBJECT_POOL(ForcePool, ForceDescription);
 /** Pool storing shapes by EntityIndex. */
 MEMORY_DECLARE_OBJECT_POOL(ShapePool, Shape);
 /** Pool storing owned hitbox variant lists by EntityIndex. */
@@ -504,7 +580,7 @@ MEMORY_DECLARE_OBJECT_POOL(AngularVelocityPool, AngularVelocity);
 /** Pool storing angular accelerations by EntityIndex. */
 MEMORY_DECLARE_OBJECT_POOL(AngularAccelerationPool, AngularAcceleration);
 /** Pool storing torques by EntityIndex. */
-MEMORY_DECLARE_OBJECT_POOL(TorquePool, Torque);
+MEMORY_DECLARE_OBJECT_POOL(TorquePool, TorqueDescription);
 /** Pool storing friction values by EntityIndex. */
 MEMORY_DECLARE_OBJECT_POOL(FrictionPool, Friction);
 /** Pool storing restitution values by EntityIndex. */
@@ -719,21 +795,31 @@ EngineResult physics_kinematic_driven_set(Entity entity);
 EngineResult physics_kinematic_driven_remove(Entity entity);
 bool physics_kinematic_driven_check(Entity entity);
 /** Create a persistent force source. The caller owns its entity_delete lifetime. */
-EntityResult physics_force_create(Entity entity, Force f);
-/** Replace/add stored force on an existing source entity; preserve its target. */
-EngineResult physics_force_set(Entity entity, Force force);
-/** Read stored force, or report an invalid entity/missing component. */
-ForceResult physics_force_get(Entity entity);
-/** Accumulate force for one engine physics tick, including all its substeps. */
-EngineResult physics_force_apply(Entity entity, Force f);
-/** Create a persistent torque source. The caller owns its entity_delete lifetime. */
-EntityResult physics_torque_create(Entity entity, Torque t);
-/** Replace/add stored torque on an existing source entity; preserve its target. */
-EngineResult physics_torque_set(Entity entity, Torque torque);
-/** Read stored torque, or report an invalid entity/missing component. */
-TorqueResult physics_torque_get(Entity entity);
-/** Accumulate torque for one engine physics tick, including all its substeps. */
-EngineResult physics_torque_apply(Entity entity, Torque t);
+EntityResult physics_force_add(ForceDescription description);
+EntityResult physics_torque_add(TorqueDescription description);
+
+ForceDescriptionResult physics_force_description_get(Entity source);
+TorqueDescriptionResult physics_torque_description_get(Entity source);
+EngineResult physics_force_description_set(Entity source, ForceDescription description);
+EngineResult physics_torque_description_set(Entity source, TorqueDescription description);
+
+EngineResult physics_force_target_set(Entity source, Entity target);
+EntityResult physics_force_target_get(Entity source);
+EngineResult physics_force_location_set(Entity source, ForceLocation location);
+ForceLocationResult physics_force_location_get(Entity source);
+EngineResult physics_force_orientation_set(Entity source, ForceOrientation orientation);
+ForceOrientationResult physics_force_orientation_get(Entity source);
+EngineResult physics_force_magnitude_set(Entity source, float magnitude);
+ForceMagnitudeResult physics_force_magnitude_get(Entity source);
+
+EngineResult physics_torque_target_set(Entity source, Entity target);
+EntityResult physics_torque_target_get(Entity source);
+EngineResult physics_torque_magnitude_set(Entity source, Torque magnitude);
+TorqueResult physics_torque_magnitude_get(Entity source);
+
+EngineResult physics_force_apply(ForceDescription description);
+EngineResult physics_torque_apply(TorqueDescription description);
+
 /**
  * Set an entity's simple polygon hitbox and prepare any required convex
  * decomposition. This rejects degenerate and self-intersecting outlines and
@@ -924,7 +1010,6 @@ EngineResult physics_soft_body_node_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-EngineResult physics_soft_body_node_force_apply(Entity node, Force force);
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
 EngineResult physics_soft_body_force_apply(Entity soft_body, Force force);
 EngineResult physics_soft_body_torque_apply(Entity soft_body, Torque torque);

@@ -146,7 +146,7 @@ static bool motion_check(void) {
     EntityIndex i=rohr_entity_index_get(e).result.value;
     CHECK(near(-rohr_math_degrees_to_radians(angular_velocities[i]),1) && point_near(velocities[i],(Velocity){0}));
     OK(rohr_physics_angular_velocity_set(e,0));
-    EntityResult torque=rohr_physics_torque_create(e,-20);
+    EntityResult torque=rohr_physics_torque_add((TorqueDescription){.target = e, .magnitude = -20});
     OK(torque);
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(near((-rohr_math_degrees_to_radians(angular_velocities[i])),0.1f));
@@ -171,10 +171,12 @@ static bool motion_check(void) {
     OK(rohr_physics_particle_radius_set(e,2));
     OK(rohr_physics_angular_velocity_radians_set(e,-3));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
-    CHECK(angular_velocities[i]==0 && orientations[i]==angle);
+    CHECK(angular_velocities[i]!=0 && orientations[i]!=angle);
+    /* Particle collision properties retain this rigid body's angular response. */
+    float previous_omega=angular_velocities[i];
     OK(rohr_physics_mass_set(e,0));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
-    CHECK(isfinite(positions[i].x) && angular_velocities[i]==0);
+    CHECK(isfinite(positions[i].x) && angular_velocities[i]==previous_omega);
     return true;
 }
 

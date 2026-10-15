@@ -528,6 +528,12 @@ child report entries.
 Metrics retain the previous meanings, with explicit owner and aggregation:
 
 - Integration PROCESSED and QUARANTINED counts count entity visits per substep.
+- Integration SOURCE_CONTRIBUTING_COUNT, SOURCE_INACTIVE_COUNT, and
+  SOURCE_SUSPENDED_COUNT sum force/torque source evaluations per substep. They
+  are not unique source counts. Zero/no-target and constrained targets are
+  inactive without warnings; unresolved references and invalid coupled results
+  suspend the contribution and retain copied source/target evidence. Inspection
+  does not increment these counters.
 - Contacts COLLIDER, CANDIDATE, NARROWPHASE_TEST, and OVERLAP counts describe the
   rigid broadphase path, including node colliders; beam-query pairs are not added
   to these legacy counters. Work counts sum over substeps.

@@ -3,12 +3,22 @@
  */
 
 #include "rohr.h"
+
+#include <math.h>
 #include "example_viewport.h"
 #include "example_input.h"
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 #define PRINT_ENGINE_ERROR(engine_result) \
     fprintf(stderr, "error %d: %s\n", (int)(engine_result).result.error, \
@@ -414,10 +424,10 @@ int main(void) {
         thrust_axis = player_forward(orientations[player_index]);
         if(ticks_advanced > 0 && player_control_enabled &&
                 rohr_input_action_button_down_check(thrust_action)) {
-            EngineResult thrust_result = rohr_physics_force_apply(player, (Force){
+            EngineResult thrust_result = rohr_physics_force_apply(force_vector_description(player, (Force){
                 .x = thrust_axis.x * player_mass * player_thrust_acceleration,
                 .y = thrust_axis.y * player_mass * player_thrust_acceleration
-            });
+            }));
             if(rohr_error_check(thrust_result)) {
                 PRINT_ENGINE_ERROR(thrust_result);
                 goto fail;
@@ -425,10 +435,10 @@ int main(void) {
         }
         if(ticks_advanced > 0 && player_control_enabled &&
                 rohr_input_action_button_down_check(brake_action) && speed > 0.001f) {
-            EngineResult brake_result = rohr_physics_force_apply(player, (Force){
+            EngineResult brake_result = rohr_physics_force_apply(force_vector_description(player, (Force){
                 .x = -(player_velocity.x / speed) * player_mass * player_brake_acceleration,
                 .y = -(player_velocity.y / speed) * player_mass * player_brake_acceleration
-            });
+            }));
             if(rohr_error_check(brake_result)) {
                 PRINT_ENGINE_ERROR(brake_result);
                 goto fail;
@@ -438,7 +448,7 @@ int main(void) {
         InputAxis1DResult turn_result = rohr_input_action_axis_1d_get(turn_action);
         turn_axis = rohr_error_check(turn_result) ? 0.0f : turn_result.result.value;
         if(ticks_advanced > 0 && player_control_enabled && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_apply(player, turn_axis * player_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply((TorqueDescription){.target = player, .magnitude = turn_axis * player_control_torque});
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

@@ -3,8 +3,8 @@
 This is the implemented contract for the **Entity Inspection** milestone. Public
 APIs are declared in [rohr.h](../include/rohr.h); types and direct APIs are in
 [entity_info.h](../include/entity_info.h). The
-[roadmap](../NEXT_STEPS.md#milestone-entity-inspection) records verification. New force/torque sources join this
-API later under the [force/torque contract](force_torque_contract.md).
+[roadmap](../NEXT_STEPS.md#milestone-entity-inspection) records verification. Force/torque sources use this
+API under the [force/torque contract](force_torque_contract.md).
 
 ## Purpose and boundaries
 
@@ -124,8 +124,8 @@ unsupported until explicitly assigned; future source fields are not included now
 | 37 | `PHYSICS_SOFT_BODY_AREA` | `SoftBodyArea` | `soft_body_area` |
 | 38 | `PHYSICS_OVERLAPS` | `const EntityInteraction *` | `overlaps` |
 | 39 | `PHYSICS_CONTACTS` | `const EntityContact *` | `contacts` |
-| 40 | `PHYSICS_FORCE` | `Force` | `force` |
-| 41 | `PHYSICS_TORQUE` | `Torque` | `torque` |
+| 40 | `PHYSICS_FORCE` | `ForceDescription` | `force` |
+| 41 | `PHYSICS_TORQUE` | `TorqueDescription` | `torque` |
 | 42 | `GRAPHICS_SPRITE` | `Sprite` | `sprite` |
 | 43 | `GRAPHICS_ANIMATIONS` | `const AnimatedSprite *` | `animations` |
 | 44 | `GRAPHICS_ENTITY_LAYER` | `EntityInfoLayer` | `entity_layer` |
@@ -371,18 +371,19 @@ if (count.kind == ERROR_RESULT_VALUE && count.result.value > 0) {
 
 ## Force/torque integration boundary
 
-Current selectors capture the existing Force vector and Torque scalar, with the
-existing target under CORE_TARGET. The later source milestone replaces these
-with its approved description/configuration and resolved details. That breaking
-extension must update this contract and its selector inventory; do not implement
-future source structures in the current inspection goal.
+The force and torque selectors capture copied `ForceDescription` and
+`TorqueDescription` values, including their own target handles. CORE_TARGET
+remains the independent generic relationship. `force_eligible` and
+`torque_eligible` report whether each source can currently contribute given its
+references, target constraints, and numeric results. Inspection never commits
+those results or modifies reports.
 
-A zero-initialized future source is valid: no target, zero magnitude, and world
-references. It is not unconfigured or broken. Validate its references even with
-zero magnitude or no target. Preserve available source configuration when a
-collapsed beam or missing reference makes resolved values unavailable. Record
-those issues; do not substitute world references, disable sources, or introduce
-separate force-status getters. Inspection does not apply reactions or retry work.
+Zero/no-target sources are valid inactive configurations. Explicit references
+are checked even at zero magnitude or without a target. Stored descriptions
+remain available when a reference is missing or geometry cannot resolve;
+issues identify reference failures or an unavailable calculation. Copies remain
+valid after edits, deletion, slot reuse, and engine restart. No force-specific
+status getter is added.
 
 ## Implementation acceptance criteria
 

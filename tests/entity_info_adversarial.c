@@ -103,13 +103,15 @@ static void numeric_and_removal(void) {
     OK(physics_velocity_set(e,(Velocity){0}));
     EntityInfo zero=get(e,F(PHYSICS_VELOCITY)); assert(zero.available==zero.requested && issues(&zero,zero.requested)==0);
     OK(entity_info_release(&zero));
-    Entity target=make(); OK(physics_force_set(e,(Force){0}));
+    Entity target=make(); OK(physics_force_description_set(e, (ForceDescription){0}));
+    OK(physics_force_target_set(e,target));
     OK(entity_delete(target));
     OK(TargetPool_store_at(&targets_pool,i,target)); entity_mask[i] |= ROHR_TARGETABLE;
     EntityInfo stale=get(e,F(CORE_TARGET)|F(PHYSICS_FORCE));
-    assert(stale.target==target && stale.force.x==0 && stale.available==stale.requested);
+    assert(stale.target==target && stale.force.magnitude==0 && stale.available==stale.requested);
     assert(issues(&stale,F(CORE_TARGET))==1 && issues(&stale,F(PHYSICS_FORCE))==1);
     targets[i]=0;
+    OK(physics_force_target_set(e,0));
     EntityInfo repaired=get(e,F(CORE_TARGET)|F(PHYSICS_FORCE));
     assert(issues(&repaired,ROHR_ENTITY_INFO)==0 && issues(&stale,ROHR_ENTITY_INFO)==2);
     OK(entity_info_release(&stale)); OK(entity_info_release(&repaired));

@@ -1080,77 +1080,51 @@ EngineResult rohr_physics_kinematic_driven_set(Entity entity);
 EngineResult rohr_physics_kinematic_driven_remove(Entity entity);
 bool rohr_physics_kinematic_driven_check(Entity entity);
 
-/**
- * @brief Creates a persistent force source targeting an entity.
- * The caller owns the returned source: entity_delete(source) stops its force
- * without deleting the target. Setting its force to zero preserves the source.
- * @param entity Target body.
- * @param f Force value.
- * @return EntityResult containing the new source on success, or an error.
- */
-EntityResult rohr_physics_force_create(Entity entity, Force f);
+/** Copies a description into one persistent source; delete its entity to stop future contributions. */
+EntityResult rohr_physics_force_add(ForceDescription description);
+/** Copies a description into one persistent source; delete its entity to stop future contributions. */
+EntityResult rohr_physics_torque_add(TorqueDescription description);
 
-/**
- * @brief Replaces or adds stored force on an existing source entity.
- * Preserves its target; does not accumulate or create a source entity.
- * @param entity Source entity to modify.
- * @param force Force component value.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_force_set(Entity entity, Force force);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+ForceDescriptionResult rohr_physics_force_description_get(Entity source);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+TorqueDescriptionResult rohr_physics_torque_description_get(Entity source);
+/** Atomically stores the complete description on a live entity; invalid input leaves it unchanged. */
+EngineResult rohr_physics_force_description_set(Entity source, ForceDescription description);
+/** Atomically stores the complete description on a live entity; invalid input leaves it unchanged. */
+EngineResult rohr_physics_torque_description_set(Entity source, TorqueDescription description);
 
-/**
- * @brief Returns a source's stored force, not the total force on its target.
- * @param entity Source entity to read.
- * @return ForceResult containing the force, or an invalid-entity/missing-component error.
- */
-ForceResult rohr_physics_force_get(Entity entity);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_force_target_set(Entity source, Entity target);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+EntityResult rohr_physics_force_target_get(Entity source);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_force_location_set(Entity source, ForceLocation location);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+ForceLocationResult rohr_physics_force_location_get(Entity source);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_force_orientation_set(Entity source, ForceOrientation orientation);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+ForceOrientationResult rohr_physics_force_orientation_get(Entity source);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_force_magnitude_set(Entity source, float magnitude);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+ForceMagnitudeResult rohr_physics_force_magnitude_get(Entity source);
 
-/**
- * @brief Accumulates force on an entity for one engine physics tick.
- * Includes every substep of that tick. Repeated calls add contributions.
- * Uses the engine tick lifetime; manual physics updates do not advance expiry.
- * @param entity Entity to target.
- * @param f Force vector.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_force_apply(Entity entity, Force f);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_torque_target_set(Entity source, Entity target);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+EntityResult rohr_physics_torque_target_get(Entity source);
+/** Replaces this field on an existing source using full-description validation. */
+EngineResult rohr_physics_torque_magnitude_set(Entity source, Torque magnitude);
+/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+TorqueResult rohr_physics_torque_magnitude_get(Entity source);
 
-/**
- * @brief Creates a persistent torque source targeting an entity.
- * The caller owns the returned source: entity_delete(source) stops its torque
- * without deleting the target. Setting its torque to zero preserves the source.
- * @param entity Target body.
- * @param t Torque value.
- * @return EntityResult containing the new source on success, or an error.
- */
-EntityResult rohr_physics_torque_create(Entity entity, Torque t);
+/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1. */
+EngineResult rohr_physics_force_apply(ForceDescription description);
+/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1. */
+EngineResult rohr_physics_torque_apply(TorqueDescription description);
 
-/**
- * @brief Replaces or adds stored torque on an existing source entity.
- * Preserves its target; does not accumulate or create a source entity.
- * @param entity Source entity to modify.
- * @param torque Torque component value.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_torque_set(Entity entity, Torque torque);
-
-/**
- * @brief Returns a source's stored torque, not the total torque on its target.
- * @param entity Source entity to read.
- * @return TorqueResult containing the torque, or an invalid-entity/missing-component error.
- */
-TorqueResult rohr_physics_torque_get(Entity entity);
-
-/**
- * @brief Accumulates torque on an entity for one engine physics tick.
- * Includes every substep of that tick. Repeated calls add contributions.
- * Uses the engine tick lifetime; manual physics updates do not advance expiry.
- * @param entity Entity to target.
- * @param t Torque value.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_torque_apply(Entity entity, Torque t);
 
 /**
  * @brief Sets a simple polygon hitbox and prepares hidden convex decomposition when needed.
@@ -1549,13 +1523,7 @@ EngineResult rohr_physics_soft_body_node_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-/**
- * @brief Applies a force to one soft-body node for the next physics tick.
- * @param node Soft-body node entity.
- * @param force Force to apply.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_soft_body_node_force_apply(Entity node, Force force);
+
 /**
  * @brief Applies an immediate impulse to one soft-body node.
  * @param node Soft-body node entity.

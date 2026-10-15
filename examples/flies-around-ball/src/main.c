@@ -3,12 +3,23 @@
  */
 
 #include "rohr.h"
+
+#include <math.h>
 #include "example_viewport.h"
 #include "example_input.h"
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include "elderfly_descriptors.h"
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 const Color background_color = {255,255,255,255};
 const int amount_of_entities = 20;
@@ -224,17 +235,17 @@ int main(void) {
             turn_result.result.value;
 
         if(ticks_advanced > 0 && (move_axis.x != 0.0f || move_axis.y != 0.0f)) {
-            EngineResult force_result = rohr_physics_force_apply(ball, (Force){
+            EngineResult force_result = rohr_physics_force_apply(force_vector_description(ball, (Force){
                 .x = move_axis.x * ball_mass * ball_control_acceleration,
                 .y = move_axis.y * ball_mass * ball_control_acceleration
-            });
+            }));
             if(rohr_error_check(force_result)) {
                 PRINT_ENGINE_ERROR(force_result);
                 goto fail;
             }
         }
         if(ticks_advanced > 0 && turn_axis != 0.0f) {
-            EngineResult torque_result = rohr_physics_torque_apply(ball, turn_axis * ball_control_torque);
+            EngineResult torque_result = rohr_physics_torque_apply((TorqueDescription){.target = ball, .magnitude = turn_axis * ball_control_torque});
             if(rohr_error_check(torque_result)) {
                 PRINT_ENGINE_ERROR(torque_result);
                 goto fail;

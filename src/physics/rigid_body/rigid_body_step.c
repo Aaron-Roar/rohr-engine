@@ -77,7 +77,7 @@ static void system_orientations_update(double dt, Report *report) {
         EntityIndex i;
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY) ||
-                entity_index_components_check(i, ROHR_PARTICLE)) continue;
+                physics_entity_nonrotating_check(i)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ORIENTATION);
         physics_change_orientation_set(&change, orientations[i] + angular_velocities[i] * dt);
         (void)physics_changes_commit(&change, 1, report, ROHR_PHYSICS_ORIENTATION,
@@ -91,7 +91,7 @@ static void system_angular_velocities_update(double dt, Report *report) {
         if(!physics_step_alive_index_at(n, &i) || !physics_entity_movable_get(i) ||
                 entity_index_components_check(i, ROHR_SOFT_BODY)) continue;
         PhysicsChange change = physics_change_get(i, PHYSICS_CHANGE_ANGULAR_VELOCITY);
-        change.angular_velocity = entity_index_components_check(i, ROHR_PARTICLE) ? 0.0f :
+        change.angular_velocity = physics_entity_nonrotating_check(i) ? 0.0f :
             angular_velocities[i] + (angular_accelerations[i] + torque_angular_accelerations[i]) * dt;
         (void)physics_changes_commit(&change, 1, report, ROHR_PHYSICS_ANGULAR_VELOCITY,
             physics_operation_entity_get(i), 0);
@@ -138,29 +138,7 @@ static void system_velocities_update(double dt, Report *report) {
 }
 
 static void system_loads_apply(Report *report, bool torque) {
-    RohrComponentMask filter = ROHR_TARGETABLE | (torque ? ROHR_TORQUE : ROHR_FORCE);
-    PhysicsReportStage stage = torque ? ROHR_PHYSICS_TORQUE_CONTRIBUTION : ROHR_PHYSICS_FORCE_CONTRIBUTION;
-    for(uint32_t n = 0; n < entity_alive_count_get(); ++n) {
-        EntityIndex i, target;
-        if(!physics_step_alive_index_at(n, &i) || !entity_index_components_check(i, filter) ||
-                entity_index_components_check(i, ROHR_HOLD)) continue;
-        Entity source = physics_operation_entity_get(i);
-        if(!entity_index_get(targets[i], &target) || !entity_index_alive_check(target)) {
-            physics_operation_reject(report, stage, ERROR_ENGINE_INVALID_ENTITY, source, targets[i]);
-            continue;
-        }
-        if(!physics_entity_simulated_get(target) ||
-                !entity_index_components_check(target, ROHR_MASS) || mass[target] == 0) continue;
-        PhysicsChange change = physics_change_get(target, torque ?
-            PHYSICS_CHANGE_TORQUE_ACCELERATION : PHYSICS_CHANGE_FORCE_ACCELERATION);
-        if(torque) change.torque_acceleration += math_radians_to_degrees(
-            torques[i] * physics_inverse_inertia_by_index_get(target));
-        else {
-            change.force_acceleration.x += forces[i].x / mass[target];
-            change.force_acceleration.y += forces[i].y / mass[target];
-        }
-        (void)physics_changes_commit(&change, 1, report, stage, source, targets[i]);
-    }
+    physics_sources_apply(report, torque);
 }
 
 void system_force_torque_accelerations_clear(void) {
@@ -376,10 +354,10 @@ Vec2D system_friction_impulse_apply(
 ) {
     bool moving_1 = physics_entity_movable_get(entity_1);
     bool moving_2 = physics_entity_movable_get(entity_2);
-    Vec2D angular_v1 = !moving_1 || entity_index_components_check(entity_1, ROHR_PARTICLE)
+    Vec2D angular_v1 = !moving_1 || physics_entity_nonrotating_check(entity_1)
         ? (Vec2D){0}
         : math_angular_velocity_cross_vec(angular_velocities[entity_1], r1);
-    Vec2D angular_v2 = !moving_2 || entity_index_components_check(entity_2, ROHR_PARTICLE)
+    Vec2D angular_v2 = !moving_2 || physics_entity_nonrotating_check(entity_2)
         ? (Vec2D){0}
         : math_angular_velocity_cross_vec(angular_velocities[entity_2], r2);
 
@@ -490,11 +468,11 @@ static bool system_contact_point_solve(
     Vec2D first_offset = math_vector_subtract(point, physics_com_world_by_index_get(first));
     Vec2D second_offset = math_vector_subtract(point, physics_com_world_by_index_get(second));
     Vec2D first_angular_velocity = !moving_first ||
-            entity_index_components_check(first, ROHR_PARTICLE)
+            physics_entity_nonrotating_check(first)
         ? (Vec2D){0}
         : math_angular_velocity_cross_vec(angular_velocities[first], first_offset);
     Vec2D second_angular_velocity = !moving_second ||
-            entity_index_components_check(second, ROHR_PARTICLE)
+            physics_entity_nonrotating_check(second)
         ? (Vec2D){0}
         : math_angular_velocity_cross_vec(angular_velocities[second], second_offset);
     Velocity current_relative_velocity = {
@@ -615,10 +593,10 @@ ContactInfo system_resolve_collision(
         result.points[i].position = manifold.points[i];
     }
     if(inverse_mass_first + inverse_mass_second <= 0.0f) return result;
-    if(!first_particle && inverse_mass_first > 0.0f) {
+    if(!physics_entity_nonrotating_check(first) && inverse_mass_first > 0.0f) {
         inverse_inertia_first = physics_inverse_inertia_by_index_get(first);
     }
-    if(!second_particle && inverse_mass_second > 0.0f) {
+    if(!physics_entity_nonrotating_check(second) && inverse_mass_second > 0.0f) {
         inverse_inertia_second = physics_inverse_inertia_by_index_get(second);
     }
     for(uint8_t i = 0; i < result.point_count; i += 1) {
@@ -664,8 +642,6 @@ static ContactInfo system_resolve_collision_manifold(
         .depth = manifold->depth
     };
     {
-        bool first_particle = entity_index_components_check(first, ROHR_PARTICLE);
-        bool second_particle = entity_index_components_check(second, ROHR_PARTICLE);
         float inverse_mass_first = physics_entity_simulated_get(first)
             ? 1.0f / mass[first] : 0.0f;
         float inverse_mass_second = physics_entity_simulated_get(second)
@@ -673,12 +649,10 @@ static ContactInfo system_resolve_collision_manifold(
         float inverse_inertia_first = 0.0f;
         float inverse_inertia_second = 0.0f;
 
-        (void)first_particle;
-        (void)second_particle;
-        if(!first_particle && inverse_mass_first > 0.0f) {
+        if(!physics_entity_nonrotating_check(first) && inverse_mass_first > 0.0f) {
             inverse_inertia_first = physics_inverse_inertia_by_index_get(first);
         }
-        if(!second_particle && inverse_mass_second > 0.0f) {
+        if(!physics_entity_nonrotating_check(second) && inverse_mass_second > 0.0f) {
             inverse_inertia_second = physics_inverse_inertia_by_index_get(second);
         }
         result = (ContactInfo){
@@ -994,7 +968,7 @@ static void system_angle_locks_apply(Report *report) {
             continue;
         }
         PhysicsChange changes[] = {
-            physics_change_get(entity, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION | PHYSICS_CHANGE_ANGULAR_VELOCITY | PHYSICS_CHANGE_ANGULAR_ACCELERATION | PHYSICS_CHANGE_TORQUE_ACCELERATION | PHYSICS_CHANGE_TORQUE)
+            physics_change_get(entity, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_ORIENTATION | PHYSICS_CHANGE_ANGULAR_VELOCITY | PHYSICS_CHANGE_ANGULAR_ACCELERATION | PHYSICS_CHANGE_TORQUE_ACCELERATION)
         };
         Orientation min = angle_locks[entity].min;
         Orientation max = angle_locks[entity].max;
@@ -1010,7 +984,6 @@ static void system_angle_locks_apply(Report *report) {
             changes[0].angular_velocity = 0.0f;
             changes[0].angular_acceleration = 0.0f;
             changes[0].torque_acceleration = 0.0f;
-            changes[0].torque = 0.0f;
             (void)physics_changes_commit(changes, 1, report, ROHR_PHYSICS_ANGLE_LOCK,
             physics_operation_entity_get(entity), 0);
             continue;
@@ -1031,9 +1004,6 @@ static void system_angle_locks_apply(Report *report) {
                 changes[0].torque_acceleration = 0.0f;
             }
 
-            if(changes[0].torque < 0.0f) {
-                changes[0].torque = 0.0f;
-            }
         }
 
         if(changes[0].orientation > max) {
@@ -1051,9 +1021,6 @@ static void system_angle_locks_apply(Report *report) {
                 changes[0].torque_acceleration = 0.0f;
             }
 
-            if(changes[0].torque > 0.0f) {
-                changes[0].torque = 0.0f;
-            }
         }
         (void)physics_changes_commit(changes, 1, report, ROHR_PHYSICS_ANGLE_LOCK,
             physics_operation_entity_get(entity), 0);
@@ -1077,7 +1044,7 @@ static void system_axis_locks_apply(Report *report) {
         }
 
         PhysicsChange changes[] = {
-            physics_change_get(entity, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ACCELERATION | PHYSICS_CHANGE_FORCE_ACCELERATION | PHYSICS_CHANGE_FORCE)
+            physics_change_get(entity, PHYSICS_CHANGE_POSITION | PHYSICS_CHANGE_VELOCITY | PHYSICS_CHANGE_ACCELERATION | PHYSICS_CHANGE_FORCE_ACCELERATION)
         };
         Axis axis = axis_locks[entity].axis;
 
@@ -1105,7 +1072,7 @@ static void system_axis_locks_apply(Report *report) {
 
         Vec2D radius = math_vector_rotate(physics_com_local_by_index_get(entity),
             changes[0].orientation);
-        float omega = entity_index_components_check(entity, ROHR_PARTICLE) ?
+        float omega = physics_entity_nonrotating_check(entity) ?
             0.0f : changes[0].angular_velocity;
         Vec2D rotational = math_angular_velocity_cross_vec(omega, radius);
         Velocity origin_velocity = math_vector_subtract(changes[0].velocity, rotational);
@@ -1116,7 +1083,6 @@ static void system_axis_locks_apply(Report *report) {
         changes[0].acceleration = math_project_onto_axis(changes[0].acceleration, axis);
         changes[0].force_acceleration = math_project_onto_axis(changes[0].force_acceleration, axis);
 
-        changes[0].force = math_project_onto_axis(changes[0].force, axis);
         (void)physics_changes_commit(changes, 1, report, ROHR_PHYSICS_AXIS_LOCK,
             physics_operation_entity_get(entity), 0);
     }
@@ -1172,7 +1138,7 @@ static void system_transform_locks_apply(Report *report) {
 
         if(transform_locks[driven].inherit_velocity) {
             if(transform_locks[driven].lock_orientation)
-                changes[0].angular_velocity = entity_index_components_check(driven, ROHR_PARTICLE) ?
+                changes[0].angular_velocity = physics_entity_nonrotating_check(driven) ?
                     0.0f : angular_velocities[driver_index];
             Vec2D driver_com_offset = math_vector_rotate(
                 physics_com_local_by_index_get(driver_index), orientations[driver_index]);

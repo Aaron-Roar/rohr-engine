@@ -6,7 +6,17 @@
 #include "project_viewports.h"
 
 #include <math.h>
+
 #include <stdio.h>
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 #define PLAYER_CONTACT_LIMIT 32
 
@@ -97,12 +107,8 @@ int main(void) {
                         velocity.x > -player_horizontal_speed_maximum) ||
                      (move_axis > 0.0f &&
                         velocity.x < player_horizontal_speed_maximum)) &&
-                    !ok(rohr_physics_force_apply(
-                        objects.player_world.player,
-                        (Force){move_axis * player_move_force, 0.0f}))) goto fail;
-            if(jump_queued && !ok(rohr_physics_force_apply(
-                    objects.player_world.player,
-                    (Force){0.0f, player_jump_force}))) goto fail;
+                    !ok(rohr_physics_force_apply(force_vector_description(objects.player_world.player, (Force){move_axis * player_move_force, 0.0f})))) goto fail;
+            if(jump_queued && !ok(rohr_physics_force_apply(force_vector_description(objects.player_world.player, (Force){0.0f, player_jump_force})))) goto fail;
             jump_queued = false;
         }
 

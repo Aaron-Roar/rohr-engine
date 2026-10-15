@@ -4,6 +4,9 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rohr_installed_sdk_consumer LANGUAGES C)
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 find_package(Rohr CONFIG REQUIRED)
 
@@ -32,4 +35,12 @@ if(MSVC)
     target_compile_options(rohr_entity_info_adversarial PRIVATE /UNDEBUG)
 else()
     target_compile_options(rohr_entity_info_adversarial PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
+add_executable(rohr_forces ../forces.c)
+target_link_libraries(rohr_forces PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_forces PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_forces PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 endif()

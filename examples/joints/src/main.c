@@ -3,10 +3,21 @@
  */
 
 #include "rohr.h"
+
+#include <math.h>
 #include "example_viewport.h"
 #include "example_input.h"
 
 #include <stdio.h>
+
+static ForceDescription force_vector_description(Entity target, Force vector) {
+    return (ForceDescription){.target = target,
+        .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},
+        .orientation.offset = vector.x == 0 && vector.y == 0 ? 0 :
+            math_radians_to_degrees(atan2f(vector.x, vector.y)),
+        .magnitude = hypotf(vector.x, vector.y)};
+}
+
 
 #define BODY_COUNT 6
 
@@ -211,11 +222,8 @@ int main(void) {
             Force force = throws[throw_index % (sizeof(throws) / sizeof(throws[0]))];
             force.x *= burst_force_scale;
             force.y *= burst_force_scale;
-            if(!result_ok(rohr_physics_force_apply(body, force)) ||
-                    !result_ok(rohr_physics_torque_apply(
-                        body,
-                        (throw_index % 2 == 0 ? -1.0f : 1.0f) * 1800.0f
-                    ))) goto fail;
+            if(!result_ok(rohr_physics_force_apply(force_vector_description(body, force))) ||
+                    !result_ok(rohr_physics_torque_apply((TorqueDescription){.target = body, .magnitude = (throw_index % 2 == 0 ? -1.0f : 1.0f) * 1800.0f}))) goto fail;
             throw_index += 1;
             next_throw += 1.5;
         }

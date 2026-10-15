@@ -61,7 +61,10 @@ static bool report_statistic_check(ReportStatistic value) {
             value.metric_id == ROHR_REPORT_AUDIO_FRAMES_COUNT ||
             value.metric_id == ROHR_REPORT_CANCELLED_COMMAND_COUNT ||
             value.metric_id == ROHR_REPORT_TICKS_ADVANCED_COUNT ||
-            value.metric_id == ROHR_REPORT_EXPIRED_ENTITY_COUNT)
+            value.metric_id == ROHR_REPORT_EXPIRED_ENTITY_COUNT ||
+            value.metric_id == ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT ||
+            value.metric_id == ROHR_REPORT_SOURCE_INACTIVE_COUNT ||
+            value.metric_id == ROHR_REPORT_SOURCE_SUSPENDED_COUNT)
         expected = ROHR_REPORT_AGGREGATION_SUM;
     else if(value.metric_id >= ROHR_REPORT_UI_INTERACTION_EVALUATION_COUNT &&
             value.metric_id <= ROHR_REPORT_UI_EVENT_DROPPED_COUNT)

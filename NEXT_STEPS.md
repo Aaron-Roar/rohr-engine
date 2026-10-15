@@ -1119,8 +1119,8 @@ reproducible adversarial tests and fix confirmed defects within existing contrac
    platforms and pass bounded Linux headless launches outside their source
    directories. Windows validation is compile-only.
 
-All three goals are complete. Unified Forces and Torques implementation remains
-pending explicit user instruction.
+All three goals are complete. Unified Forces and Torques progress is recorded
+below.
 
 ## Milestone: Unified Forces and Torques
 
@@ -1131,20 +1131,28 @@ Forces and Torques milestone and precedes numbered priority 4.
 
 The [force/torque contract](docs/force_torque_contract.md) is authoritative for
 approved behavior. Goal 1 is fulfilled by the documentation reconciliation
-milestone; no force/torque API or physics changes have been implemented here.
-Entity Inspection definition and implementation must complete before Goal 2.
-Editor handle presentation is finalized in the relevant editor goals.
+milestone. Entity Inspection and Diagnostic Reliability are complete. Goal 2
+implements shared sources and rigid-body/particle behavior; receiving beam and
+whole-soft-body loads remain Goals 3 and 4. Editor handle presentation is
+finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
    Contract and Roadmap Reconciliation**, with types, signatures, beam behavior,
    validation, lifetime, migration, examples, and acceptance criteria recorded.
-2. [ ] **Implement shared sources and rigid-body/particle behavior** — Add
-   force-at-point support, consistent one-tick and persistent source handling,
-   one by-value description-based add path, mutation, and deletion. Verify
-   shared validation, valid zero/no-target sources, reference suspension,
-   translation and rotation, particle position ignoring, particle torque no-ops,
-   and rigid bodies containing particles. Integrate current source details into
-   the entity-info API rather than introducing dedicated status getters.
+2. [x] **Implement shared sources and rigid-body/particle behavior** — Added
+   copied description APIs, atomic mutation, engine-tick applications, all
+   location/orientation references, and coupled force-at-point response.
+   Standalone particles/nodes remain nonrotating; rigid bodies with particle
+   properties retain angular response. Entity-info captures descriptions and
+   eligibility; reports count contributing, inactive, and suspended evaluations.
+   Migrated callers, source persistence (runtime state version 5), SDK consumers,
+   examples, and generated C11 scaffolds. Allocation-failure regressions exposed
+   and fixed incomplete table-growth retries; malformed beam references reject
+   before source creation. All 84 native tests and nine focused ASan/UBSan tests
+   pass with leak detection. Linux and Windows builds pass without compiler
+   warnings. Five installed-SDK consumers, all 12 standalone examples, and a
+   generated project build on both platforms and run on Linux outside their
+   source directories. Windows verification is compilation only.
 3. [ ] **Implement local beam loads** — Distribute force and torque to endpoint
    nodes without child source entities. Verify net force and torque, local
    deformation, collapsed beams, endpoint changes, and deletion.
@@ -1193,13 +1201,16 @@ Editor handle presentation is finalized in the relevant editor goals.
 
 ### Existing support and verification
 
-Existing force/torque create/set/get/apply APIs store vector/scalar values and
-an entity target. They have no general public force application point. Current
-whole-soft-body helper APIs distribute one-tick loads via node sources; the
-new contract replaces that implementation with one source and substep
-accumulation. A private joint helper calculates force-at-point response, but
-it creates separate force and torque source entities and is not the proposed
-shared implementation.
+The shared add/description/field/apply APIs replace the old vector/scalar source
+signatures without aliases. Nodes use the shared API; whole-soft-body helper
+APIs retain their current node-source distribution until Goal 4. Joint point
+loads now use one force-at-point source per endpoint. Beam references are
+implemented, but shared sources targeting a beam or whole soft body suspend
+until the corresponding receiving-load implementation is completed. Existing
+runtime state serializes source descriptions; authored source persistence and
+soft-body topology remain later work.
+
+Goal 3, local beam loads, is next and requires explicit user instruction.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

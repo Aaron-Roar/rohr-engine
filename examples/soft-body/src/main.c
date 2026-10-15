@@ -296,7 +296,7 @@ static bool wheel_create(Wheel *wheel, Entity chassis, Position center,
 }
 
 static EngineResult wheel_drive_apply(Entity disk, float drive_axis) {
-    return rohr_physics_torque_apply(disk, drive_axis * control_torque);
+    return rohr_physics_torque_apply((TorqueDescription){.target = disk, .magnitude = drive_axis * control_torque});
 }
 
 static const Color background_color = {18, 22, 30, 255};

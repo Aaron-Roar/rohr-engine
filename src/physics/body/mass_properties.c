@@ -111,7 +111,7 @@ Velocity physics_point_velocity_by_index_get(EntityIndex index, Position point) 
     if(!physics_entity_movable_get(index)) return (Velocity){0};
     Vec2D lever = math_vector_subtract(point, physics_com_world_by_index_get(index));
     Vec2D angular = math_angular_velocity_cross_vec(
-        entity_index_components_check(index, ROHR_PARTICLE) ? 0 : angular_velocities[index],
+        physics_entity_nonrotating_check(index) ? 0 : angular_velocities[index],
         lever);
     return (Velocity){velocities[index].x + angular.x, velocities[index].y + angular.y};
 }
@@ -125,7 +125,7 @@ static double inertia_get(EntityIndex index, Position com) {
 
 float physics_inverse_inertia_by_index_get(EntityIndex index) {
     if(!physics_entity_simulated_get(index) ||
-            entity_index_components_check(index, ROHR_PARTICLE) ||
+            physics_entity_nonrotating_check(index) ||
             !geometry_present_check(index)) return 0;
     if(entity_index_components_check(index, ROHR_ANGLE_LOCK) &&
             angle_locks[index].min == angle_locks[index].max) return 0;

@@ -2387,7 +2387,7 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
     cmake_length = snprintf(cmake, sizeof(cmake),
         "cmake_minimum_required(VERSION 3.20)\n"
         "project(%s LANGUAGES C)\n\n"
-        "set(CMAKE_C_STANDARD 99)\n"
+        "set(CMAKE_C_STANDARD 11)\n"
         "set(CMAKE_C_STANDARD_REQUIRED ON)\n"
         "if(DEFINED ROHR_ENGINE_SOURCE_ROOT AND "
             "EXISTS \"${ROHR_ENGINE_SOURCE_ROOT}/CMakeLists.txt\")\n"
