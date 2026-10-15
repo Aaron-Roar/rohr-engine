@@ -242,6 +242,121 @@ static void malformed_and_parity(void) {
     assert(report_valid_check(&a) && rohr_report_valid_check(&b));
 }
 
+/* Independent per-key arithmetic with all three stores full simultaneously. */
+static void seeded_full_buffers(void) {
+    Report r = make_report(ROHR_PHYSICS_REPORT_ID);
+    uint64_t entries[ROHR_REPORT_ENTRY_CAPACITY], stats[ROHR_REPORT_STATISTIC_CAPACITY] = {0};
+    uint64_t diagnostics[ROHR_REPORT_DIAGNOSTIC_CAPACITY];
+    for(size_t i = 0; i < ROHR_REPORT_ENTRY_CAPACITY; ++i) {
+        entries[i] = 1;
+        OK(report_entry_add(&r, (ReportEntry){.header = {
+            (ReportId)(ROHR_REPORT_CUSTOM_ID_BEGIN+i), ROHR_REPORT_COMPLETE, 1}, .invocation_count = 1}));
+    }
+    for(size_t i = 0; i < ROHR_REPORT_STATISTIC_CAPACITY; ++i)
+        OK(report_statistic_add(&r, stat((ReportMetricId)(ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN+i),
+            (ReportAggregation)(ROHR_REPORT_AGGREGATION_SUM+i%3), 0)));
+    for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; ++i) {
+        diagnostics[i] = 1;
+        OK(report_diagnostic_add(&r, issue(i, ROHR_REPORT_SEVERITY_WARNING)));
+    }
+    uint32_t seed = 0x70421u;
+    uint64_t lost_entries = 0, lost_stats = 0, lost_diagnostics = 0;
+    for(unsigned step = 0; step < 512; ++step) {
+        seed = seed * 1664525u + 1013904223u;
+        size_t e = seed % (ROHR_REPORT_ENTRY_CAPACITY+3);
+        size_t s = (seed >> 8) % (ROHR_REPORT_STATISTIC_CAPACITY+3);
+        size_t d = (seed >> 16) % (ROHR_REPORT_DIAGNOSTIC_CAPACITY+3);
+        uint64_t n = 1 + seed % 17;
+        OK(report_entry_add(&r, (ReportEntry){.header = {
+            (ReportId)(ROHR_REPORT_CUSTOM_ID_BEGIN+e), ROHR_REPORT_COMPLETE, (double)n}, .invocation_count = n}));
+        OK(report_statistic_add(&r, stat((ReportMetricId)(ROHR_REPORT_CUSTOM_METRIC_ID_BEGIN+s),
+            (ReportAggregation)(ROHR_REPORT_AGGREGATION_SUM+s%3), n)));
+        ReportDiagnostic diagnostic = issue(d, ROHR_REPORT_SEVERITY_WARNING);
+        diagnostic.occurrence_count = n;
+        OK(report_diagnostic_add(&r, diagnostic));
+        if(e < ROHR_REPORT_ENTRY_CAPACITY) entries[e] += n; else ++lost_entries;
+        if(s >= ROHR_REPORT_STATISTIC_CAPACITY) ++lost_stats;
+        else if(s%3 == 0) stats[s] += n;
+        else if(s%3 == 2 || n > stats[s]) stats[s] = n;
+        if(d < ROHR_REPORT_DIAGNOSTIC_CAPACITY) diagnostics[d] += n; else lost_diagnostics += n;
+    }
+    for(size_t i = 0; i < ROHR_REPORT_ENTRY_CAPACITY; ++i) {
+        assert(r.entries[i].invocation_count == entries[i]);
+        assert(r.entries[i].header.total_ms == (double)entries[i]);
+    }
+    for(size_t i = 0; i < ROHR_REPORT_STATISTIC_CAPACITY; ++i) assert(r.statistics[i].value == stats[i]);
+    for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; ++i) assert(r.diagnostics[i].occurrence_count == diagnostics[i]);
+    assert(r.dropped_entry_count == lost_entries && lost_entries > 0);
+    assert(r.dropped_statistic_count == lost_stats && lost_stats > 0);
+    assert(r.dropped_diagnostic_occurrences == lost_diagnostics && lost_diagnostics > 0);
+    ReportDiagnostic fatal = issue(UINT64_MAX, ROHR_REPORT_SEVERITY_FATAL);
+    char original[ROHR_REPORT_DETAIL_CAPACITY+9];
+    memset(original, 'f', sizeof(original)); original[sizeof(original)-1] = 0;
+    OK(report_diagnostic_detail_set(&fatal, original));
+    OK(report_diagnostic_add(&r, fatal));
+    memset(original, 'z', sizeof(original));
+    Report source = r;
+    for(unsigned i = 0; i < 3; ++i) OK(report_merge(&r, &source));
+    assert(r.first_fatal.occurrence_count == 4 && r.first_fatal.detail_truncated);
+    assert(r.first_fatal.detail[0] == 'f' && r.first_fatal.source.id == UINT64_MAX);
+    assert(r.dropped_diagnostic_occurrences == 4*lost_diagnostics);
+    assert(r.dropped_entry_count == 4*lost_entries+3); /* Source roots cannot fit. */
+    assert(r.dropped_statistic_count == 4*lost_stats);
+    r.dropped_entry_count = r.dropped_statistic_count = r.dropped_diagnostic_occurrences = UINT64_MAX-1;
+    r.entries[0].invocation_count = UINT64_MAX-1;
+    r.entries[0].header.total_ms = DBL_MAX;
+    r.statistics[0].value = UINT64_MAX-1;
+    r.diagnostics[0].occurrence_count = UINT64_MAX-1;
+    OK(report_merge(&r, &source));
+    assert(r.dropped_entry_count == UINT64_MAX && r.dropped_statistic_count == UINT64_MAX);
+    assert(r.dropped_diagnostic_occurrences == UINT64_MAX && r.counters_saturated);
+    assert(r.entries[0].invocation_count == UINT64_MAX && r.entries[0].header.total_ms == DBL_MAX);
+    assert(r.statistics[0].value == UINT64_MAX && r.diagnostics[0].occurrence_count == UINT64_MAX);
+    assert(report_valid_check(&r));
+}
+
+static void invalid_matrix(void) {
+    Report good = make_report(ROHR_PHYSICS_REPORT_ID);
+    OK(report_entry_add(&good, (ReportEntry){.header = {ROHR_UI_REPORT_ID, ROHR_REPORT_COMPLETE, 1}, .invocation_count = 1}));
+    OK(report_statistic_add(&good, stat(ROHR_REPORT_PROCESSED_COUNT, ROHR_REPORT_AGGREGATION_SUM, 1)));
+    OK(report_diagnostic_add(&good, issue(7, ROHR_REPORT_SEVERITY_FATAL)));
+    for(unsigned i = 0; i < 20; ++i) {
+        Report bad = good;
+        switch(i) {
+        case 0: bad.entry_count = SIZE_MAX; break;
+        case 1: bad.statistic_count = SIZE_MAX; break;
+        case 2: bad.diagnostic_count = SIZE_MAX; break;
+        case 3: bad.header.total_ms = INFINITY; break;
+        case 4: bad.header.status = (ReportStatus)-1; break;
+        case 5: bad.entries[0].invocation_count = 0; break;
+        case 6: bad.entries[0].header.total_ms = NAN; break;
+        case 7: bad.entries[1] = bad.entries[0]; bad.entry_count = 2; break;
+        case 8: bad.statistics[0].aggregation = ROHR_REPORT_AGGREGATION_MAX; break;
+        case 9: bad.statistics[1] = bad.statistics[0]; bad.statistic_count = 2; break;
+        case 10: bad.diagnostics[0].code = ERROR_NONE; break;
+        case 11: bad.diagnostics[0].source.kind = (ReportObjectKind)-1; break;
+        case 12: bad.diagnostics[0].target.id = 1; break;
+        case 13: bad.diagnostics[0].occurrence_count = 0; break;
+        case 14: memset(bad.diagnostics[0].detail, 'x', sizeof(bad.diagnostics[0].detail)); break;
+        case 15: memset(bad.first_fatal.detail, 'x', sizeof(bad.first_fatal.detail)); break;
+        case 16: bad.first_fatal.detail[0] = 'x'; break;
+        case 17: bad.has_fatal = false; break;
+        case 18: bad.included_versions[ROHR_INPUT_REPORT_ID] = 1; break;
+        case 19: bad.diagnostics[0].last_substep = 1; break;
+        }
+        Report before = bad, destination = good;
+        assert(!report_valid_check(&bad) && !rohr_report_valid_check(&bad));
+        BAD(report_merge(&destination, &bad));
+        assert(memcmp(&destination, &good, sizeof(good)) == 0);
+        BAD(rohr_report_merge(&bad, &good));
+        BAD(report_header_set(&bad, good.header));
+        BAD(rohr_report_entry_add(&bad, good.entries[0]));
+        BAD(report_statistic_add(&bad, good.statistics[0]));
+        BAD(rohr_report_diagnostic_add(&bad, good.diagnostics[0]));
+        assert(memcmp(&bad, &before, sizeof(bad)) == 0);
+    }
+}
+
 static void copy_and_merge_measurement(void) {
     Report child = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; i += 1)
@@ -259,6 +374,8 @@ static void copy_and_merge_measurement(void) {
 }
 
 int main(void) {
+    seeded_full_buffers();
+    invalid_matrix();
     construction();
     details_and_identity();
     aggregation();

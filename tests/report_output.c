@@ -6,6 +6,7 @@
 #endif
 #include "rohr.h"
 #include "core/console_internal.h"
+#include "core/report_internal.h"
 #include "yyjson/yyjson.h"
 #include <assert.h>
 #include <float.h>
@@ -32,6 +33,8 @@ static const char *text_path = "report_output_test.txt";
 #ifdef ROHR_TEST_ALLOCATION_WRAP
 static int allocation_limit = -1;
 static bool fail_puts, fail_write, fail_flush, fail_close;
+static int puts_limit = -1;
+static bool short_write;
 void *__real_malloc(size_t);
 void *__real_realloc(void *, size_t);
 void *__real_calloc(size_t, size_t);
@@ -48,8 +51,15 @@ static bool allocation_failure(void) {
 void *__wrap_malloc(size_t n) { return allocation_failure() ? NULL : __real_malloc(n); }
 void *__wrap_realloc(void *p, size_t n) { return allocation_failure() ? NULL : __real_realloc(p, n); }
 void *__wrap_calloc(size_t n, size_t s) { return allocation_failure() ? NULL : __real_calloc(n, s); }
-int __wrap_fputs(const char *s, FILE *f) { return fail_puts ? EOF : __real_fputs(s, f); }
-size_t __wrap_fwrite(const void *p, size_t s, size_t n, FILE *f) { return fail_write ? 0 : __real_fwrite(p, s, n, f); }
+int __wrap_fputs(const char *s, FILE *f) {
+    if(fail_puts || puts_limit == 0) return EOF;
+    if(puts_limit > 0) --puts_limit;
+    return __real_fputs(s, f);
+}
+size_t __wrap_fwrite(const void *p, size_t s, size_t n, FILE *f) {
+    if(fail_write) return 0;
+    return __real_fwrite(p, s, short_write ? n/2 : n, f);
+}
 int __wrap_fflush(FILE *f) { return fail_flush ? EOF : __real_fflush(f); }
 int __wrap_fclose(FILE *f) { int r = __real_fclose(f); return fail_close ? EOF : r; }
 #endif
@@ -122,9 +132,80 @@ static Report sample(void) {
     return r;
 }
 
+static void json_u64_equal(yyjson_val *v, uint64_t n) {
+    char expected[32];
+    snprintf(expected, sizeof(expected), "%llu", (unsigned long long)n);
+    string_is(v, expected);
+}
+static void json_header_equal(yyjson_val *v, ReportHeader h) {
+    assert(yyjson_get_uint(get(get(v, "id"), "value")) == (unsigned)h.id);
+    assert(yyjson_get_uint(get(get(v, "status"), "value")) == (unsigned)h.status);
+    assert(yyjson_get_num(get(v, "total_ms")) == h.total_ms);
+}
+static void json_diagnostic_equal(yyjson_val *v, const ReportDiagnostic *d) {
+#define ENUM_EQUAL(field) assert(yyjson_get_uint(get(get(v, #field), "value")) == (unsigned)d->field)
+#define U64_EQUAL(field) json_u64_equal(get(v, #field), d->field)
+    ENUM_EQUAL(report_id); ENUM_EQUAL(internal_stage); ENUM_EQUAL(severity);
+    ENUM_EQUAL(code); ENUM_EQUAL(recovery);
+    U64_EQUAL(occurrence_count); U64_EQUAL(group_version);
+#undef ENUM_EQUAL
+#undef U64_EQUAL
+    assert(yyjson_get_uint(get(get(get(v, "source"), "kind"), "value")) == (unsigned)d->source.kind);
+    assert(yyjson_get_uint(get(get(get(v, "target"), "kind"), "value")) == (unsigned)d->target.kind);
+    json_u64_equal(get(get(v, "source"), "id"), d->source.id);
+    json_u64_equal(get(get(v, "target"), "id"), d->target.id);
+    assert(yyjson_get_bool(get(v, "has_substep")) == d->has_substep);
+    assert(yyjson_get_uint(get(v, "first_substep")) == d->first_substep);
+    assert(yyjson_get_uint(get(v, "last_substep")) == d->last_substep);
+    assert(yyjson_get_bool(get(v, "detail_truncated")) == d->detail_truncated);
+    string_is(get(v, "detail"), d->detail);
+}
+static void json_evidence_equal(const Report *r) {
+    yyjson_doc *doc = json_read(json_path);
+    yyjson_val *root = yyjson_doc_get_root(doc);
+    json_header_equal(get(root, "header"), r->header);
+#define U64_EQUAL(field) json_u64_equal(get(root, #field), r->field)
+    U64_EQUAL(version); U64_EQUAL(invocation_count); U64_EQUAL(dropped_entry_count);
+    U64_EQUAL(dropped_statistic_count); U64_EQUAL(dropped_diagnostic_occurrences);
+#undef U64_EQUAL
+    assert(yyjson_get_bool(get(root, "counters_saturated")) == r->counters_saturated);
+    assert(yyjson_arr_size(get(root, "entries")) == r->entry_count);
+    assert(yyjson_arr_size(get(root, "statistics")) == r->statistic_count);
+    assert(yyjson_arr_size(get(root, "diagnostics")) == r->diagnostic_count);
+    for(size_t i = 0; i < r->entry_count; ++i) {
+        yyjson_val *v = yyjson_arr_get(get(root, "entries"), i);
+        json_header_equal(get(v, "header"), r->entries[i].header);
+        json_u64_equal(get(v, "invocation_count"), r->entries[i].invocation_count);
+        json_u64_equal(get(v, "group_version"), r->entries[i].group_version);
+        assert(yyjson_get_bool(get(v, "group_root")) == r->entries[i].group_root);
+    }
+    for(size_t i = 0; i < r->statistic_count; ++i) {
+        const ReportStatistic *s = &r->statistics[i];
+        yyjson_val *v = yyjson_arr_get(get(root, "statistics"), i);
+        assert(yyjson_get_uint(get(get(v, "report_id"), "value")) == (unsigned)s->report_id);
+        assert(yyjson_get_uint(get(get(v, "metric_id"), "value")) == (unsigned)s->metric_id);
+        assert(yyjson_get_uint(get(get(v, "aggregation"), "value")) == (unsigned)s->aggregation);
+        json_u64_equal(get(v, "value"), s->value);
+        json_u64_equal(get(v, "group_version"), s->group_version);
+    }
+    for(size_t i = 0; i < r->diagnostic_count; ++i)
+        json_diagnostic_equal(yyjson_arr_get(get(root, "diagnostics"), i), &r->diagnostics[i]);
+    if(r->has_fatal) json_diagnostic_equal(get(root, "first_fatal"), &r->first_fatal);
+    else assert(yyjson_is_null(get(root, "first_fatal")));
+    size_t count = 0;
+    for(size_t i = 1; i < ROHR_REPORT_ID; ++i) if(r->included_versions[i]) {
+        yyjson_val *v = yyjson_arr_get(get(root, "included_versions"), count++);
+        assert(yyjson_get_uint(get(get(v, "report_id"), "value")) == i);
+        json_u64_equal(get(v, "version"), r->included_versions[i]);
+    }
+    assert(yyjson_arr_size(get(root, "included_versions")) == count);
+    yyjson_doc_free(doc);
+}
+
 static void json_and_ownership(void) {
     Report r = sample(), saved = r;
     OK(rohr_report_json_write(&r, json_path, false));
+    json_evidence_equal(&r);
     OK(report_json_write(&r, pretty_path, true));
     yyjson_doc *compact = json_read(json_path), *pretty = json_read(pretty_path);
     yyjson_val *root = yyjson_doc_get_root(compact);
@@ -164,6 +245,7 @@ static void json_and_ownership(void) {
 static void empty_and_invalid(void) {
     Report r = report_create();
     OK(report_json_write(&r, json_path, false));
+    json_evidence_equal(&r);
     yyjson_doc *doc = json_read(json_path); yyjson_val *root = yyjson_doc_get_root(doc);
     assert(yyjson_is_null(get(root, "first_fatal")) && yyjson_arr_size(get(root, "diagnostics")) == 0);
     string_is(get(get(get(root, "header"), "status"), "name"), "ROHR_REPORT_NOT_RUN");
@@ -240,6 +322,7 @@ static void capacities_and_truncation(void) {
     OK(report_diagnostic_detail_set(&d, detail)); OK(report_diagnostic_add(&r, d));
     Report saved = r;
     OK(report_json_write(&r, json_path, false));
+    json_evidence_equal(&r);
     yyjson_doc *doc = json_read(json_path); yyjson_val *root = yyjson_doc_get_root(doc);
     assert(yyjson_arr_size(get(root, "entries")) == ROHR_REPORT_ENTRY_CAPACITY);
     assert(yyjson_arr_size(get(root, "statistics")) == ROHR_REPORT_STATISTIC_CAPACITY);
@@ -249,6 +332,23 @@ static void capacities_and_truncation(void) {
     string_is(get(root, "dropped_statistic_count"), "1");
     string_is(get(root, "dropped_diagnostic_occurrences"), "0");
     yyjson_doc_free(doc);
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    /* A full document crosses more allocator growth boundaries than sample(). */
+    int limit;
+    for(limit = 0; limit < 100; ++limit) {
+        sentinel_write(); allocation_limit = limit;
+        EngineResult result = report_json_write(&r, json_path, true);
+        allocation_limit = -1;
+        if(!error_check(result)) break;
+        assert(result.result.error == ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+        sentinel_check();
+        assert(memcmp(&r, &saved, sizeof(r)) == 0);
+        OK(report_json_write(&r, json_path, true));
+        json_evidence_equal(&r);
+    }
+    assert(limit > 2 && limit < 100);
+    json_evidence_equal(&r);
+#endif
     OK(report_text_write(&r, text_path)); char *text = file_read(text_path);
     assert(strstr(text, "[detail truncated]")); free(text);
     Capture c = capture_begin(); FAIL(report_console_write(&r), ERROR_ENGINE_OUTPUT_TRUNCATED);
@@ -264,30 +364,67 @@ static void capacities_and_truncation(void) {
 }
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
+static void retry_check(const Report *r, const Report *saved, const char *expected_text) {
+    OK(report_json_write(r, json_path, false));
+    json_evidence_equal(r);
+    OK(report_text_write(r, text_path));
+    char *text = file_read(text_path);
+    assert(strcmp(text, expected_text) == 0); free(text);
+    assert(memcmp(r, saved, sizeof(*r)) == 0);
+    ReportResult stored = report_get(ROHR_PHYSICS_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value, saved, sizeof(*saved)) == 0);
+}
 static void failures(void) {
-    Report r = sample(), saved = r;
-    int limit;
-    for(limit = 0; limit < 100; limit++) {
-        sentinel_write(); allocation_limit = limit;
-        EngineResult result = report_json_write(&r, json_path, true);
-        allocation_limit = -1;
-        if(!error_check(result)) break;
-        assert(result.result.error == ERROR_MEMORY_POOL_ALLOCATION_FAILED);
-        sentinel_check();
+    Report r = sample();
+    report_publish_internal(&r);
+    Report saved = r;
+    OK(report_text_write(&r, text_path));
+    char *expected_text = file_read(text_path);
+    for(unsigned pretty = 0; pretty < 2; ++pretty) {
+        int limit;
+        for(limit = 0; limit < 100; ++limit) {
+            sentinel_write(); allocation_limit = limit;
+            EngineResult result = report_json_write(&r, json_path, pretty != 0);
+            allocation_limit = -1;
+            if(!error_check(result)) break;
+            assert(result.result.error == ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+            sentinel_check();
+            retry_check(&r, &saved, expected_text);
+        }
+        assert(limit > 2 && limit < 100);
+        json_evidence_equal(&r);
     }
-    assert(limit > 2 && limit < 100);
-    fail_write = true; FAIL(report_json_write(&r, json_path, false), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_write = false;
-    fail_puts = true; FAIL(report_text_write(&r, text_path), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_puts = false;
-    fail_flush = true; FAIL(report_json_write(&r, json_path, false), ERROR_ENGINE_OUTPUT_IO_FAILED);
-    FAIL(report_text_write(&r, text_path), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_flush = false;
-    fail_close = true; FAIL(report_json_write(&r, json_path, false), ERROR_ENGINE_OUTPUT_IO_FAILED);
-    FAIL(report_text_write(&r, text_path), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_close = false;
+    /* Fail every text line in turn, including failures after partial output. */
+    int line;
+    for(line = 0; line < 100; ++line) {
+        puts_limit = line;
+        EngineResult result = report_text_write(&r, text_path);
+        puts_limit = -1;
+        if(!error_check(result)) break;
+        assert(result.result.error == ERROR_ENGINE_OUTPUT_IO_FAILED);
+        retry_check(&r, &saved, expected_text);
+    }
+    assert(line > 10 && line < 100);
+    for(unsigned failure = 0; failure < 4; ++failure) {
+        fail_write = failure == 0; short_write = failure == 1;
+        fail_flush = failure == 2; fail_close = failure == 3;
+        FAIL(report_json_write(&r, json_path, false), ERROR_ENGINE_OUTPUT_IO_FAILED);
+        fail_write = short_write = fail_flush = fail_close = false;
+        retry_check(&r, &saved, expected_text);
+        if(failure < 2) continue;
+        fail_flush = failure == 2; fail_close = failure == 3;
+        FAIL(report_text_write(&r, text_path), ERROR_ENGINE_OUTPUT_IO_FAILED);
+        fail_flush = fail_close = false;
+        retry_check(&r, &saved, expected_text);
+    }
     Capture c = capture_begin();
     fail_puts = true; FAIL(report_console_write(&r), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_puts = false;
     fail_flush = true; FAIL(report_console_write(&r), ERROR_ENGINE_OUTPUT_IO_FAILED); fail_flush = false;
     char *text = capture_end(c); free(text);
-    assert(memcmp(&r, &saved, sizeof(r)) == 0);
+    retry_check(&r, &saved, expected_text);
+    free(expected_text);
 }
+
 #endif
 
 /* Cover the complete built-in vocabulary, including reserved input IDs.
@@ -400,6 +537,7 @@ static void versioned_output(void) {
     }
     r.included_versions[ROHR_UI_REPORT_ID] = 8;
     OK(report_json_write(&r, json_path, false));
+    json_evidence_equal(&r);
     yyjson_doc *doc = json_read(json_path);
     yyjson_val *root = yyjson_doc_get_root(doc);
     string_is(get(root, "version"), "9");

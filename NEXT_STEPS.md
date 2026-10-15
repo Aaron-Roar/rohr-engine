@@ -1091,9 +1091,19 @@ reproducible adversarial tests and fix confirmed defects within existing contrac
    tests under ASan/UBSan with leak detection, Linux/Windows builds and installed
    SDK consumers, standalone example builds, and bounded Linux example launches.
    Windows validation is compile-only.
-2. [ ] **Stress report aggregation and storage** — Exercise overlapping selectors
+2. [x] **Stress report aggregation and storage** — Exercise overlapping selectors
    and versions, full capacities, saturation, first-fatal preservation, reset
-   boundaries, publication ordering, and output failures.
+   boundaries, publication ordering, and output failures. Added independent
+   expectations for 512 seeded full-buffer operations and 96 nested publications
+   across all seven selector combinations, 20 malformed-report cases, correlated
+   concurrent writers/readers, complete JSON evidence comparisons, and allocation,
+   partial-write, flush, close, and retry coverage. No production defect was
+   confirmed; existing report semantics and APIs are unchanged. Verified all 83
+   native tests, nine report suites under ASan/UBSan with leak detection,
+   Linux/Windows builds without compiler warnings, installed-SDK consumers, and
+   independent audio/player-controller example builds. Linux consumers run and
+   both examples pass bounded headless launches outside their source directories.
+   Windows validation is compile-only; operation-level injection remains Goal 3.
 3. [ ] **Verify diagnostics against actual engine failures** — Inject operation
    failures and compare engine state, inspection, and reports; verify unaffected
    work, recovery evidence, and immutable older snapshots.

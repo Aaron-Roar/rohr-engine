@@ -207,6 +207,109 @@ static void selection(void) {
     reports_equal(&r,&all_copy);
 }
 
+/* Each publication contains at most one historical child per level. The oracle
+ * tracks those versions and values directly, without using report composition. */
+static void publication_sequences(void) {
+    enum { LEVELS = 3, HISTORY = 12 };
+    const ReportId ids[LEVELS] = {ROHR_PHYSICS_LOADS_REPORT_ID,
+        ROHR_PHYSICS_SUBSTEP_REPORT_ID, ROHR_PHYSICS_REPORT_ID};
+    static Report history[LEVELS][HISTORY];
+    static uint64_t evidence[LEVELS][HISTORY][LEVELS];
+    static uint64_t versions[LEVELS][HISTORY][LEVELS];
+    unsigned counts[LEVELS] = {0};
+    uint32_t seed = 0xc0147u;
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    forbid_allocation = true;
+#endif
+    for(unsigned step = 0; step < 96; ++step) {
+        seed = seed * 1664525u + 1013904223u;
+        unsigned level = step < LEVELS ? step : seed % LEVELS;
+        unsigned slot = counts[level] % HISTORY;
+        memset(evidence[level][slot], 0, sizeof(evidence[level][slot]));
+        memset(versions[level][slot], 0, sizeof(versions[level][slot]));
+        Report r = value(ids[level], step+1, false);
+        evidence[level][slot][level] = step+1;
+        if(level && counts[level-1]) {
+            unsigned available = counts[level-1] < HISTORY ? counts[level-1] : HISTORY;
+            unsigned old = (seed >> 8) % available;
+            OK(report_merge(&r, &history[level-1][old]));
+            for(unsigned k = 0; k < level; ++k) {
+                evidence[level][slot][k] = evidence[level-1][old][k];
+                versions[level][slot][k] = versions[level-1][old][k];
+            }
+        }
+        report_publish_internal(&r);
+        history[level][slot] = r;
+        versions[level][slot][level] = r.version;
+        ++counts[level];
+        /* Re-publishing an existing version does not replace the stored copy. */
+        Report changed = r;
+        changed.statistics[0].value = UINT64_MAX;
+        report_publish_internal(&changed);
+        Report current = get(ids[level]);
+        assert(memcmp(&current, &r, sizeof(r)) == 0);
+        if(step+1 < LEVELS) continue; /* Replace each earlier test's cached value. */
+        for(unsigned mask = 1; mask < (1u << LEVELS); ++mask) {
+            ReportFlags flags = 0;
+            for(unsigned k = 0; k < LEVELS; ++k) if(mask & (1u << k)) flags |= selectors[ids[k]];
+            Report selected = select_reports(flags);
+            if((mask & (mask-1)) == 0) continue; /* Single getters return verbatim snapshots. */
+            size_t expected_stats = 0, expected_entries = 0, expected_roots = 0;
+            for(unsigned k = 0; k < LEVELS; ++k) {
+                if(!(mask & (1u << k)) || !counts[k]) continue;
+                unsigned latest = (counts[k]-1) % HISTORY;
+                uint64_t version = versions[k][latest][k];
+                bool covered = false;
+                for(unsigned ancestor = k+1; ancestor < LEVELS; ++ancestor) {
+                    if(!(mask & (1u << ancestor)) || !counts[ancestor]) continue;
+                    unsigned a = (counts[ancestor]-1) % HISTORY;
+                    if(versions[ancestor][a][k] == version) covered = true;
+                }
+                assert(roots(&selected, ids[k]) == (covered ? 0u : 1u));
+                if(covered) continue;
+                ++expected_roots;
+                for(unsigned descendant = 0; descendant <= k; ++descendant) {
+                    uint64_t n = evidence[k][latest][descendant];
+                    if(!n) continue;
+                    ++expected_stats; ++expected_entries;
+                    size_t matches = 0;
+                    for(size_t j = 0; j < selected.statistic_count; ++j) {
+                        const ReportStatistic *s = &selected.statistics[j];
+                        if(s->group_version == version && s->report_id == ids[descendant]) {
+                            assert(s->value == n); ++matches;
+                        }
+                    }
+                    assert(matches == 1);
+                    matches = 0;
+                    for(size_t j = 0; j < selected.diagnostic_count; ++j) {
+                        const ReportDiagnostic *d = &selected.diagnostics[j];
+                        if(d->group_version == version && d->report_id == ids[descendant]) {
+                            unsigned long long observed = 0;
+                            assert(sscanf(d->detail, "sample %llu", &observed) == 1 && observed == n);
+                            assert(d->occurrence_count == 1); ++matches;
+                        }
+                    }
+                    assert(matches == 1);
+                }
+            }
+            assert(expected_roots > 0 && selected.statistic_count == expected_stats);
+            assert(selected.entry_count == expected_entries && selected.diagnostic_count == expected_stats);
+            assert(selected.dropped_entry_count == 0 && selected.dropped_statistic_count == 0);
+            assert(selected.dropped_diagnostic_occurrences == 0 && selected.header.total_ms == 0);
+            Report again = select_reports(flags);
+            reports_equal(&selected, &again);
+        }
+    }
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    forbid_allocation = false;
+#endif
+    Report copy = history[2][(counts[2]-1)%HISTORY];
+    engine_clock_reset(); engine_stop(); OK(engine_start());
+    Report fetched = get(ids[2]);
+    assert(memcmp(&copy, &fetched, sizeof(copy)) == 0);
+    engine_stop();
+}
+
 static void capacity(void) {
     child=(Report){.header={ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_COMPLETE,0}};
     for(unsigned i=0;i<ROHR_REPORT_DIAGNOSTIC_CAPACITY;++i) {
@@ -270,41 +373,77 @@ static void producers(void) {
     OK(audio_start()); assert(get(ROHR_AUDIO_REPORT_ID).version==r.version);
     (void)audio_stop(); graphics_stop(); engine_stop();
 }
-static SDL_AtomicInt done;
-static int SDLCALL writer(void *unused) {
-    (void)unused;
-    for(unsigned i=1;i<=300;++i) {
-        Report r=value(ROHR_UI_REPORT_ID,i,false); report_publish_internal(&r);
+static SDL_AtomicInt done, readers_ready;
+static Report correlated_value(ReportId id, unsigned n) {
+    Report r = value(id, n, false);
+    r.header.total_ms = n + .5;
+    r.invocation_count = n+1;
+    r.diagnostics[0].source = (ReportObjectRef){ROHR_REPORT_OBJECT_CUSTOM, n};
+    r.diagnostics[0].target = (ReportObjectRef){ROHR_REPORT_OBJECT_CUSTOM, n ^ 0xa55au};
+    r.diagnostics[0].occurrence_count = n+1;
+    return r;
+}
+static void correlated_check(const Report *r, ReportId id) {
+    size_t matches = 0;
+    for(size_t i = 0; i < r->statistic_count; ++i) {
+        const ReportStatistic *s = &r->statistics[i];
+        if(s->report_id != id) continue;
+        bool found = false;
+        for(size_t j = 0; j < r->diagnostic_count; ++j) {
+            const ReportDiagnostic *d = &r->diagnostics[j];
+            if(d->report_id != id || d->group_version != s->group_version) continue;
+            unsigned long long n = 0;
+            assert(sscanf(d->detail, "sample %llu", &n) == 1 && n == s->value);
+            assert(d->source.id == n && d->target.id == (n ^ 0xa55au));
+            assert(d->occurrence_count == n+1); found = true;
+        }
+        assert(found); ++matches;
+        if(r->header.id == id) {
+            assert(r->header.total_ms == s->value+.5 && r->invocation_count == s->value+1);
+        } else {
+            found = false;
+            for(size_t j = 0; j < r->entry_count; ++j) {
+                const ReportEntry *e = &r->entries[j];
+                if(e->group_root && e->header.id == id && e->group_version == s->group_version) {
+                    assert(e->header.total_ms == s->value+.5 && e->invocation_count == s->value+1);
+                    found = true;
+                }
+            }
+            assert(found);
+        }
     }
-    SDL_SetAtomicInt(&done,1); return 0;
+    assert(matches == 1);
+}
+static int SDLCALL writer(void *context) {
+    ReportId id = *(const ReportId *)context;
+    while(SDL_GetAtomicInt(&readers_ready) < 2) SDL_Delay(0);
+    for(unsigned i=1;i<=300;++i) {
+        Report r=correlated_value(id,i); report_publish_internal(&r);
+        if(i%8 == 0) SDL_Delay(0);
+    }
+    SDL_AddAtomicInt(&done,1); return 0;
 }
 static int SDLCALL reader(void *unused) {
     (void)unused;
     uint64_t previous=0;
+    SDL_AddAtomicInt(&readers_ready, 1);
     do {
         Report r=get(ROHR_UI_REPORT_ID);
         assert(r.version>=previous); previous=r.version;
-        unsigned long long n=0; assert(sscanf(r.diagnostics[0].detail,"sample %llu",&n)==1);
-        assert(r.statistics[0].value==n);
+        correlated_check(&r, ROHR_UI_REPORT_ID);
         Report all=get(ROHR_REPORT_ID); assert(all.version>=r.version);
-        ReportResult read=report_get(ROHR_UI_REPORT | ROHR_ENGINE_REPORT); OK(read);
+        ReportResult read=report_get(ROHR_UI_REPORT | ROHR_GRAPHICS_ANIMATIONS_REPORT); OK(read);
         Report subset=read.result.value;
-        for(size_t i=0;i<subset.statistic_count;++i) {
-            if(subset.statistics[i].report_id!=ROHR_UI_REPORT_ID) continue;
-            bool found=false;
-            for(size_t j=0;j<subset.diagnostic_count;++j) {
-                if(subset.diagnostics[j].report_id!=ROHR_UI_REPORT_ID) continue;
-                assert(sscanf(subset.diagnostics[j].detail,"sample %llu",&n)==1);
-                assert(subset.statistics[i].value==n); found=true;
-            }
-            assert(found);
-        }
-    } while(!SDL_GetAtomicInt(&done));
+        correlated_check(&subset, ROHR_UI_REPORT_ID);
+        correlated_check(&subset, ROHR_GRAPHICS_ANIMATIONS_REPORT_ID);
+    } while(SDL_GetAtomicInt(&done) < 2);
     return 0;
 }
 int main(void) {
-    initial(); composition(); selection(); capacity(); producers();
-    child=value(ROHR_UI_REPORT_ID,0,false); report_publish_internal(&child);
+    initial(); composition(); selection(); capacity(); producers(); publication_sequences();
+    const ReportId ui_id = ROHR_UI_REPORT_ID, animation_id = ROHR_GRAPHICS_ANIMATIONS_REPORT_ID;
+    child=correlated_value(ui_id,0); report_publish_internal(&child);
+    child=correlated_value(animation_id,0); report_publish_internal(&child);
 #ifdef ROHR_TEST_ALLOCATION_WRAP
     forbid_allocation=true;
 #endif
@@ -314,8 +453,10 @@ int main(void) {
 #endif
     SDL_Thread *a=SDL_CreateThread(reader,"report-reader-a",NULL);
     SDL_Thread *b=SDL_CreateThread(reader,"report-reader-b",NULL);
-    SDL_Thread *w=SDL_CreateThread(writer,"report-writer",NULL);
-    assert(a && b && w); SDL_WaitThread(w,NULL); SDL_WaitThread(a,NULL); SDL_WaitThread(b,NULL);
+    SDL_Thread *w=SDL_CreateThread(writer,"report-writer-ui",(void *)&ui_id);
+    SDL_Thread *v=SDL_CreateThread(writer,"report-writer-animation",(void *)&animation_id);
+    assert(a && b && w && v);
+    SDL_WaitThread(w,NULL); SDL_WaitThread(v,NULL); SDL_WaitThread(a,NULL); SDL_WaitThread(b,NULL);
     Uint64 start=SDL_GetTicksNS();
     for(unsigned i=0;i<100;++i) combined=get(ROHR_REPORT_ID);
     printf("report storage: Report=%zu bytes, cache=%zu bytes, 100 combined reads=%.3f ms\n",
