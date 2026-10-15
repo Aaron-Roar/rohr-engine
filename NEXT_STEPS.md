@@ -1122,6 +1122,49 @@ reproducible adversarial tests and fix confirmed defects within existing contrac
 All three goals are complete. Unified Forces and Torques progress is recorded
 below.
 
+## Single-Goal Milestone: Diagnose Soft-Body Collision Penetration
+
+Identify why soft-body nodes and beams penetrate triangular `rigid_body_8` in
+`/tmp/rohr-projects/test`, then produce an evidence-backed resolution plan.
+This user-selected investigation precedes Unified Forces and Torques Goal 4;
+the separately approved production correction is recorded immediately below.
+
+1. [x] **Reproduce the penetration, identify its cause, and define the fix** —
+   Confirmed redundant collinear vertices split the triangle's support faces:
+   SAT detects overlap but clipping produces no manifold, skipping node response
+   and beam contact gathering. Minimal node and beam fixtures fail against the
+   five-vertex triangle and respond against the identical three-vertex outline.
+   Ten controlled Linux scene runs isolate the failure from timestep/iteration
+   settings; original/current engine-library traces and regenerated sources
+   match. Recorded measurements, preserved-source fingerprints, and a focused
+   contact-face correction/verification plan in the
+   [collision diagnosis](docs/soft_body_collision_diagnosis.md). Documentation
+   links and diff checks pass. Production physics and the supplied project
+   remained unchanged during diagnosis; the correction is recorded below.
+
+## Single-Goal Milestone: Restore Contacts Across Subdivided Straight Faces
+
+Restore node and beam contacts across contiguous collinear polygon edges while
+preserving authored geometry and existing response policy. This approved
+collision correction precedes Unified Forces and Torques Goal 4.
+
+1. [x] **Implement complete contact faces and verify the original reproduction** —
+   Added failing geometric and runtime regressions, then expanded reference and
+   incident faces through adjacent co-directed collinear edges with bounded,
+   allocation-free traversal and double-precision tolerance checks. Verified
+   ordering, winding, wraparound, rotation, translation, maximum vertex count,
+   near-collinear limits, corners, filters, and isolated node/beam response.
+   The unchanged generated scene passes 900 fixed ticks at one substep/eight
+   iterations with no node-centre penetration, missing supported contacts,
+   nonfinite motion, or diagnostics. Node-only and beam-only controls also pass.
+   All 84 native tests and ten focused ASan/UBSan suites pass with leak detection.
+   Linux/Windows builds, five installed-SDK consumers, all 12 standalone examples,
+   a generated fixture, and an isolated copy of the supplied game build without
+   compiler warnings. Linux runtime checks pass; Windows is compile-only.
+   Recorded evidence and the visual-review executable in the
+   [collision diagnosis](docs/soft_body_collision_diagnosis.md). Original project
+   sources and binaries remain unchanged. Stop for user review; Goal 4 is pending.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,

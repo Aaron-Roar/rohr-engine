@@ -17,9 +17,73 @@ typedef struct ContactFace {
     float alignment;
 } ContactFace;
 
+static bool contact_face_extension_check(
+    Vec2D first,
+    Vec2D second,
+    Vec2D added,
+    Vec2D origin,
+    double direction_x,
+    double direction_y
+) {
+    double edge_x = (double)second.x - first.x;
+    double edge_y = (double)second.y - first.y;
+    double length = hypot(edge_x, edge_y);
+    double distance = direction_x * ((double)added.y - origin.y) -
+        direction_y * ((double)added.x - origin.x);
+
+    if(length <= 0.00001) return false;
+    edge_x /= length;
+    edge_y /= length;
+    return direction_x * edge_x + direction_y * edge_y > 0.0 &&
+        fabs(direction_x * edge_y - direction_y * edge_x) <= 8.0 * FLT_EPSILON &&
+        fabs(distance) <= 0.001f;
+}
+
+/* Clipping needs the entire supporting face, even when authored vertices split
+ * it into several edges. Compare every extension with the original edge so
+ * small turns cannot accumulate into a curved face. Geometry stays untouched. */
+static ContactFace contact_face_expanded_get(
+    const Shape *shape,
+    uint16_t edge,
+    ContactFace face
+) {
+    uint16_t count = shape->amount_of_vertices;
+    uint16_t first = edge;
+    uint16_t second = (uint16_t)((edge + 1) % count);
+    uint16_t included = 1;
+    Vec2D origin = face.first;
+    double direction_x = (double)face.second.x - origin.x;
+    double direction_y = (double)face.second.y - origin.y;
+    double length = hypot(direction_x, direction_y);
+
+    if(length <= 0.00001) return face;
+    direction_x /= length;
+    direction_y /= length;
+    while(included < count) {
+        uint16_t previous = (uint16_t)((first + count - 1) % count);
+        Vec2D point = shape->vertices[previous];
+        if(!contact_face_extension_check(point, shape->vertices[first], point,
+                origin, direction_x, direction_y)) break;
+        first = previous;
+        included += 1;
+    }
+    while(included < count) {
+        uint16_t next = (uint16_t)((second + 1) % count);
+        Vec2D point = shape->vertices[next];
+        if(!contact_face_extension_check(shape->vertices[second], point, point,
+                origin, direction_x, direction_y)) break;
+        second = next;
+        included += 1;
+    }
+    face.first = shape->vertices[first];
+    face.second = shape->vertices[second];
+    return face;
+}
+
 static ContactFace contact_face_best_get(Shape shape, Axis direction) {
     ContactFace result = {.alignment = -FLT_MAX};
     Vec2D center = math_polygon_centroid(shape);
+    uint16_t selected = 0;
 
     for(uint16_t i = 0; i < shape.amount_of_vertices; i += 1) {
         Vec2D first = shape.vertices[i];
@@ -43,14 +107,16 @@ static ContactFace contact_face_best_get(Shape shape, Axis direction) {
         alignment = math_dot_product(normal, direction);
         if(alignment > result.alignment) {
             result = (ContactFace){first, second, normal, alignment};
+            selected = i;
         }
     }
-    return result;
+    return contact_face_expanded_get(&shape, selected, result);
 }
 
 static ContactFace contact_face_incident_get(Shape shape, Axis reference_normal) {
     ContactFace result = {.alignment = FLT_MAX};
     Vec2D center = math_polygon_centroid(shape);
+    uint16_t selected = 0;
 
     for(uint16_t i = 0; i < shape.amount_of_vertices; i += 1) {
         Vec2D first = shape.vertices[i];
@@ -74,9 +140,10 @@ static ContactFace contact_face_incident_get(Shape shape, Axis reference_normal)
         alignment = math_dot_product(normal, reference_normal);
         if(alignment < result.alignment) {
             result = (ContactFace){first, second, normal, alignment};
+            selected = i;
         }
     }
-    return result;
+    return contact_face_expanded_get(&shape, selected, result);
 }
 
 static uint8_t contact_segment_clip(

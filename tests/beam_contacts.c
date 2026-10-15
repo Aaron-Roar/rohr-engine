@@ -140,9 +140,79 @@ static void supported_impact_test(uint32_t iterations, float restitution) {
     OK(rohr_entity_delete(floor.result.value));
 }
 
+
+static void subdivided_support_test(bool beam_only, float x, float angle,
+        unsigned excluded) {
+    const Position offset = {200, -170};
+    Shape triangle = {.amount_of_vertices = 5, .vertices = {
+        {0, 67.6931839f}, {78.1653595f, 67.6931839f}, {39.0826797f, 0},
+        {0, -67.6931839f}, {-78.1653595f, 67.6931839f}}};
+    EntityResult rigid = rohr_entity_add(); OK(rigid);
+    OK(rohr_physics_position_set(rigid.result.value, offset));
+    OK(rohr_physics_orientation_set(rigid.result.value, angle));
+    OK(rohr_physics_hitbox_set(rigid.result.value, triangle));
+    OK(rohr_physics_static_set(rigid.result.value));
+    OK(rohr_entity_components_add(rigid.result.value, ROHR_COLLISION));
+    OK(rohr_physics_collision_filter_set(rigid.result.value,
+        (CollisionFilterConfig){.category = 1, .collides_with = 1}));
+    EntityResult soft = rohr_physics_soft_body_create(); OK(soft);
+    float y = beam_only ? 68 : 75;
+    EntityResult a = rohr_physics_soft_body_node_create(soft.result.value,
+        transform((Position){beam_only ? x - 20 : x, y}, offset, angle), 10, 10); OK(a);
+    EntityResult b = rohr_physics_soft_body_node_create(soft.result.value,
+        transform((Position){x + 20, y}, offset, angle), 10, 10); OK(b);
+    OK(rohr_physics_soft_body_node_collision_filter_set(a.result.value, 1, 1));
+    OK(rohr_physics_soft_body_node_collision_filter_set(b.result.value, 1, 1));
+    EntityResult beam = rohr_physics_soft_body_beam_create(soft.result.value,
+        a.result.value, b.result.value, 0, 0); OK(beam);
+    OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, 2));
+    OK(rohr_physics_soft_body_beam_collision_filter_set(beam.result.value, 1, 1));
+    OK(rohr_entity_components_delete(a.result.value, ROHR_GRAVITY));
+    OK(rohr_entity_components_delete(b.result.value, ROHR_GRAVITY | ROHR_COLLISION));
+    if(beam_only) OK(rohr_entity_components_delete(a.result.value, ROHR_COLLISION));
+    else OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
+    Entity target = beam_only ? beam.result.value : a.result.value;
+    if(excluded == 1) {
+        if(beam_only) OK(rohr_physics_soft_body_beam_collision_disable(target));
+        else OK(rohr_entity_components_delete(target, ROHR_COLLISION));
+    } else if(excluded == 2) {
+        OK(rohr_physics_collision_filter_set(rigid.result.value,
+            (CollisionFilterConfig){.category = 2, .collides_with = 2}));
+    }
+    Velocity initial = rohr_math_vector_rotate((Velocity){0, -1}, angle);
+    OK(rohr_physics_velocity_set(a.result.value, initial));
+    OK(rohr_physics_velocity_set(b.result.value, initial));
+    Report report = rohr_system_physics_update(1.0 / 60);
+    assert(report.header.status != ROHR_REPORT_FAILED && report.diagnostic_count == 0);
+    ContactInfo contact = rohr_physics_contact_get(target, rigid.result.value);
+    ContactInfo reverse = rohr_physics_contact_get(rigid.result.value, target);
+    assert(contact.detected == !excluded && reverse.detected == !excluded);
+    EntityIndex ai = index_get(a.result.value);
+    Vec2D up = rohr_math_vector_rotate((Vec2D){0, 1}, angle);
+    if(!excluded) {
+        assert(contact.point_count > 0 && reverse.point_count == contact.point_count);
+        assert(math_dot_product(contact.normal, up) < -.999f);
+        assert(math_dot_product(reverse.normal, up) > .999f);
+        close_to(math_dot_product(velocities[ai], up), 0, .002f);
+        Projection node_extent = math_project_shape_on_axis(
+            rohr_math_circle_create(10, 8), up);
+        close_to(math_dot_product(math_vector_subtract(positions[ai], offset), up),
+            67.6931839f + (beam_only ? 1 : -node_extent.min - .01f), .003f);
+        if(beam_only) close_to(math_dot_product(velocities[index_get(b.result.value)], up), 0, .002f);
+    } else close_to(math_dot_product(velocities[ai], up), -1, .002f);
+    OK(rohr_entity_delete(soft.result.value));
+    OK(rohr_entity_delete(rigid.result.value));
+}
+
 int main(void) {
     OK(rohr_engine_start());
     OK(rohr_physics_gravity_set((Acceleration){0, 0}));
+    OK(rohr_physics_solver_iterations_set(8));
+    for(unsigned beam = 0; beam < 2; ++beam)
+        for(unsigned side = 0; side < 2; ++side)
+            for(unsigned angle = 0; angle < 3; ++angle)
+                for(unsigned excluded = 0; excluded < 3; ++excluded)
+                    subdivided_support_test(beam, side ? 40 : -40, angle * 30, excluded);
     separation_test(0, (Position){0, 0});
     separation_test(37, (Position){200, -170});
     for(int movable = 0; movable <= 1; movable++)
