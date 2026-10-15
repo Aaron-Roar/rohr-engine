@@ -10,8 +10,8 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-/* Version 3 uses clockwise degrees and degree-based angular rates. */
-#define GAME_STATE_VERSION 5
+/* Version 6 preserves runtime soft-body topology and relative lifetimes. */
+#define GAME_STATE_VERSION 6
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64
@@ -45,10 +45,10 @@ UILabelDefinitionResult ui_label_by_name_get(const char *name);
 UISliderDefinitionResult ui_slider_by_name_get(const char *name);
 
 /**
- * Save all named live entities to one JSON state file.
+ * Save all live entities to one JSON state file.
  *
- * Unnamed entities are omitted because stable cross-session references require
- * names. Runtime-derived interaction and broad-phase state are omitted.
+ * Creation assigns unique names for cross-session references.
+ * Runtime-derived interaction and broad-phase state are omitted.
  */
 EngineResult game_state_file_save(const char *path);
 

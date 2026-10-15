@@ -281,6 +281,9 @@ static bool graphics_check(void) {
 }
 
 static bool state_check(void) {
+    /* Earlier physics checks intentionally leave stale one-tick sources. */
+    rohr_engine_stop();
+    OK(rohr_engine_start());
     const char *path = "angles_state.json";
     EntityResult driver = rohr_entity_add(), follower = rohr_entity_add(), joint = rohr_entity_add();
     OK(driver); OK(follower); OK(joint);

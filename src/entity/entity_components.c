@@ -3,6 +3,8 @@
  */
 
 #include "entity_components.h"
+#include "entity_internal.h"
+#include <stdio.h>
 #include "core/engine_internal.h"
 #include <stdbool.h>
 #include <string.h>
@@ -488,7 +490,7 @@ EntityResult entity_from_index_get(EntityIndex index) {
     return ERROR_RESULT_MAKE_VALUE(EntityResult, index_to_entity[index]);
 }
 
-EntityResult entity_add(void) {
+static EntityResult entity_unnamed_create(void) {
     Entity entity;
     uint32_t slot;
     EntityIndex index;
@@ -554,6 +556,46 @@ EntityResult entity_add(void) {
     (void)EntityAlivePool_store_at(&entity_alive_pool, index, true);
     (void)EntityMaskPool_store_at(&entity_mask_pool, index, 0);
     return ERROR_RESULT_MAKE_VALUE(EntityResult, entity);
+}
+
+EntityResult entity_named_create(const char *name) {
+    if(name == NULL || name[0] == '\0' || strlen(name) >= ENTITY_NAME_MAX)
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY_NAME);
+    if(!error_check(entity_by_name_get(name)))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
+    EntityResult created = entity_unnamed_create();
+    if(error_check(created)) return created;
+    EngineResult result = entity_name_set(created.result.value, name);
+    if(error_check(result)) {
+        (void)entity_delete(created.result.value);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    }
+    return created;
+}
+
+EntityResult entity_default_create(const char *kind, Entity owner) {
+    EntityNameResult owner_name = {0};
+    if(owner != ENTITY_INVALID) {
+        owner_name = entity_name_get(owner);
+        if(error_check(owner_name))
+            return ERROR_RESULT_MAKE_ERROR(EntityResult, owner_name.result.error);
+    }
+    for(uint32_t suffix = 1; suffix <= MAX_ENTITIES + 1; ++suffix) {
+        char name[ENTITY_NAME_MAX], tail[32];
+        if(owner == ENTITY_INVALID)
+            snprintf(name, sizeof(name), "%s_%u", kind, suffix);
+        else {
+            int length = snprintf(tail, sizeof(tail), "_%s_%u", kind, suffix);
+            snprintf(name, sizeof(name), "%.*s%s",
+                ENTITY_NAME_MAX - 1 - length, owner_name.result.value.value, tail);
+        }
+        if(error_check(entity_by_name_get(name))) return entity_named_create(name);
+    }
+    return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+}
+
+EntityResult entity_add(void) {
+    return entity_default_create("entity", ENTITY_INVALID);
 }
 
 static void entity_index_clear(EntityIndex index) {
@@ -1165,6 +1207,21 @@ EngineResult entity_parent_set(Entity child, Entity parent) {
     return error_result_value(true);
 }
 
+EngineResult entity_parent_restore(Entity child, Entity parent) {
+    EntityIndex index;
+    if(!entity_index_get(parent, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    bool had_children = children_pool.used[index];
+    RohrComponentMask prior = entity_mask[index];
+    EngineResult result = entity_parent_set(child, parent);
+    if(error_check(result) && !had_children && children_pool.used[index]) {
+        (void)entity_group_internal_destroy(children_pool.objects[index]);
+        (void)ChildrenPool_release_at(&children_pool, index);
+        entity_mask[index] = prior;
+    }
+    return result;
+}
+
 EngineResult entity_parent_remove(Entity child) {
     EntityIndex child_index;
     Entity parent;
@@ -1287,7 +1344,9 @@ EngineResult entity_life_time_set(Entity entity, Time expirey_time, Tick expirey
     }
     (void)LifeTimePool_store_at(&life_times_pool, index, (LifeTime){
         .expirey_time = expirey_time,
-        .expirey_tick = expirey_tick
+        .expirey_tick = expirey_tick,
+        .time_enabled = expirey_time != 0,
+        .tick_enabled = expirey_tick != 0
     });
     return error_result_value(true);
 }

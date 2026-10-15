@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "entity/entity_internal.h"
 #include "physics/physics_internal.h"
 
 #include <math.h>
@@ -39,7 +40,7 @@ EntityResult physics_particle_create(ParticleConfig config) {
             config.restitution > 1.0f)
         return ERROR_RESULT_MAKE_ERROR(
             EntityResult, ERROR_ENGINE_STATE_INVALID);
-    added = entity_add();
+    added = entity_default_create("particle", ENTITY_INVALID);
     if(error_check(added)) return added;
     particle = added.result.value;
     hitbox = math_circle_create(config.radius, (uint8_t)rigid_vertices);

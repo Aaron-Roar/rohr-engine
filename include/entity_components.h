@@ -206,6 +206,9 @@ typedef struct LifeTime {
     Time expirey_time;
     /** Engine tick at which the entity expires, or zero when unused. */
     Tick expirey_tick;
+    /** Explicit enable flags preserve due deadlines at clock zero on restoration. */
+    bool time_enabled;
+    bool tick_enabled;
 } LifeTime;
 
 /** Pool storing parent entity ids by EntityIndex. */

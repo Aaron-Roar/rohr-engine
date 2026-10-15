@@ -71,14 +71,14 @@ static void basics(void) {
 }
 static void issues(void) {
     Entity e = make_entity();
-    EntityInfo info = capture(e, F(CORE_NAME) | F(CORE_PARENT));
+    EntityInfo info = capture(e, F(PHYSICS_VELOCITY) | F(CORE_PARENT));
     assert(info.available == 0);
     assert(entity_info_issues_count_get(&info, ROHR_ENTITY_INFO).result.value == 2);
-    assert(entity_info_issues_count_get(&info, F(PHYSICS_VELOCITY)).result.value == 0);
+    assert(entity_info_issues_count_get(&info, F(PHYSICS_ACCELERATION)).result.value == 0);
     EntityInfoIssue record = {0};
     EntityInfoIssueReadResult read = rohr_entity_info_issues_get(&info, ROHR_ENTITY_INFO, &record, 1); OK(read);
     assert(read.result.value.total == 2 && read.result.value.written == 1);
-    assert(record.section == F(CORE_NAME) && record.reason == ROHR_ENTITY_INFO_COMPONENT_ABSENT);
+    assert(record.section == F(CORE_PARENT) && record.reason == ROHR_ENTITY_INFO_COMPONENT_ABSENT);
     EntityInfoIssue saved = record;
     assert(error_check(entity_info_issues_get(&info, 0, &record, 1)));
     assert(memcmp(&record, &saved, sizeof(record)) == 0);

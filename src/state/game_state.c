@@ -3,6 +3,10 @@
  */
 
 #include "game_state.h"
+#include "engine.h"
+#include "entity/entity_internal.h"
+#include "runtime_topology.h"
+#include <SDL3/SDL.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -42,6 +46,7 @@ typedef struct StateDocument {
 
 typedef struct StateLoadedEntity {
     Entity entity;
+    char name[ENTITY_NAME_MAX];
     yyjson_val *description;
     uint64_t instance;
     uint64_t instance_count;
@@ -237,7 +242,7 @@ static bool state_number(yyjson_val *object, const char *key, double *value) {
         return false;
     }
     *value = yyjson_get_num(item);
-    return true;
+    return isfinite(*value);
 }
 
 static bool state_color(yyjson_val *object, Color *color) {
@@ -677,7 +682,7 @@ static bool state_vec2(yyjson_val *object, Vec2D *value) {
 
     if(!yyjson_is_obj(object) || value == NULL
             || !state_number(object, "x", &x)
-            || !state_number(object, "y", &y)) {
+            || !state_number(object, "y", &y) || fabs(x) > FLT_MAX || fabs(y) > FLT_MAX) {
         return false;
     }
     *value = (Vec2D){(float)x, (float)y};
@@ -822,7 +827,8 @@ static EngineResult state_placement_apply(
 static EngineResult state_resolve_name(yyjson_val *value, Entity *entity) {
     EntityResult result;
 
-    if(!yyjson_is_str(value) || entity == NULL) {
+    if(!yyjson_is_str(value) || entity == NULL ||
+            strlen(yyjson_get_str(value)) != yyjson_get_len(value)) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
     result = entity_by_name_get(yyjson_get_str(value));
@@ -929,31 +935,16 @@ static EngineResult state_make_entity_name(
         char name[ENTITY_NAME_MAX]
 ) {
     int written;
-    uint64_t suffix = instance;
-
-    if(base == NULL || base[0] == '\0') {
+    if(base == NULL || base[0] == '\0')
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY_NAME);
-    }
-    while(true) {
-        if(suffix == 0) {
-            written = snprintf(name, ENTITY_NAME_MAX, "%s", base);
-        } else {
-            written = snprintf(
-                name,
-                ENTITY_NAME_MAX,
-                "%s_%llu",
-                base,
-                (unsigned long long)suffix
-            );
-        }
-        if(written < 0 || written >= ENTITY_NAME_MAX) {
-            return error_result_error(ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
-        }
-        if(entity_by_name_get(name).kind == ERROR_RESULT_ERROR) {
-            return error_result_value(true);
-        }
-        suffix += 1;
-    }
+    if(instance == 0) written = snprintf(name, ENTITY_NAME_MAX, "%s", base);
+    else written = snprintf(name, ENTITY_NAME_MAX, "%s_%llu", base,
+        (unsigned long long)instance);
+    if(written < 0 || written >= ENTITY_NAME_MAX)
+        return error_result_error(ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
+    if(!error_check(entity_by_name_get(name)))
+        return error_result_error(ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
+    return error_result_value(true);
 }
 
 static uint64_t state_variation_hash(uint64_t value) {
@@ -1315,7 +1306,8 @@ static EngineResult state_components_load(
         if(!yyjson_is_uint(value) || yyjson_get_uint(value) > UINT32_MAX)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         /* Geometry loading alone establishes the validated hitbox flag. */
-        entity_mask[index] |= (RohrComponentMask)yyjson_get_uint(value) & ~ROHR_HIT_BOX;
+        entity_mask[index] |= (RohrComponentMask)yyjson_get_uint(value) &
+            ~(ROHR_HIT_BOX | ROHR_SOFT_BODY | ROHR_SOFT_BODY_NODE | ROHR_SOFT_BODY_BEAM | ROHR_SOFT_BODY_AREA);
     }
 
     value = yyjson_obj_get(components, "flags");
@@ -1347,8 +1339,7 @@ static EngineResult state_components_load(
 #define LOAD_SCALAR(Key, Pool, Table, Bit) \
     value = yyjson_obj_get(components, Key); \
     if(value != NULL) { \
-        if(!yyjson_is_num(value)) return error_result_error(ERROR_ENGINE_STATE_INVALID); \
-        number = yyjson_get_num(value); \
+        if(!state_number(components, Key, &number) || fabs(number) > FLT_MAX) return error_result_error(ERROR_ENGINE_STATE_INVALID); \
         if(Pool##_store_at(&Table##_pool, index, (float)number).kind == ERROR_RESULT_ERROR) \
             return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED); \
         entity_mask[index] |= Bit; \
@@ -1363,7 +1354,7 @@ static EngineResult state_components_load(
 
     value = yyjson_obj_get(components, "angular_acceleration");
     if(value != NULL) {
-        if(!yyjson_is_num(value)) {
+        if(!state_number(components, "angular_acceleration", &number) || fabs(number) > FLT_MAX) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         result = physics_angular_acceleration_set(
@@ -1449,7 +1440,7 @@ static EngineResult state_components_load(
         Entity parent;
         result = state_resolve_name(value, &parent);
         if(result.kind == ERROR_RESULT_ERROR) return result;
-        result = entity_parent_set(entity, parent);
+        result = entity_parent_restore(entity, parent);
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
 
@@ -1466,8 +1457,19 @@ static EngineResult state_components_load(
             if(!yyjson_is_uint(tick)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
             expiry_tick = yyjson_get_uint(tick);
         }
-        result = entity_life_time_set(entity, expiry_time, expiry_tick);
+        bool time_enabled = expiry_time != 0, tick_enabled = expiry_tick != 0;
+        if(expiry_time < 0 || !isfinite(engine_time_get() + expiry_time) ||
+                !state_optional_boolean(value, "time_enabled", time_enabled, &time_enabled) ||
+                !state_optional_boolean(value, "tick_enabled", tick_enabled, &tick_enabled) ||
+                (!time_enabled && expiry_time != 0) || (!tick_enabled && expiry_tick != 0) ||
+                expiry_tick > UINT64_MAX - engine_tick_get())
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        result = entity_life_time_set(entity,
+            time_enabled ? engine_time_get() + expiry_time : 0,
+            tick_enabled ? engine_tick_get() + expiry_tick : 0);
         if(result.kind == ERROR_RESULT_ERROR) return result;
+        life_times[index].time_enabled = time_enabled;
+        life_times[index].tick_enabled = tick_enabled;
     }
 
     value = yyjson_obj_get(components, "angle_lock");
@@ -1475,7 +1477,7 @@ static EngineResult state_components_load(
         double min;
         double max;
         if(!yyjson_is_obj(value) || !state_number(value, "min", &min)
-                || !state_number(value, "max", &max))
+                || !state_number(value, "max", &max) || fabs(min) > FLT_MAX || fabs(max) > FLT_MAX || min > max)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         if(AngleLockPool_store_at(&angle_locks_pool, index, (AngleLock){(float)min, (float)max}).kind == ERROR_RESULT_ERROR)
             return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
@@ -1501,7 +1503,7 @@ static EngineResult state_components_load(
         if(!yyjson_is_obj(value)
                 || state_resolve_name(driver, &lock.driver).kind == ERROR_RESULT_ERROR
                 || !state_vec2(yyjson_obj_get(value, "local_offset"), &lock.local_offset)
-                || !state_number(value, "local_angle", &number)
+                || !state_number(value, "local_angle", &number) || fabs(number) > FLT_MAX
                 || !state_boolean(value, "lock_position", &lock.lock_position)
                 || !state_boolean(value, "lock_orientation", &lock.lock_orientation)
                 || !state_boolean(value, "inherit_velocity", &lock.inherit_velocity))
@@ -1510,37 +1512,6 @@ static EngineResult state_components_load(
         if(TransformLockPool_store_at(&transform_locks_pool, index, lock).kind == ERROR_RESULT_ERROR)
             return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
         entity_mask[index] |= ROHR_TRANSFORM_LOCK;
-    }
-
-    value = yyjson_obj_get(components, "joint");
-    if(value != NULL) {
-        Joint joint = {0};
-        yyjson_val *type = yyjson_obj_get(value, "type");
-        if(!yyjson_is_obj(value) || !yyjson_is_str(type)
-                || state_resolve_name(yyjson_obj_get(value, "a"), &joint.a).kind == ERROR_RESULT_ERROR
-                || state_resolve_name(yyjson_obj_get(value, "b"), &joint.b).kind == ERROR_RESULT_ERROR
-                || !state_vec2(yyjson_obj_get(value, "local_anchor_a"), &joint.local_anchor_a)
-                || !state_vec2(yyjson_obj_get(value, "local_anchor_b"), &joint.local_anchor_b)
-                || !state_number(value, "rest_length", &number))
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        joint.rest_length = (float)number;
-        if(strcmp(yyjson_get_str(type), "spring") == 0) joint.type = JOINT_SPRING;
-        else if(strcmp(yyjson_get_str(type), "weld") == 0) joint.type = JOINT_WELD;
-        else if(strcmp(yyjson_get_str(type), "pin") == 0) joint.type = JOINT_PIN;
-        else return error_result_error(ERROR_ENGINE_STATE_INVALID);
-#define JOINT_NUMBER(Key, Field) \
-        if(!state_number(value, Key, &number)) return error_result_error(ERROR_ENGINE_STATE_INVALID); \
-        joint.Field = (float)number
-        JOINT_NUMBER("stiffness", stiffness);
-        JOINT_NUMBER("damping", damping);
-        JOINT_NUMBER("rest_angle", rest_angle);
-        JOINT_NUMBER("angular_stiffness", angular_stiffness);
-        JOINT_NUMBER("angular_damping", angular_damping);
-#undef JOINT_NUMBER
-        if(!state_boolean(value, "lock_angle", &joint.lock_angle))
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        result = physics_joint_component_set(entity, joint);
-        if(result.kind == ERROR_RESULT_ERROR) return result;
     }
 
     value = yyjson_obj_get(components, "animated_sprite");
@@ -1753,6 +1724,56 @@ static EngineResult state_components_load(
             if(result.kind == ERROR_RESULT_ERROR) return result;
         }
     }
+    if((positions_pool.used[index] && !physics_world_position_check(positions[index])) ||
+            (mass_pool.used[index] && mass[index] < 0) ||
+            (frictions_pool.used[index] && frictions[index] < 0) ||
+            (restitutions_pool.used[index] && (restitutions[index] < 0 || restitutions[index] > 1)))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    value = yyjson_obj_get(components, "mask");
+    if(value != NULL) entity_mask[index] = (entity_mask[index] & ~ROHR_DYNAMIC) |
+        ((RohrComponentMask)yyjson_get_uint(value) & ROHR_DYNAMIC);
+    return error_result_value(true);
+}
+
+static EngineResult state_joint_load(Entity entity, yyjson_val *components) {
+    yyjson_val *value;
+    double number;
+    EngineResult result;
+    value = yyjson_obj_get(components, "joint");
+    if(value != NULL) {
+        Joint joint = {0};
+        yyjson_val *type = yyjson_obj_get(value, "type");
+        if(!yyjson_is_obj(value) || !yyjson_is_str(type)
+                || state_resolve_name(yyjson_obj_get(value, "a"), &joint.a).kind == ERROR_RESULT_ERROR
+                || state_resolve_name(yyjson_obj_get(value, "b"), &joint.b).kind == ERROR_RESULT_ERROR
+                || !state_vec2(yyjson_obj_get(value, "local_anchor_a"), &joint.local_anchor_a)
+                || !state_vec2(yyjson_obj_get(value, "local_anchor_b"), &joint.local_anchor_b)
+                || !state_number(value, "rest_length", &number))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        joint.rest_length = (float)number;
+        if(strcmp(yyjson_get_str(type), "spring") == 0) joint.type = JOINT_SPRING;
+        else if(strcmp(yyjson_get_str(type), "weld") == 0) joint.type = JOINT_WELD;
+        else if(strcmp(yyjson_get_str(type), "pin") == 0) joint.type = JOINT_PIN;
+        else return error_result_error(ERROR_ENGINE_STATE_INVALID);
+#define JOINT_NUMBER(Key, Field) \
+        if(!state_number(value, Key, &number) || fabs(number) > FLT_MAX) return error_result_error(ERROR_ENGINE_STATE_INVALID); \
+        joint.Field = (float)number
+        JOINT_NUMBER("stiffness", stiffness);
+        JOINT_NUMBER("damping", damping);
+        JOINT_NUMBER("rest_angle", rest_angle);
+        JOINT_NUMBER("angular_stiffness", angular_stiffness);
+        JOINT_NUMBER("angular_damping", angular_damping);
+#undef JOINT_NUMBER
+        if(!state_boolean(value, "lock_angle", &joint.lock_angle))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(!state_joint_anchor_read(yyjson_obj_get(value, "anchor_a"), joint.a, &joint.anchor_a) ||
+                !state_joint_anchor_read(yyjson_obj_get(value, "anchor_b"), joint.b, &joint.anchor_b) ||
+                ((joint.anchor_a == JOINT_ANCHOR_INVALID) != (joint.anchor_b == JOINT_ANCHOR_INVALID)))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        result = physics_joint_component_set(entity, joint);
+        if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
+
     return error_result_value(true);
 }
 
@@ -1771,6 +1792,7 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
     size_t document_index;
     size_t created_count = 0;
     size_t total_created = 0;
+    size_t definition_count = 0;
     size_t created_group_count = 0;
     size_t camera_definition_count = 0;
     size_t initial_animation_count = state_animation_count;
@@ -1873,6 +1895,43 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
                 goto cleanup;
             }
         }
+    }
+
+    /* Validate the complete expanded namespace before touching the world. */
+    for(document_index = 0; document_index < path_count; ++document_index) {
+        yyjson_val *description;
+        size_t i, n;
+        yyjson_arr_foreach(documents[document_index].entities, i, n, description) {
+            yyjson_val *name = yyjson_obj_get(description, "name");
+            uint64_t count;
+            if(!yyjson_is_obj(description) || !yyjson_is_str(name) ||
+                    yyjson_get_len(name) == 0 || yyjson_get_len(name) >= ENTITY_NAME_MAX ||
+                    strlen(yyjson_get_str(name)) != yyjson_get_len(name) ||
+                    !state_entity_count(description, &count) || count > MAX_ENTITIES - definition_count ||
+                    !yyjson_is_obj(yyjson_obj_get(description, "components"))) {
+                result = error_result_error(ERROR_ENGINE_STATE_INVALID);
+                goto cleanup;
+            }
+            for(uint64_t instance = 0; instance < count; ++instance) {
+                StateLoadedEntity *entry = &loaded[definition_count];
+                result = state_make_entity_name(yyjson_get_str(name), instance, entry->name);
+                if(error_check(result)) goto cleanup;
+                for(size_t previous = 0; previous < definition_count; ++previous) {
+                    if(strcmp(loaded[previous].name, entry->name) == 0) {
+                        result = error_result_error(ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
+                        goto cleanup;
+                    }
+                }
+                entry->description = description;
+                entry->instance = instance;
+                entry->instance_count = count;
+                ++definition_count;
+            }
+        }
+    }
+    if(definition_count > MAX_ENTITIES - entity_alive_count_get()) {
+        result = error_result_error(ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+        goto cleanup;
     }
 
     for(document_index = 0; document_index < path_count; document_index += 1) {
@@ -1989,52 +2048,14 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         }
     }
 
-    for(document_index = 0; document_index < path_count; document_index += 1) {
-        yyjson_val *description;
-        size_t entity_index;
-        size_t entity_count;
-        yyjson_arr_foreach(documents[document_index].entities, entity_index, entity_count, description) {
-            yyjson_val *name = yyjson_obj_get(description, "name");
-            uint64_t instance;
-            uint64_t instance_count;
-            if(!yyjson_is_obj(description) || !yyjson_is_str(name)
-                    || yyjson_get_len(name) == 0
-                    || yyjson_get_len(name) >= ENTITY_NAME_MAX
-                    || !state_entity_count(description, &instance_count)
-                    || instance_count > MAX_ENTITIES - total_created) {
-                result = error_result_error(ERROR_ENGINE_STATE_INVALID);
-                goto cleanup;
-            }
-            for(instance = 0; instance < instance_count; instance += 1) {
-                char generated_name[ENTITY_NAME_MAX];
-                EntityResult entity_result;
-                result = state_make_entity_name(
-                    yyjson_get_str(name),
-                    instance,
-                    generated_name
-                );
-                if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
-                entity_result = entity_add();
-                if(entity_result.kind == ERROR_RESULT_ERROR) {
-                    result = error_result_error(entity_result.result.error);
-                    goto cleanup;
-                }
-                created[created_count] = entity_result.result.value;
-                loaded[created_count] = (StateLoadedEntity){
-                    .entity = entity_result.result.value,
-                    .description = description,
-                    .instance = instance,
-                    .instance_count = instance_count
-                };
-                created_count += 1;
-                total_created = created_count;
-                result = entity_name_set(
-                    entity_result.result.value,
-                    generated_name
-                );
-                if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
-            }
+    for(size_t i = 0; i < definition_count; ++i) {
+        EntityResult entity_result = entity_named_create(loaded[i].name);
+        if(error_check(entity_result)) {
+            result = error_result_error(entity_result.result.error);
+            goto cleanup;
         }
+        loaded[i].entity = entity_result.result.value;
+        created[total_created++] = entity_result.result.value;
     }
 
     for(created_count = 0; created_count < total_created; created_count += 1) {
@@ -2055,6 +2076,19 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
         result = state_placement_apply(&loaded[created_count]);
         if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
+    }
+
+    for(unsigned pass = 0; pass < 4; ++pass) {
+        for(size_t i = 0; i < total_created; ++i) {
+            result = state_topology_load(loaded[i].entity,
+                yyjson_obj_get(loaded[i].description, "components"), pass, created, total_created);
+            if(error_check(result)) goto cleanup;
+        }
+    }
+    for(size_t i = 0; i < total_created; ++i) {
+        result = state_joint_load(loaded[i].entity,
+            yyjson_obj_get(loaded[i].description, "components"));
+        if(error_check(result)) goto cleanup;
     }
 
     /* All entity components must exist before validating source references. */
@@ -2258,14 +2292,14 @@ static yyjson_mut_val *state_ui_slider_write(
     return definition;
 }
 
-static void state_named_reference_write(
+static bool state_named_reference_write(
         yyjson_mut_doc *document,
         yyjson_mut_val *components,
         const char *key,
         Entity entity
 ) {
     EntityNameResult name = entity_name_get(entity);
-    if(name.kind == ERROR_RESULT_VALUE)
+    return !error_check(name) &&
         yyjson_mut_obj_add_strcpy(document, components, key, name.result.value.value);
 }
 
@@ -2337,6 +2371,47 @@ static void state_frame_file_write(yyjson_mut_doc *document, yyjson_mut_val *rec
     SDL_free(directory);
 }
 
+/* Record allocation failures even when an older serializer ignores an add result. */
+static void *state_write_malloc(void *context, size_t size) {
+    void *memory = malloc(size);
+    if(memory == NULL) *(bool *)context = true;
+    return memory;
+}
+static void *state_write_realloc(void *context, void *memory, size_t old_size, size_t size) {
+    (void)old_size;
+    void *replacement = realloc(memory, size);
+    if(replacement == NULL) *(bool *)context = true;
+    return replacement;
+}
+static void state_write_free(void *context, void *memory) {
+    (void)context;
+    free(memory);
+}
+static bool state_atomic_write(const char *path, yyjson_mut_doc *document) {
+    size_t size = 0;
+    char *json = yyjson_mut_write(document, YYJSON_WRITE_PRETTY, &size);
+    if(json == NULL) return false;
+    char *temporary = malloc(strlen(path) + 64);
+    if(temporary == NULL) { free(json); return false; }
+    FILE *file = NULL;
+    for(unsigned attempt = 0; attempt < 100 && file == NULL; ++attempt) {
+        snprintf(temporary, strlen(path) + 64, "%s.%llu.%u.tmp", path,
+            (unsigned long long)SDL_GetTicksNS(), attempt);
+        file = fopen(temporary, "wbx");
+    }
+    bool success = false;
+    if(file != NULL) {
+        success = fwrite(json, 1, size, file) == size;
+        if(fflush(file) != 0) success = false;
+        if(fclose(file) != 0) success = false;
+        if(success) success = SDL_RenamePath(temporary, path);
+        if(!success) (void)remove(temporary);
+    }
+    free(temporary);
+    free(json);
+    return success;
+}
+
 EngineResult game_state_file_save(const char *path) {
     yyjson_mut_doc *document;
     yyjson_mut_val *root;
@@ -2350,11 +2425,12 @@ EngineResult game_state_file_save(const char *path) {
     yyjson_mut_val *ui_labels;
     yyjson_mut_val *ui_sliders;
     uint32_t position;
-    yyjson_write_err write_error;
+    bool allocation_failed = false;
+    yyjson_alc allocator = {state_write_malloc, state_write_realloc, state_write_free, &allocation_failed};
     bool success;
 
     if(path == NULL) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    document = yyjson_mut_doc_new(NULL);
+    document = yyjson_mut_doc_new(&allocator);
     if(document == NULL) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     root = yyjson_mut_obj(document);
     entity_array = yyjson_mut_arr(document);
@@ -2544,7 +2620,10 @@ EngineResult game_state_file_save(const char *path) {
         if(entity_result.kind == ERROR_RESULT_ERROR
                 || !entity_index_get(entity_result.result.value, &index)) continue;
         name = entity_name_get(entity_result.result.value);
-        if(name.kind == ERROR_RESULT_ERROR) continue;
+        if(error_check(name)) {
+            yyjson_mut_doc_free(document);
+            return error_result_error(ERROR_ENGINE_INVALID_ENTITY_NAME);
+        }
         mask = entity_mask[index];
         description = yyjson_mut_obj(document);
         components = yyjson_mut_obj(document);
@@ -2591,7 +2670,8 @@ EngineResult game_state_file_save(const char *path) {
         if(positions_pool.used[index]) yyjson_mut_obj_add_val(document, components, "position", state_vec2_write(document, positions[index]));
         if(velocities_pool.used[index]) yyjson_mut_obj_add_val(document, components, "velocity", state_vec2_write(document, velocities[index]));
         if(accelerations_pool.used[index]) yyjson_mut_obj_add_val(document, components, "acceleration", state_vec2_write(document, accelerations[index]));
-        if(!state_sources_write(document, components, index)) {
+        if(!state_sources_write(document, components, index) ||
+                !state_topology_write(document, components, entity_result.result.value)) {
             yyjson_mut_doc_free(document);
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
@@ -2607,12 +2687,22 @@ EngineResult game_state_file_save(const char *path) {
                 yyjson_mut_arr_add_val(vertices, state_vec2_write(document, hit_boxes[index].vertices[i]));
             yyjson_mut_obj_add_val(document, components, "hit_box", vertices);
         }
-        if(targets_pool.used[index]) state_named_reference_write(document, components, "target", targets[index]);
-        if(parents_pool.used[index]) state_named_reference_write(document, components, "parent", parents[index]);
+        if((targets_pool.used[index] && !state_named_reference_write(document, components, "target", targets[index])) ||
+                (parents_pool.used[index] && !state_named_reference_write(document, components, "parent", parents[index]))) {
+            yyjson_mut_doc_free(document);
+            return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+        }
         if(life_times_pool.used[index]) {
             yyjson_mut_val *lifetime = yyjson_mut_obj(document);
-            yyjson_mut_obj_add_real(document, lifetime, "time", life_times[index].expirey_time);
-            yyjson_mut_obj_add_uint(document, lifetime, "tick", life_times[index].expirey_tick);
+            bool time_enabled = life_times[index].time_enabled || life_times[index].expirey_time != 0;
+            bool tick_enabled = life_times[index].tick_enabled || life_times[index].expirey_tick != 0;
+            yyjson_mut_obj_add_real(document, lifetime, "time", time_enabled ?
+                fmax(0, life_times[index].expirey_time - engine_time_get()) : 0);
+            yyjson_mut_obj_add_uint(document, lifetime, "tick", tick_enabled &&
+                life_times[index].expirey_tick > engine_tick_get() ?
+                life_times[index].expirey_tick - engine_tick_get() : 0);
+            yyjson_mut_obj_add_bool(document, lifetime, "time_enabled", time_enabled);
+            yyjson_mut_obj_add_bool(document, lifetime, "tick_enabled", tick_enabled);
             yyjson_mut_obj_add_val(document, components, "lifetime", lifetime);
         }
         if(angle_locks_pool.used[index]) {
@@ -2630,6 +2720,10 @@ EngineResult game_state_file_save(const char *path) {
         if(transform_locks_pool.used[index]) {
             yyjson_mut_val *lock = yyjson_mut_obj(document);
             EntityNameResult driver = entity_name_get(transform_locks[index].driver);
+            if(error_check(driver)) {
+                yyjson_mut_doc_free(document);
+                return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+            }
             if(driver.kind == ERROR_RESULT_VALUE) {
                 yyjson_mut_obj_add_strcpy(document, lock, "driver", driver.result.value.value);
                 yyjson_mut_obj_add_val(document, lock, "local_offset", state_vec2_write(document, transform_locks[index].local_offset));
@@ -2643,10 +2737,19 @@ EngineResult game_state_file_save(const char *path) {
         if(joints_pool.used[index]) {
             EntityNameResult a = entity_name_get(joints[index].a);
             EntityNameResult b = entity_name_get(joints[index].b);
+            if(error_check(a) || error_check(b)) {
+                yyjson_mut_doc_free(document);
+                return error_result_error(ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND);
+            }
             if(a.kind == ERROR_RESULT_VALUE && b.kind == ERROR_RESULT_VALUE) {
                 const char *type = joints[index].type == JOINT_SPRING ? "spring"
                     : joints[index].type == JOINT_WELD ? "weld" : "pin";
                 yyjson_mut_val *joint = yyjson_mut_obj(document);
+                if(!state_joint_anchor_write(document, joint, "anchor_a", joints[index].a, joints[index].anchor_a) ||
+                        !state_joint_anchor_write(document, joint, "anchor_b", joints[index].b, joints[index].anchor_b)) {
+                    yyjson_mut_doc_free(document);
+                    return error_result_error(ERROR_ENGINE_STATE_INVALID);
+                }
                 yyjson_mut_obj_add_str(document, joint, "type", type);
                 yyjson_mut_obj_add_strcpy(document, joint, "a", a.result.value.value);
                 yyjson_mut_obj_add_strcpy(document, joint, "b", b.result.value.value);
@@ -2764,7 +2867,7 @@ EngineResult game_state_file_save(const char *path) {
             }
         }
     }
-    success = yyjson_mut_write_file(path, document, YYJSON_WRITE_PRETTY, NULL, &write_error);
+    success = !allocation_failed && state_atomic_write(path, document);
     yyjson_mut_doc_free(document);
     return success ? error_result_value(true) : error_result_error(ERROR_ENGINE_STATE_IO_FAILED);
 }
@@ -2806,14 +2909,15 @@ EngineResult game_state_template_file_save(const char *path) {
     yyjson_mut_val *ui_labels;
     yyjson_mut_val *ui_sliders;
     bool camera_copied = false;
-    yyjson_write_err write_error;
+    bool allocation_failed = false;
+    yyjson_alc allocator = {state_write_malloc, state_write_realloc, state_write_free, &allocation_failed};
     size_t document_index;
     bool success = true;
 
     if(path == NULL || state_template_document_count == 0) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
-    document = yyjson_mut_doc_new(NULL);
+    document = yyjson_mut_doc_new(&allocator);
     if(document == NULL) {
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
@@ -2918,13 +3022,7 @@ EngineResult game_state_template_file_save(const char *path) {
         }
     }
     if(success) {
-        success = yyjson_mut_write_file(
-            path,
-            document,
-            YYJSON_WRITE_PRETTY,
-            NULL,
-            &write_error
-        );
+        success = !allocation_failed && state_atomic_write(path, document);
     }
     yyjson_mut_doc_free(document);
     return success

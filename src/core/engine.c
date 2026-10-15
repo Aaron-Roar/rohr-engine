@@ -227,9 +227,9 @@ Report engine_lifecycle_update(void) {
         if(!entity_index_alive_check(index) ||
                 !entity_index_components_check(index, ROHR_LIFETIME)) continue;
         examined += 1;
-        if((life_times[index].expirey_time != 0 &&
+        if(((life_times[index].time_enabled || life_times[index].expirey_time != 0) &&
                     life_times[index].expirey_time <= engine_time_get()) ||
-                (life_times[index].expirey_tick != 0 &&
+                ((life_times[index].tick_enabled || life_times[index].expirey_tick != 0) &&
                     life_times[index].expirey_tick <= engine_tick_get())) {
             expired += 1;
             EntityResult entity = entity_from_index_get(index);

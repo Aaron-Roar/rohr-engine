@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "entity/entity_internal.h"
 #include "soft_body_area.h"
 
 #include "physics/physics_internal.h"
@@ -159,7 +160,7 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
 }
 
 EntityResult physics_soft_body_create(void) {
-    EntityResult result = entity_add();
+    EntityResult result = entity_default_create("soft_body", ENTITY_INVALID);
     EntityIndex index;
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
@@ -203,7 +204,7 @@ EntityResult physics_soft_body_node_create(Entity soft_body, Position position,
     if(soft_bodies[body_index].node_count >= SOFT_BODY_MAX_NODES) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    node = entity_add();
+    node = entity_default_create("node", soft_body);
     if(node.kind == ERROR_RESULT_ERROR) return node;
     if(!entity_index_get(node.result.value, &node_index) ||
             physics_position_set(node.result.value, position).kind == ERROR_RESULT_ERROR ||
@@ -352,7 +353,7 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     if(node_anchor.kind == ERROR_RESULT_ERROR) {
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, node_anchor.result.error);
     }
-    joint = entity_add();
+    joint = entity_default_create("joint", ENTITY_INVALID);
     if(joint.kind == ERROR_RESULT_ERROR) {
         (void)physics_joint_anchor_remove(node_anchor.result.value);
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, joint.result.error);
@@ -417,7 +418,7 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
     if(soft_bodies[body_index].beam_count >= SOFT_BODY_MAX_BEAMS) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    beam = entity_add();
+    beam = entity_default_create("beam", soft_body);
     if(beam.kind == ERROR_RESULT_ERROR) return beam;
     if(!entity_index_get(beam.result.value, &beam_index)) {
         (void)entity_delete(beam.result.value);

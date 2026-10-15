@@ -84,9 +84,12 @@ Goal 7 (input) is deferred by user choice; retain its current API and direct
 errors. Goal 11 implements operation-level rejection and retry. The single-goal
 **Report Bitmask Selection** milestone is complete. The single-goal **Force/Torque
 Contract and Roadmap Reconciliation** documentation milestone is also complete;
-the approved design is recorded in [the contract](docs/force_torque_contract.md). Next define and implement **Entity Inspection**, then resume
-**Unified Forces and Torques** implementation, each only on explicit user
-instruction. No force/torque implementation is included in the documentation goal.
+the approved design is recorded in [the contract](docs/force_torque_contract.md).
+Entity Inspection and Unified Forces and Torques Goals 1–4 are now complete.
+The documentation-only **Goal 5 Contract Clarification** and the single-goal
+**Runtime Soft-Body Persistence** milestone are complete. Unified Forces and
+Torques Goal 5 is next, pending explicit user instruction and review of the
+runtime persistence changes.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -1165,6 +1168,45 @@ collision correction precedes Unified Forces and Torques Goal 4.
    [collision diagnosis](docs/soft_body_collision_diagnosis.md). Original project
    sources and binaries remain unchanged. Stop for user review; Goal 4 is pending.
 
+## Completed Single-Goal Milestone: Goal 5 Contract Clarification
+
+Record the settled authored-source decisions and the runtime persistence
+prerequisite before implementation.
+
+1. [x] **Update the Goal 5 contract and roadmap** — Document object-local authored
+   references, no-target/world-default deletion fallbacks, and the planned
+   `ENTITY_NONE` alias. Distinguish authored deletion from runtime stale-handle
+   behavior. Define the single-goal runtime soft-body persistence prerequisite
+   and retain the remaining force/torque goal order. Documentation consistency,
+   local links, and diff checks pass; no code or runtime behavior changes.
+
+## Single-Goal Milestone: Runtime Soft-Body Persistence
+
+Preserve soft-body geometry, topology, physical state, and references across
+runtime save/load. This user-selected prerequisite precedes Unified Forces and
+Torques Goal 5; editor project topology persistence is already present.
+
+1. [x] **Implement and verify complete runtime soft-body save/load** — Version 6
+   preserves ordered ownership, deformed node state and constraints, independent
+   beam rest lengths/materials/collision settings, area loops/holes/drawing
+   overrides, shared and unused anchors, joints, and force/torque references.
+   Creation assigns unique editable names; incoming names are preflighted across
+   documents and the live world without renaming. Relative enabled lifetimes
+   survive restart, including already-due expiry. Private phased restoration
+   and allocation-failure rollback preserve existing entities; atomic saves
+   preserve the destination on failure and retain authored templates separately.
+   All 85 native tests and five focused ASan/UBSan suites pass with leak
+   detection. Linux and Windows engine builds, installed-SDK consumers (including
+   a public persistence consumer), all 12 independent standalone examples, and a
+   generated application pass their applicable checks. Linux programs run
+   outside their source directories; Windows checks are compile-only. No
+   compiler warnings; the Nix dirty-tree notice is expected. See the
+   [version 6 contract](docs/game_state.md#version-6-runtime-topology-contract).
+
+Stop after this one goal for review and a user-created commit. Resume Unified
+Forces and Torques Goal 5 only on explicit user instruction. The `ENTITY_NONE`
+alias belongs to Goal 5; it is not implemented by this prerequisite.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,
@@ -1177,6 +1219,7 @@ approved behavior. Goal 1 is fulfilled by the documentation reconciliation
 milestone. Entity Inspection and Diagnostic Reliability are complete. Goal 2
 implements shared sources and rigid-body/particle behavior; Goal 3 adds receiving
 beam loads; Goal 4 adds whole-soft-body loads. These runtime goals are complete.
+Runtime Soft-Body Persistence is the completed prerequisite for Goal 5.
 Editor handle presentation is finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
@@ -1225,10 +1268,16 @@ Editor handle presentation is finalized in the relevant editor goals.
    consumers, all 12 standalone examples, and a generated project build on both
    platforms and run on Linux outside their source directories. Windows checks
    are compile-only. Stop for user review before Goal 5.
-5. [ ] **Add authored definitions and persistence** — Add object-owned source
-   descriptions, target references, CLI operations, project/runtime
-   serialization, validation, history, copying, duplication, and deletion.
-   Preserve initial versus persistent behavior and zero-magnitude sources.
+5. [ ] **Add authored definitions and persistence** — After Runtime Soft-Body
+   Persistence, add object-owned source descriptions with references restricted
+   to their owning object, CLI operations, project/runtime serialization,
+   validation, history, copying, duplication, and deletion. Retain sources on
+   referenced-element deletion: reset receiving targets to no target, affected
+   locations to world origin, and affected orientations to world zero. Add
+   `ENTITY_NONE` as a zero-valued alias of `ENTITY_INVALID`, without weakening
+   runtime validation. Preserve initial/persistent mode, zero-magnitude sources,
+   and remapping to restored soft-body entities. See the
+   [Goal 5 contract](docs/force_torque_contract.md#goal-5-authored-definitions-and-persistence).
 6. [ ] **Generate runtime sources and verify API parity** — Generate initial
    applications, persistent source references, and instance cleanup. Verify
    independent instances, runtime mutation, and direct/generated parity. Add
@@ -1272,11 +1321,12 @@ signatures without aliases. Nodes and whole soft bodies use the shared API;
 whole-body sources recompute and atomically distribute loads each substep.
 Joint point loads use one force-at-point source per endpoint. Beam references
 and beam-target loads use the resolved application point for equivalent endpoint
-contributions. Existing runtime state serializes source descriptions; authored
-source persistence and soft-body topology remain later work.
+contributions. Runtime state version 6 serializes source descriptions and full
+soft-body topology with named references, shared anchors, and relative lifetimes.
+Authored source persistence remains Goal 5.
 
-Goal 5, authored definitions and persistence, is next and requires explicit user
-instruction.
+Runtime Soft-Body Persistence is complete. Goal 5, authored definitions and
+persistence, is next and requires explicit user instruction after review.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

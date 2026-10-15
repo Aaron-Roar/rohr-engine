@@ -22,6 +22,9 @@ MEMORY_DECLARE_OBJECT_POOL(SoftBodyAreaStatePool, SoftBodyAreaState);
 extern SoftBodyAreaStatePool soft_body_area_states_pool;
 #define soft_body_area_states (soft_body_area_states_pool.objects)
 
+/* Attach validated topology to an existing entity; tolerate deformed fills. */
+EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value);
+
 EngineResult physics_soft_body_area_index_get(Entity area, EntityIndex *index);
 EngineResult physics_soft_body_area_fill_get(Entity area, const NodeLoopFill **fill);
 void physics_soft_body_area_tables_clear(void);

@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "entity/entity_internal.h"
 
 #include "console.h"
 #include "physics/physics_internal.h"
@@ -433,7 +434,7 @@ ForceDescriptionResult physics_force_description_get(Entity source) {
 EntityResult physics_force_add(ForceDescription description) {
     EngineResult result = force_validate(description);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
-    EntityResult source = entity_add();
+    EntityResult source = entity_default_create("force", ENTITY_INVALID);
     if(error_check(source)) return source;
     result = physics_force_description_set(source.result.value, description);
     if(error_check(result)) {
@@ -520,7 +521,7 @@ TorqueDescriptionResult physics_torque_description_get(Entity source) {
 EntityResult physics_torque_add(TorqueDescription description) {
     EngineResult result = torque_validate(description);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
-    EntityResult source = entity_add();
+    EntityResult source = entity_default_create("torque", ENTITY_INVALID);
     if(error_check(source)) return source;
     result = physics_torque_description_set(source.result.value, description);
     if(error_check(result)) {

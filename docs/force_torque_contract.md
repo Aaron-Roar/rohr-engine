@@ -6,6 +6,11 @@ implemented in Goal 2; beam-target loads in Goal 3; whole-soft-body loads in
 Goal 4. Editor authoring remains in subsequent [roadmap](../NEXT_STEPS.md) goals.
 All targets use shared descriptions; obsolete whole-body vector/scalar helpers
 are removed without compatibility aliases. Impulse APIs remain separate.
+The Goal 5 authoring clarifications below are approved requirements, not shipped
+behavior. The separate [Runtime Soft-Body Persistence milestone](../NEXT_STEPS.md#single-goal-milestone-runtime-soft-body-persistence)
+is complete in runtime state version 6; see the
+[runtime topology contract](game_state.md#version-6-runtime-topology-contract).
+Goal 5 implementation remains pending explicit user instruction.
 
 ## Types and defaults
 
@@ -90,6 +95,15 @@ typedef struct TorqueDescription {
 `(TorqueDescription){0}` are valid sources, not incomplete configurations:
 no target, zero magnitude, and (for forces) world origin and world orientation
 zero. No description-default getter or separate create function is needed.
+
+Goal 5 will add `ENTITY_NONE` as an alias of `ENTITY_INVALID`, with the same
+zero value. Use `ENTITY_NONE` to express an intentionally absent optional target;
+retain `ENTITY_INVALID` for invalid-handle results and internal validity checks.
+This adds no entity type or distinct sentinel and changes no validation rules.
+`NONE` is accepted only where an API already permits an absent entity. Explicit
+COM/origin/beam and entity-based orientation references still require suitable
+entities; world references do not require an entity. The alias is not yet
+implemented.
 
 | Position reference | Offset meaning |
 | --- | --- |
@@ -397,6 +411,82 @@ movable 270-degree marker whose position is visual only. Preserve selection,
 visibility, ordering, clipboard, multi-edit, history, persistence, and independent
 generated instances. No delayed event system is introduced. Exact handle
 presentation remains with the editor goals.
+
+### Goal 5: authored definitions and persistence
+
+These settled requirements govern the pending authored-model work. Runtime
+source descriptions already serialize; authored definitions and complete
+runtime soft-body reconstruction are separate work.
+
+**Ownership and reference scope.** Forces and torques are top-level items owned
+by an object. Their receiving targets and every entity used by location or
+orientation references must belong to that same object. This includes nodes,
+beams, whole soft bodies, and both locations in a between-locations orientation.
+World references and an explicit no-target selection remain available.
+Developer C can connect runtime entities across objects through the existing
+API; the authored restriction does not limit that API.
+
+Persist stable authored identifiers and resolve them to the appropriate runtime
+entities when an object is instantiated. Preserve these relationships through
+renaming and reordering. Whole-object copies and duplicates must resolve their
+internal references within the new object; they must not share the original's
+mutable sources or bind accidentally to an unrelated matching identifier.
+
+**Authored deletion.** Retain a source when one of its referenced elements is
+deleted. Apply the following field-specific fallbacks in the same history
+transaction as the deletion:
+
+| Affected source field | Replacement |
+| --- | --- |
+| Receiving target | No target (`ENTITY_NONE`, the existing zero sentinel). |
+| Force application location | World position with offset `{0, 0}`: world origin. |
+| Force orientation | World orientation with offset `0`: world up. |
+
+Reset the affected location or orientation as a complete value, discarding its
+old entity reference and relative offsets. An entity reference lost inside a
+between-locations orientation also resets that orientation to world zero.
+If the deleted element appears in multiple fields, reset each affected field;
+retain unaffected fields, signed magnitude, and initial/persistent mode.
+Undo restores both the deleted element and the previous source descriptions;
+redo repeats the same fallbacks. Deleting a containing soft body includes its
+removed node/beam references. A world location is an application point, not a
+receiving target; only the target's no-target option disables target contribution.
+
+These are intentional editor/CLI document edits. They do not change the runtime
+API's stale-handle validation or suspension behavior, and malformed serialized
+references must not be silently repaired using deletion fallbacks.
+
+**Persistence and prerequisite.** Project saving already describes soft-body
+nodes and beam attachments. Runtime game-state saving/loading must also preserve
+soft-body shape, topology, and physical state. Complete the separate single-goal
+Runtime Soft-Body Persistence milestone before implementing Goal 5. Its scope
+includes current node positions, masses, motion and fixed/held state; beam
+endpoints, rest lengths, stiffness, damping and collision settings; body
+ownership/origin; area loops and node references; and supported attachments.
+Rest lengths must survive independently of current node positions so loading a
+deformed body does not silently change its resting shape or spring response.
+
+Save force/torque descriptions with stable serialized references and reconnect
+them to the restored bodies, nodes, and beams. Old runtime entity handles are
+not persistent identities. The prerequisite includes validation, failure
+cleanup, round-trip state/reference checks, and continued-simulation checks.
+Goal 5 then adds authored source definitions, CLI operations, project/runtime
+serialization integration, validation, history, copying, duplication and
+deletion, including the agreed fallbacks and `ENTITY_NONE` alias. Preserve
+zero-magnitude and no-target sources and initial versus persistent mode.
+Existing engine-tick lifetime rules remain authoritative. Generated source
+creation and instance cleanup remain Goal 6; detailed editor presentation
+remains Goals 7 and 8.
+
+Goal 5 verification must cover object-local reference validation; source and
+reference round trips; independent whole-object copies; target/location/
+orientation deletion fallbacks, including nested orientation references;
+undo/redo; zero/no-target and initial/persistent preservation; and alias parity
+without weakening explicit-reference validation. Runtime save/load checks must
+reconnect source descriptions to restored soft-body topology. This documentation
+clarification does not begin either implementation goal.
+
+### Milestone acceptance
 
 Implementation acceptance includes:
 

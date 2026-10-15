@@ -3,6 +3,7 @@
  */
 
 #include "soft_body_area.h"
+#include "entity/entity_internal.h"
 #include "physics/physics_internal.h"
 
 #include <string.h>
@@ -58,7 +59,7 @@ static EngineResult area_poses_get(const SoftBodyAreaGeometry *geometry, NodeLoo
     return error_result_value(true);
 }
 static EngineResult physics_soft_body_area_prepare(Entity owner,
-        const SoftBodyAreaGeometry *geometry, SoftBodyAreaState *state) {
+        const SoftBodyAreaGeometry *geometry, SoftBodyAreaState *state, bool restoring) {
     if(geometry->hole_count > SOFT_BODY_MAX_AREA_HOLES)
         return error_result_error(ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED);
     SoftBodyAreaGeometry normalized={.hole_count=geometry->hole_count};
@@ -84,7 +85,13 @@ static EngineResult physics_soft_body_area_prepare(Entity owner,
     uint32_t required=(UINT32_C(1)<<(geometry->hole_count+1))-1;
     if(!error_check(result) && cache->fill.enclosed_loops!=required)
         result=error_result_error(ERROR_ENGINE_INVALID_SHAPE);
-    if(error_check(result)) { area_cache_destroy(cache); return result; }
+    if(error_check(result)) {
+        if(!restoring || result.result.error != ERROR_ENGINE_INVALID_SHAPE) {
+            area_cache_destroy(cache); return result;
+        }
+        /* Leave poses empty so the normal drawing path retries the fill. */
+        memset(cache->poses, 0, sizeof(cache->poses));
+    }
     state->value.soft_body=owner;
     state->value.geometry=normalized;
     state->cache=cache;
@@ -116,13 +123,13 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
     if(error_check(body)) return ERROR_RESULT_MAKE_ERROR(EntityResult, body.result.error);
     if(body.result.value.area_count >= SOFT_BODY_MAX_AREAS)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
-    EngineResult prepared = physics_soft_body_area_prepare(soft_body, &geometry, &state);
+    EngineResult prepared = physics_soft_body_area_prepare(soft_body, &geometry, &state, false);
     if(error_check(prepared)) return ERROR_RESULT_MAKE_ERROR(EntityResult, prepared.result.error);
     if(!entity_index_get(soft_body, &body_index)) {
         area_cache_destroy(state.cache);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     }
-    EntityResult created = entity_add();
+    EntityResult created = entity_default_create("area", soft_body);
     if(error_check(created)) { area_cache_destroy(state.cache); return created; }
     if(!entity_index_get(created.result.value, &area_index) ||
             error_check(SoftBodyAreaStatePool_store_at(&soft_body_area_states_pool,
@@ -134,6 +141,26 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
     entity_mask[area_index] |= ROHR_SOFT_BODY_AREA;
     soft_bodies[body_index].areas[soft_bodies[body_index].area_count++] = created.result.value;
     return created;
+}
+
+EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {
+    EntityIndex index, owner;
+    if(!entity_index_get(entity, &index) ||
+            !entity_index_get(value.soft_body, &owner) ||
+            !soft_bodies_pool.used[owner] || soft_body_area_states_pool.used[index] ||
+            soft_bodies[owner].area_count >= SOFT_BODY_MAX_AREAS)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    SoftBodyAreaState state = {.value = value};
+    EngineResult result = physics_soft_body_area_prepare(value.soft_body,
+        &value.geometry, &state, true);
+    if(error_check(result)) return result;
+    if(error_check(SoftBodyAreaStatePool_store_at(&soft_body_area_states_pool, index, state))) {
+        area_cache_destroy(state.cache);
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    }
+    entity_mask[index] |= ROHR_SOFT_BODY_AREA;
+    soft_bodies[owner].areas[soft_bodies[owner].area_count++] = entity;
+    return error_result_value(true);
 }
 
 SoftBodyAreaResult physics_soft_body_area_get(Entity area) {
@@ -149,7 +176,7 @@ EngineResult physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeomet
     if(error_check(result)) return result;
     SoftBodyAreaState state = soft_body_area_states[index];
     state.cache = NULL;
-    result = physics_soft_body_area_prepare(state.value.soft_body, &geometry, &state);
+    result = physics_soft_body_area_prepare(state.value.soft_body, &geometry, &state, false);
     if(error_check(result)) return result;
     area_cache_destroy(soft_body_area_states[index].cache);
     soft_body_area_states[index] = state;

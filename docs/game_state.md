@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `5`. A state may be split across
+Game state uses yyjson and schema version `6`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -8,7 +8,7 @@ in the same call.
 Angles and offsets use clockwise degrees; angular rates use degrees/second
 and degrees/second squared. Negative values and multiple turns are preserved.
 Zero keeps authored geometry unchanged, with local +Y as the world heading.
-Torque and inertia keep their physical units. Versions other than 5 are rejected
+Torque and inertia keep their physical units. Versions other than 6 are rejected
 without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 5,
+  "version": 6,
   "entities": [
     {
       "name": "player",
@@ -163,8 +163,8 @@ back to `ui_slider()` each frame.
 
 An entity description may use `count` to create multiple copies from one
 component prototype. The first copy keeps the base name and later copies use
-`_1`, `_2`, and so on. If a generated name already exists, the loader advances
-the numeric suffix until it finds a unique name.
+`_1`, `_2`, and so on. Expanded names are deterministic. Any clash within the inputs or with a live
+entity rejects the complete load without renaming incoming entities.
 
 Counted prototypes overlap at their component `position` by default. An
 optional `placement` object can generate initial positions from that position:
@@ -250,12 +250,12 @@ Supported value keys are:
 - `particle_geometry`: `{ "standalone", "origin": {"x", "y"}, "radius" }`
 - `collision_filter`: `{ "category", "collides_with" }` unsigned 64-bit masks
 - `target` and `parent`: entity-name strings
-- `lifetime`: `{ "time", "tick" }`
+- `lifetime`: `{ "time", "tick", "time_enabled", "tick_enabled" }` (remaining durations)
 - `angle_lock`: `{ "min", "max" }`
 - `axis_lock`: `{ "axis": {"x", "y"}, "point": {"x", "y"} }`
 - `transform_lock`: `driver`, `local_offset`, `local_angle`, `lock_position`,
   `lock_orientation`, and `inherit_velocity`
-- `joint`: named `a` and `b` entities, `type` (`distance`, `weld`, or `pin`),
+- `joint`: named `a` and `b` entities, `type` (`spring`, `weld`, or `pin`),
   anchors, rest values, stiffness, damping, and angular settings
 - `animated_sprite`: a named `animation`, per-entity `scale`, and
   `time_per_frame`, `ticks_per_frame`, and `start_frame`
@@ -339,7 +339,7 @@ not perturb existing results. Generated scale values must be positive. Tick
 rates and starting frames must resolve to non-negative integers, and starting
 frames must exist in the referenced animation.
 
-Saving includes named entities and named generic groups. Collision reports and
+Saving includes all live entities and named generic groups. Collision reports and
 broad-phase grid state are runtime-derived and are not serialized. Parent/child
 structure is serialized from the child-side `parent` reference, and the
 parent's children group is rebuilt while loading.
@@ -415,7 +415,7 @@ transform. Compact template saves preserve the authored camera declaration.
 
 ## Force and torque source components
 
-Version 5 stores copied descriptions instead of vector/scalar source values.
+Versions 5 and 6 store copied descriptions instead of vector/scalar source values.
 `force` contains `target`, `magnitude`, `location`, and `orientation`; `torque`
 contains `target` and `magnitude`. Targets are entity names or JSON null for no
 target. Location objects contain `offset: {x, y}` and the numeric reference
@@ -428,5 +428,45 @@ All ordinary components load before source descriptions, so referenced transform
 can appear later in the file. Invalid descriptions roll back newly loaded entities.
 Saving a named source requires its referenced entities to have names; unresolved
 or unnamed references cause an error rather than silently becoming no-target.
-The existing runtime state format does not serialize soft-body topology; authored
-soft-body/source persistence remains a later milestone goal.
+Runtime topology is described below; authored source definitions remain a later
+milestone goal.
+
+## Version 6 runtime topology contract
+
+Every creation API assigns a unique editable name: `entity_n`, `force_n`,
+`torque_n`, `particle_n`, `joint_n`, or `soft_body_n`. Soft-body children use
+`<owner>_node_n`, `<owner>_beam_n`, and `<owner>_area_n`. Generated suffixes skip
+occupied names. Only the generated owner prefix may be truncated to fit 63
+bytes. Component changes and owner renames preserve existing child names.
+
+The loader preflights all expanded names across every document and the existing
+world. It then creates exact names, loads ordinary state, restores topology and
+owned anchors, and finally connects joints and force/torque descriptions. Failed
+loads release their entities and resources and preserve the existing world.
+References are names, never runtime handles. Counts, ownership, unique ordered
+membership, finite numeric fields, and references must be valid.
+
+`soft_body` stores ordered `nodes`, `beams`, and `areas` name arrays. Its origin
+is the owning entity; the ordinary transform records its saved origin pose.
+`soft_body_node` stores `owner`, positive `radius`, `draw_color`, and
+`draw_color_overridden`; ordinary components preserve world position, mass,
+motion, constraints and collision settings. `soft_body_beam` stores `owner`,
+`node_a`, `node_b`, `rest_length`, `stiffness`, `damping`, `collision_thickness`,
+`collision_enabled`, `category`, `collides_with`, `friction`, `restitution`, and
+drawing overrides. `soft_body_area` stores `owner`, an ordered `outer` node-name
+array, ordered `holes` arrays, `visible`, and drawing overrides. Derived fill
+caches are rebuilt; temporarily undrawable deformations do not invalidate
+otherwise valid topology. Owner transforms are never applied to saved node poses.
+
+`joint_anchors` is an array of local positions on each owner, including unused
+and shared anchors. Joint `anchor_a` and `anchor_b` are zero-based indices into
+the respective owners' arrays, or null for ordinary inline local anchors.
+
+Runtime `lifetime.time` and `lifetime.tick` are remaining durations, with
+`time_enabled` and `tick_enabled` explicitly distinguishing disabled expiry
+from zero remaining. Restoring re-bases deadlines on the current engine clock;
+already-due entities expire at the next normal lifecycle pass. Persistent and
+one-tick sources retain their lifetime behavior. Global physics configuration
+remains caller-owned. Saves do not mutate simulation and replace the destination
+only after successful serialization to a temporary sibling file. Authored
+template saving continues to retain the original loaded document.

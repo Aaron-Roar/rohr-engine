@@ -3,6 +3,7 @@
  */
 
 #include "physics.h"
+#include "entity/entity_internal.h"
 
 #include "physics/physics_internal.h"
 
@@ -281,7 +282,7 @@ EntityResult physics_joint_create(
     if(!physics_vector_finite_check(local_anchor_a) || !physics_vector_finite_check(local_anchor_b) ||
             !isfinite(stiffness) || !isfinite(damping))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    joint_result = entity_add();
+    joint_result = entity_default_create("joint", ENTITY_INVALID);
     if(joint_result.kind == ERROR_RESULT_ERROR) {
         return joint_result;
     }

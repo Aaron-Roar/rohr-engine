@@ -241,6 +241,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/soft_body/soft_body_area.c
     src/physics/soft_body/soft_body_solver.c
     src/state/game_state.c
+    src/state/runtime_topology.c
     src/tools/tools.c
     lib/vorbis/stb_vorbis.c
     lib/yyjson/yyjson.c
@@ -964,6 +965,24 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(shared_sources_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME shared_sources COMMAND shared_sources_test)
 
+    add_executable(runtime_persistence_test tests/runtime_persistence.c)
+    target_link_libraries(runtime_persistence_test PRIVATE rohr_engine)
+    target_include_directories(runtime_persistence_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/lib)
+    if(MSVC)
+        target_compile_options(runtime_persistence_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(runtime_persistence_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(runtime_persistence_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(runtime_persistence_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(runtime_persistence_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(runtime_persistence_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME runtime_persistence COMMAND runtime_persistence_test)
+
     add_executable(forces_test tests/forces.c)
     target_link_libraries(forces_test PRIVATE rohr_engine)
     set_target_properties(forces_test PROPERTIES
@@ -1106,6 +1125,7 @@ if(ROHR_BUILD_TESTS)
         center_of_mass
         forces
         shared_sources
+        runtime_persistence
         angles
         rigid_contact_stability
         component_registry
@@ -1165,6 +1185,7 @@ if(ROHR_BUILD_TESTS)
         center_of_mass_test
         forces_test
         shared_sources_test
+        runtime_persistence_test
         angles_test
         example_flies_angles_test
         example_soft_body_angles_test

@@ -570,7 +570,7 @@ UILabelDefinitionResult rohr_ui_label_by_name_get(const char *name);
 /** @brief Finds a UI slider definition loaded from JSON. */
 UISliderDefinitionResult rohr_ui_slider_by_name_get(const char *name);
 
-/** Saves all named live entities to a JSON game-state file. */
+/** Saves all live entities using their unique names to a JSON game-state file. */
 EngineResult rohr_game_state_file_save(const char *path);
 
 /** Saves retained authored definitions without expanding prototypes. */
