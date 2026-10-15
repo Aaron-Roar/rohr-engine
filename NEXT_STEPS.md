@@ -1074,7 +1074,7 @@ implemented API and ownership rules, including flat arrays and separate counts.
    and dynamic collections through 1,024 hitboxes; see the contract for costs.
    Unified Forces and Torques Goal 2 remains pending explicit user instruction.
 
-## Milestone: Diagnostic Reliability
+## Completed Milestone: Diagnostic Reliability
 
 Find false success, missing evidence, incorrect warnings, and lifetime defects in
 inspection and reporting before returning to force/torque implementation. Add
@@ -1103,10 +1103,24 @@ reproducible adversarial tests and fix confirmed defects within existing contrac
    Linux/Windows builds without compiler warnings, installed-SDK consumers, and
    independent audio/player-controller example builds. Linux consumers run and
    both examples pass bounded headless launches outside their source directories.
-   Windows validation is compile-only; operation-level injection remains Goal 3.
-3. [ ] **Verify diagnostics against actual engine failures** — Inject operation
+   Windows validation is compile-only; operation-level injection is covered by Goal 3.
+3. [x] **Verify diagnostics against actual engine failures** — Inject operation
    failures and compare engine state, inspection, and reports; verify unaffected
-   work, recovery evidence, and immutable older snapshots.
+   work, recovery evidence, and immutable older snapshots. Correlated physics
+   rejection and fatal-abort state, lifecycle deletion failures, graphics draw
+   and animation failures, deferred audio output, and UI input overflow with
+   their reports and inspection snapshots where applicable. Fixed missing
+   inspection warnings for mismatched sprite/player frame counts after a failing
+   regression; captured configuration, runtime behavior, and recovery policies
+   are preserved. Verified all 83 native tests, 12 reporting/recovery/inspection
+   suites under ASan/UBSan with leak detection, and Linux/Windows builds without
+   compiler warnings. Four installed-SDK consumers build on both platforms and
+   run on Linux. Independent audio/player-controller examples build on both
+   platforms and pass bounded Linux headless launches outside their source
+   directories. Windows validation is compile-only.
+
+All three goals are complete. Unified Forces and Torques implementation remains
+pending explicit user instruction.
 
 ## Milestone: Unified Forces and Torques
 

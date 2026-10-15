@@ -170,8 +170,23 @@ static void delayed_and_failures(void) {
     assert(report.diagnostic_count == 1 && !report.has_fatal);
     assert(report.diagnostics[0].report_id == ROHR_AUDIO_MUSIC_REPORT_ID);
     assert(report.diagnostics[0].source.id == music.result.value);
+    assert(report.diagnostics[0].code == ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    assert(report.diagnostics[0].recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
     assert(!audio_music_playing_check(music.result.value));
     assert(audio_sound_playing_check(sound.result.value));
+    Report decode_failure = report;
+    ReportResult stored = report_get(ROHR_AUDIO_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value, &decode_failure, sizeof(Report)) == 0);
+    assert(audio_music_valid_check(music.result.value)); /* Failure clears playback, not ownership. */
+    uint64_t delivered = sample_frames;
+    double energy = sample_energy;
+    pump(16);
+    assert(sample_frames == delivered + 16 && sample_energy > energy);
+    stored = rohr_report_get(ROHR_AUDIO_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value, &decode_failure, sizeof(Report)) == 0);
+    report = rohr_audio_update();
+    assert(report.diagnostic_count == 0 && !report.has_fatal);
+    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 16);
 
     OK(audio_music_play(music.result.value));
     (void)audio_update();
@@ -218,15 +233,28 @@ static void delayed_and_failures(void) {
 
     fail_output = true;
     unsigned int before = output_calls;
+    delivered = sample_frames;
+    stored = report_get(ROHR_AUDIO_REPORT); OK(stored);
     pump(4096);
+    assert(sample_frames == delivered); /* No frames from the failed output batch were accepted. */
+    ReportResult uncollected = rohr_report_get(ROHR_AUDIO_REPORT); OK(uncollected);
+    assert(memcmp(&stored.result.value, &uncollected.result.value, sizeof(Report)) == 0);
     report = audio_update();
     assert(report.header.status == ROHR_REPORT_FAILED && report.has_fatal);
     assert(output_calls == before + 1); /* Abort remainder of failed batch. */
     assert(strstr(report.first_fatal.detail, "injected audio output failure"));
+    assert(report.first_fatal.report_id == ROHR_AUDIO_OUTPUT_REPORT_ID);
+    assert(report.first_fatal.recovery == ROHR_REPORT_UPDATE_ABORTED);
+    assert(report.first_fatal.occurrence_count == 1);
+    assert(metric(&report, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 0);
+    Report output_failure = report;
+    SDL_SetError("later unrelated error");
     pump(16);
     Report recovered = audio_update();
     assert(recovered.header.status == ROHR_REPORT_COMPLETE && !recovered.has_fatal);
     assert(metric(&recovered, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 16);
+    assert(sample_frames == delivered + 16);
+    assert(strstr(output_failure.first_fatal.detail, "injected audio output failure"));
 
     OK(audio_sound_play(sound.result.value));
     Report stopped = rohr_audio_stop();
@@ -242,6 +270,8 @@ static void delayed_and_failures(void) {
     OK(audio_start());
     assert(audio_update().entry_count == 0);
     assert(!audio_sound_valid_check(stale));
+    assert(decode_failure.diagnostics[0].source.id == music.result.value);
+    assert(report_valid_check(&output_failure) && output_failure.has_fatal);
     (void)audio_stop(); (void)audio_update();
 }
 

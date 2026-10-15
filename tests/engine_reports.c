@@ -151,12 +151,24 @@ static void failures(void) {
     Entity resolution = entity(-1, 0), healthy = entity(-1, 0);
     failed_index = rohr_entity_index_get(resolution).result.value;
     snprintf(deletion_detail, sizeof(deletion_detail), "injected relationship detach failure");
+    EntityInfoFlags fields = ROHR_ENTITY_INFO_CORE_COMPONENTS | ROHR_ENTITY_INFO_CORE_LIFETIME;
+    EntityInfoResult before = rohr_entity_info_get(failed_entity, fields); OK(before);
+    EntityInfoResult healthy_before = entity_info_get(healthy, fields); OK(healthy_before);
     Report r = engine_update(), saved = r, snapshot = r;
     complete(&r, ROHR_ENGINE_REPORT_ID); lifecycle_counts(&r, 3, 3, 1, 2);
     assert(r.entry_count == 1 && r.entries[0].invocation_count == 1);
     assert(r.diagnostic_count == 2 && r.dropped_diagnostic_occurrences == 0);
     assert(entity_alive_check(failed_entity) && entity_alive_check(resolution));
     assert(!entity_alive_check(healthy));
+    EntityInfoResult after = entity_info_get(failed_entity, fields); OK(after);
+    assert(after.result.value.components == before.result.value.components);
+    assert(memcmp(&after.result.value.lifetime, &before.result.value.lifetime, sizeof(LifeTime)) == 0);
+    EntityInfoIssueCountResult issues = entity_info_issues_count_get(&after.result.value, fields); OK(issues);
+    assert(issues.result.value == 0); /* Failed deletion does not invalidate retained components. */
+    EntityInfoResult deleted = entity_info_get(healthy, fields);
+    assert(error_check(deleted) && deleted.result.error == ERROR_ENGINE_INVALID_ENTITY);
+    ReportResult stored = rohr_report_get(ROHR_ENGINE_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value, &r, sizeof(r)) == 0);
     bool found_source = false, found_slot = false;
     for(size_t i = 0; i < r.diagnostic_count; ++i) {
         ReportDiagnostic *d = &r.diagnostics[i];
@@ -171,6 +183,10 @@ static void failures(void) {
     failed_entity = ENTITY_INVALID; failed_index = UINT32_MAX;
     memset(deletion_detail, 'x', sizeof(deletion_detail) - 1);
     r = engine_lifecycle_update(); lifecycle_counts(&r, 2, 2, 2, 0);
+    assert(!entity_alive_check(before.result.value.entity) && !entity_alive_check(resolution));
+    assert(after.result.value.entity == before.result.value.entity);
+    assert(healthy_before.result.value.entity == healthy);
+    assert(memcmp(&stored.result.value, &saved, sizeof(saved)) == 0);
     assert(memcmp(&saved, &snapshot, sizeof(saved)) == 0);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY + 4; ++i) (void)entity(-1, 0);
     fail_deletions = true;
@@ -191,6 +207,8 @@ static void failures(void) {
     assert(strstr(full.first_fatal.detail, "requires engine startup"));
     OK(report_merge(&full, &r)); assert(full.header.status == ROHR_REPORT_FAILED);
     assert(memcmp(&saved, &snapshot, sizeof(saved)) == 0);
+    OK(entity_info_release(&before.result.value)); OK(entity_info_release(&after.result.value));
+    OK(entity_info_release(&healthy_before.result.value));
 }
 #endif
 

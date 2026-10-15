@@ -549,7 +549,8 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
             count ? &animated_sprites[index] : NULL, count, FLAG(GRAPHICS_ANIMATION_COUNT));
         if(count && (v->available & flag)) {
             const AnimatedSprite *a = v->animations;
-            if(a->frame_count > MAX_ANIMATIONS_FRAMES || !isfinite(a->scale.x) ||
+            if(a->frame_count > MAX_ANIMATIONS_FRAMES ||
+                    a->player.frame_count != a->frame_count || !isfinite(a->scale.x) ||
                     !isfinite(a->scale.y) || !vector_check(a->body_offset) ||
                     !isfinite(a->orientation_offset)) invalid(s, flag, true, 0);
             if(a->player.animation.handle && !graphics_animation_valid_check(a->player.animation))

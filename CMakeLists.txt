@@ -552,7 +552,7 @@ if(ROHR_BUILD_TESTS)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
         target_compile_definitions(graphics_reports_test PRIVATE ROHR_TEST_GRAPHICS_WRAP)
         target_link_options(graphics_reports_test PRIVATE
-            -Wl,--wrap=realloc -Wl,--wrap=SDL_RenderFillRect -Wl,--wrap=SDL_SetRenderTarget
+            -Wl,--wrap=realloc -Wl,--wrap=SDL_RenderFillRect -Wl,--wrap=SDL_RenderTextureRotated -Wl,--wrap=SDL_SetRenderTarget
             -Wl,--wrap=SDL_RenderPresent -Wl,--wrap=SDL_RenderReadPixels
             -Wl,--wrap=platform_process_command_check -Wl,--wrap=platform_process_open_write
             -Wl,--wrap=platform_process_close -Wl,--wrap=fwrite -Wl,--wrap=fflush)

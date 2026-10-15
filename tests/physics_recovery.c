@@ -17,6 +17,19 @@ static Entity entity(void) {
 static EntityIndex index_of(Entity e) {
     EntityIndexResult r = rohr_entity_index_get(e); OK(r); return r.result.value;
 }
+static EntityInfo inspect(Entity e, EntityInfoFlags flags) {
+    EntityInfoResult r = rohr_entity_info_get(e, flags); OK(r);
+    assert(rohr_entity_info_check(&r.result.value, flags));
+    return r.result.value;
+}
+static void no_issues(const EntityInfo *info) {
+    EntityInfoIssueCountResult r = entity_info_issues_count_get(info, info->requested); OK(r);
+    assert(r.result.value == 0);
+}
+static void stored_equal(const Report *report, ReportFlags flags) {
+    ReportResult r = rohr_report_get(flags); OK(r);
+    assert(memcmp(report, &r.result.value, sizeof(*report)) == 0);
+}
 static Entity body(float x, float y, bool collider) {
     Entity e = entity();
     OK(rohr_physics_position_set(e, (Position){x, y}));
@@ -51,12 +64,20 @@ static void movement_retry(void) {
     OK(rohr_physics_velocity_set(a, (Velocity){16, 0}));
     OK(rohr_physics_velocity_set(b, (Velocity){4, 0}));
     OK(rohr_physics_substeps_set(4));
+    EntityInfoFlags fields = ROHR_ENTITY_INFO_PHYSICS_POSITION | ROHR_ENTITY_INFO_PHYSICS_VELOCITY |
+        ROHR_ENTITY_INFO_PHYSICS_BODY_MODE | ROHR_ENTITY_INFO_PHYSICS_HITBOX_LOCAL;
+    EntityInfo before = inspect(a, fields); no_issues(&before);
     Report r = rohr_physics_dt_update(1);
     const ReportDiagnostic *d = warning(&r, ROHR_PHYSICS_POSITION, a);
     assert(d->occurrence_count == 4 && d->first_substep == 0 && d->last_substep == 3);
     assert(positions[i].x == ROHR_WORLD_COORDINATE_MAX && velocities[i].x == 16);
     assert(positions[j].x == 4 && rohr_entity_components_check(a, ROHR_HIT_BOX));
     assert(!rohr_entity_components_check(a, ROHR_HOLD));
+    EntityInfo rejected = inspect(a, fields); no_issues(&rejected);
+    assert(rejected.position.x == before.position.x && rejected.velocity.x == before.velocity.x);
+    assert(rejected.body_mode.is_dynamic && !rejected.body_mode.is_held);
+    assert(memcmp(&rejected.hitbox_local, &before.hitbox_local, sizeof(Shape)) == 0);
+    stored_equal(&r, ROHR_PHYSICS_REPORT); /* Inspection neither executes nor replaces evidence. */
     Report saved = r;
     ReportResult stored = rohr_report_get(ROHR_PHYSICS_REPORT); OK(stored);
     assert(stored.result.value.version == r.version);
@@ -65,13 +86,22 @@ static void movement_retry(void) {
     OK(rohr_physics_velocity_set(a, (Velocity){-16, 0}));
     r = rohr_physics_dt_update(1);
     assert(r.diagnostic_count == 0 && positions[i].x == ROHR_WORLD_COORDINATE_MAX - 16);
+    EntityInfo recovered = inspect(a, fields); no_issues(&recovered);
+    assert(recovered.position.x == positions[i].x && recovered.velocity.x == -16);
+    assert(rejected.position.x == ROHR_WORLD_COORDINATE_MAX && rejected.velocity.x == 16);
+    assert(positions[j].x == 12); /* Independent work completed on every attempt. */
     assert(saved.diagnostics[0].occurrence_count == 4);
+    rohr_engine_stop();
+    OK(rohr_engine_start());
+    assert(before.position.x == rejected.position.x && saved.diagnostics[0].source.id == a);
+    OK(entity_info_release(&before)); OK(entity_info_release(&rejected)); OK(entity_info_release(&recovered));
     rohr_engine_stop();
 }
 
 static void integration_and_locks(void) {
     OK(rohr_engine_start());
     Entity a = body(0, 0, false), b = body(10, 0, false);
+    OK(rohr_physics_orientation_set(b, 0));
     EntityIndex i = index_of(a);
     OK(rohr_physics_velocity_set(a, (Velocity){1, 0}));
     OK(rohr_physics_acceleration_set(a, (Acceleration){FLT_MAX, 0}));
@@ -97,10 +127,19 @@ static void integration_and_locks(void) {
     r = rohr_physics_pipeline_integrate(0);
     warning(&r, ROHR_PHYSICS_TRANSFORM_LOCK, a);
     assert(rohr_entity_components_check(a, ROHR_TRANSFORM_LOCK));
+    EntityInfo broken = inspect(a, ROHR_ENTITY_INFO_PHYSICS_TRANSFORM_LOCK);
+    EntityInfoIssue issue;
+    EntityInfoIssueReadResult issues = entity_info_issues_get(&broken, broken.requested, &issue, 1); OK(issues);
+    assert(issues.result.value.total == 1 && issue.reason == ROHR_ENTITY_INFO_REFERENCE_MISSING);
+    assert(issue.reference.id == UINT32_MAX && issue.field == ROHR_ENTITY_INFO_FIELD_TARGET);
+    stored_equal(&r, ROHR_PHYSICS_INTEGRATION_REPORT);
     OK(rohr_physics_transform_lock_set(a, b, (Vec2D){0}, 0, true, false, false));
     r = rohr_physics_pipeline_integrate(0);
     assert(r.diagnostic_count == 0 && positions[i].x == 10);
+    EntityInfo repaired = inspect(a, ROHR_ENTITY_INFO_PHYSICS_TRANSFORM_LOCK); no_issues(&repaired);
+    assert(repaired.transform_lock.driver == b && broken.transform_lock.driver == UINT32_MAX);
     rohr_engine_stop();
+    OK(entity_info_release(&broken)); OK(entity_info_release(&repaired));
 }
 
 static void setters(void) {
@@ -154,6 +193,7 @@ static void contacts_and_geometry(void) {
     EntityIndex i = index_of(a), j = index_of(b);
     OK(rohr_physics_velocity_set(a, (Velocity){1, 1}));
     OK(rohr_physics_velocity_set(b, (Velocity){-1, 0}));
+    OK(rohr_physics_friction_set(a, .5f));
     frictions[i] = NAN; /* Inject invalid existing material; normal response remains valid. */
     physics_pipeline_substep_begin();
     Report r = physics_pipeline_contacts_gather();
@@ -164,6 +204,20 @@ static void contacts_and_geometry(void) {
     ContactInfo contact = physics_contact_get(a, b);
     for(uint8_t n = 0; n < contact.point_count; ++n)
         assert(contact.points[n].friction_impulse.x == 0 && contact.points[n].friction_impulse.y == 0);
+    EntityInfoResult captured = entity_info_get(a, ROHR_ENTITY_INFO_PHYSICS_FRICTION | ROHR_ENTITY_INFO_PHYSICS_CONTACTS); OK(captured);
+    EntityInfo rejected = captured.result.value;
+    assert(!entity_info_check(&rejected, ROHR_ENTITY_INFO_PHYSICS_FRICTION) && rejected.friction == 0);
+    assert(entity_info_check(&rejected, ROHR_ENTITY_INFO_PHYSICS_CONTACTS) && rejected.contact_count == 1);
+    assert(rejected.contacts[0].target == b && rejected.contacts[0].contact.detected);
+    EntityInfoIssue issue;
+    EntityInfoIssueReadResult issues = entity_info_issues_get(&rejected, rejected.requested, &issue, 1); OK(issues);
+    assert(issues.result.value.total == 1 && issue.section == ROHR_ENTITY_INFO_PHYSICS_FRICTION);
+    assert(issue.reason == ROHR_ENTITY_INFO_VALUE_INVALID && issue.reference.id == a);
+    for(uint8_t n = 0; n < rejected.contacts[0].contact.point_count; ++n)
+        assert(rejected.contacts[0].contact.points[n].friction_impulse.x == 0 &&
+            rejected.contacts[0].contact.points[n].friction_impulse.y == 0);
+    stored_equal(&r, ROHR_PHYSICS_CONSTRAINTS_REPORT);
+    OK(rohr_physics_friction_set(a, .5f));
     orientations[i] = NAN;
     r = physics_pipeline_contacts_gather();
     warning(&r, ROHR_PHYSICS_GEOMETRY, a);
@@ -173,6 +227,8 @@ static void contacts_and_geometry(void) {
     r = physics_pipeline_contacts_gather();
     assert(r.diagnostic_count == 0 && world_hit_boxes[i].amount_of_vertices != 0);
     rohr_engine_stop();
+    assert(!entity_info_check(&rejected, ROHR_ENTITY_INFO_PHYSICS_FRICTION) && rejected.contacts[0].target == b);
+    OK(entity_info_release(&rejected));
 }
 
 static void soft_body_local_failure(void) {

@@ -204,6 +204,48 @@ static void contact_metrics(void) {
 }
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
+static void aborted_update_state(void) {
+    OK(rohr_engine_start());
+    Entity a = body(0, true), b = body(1, true), healthy = body(100, false);
+    OK(rohr_physics_velocity_set(healthy, (Velocity){2, 0}));
+    OK(rohr_physics_substeps_set(3));
+    EntityInfoFlags fields = ROHR_ENTITY_INFO_PHYSICS_POSITION | ROHR_ENTITY_INFO_PHYSICS_CONTACTS;
+    EntityInfoResult before = rohr_entity_info_get(healthy, fields); OK(before);
+    fail_allocations = true;
+    Report failed = rohr_physics_dt_update(3);
+    fail_allocations = false;
+    assert(failed.has_fatal && failed.header.status == ROHR_REPORT_FAILED);
+    assert(failed.first_fatal.report_id == ROHR_PHYSICS_CONTACTS_REPORT_ID);
+    assert(failed.first_fatal.internal_stage == ROHR_PHYSICS_BROADPHASE);
+    assert(failed.first_fatal.code == ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    assert(failed.first_fatal.recovery == ROHR_REPORT_UPDATE_ABORTED);
+    assert(failed.first_fatal.occurrence_count == 1 && failed.first_fatal.has_substep);
+    assert(failed.first_fatal.first_substep == 0 && failed.first_fatal.last_substep == 0);
+    assert(metric(&failed, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_ATTEMPTED_COUNT) == 1);
+    assert(metric(&failed, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 0);
+    assert(entry(&failed, ROHR_PHYSICS_JOINTS_REPORT_ID) == NULL);
+    assert(entry(&failed, ROHR_PHYSICS_CONSTRAINTS_REPORT_ID) == NULL);
+    /* A fatal gather aborts later work; it does not undo completed integration. */
+    assert(position(healthy).x == 102 && position(a).x == 0 && position(b).x == 1);
+    EntityInfoResult after = entity_info_get(healthy, fields); OK(after);
+    assert(after.result.value.position.x == 102 && before.result.value.position.x == 100);
+    assert(after.result.value.contact_count == 0 && physics_contact_count_get(a) == 0);
+    EntityInfoIssueCountResult issues = entity_info_issues_count_get(&after.result.value, fields); OK(issues);
+    assert(issues.result.value == 0); /* Valid state can accompany an execution failure. */
+    ReportResult stored = report_get(ROHR_PHYSICS_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value, &failed, sizeof(failed)) == 0);
+    Report recovered = physics_dt_update(3);
+    assert(!recovered.has_fatal && recovered.diagnostic_count == 0);
+    assert(metric(&recovered, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 3);
+    assert(position(healthy).x == 108 && after.result.value.position.x == 102);
+    assert(memcmp(&stored.result.value, &failed, sizeof(failed)) == 0);
+    rohr_engine_stop(); OK(rohr_engine_start());
+    assert(before.result.value.position.x == 100 && after.result.value.position.x == 102);
+    assert(report_valid_check(&failed) && failed.first_fatal.source.id == a);
+    OK(entity_info_release(&before.result.value)); OK(entity_info_release(&after.result.value));
+    rohr_engine_stop();
+}
+
 static void allocation_failures(void) {
     OK(rohr_engine_start());
     Entity a = body(0, true), b = body(1, true);
@@ -279,6 +321,7 @@ int main(void) {
     contact_metrics();
     diagnostic_overflow();
 #ifdef ROHR_TEST_ALLOCATION_WRAP
+    aborted_update_state();
     allocation_failures();
 #endif
     OK(rohr_engine_start());

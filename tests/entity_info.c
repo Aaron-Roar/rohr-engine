@@ -114,7 +114,7 @@ static Entity fixture(void) {
     Entity child = make_entity(); OK(entity_child_set(e, child));
     GroupIdResult group = entity_group_create(); OK(group); OK(entity_group_add(group.result.value, e));
     EntityIndex index = index_of(e);
-    AnimatedSprite animation = {.frame_count = 2, .visible = true, .scale = {2,3}};
+    AnimatedSprite animation = {.frame_count = 2, .player = {.frame_count = 2}, .visible = true, .scale = {2,3}};
     animation.frames[0].texture.handle = 1234; animation.frames[1].texture.handle = 5678;
     OK(AnimatedSpritePool_store_at(&animated_sprites_pool, index, animation));
     entity_mask[index] |= ROHR_ANIMATED_SPRITE;

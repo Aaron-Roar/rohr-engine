@@ -218,8 +218,10 @@ The current engine stores one `AnimatedSprite` per entity, so `animation_count`
 is zero or one. `AnimatedSpriteSet` is not an entity component.
 `animations` copies attached `AnimatedSprite` entries, including playback state,
 frame values, visibility, scale, and transforms. It is not a list of all animation
-assets. `sprite_visible` and `sprite_scale` describe the static sprite only;
-animation equivalents are accessed through `animations[i]`. The full sprite
+assets. Mismatched sprite/player frame counts retain the captured configuration
+and produce an invalid-value warning, matching the animation pipeline's rejection
+of that configuration. `sprite_visible` and `sprite_scale` describe the static
+sprite only; animation equivalents are accessed through `animations[i]`. The full sprite
 request also supplies the visibility and scale selectors. Layer records capture
 the existing entity/sprite/animation layer binding and resolved value; resolution
 failure makes that layer section unavailable and preserves the ID in its issue.

@@ -17,7 +17,7 @@ static unsigned callbacks;
 static bool recursive, bad_submission;
 
 #ifdef ROHR_TEST_GRAPHICS_WRAP
-static bool fail_allocation, fail_draw, fail_target, fail_present, fail_capture;
+static bool fail_allocation, fail_draw, fail_texture, fail_target, fail_present, fail_capture;
 static bool fake_recording, fail_write, fail_flush;
 static unsigned presents;
 void *__real_realloc(void *, size_t);
@@ -26,6 +26,13 @@ bool __real_SDL_RenderFillRect(SDL_Renderer *, const SDL_FRect *);
 bool __wrap_SDL_RenderFillRect(SDL_Renderer *r, const SDL_FRect *rect) {
     if(fail_draw) { fail_draw=false; return SDL_SetError("injected draw failure"); }
     return __real_SDL_RenderFillRect(r,rect);
+}
+bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FRect *,
+    const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
+bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *r, SDL_Texture *t, const SDL_FRect *src,
+        const SDL_FRect *dst, double angle, const SDL_FPoint *center, SDL_FlipMode flip) {
+    if(fail_texture) { fail_texture=false; return SDL_SetError("injected sprite draw failure"); }
+    return __real_SDL_RenderTextureRotated(r,t,src,dst,angle,center,flip);
 }
 bool __real_SDL_SetRenderTarget(SDL_Renderer *, SDL_Texture *);
 bool __wrap_SDL_SetRenderTarget(SDL_Renderer *r, SDL_Texture *t) {
@@ -133,6 +140,34 @@ static void retained_assets(void) {
     TextureAssetResult loaded=rohr_graphics_texture_load((TextureDescriptor){texture_path,{4,4}}); OK(loaded);
     TextureAsset texture=loaded.result.value;
     EntityResult entity=rohr_entity_add(); OK(entity);
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    OK(graphics_sprite_add(entity.result.value,graphics_sprite_create(texture,(Scale){1,1})));
+    EntityInfoResult drawable=entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_SPRITE); OK(drawable);
+    EntityInfoIssueCountResult drawable_issues=entity_info_issues_count_get(&drawable.result.value,
+        ROHR_ENTITY_INFO_GRAPHICS_SPRITE); OK(drawable_issues); assert(drawable_issues.result.value==0);
+    assert(graphics_sprite_draw(entity.result.value));
+    assert(graphics_screen_rect_draw(2,2,1,1,white));
+    assert(graphics_texture_assets_stats_get().command_references==1);
+    fail_texture=true;
+    Report draw_failure=rohr_graphics_pipeline_commands_execute(); complete(draw_failure);
+    assert(draw_failure.diagnostic_count==1 && draw_failure.diagnostics[0].source.kind==ROHR_REPORT_OBJECT_TEXTURE);
+    assert(draw_failure.diagnostics[0].source.id==drawable.result.value.sprite.texture.handle);
+    assert(draw_failure.diagnostics[0].code==ERROR_ENGINE_GRAPHICS_DRAW_FAILED);
+    assert(draw_failure.diagnostics[0].recovery==ROHR_REPORT_CONTRIBUTION_SKIPPED);
+    assert(metric(&draw_failure,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(metric(&draw_failure,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_SKIPPED_COUNT)==1);
+    assert(graphics_texture_assets_stats_get().command_references==0 && graphics_texture_valid_check(texture));
+    EntityInfoResult still_drawable=rohr_entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_SPRITE); OK(still_drawable);
+    assert(memcmp(&drawable.result.value.sprite,&still_drawable.result.value.sprite,sizeof(Sprite))==0);
+    ReportResult latest_draw=report_get(ROHR_GRAPHICS_COMMANDS_REPORT); OK(latest_draw);
+    assert(memcmp(&latest_draw.result.value,&draw_failure,sizeof(Report))==0);
+    SDL_SetError("unrelated replacement error");
+    assert(graphics_sprite_draw(entity.result.value));
+    Report retried=graphics_pipeline_commands_execute(); complete(retried);
+    assert(retried.diagnostic_count==0 && metric(&retried,ROHR_GRAPHICS_COMMANDS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(strstr(draw_failure.diagnostics[0].detail,"injected sprite draw failure"));
+    OK(entity_info_release(&drawable.result.value)); OK(entity_info_release(&still_drawable.result.value));
+#endif
     AnimatedSprite sprite={.scale={1,1},.visible=true};
     sprite.player.ticks_per_frame=1;
     AnimationFrame frame=rohr_graphics_animation_frame_create(texture);
@@ -146,7 +181,47 @@ static void retained_assets(void) {
     assert(animation.header.id==ROHR_GRAPHICS_ANIMATIONS_REPORT_ID);
     assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     assert(rohr_graphics_animated_sprite_frame_index_get(entity.result.value).result.value==1);
+    EntityResult healthy=rohr_entity_add(); OK(healthy);
+    OK(graphics_animated_sprite_add(healthy.result.value,sprite));
+    EntityIndexResult index=rohr_entity_index_get(entity.result.value); OK(index);
+    EntityInfoResult before=entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS); OK(before);
+    /* The pipeline rejects mismatched player metadata without repairing it. */
+    animated_sprites[index.result.value].player.frame_count=1;
+    animation=graphics_sprite_frames_update(1,0);
+    complete(animation);
+    assert(animation.diagnostic_count==1 && animation.diagnostics[0].source.id==entity.result.value);
+    assert(animation.diagnostics[0].code==ERROR_ENGINE_STATE_INVALID);
+    assert(animation.diagnostics[0].internal_stage==ROHR_GRAPHICS_ANIMATION);
+    assert(animation.diagnostics[0].recovery==ROHR_REPORT_CONTRIBUTION_SKIPPED);
+    assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
+    assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_SKIPPED_COUNT)==1);
+    assert(graphics_animated_sprite_frame_index_get(healthy.result.value).result.value==1);
+    EntityInfoResult broken=rohr_entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS); OK(broken);
+    assert(broken.result.value.animations[0].player.frame_count==1);
+    EntityInfoIssue issue;
+    EntityInfoIssueReadResult issues=entity_info_issues_get(&broken.result.value,
+        ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS,&issue,1); OK(issues);
+    assert(issues.result.value.total==1 && issue.reason==ROHR_ENTITY_INFO_VALUE_INVALID);
+    assert(issue.reference.id==animation.diagnostics[0].source.id && issue.has_index && issue.index==0);
+    ReportResult stored=report_get(ROHR_GRAPHICS_ANIMATIONS_REPORT); OK(stored);
+    assert(memcmp(&stored.result.value,&animation,sizeof(animation))==0);
+    Report retained=animation;
+    animated_sprites[index.result.value].player.frame_count=2;
+    animation=rohr_graphics_sprite_frames_update(2,0);
+    assert(animation.diagnostic_count==0);
+    assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==2);
+    assert(graphics_animated_sprite_frame_index_get(entity.result.value).result.value==0);
+    EntityInfoResult repaired=entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS); OK(repaired);
+    EntityInfoIssueCountResult count=entity_info_issues_count_get(&repaired.result.value,
+        ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS); OK(count); assert(count.result.value==0);
     OK(rohr_entity_delete(entity.result.value));
+    OK(rohr_entity_delete(healthy.result.value));
+    assert(before.result.value.animations[0].player.frame_count==2);
+    assert(before.result.value.animations[0].player.frame_index==1);
+    assert(broken.result.value.animations[0].player.frame_count==1);
+    assert(memcmp(&stored.result.value,&retained,sizeof(retained))==0);
+    OK(entity_info_release(&before.result.value)); OK(entity_info_release(&broken.result.value));
+    OK(entity_info_release(&repaired.result.value));
     FontAsset font=rohr_graphics_font_default_get();
     TextAssetResult text=rohr_graphics_text_create(&font,"queued text",white); OK(text);
     rohr_graphics_screen_texture_draw(texture,(Position){4,4},(Scale){4,4},0);

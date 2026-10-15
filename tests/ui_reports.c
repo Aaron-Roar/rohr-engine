@@ -142,6 +142,34 @@ static void lifecycle(void) {
 
 }
 
+static void input_overflow_state(void) {
+    clean(ui_update());
+    char value[UI_FIELD_EDIT_MAX] = "", other[32] = "untouched";
+    UIFieldBinding binding = {.kind = UI_FIELD_STRING, .string = value, .string_capacity = sizeof(value)};
+    UIFieldBinding other_binding = {.kind = UI_FIELD_STRING, .string = other, .string_capacity = sizeof(other)};
+    ui_field_focus_set("overflow-state", binding, NULL, false);
+    for(size_t i = 0; i < UI_FIELD_KEY_EVENT_MAX+3; ++i) text("x");
+    input(MOUSE_BUTTON_STATE_UP);
+    (void)ui_field("overflow-state", binding, NULL, bounds, NULL);
+    (void)ui_field("other-state", other_binding, NULL, bounds, NULL);
+    assert(strlen(value) == UI_FIELD_KEY_EVENT_MAX && strcmp(other, "untouched") == 0);
+    Report rejected = rohr_ui_update();
+    assert(warnings(&rejected, ERROR_ENGINE_UI_CAPACITY_EXCEEDED) == 3);
+    assert(metric(&rejected, ROHR_REPORT_UI_EVENT_RECEIVED_COUNT) == UI_FIELD_KEY_EVENT_MAX+3);
+    assert(metric(&rejected, ROHR_REPORT_UI_EVENT_DROPPED_COUNT) == 3);
+    for(size_t i = 0; i < rejected.diagnostic_count; ++i)
+        assert(rejected.diagnostics[i].recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
+    ReportResult stored = report_get(ROHR_UI_REPORT); assert(!error_check(stored));
+    assert(memcmp(&stored.result.value, &rejected, sizeof(Report)) == 0);
+    text("y"); input(MOUSE_BUTTON_STATE_UP);
+    (void)ui_field("overflow-state", binding, NULL, bounds, NULL);
+    clean(ui_update());
+    assert(strlen(value) == UI_FIELD_KEY_EVENT_MAX+1 && value[UI_FIELD_KEY_EVENT_MAX] == 'y');
+    assert(strcmp(other, "untouched") == 0);
+    assert(memcmp(&stored.result.value, &rejected, sizeof(Report)) == 0);
+    clean(ui_update()); /* Drop focus before the caller-owned binding leaves scope. */
+}
+
 static void capacities(void) {
     SDL_Event ignored = {.type = SDL_EVENT_KEY_UP};
     ui_event_add(NULL); ui_event_add(&ignored);
@@ -250,6 +278,6 @@ static void graphics_ownership(void) {
 }
 
 int main(void) {
-    lifecycle(); capacities(); graphics_ownership();
+    lifecycle(); input_overflow_state(); capacities(); graphics_ownership();
     return 0;
 }
