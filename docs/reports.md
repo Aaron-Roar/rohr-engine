@@ -485,6 +485,11 @@ no substep. Allocation failures in tree construction, rigid/beam contact gatheri
 joint gathering, legacy joint force creation, and interaction publication remain
 fatal; dependent stages stop and earlier successful work remains committed.
 
+Shared force/torque sources targeting beams are evaluated during integration,
+like rigid-body sources. Their endpoint changes commit together and count as one
+source evaluation per substep, not two endpoint evaluations. A rejected source
+retains both endpoints' prior accumulators and reports the source and beam IDs.
+
 ### Physics operation rejection and retry
 
 Simulation calculates candidate changes before committing them. Invalid position,

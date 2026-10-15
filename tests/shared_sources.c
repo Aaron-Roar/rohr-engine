@@ -55,9 +55,9 @@ static ForceDescription at_com(Entity target, float angle, float magnitude) {
 }
 static Entity add(ForceDescription d) { EntityResult r=physics_force_add(d); OK(r); return r.result.value; }
 static PhysicsChange evaluate(Entity source, bool torque, bool expected) {
-    PhysicsChange change={0}; bool active=false;
+    PhysicsSourceChanges change={0}; bool active=false;
     OK(physics_source_change_get(source,torque,&change,&active));
-    assert(active==expected); return change;
+    assert(active==expected); return change.values[0];
 }
 static uint64_t metric(Report r, ReportMetricId id) {
     uint64_t n=0;
@@ -204,7 +204,7 @@ static void beam_references(void) {
     /* Geometry failures are accepted at API time and observed at evaluation, even at zero/no target. */
     OK(physics_position_set(b.result.value,(Position){ROHR_PHYSICS_BEAM_MIN_LENGTH,0}));
     d.target=0; d.magnitude=0; OK(physics_force_description_set(source,d));
-    PhysicsChange unused; bool active; BAD(physics_source_change_get(source,false,&unused,&active));
+    PhysicsSourceChanges unused; bool active; BAD(physics_source_change_get(source,false,&unused,&active));
     OK(physics_position_set(b.result.value,(Position){2*ROHR_PHYSICS_BEAM_MIN_LENGTH,0}));
     evaluate(source,false,false);
     OK(entity_delete(a.result.value)); BAD(physics_source_change_get(source,false,&unused,&active));
@@ -355,9 +355,281 @@ static void substeps_and_expiry(void) {
     assert(entity_alive_check(target));
 }
 
+static Report source_report(void) {
+    Report report=report_create();
+    report.header=(ReportHeader){ROHR_PHYSICS_INTEGRATION_REPORT_ID,ROHR_REPORT_COMPLETE,0};
+    return report;
+}
+static void beam_loads(void) {
+    EntityResult owner=physics_soft_body_create(); OK(owner);
+    EntityResult a=physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
+    EntityResult b=physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    OK(a); OK(b);
+    EntityResult beam=physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+    OK(beam);
+    ForceDescription d={.target=beam.result.value,.magnitude=12,.orientation.offset=90,
+        .location.reference={.kind=ROHR_FORCE_BEAM_POSITION,
+            .beam={.entity=beam.result.value,.fraction=0.5f}}};
+    Entity source=add(d);
+    uint32_t count=entity_alive_count_get();
+    for(unsigned variant=0;variant<3;++variant) {
+        if(variant==1) {
+            d.location.reference.beam.fraction=0;
+            d.location.offset.x=5;
+        } else if(variant==2) d.location=(ForceLocation){.offset={5,0}};
+        OK(physics_force_description_set(source,d));
+        force_accelerations[idx(a.result.value)]=(Acceleration){0};
+        force_accelerations[idx(b.result.value)]=(Acceleration){0};
+        Report report=source_report(); physics_sources_apply(&report,false);
+        assert(metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==1);
+        assert(metric(report,ROHR_REPORT_SOURCE_SUSPENDED_COUNT)==0);
+        assert(near(force_accelerations[idx(a.result.value)].x,3));
+        assert(near(force_accelerations[idx(b.result.value)].x,1.5));
+        assert(entity_alive_count_get()==count);
+    }
+}
+
+typedef struct BeamFixture { Entity owner, a, b, beam, source; } BeamFixture;
+static BeamFixture beam_fixture(float stiffness, float damping) {
+    EntityResult owner=physics_soft_body_create(); OK(owner);
+    EntityResult a=physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
+    EntityResult b=physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    OK(a); OK(b);
+    OK(entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    OK(entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    EntityResult beam=physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,stiffness,damping);
+    OK(beam); OK(physics_soft_body_beam_collision_disable(beam.result.value));
+    return (BeamFixture){owner.result.value,a.result.value,b.result.value,beam.result.value,
+        add((ForceDescription){.target=beam.result.value,.magnitude=12,.location.offset={5,0}})};
+}
+static PhysicsSourceChanges beam_evaluate(BeamFixture f, bool torque) {
+    PhysicsSourceChanges changes={0}; bool active=false;
+    OK(physics_source_change_get(f.source,torque,&changes,&active));
+    assert(active && changes.count==2);
+    return changes;
+}
+static bool close_value(double a, double b) {
+    return fabs(a-b)<0.0001*(1+fabs(a)+fabs(b));
+}
+static uint32_t beam_seed=0x4192c6d3u;
+static double beam_random(void) {
+    beam_seed=1664525u*beam_seed+1013904223u;
+    return (double)(beam_seed>>8)/16777216.0;
+}
+/* Independent virtual attachment used only to differentiate endpoint work. */
+static void virtual_point(double ax, double ay, double bx, double by,
+        double fraction, double height, double *px, double *py) {
+    double dx=bx-ax, dy=by-ay, length=hypot(dx,dy);
+    *px=ax+fraction*dx-height*dy/length;
+    *py=ay+fraction*dy+height*dx/length;
+}
+static void beam_equivalence_and_work(void) {
+    BeamFixture f=beam_fixture(0,0);
+    for(unsigned sample=0;sample<120;++sample) {
+        Position a={(float)(10*beam_random()),(float)(10*beam_random())};
+        double angle=6.28*beam_random(), length=2+20*beam_random();
+        Position b={a.x+length*cos(angle),a.y+length*sin(angle)};
+        OK(physics_position_set(f.a,a)); OK(physics_position_set(f.b,b));
+        double dx=(double)b.x-a.x,dy=(double)b.y-a.y;
+        length=hypot(dx,dy);
+        double alpha=3*beam_random()-1, height=4*beam_random()-2;
+        double px,py; virtual_point(a.x,a.y,b.x,b.y,alpha,height,&px,&py);
+        Position point={px,py};
+        ForceDescription d={.target=f.beam,.location.offset=point,
+            .magnitude=sample%2 ? -12 : 12,.orientation.offset=(float)(360*beam_random())};
+        OK(rohr_physics_force_description_set(f.source,d));
+        PhysicsSourceChanges expected=beam_evaluate(f,false);
+        double fax=expected.values[0].force_acceleration.x*2;
+        double fay=expected.values[0].force_acceleration.y*2;
+        double fbx=expected.values[1].force_acceleration.x*4;
+        double fby=expected.values[1].force_acceleration.y*4;
+        double radians=math_degrees_to_radians(d.orientation.offset);
+        double fx=d.magnitude*sin(radians),fy=d.magnitude*cos(radians);
+        assert(close_value(fax+fbx,fx) && close_value(fay+fby,fy));
+        assert(close_value(a.y*fax-a.x*fay+b.y*fbx-b.x*fby,point.y*fx-point.x*fy));
+        for(unsigned variant=0;variant<3;++variant) {
+            /* All anchors and both pure-fraction and combined-distance representations. */
+            float distance=variant==0 ? 0 : (float)(alpha*length*0.6);
+            d.location=(ForceLocation){.offset={distance,height},
+                .reference={.kind=ROHR_FORCE_BEAM_POSITION,
+                    .beam={f.beam,(ForceBeamAnchor)variant,alpha-0.5*variant-distance/length}}};
+            OK(physics_force_description_set(f.source,d));
+            PhysicsSourceChanges actual=beam_evaluate(f,false);
+            for(unsigned n=0;n<2;++n) {
+                assert(close_value(actual.values[n].force_acceleration.x,expected.values[n].force_acceleration.x));
+                assert(close_value(actual.values[n].force_acceleration.y,expected.values[n].force_acceleration.y));
+            }
+        }
+        /* Central differences, with alpha/h frozen at the resolved world point. */
+        double resolved_alpha=(((double)point.x-a.x)*dx+((double)point.y-a.y)*dy)/(length*length);
+        double resolved_height=(-((double)point.x-a.x)*dy+((double)point.y-a.y)*dx)/length;
+        const double epsilon=1e-5;
+        double plus_x,plus_y,minus_x,minus_y;
+        virtual_point(a.x+epsilon*0.3,a.y-epsilon*0.4,b.x-epsilon*0.7,b.y+epsilon*0.8,
+            resolved_alpha,resolved_height,&plus_x,&plus_y);
+        virtual_point(a.x-epsilon*0.3,a.y+epsilon*0.4,b.x+epsilon*0.7,b.y-epsilon*0.8,
+            resolved_alpha,resolved_height,&minus_x,&minus_y);
+        double attachment_work=(fx*(plus_x-minus_x)+fy*(plus_y-minus_y))/(2*epsilon);
+        assert(close_value(attachment_work,0.3*fax-0.4*fay-0.7*fbx+0.8*fby));
+    }
+    /* Same point after stretching must still agree; fraction and distance can diverge. */
+    OK(physics_position_set(f.a,(Position){0,0}));
+    for(unsigned stretch=0;stretch<2;++stretch) {
+        OK(physics_position_set(f.b,(Position){stretch ? 20 : 10,0}));
+        for(unsigned fixed=0;fixed<2;++fixed) {
+            ForceDescription d={.target=f.beam,.magnitude=12,.orientation.offset=90,
+                .location={.offset={fixed ? 5 : 0,0},.reference={.kind=ROHR_FORCE_BEAM_POSITION,
+                    .beam={f.beam,ROHR_FORCE_BEAM_START,fixed ? 0 : 0.5f}}}};
+            OK(physics_force_description_set(f.source,d));
+            PhysicsSourceChanges c=beam_evaluate(f,false);
+            assert(close_value(c.values[1].force_acceleration.x,stretch && fixed ? 0.75 : 1.5));
+            d.location=(ForceLocation){.offset={stretch && !fixed ? 10 : 5,0}};
+            OK(physics_force_description_set(f.source,d));
+            PhysicsSourceChanges world=beam_evaluate(f,false);
+            assert(close_value(c.values[0].force_acceleration.x,world.values[0].force_acceleration.x));
+            assert(close_value(c.values[1].force_acceleration.x,world.values[1].force_acceleration.x));
+        }
+    }
+}
+
+static void beam_failures_and_lifetime(void) {
+    BeamFixture f=beam_fixture(0,0);
+    EntityInfo original=inspect(f.source); assert(original.force_eligible);
+    uint32_t count=entity_alive_count_get();
+    force_accelerations[idx(f.a)]=(Acceleration){1,2};
+    force_accelerations[idx(f.b)]=(Acceleration){3,4};
+    /* A valid first endpoint cannot commit if the second would overflow. */
+    OK(physics_mass_set(f.b,FLT_MIN));
+    OK(physics_force_magnitude_set(f.source,100));
+    Report report=source_report(); physics_sources_apply(&report,false);
+    assert(metric(report,ROHR_REPORT_SOURCE_SUSPENDED_COUNT)==1);
+    assert(force_accelerations[idx(f.a)].y==2 && force_accelerations[idx(f.b)].y==4);
+    assert(report.diagnostics[0].source.id==f.source && report.diagnostics[0].target.id==f.beam);
+    EntityInfo failed=inspect(f.source); assert(!failed.force_eligible && original.force_eligible);
+    OK(entity_info_release(&failed));
+    OK(physics_mass_set(f.b,4)); OK(physics_force_magnitude_set(f.source,12));
+    /* Fixed nodes do not donate their shares; held and kinematic nodes behave likewise. */
+    OK(physics_static_set(f.a));
+    report=source_report(); physics_sources_apply(&report,false);
+    assert(force_accelerations[idx(f.a)].y==2 && near(force_accelerations[idx(f.b)].y,5.5));
+    OK(physics_static_set(f.b));
+    report=source_report(); physics_sources_apply(&report,false);
+    assert(metric(report,ROHR_REPORT_SOURCE_INACTIVE_COUNT)==1);
+    OK(physics_dynamic_set(f.a)); OK(physics_dynamic_set(f.b));
+    OK(entity_components_add(f.a,ROHR_HOLD));
+    PhysicsSourceChanges changes; bool active;
+    OK(physics_source_change_get(f.source,false,&changes,&active)); assert(active && changes.count==1);
+    OK(entity_components_delete(f.a,ROHR_HOLD));
+    OK(physics_kinematic_driven_set(f.a));
+    OK(physics_source_change_get(f.source,false,&changes,&active)); assert(active && changes.count==1);
+    OK(physics_kinematic_driven_remove(f.a));
+    for(unsigned n=0;n<3;++n) {
+        float length=n==0 ? 0 : n==1 ? ROHR_PHYSICS_BEAM_MIN_LENGTH :
+            nextafterf(ROHR_PHYSICS_BEAM_MIN_LENGTH,INFINITY);
+        OK(physics_position_set(f.b,(Position){length,0}));
+        EngineResult result=physics_source_change_get(f.source,false,&changes,&active);
+        if(n<2) { BAD(result); assert(!active); } else { OK(result); assert(active); }
+    }
+    OK(physics_position_set(f.b,(Position){10,0}));
+    force_accelerations[idx(f.a)]=(Acceleration){0}; force_accelerations[idx(f.b)]=(Acceleration){0};
+    /* One source evaluation, two endpoint changes, no allocation during evaluation. */
+    report=source_report();
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    allocation_attempts=0; deny_allocation=true;
+#endif
+    physics_sources_apply(&report,false);
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    deny_allocation=false; assert(allocation_attempts==0);
+#endif
+    assert(entity_alive_count_get()==count && metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==1);
+    assert(near(force_accelerations[idx(f.a)].y,3) && near(force_accelerations[idx(f.b)].y,1.5));
+    /* Endpoint replacement is re-resolved, and stale generation handles never retarget. */
+    EntityResult c=physics_soft_body_node_create(f.owner,(Position){20,0},8,0.1f); OK(c);
+    soft_body_beams[idx(f.beam)].node_b=c.result.value;
+    OK(physics_source_change_get(f.source,false,&changes,&active));
+    assert(active && changes.values[1].index==idx(c.result.value));
+    OK(entity_delete(c.result.value));
+    Entity replacement=make(); assert(replacement!=c.result.value);
+    BAD(physics_source_change_get(f.source,false,&changes,&active)); assert(!active);
+    /* Endpoint deletion also deletes its connected beam; repair with a new beam. */
+    if(entity_alive_check(f.beam)) OK(entity_delete(f.beam));
+    EntityResult rebuilt=physics_soft_body_beam_create(f.owner,f.a,f.b,0,0); OK(rebuilt);
+    OK(physics_force_target_set(f.source,rebuilt.result.value));
+    OK(physics_source_change_get(f.source,false,&changes,&active)); assert(active);
+    assert(original.force.target==f.beam && original.force_eligible);
+    OK(entity_info_release(&original));
+    OK(entity_delete(rebuilt.result.value));
+    BAD(physics_source_change_get(f.source,false,&changes,&active));
+}
+
+static void beam_torque_and_motion(void) {
+    BeamFixture f=beam_fixture(0,0);
+    OK(entity_components_delete(f.source,ROHR_FORCE));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){f.beam,20}));
+    PhysicsSourceChanges c=beam_evaluate(f,true);
+    assert(near(c.values[0].force_acceleration.y,1));
+    assert(near(c.values[1].force_acceleration.y,-0.5));
+    OK(rohr_physics_torque_magnitude_set(f.source,-20)); c=beam_evaluate(f,true);
+    assert(near(c.values[0].force_acceleration.y,-1));
+    assert(near(c.values[1].force_acceleration.y,0.5));
+    OK(physics_torque_magnitude_set(f.source,0)); evaluate(f.source,true,false);
+    OK(physics_torque_magnitude_set(f.source,20));
+    OK(physics_substeps_set(4));
+    Report report=system_physics_update(0.01);
+    assert(metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==4);
+    assert(close_value(2*velocities[idx(f.a)].y+4*velocities[idx(f.b)].y,0));
+    assert(angular_velocities[idx(f.a)]==0 && angular_velocities[idx(f.b)]==0);
+    ReportResult stored=report_get(ROHR_PHYSICS_REPORT); OK(stored);
+    EntityInfo info=inspect(f.source); assert(info.torque_eligible); OK(entity_info_release(&info));
+    ReportResult after=report_get(ROHR_PHYSICS_REPORT); OK(after);
+    assert(memcmp(&stored.result.value,&after.result.value,sizeof(Report))==0);
+    OK(entity_delete(f.source));
+    uint32_t before=entity_alive_count_get();
+    OK(rohr_physics_torque_apply((TorqueDescription){f.beam,20}));
+    uint64_t tick=engine_tick_get();
+    report=system_physics_update(0.01);
+    assert(metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==4);
+    assert(engine_tick_get()==tick && entity_alive_count_get()==before+1);
+    OK(engine_time_per_tick_set(0.001)); SDL_Delay(3); report=engine_update();
+    assert(!report.has_fatal && engine_tick_get()>tick && entity_alive_count_get()==before);
+}
+
+static double beam_energy_error(unsigned steps, bool fixed, float damping) {
+    BeamFixture f=beam_fixture(8,damping);
+    if(fixed) OK(physics_static_set(f.a));
+    OK(physics_force_description_set(f.source,(ForceDescription){.target=f.beam,.magnitude=4,
+        .orientation.offset=90,.location.reference={.kind=ROHR_FORCE_BEAM_POSITION,
+            .beam={f.beam,ROHR_FORCE_BEAM_END,0}}}));
+    double dt=1.0/steps, work=0, dissipated=0;
+    for(unsigned step=0;step<steps;++step) {
+        Position a=positions[idx(f.a)], b=positions[idx(f.b)];
+        double relative=velocities[idx(f.b)].x-velocities[idx(f.a)].x;
+        dissipated+=damping*relative*relative*dt;
+        Report report=system_physics_update(dt); assert(!report.has_fatal);
+        work+=4*((double)positions[idx(f.b)].x-b.x);
+        if(fixed) assert(positions[idx(f.a)].x==a.x && velocities[idx(f.a)].x==0);
+    }
+    double va=velocities[idx(f.a)].x, vb=velocities[idx(f.b)].x;
+    double extension=(double)positions[idx(f.b)].x-positions[idx(f.a)].x-10;
+    assert(extension>0.1); /* Actual deformation, not imposed rigid motion. */
+    double energy=va*va+2*vb*vb+4*extension*extension;
+    double error=fabs(work-energy-dissipated);
+    OK(entity_delete(f.source)); OK(entity_delete(f.owner));
+    return error;
+}
+static void beam_energy(void) {
+    for(unsigned scenario=0;scenario<3;++scenario) {
+        bool fixed=scenario==1; float damping=scenario==2 ? 0.7f : 0;
+        double coarse=beam_energy_error(40,fixed,damping);
+        double fine=beam_energy_error(160,fixed,damping);
+        assert(fine<coarse*0.6 && fine<0.05);
+    }
+}
+
 int main(void) {
     void (*tests[])(void)={api_and_validation,force_geometry,beam_references,
-        suspension_and_inspection,particles,allocation_failure,persistence_references,substeps_and_expiry};
+        suspension_and_inspection,particles,allocation_failure,persistence_references,substeps_and_expiry,
+        beam_loads,beam_equivalence_and_work,beam_failures_and_lifetime,beam_torque_and_motion,beam_energy};
     for(size_t i=0;i<sizeof(tests)/sizeof(tests[0]);++i) {
         OK(engine_start()); tests[i](); engine_stop();
     }

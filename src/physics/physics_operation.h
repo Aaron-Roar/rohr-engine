@@ -30,8 +30,14 @@ typedef struct PhysicsChange {
     AngularAcceleration torque_acceleration;
 } PhysicsChange;
 
+/* One rigid-body change or a coupled pair of beam endpoint changes. */
+typedef struct PhysicsSourceChanges {
+    PhysicsChange values[2];
+    size_t count;
+} PhysicsSourceChanges;
+
 EngineResult physics_source_change_get(Entity source, bool torque,
-    PhysicsChange *change, bool *active);
+    PhysicsSourceChanges *changes, bool *active);
 
 bool physics_vector_finite_check(Vec2D value);
 PhysicsChange physics_change_get(EntityIndex index, unsigned fields);

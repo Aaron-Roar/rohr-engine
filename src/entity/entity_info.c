@@ -650,7 +650,7 @@ static void source_references_check(Snapshot *s, EntityInfoFlags flag) {
         }
     }
     bool active = false;
-    PhysicsChange change;
+    PhysicsSourceChanges change;
     EngineResult result = physics_source_change_get(v->entity, torque, &change, &active);
     if(torque) v->torque_eligible = active;
     else v->force_eligible = active;

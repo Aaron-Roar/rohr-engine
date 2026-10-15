@@ -501,9 +501,57 @@ TorqueResult physics_torque_magnitude_get(Entity source) {
     return ERROR_RESULT_MAKE_VALUE(TorqueResult, result.result.value.magnitude);
 }
 
+/* Geometry determines the load split; reference representation never does.
+ * Fixed endpoints absorb their assigned loads without redistribution. */
+static EngineResult beam_source_changes_get(Entity target, bool torque, double magnitude,
+        Position point, Vec2D direction, PhysicsSourceChanges *changes, bool *active) {
+    Position start; Vec2D axis; double length;
+    EngineResult result = beam_geometry_get(target, &start, &axis, &length);
+    if(error_check(result)) return result;
+    EntityIndex beam_index, endpoints[2];
+    (void)entity_index_get(target, &beam_index);
+    SoftBodyBeam beam = soft_body_beams[beam_index];
+    (void)entity_index_get(beam.node_a, &endpoints[0]);
+    (void)entity_index_get(beam.node_b, &endpoints[1]);
+    double fx = torque ? 0 : magnitude * direction.x;
+    double fy = torque ? 0 : magnitude * direction.y;
+    double along = ((double)point.x - start.x) * axis.x +
+        ((double)point.y - start.y) * axis.y;
+    double height = -((double)point.x - start.x) * axis.y +
+        ((double)point.y - start.y) * axis.x;
+    double parallel = fx * axis.x + fy * axis.y;
+    double perpendicular = -fx * axis.y + fy * axis.x;
+    double axial_b = torque ? 0 : (along / length) * parallel;
+    double normal_b = torque ? -magnitude / length :
+        (along * perpendicular - height * parallel) / length;
+    double bx = axial_b * axis.x - normal_b * axis.y;
+    double by = axial_b * axis.y + normal_b * axis.x;
+    double loads[2][2] = {{fx - bx, fy - by}, {bx, by}};
+    for(size_t n = 0; n < 2; ++n) {
+        /* Validate even absorbed shares: never hide an invalid force couple. */
+        if(!isfinite(loads[n][0]) || !isfinite(loads[n][1]) ||
+                fabs(loads[n][0]) > FLT_MAX || fabs(loads[n][1]) > FLT_MAX)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        EntityIndex index = endpoints[n];
+        if(!physics_entity_simulated_get(index)) continue;
+        if(!isfinite(mass[index])) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        PhysicsChange change = physics_change_get(index, PHYSICS_CHANGE_FORCE_ACCELERATION);
+        double ax = (double)change.force_acceleration.x + loads[n][0] / mass[index];
+        double ay = (double)change.force_acceleration.y + loads[n][1] / mass[index];
+        if(!isfinite(ax) || !isfinite(ay) || fabs(ax) > FLT_MAX || fabs(ay) > FLT_MAX)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        change.force_acceleration = (Acceleration){ax, ay};
+        changes->values[changes->count++] = change;
+    }
+    *active = changes->count != 0;
+    return error_result_value(true);
+}
+
 /* Prepare a complete contribution without modifying source, target, or reports. */
 EngineResult physics_source_change_get(Entity source, bool torque,
-        PhysicsChange *change, bool *active) {
+        PhysicsSourceChanges *changes, bool *active) {
+    changes->count = 0;
+    PhysicsChange *change = &changes->values[0];
     EntityIndex index, target_index;
     EngineResult result = physics_live_index_get(source, &index);
     *active = false;
@@ -529,10 +577,13 @@ EngineResult physics_source_change_get(Entity source, bool torque,
     if(target == ENTITY_INVALID) return error_result_value(true);
     result = physics_live_index_get(target, &target_index);
     if(error_check(result)) return result;
-    /* Receiving beam and whole-body distribution are separate roadmap goals. */
-    if(entity_index_components_check(target_index, ROHR_SOFT_BODY) ||
-            entity_index_components_check(target_index, ROHR_SOFT_BODY_BEAM))
+    /* Whole-body distribution remains a separate roadmap goal. */
+    if(entity_index_components_check(target_index, ROHR_SOFT_BODY))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(entity_index_components_check(target_index, ROHR_SOFT_BODY_BEAM)) {
+        if(magnitude == 0 || physics_entity_held_get(index)) return error_result_value(true);
+        return beam_source_changes_get(target, torque, magnitude, point, direction, changes, active);
+    }
     if(magnitude == 0 || physics_entity_held_get(index) ||
             !physics_entity_simulated_get(target_index)) return error_result_value(true);
     double inertia = physics_inverse_inertia_by_index_get(target_index);
@@ -557,6 +608,7 @@ EngineResult physics_source_change_get(Entity source, bool torque,
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     change->force_acceleration = (Acceleration){ax, ay};
     change->torque_acceleration = angular;
+    changes->count = 1;
     *active = true;
     return error_result_value(true);
 }
@@ -568,14 +620,14 @@ void physics_sources_apply(Report *report, bool torque) {
                 !entity_index_components_check(index, torque ? ROHR_TORQUE : ROHR_FORCE)) continue;
         Entity source = physics_operation_entity_get(index);
         Entity target = torque ? torques[index].target : forces[index].target;
-        PhysicsChange change; bool active;
+        PhysicsSourceChanges change; bool active;
         EngineResult result = physics_source_change_get(source, torque, &change, &active);
         PhysicsReportStage stage = torque ? ROHR_PHYSICS_TORQUE_CONTRIBUTION : ROHR_PHYSICS_FORCE_CONTRIBUTION;
         if(error_check(result)) {
             physics_operation_reject(report, stage, result.result.error, source, target);
             physics_report_counter_add(report, ROHR_REPORT_SOURCE_SUSPENDED_COUNT, 1);
         } else if(!active) physics_report_counter_add(report, ROHR_REPORT_SOURCE_INACTIVE_COUNT, 1);
-        else if(physics_changes_commit(&change, 1, report, stage, source, target))
+        else if(physics_changes_commit(change.values, change.count, report, stage, source, target))
             physics_report_counter_add(report, ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT, 1);
         else physics_report_counter_add(report, ROHR_REPORT_SOURCE_SUSPENDED_COUNT, 1);
     }

@@ -2,11 +2,12 @@
 
 This is the approved contract for the **Unified Forces and Torques** milestone.
 The shared description APIs, references, and rigid-body/particle response are
-implemented in Goal 2. Receiving beam loads, whole-soft-body distribution, and
-editor authoring remain in their subsequent [roadmap](../NEXT_STEPS.md) goals.
+implemented in Goal 2; beam-target loads are implemented in Goal 3. Whole-soft-body
+distribution and editor authoring remain in subsequent
+[roadmap](../NEXT_STEPS.md) goals.
 Whole-soft-body vector/scalar helpers remain until Goal 4; nodes use the shared
-API. A shared source targeting a beam or whole soft body currently suspends with
-an unsupported target contribution warning.
+API. A shared source targeting a whole soft body still suspends with an
+unsupported target contribution warning until Goal 4.
 
 ## Types and defaults
 
@@ -234,17 +235,17 @@ turning contribution suspends the whole source contribution, not merely its
 turning portion. Fixed/held nodes keep their assigned share; their constraints
 absorb it rather than redistributing it to movable nodes.
 
-Beams remain two-node axial springs, with no added bending model. For a location
-attached to the receiving beam, use the following virtual-work-consistent loads.
+Beams remain two-node axial springs, with no added bending model. For every
+resolved application point, use the following equivalent endpoint loads. Fraction, anchor, and distance offsets only locate the point; coincident
+points with the same force and beam geometry produce identical loads.
 Let `A`, `B` be endpoint positions, `L = |B - A|`, `t = (B - A)/L`, and
 `n = (-t.y, t.x)` (left perpendicular in the engine's world coordinates).
 
 ```text
-alpha = anchor_fraction + location.reference.beam.fraction
-d     = location.offset.x
-h     = location.offset.y
-s     = alpha * L + d
-P     = A + s*t + h*n
+P     = resolved world application point
+s     = dot(P - A, t)
+h     = dot(P - A, n)
+alpha = s / L
 
 F     = signed magnitude * resolved orientation unit vector
 F_parallel      = dot(F, t)
@@ -255,21 +256,22 @@ B_force = alpha * F_parallel * t
 A_force = F - B_force
 ```
 
-Thus a fractional centerline attachment divides the full vector by its
-fraction, while a fixed-distance attachment places its axial component at the
-anchor according to `alpha`. This distinction follows attachment motion during
-stretching. It is not a mass-based endpoint split. Sideways offsets introduce
-opposing forces accounting for torque. Endpoint mass determines acceleration
-after loading; anchored endpoints retain their assigned reactions.
+The axial component splits according to the resolved fraction `s/L`; the
+perpendicular component and sideways offset reproduce the requested moment.
+This is not a mass-based split. Endpoint mass determines acceleration afterward;
+fixed/held endpoints keep their assigned shares without redistribution.
 
-For an application reference not attached to the receiving beam (world, another
-entity, or another beam), resolve its world point `P`, project onto the receiving
-beam, and use `s = dot(P-A,t)`, `h = dot(P-A,n)`, `alpha = s/L`, `d = 0` in the
-same force formula. Recompute each substep. This is equivalent loading at the
-current point; it does not constrain that point to the receiving beam or transfer
-work/reaction to the reference entity. Attachment-work equivalence is measured
-against the receiving beam's virtual attachment, not the motion of an unrelated
-reference or the zero motion of fixed world coordinates.
+Use this formula for all position references, including the receiving beam,
+world positions, other entities, and other beams. Recompute each substep without
+clamping external points. Fractional and fixed-distance descriptions at the same
+point have the same effect now, but their points may diverge during stretching.
+References do not receive automatic reactions or constrain the receiving beam.
+
+Work equivalence uses the receiving beam's instantaneous virtual attachment
+`P = A + alpha*L*t + h*n`. Hold the resolved `alpha` and `h` constant during
+virtual endpoint displacement. This does not assert work equivalence to the
+motion of a fixed-distance reference during stretching, an unrelated entity,
+or fixed world coordinates. Actual supplied power is the endpoint-load power.
 
 For signed clockwise torque `tau` alone:
 
@@ -292,8 +294,8 @@ not make overflow acceptable. Resume on a later valid evaluation.
 
 ## Usage examples
 
-The rigid-body examples use the implemented API; beam-target loading remains
-Goal 3. Check every result before using its value.
+The rigid-body and beam examples use the implemented API. Check every result
+before using its value.
 
 ```c
 /* Valid no-target source; setters can configure it later. */
@@ -386,6 +388,9 @@ Implementation acceptance includes:
 - Beam fractional/distance/combined offsets, every anchor, sideways and external
   points, arbitrary angles, pure torque, unequal masses, fixed endpoints,
   threshold boundary/near-collapse recovery, and coupled numeric rejection.
+- Coincident fractional, distance, combined-offset, and world points yield equal
+  endpoint loads and motion; after stretching, compare each newly resolved point
+  with its equivalent world-point description.
 - Analytic net-force and clockwise-moment checks plus finite-difference checks
   of endpoint work against attachment displacement. Motion tests cover free and
   constrained nodes and stretching. Energy tests compare external work with

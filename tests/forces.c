@@ -212,6 +212,68 @@ static bool persistence_check(const ForceApi *api) {
     return true;
 }
 
+static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
+    OK(rohr_physics_substeps_set(substeps));
+    for(unsigned variant=0;variant<3;++variant) {
+        EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
+        EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
+        EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+        OK(a); OK(b);
+        OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+        OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+        EntityResult beam=rohr_physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+        OK(beam); OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
+        EntityIndex ia=rohr_entity_index_get(a.result.value).result.value;
+        EntityIndex ib=rohr_entity_index_get(b.result.value).result.value;
+        ForceDescription d={.target=beam.result.value,.magnitude=12,.orientation.offset=90,
+            .location={.reference={.kind=ROHR_FORCE_BEAM_POSITION,
+                .beam={beam.result.value,ROHR_FORCE_BEAM_CENTER,0}}}};
+        if(variant==1) {
+            d.location.reference.beam.anchor=ROHR_FORCE_BEAM_START;
+            d.location.offset.x=5;
+        } else if(variant==2) d.location=(ForceLocation){.offset={5,0}};
+        /* Compare a single step at the coincident point, before stretching can
+         * legitimately move the different references apart. */
+        OK(rohr_physics_substeps_set(1));
+        EntityResult force=api->force_add(d); OK(force);
+        CHECK(rohr_system_physics_update(0.01).header.status!=ROHR_REPORT_FAILED);
+        CHECK(near(velocities[ia].x,0.03f) && near(velocities[ib].x,0.015f));
+        CHECK(near(positions[ia].x,0.0003f) && near(positions[ib].x,10.00015f));
+        OK(rohr_entity_delete(force.result.value));
+        OK(rohr_physics_position_set(a.result.value,(Position){0,0}));
+        OK(rohr_physics_position_set(b.result.value,(Position){10,0}));
+        OK(rohr_physics_velocity_set(a.result.value,(Velocity){0}));
+        OK(rohr_physics_velocity_set(b.result.value,(Velocity){0}));
+        OK(api->force_apply(d));
+        CHECK(rohr_system_physics_update(0.01).header.status!=ROHR_REPORT_FAILED);
+        CHECK(near(velocities[ia].x,0.03f) && near(velocities[ib].x,0.015f));
+        /* Deleting the owner removes endpoints/beam; the one-tick source remains
+         * until cleanup and can only warn, never retarget a reused entity slot. */
+        OK(rohr_entity_delete(owner.result.value));
+        Report rejected=rohr_system_physics_update(0.01);
+        CHECK(!rejected.has_fatal && rejected.diagnostic_count>0);
+    }
+    /* Pure torque via both API layers; multiple substeps preserve net momentum. */
+    OK(rohr_physics_substeps_set(substeps));
+    EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
+    EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
+    EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    OK(a); OK(b);
+    OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
+    EntityResult beam=rohr_physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+    OK(beam); OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
+    EntityResult torque=api->torque_add((TorqueDescription){beam.result.value,20}); OK(torque);
+    OK(api->torque_apply((TorqueDescription){beam.result.value,20}));
+    CHECK(rohr_system_physics_update(0.01).header.status!=ROHR_REPORT_FAILED);
+    EntityIndex ia=rohr_entity_index_get(a.result.value).result.value;
+    EntityIndex ib=rohr_entity_index_get(b.result.value).result.value;
+    CHECK(near(velocities[ia].y,0.02f) && near(velocities[ib].y,-0.01f));
+    CHECK(near(2*velocities[ia].x+4*velocities[ib].x,0));
+    CHECK(near(2*velocities[ia].y+4*velocities[ib].y,0));
+    return true;
+}
+
 int main(void) {
     const ForceApi apis[] = {
         {physics_force_add, physics_force_magnitude_set, physics_force_magnitude_get, physics_force_apply,
@@ -225,6 +287,10 @@ int main(void) {
         for(unsigned substeps = 1; substeps <= 4; substeps += 3) {
             if(rohr_error_check(rohr_engine_start())) return 1;
             bool passed = sources_check(&apis[api], substeps) && impulses_check(&apis[api]);
+            rohr_engine_stop();
+            if(!passed) return 1;
+            if(rohr_error_check(rohr_engine_start())) return 1;
+            passed = beam_sources_check(&apis[api], substeps);
             rohr_engine_stop();
             if(!passed) return 1;
         }

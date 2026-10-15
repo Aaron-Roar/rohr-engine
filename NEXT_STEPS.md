@@ -1132,8 +1132,8 @@ Forces and Torques milestone and precedes numbered priority 4.
 The [force/torque contract](docs/force_torque_contract.md) is authoritative for
 approved behavior. Goal 1 is fulfilled by the documentation reconciliation
 milestone. Entity Inspection and Diagnostic Reliability are complete. Goal 2
-implements shared sources and rigid-body/particle behavior; receiving beam and
-whole-soft-body loads remain Goals 3 and 4. Editor handle presentation is
+implements shared sources and rigid-body/particle behavior; Goal 3 adds receiving
+beam loads. Whole-soft-body loads remain Goal 4. Editor handle presentation is
 finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
@@ -1153,9 +1153,19 @@ finalized in the relevant editor goals.
    warnings. Five installed-SDK consumers, all 12 standalone examples, and a
    generated project build on both platforms and run on Linux outside their
    source directories. Windows verification is compilation only.
-3. [ ] **Implement local beam loads** — Distribute force and torque to endpoint
-   nodes without child source entities. Verify net force and torque, local
-   deformation, collapsed beams, endpoint changes, and deletion.
+3. [x] **Implement local beam loads** — Revised the contract so coincident
+   application points produce identical loads regardless of fractional,
+   distance, or world references. Shared sources prepare and atomically commit
+   endpoint loads without allocation or child entities; inspection uses the
+   same evaluator and reports count each source once. Verified net force and
+   torque, 120 fixed-seed equivalence/work cases, deformation and energy
+   convergence, fixed endpoints, numeric rejection, collapse recovery,
+   endpoint changes/deletion, source lifetime, and direct/public parity.
+   All 84 native tests and nine focused ASan/UBSan suites pass with leak
+   detection. Linux/Windows builds pass without compiler warnings. Five
+   installed-SDK consumers, all 12 standalone examples, and a generated project
+   build on both platforms and run on Linux outside their source directories.
+   Windows verification is compilation only.
 4. [ ] **Implement whole-soft-body loads** — Distribute translation and turning
    contributions across nodes. Verify COM acceleration, off-centre forces,
    pure torque, changing masses/geometry, and natural beam stretching. Complete
@@ -1187,8 +1197,9 @@ finalized in the relevant editor goals.
 - Invalid configuration/stale API handles fail immediately and preserve state.
   Runtime reference/geometry failures warn and retry per substep, including at
   zero magnitude. No-target sources are valid no-ops, not unconfigured sources.
-- Beam endpoint loads preserve net force, torque, and attachment work using the
-  agreed fractional/distance formula; fixed nodes retain their shares. No bending
+- Beam endpoint loads preserve net force, torque, and equivalent-attachment work
+  using the resolved application point. Coincident fractional/distance/world
+  points produce identical loads; fixed nodes retain their shares. No bending
   model or automatic reference reaction is added. Minimum beam length is a named
   compile-time `0.0001f` constant; failed coupled contributions commit nothing.
 - Preserve engine-tick expiry. Entity-info inspection describes current state;
@@ -1204,13 +1215,13 @@ finalized in the relevant editor goals.
 The shared add/description/field/apply APIs replace the old vector/scalar source
 signatures without aliases. Nodes use the shared API; whole-soft-body helper
 APIs retain their current node-source distribution until Goal 4. Joint point
-loads now use one force-at-point source per endpoint. Beam references are
-implemented, but shared sources targeting a beam or whole soft body suspend
-until the corresponding receiving-load implementation is completed. Existing
-runtime state serializes source descriptions; authored source persistence and
-soft-body topology remain later work.
+loads now use one force-at-point source per endpoint. Beam references and
+beam-target loads use the resolved application point for equivalent endpoint
+contributions. Shared sources targeting a whole soft body remain suspended
+until Goal 4. Existing runtime state serializes source descriptions; authored
+source persistence and soft-body topology remain later work.
 
-Goal 3, local beam loads, is next and requires explicit user instruction.
+Goal 4, whole-soft-body loads, is next and requires explicit user instruction.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;
