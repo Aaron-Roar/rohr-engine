@@ -79,19 +79,38 @@ Additional attached visuals of the same kind receive their own owned entity and
 transform lock, so they do not replace an earlier visual. Those names resolve to
 their individual entities. Body hitbox bindings use its primary animation.
 
-An instance root is an entity with `ROHR_OBJECT` and a protected owned-members
-group. Membership is recorded during spawning, separately from runtime hierarchy
-and ordinary groups. Each member has at most one instance owner. Ownership is
-acyclic. Nested instances own their immediate members. Deleting an owner deletes
-its members recursively; external connections or ordinary group membership never
-transfer ownership. Explicit release leaves the entity alive. Removing an object
-component performs the same owned-content cleanup while retaining its root entity.
+Every live entity can own members through `entity_owner_set(member, owner)`
+(or `rohr_entity_owner_set`). Ownership storage is initialized internally and may
+allocate; no group identifier is required. The owner has `ROHR_OBJECT` and a
+protected owned-members group. Membership is independent of runtime parenting
+and ordinary groups, and forms an acyclic forest with one immediate owner per
+entity. Failed transfers leave the original ownership intact.
 
-Use `entity_object_member_by_name_get()`, `entity_object_owner_get()`,
-`entity_object_members_get()`, and `entity_object_member_release()` to inspect
-and release ownership. Names of nested entities include their instance prefix;
-scoped lookup takes the original description name, independently of that prefix.
-Repeated names in a scope are ambiguous and return an error.
+Deleting an owner deletes its members recursively. Removing `ROHR_OBJECT`
+performs the same owned-content cleanup while retaining the owner entity.
+`entity_owner_set(member, ENTITY_INVALID)` releases an entity without deleting
+it. Transfers and releases preserve world state, parenting, and all connections.
+Member description identities survive transfers; old ancestor aliases that no
+longer refer to owned descendants are removed. For newly adopted runtime entities,
+the initial member identity is their current ECS name.
+
+Soft-body node, beam, and area lists index immediate ownership. Adopting an
+existing node into a soft body updates its membership and lifetime together;
+adopting an ordinary particle controls lifetime without converting it to a node.
+Moving a node preserves beam endpoints, area geometry, and joint connections.
+Beams and areas may reference nodes owned by other bodies. Aggregate mass and
+body transforms use owned nodes only. A bridge beam owned by A can reference a
+node in B: deleting A deletes the beam, while B survives. An independently owned
+bridge instead survives and clears its deleted endpoint.
+
+Use `entity_owner_get()`, `entity_object_member_by_name_get()`, and
+`entity_object_members_get()` to inspect ownership. The former
+`entity_object_owner_get()`, `entity_object_member_release()`, and
+`physics_soft_body_node_owner_set()` APIs have been replaced by the generic
+owner getter/setter (including public `rohr_` wrappers).
+Names of nested spawned entities include their instance prefix; scoped lookup
+takes the original description name, independently of that prefix. Repeated
+names in a scope are ambiguous and return an error.
 
 `entity_object_camera_get()` and `entity_object_anchor_get()` return borrowed
 typed resource handles. Their proxy entities own destruction. Game code chooses

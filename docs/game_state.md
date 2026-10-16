@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `7`. A state may be split across
+Game state uses yyjson and schema version `8`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -8,7 +8,7 @@ in the same call.
 Angles and offsets use clockwise degrees; angular rates use degrees/second
 and degrees/second squared. Negative values and multiple turns are preserved.
 Zero keeps authored geometry unchanged, with local +Y as the world heading.
-Torque and inertia keep their physical units. Versions other than 7 are rejected
+Torque and inertia keep their physical units. Versions other than 8 are rejected
 without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 7,
+  "version": 8,
   "entities": [
     {
       "name": "player",
@@ -431,11 +431,14 @@ or unnamed references cause an error rather than silently becoming no-target.
 Runtime topology is described below; authored source definitions remain a later
 milestone goal.
 
-## Version 6 runtime topology contract
+## Version 8 runtime topology contract
 
-Version 7 retains the topology and lifetime fields below and extends their
-contract with object ownership and explicit incomplete connections. Exact-version
-validation remains in effect; version 6 documents must be regenerated or migrated.
+Version 8 makes entity ownership authoritative for lifetime and soft-body
+membership. The redundant `owner` fields in `soft_body_node`, `soft_body_beam`,
+and `soft_body_area` are removed and rejected on load. Exact-version validation
+remains in effect; earlier documents must be regenerated or migrated. Migration
+must reconcile old physics and object ownership into a single ownership forest;
+changing the version number alone is insufficient when those fields are present.
 
 `object` is an ordered array of `{ "entity": "runtime name", "name":
 "description member name" }` entries. Its presence identifies a `ROHR_OBJECT`
@@ -443,6 +446,10 @@ owner, including an empty owner. Members must belong to this load transaction,
 have only one owner, and form an acyclic ownership forest. Description member
 names may repeat; scoped lookup then reports ambiguity. Runtime ECS names remain
 unique. Ownership is independent of ordinary groups and hierarchy parenting.
+Every live entity can own members. Immediate ownership determines soft-body
+membership, without converting entity types. The ordered `soft_body` lists must
+exactly match that derived membership. Connections may reference nodes owned by
+other bodies; they never adopt those nodes.
 
 `object_aliases` records attached visual description names using the same entry
 shape. Alias targets must be the owner or its owned descendants. `object_anchor`
@@ -463,9 +470,9 @@ animation frames are self-contained records; template animation definitions
 remain in their original authored format. Image paths beneath the working
 directory are saved relatively, as with previous runtime saves.
 
-Soft-body `owner`, beam endpoints, area node slots, and joint endpoints may be
-explicit JSON null for disconnected state. Non-null references must resolve to
-the appropriate live type. Area loops may contain fewer than three nodes and
+Beam endpoints, area node slots, and joint endpoints may be explicit JSON null
+for disconnected state. An entity absent from all owned-member arrays is
+independent. Non-null references must resolve to the appropriate live type. Area loops may contain fewer than three nodes and
 null slots; such areas retain their definition without a fill. Duplicate non-null
 nodes remain invalid. Joint anchor indices must match their corresponding owner;
 either endpoint can independently use an anchor or an inline local offset.
@@ -480,20 +487,20 @@ uses `_1`, `_2`, and subsequent suffixes for collisions, as described in
 [the object interface](object_descriptions.md).
 
 The loader preflights all expanded names across every document and the existing
-world. It then creates exact names, loads ordinary state, restores topology and
-owned anchors, and finally connects joints and force/torque descriptions. Failed
-loads release their entities and resources and preserve the existing world.
+world. It then creates exact names, loads ordinary state, restores ownership,
+rebuilds soft-body membership while resolving topology, restores owned anchors,
+and finally connects joints and force/torque descriptions. Failed loads release
+their entities and resources and preserve the existing world.
 References are names, never runtime handles. Counts, ownership, unique ordered
 membership, finite numeric fields, and references must be valid.
 
 `soft_body` stores ordered `nodes`, `beams`, and `areas` name arrays. Its origin
 is the owning entity; the ordinary transform records its saved origin pose.
-`soft_body_node` stores `owner`, positive `radius`, `draw_color`, and
+`soft_body_node` stores positive `radius`, `draw_color`, and
 `draw_color_overridden`; ordinary components preserve world position, mass,
-motion, constraints and collision settings. `soft_body_beam` stores `owner`,
-`node_a`, `node_b`, `rest_length`, `stiffness`, `damping`, `collision_thickness`,
+motion, constraints and collision settings. `soft_body_beam` stores `node_a`, `node_b`, `rest_length`, `stiffness`, `damping`, `collision_thickness`,
 `collision_enabled`, `category`, `collides_with`, `friction`, `restitution`, and
-drawing overrides. `soft_body_area` stores `owner`, an ordered `outer` node-name
+drawing overrides. `soft_body_area` stores an ordered `outer` node-name
 array, ordered `holes` arrays, `visible`, and drawing overrides. Derived fill
 caches are rebuilt; temporarily undrawable deformations do not invalidate
 otherwise valid topology. Owner transforms are never applied to saved node poses.

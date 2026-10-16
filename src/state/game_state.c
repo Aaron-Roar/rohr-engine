@@ -2083,7 +2083,7 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         if(result.kind == ERROR_RESULT_ERROR) goto cleanup;
     }
 
-    for(unsigned pass = 0; pass < 5; ++pass) {
+    for(unsigned pass = 0; pass < 6; ++pass) {
         for(size_t i = 0; i < total_created; ++i) {
             result = state_topology_load(loaded[i].entity,
                 yyjson_obj_get(loaded[i].description, "components"), pass, created, total_created);

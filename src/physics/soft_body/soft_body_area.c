@@ -76,8 +76,6 @@ static EngineResult physics_soft_body_area_prepare(Entity owner,
             if(loop->nodes[i] == ENTITY_INVALID) { incomplete = true; continue; }
             SoftBodyNodeResult node=physics_soft_body_node_get(loop->nodes[i]);
             if(error_check(node)) return error_result_error(node.result.error);
-            if(owner != ENTITY_INVALID && node.result.value.soft_body != owner)
-                return error_result_error(ERROR_ENGINE_STATE_INVALID);
             for(uint32_t j=0;j<i;j+=1)
                 if(loop->nodes[i]==loop->nodes[j]) return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
@@ -125,7 +123,7 @@ EngineResult physics_soft_body_area_fill_get(Entity area, const NodeLoopFill **f
 }
 
 EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry) {
-    EntityIndex body_index = 0, area_index;
+    EntityIndex area_index;
     SoftBodyAreaState state = {.value = {.visible = true}};
     if(soft_body != ENTITY_INVALID) {
         SoftBodyResult body = physics_soft_body_get(soft_body);
@@ -133,12 +131,8 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
         if(body.result.value.area_count >= SOFT_BODY_MAX_AREAS)
             return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    EngineResult prepared = physics_soft_body_area_prepare(soft_body, &geometry, &state, false);
+    EngineResult prepared = physics_soft_body_area_prepare(ENTITY_INVALID, &geometry, &state, false);
     if(error_check(prepared)) return ERROR_RESULT_MAKE_ERROR(EntityResult, prepared.result.error);
-    if(soft_body != ENTITY_INVALID && !entity_index_get(soft_body, &body_index)) {
-        area_cache_destroy(state.cache);
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
-    }
     EntityResult created = entity_default_create("area", soft_body);
     if(error_check(created)) { area_cache_destroy(state.cache); return created; }
     if(!entity_index_get(created.result.value, &area_index) ||
@@ -149,21 +143,20 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[area_index] |= ROHR_SOFT_BODY_AREA;
-    if(soft_body != ENTITY_INVALID)
-        soft_bodies[body_index].areas[soft_bodies[body_index].area_count++] = created.result.value;
+    EngineResult owned = entity_owner_set(created.result.value, soft_body);
+    if(error_check(owned)) {
+        (void)entity_delete(created.result.value);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);
+    }
     return created;
 }
 
 EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {
-    EntityIndex index, owner = 0;
-    if(!entity_index_get(entity, &index) ||
-            soft_body_area_states_pool.used[index] ||
-            (value.soft_body != ENTITY_INVALID &&
-             (!entity_index_get(value.soft_body, &owner) || !soft_bodies_pool.used[owner] ||
-              soft_bodies[owner].area_count >= SOFT_BODY_MAX_AREAS)))
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || soft_body_area_states_pool.used[index])
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     SoftBodyAreaState state = {.value = value};
-    EngineResult result = physics_soft_body_area_prepare(value.soft_body,
+    EngineResult result = physics_soft_body_area_prepare(ENTITY_INVALID,
         &value.geometry, &state, true);
     if(error_check(result)) return result;
     if(error_check(SoftBodyAreaStatePool_store_at(&soft_body_area_states_pool, index, state))) {
@@ -171,8 +164,10 @@ EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[index] |= ROHR_SOFT_BODY_AREA;
-    if(value.soft_body != ENTITY_INVALID)
-        soft_bodies[owner].areas[soft_bodies[owner].area_count++] = entity;
+    Entity owner = entity_owner_get(entity).result.value;
+    result = physics_soft_body_membership_validate(index, owner);
+    if(error_check(result)) return result;
+    physics_soft_body_membership_update(entity, index, owner);
     return error_result_value(true);
 }
 

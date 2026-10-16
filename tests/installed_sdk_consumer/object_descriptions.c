@@ -12,6 +12,10 @@ int main(void) {
     EntityResult direct=rohr_entity_object_add(objects.mass_demo.automatic_body); OK(direct);
     EntityResult named=rohr_entity_object_by_name_add(objects.mass_demo,"automatic_body"); OK(named);
     assert(direct.result.value!=named.result.value);
+    OK(rohr_entity_owner_set(direct.result.value, named.result.value));
+    assert(entity_owner_get(direct.result.value).result.value == named.result.value);
+    OK(entity_owner_set(direct.result.value, ENTITY_INVALID));
+    assert(rohr_entity_owner_get(direct.result.value).result.value == ENTITY_INVALID);
     assert(rohr_physics_mass_get(direct.result.value).result.value==objects.mass_demo.automatic_body.mass);
     ObjectDescriptionResult copy=rohr_object_copy(objects.mass_demo); OK(copy);
     ObjectDescriptionResult body=rohr_object_description_by_name_get(copy.result.value,"automatic_body"); OK(body);

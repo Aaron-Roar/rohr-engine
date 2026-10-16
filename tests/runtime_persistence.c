@@ -165,10 +165,11 @@ static void malformed(void) {
     OK(physics_position_set(retained,(Position){7,9}));
     char *snapshot=read_text("runtime_original.json");
     const char *bad[]={
-        "{\"version\":7,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
-        "{\"version\":7,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
-        "{\"version\":7,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
-        "{\"version\":5,\"entities\":[]}"};
+        "{\"version\":8,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
+        "{\"version\":8,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
+        "{\"version\":8,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
+        "{\"version\":5,\"entities\":[]}",
+        "{\"version\":7,\"entities\":[]}"};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
         write_text("runtime_bad.json",bad[i]); BAD(game_state_file_load("runtime_bad.json"));
         assert(entity_alive_count_get()==1 && named("retained")==retained);
@@ -185,9 +186,15 @@ static void malformed(void) {
             const char *records[]={"soft_body","soft_body_node","soft_body_beam","soft_body_area","joint"};
             for(size_t r=0;r<5 && !changed;++r) {
                 yyjson_mut_val *v=yyjson_mut_obj_get(c,records[r]);
+                if(k == 0) {
+                    if(r != 1 || !v) continue;
+                    assert(yyjson_mut_obj_add_str(doc, v, "owner", "retained"));
+                    changed = true;
+                    continue;
+                }
                 if(!yyjson_mut_obj_get(v,keys[k])) continue;
                 yyjson_mut_obj_remove_key(v,keys[k]);
-                assert(yyjson_mut_obj_add_str(doc,v,keys[k],k==0 ? "retained" : "missing")); changed=true;
+                assert(yyjson_mut_obj_add_str(doc,v,keys[k],"missing")); changed=true;
             }
         }
         assert(changed && yyjson_mut_write_file("runtime_bad.json",doc,0,NULL,NULL)); yyjson_mut_doc_free(doc);
@@ -225,13 +232,13 @@ static void multiple_documents(void) {
     /* A clash in a later document must prevent creation from an earlier one. */
     const char *duplicates[]={"runtime_part_a.json","runtime_part_a.json"};
     BAD(game_state_files_load(duplicates,2)); assert(entity_alive_count_get()==0);
-    write_text("runtime_exact_names.json","{\"version\":7,\"entities\":["
+    write_text("runtime_exact_names.json","{\"version\":8,\"entities\":["
         "{\"name\":\"entity_2\",\"components\":{}},{\"name\":\"entity_1\",\"components\":{}}]}");
     OK(game_state_file_load("runtime_exact_names.json")); named("entity_1"); named("entity_2"); restart();
 }
 
 static void lifetime(void) {
-    write_text("runtime_lifetime.json","{\"version\":7,\"entities\":["
+    write_text("runtime_lifetime.json","{\"version\":8,\"entities\":["
         "{\"name\":\"due\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":true}}},"
         "{\"name\":\"disabled\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":false}}},"
         "{\"name\":\"later\",\"components\":{\"lifetime\":{\"time\":12.5,\"tick\":42,\"time_enabled\":true,\"tick_enabled\":true}}}]}");

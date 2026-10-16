@@ -468,7 +468,7 @@ typedef struct Joint {
 /** Smallest stable full thickness accepted by beam collision. */
 #define ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN 0.01f
 
-/** Entity-owned collection of soft-body topology entities. */
+/** Derived lists of directly owned soft-body elements; connections may cross owners. */
 typedef struct SoftBody {
     /** Transform entity used as the body's translation and rotation origin. */
     Entity origin;
@@ -1003,8 +1003,6 @@ EntityResult physics_soft_body_node_local_create(
     float radius
 );
 SoftBodyNodeResult physics_soft_body_node_get(Entity node);
-/** Attach or detach a node without changing its world state. */
-EngineResult physics_soft_body_node_owner_set(Entity node, Entity soft_body);
 PositionResult physics_soft_body_node_local_position_get(Entity node);
 EngineResult physics_soft_body_node_local_position_set(
     Entity node, Position local_position);

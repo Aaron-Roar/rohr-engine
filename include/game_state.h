@@ -10,8 +10,8 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-/* Version 7 adds object ownership and explicitly disconnected topology. */
-#define GAME_STATE_VERSION 7
+/* Version 8 unifies lifetime ownership and permits cross-owner topology. */
+#define GAME_STATE_VERSION 8
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

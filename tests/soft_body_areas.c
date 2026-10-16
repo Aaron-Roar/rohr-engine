@@ -44,7 +44,8 @@ static bool runtime_check(void) {
     EntityResult other = rohr_physics_soft_body_create(); OK(other);
     EntityResult foreign = rohr_physics_soft_body_node_create(other.result.value, (Position){0,50}, 1, 1); OK(foreign);
     SoftBodyAreaLoop bad = loop; bad.nodes[2] = foreign.result.value;
-    CHECK(rohr_error_check(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = bad})));
+    OK(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = bad}));
+    OK(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = loop}));
     CHECK(rohr_error_check(rohr_physics_soft_body_area_create(foreign.result.value, (SoftBodyAreaGeometry){.outer = loop})));
     OK(rohr_entity_delete(other.result.value));
     CHECK(rohr_error_check(rohr_physics_soft_body_area_get(foreign.result.value)));

@@ -64,8 +64,8 @@ static void release_and_ordinary_parent(void) {
     OK(entity_object_initialize(object));
     OK(entity_object_member_restore(object, member, "member"));
     OK(entity_parent_set(unrelated, object));
-    OK(rohr_entity_object_member_release(member));
-    assert(rohr_entity_object_owner_get(member).result.value == ENTITY_INVALID);
+    OK(rohr_entity_owner_set(member, ENTITY_INVALID));
+    assert(rohr_entity_owner_get(member).result.value == ENTITY_INVALID);
     OK(entity_delete(object));
     assert(entity_alive_check(member) && entity_alive_check(unrelated));
     OK(entity_delete(member)); OK(entity_delete(unrelated));
@@ -300,7 +300,7 @@ static void names_and_release(void) {
     EntityNameResult saved_name=entity_name_get(nested);
     const char *name=saved_name.result.value.value;
     assert(strlen(name)<ENTITY_NAME_MAX && strstr(name,"_node_45"));
-    OK(entity_object_member_release(nested)); OK(entity_delete(whole.result.value));
+    OK(entity_owner_set(nested, ENTITY_INVALID)); OK(entity_delete(whole.result.value));
     assert(entity_alive_check(nested));
     assert(physics_soft_body_node_get(nested).result.value.soft_body==ENTITY_INVALID);
     EntityInfoResult inspection=entity_info_get(nested,ROHR_ENTITY_INFO_PHYSICS_SOFT_BODY_NODE); OK(inspection);
@@ -311,20 +311,205 @@ static void names_and_release(void) {
 static void malformed_ownership(void) {
     Entity sentinel=make(); OK(entity_name_set(sentinel,"sentinel"));
     const char *documents[]={
-        "{\"version\":7,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[{\"entity\":\"b\",\"name\":\"b\"}]}},{\"name\":\"b\",\"components\":{\"object\":[{\"entity\":\"a\",\"name\":\"a\"}]}}]}",
-        "{\"version\":7,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[{\"entity\":\"sentinel\",\"name\":\"foreign\"}]}}]}",
-        "{\"version\":7,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[],\"object_aliases\":[{\"entity\":\"b\",\"name\":\"foreign\"}]}},{\"name\":\"b\",\"components\":{}}]}"
+        "{\"version\":8,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[{\"entity\":\"b\",\"name\":\"b\"}]}},{\"name\":\"b\",\"components\":{\"object\":[{\"entity\":\"a\",\"name\":\"a\"}]}}]}",
+        "{\"version\":8,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[{\"entity\":\"sentinel\",\"name\":\"foreign\"}]}}]}",
+        "{\"version\":8,\"entities\":[{\"name\":\"a\",\"components\":{\"object\":[],\"object_aliases\":[{\"entity\":\"b\",\"name\":\"foreign\"}]}},{\"name\":\"b\",\"components\":{}}]}"
     };
     for(size_t i=0;i<sizeof(documents)/sizeof(documents[0]);++i) {
         assert(SDL_SaveFile("object_bad_ownership.json",documents[i],strlen(documents[i])));
         assert(error_check(game_state_file_load("object_bad_ownership.json")));
         assert(entity_alive_count_get()==1 && entity_alive_check(sentinel));
-        assert(entity_object_owner_get(sentinel).result.value==ENTITY_INVALID);
+        assert(entity_owner_get(sentinel).result.value==ENTITY_INVALID);
     }
     assert(remove("object_bad_ownership.json")==0); OK(entity_delete(sentinel));
 }
+static Entity take(EntityResult result) {
+    OK(result); return result.result.value;
+}
+static Entity named(const char *name) {
+    return take(entity_by_name_get(name));
+}
+static void ownership_transfers(void) {
+    Entity a = make(), b = make(), nested = make(), child = make(), parent = make();
+    OK(entity_owner_set(nested, a));
+    OK(entity_object_member_restore(nested, child, "stable_child"));
+    OK(entity_object_alias_restore(a, child, "old_alias"));
+    OK(entity_object_alias_restore(nested, child, "inner_alias"));
+    OK(entity_parent_set(child, parent));
+    GroupIdResult group = entity_group_create(); OK(group);
+    OK(entity_group_add(group.result.value, child));
+    OK(entity_name_set(child, "renamed_child"));
+    OK(rohr_entity_owner_set(nested, b));
+    assert(rohr_entity_owner_get(nested).result.value == b);
+    assert(error_check(entity_object_member_by_name_get(a, "old_alias")));
+    assert(take(entity_object_member_by_name_get(b, "inner_alias")) == child);
+    assert(!strcmp(entity_object_member_name_get(child).result.value.value, "stable_child"));
+    assert(entity_group_entity_check(group.result.value, child));
+    assert(parents[rohr_entity_index_get(child).result.value] == parent);
+    assert(error_check(entity_owner_set(b, child)));
+    assert(error_check(entity_owner_set(child, child)));
+    OK(entity_owner_set(nested, b));
+    OK(entity_delete(a));
+    assert(entity_alive_check(child));
+    Entity stale = a;
+    assert(error_check(entity_owner_set(child, stale)));
+    assert(error_check(entity_owner_set(stale, b)));
+    assert(error_check(entity_owner_get(stale)));
+    Entity reused = make();
+    assert(entity_owner_get(reused).result.value == ENTITY_INVALID);
+    OK(entity_owner_set(child, ENTITY_INVALID));
+    OK(entity_owner_set(child, b));
+    assert(!strcmp(entity_object_member_name_get(child).result.value.value, "stable_child"));
+    OK(entity_delete(b));
+    assert(!entity_alive_check(nested) && !entity_alive_check(child));
+    assert(entity_alive_check(parent) && entity_alive_check(reused));
+    OK(entity_delete(parent)); OK(entity_delete(reused)); OK(entity_group_destroy(group.result.value));
+}
+static void physics_ownership(void) {
+    ObjectDescription description = {.id = 1, .name = "expandable", .kind = OBJECT_SOFT_BODY,
+        .categories = ROHR_ENTITY_OBJECT_ALL};
+    Entity a = take(entity_object_add(description));
+    Entity b = take(entity_object_add(description));
+    Entity n = take(physics_soft_body_node_create(a, (Position){0, 0}, 2, 1));
+    Entity x = take(physics_soft_body_node_create(a, (Position){10, 0}, 3, 1));
+    Entity y = take(physics_soft_body_node_create(b, (Position){0, 10}, 5, 1));
+    Entity beam = take(physics_soft_body_beam_create(a, n, x, 100, 2));
+    Entity independent = take(physics_soft_body_beam_create(ENTITY_INVALID, n, y, 100, 2));
+    Entity bridge = take(physics_soft_body_beam_create(a, x, y, 100, 2));
+    SoftBodyAreaGeometry geometry = {.outer = {.nodes = {n, x, y}, .node_count = 3}};
+    Entity area = take(physics_soft_body_area_create(a, geometry));
+    Entity joint = take(physics_joint_create(n, y, JOINT_PIN, (Vec2D){0}, (Vec2D){0}, 0, 0));
+    OK(physics_velocity_set(n, (Velocity){7, 8}));
+    OK(rohr_entity_owner_set(n, b));
+    assert(entity_owner_get(n).result.value == b);
+    assert(physics_soft_body_node_get(n).result.value.soft_body == b);
+    assert(physics_soft_body_get(a).result.value.node_count == 1);
+    assert(physics_soft_body_get(b).result.value.node_count == 2);
+    assert(physics_mass_get(a).result.value == 3 && physics_mass_get(b).result.value == 7);
+    assert(physics_position_get(n).result.value.x == 0);
+    EntityIndex ni; assert(entity_index_get(n, &ni));
+    assert(velocities[ni].x == 7 && velocities[ni].y == 8);
+    assert(physics_soft_body_beam_get(beam).result.value.node_a == n);
+    assert(physics_soft_body_area_get(area).result.value.geometry.outer.nodes[0] == n);
+    EntityIndex ji; assert(entity_index_get(joint, &ji)); assert(joints[ji].a == n);
+    OK(physics_position_set(a, (Position){20, 0}));
+    assert(physics_position_get(x).result.value.x == 30);
+    assert(physics_position_get(n).result.value.x == 0 && physics_position_get(y).result.value.y == 10);
+    OK(physics_soft_body_beam_endpoints_set(bridge, n, y));
+    OK(entity_owner_set(beam, b)); OK(entity_owner_set(area, b));
+    assert(physics_soft_body_beam_get(beam).result.value.soft_body == b);
+    assert(physics_soft_body_area_get(area).result.value.soft_body == b);
+    OK(entity_owner_set(area, ENTITY_INVALID));
+    assert(physics_soft_body_area_get(area).result.value.soft_body == ENTITY_INVALID);
+    OK(entity_owner_set(area, b));
+    /* A plain particle shares lifetime only; it does not become a node. */
+    ParticleConfig particle = physics_particle_config_default_get();
+    Entity decoration = take(physics_particle_create(particle));
+    OK(entity_owner_set(decoration, a));
+    assert(!entity_components_check(decoration, ROHR_SOFT_BODY_NODE));
+    assert(physics_soft_body_get(a).result.value.node_count == 1);
+    OK(entity_delete(a));
+    assert(!entity_alive_check(x) && !entity_alive_check(bridge) && !entity_alive_check(decoration));
+    assert(entity_alive_check(n) && entity_alive_check(y) && entity_alive_check(beam));
+    assert(physics_soft_body_beam_get(beam).result.value.node_b == ENTITY_INVALID);
+    assert(physics_soft_body_area_get(area).result.value.geometry.outer.nodes[1] == ENTITY_INVALID);
+    assert(physics_soft_body_beam_get(independent).result.value.node_a == n);
+    OK(entity_delete(b));
+    assert(!entity_alive_check(n) && !entity_alive_check(y) && !entity_alive_check(beam) && !entity_alive_check(area));
+    assert(entity_alive_check(independent) && entity_alive_check(joint));
+    assert(physics_soft_body_beam_get(independent).result.value.node_a == ENTITY_INVALID);
+    assert(physics_soft_body_beam_get(independent).result.value.node_b == ENTITY_INVALID);
+    assert(joints[ji].a == ENTITY_INVALID && joints[ji].b == ENTITY_INVALID);
+    assert(description.child_count == 0);
+    OK(entity_delete(independent)); OK(entity_delete(joint));
+}
+static void ownership_round_trip(void) {
+    Entity a = take(physics_soft_body_create()), b = take(physics_soft_body_create());
+    OK(entity_name_set(a, "owner_a")); OK(entity_name_set(b, "owner_b"));
+    Entity n = take(physics_soft_body_node_create(a, (Position){0, 0}, 1, 1));
+    Entity x = take(physics_soft_body_node_create(b, (Position){10, 0}, 1, 1));
+    Entity y = take(physics_soft_body_node_create(b, (Position){0, 10}, 1, 1));
+    OK(entity_name_set(n, "cross_node")); OK(entity_name_set(x, "foreign_node"));
+    Entity beam = take(physics_soft_body_beam_create(a, n, x, 100, 2));
+    Entity area = take(physics_soft_body_area_create(a,
+        (SoftBodyAreaGeometry){.outer = {.nodes = {n, x, y}, .node_count = 3}}));
+    OK(entity_name_set(beam, "cross_beam")); OK(entity_name_set(area, "cross_area"));
+    OK(entity_owner_set(n, b));
+    Entity container = make(); OK(entity_name_set(container, "assembly"));
+    OK(entity_owner_set(a, container)); OK(entity_owner_set(b, container));
+    OK(game_state_file_save("ownership_round_trip.json"));
+    OK(entity_delete(container));
+    OK(game_state_file_load("ownership_round_trip.json"));
+    a = named("owner_a"); b = named("owner_b"); n = named("cross_node");
+    beam = named("cross_beam"); area = named("cross_area");
+    assert(entity_owner_get(n).result.value == b && entity_owner_get(beam).result.value == a);
+    assert(physics_soft_body_get(a).result.value.node_count == 0);
+    assert(physics_soft_body_get(b).result.value.node_count == 3);
+    assert(physics_soft_body_beam_get(beam).result.value.node_a == n);
+    assert(physics_soft_body_area_get(area).result.value.geometry.outer.nodes[0] == n);
+    OK(entity_delete(named("foreign_node")));
+    OK(game_state_file_save("ownership_round_trip.json"));
+    OK(entity_delete(named("assembly")));
+    OK(game_state_file_load("ownership_round_trip.json"));
+    assert(physics_soft_body_beam_get(named("cross_beam")).result.value.node_b == ENTITY_INVALID);
+    assert(physics_soft_body_area_get(named("cross_area")).result.value.geometry.outer.nodes[1] == ENTITY_INVALID);
+    OK(entity_delete(named("owner_a")));
+    assert(entity_alive_check(named("cross_node")));
+    OK(entity_delete(named("assembly")));
+    assert(remove("ownership_round_trip.json") == 0);
+}
+static void ownership_capacity(void) {
+    Entity body = take(physics_soft_body_create());
+    for(unsigned i = 0; i < SOFT_BODY_MAX_NODES; ++i)
+        (void)take(physics_soft_body_node_create(body, (Position){(float)i, 0}, 1, 1));
+    Entity prior = take(physics_soft_body_create());
+    Entity node = take(physics_soft_body_node_create(prior, (Position){0}, 1, 1));
+    assert(error_check(entity_owner_set(node, body)));
+    assert(entity_owner_get(node).result.value == prior);
+    assert(physics_soft_body_get(prior).result.value.node_count == 1);
+    SoftBody full = physics_soft_body_get(body).result.value;
+    for(unsigned i = 0; i < SOFT_BODY_MAX_BEAMS; ++i)
+        (void)take(physics_soft_body_beam_create(body, full.nodes[0], full.nodes[1], 0, 0));
+    Entity beam = take(physics_soft_body_beam_create(prior, node, ENTITY_INVALID, 0, 0));
+    assert(error_check(entity_owner_set(beam, body)));
+    assert(entity_owner_get(beam).result.value == prior);
+    for(unsigned i = 0; i < SOFT_BODY_MAX_AREAS; ++i)
+        (void)take(physics_soft_body_area_create(body, (SoftBodyAreaGeometry){0}));
+    Entity area = take(physics_soft_body_area_create(prior, (SoftBodyAreaGeometry){0}));
+    assert(error_check(entity_owner_set(area, body)));
+    assert(entity_owner_get(area).result.value == prior);
+    OK(entity_owner_set(full.nodes[0], body));
+    OK(entity_delete(body)); OK(entity_delete(prior));
+}
+static void ownership_allocation_failure(void) {
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    unsigned failures = 0;
+    for(unsigned transferring = 0; transferring < 2; ++transferring)
+    for(long fail = 0; fail < 20; ++fail) {
+        Entity old = make(), next = make(), child = make();
+        if(transferring) OK(entity_owner_set(child, old));
+        allocation_countdown = fail;
+        EngineResult result = entity_owner_set(child, next);
+        allocation_countdown = -1;
+        if(error_check(result)) {
+            ++failures;
+            assert(entity_owner_get(child).result.value == (transferring ? old : ENTITY_INVALID));
+            assert(!entity_components_check(next, ROHR_OBJECT));
+            assert(error_check(entity_object_members_get(next)));
+            if(transferring) assert(entity_group_entity_check(entity_object_members_get(old).result.value, child));
+            else assert(error_check(entity_groups_get(child)));
+        } else assert(entity_owner_get(child).result.value == next);
+        if(error_check(result) && !transferring) OK(entity_delete(child));
+        OK(entity_delete(old)); OK(entity_delete(next));
+        assert(!entity_alive_check(child));
+    }
+    assert(failures > 0);
+#endif
+}
 int main(void) {
     OK(rohr_engine_start());
+    ownership_transfers(); physics_ownership(); ownership_round_trip();
+    ownership_capacity(); ownership_allocation_failure();
     ownership(); release_and_ordinary_parent();
     ambiguity_and_component_removal(); deep_cleanup();
     detached_round_trip();

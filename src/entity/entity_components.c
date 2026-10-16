@@ -620,6 +620,8 @@ static void entity_index_clear(EntityIndex index) {
         return;
     }
     game_state_entity_clear(index);
+    object_member_owners[index] = ENTITY_INVALID;
+    object_member_names[index] = (EntityName){0};
     if(index < entity_alive_pool.capacity && entity_alive_pool.used[index]) {
         (void)EntityAlivePool_release_at(&entity_alive_pool, index);
     }
@@ -784,7 +786,7 @@ EngineResult entity_delete(Entity entity) {
     }
     result = entity_object_contents_clear(entity);
     if(error_check(result)) return result;
-    result = entity_object_member_release(entity);
+    result = entity_owner_set(entity, ENTITY_INVALID);
     if(error_check(result)) return result;
     for(size_t owner = 0; owner < MAX_ENTITIES; ++owner) {
         for(size_t i = object_alias_counts[owner]; i > 0; --i) {
@@ -1182,7 +1184,7 @@ GroupIdResult entity_object_members_get(Entity object) {
     return ERROR_RESULT_MAKE_VALUE(GroupIdResult, object_member_groups[index]);
 }
 
-EntityResult entity_object_owner_get(Entity member) {
+EntityResult entity_owner_get(Entity member) {
     EntityIndex index;
     if(!entity_index_get(member, &index))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
@@ -1198,6 +1200,74 @@ EntityNameResult entity_object_member_name_get(Entity member) {
     return ERROR_RESULT_MAKE_VALUE(EntityNameResult, object_member_names[index]);
 }
 
+/* Prune aliases that no longer name descendants after moving a whole subtree. */
+static void entity_object_aliases_prune(void) {
+    for(EntityIndex index = 0; index < entity_mask_pool.capacity; ++index) {
+        if(!object_alias_counts[index]) continue;
+        Entity owner = index_to_entity[index];
+        for(size_t n = object_alias_counts[index]; n > 0; --n) {
+            Entity ancestor = object_aliases[index][n - 1].entity;
+            while(ancestor != ENTITY_INVALID && ancestor != owner) {
+                EntityIndex parent;
+                if(!entity_index_get(ancestor, &parent)) { ancestor = ENTITY_INVALID; break; }
+                ancestor = object_member_owners[parent];
+            }
+            if(ancestor == owner) continue;
+            memmove(&object_aliases[index][n - 1], &object_aliases[index][n],
+                (object_alias_counts[index] - n) * sizeof(ObjectMemberAlias));
+            --object_alias_counts[index];
+        }
+    }
+}
+
+EngineResult entity_owner_set(Entity member, Entity owner) {
+    EntityIndex index, next = 0, prior = 0;
+    if(!entity_index_get(member, &index) ||
+            (owner != ENTITY_INVALID && !entity_index_get(owner, &next)))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    Entity old = object_member_owners[index];
+    if(old == owner) return error_result_value(true);
+    if(old != ENTITY_INVALID && (!entity_index_get(old, &prior) || !object_member_groups[prior]))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    for(Entity ancestor = owner; ancestor != ENTITY_INVALID;) {
+        EntityIndex parent;
+        if(ancestor == member || !entity_index_get(ancestor, &parent))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        ancestor = object_member_owners[parent];
+    }
+    EngineResult result = physics_soft_body_membership_validate(index, owner);
+    if(error_check(result)) return result;
+    if(owner != ENTITY_INVALID) {
+        bool initialized = object_member_groups[next] != GROUP_INVALID;
+        bool membership_used = entity_group_memberships_pool.used[index] != 0;
+        result = entity_object_initialize(owner);
+        if(error_check(result)) return result;
+        /* All potentially failing allocations precede detachment. */
+        result = entity_group_internal_add(object_member_groups[next], member);
+        if(error_check(result)) {
+            if(!membership_used && entity_group_memberships_pool.used[index]) {
+                entity_group_membership_destroy(&entity_group_memberships[index]);
+                (void)EntityGroupMembershipPool_release_at(&entity_group_memberships_pool, index);
+            }
+            if(!initialized) {
+                (void)entity_group_internal_destroy(object_member_groups[next]);
+                object_member_groups[next] = GROUP_INVALID;
+                entity_mask[next] &= ~ROHR_OBJECT;
+            }
+            return result;
+        }
+    }
+    /* Live prior membership is validated; removal cannot allocate. */
+    if(old != ENTITY_INVALID)
+        (void)entity_group_internal_remove(object_member_groups[prior], member);
+    object_member_owners[index] = owner;
+    if(owner != ENTITY_INVALID && !object_member_names[index].value[0])
+        object_member_names[index] = entity_names[index];
+    physics_soft_body_membership_update(member, index, owner);
+    entity_object_aliases_prune();
+    return error_result_value(true);
+}
+
 EngineResult entity_object_member_restore(Entity object, Entity member,
         const char *description_name) {
     EntityIndex owner_index, member_index;
@@ -1206,35 +1276,11 @@ EngineResult entity_object_member_restore(Entity object, Entity member,
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     if(!description_name || !description_name[0] ||
             strlen(description_name) >= ENTITY_NAME_MAX ||
-            !object_member_groups[owner_index] || object_member_owners[member_index])
+            (object_member_owners[member_index] && object_member_owners[member_index] != object))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    /* Ownership is a forest, independent of runtime parenting. */
-    for(Entity ancestor = object; ancestor != ENTITY_INVALID;) {
-        EntityIndex index;
-        if(ancestor == member || !entity_index_get(ancestor, &index))
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        ancestor = object_member_owners[index];
-    }
-    EngineResult added = entity_group_internal_add(object_member_groups[owner_index], member);
-    if(error_check(added)) return added;
-    object_member_owners[member_index] = object;
+    EngineResult result = entity_owner_set(member, object);
+    if(error_check(result)) return result;
     snprintf(object_member_names[member_index].value, ENTITY_NAME_MAX, "%s", description_name);
-    return error_result_value(true);
-}
-
-EngineResult entity_object_member_release(Entity member) {
-    EntityIndex index, owner_index;
-    if(!entity_index_get(member, &index))
-        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
-    Entity owner = object_member_owners[index];
-    if(owner == ENTITY_INVALID) return error_result_value(true);
-    if(!entity_index_get(owner, &owner_index))
-        return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    EngineResult removed = entity_group_internal_remove(object_member_groups[owner_index], member);
-    if(error_check(removed)) return removed;
-    object_member_owners[index] = ENTITY_INVALID;
-    object_member_names[index] = (EntityName){0};
-    physics_soft_body_member_release(member, index);
     return error_result_value(true);
 }
 

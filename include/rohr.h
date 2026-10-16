@@ -659,10 +659,16 @@ GroupNameResult rohr_entity_group_name_get(GroupId group);
  */
 EngineResult rohr_entity_group_destroy(GroupId group);
 
-/** Get protected object members and inspect or release instance membership. */
+/** Get protected directly owned members. */
 GroupIdResult rohr_entity_object_members_get(Entity object);
-EntityResult rohr_entity_object_owner_get(Entity member);
-EngineResult rohr_entity_object_member_release(Entity member);
+/** Get the immediate lifetime owner; ENTITY_INVALID means independent. */
+EntityResult rohr_entity_owner_get(Entity entity);
+/**
+ * Transfer ownership or release with ENTITY_INVALID, preserving world state,
+ * parenting and connections. Updates soft-body membership without converting
+ * entity types. May allocate ownership storage; failure leaves ownership intact.
+ */
+EngineResult rohr_entity_owner_set(Entity entity, Entity owner);
 EntityResult rohr_entity_object_member_by_name_get(Entity object, const char *name);
 EntityNameResult rohr_entity_object_member_name_get(Entity member);
 
@@ -1538,7 +1544,6 @@ SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
  * @return EntityResult containing the node entity.
  */
 EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius);
-EngineResult rohr_physics_soft_body_node_owner_set(Entity node, Entity soft_body);
 EngineResult rohr_physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
 /** Creates a node from a position relative to the soft-body origin. */
 EntityResult rohr_physics_soft_body_node_local_create(
@@ -1628,7 +1633,8 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set(
  * Invalid creation creates nothing. Areas add no mass or collision.
  * New areas are visible, inherit the draw surface color and append to list order.
  * Node motion updates the fill, including collapse and crossings. Delete with
- * rohr_entity_delete; deleting any referenced node or the owner deletes the area.
+ * rohr_entity_delete. Deleting its owner deletes the area; deleting a referenced
+ * node clears that slot and leaves the area alive. Nodes may have other owners.
  */
 EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
 /** Returns a copied geometry/style snapshot, without cache or borrowed storage. */

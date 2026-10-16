@@ -88,9 +88,35 @@ the approved design is recorded in [the contract](docs/force_torque_contract.md)
 Entity Inspection and Unified Forces and Torques Goals 1–4 are now complete.
 The documentation-only **Goal 5 Contract Clarification** and the single-goal
 **Runtime Soft-Body Persistence** and **Object Descriptions and Independent
-Spawning** single-goal milestones are complete. The object implementation awaits
-user review and a user-created commit. Unified Forces and Torques Goal 5 remains
-next and requires explicit user instruction; it has not been started.
+Spawning** single-goal milestones are complete and the object implementation
+has been committed. The user selected the milestone below ahead of Unified
+Forces and Torques Goal 5, which remains unstarted.
+
+### Unified Entity Ownership and Physics Creation Descriptions
+
+Make physics ownership explicit and creation APIs consistent while preserving
+independent connections. Ownership transfers preserve all connections, and
+owned beams/areas may reference nodes from other owners. Replace old APIs and
+migrate callers without compatibility wrappers. Each goal requires explicit
+instruction; stop for review and a user-created commit after each goal.
+
+1. [x] **Unify ownership and preserve connected topology** — Added generic
+   entity owner set/get and authoritative lifetime ownership with derived
+   soft-body membership. Transfers preserve topology; beams/areas support
+   cross-owner nodes. Spawning and version 8 persistence use the unified model.
+   Verified rollback, deletion, capacity, scoped identities, and round trips:
+   86 native tests, four ASan/UBSan checks, Linux/Windows engine/editor builds,
+   installed-SDK consumers and standalone examples on both platforms, plus
+   Linux runtime/startup checks outside source directories. Windows execution
+   remains unverified. Await user review and a user-created commit; Goals 2–3
+   require explicit instruction.
+2. [ ] **Migrate soft-body creation to descriptions** — Replace soft-body, node,
+   local-node, beam, and area constructors with typed description-based add APIs.
+   Migrate callers, generators, generated artifacts, examples, and tests together.
+3. [ ] **Complete physics creation consistency** — Migrate particle, joint,
+   anchor, and attachment-helper creation. Add explicit force/torque ownership,
+   update persistence and defaults, and complete the public/direct API audit.
+
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is

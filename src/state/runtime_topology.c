@@ -5,6 +5,7 @@
 #include "entity/entity_internal.h"
 #include "entity/object_internal.h"
 #include "physics/soft_body/soft_body_area.h"
+#include "physics/physics_internal.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -39,13 +40,6 @@ static bool reference(yyjson_val *v, Entity *out) {
 static bool incoming(Entity e, const Entity *created, size_t count) {
     for(size_t i = 0; i < count; ++i) if(created[i] == e) return true;
     return false;
-}
-static bool owner_read(yyjson_val *v, Entity *owner, EntityIndex *index,
-        const Entity *created, size_t count) {
-    if(!reference(yyjson_obj_get(v, "owner"), owner)) return false;
-    if(*owner == ENTITY_INVALID) { *index = 0; return true; }
-    return incoming(*owner, created, count) && entity_index_get(*owner, index) &&
-        soft_bodies_pool.used[*index];
 }
 static bool color_read(yyjson_val *v, Color *color, bool *overridden) {
     yyjson_val *c = yyjson_obj_get(v, "draw_color");
@@ -82,7 +76,7 @@ static bool order_read(yyjson_val *v, Entity *members, uint32_t count, uint32_t 
 
 EngineResult state_topology_load(Entity entity, yyjson_val *components,
         unsigned pass, const Entity *created, size_t count) {
-    EntityIndex index, owner_index;
+    EntityIndex index;
     if(!entity_index_get(entity, &index)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     yyjson_val *body = yyjson_obj_get(components, "soft_body");
     yyjson_val *node = yyjson_obj_get(components, "soft_body_node");
@@ -112,11 +106,10 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             STORE(entity_object_initialize(entity));
         }
     }
-    if(pass == 1 && node != NULL) {
+    if(pass == 2 && node != NULL) {
         SoftBodyNode value = {0};
-        REQUIRE(yyjson_is_obj(node) && owner_read(node, &value.soft_body, &owner_index, created, count));
-        SoftBody *owner = value.soft_body ? &soft_bodies[owner_index] : NULL;
-        REQUIRE((!owner || owner->node_count < SOFT_BODY_MAX_NODES) && number(node, "radius", &value.radius) &&
+        REQUIRE(yyjson_is_obj(node) && !yyjson_obj_get(node, "owner"));
+        REQUIRE(number(node, "radius", &value.radius) &&
             value.radius > 0 && positions_pool.used[index] && mass_pool.used[index] && mass[index] > 0 &&
             velocities_pool.used[index] && accelerations_pool.used[index] &&
             color_read(node, &value.draw_color, &value.draw_color_overridden));
@@ -126,22 +119,20 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         value.collides_with = filter.result.value.collides_with;
         STORE(SoftBodyNodePool_store_at(&soft_body_nodes_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_NODE | ROHR_PARTICLE;
-        if(owner) owner->nodes[owner->node_count++] = entity;
+        Entity owner = entity_owner_get(entity).result.value;
+        EngineResult membership = physics_soft_body_membership_validate(index, owner);
+        if(error_check(membership)) return membership;
+        physics_soft_body_membership_update(entity, index, owner);
     }
-    if(pass == 2 && beam != NULL) {
+    if(pass == 3 && beam != NULL) {
         SoftBodyBeam value = {0};
         EntityIndex a = 0, b = 0;
-        REQUIRE(yyjson_is_obj(beam) && owner_read(beam, &value.soft_body, &owner_index, created, count) &&
+        REQUIRE(yyjson_is_obj(beam) && !yyjson_obj_get(beam, "owner") &&
             reference(yyjson_obj_get(beam, "node_a"), &value.node_a) &&
             reference(yyjson_obj_get(beam, "node_b"), &value.node_b) &&
             (!value.node_a || value.node_a != value.node_b) &&
             (!value.node_a || (entity_index_get(value.node_a, &a) && soft_body_nodes_pool.used[a])) &&
             (!value.node_b || (entity_index_get(value.node_b, &b) && soft_body_nodes_pool.used[b])));
-        REQUIRE(!value.soft_body ||
-            ((!value.node_a || soft_body_nodes[a].soft_body == value.soft_body) &&
-             (!value.node_b || soft_body_nodes[b].soft_body == value.soft_body)));
-        SoftBody *owner = value.soft_body ? &soft_bodies[owner_index] : NULL;
-        REQUIRE(!owner || owner->beam_count < SOFT_BODY_MAX_BEAMS);
 #define BEAM_NUMBER(field) REQUIRE(number(beam, #field, &value.field))
         BEAM_NUMBER(rest_length); BEAM_NUMBER(stiffness); BEAM_NUMBER(damping);
         BEAM_NUMBER(collision_thickness); BEAM_NUMBER(friction); BEAM_NUMBER(restitution);
@@ -156,11 +147,14 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             2.0f * fminf(soft_body_nodes[a].radius, soft_body_nodes[b].radius));
         STORE(SoftBodyBeamPool_store_at(&soft_body_beams_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_BEAM;
-        if(owner) owner->beams[owner->beam_count++] = entity;
+        Entity owner = entity_owner_get(entity).result.value;
+        EngineResult membership = physics_soft_body_membership_validate(index, owner);
+        if(error_check(membership)) return membership;
+        physics_soft_body_membership_update(entity, index, owner);
     }
-    if(pass == 2 && area != NULL) {
+    if(pass == 3 && area != NULL) {
         SoftBodyArea value = {0};
-        REQUIRE(yyjson_is_obj(area) && owner_read(area, &value.soft_body, &owner_index, created, count) &&
+        REQUIRE(yyjson_is_obj(area) && !yyjson_obj_get(area, "owner") &&
             list_read(yyjson_obj_get(area, "outer"), value.geometry.outer.nodes,
                 &value.geometry.outer.node_count, SOFT_BODY_MAX_NODES) &&
             boolean(area, "visible", &value.visible) &&
@@ -174,7 +168,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         EngineResult restored = physics_soft_body_area_restore(entity, value);
         if(error_check(restored)) return restored;
     }
-    if(pass == 2) {
+    if(pass == 3) {
         yyjson_val *anchors = yyjson_obj_get(components, "joint_anchors");
         if(anchors != NULL) {
             REQUIRE(yyjson_is_arr(anchors) && yyjson_arr_size(anchors) <= MAX_JOINT_ANCHORS_PER_ENTITY);
@@ -187,13 +181,13 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             }
         }
     }
-    if(pass == 3 && body != NULL) {
+    if(pass == 4 && body != NULL) {
         SoftBody *value = &soft_bodies[index];
         REQUIRE(order_read(yyjson_obj_get(body, "nodes"), value->nodes, value->node_count, SOFT_BODY_MAX_NODES) &&
             order_read(yyjson_obj_get(body, "beams"), value->beams, value->beam_count, SOFT_BODY_MAX_BEAMS) &&
             order_read(yyjson_obj_get(body, "areas"), value->areas, value->area_count, SOFT_BODY_MAX_AREAS));
     }
-    if(pass == 3 && object != NULL) {
+    if(pass == 1 && object != NULL) {
         for(size_t n = 0; n < yyjson_arr_size(object); ++n) {
             yyjson_val *entry = yyjson_arr_get(object, n);
             yyjson_val *name = yyjson_obj_get(entry, "name");
@@ -201,11 +195,12 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             REQUIRE(yyjson_is_obj(entry) && yyjson_is_str(name) &&
                 yyjson_get_len(name) == strlen(yyjson_get_str(name)) &&
                 reference(yyjson_obj_get(entry, "entity"), &member) && incoming(member, created, count));
+            REQUIRE(entity_owner_get(member).result.value == ENTITY_INVALID);
             EngineResult result = entity_object_member_restore(entity, member, yyjson_get_str(name));
             if(error_check(result)) return result;
         }
     }
-    if(pass == 4) {
+    if(pass == 5) {
         yyjson_val *owned_anchor = yyjson_obj_get(components, "object_anchor");
         if(owned_anchor) {
             Entity owner; JointAnchorId anchor;
@@ -317,7 +312,7 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
     if(soft_body_nodes_pool.used[index]) {
         const SoftBodyNode *value = &soft_body_nodes[index];
         yyjson_mut_val *v = yyjson_mut_obj(doc);
-        WRITE(v && reference_write(doc, v, "owner", value->soft_body) &&
+        WRITE(v &&
             yyjson_mut_obj_add_real(doc, v, "radius", value->radius) &&
             color_write(doc, v, value->draw_color, value->draw_color_overridden) &&
             yyjson_mut_obj_add_val(doc, components, "soft_body_node", v));
@@ -325,7 +320,7 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
     if(soft_body_beams_pool.used[index]) {
         const SoftBodyBeam *value = &soft_body_beams[index];
         yyjson_mut_val *v = yyjson_mut_obj(doc);
-        WRITE(v && reference_write(doc, v, "owner", value->soft_body) &&
+        WRITE(v &&
             reference_write(doc, v, "node_a", value->node_a) && reference_write(doc, v, "node_b", value->node_b));
 #define BEAM_WRITE(field) WRITE(yyjson_mut_obj_add_real(doc, v, #field, value->field))
         BEAM_WRITE(rest_length); BEAM_WRITE(stiffness); BEAM_WRITE(damping);
@@ -341,7 +336,6 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
         const SoftBodyArea *value = &soft_body_area_states[index].value;
         yyjson_mut_val *v = yyjson_mut_obj(doc), *holes = yyjson_mut_arr(doc);
         WRITE(value->geometry.hole_count <= SOFT_BODY_MAX_AREA_HOLES && v && holes &&
-            reference_write(doc, v, "owner", value->soft_body) &&
             yyjson_mut_obj_add_val(doc, v, "outer", list_write(doc, value->geometry.outer.nodes, value->geometry.outer.node_count)));
         for(uint32_t h = 0; h < value->geometry.hole_count; ++h)
             WRITE(yyjson_mut_arr_add_val(holes, list_write(doc, value->geometry.holes[h].nodes, value->geometry.holes[h].node_count)));
