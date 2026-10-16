@@ -78,6 +78,7 @@ typedef struct ForceOrientation {
 } ForceOrientation;
 
 typedef struct ForceDescription {
+    Entity owner;
     Entity target;
     ForceLocation location;
     ForceOrientation orientation;
@@ -85,6 +86,7 @@ typedef struct ForceDescription {
 } ForceDescription;
 
 typedef struct TorqueDescription {
+    Entity owner;
     Entity target;
     Torque magnitude;
 } TorqueDescription;
@@ -135,6 +137,13 @@ Physical torque units are unchanged; angles remain degrees. Torque marker
 position is editor-only data, not a physical pivot or a runtime torque field.
 
 ## API and ownership
+
+Descriptions now include optional lifetime `owner`, independent of targets and
+references. Generic entity ownership is authoritative. Full description setters
+replace the owner atomically with source configuration; field setters preserve
+it, and getters report its current value. A shared force/torque entity has one
+owner for both components. One-tick `apply` requires `ENTITY_INVALID` ownership;
+use `add` for persistent owned sources. Ownership changes preserve connections.
 
 All functions below have direct equivalents with the same signature and no
 `rohr_` prefix. Result types use the existing `ERROR_DECLARE_RESULT_TYPE` pattern:

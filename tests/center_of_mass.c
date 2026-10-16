@@ -273,9 +273,8 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
             OK(rohr_physics_soft_body_beam_collision_enable(beam.result.value));
         }
     } else {
-        JointAnchorIdResult aa=rohr_physics_joint_anchor_create(a,
-            (Position){shift.x-1,shift.y});
-        JointAnchorIdResult bb=rohr_physics_joint_anchor_create(b,(Position){4,4});
+        JointAnchorIdResult aa=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Position){shift.x-1,shift.y}});
+        JointAnchorIdResult bb=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Position){4,4}});
         EntityResult joint=rohr_entity_add();
         OK(aa); OK(bb); OK(joint);
         if(kind==1) OK(rohr_physics_joint_pin_set(joint.result.value,aa.result.value,bb.result.value));

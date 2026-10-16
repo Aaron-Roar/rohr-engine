@@ -43,12 +43,12 @@ static void impact(float x, float edge_bounce, float target_bounce,
     OK(beam);
     OK(rohr_physics_restitution_set(beam.result.value, edge_bounce));
     OK(rohr_physics_friction_set(beam.result.value, edge_friction));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.position = (Position){offset + x, 1.99f}; config.radius = 1;
     config.velocity = (Velocity){6, -10}; config.mass_value = 1;
     config.restitution = target_bounce; config.friction = 1;
     config.gravity_enabled = false;
-    EntityResult particle = rohr_physics_particle_create(config); OK(particle);
+    EntityResult particle = rohr_physics_particle_add(config); OK(particle);
     rohr_system_physics_update(0);
     EntityIndexResult index = rohr_entity_index_get(particle.result.value); OK(index);
     if(node_contact) {

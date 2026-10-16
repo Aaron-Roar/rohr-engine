@@ -136,7 +136,7 @@ static bool physics_check(void) {
         .radius = 0.1f
     });
     OK(top); OK(bottom);
-    OK(physics_torque_apply((TorqueDescription){soft.result.value,8}));
+    OK(physics_torque_apply((TorqueDescription){.target = soft.result.value, .magnitude = 8}));
     CHECK((system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     CHECK(velocities[rohr_entity_index_get(top.result.value).result.value].x > 0);
     CHECK(velocities[rohr_entity_index_get(bottom.result.value).result.value].x < 0);

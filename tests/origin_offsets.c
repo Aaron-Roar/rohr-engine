@@ -42,7 +42,7 @@ static bool origin_offsets_test(void) {
         (Position){10, 20})));
     CHECK(!rohr_error_check(rohr_physics_orientation_set(body.result.value,
         quarter_turn)));
-    anchor = rohr_physics_joint_anchor_create(body.result.value, (Position){2, 3});
+    anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body.result.value, .local_offset = (Position){2, 3}});
     CHECK(!rohr_error_check(anchor));
     /* Rendering uses this getter: it must be current even before a tick. */
     queried = rohr_physics_global_hit_box_get(body.result.value);
@@ -106,7 +106,7 @@ static bool origin_offsets_test(void) {
 }
 
 static bool particle_offsets_test(void) {
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     EntityResult particle;
     ShapeResult world;
     PositionResult offset;
@@ -115,7 +115,7 @@ static bool particle_offsets_test(void) {
     config.position = (Position){-10, 8};
     config.local_origin = (Position){3, 4};
     config.radius = 2;
-    particle = rohr_physics_particle_create(config);
+    particle = rohr_physics_particle_add(config);
     CHECK(!rohr_error_check(particle));
     world = rohr_physics_global_hit_box_get(particle.result.value);
     CHECK(!rohr_error_check(world));

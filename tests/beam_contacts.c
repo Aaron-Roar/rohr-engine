@@ -75,12 +75,12 @@ static void impact_test(float height, float thickness, float restitution,
     }); OK(beam);
     OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, thickness));
     OK(rohr_physics_restitution_set(beam.result.value, restitution));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.position = transform((Position){0, height}, offset, angle);
     config.velocity = rohr_math_vector_rotate((Velocity){0, -10}, angle);
     config.radius = 1; config.mass_value = 10; config.restitution = 1;
     config.gravity_enabled = false;
-    EntityResult particle = rohr_physics_particle_create(config); OK(particle);
+    EntityResult particle = rohr_physics_particle_add(config); OK(particle);
     assert((rohr_system_physics_update(0)).header.status != ROHR_REPORT_FAILED);
     EntityIndex p = index_get(particle.result.value);
     EntityIndex ai = index_get(a.result.value), bi = index_get(b.result.value);
@@ -135,11 +135,11 @@ static void supported_impact_test(uint32_t iterations, float restitution) {
     }); OK(beam);
     OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, .01f));
     OK(rohr_physics_restitution_set(beam.result.value, restitution));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.position = (Position){0, 10.8f}; config.radius = 10;
     config.mass_value = 10; config.velocity = (Velocity){0, -60};
     config.restitution = 1; config.gravity_enabled = false;
-    EntityResult particle = rohr_physics_particle_create(config); OK(particle);
+    EntityResult particle = rohr_physics_particle_add(config); OK(particle);
     assert((rohr_system_physics_update(0)).header.status != ROHR_REPORT_FAILED);
     EntityIndex p = index_get(particle.result.value);
     EntityIndex ai = index_get(a.result.value), bi = index_get(b.result.value);

@@ -31,8 +31,7 @@ int main(void) {
                     origin_body.result.value, (Position){10.0f, 20.0f})) ||
                 rohr_error_check(rohr_physics_orientation_set(
                     origin_body.result.value, (Orientation){-90.0f}))) goto fail;
-        origin_anchor = rohr_physics_joint_anchor_create(
-            origin_body.result.value, (Vec2D){2.0f, 0.0f});
+        origin_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = origin_body.result.value, .local_offset = (Vec2D){2.0f, 0.0f}});
         if(rohr_error_check(origin_anchor)) goto fail;
         world_position = rohr_physics_joint_anchor_world_position_get(origin_anchor.result.value);
         if(rohr_error_check(world_position) ||
@@ -61,8 +60,8 @@ int main(void) {
             rohr_error_check(rohr_physics_dynamic_set(body_a.result.value)) ||
             rohr_error_check(rohr_physics_dynamic_set(body_b.result.value))) goto fail;
 
-    anchor_a = rohr_physics_joint_anchor_create(body_a.result.value, (Vec2D){0.0f, 0.0f});
-    anchor_b = rohr_physics_joint_anchor_create(body_b.result.value, (Vec2D){0.0f, 0.0f});
+    anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body_a.result.value, .local_offset = (Vec2D){0.0f, 0.0f}});
+    anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body_b.result.value, .local_offset = (Vec2D){0.0f, 0.0f}});
     if(rohr_error_check(anchor_a) || rohr_error_check(anchor_b)) goto fail;
     anchors = rohr_physics_joint_anchors_get(body_a.result.value);
     if(rohr_error_check(anchors) || anchors.result.value.count != 1 ||
@@ -94,8 +93,8 @@ int main(void) {
     if(joints[rohr_entity_index_get(joint.result.value).result.value].a != ENTITY_INVALID) goto fail;
     if(rohr_error_check(rohr_entity_delete(joint.result.value))) goto fail;
 
-    anchor_a = rohr_physics_joint_anchor_create(body_a.result.value, (Vec2D){1.0f, 0.0f});
-    anchor_b = rohr_physics_joint_anchor_create(body_b.result.value, (Vec2D){-1.0f, 0.0f});
+    anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body_a.result.value, .local_offset = (Vec2D){1.0f, 0.0f}});
+    anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body_b.result.value, .local_offset = (Vec2D){-1.0f, 0.0f}});
     joint = rohr_entity_add();
     if(rohr_error_check(anchor_a) || rohr_error_check(anchor_b) || rohr_error_check(joint) ||
             rohr_error_check(rohr_physics_joint_weld_set(

@@ -371,8 +371,10 @@ EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) {
     return physics_impulse_apply(node, impulse);
 }
 
-SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
-        Entity node, JointAnchorId anchor) {
+SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description) {
+    Entity node = description.node;
+    JointAnchorId anchor = description.anchor;
+
     EntityIndex node_index;
     JointAnchorIdResult node_anchor;
     EntityResult joint;
@@ -386,7 +388,9 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     if(physics_joint_anchor_world_position_get(anchor).kind == ERROR_RESULT_ERROR) {
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, ERROR_ENGINE_ENTITY_NOT_FOUND);
     }
-    node_anchor = physics_joint_anchor_create(node, (Vec2D){0.0f, 0.0f});
+    if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
+        return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, ERROR_ENGINE_INVALID_ENTITY);
+    node_anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = node, .local_offset = (Vec2D){0.0f, 0.0f}});
     if(node_anchor.kind == ERROR_RESULT_ERROR) {
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, node_anchor.result.error);
     }
@@ -396,6 +400,7 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, joint.result.error);
     }
     pin_result = physics_joint_pin_set(joint.result.value, node_anchor.result.value, anchor);
+    if(!error_check(pin_result)) pin_result = entity_owner_set(joint.result.value, description.owner);
     if(pin_result.kind == ERROR_RESULT_ERROR) {
         (void)entity_delete(joint.result.value);
         (void)physics_joint_anchor_remove(node_anchor.result.value);

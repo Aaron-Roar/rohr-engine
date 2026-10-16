@@ -688,9 +688,9 @@ int main(void) {
                 !file_contains(path,
                     "generated_body_create(&object->box") ||
                 !file_contains(path,
-                    "const ParticleConfig starter_particle_body_config") ||
+                    "const ParticleDescription starter_particle_body_config") ||
                 !file_contains(path,
-                    "created = rohr_physics_particle_create(config)") ||
+                    "created = rohr_physics_particle_add(config)") ||
                 !file_contains(path,
                     ".rigid_vertices = UINT32_C(16)") ||
                 !file_contains(path,
@@ -902,7 +902,7 @@ int main(void) {
                 !file_contains(path, "UINT32_C(0x11223344)") ||
                 !file_contains(path, "UINT32_C(0x55667788)") ||
                 !file_contains(path, "generated_world_anchor_create") ||
-                !file_contains(path, "rohr_physics_joint_anchor_create") ||
+                !file_contains(path, "rohr_physics_joint_anchor_add") ||
                 !file_contains(path, "rohr_camera_create") ||
                 !file_contains(path, "rohr_camera_attach") ||
                 !file_contains(path, "rohr_physics_joint_spring_set") ||
@@ -969,7 +969,7 @@ int main(void) {
                     "This generated file is not covered by Rohr Engine's "
                     "LGPL-3.0-only license.") ||
                 !file_contains(path,
-                    "extern const ParticleConfig starter_particle_body_config;") ||
+                    "extern const ParticleDescription starter_particle_body_config;") ||
                 !file_contains(path, "Entity soft_body;") ||
                 file_contains(path, "Entity soft_body_soft_body_1;") ||
                 !file_contains(path, "typedef struct ProjectObjects") ||
@@ -1664,9 +1664,9 @@ int main(void) {
             }
             snprintf(path, sizeof(path), "%s/src/generated/project_objects.c", fixture);
             {
-                char expected[EDITOR_OBJECT_NAME_MAX + 64];
+                char expected[EDITOR_OBJECT_NAME_MAX + 96];
                 snprintf(expected, sizeof(expected),
-                    "rohr_physics_joint_anchor_create(object->%s",
+                    "rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = object->%s",
                     generated_soft->nodes[0].name);
                 if(!file_contains(path, expected)) {
                     return 1;

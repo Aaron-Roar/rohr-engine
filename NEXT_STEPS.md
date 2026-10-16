@@ -28,7 +28,7 @@ developer-owned C and do not need to be authored in the editor.
    mutable runtime resources and placement handles. Spawn timing and gameplay
    decisions remain in C.
 5. **Standalone particles (complete)** — Reusable editor-authored particle
-   definitions generate public `ParticleConfig` constants and instantiate
+   definitions generate public `ParticleDescription` constants and instantiate
    through the particle API.
 6. **Advanced soft-body surfaces (superseded in part)** — Beams own independently
    configurable thick-segment collision with per-target endpoint exclusion,
@@ -117,11 +117,18 @@ instruction; stop for review and a user-created commit after each goal.
    four ASan/UBSan tests, Linux/Windows builds, installed-SDK consumers and
    standalone examples, plus a regenerated 90-degree/offset placement probe
    comparing direct, generated, and catalog-spawned nodes on Linux. Windows
-   execution remains unverified. Await user review and a user-created commit;
-   Goal 3 requires explicit instruction.
-3. [ ] **Complete physics creation consistency** — Migrate particle, joint,
-   anchor, and attachment-helper creation. Add explicit force/torque ownership,
-   update persistence and defaults, and complete the public/direct API audit.
+   execution remains unverified. Committed as `a183c00`.
+3. [x] **Complete physics creation consistency** — Replaced particle, joint,
+   anchor, and attachment-helper constructors with value descriptions and add
+   APIs. Added force/torque description ownership backed by generic entity
+   ownership, with atomic replacement, current-owner getters and inspection,
+   ownerless one-shot apply, and preserved version 8 persistence. Migrated
+   callers, generated code, examples, and documentation without compatibility
+   wrappers. Verified 86 native tests, eight ASan/UBSan tests, allocation and
+   anchor-capacity rollback, Linux/Windows builds, installed-SDK consumers and
+   standalone examples, plus direct/generated/catalog particle and soft-body
+   parity on Linux. Windows execution remains unverified. The implementation
+   milestone is complete; await user review and a user-created commit.
 
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes

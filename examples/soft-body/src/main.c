@@ -169,18 +169,18 @@ static Entity static_triangle_create(Position a, Position b, Position c) {
     return entity;
 }
 
-static Entity particle_create(ParticleConfig config, Position position) {
+static Entity particle_create(ParticleDescription config, Position position) {
     EntityResult result;
 
     config.position = position;
-    result = rohr_physics_particle_create(config);
+    result = rohr_physics_particle_add(config);
     return rohr_error_check(result) ? ENTITY_INVALID : result.result.value;
 }
 
 static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_b,
         JointType type) {
-    JointAnchorIdResult anchor_a = rohr_physics_joint_anchor_create(a, offset_a);
-    JointAnchorIdResult anchor_b = rohr_physics_joint_anchor_create(b, offset_b);
+    JointAnchorIdResult anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = offset_a});
+    JointAnchorIdResult anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = offset_b});
     EntityResult joint = rohr_entity_add();
     if(rohr_error_check(anchor_a) || rohr_error_check(anchor_b) || rohr_error_check(joint)) {
         return false;
@@ -236,11 +236,10 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
                     wheel->nodes[i], soft_node_category,
                     room_category | disk_category | particle_category))) return false;
         if(anchored) {
-            JointAnchorIdResult anchor = rohr_physics_joint_anchor_create(wheel->disk, offset);
+            JointAnchorIdResult anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = wheel->disk, .local_offset = offset});
             SoftBodyNodeAnchorPinResult connection;
             if(rohr_error_check(anchor)) return false;
-            connection = rohr_physics_soft_body_node_to_anchor_pin_create(
-                wheel->nodes[i], anchor.result.value);
+            connection = rohr_physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = wheel->nodes[i], .anchor = anchor.result.value});
             if(rohr_error_check(connection)) return false;
         }
     }
@@ -447,7 +446,7 @@ int main(void) {
     Entity particles[PIT_PARTICLE_COUNT];
     Entity chassis;
     Entity cabin;
-    ParticleConfig particle_config;
+    ParticleDescription particle_config;
     Wheel wheels[WHEEL_COUNT] = {0};
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
     InputActionId exit_action, debug_action, torque_action;
@@ -481,7 +480,7 @@ int main(void) {
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
             !result_ok(rohr_physics_substeps_set(4)) ||
             !result_ok(rohr_graphics_start())) goto fail;
-    particle_config = rohr_physics_particle_config_default_get();
+    particle_config = rohr_physics_particle_description_default_get();
     particle_config.acceleration = gravity;
     particle_config.radius = particle_radius;
     particle_config.rigid_vertices = 8;

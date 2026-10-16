@@ -1128,13 +1128,13 @@ EntityResult rohr_physics_force_add(ForceDescription description);
 /** Copies a description into one persistent source; delete its entity to stop future contributions. */
 EntityResult rohr_physics_torque_add(TorqueDescription description);
 
-/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+/** Returns configuration with the current generic owner; invalid sources return an error. */
 ForceDescriptionResult rohr_physics_force_description_get(Entity source);
-/** Returns copied stored configuration; invalid handles or missing source components return an error. */
+/** Returns configuration with the current generic owner; invalid sources return an error. */
 TorqueDescriptionResult rohr_physics_torque_description_get(Entity source);
-/** Atomically stores the complete description on a live entity; invalid input leaves it unchanged. */
+/** Atomically replaces configuration and lifetime owner; invalid input leaves both unchanged. */
 EngineResult rohr_physics_force_description_set(Entity source, ForceDescription description);
-/** Atomically stores the complete description on a live entity; invalid input leaves it unchanged. */
+/** Atomically replaces configuration and lifetime owner; invalid input leaves both unchanged. */
 EngineResult rohr_physics_torque_description_set(Entity source, TorqueDescription description);
 
 /** Replaces this field on an existing source using full-description validation. */
@@ -1163,9 +1163,11 @@ EngineResult rohr_physics_torque_magnitude_set(Entity source, Torque magnitude);
 /** Returns copied stored configuration; invalid handles or missing source components return an error. */
 TorqueResult rohr_physics_torque_magnitude_get(Entity source);
 
-/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1. */
+/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1.
+ * Requires owner == ENTITY_INVALID; use add for a persistent owned source. */
 EngineResult rohr_physics_force_apply(ForceDescription description);
-/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1. */
+/** Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1.
+ * Requires owner == ENTITY_INVALID; use add for a persistent owned source. */
 EngineResult rohr_physics_torque_apply(TorqueDescription description);
 
 
@@ -1451,11 +1453,10 @@ EngineResult rohr_physics_joint_component_set(Entity entity, Joint joint);
 
 /**
  * @brief Creates an anchor owned by an entity.
- * @param entity Entity that owns and moves the anchor.
- * @param local_offset Anchor offset from the entity's stable local origin.
+ * @param description Attached entity and offset from its stable local origin.
  * @return JointAnchorIdResult containing the stable anchor handle, or an error.
  */
-JointAnchorIdResult rohr_physics_joint_anchor_create(Entity entity, Vec2D local_offset);
+JointAnchorIdResult rohr_physics_joint_anchor_add(JointAnchorDescription description);
 /**
  * @brief Returns the anchors owned by an entity.
  * @param entity Entity whose anchors should be listed.
@@ -1579,15 +1580,12 @@ EngineResult rohr_physics_soft_body_node_collision_filter_set(
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
 /**
  * @brief Pins a soft-body node to an existing anchor.
- * @param node Soft-body node entity.
- * @param anchor Existing anchor to connect to the node.
+ * @param description Joint owner, soft-body node, and existing target anchor.
  * @return SoftBodyNodeAnchorPinResult containing the joint and node-owned anchor.
- * Remove node_anchor to remove both the attachment joint and the created anchor.
+ * Delete the joint and remove node_anchor separately to release the attachment.
+ * Removing an anchor disconnects referencing joints; it does not delete them.
  */
-SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(
-    Entity node,
-    JointAnchorId anchor
-);
+SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description);
 /**
  * @brief Creates an elastic beam between two nodes.
  * Initial collision settings are copied from the endpoints: collision is
@@ -1650,24 +1648,10 @@ EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 /**
  * @brief Creates a joint between two entities.
- * @param a First entity.
- * @param b Second entity.
- * @param type Joint behavior type.
- * @param local_anchor_a Anchor on the first entity in local space.
- * @param local_anchor_b Anchor on the second entity in local space.
- * @param stiffness Spring stiffness.
- * @param damping Spring damping.
+ * @param description Lifetime owner, endpoints, local offsets, and joint behavior.
  * @return EntityResult containing the joint entity, or an error.
  */
-EntityResult rohr_physics_joint_create(
-    Entity a,
-    Entity b,
-    JointType type,
-    Vec2D local_anchor_a,
-    Vec2D local_anchor_b,
-    float stiffness,
-    float damping
-);
+EntityResult rohr_physics_joint_add(JointDescription description);
 
 /**
  * @brief Gets overlap information for two particle shapes.
@@ -1678,9 +1662,9 @@ EntityResult rohr_physics_joint_create(
 OverlapInfo rohr_physics_particle_overlap_get(Shape shape_1, Shape shape_2);
 /**
  * @brief Returns a valid standalone particle configuration with engine defaults.
- * @return ParticleConfig with a unit radius, default material and collision.
+ * @return ParticleDescription with a unit radius, default material and collision.
  */
-ParticleConfig rohr_physics_particle_config_default_get(void);
+ParticleDescription rohr_physics_particle_description_default_get(void);
 /**
  * @brief Creates one translation-only particle entity.
  *
@@ -1691,7 +1675,7 @@ ParticleConfig rohr_physics_particle_config_default_get(void);
  * @param config Reusable particle configuration and initial instance state.
  * @return EntityResult containing the created particle, or an error.
  */
-EntityResult rohr_physics_particle_create(ParticleConfig config);
+EntityResult rohr_physics_particle_add(ParticleDescription config);
 /** Set a particle circle's origin relative to its rigid-body origin. */
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin);
 /** Get a particle circle's origin relative to its rigid-body origin. */

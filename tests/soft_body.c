@@ -256,7 +256,7 @@ int main(void) {
             rohr_error_check(rohr_physics_force_apply((ForceDescription){
                 .target = body.result.value, .magnitude = 3.0f, .orientation.offset = 90,
                 .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = body.result.value}})) ||
-            rohr_error_check(rohr_physics_torque_apply((TorqueDescription){body.result.value, 2.0f}))) goto fail;
+            rohr_error_check(rohr_physics_torque_apply((TorqueDescription){.target = body.result.value, .magnitude = 2.0f}))) goto fail;
     rigid_body = rohr_entity_add();
     if(rohr_error_check(rigid_body) ||
             rohr_error_check(rohr_physics_position_set(rigid_body.result.value, (Position){0.0f, 0.0f})) ||
@@ -276,11 +276,9 @@ int main(void) {
                 angular_velocity.result.value > 1.0f ||
                 angular_velocity.result.value < -1.0f) goto fail;
     }
-    rigid_anchor = rohr_physics_joint_anchor_create(
-        rigid_body.result.value, (Vec2D){0.0f, 15.0f});
+    rigid_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = rigid_body.result.value, .local_offset = (Vec2D){0.0f, 15.0f}});
     if(rohr_error_check(rigid_anchor)) goto fail;
-    attachment = rohr_physics_soft_body_node_to_anchor_pin_create(
-        node_c.result.value, rigid_anchor.result.value);
+    attachment = rohr_physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = node_c.result.value, .anchor = rigid_anchor.result.value});
     if(rohr_error_check(attachment) ||
             !rohr_entity_alive_check(attachment.result.value.joint)) goto fail;
     if(rohr_error_check(rohr_entity_delete(body.result.value)) ||

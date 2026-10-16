@@ -418,8 +418,15 @@ EngineResult physics_force_description_set(Entity source, ForceDescription descr
     if(error_check(result)) return result;
     result = force_validate(description);
     if(error_check(result)) return result;
-    if(ForcePool_store_at(&forces_pool, index, description).kind == ERROR_RESULT_ERROR)
+    /* Pools are reserved with the entity tables; store_at cannot allocate.
+     * Check storage before transferring ownership, the only fallible mutation. */
+    if(!forces_pool.objects || !forces_pool.used || index >= forces_pool.capacity)
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    result = entity_owner_set(source, description.owner);
+    if(error_check(result)) return result;
+    /* Generic entity ownership is authoritative. Never cache an owner here. */
+    description.owner = ENTITY_INVALID;
+    (void)ForcePool_store_at(&forces_pool, index, description);
     entity_mask[index] |= ROHR_FORCE;
     return error_result_value(true);
 }
@@ -429,11 +436,17 @@ ForceDescriptionResult physics_force_description_get(Entity source) {
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(ForceDescriptionResult, result.result.error);
     if(!entity_index_components_check(index, ROHR_FORCE) || !forces_pool.used[index])
         return ERROR_RESULT_MAKE_ERROR(ForceDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(ForceDescriptionResult, forces[index]);
+    EntityResult owner = entity_owner_get(source);
+    if(error_check(owner)) return ERROR_RESULT_MAKE_ERROR(ForceDescriptionResult, owner.result.error);
+    ForceDescription description = forces[index];
+    description.owner = owner.result.value;
+    return ERROR_RESULT_MAKE_VALUE(ForceDescriptionResult, description);
 }
 EntityResult physics_force_add(ForceDescription description) {
     EngineResult result = force_validate(description);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     EntityResult source = entity_default_create("force", ENTITY_INVALID);
     if(error_check(source)) return source;
     result = physics_force_description_set(source.result.value, description);
@@ -444,6 +457,8 @@ EntityResult physics_force_add(ForceDescription description) {
     return source;
 }
 EngineResult physics_force_apply(ForceDescription description) {
+    if(description.owner != ENTITY_INVALID)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     EntityResult source = physics_force_add(description);
     if(error_check(source)) return error_result_error(source.result.error);
     EngineResult result = entity_life_time_set(source.result.value, 0.0, engine_tick_get() + 1);
@@ -505,8 +520,15 @@ EngineResult physics_torque_description_set(Entity source, TorqueDescription des
     if(error_check(result)) return result;
     result = torque_validate(description);
     if(error_check(result)) return result;
-    if(TorquePool_store_at(&torques_pool, index, description).kind == ERROR_RESULT_ERROR)
+    /* Pools are reserved with the entity tables; store_at cannot allocate.
+     * Check storage before transferring ownership, the only fallible mutation. */
+    if(!torques_pool.objects || !torques_pool.used || index >= torques_pool.capacity)
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    result = entity_owner_set(source, description.owner);
+    if(error_check(result)) return result;
+    /* Generic entity ownership is authoritative. Never cache an owner here. */
+    description.owner = ENTITY_INVALID;
+    (void)TorquePool_store_at(&torques_pool, index, description);
     entity_mask[index] |= ROHR_TORQUE;
     return error_result_value(true);
 }
@@ -516,11 +538,17 @@ TorqueDescriptionResult physics_torque_description_get(Entity source) {
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(TorqueDescriptionResult, result.result.error);
     if(!entity_index_components_check(index, ROHR_TORQUE) || !torques_pool.used[index])
         return ERROR_RESULT_MAKE_ERROR(TorqueDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(TorqueDescriptionResult, torques[index]);
+    EntityResult owner = entity_owner_get(source);
+    if(error_check(owner)) return ERROR_RESULT_MAKE_ERROR(TorqueDescriptionResult, owner.result.error);
+    TorqueDescription description = torques[index];
+    description.owner = owner.result.value;
+    return ERROR_RESULT_MAKE_VALUE(TorqueDescriptionResult, description);
 }
 EntityResult physics_torque_add(TorqueDescription description) {
     EngineResult result = torque_validate(description);
     if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     EntityResult source = entity_default_create("torque", ENTITY_INVALID);
     if(error_check(source)) return source;
     result = physics_torque_description_set(source.result.value, description);
@@ -531,6 +559,8 @@ EntityResult physics_torque_add(TorqueDescription description) {
     return source;
 }
 EngineResult physics_torque_apply(TorqueDescription description) {
+    if(description.owner != ENTITY_INVALID)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     EntityResult source = physics_torque_add(description);
     if(error_check(source)) return error_result_error(source.result.error);
     EngineResult result = entity_life_time_set(source.result.value, 0.0, engine_tick_get() + 1);

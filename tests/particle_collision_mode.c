@@ -12,9 +12,9 @@ static bool close_float(float first, float second) {
 }
 
 static bool particle_config_test(void) {
-    ParticleConfig defaults = rohr_physics_particle_config_default_get();
-    ParticleConfig first_config = defaults;
-    ParticleConfig second_config = defaults;
+    ParticleDescription defaults = rohr_physics_particle_description_default_get();
+    ParticleDescription first_config = defaults;
+    ParticleDescription second_config = defaults;
     EntityResult first_result;
     EntityResult second_result;
     ShapeResult first_hitbox;
@@ -38,7 +38,7 @@ static bool particle_config_test(void) {
     first_config.radius = 2.5f;
     first_config.rigid_vertices = 0;
     first_config.gravity_enabled = true;
-    first_result = rohr_physics_particle_create(first_config);
+    first_result = rohr_physics_particle_add(first_config);
     if(rohr_error_check(first_result)) return false;
     second_config.position = (Position){-20.0f, 6.0f};
     second_config.local_origin = (Position){1.5f, -2.0f};
@@ -48,7 +48,7 @@ static bool particle_config_test(void) {
     second_config.collision_enabled = false;
     second_config.collision_filter = (CollisionFilterConfig){
         .category = UINT64_C(4), .collides_with = UINT64_C(2)};
-    second_result = rohr_physics_particle_create(second_config);
+    second_result = rohr_physics_particle_add(second_config);
     if(rohr_error_check(second_result)) {
         (void)rohr_entity_delete(first_result.result.value);
         return false;
@@ -92,7 +92,7 @@ static bool particle_config_test(void) {
         return false;
     }
     first_config.radius = -1.0f;
-    if(!rohr_error_check(rohr_physics_particle_create(first_config))) {
+    if(!rohr_error_check(rohr_physics_particle_add(first_config))) {
         (void)rohr_entity_delete(first_result.result.value);
         (void)rohr_entity_delete(second_result.result.value);
         return false;

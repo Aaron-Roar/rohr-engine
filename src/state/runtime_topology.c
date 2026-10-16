@@ -176,7 +176,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
                 Vec2D local;
                 REQUIRE(number(yyjson_arr_get(anchors, a), "x", &local.x) &&
                     number(yyjson_arr_get(anchors, a), "y", &local.y));
-                JointAnchorIdResult result = physics_joint_anchor_create(entity, local);
+                JointAnchorIdResult result = physics_joint_anchor_add((JointAnchorDescription){.entity = entity, .local_offset = local});
                 if(error_check(result)) return error_result_error(result.result.error);
             }
         }

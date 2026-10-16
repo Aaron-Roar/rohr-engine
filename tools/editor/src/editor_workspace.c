@@ -641,7 +641,7 @@ static void editor_workspace_particle_config_write(FILE *source,
         editor_project_particle_auto_radius_get(body) : body->particle_radius;
 
     fprintf(source,
-        "const ParticleConfig %s = {\n"
+        "const ParticleDescription %s = {\n"
         "    .position = {%#.9gf, %#.9gf},\n"
         "    .local_origin = {%#.9gf, %#.9gf},\n"
         "    .velocity = {%#.9gf, %#.9gf},\n"
@@ -807,7 +807,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    if(rohr_error_check(result)) goto fail;\n"
         "    result = rohr_physics_static_set(*owner);\n"
         "    if(rohr_error_check(result)) goto fail;\n"
-        "    created = rohr_physics_joint_anchor_create(*owner, (Vec2D){0});\n"
+        "    created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = *owner, .local_offset = (Vec2D){0}});\n"
         "    if(rohr_error_check(created)) {\n"
         "        result = rohr_error_result_error(created.result.error);\n"
         "        goto fail;\n"
@@ -833,7 +833,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             if(!body->particle || !body->standalone_particle) continue;
             editor_workspace_particle_config_name(config_name,
                 sizeof(config_name), function_name, body);
-            fprintf(header, "extern const ParticleConfig %s;\n", config_name);
+            fprintf(header, "extern const ParticleDescription %s;\n", config_name);
             editor_workspace_particle_config_write(source, config_name, body);
         }
         fprintf(header, "\n");
@@ -903,11 +903,11 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 editor_workspace_particle_config_name(config_name,
                     sizeof(config_name), function_name, body);
                 fprintf(source,
-                    "    { ParticleConfig config = %s;\n"
+                    "    { ParticleDescription config = %s;\n"
                     "      EntityResult created;\n"
                     "      config.position.x += position.x;\n"
                     "      config.position.y += position.y;\n"
-                    "      created = rohr_physics_particle_create(config);\n"
+                    "      created = rohr_physics_particle_add(config);\n"
                     "      if(rohr_error_check(created)) { result = "
                         "rohr_error_result_error(created.result.error); goto fail; }\n"
                     "      object->%s = created.result.value; }\n",
@@ -1137,8 +1137,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
                     soft_node != NULL && anchor->position_follows_body) {
                 fprintf(source,
-                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
-                    "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
+                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = "
+                    "object->%s, .local_offset = (Vec2D){%#.9gf, %#.9gf}});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                     "created.result.error); goto fail; }\n"
                     "      object->anchor_%s = created.result.value; }\n",
@@ -1146,8 +1146,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     anchor->name);
             } else if(body != NULL && anchor->position_follows_body) {
                 fprintf(source,
-                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
-                    "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
+                    "    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = "
+                    "object->%s, .local_offset = (Vec2D){%#.9gf, %#.9gf}});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                     "created.result.error); goto fail; }\n"
                     "      object->anchor_%s = created.result.value; }\n",
@@ -1372,8 +1372,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 return false;
             }
             fprintf(source,
-                "    { JointAnchorIdResult created = rohr_physics_joint_anchor_create("
-                "object->%s, (Vec2D){%#.9gf, %#.9gf});\n"
+                "    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = "
+                "object->%s, .local_offset = (Vec2D){%#.9gf, %#.9gf}});\n"
                 "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                 "created.result.error); goto fail; }\n"
                 "      object->anchor_%s = created.result.value; }\n",

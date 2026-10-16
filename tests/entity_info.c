@@ -110,7 +110,7 @@ static Entity fixture(void) {
     OK(physics_velocity_set(e, (Velocity){5,6}));
     OK(physics_mass_set(e, 2));
     for(size_t i = 0; i < 64; ++i) OK(physics_hitbox_add(e, box));
-    OK(physics_joint_anchor_create(e, (Position){1,0}));
+    OK(physics_joint_anchor_add((JointAnchorDescription){.entity = e, .local_offset = (Position){1,0}}));
     Entity child = make_entity(); OK(entity_child_set(e, child));
     GroupIdResult group = entity_group_create(); OK(group); OK(entity_group_add(group.result.value, e));
     EntityIndex index = index_of(e);
@@ -175,13 +175,19 @@ static void snapshot_checks(Entity e) {
 static void geometry_and_sources(void) {
     Entity e = make_entity();
     OK(physics_force_description_set(e, (ForceDescription){0})); OK(physics_torque_description_set(e, (TorqueDescription){.magnitude = 0}));
+    Entity owner = make_entity();
+    OK(entity_owner_set(e, owner));
     EntityInfo info = capture(e, F(PHYSICS_FORCE) | F(PHYSICS_TORQUE));
+    assert(info.force.owner == owner && info.torque.owner == owner);
+    OK(entity_owner_set(e, ENTITY_INVALID));
+    OK(entity_delete(owner));
+    assert(info.force.owner == owner && info.torque.owner == owner);
     assert(entity_info_check(&info, info.requested));
     assert(entity_info_issues_count_get(&info, info.requested).result.value == 0);
     OK(entity_info_release(&info));
     OK(physics_hitbox_set(e, box));
     for(size_t i = 0; i < MAX_JOINT_ANCHORS_PER_ENTITY; ++i)
-        OK(physics_joint_anchor_create(e, (Position){(float)i, 0}));
+        OK(physics_joint_anchor_add((JointAnchorDescription){.entity = e, .local_offset = (Position){(float)i, 0}}));
     info = capture(e, F(PHYSICS_JOINT_ANCHORS) | F(PHYSICS_JOINT_ANCHORS_WORLD));
     assert(info.joint_anchor_count == MAX_JOINT_ANCHORS_PER_ENTITY);
     assert(info.joint_anchors[31].anchor.local_offset.x == 31);

@@ -19,7 +19,31 @@ int main(void) {
     EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
         .owner = soft.result.value, .node_a = local.result.value, .node_b = world.result.value}); OK(beam);
     EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.owner = soft.result.value}); OK(area);
+    ParticleDescription particle_description = rohr_physics_particle_description_default_get();
+    particle_description.owner = soft.result.value;
+    EntityResult particle = rohr_physics_particle_add(particle_description); OK(particle);
+    EntityResult particle_copy = physics_particle_add(particle_description); OK(particle_copy);
+    assert(particle.result.value != particle_copy.result.value);
+    JointDescription joint_description = {.owner = soft.result.value, .a = local.result.value,
+        .b = particle.result.value, .type = JOINT_PIN};
+    EntityResult joint = rohr_physics_joint_add(joint_description); OK(joint);
+    OK(physics_joint_add(joint_description));
+    JointAnchorDescription anchor_description = {.entity = particle.result.value, .local_offset = {1, 0}};
+    JointAnchorIdResult anchor = rohr_physics_joint_anchor_add(anchor_description); OK(anchor);
+    OK(physics_joint_anchor_add(anchor_description));
+    SoftBodyNodeAnchorPinDescription pin_description = {.owner = soft.result.value,
+        .node = local.result.value, .anchor = anchor.result.value};
+    SoftBodyNodeAnchorPinResult pin = rohr_physics_soft_body_node_to_anchor_pin_add(pin_description); OK(pin);
+    OK(physics_soft_body_node_to_anchor_pin_add(pin_description));
+    EntityResult force = rohr_physics_force_add((ForceDescription){.owner = soft.result.value,
+        .target = particle.result.value}); OK(force);
+    OK(physics_torque_description_set(force.result.value, (TorqueDescription){.owner = soft.result.value,
+        .target = particle.result.value}));
+    assert(rohr_physics_force_description_get(force.result.value).result.value.owner == soft.result.value);
+    assert(rohr_physics_torque_description_get(force.result.value).result.value.owner == soft.result.value);
     OK(rohr_entity_delete(soft.result.value));
+    assert(!rohr_entity_alive_check(particle.result.value) && !rohr_entity_alive_check(joint.result.value));
+    assert(!rohr_entity_alive_check(pin.result.value.joint) && !rohr_entity_alive_check(force.result.value));
     assert(!rohr_entity_alive_check(local.result.value) && !rohr_entity_alive_check(beam.result.value));
     assert(objects.mass_demo.automatic_body.mass > 0);
     EntityResult direct=rohr_entity_object_add(objects.mass_demo.automatic_body); OK(direct);

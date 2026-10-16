@@ -100,7 +100,10 @@ EngineResult physics_joint_component_set(Entity entity, Joint joint) {
     return error_result_value(true);
 }
 
-JointAnchorIdResult physics_joint_anchor_create(Entity entity, Vec2D local_offset) {
+JointAnchorIdResult physics_joint_anchor_add(JointAnchorDescription description) {
+    Entity entity = description.entity;
+    Vec2D local_offset = description.local_offset;
+
     EntityIndex entity_index;
     uint32_t owned_count = 0;
     EngineResult result = physics_live_index_get(entity, &entity_index);
@@ -268,15 +271,15 @@ EngineResult physics_joint_spring_set(Entity joint, JointAnchorId anchor_a, Join
         rest_length, stiffness, damping);
 }
 
-EntityResult physics_joint_create(
-    Entity a,
-    Entity b,
-    JointType type,
-    Vec2D local_anchor_a,
-    Vec2D local_anchor_b,
-    float stiffness,
-    float damping
-) {
+EntityResult physics_joint_add(JointDescription description) {
+    Entity a = description.a;
+    Entity b = description.b;
+    JointType type = description.type;
+    Vec2D local_anchor_a = description.local_anchor_a;
+    Vec2D local_anchor_b = description.local_anchor_b;
+    float stiffness = description.stiffness;
+    float damping = description.damping;
+
     EntityIndex a_index;
     EntityIndex b_index;
     EntityResult joint_result;
@@ -289,6 +292,8 @@ EntityResult physics_joint_create(
     if(!physics_vector_finite_check(local_anchor_a) || !physics_vector_finite_check(local_anchor_b) ||
             !isfinite(stiffness) || !isfinite(damping))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+    if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     joint_result = entity_default_create("joint", ENTITY_INVALID);
     if(joint_result.kind == ERROR_RESULT_ERROR) {
         return joint_result;
@@ -333,5 +338,10 @@ EntityResult physics_joint_create(
         return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
     }
 
+    result = entity_owner_set(joint, description.owner);
+    if(error_check(result)) {
+        (void)entity_delete(joint);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    }
     return ERROR_RESULT_MAKE_VALUE(EntityResult, joint);
 }

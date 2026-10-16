@@ -295,8 +295,8 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
         .damping = 0
     });
     OK(beam); OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
-    EntityResult torque=api->torque_add((TorqueDescription){beam.result.value,20}); OK(torque);
-    OK(api->torque_apply((TorqueDescription){beam.result.value,20}));
+    EntityResult torque=api->torque_add((TorqueDescription){.target = beam.result.value, .magnitude = 20}); OK(torque);
+    OK(api->torque_apply((TorqueDescription){.target = beam.result.value, .magnitude = 20}));
     CHECK(rohr_system_physics_update(0.01).header.status!=ROHR_REPORT_FAILED);
     EntityIndex ia=rohr_entity_index_get(a.result.value).result.value;
     EntityIndex ib=rohr_entity_index_get(b.result.value).result.value;
@@ -326,8 +326,8 @@ static bool soft_sources_check(const ForceApi *api, unsigned substeps) {
     ForceDescription description=vector_description(owner.result.value,(Force){0,6});
     EntityResult source=api->force_add(description); OK(source);
     OK(api->force_apply(description));
-    EntityResult torque=api->torque_add((TorqueDescription){owner.result.value,10}); OK(torque);
-    OK(api->torque_apply((TorqueDescription){owner.result.value,10}));
+    EntityResult torque=api->torque_add((TorqueDescription){.target = owner.result.value, .magnitude = 10}); OK(torque);
+    OK(api->torque_apply((TorqueDescription){.target = owner.result.value, .magnitude = 10}));
     OK(rohr_physics_substeps_set(substeps));
     uint32_t count=entity_alive_count_get();
     Report report=rohr_system_physics_update(0.01);

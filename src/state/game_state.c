@@ -1247,9 +1247,11 @@ static bool state_source_location(yyjson_val *value, ForceLocation *out) {
     return false;
 }
 static EngineResult state_sources_load(Entity entity, yyjson_val *components) {
+    EntityResult owner = entity_owner_get(entity);
+    if(error_check(owner)) return error_result_error(owner.result.error);
     yyjson_val *value = yyjson_obj_get(components, "force");
     if(value != NULL) {
-        ForceDescription description = {0};
+        ForceDescription description = {.owner = owner.result.value};
         yyjson_val *orientation = yyjson_obj_get(value, "orientation");
         yyjson_val *kind = yyjson_obj_get(orientation, "kind");
         if(!yyjson_is_obj(value) || !state_source_entity(value, "target", &description.target) ||
@@ -1276,7 +1278,7 @@ static EngineResult state_sources_load(Entity entity, yyjson_val *components) {
     }
     value = yyjson_obj_get(components, "torque");
     if(value != NULL) {
-        TorqueDescription description = {0};
+        TorqueDescription description = {.owner = owner.result.value};
         if(!yyjson_is_obj(value) || !state_source_entity(value, "target", &description.target) ||
                 !state_source_number(value, "magnitude", &description.magnitude))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);

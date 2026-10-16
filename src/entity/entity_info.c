@@ -399,9 +399,17 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         break;
     case FLAG(PHYSICS_FORCE):
         POOL_CAPTURE(forces_pool, force, ROHR_FORCE, true);
+        if(USED(forces_pool, index)) {
+            EntityResult owner = entity_owner_get(entity);
+            if(!error_check(owner)) v->force.owner = owner.result.value;
+        }
         break;
     case FLAG(PHYSICS_TORQUE):
         POOL_CAPTURE(torques_pool, torque, ROHR_TORQUE, true);
+        if(USED(torques_pool, index)) {
+            EntityResult owner = entity_owner_get(entity);
+            if(!error_check(owner)) v->torque.owner = owner.result.value;
+        }
         break;
     case FLAG(GRAPHICS_SPRITE):
         POOL_CAPTURE(sprites_pool, sprite, ROHR_SPRITE, true);

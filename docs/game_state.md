@@ -451,6 +451,11 @@ membership, without converting entity types. The ordered `soft_body` lists must
 exactly match that derived membership. Connections may reference nodes owned by
 other bodies; they never adopt those nodes.
 
+Force/torque description owners use the same version 8 ownership records; no
+second owner is serialized in source components. Loading source descriptions
+preserves the ownership restored earlier in the load transaction. A source with
+both components retains one shared lifetime owner, independently of its targets.
+
 `object_aliases` records attached visual description names using the same entry
 shape. Alias targets must be the owner or its owned descendants. `object_anchor`
 stores an anchor proxy's `owner` name and per-owner anchor `index`.

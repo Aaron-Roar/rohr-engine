@@ -55,12 +55,12 @@ static bool runtime_check(void) {
     OK(rohr_physics_collision_with_set(empty_body, UINT64_C(64)));
     CHECK(!rohr_entity_components_check(empty_body, ROHR_HIT_BOX));
     OK(rohr_physics_particle_origin_set(named_entity("automatic_body"), (Position){0}));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.local_origin = (Position){4,2};
     config.radius = 2;
     config.collision_enabled = false;
     config.collision_filter = (CollisionFilterConfig){.category=UINT64_C(8), .collides_with=UINT64_C(16)};
-    EntityResult particle = rohr_physics_particle_create(config);
+    EntityResult particle = rohr_physics_particle_add(config);
     OK(particle);
     OK(rohr_entity_name_set(particle.result.value, "pure_particle"));
     CHECK(rohr_error_check(rohr_physics_center_of_mass_local_position_set(

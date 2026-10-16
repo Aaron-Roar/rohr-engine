@@ -92,7 +92,7 @@ static void api_and_validation(void) {
     assert(physics_torque_target_get(t.result.value).result.value==target);
     assert(physics_torque_description_get(t.result.value).result.value.magnitude==-10);
     assert(rohr_physics_torque_magnitude_get(t.result.value).result.value==-10);
-    OK(rohr_physics_torque_description_set(t.result.value,(TorqueDescription){target,7}));
+    OK(rohr_physics_torque_description_set(t.result.value,(TorqueDescription){.target = target, .magnitude = 7}));
     ForceDescription before=physics_force_description_get(source).result.value;
     uint32_t count=entity_alive_count_get();
     for(unsigned n=0;n<11;++n) {
@@ -259,9 +259,9 @@ static void suspension_and_inspection(void) {
     OK(entity_info_release(&before)); OK(entity_info_release(&suspended));
 }
 static void particles(void) {
-    ParticleConfig config=physics_particle_config_default_get(); config.mass_value=2;
+    ParticleDescription config=physics_particle_description_default_get(); config.mass_value=2;
     config.collision_enabled=false;
-    EntityResult p=physics_particle_create(config); OK(p);
+    EntityResult p=physics_particle_add(config); OK(p);
     Entity rigid=body((Position){10,0}); OK(physics_particle_radius_set(rigid,1));
     EntityResult soft=physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
     EntityResult node=physics_soft_body_node_add((SoftBodyNodeDescription){
@@ -276,7 +276,7 @@ static void particles(void) {
             .orientation.offset=90,.magnitude=2});
         PhysicsChange c=evaluate(source,false,true); assert(near(c.force_acceleration.x,1));
         assert(n==2 ? c.torque_acceleration>0 : c.torque_acceleration==0);
-        EntityResult torque=physics_torque_add((TorqueDescription){entities[n],2}); OK(torque);
+        EntityResult torque=physics_torque_add((TorqueDescription){.target = entities[n], .magnitude = 2}); OK(torque);
         evaluate(torque.result.value,true,n==2);
     }
     Report r=system_physics_update(0.1); assert(!r.has_fatal);
@@ -629,7 +629,7 @@ static void beam_failures_and_lifetime(void) {
 static void beam_torque_and_motion(void) {
     BeamFixture f=beam_fixture(0,0);
     OK(entity_components_delete(f.source,ROHR_FORCE));
-    OK(physics_torque_description_set(f.source,(TorqueDescription){f.beam,20}));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){.target = f.beam, .magnitude = 20}));
     PhysicsSourceChanges c=beam_evaluate(f,true);
     assert(near(c.values[0].force_acceleration.y,1));
     assert(near(c.values[1].force_acceleration.y,-0.5));
@@ -649,7 +649,7 @@ static void beam_torque_and_motion(void) {
     assert(memcmp(&stored.result.value,&after.result.value,sizeof(Report))==0);
     OK(entity_delete(f.source));
     uint32_t before=entity_alive_count_get();
-    OK(rohr_physics_torque_apply((TorqueDescription){f.beam,20}));
+    OK(rohr_physics_torque_apply((TorqueDescription){.target = f.beam, .magnitude = 20}));
     uint64_t tick=engine_tick_get();
     report=system_physics_update(0.01);
     assert(metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==4);
@@ -733,7 +733,7 @@ static void soft_analytics(void) {
     c=soft_evaluate(f.source,false,2); soft_result_check(c,-12,0,-24);
     OK(entity_components_delete(f.source,ROHR_FORCE));
     for(int sign=-1;sign<=1;sign+=2) {
-        OK(rohr_physics_torque_description_set(f.source,(TorqueDescription){f.owner,sign*30}));
+        OK(rohr_physics_torque_description_set(f.source,(TorqueDescription){.target = f.owner, .magnitude = sign*30}));
         c=soft_evaluate(f.source,true,2); soft_result_check(c,0,0,sign*30);
         assert(near(c.values[0].force_acceleration.y,sign*1.5));
         assert(near(c.values[1].force_acceleration.y,-sign*0.5));
@@ -852,7 +852,7 @@ static void soft_degenerate_and_constraints(void) {
     BAD(physics_source_change_get(f.source,false,&c,&active));
     OK(entity_components_delete(f.source,ROHR_HOLD));
     OK(entity_components_delete(f.source,ROHR_FORCE));
-    OK(physics_torque_description_set(f.source,(TorqueDescription){f.owner,1}));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){.target = f.owner, .magnitude = 1}));
     BAD(physics_source_change_get(f.source,true,&c,&active));
     /* Positive inertia far below the removed 0.0001 cutoff remains usable. */
     OK(physics_position_set(f.b,(Position){1e-10f,0}));
@@ -882,8 +882,8 @@ static void soft_lifetime_and_parity(void) {
     OK(physics_force_description_set(a.source,at_com(a.owner,0,12)));
     OK(entity_delete(b.source));
     OK(rohr_physics_force_apply(at_com(b.owner,0,12)));
-    EntityResult torque=physics_torque_add((TorqueDescription){a.owner,-20}); OK(torque);
-    OK(rohr_physics_torque_apply((TorqueDescription){b.owner,-20}));
+    EntityResult torque=physics_torque_add((TorqueDescription){.target = a.owner, .magnitude = -20}); OK(torque);
+    OK(rohr_physics_torque_apply((TorqueDescription){.target = b.owner, .magnitude = -20}));
     uint32_t count=entity_alive_count_get(); uint64_t tick=engine_tick_get();
     OK(physics_substeps_set(4));
     for(unsigned step=0;step<2;++step) {
@@ -930,7 +930,7 @@ static double soft_energy_error(unsigned steps, bool held, float damping) {
 static double soft_free_energy_error(unsigned steps, float damping) {
     BeamFixture f=beam_fixture(8,damping);
     OK(entity_components_delete(f.source,ROHR_FORCE));
-    OK(physics_torque_description_set(f.source,(TorqueDescription){f.owner,30}));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){.target = f.owner, .magnitude = 30}));
     double dt=1.0/steps, work=0,dissipated=0;
     for(unsigned step=0;step<steps;++step) {
         Position a=positions[idx(f.a)],b=positions[idx(f.b)];
@@ -994,7 +994,7 @@ static void soft_numeric_geometry(void) {
     PhysicsSourceChanges c=soft_evaluate(f.source,false,2);
     assert(near(c.values[0].force_acceleration.y,2) && near(c.values[1].force_acceleration.y,2));
     OK(entity_components_delete(f.source,ROHR_FORCE));
-    OK(physics_torque_description_set(f.source,(TorqueDescription){f.owner,32}));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){.target = f.owner, .magnitude = 32}));
     c=soft_evaluate(f.source,true,2);
     assert(near(c.values[0].force_acceleration.y,1) && near(c.values[1].force_acceleration.y,-0.5));
     /* A zero-mass member leaves a COM reference resolvable, but cannot receive
@@ -1006,7 +1006,7 @@ static void soft_numeric_geometry(void) {
     OK(physics_force_magnitude_set(f.source,12));
     bool active; BAD(physics_source_change_get(f.source,false,&c,&active));
     OK(entity_components_delete(f.source,ROHR_FORCE));
-    OK(physics_torque_description_set(f.source,(TorqueDescription){f.owner,32}));
+    OK(physics_torque_description_set(f.source,(TorqueDescription){.target = f.owner, .magnitude = 32}));
     /* Internal mass sums and inertia may exceed float without rejecting finite loads. */
     positions[idx(f.a)]=(Position){0,0}; positions[idx(f.b)]=(Position){10,0};
     mass[idx(f.a)]=FLT_MAX; mass[idx(f.b)]=FLT_MAX;

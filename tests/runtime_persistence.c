@@ -46,7 +46,7 @@ static void naming(void) {
     OK(physics_force_description_set(b,(ForceDescription){0})); expect_name(b,"entity_2");
     expect_name(take(physics_force_add((ForceDescription){0})),"force_1");
     expect_name(take(rohr_physics_torque_add((TorqueDescription){0})),"torque_1");
-    expect_name(take(rohr_physics_particle_create(physics_particle_config_default_get())),"particle_1");
+    expect_name(take(rohr_physics_particle_add(physics_particle_description_default_get())),"particle_1");
     Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0})); expect_name(body,"soft_body_1");
     Entity node=take(physics_soft_body_node_add((SoftBodyNodeDescription){
         .owner = body,
@@ -126,10 +126,10 @@ static void fixture(void) {
     OK(physics_axis_lock_set(nodes[5],(Axis){1,0},physics_position_get(nodes[5]).result.value));
     OK(physics_angle_lock_set(nodes[5],-20,80));
     OK(physics_transform_lock_set(nodes[6],nodes[7],(Vec2D){5,0},0,true,false,true));
-    JointAnchorIdResult anchor=physics_joint_anchor_create(nodes[0],(Vec2D){0.2f,0.3f}); OK(anchor);
-    OK(physics_joint_anchor_create(nodes[0],(Vec2D){4,5})); /* unused anchor */
-    SoftBodyNodeAnchorPinResult pin=physics_soft_body_node_to_anchor_pin_create(nodes[3],anchor.result.value); OK(pin);
-    pin=physics_soft_body_node_to_anchor_pin_create(nodes[4],anchor.result.value); OK(pin);
+    JointAnchorIdResult anchor=physics_joint_anchor_add((JointAnchorDescription){.entity = nodes[0], .local_offset = (Vec2D){0.2f,0.3f}}); OK(anchor);
+    OK(physics_joint_anchor_add((JointAnchorDescription){.entity = nodes[0], .local_offset = (Vec2D){4,5}})); /* unused anchor */
+    SoftBodyNodeAnchorPinResult pin=physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = nodes[3], .anchor = anchor.result.value}); OK(pin);
+    pin=physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = nodes[4], .anchor = anchor.result.value}); OK(pin);
     expect_name(pin.result.value.joint,"joint_2");
     for(int kind=ROHR_FORCE_WORLD_POSITION;kind<=ROHR_FORCE_BEAM_POSITION;++kind) {
         ForceLocation location={.offset={1,2},.reference={.kind=kind}};

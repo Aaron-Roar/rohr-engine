@@ -528,7 +528,7 @@ static void physics_ownership(void) {
     }));
     SoftBodyAreaGeometry geometry = {.outer = {.nodes = {n, x, y}, .node_count = 3}};
     Entity area = take(physics_soft_body_area_add((SoftBodyAreaDescription){.owner = a, .geometry = geometry}));
-    Entity joint = take(physics_joint_create(n, y, JOINT_PIN, (Vec2D){0}, (Vec2D){0}, 0, 0));
+    Entity joint = take(physics_joint_add((JointDescription){.a = n, .b = y, .type = JOINT_PIN, .local_anchor_a = (Vec2D){0}, .local_anchor_b = (Vec2D){0}, .stiffness = 0, .damping = 0}));
     OK(physics_velocity_set(n, (Velocity){7, 8}));
     OK(rohr_entity_owner_set(n, b));
     assert(entity_owner_get(n).result.value == b);
@@ -553,8 +553,8 @@ static void physics_ownership(void) {
     assert(physics_soft_body_area_get(area).result.value.soft_body == ENTITY_INVALID);
     OK(entity_owner_set(area, b));
     /* A plain particle shares lifetime only; it does not become a node. */
-    ParticleConfig particle = physics_particle_config_default_get();
-    Entity decoration = take(physics_particle_create(particle));
+    ParticleDescription particle = physics_particle_description_default_get();
+    Entity decoration = take(physics_particle_add(particle));
     OK(entity_owner_set(decoration, a));
     assert(!entity_components_check(decoration, ROHR_SOFT_BODY_NODE));
     assert(physics_soft_body_get(a).result.value.node_count == 1);
@@ -705,8 +705,190 @@ static void ownership_allocation_failure(void) {
     assert(failures > 0);
 #endif
 }
+static void remaining_creation_descriptions(void) {
+    Entity owner = make(), other = make();
+    ParticleDescription particle = physics_particle_description_default_get();
+    assert(particle.owner == ENTITY_INVALID && particle.radius == 1 && particle.mass_value == 1);
+    particle.owner = owner; particle.position = (Position){3, 4};
+    Entity first = take(rohr_physics_particle_add(particle));
+    Entity second = take(physics_particle_add(particle));
+    particle.position.x = 100;
+    assert(first != second && physics_position_get(first).result.value.x == 3);
+    OK(entity_owner_set(second, other));
+    JointDescription description = {.owner = owner, .a = first, .b = second,
+        .type = JOINT_SPRING, .local_anchor_a = {1, 0}, .local_anchor_b = {-1, 0},
+        .stiffness = 10, .damping = 2};
+    Entity joint = take(rohr_physics_joint_add(description));
+    Entity copy = take(physics_joint_add(description));
+    EntityIndex ji = rohr_entity_index_get(joint).result.value;
+    assert(joints[ji].rest_length == 2 && joints[ji].stiffness == 10);
+    OK(entity_owner_set(joint, other));
+    assert(joints[ji].a == first && joints[ji].b == second);
+    JointAnchorIdResult anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){
+        .entity = second, .local_offset = {2, 0}}); OK(anchor);
+    Entity node = take(physics_soft_body_node_add((SoftBodyNodeDescription){.owner = other, .mass = 1, .radius = 1}));
+    SoftBodyNodeAnchorPinResult pin = rohr_physics_soft_body_node_to_anchor_pin_add(
+        (SoftBodyNodeAnchorPinDescription){.owner = owner, .node = node, .anchor = anchor.result.value}); OK(pin);
+    assert(entity_owner_get(pin.result.value.joint).result.value == owner);
+    size_t before = entity_alive_count_get();
+    Entity stale = make(); OK(entity_delete(stale));
+    particle.owner = stale;
+    assert(error_check(physics_particle_add(particle)));
+    description.owner = stale;
+    assert(error_check(physics_joint_add(description)));
+    assert(error_check(physics_joint_anchor_add((JointAnchorDescription){.entity = stale})));
+    assert(error_check(physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){
+        .owner = stale, .node = node, .anchor = anchor.result.value})));
+    assert(physics_joint_anchors_get(node).result.value.count == 1);
+    assert(entity_alive_count_get() == before);
+    OK(entity_delete(owner));
+    assert(!entity_alive_check(first) && !entity_alive_check(copy) && !entity_alive_check(pin.result.value.joint));
+    assert(entity_alive_check(second) && entity_alive_check(joint) && entity_alive_check(node));
+    assert(joints[ji].a == ENTITY_INVALID && joints[ji].b == second);
+    OK(physics_joint_anchor_world_position_get(pin.result.value.node_anchor));
+    OK(physics_joint_anchor_remove(pin.result.value.node_anchor));
+    /* Removing a referenced anchor disconnects, but retains, the helper joint. */
+    pin = physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){
+        .node = node, .anchor = anchor.result.value}); OK(pin);
+    OK(physics_joint_anchor_remove(pin.result.value.node_anchor));
+    assert(entity_alive_check(pin.result.value.joint));
+    OK(entity_delete(pin.result.value.joint));
+    for(unsigned i = 0; i < MAX_JOINT_ANCHORS_PER_ENTITY; ++i)
+        OK(physics_joint_anchor_add((JointAnchorDescription){.entity = node}));
+    before = entity_alive_count_get();
+    assert(error_check(physics_joint_anchor_add((JointAnchorDescription){.entity = node})));
+    assert(error_check(physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){
+        .owner = other, .node = node, .anchor = anchor.result.value})));
+    assert(physics_joint_anchors_get(node).result.value.count == MAX_JOINT_ANCHORS_PER_ENTITY);
+    assert(entity_alive_count_get() == before);
+    OK(entity_delete(other));
+    assert(error_check(physics_joint_anchor_world_position_get(anchor.result.value)));
+}
+
+static void source_description_ownership(void) {
+    Entity a = make(), b = make(), target = make();
+    OK(entity_name_set(a, "source_owner_a")); OK(entity_name_set(b, "source_owner_b"));
+    OK(entity_name_set(target, "source_target"));
+    ForceDescription force = {.owner = a, .target = target, .magnitude = 3};
+    Entity source = take(rohr_physics_force_add(force));
+    OK(entity_name_set(source, "owned_source"));
+    OK(physics_torque_description_set(source, (TorqueDescription){.owner = a, .target = target, .magnitude = 4}));
+    OK(rohr_entity_owner_set(source, b));
+    assert(physics_force_description_get(source).result.value.owner == b);
+    assert(rohr_physics_torque_description_get(source).result.value.owner == b);
+    OK(rohr_physics_force_magnitude_set(source, 5)); OK(physics_torque_magnitude_set(source, 6));
+    assert(entity_owner_get(source).result.value == b);
+    force.owner = source; force.magnitude = 99;
+    assert(error_check(physics_force_description_set(source, force)));
+    assert(physics_force_description_get(source).result.value.magnitude == 5);
+    assert(entity_owner_get(source).result.value == b);
+    Entity stale = make(); OK(entity_delete(stale));
+    assert(error_check(physics_torque_description_set(source, (TorqueDescription){.owner = stale})));
+    assert(physics_torque_description_get(source).result.value.magnitude == 6);
+    size_t before = entity_alive_count_get();
+    force.owner = a;
+    assert(error_check(rohr_physics_force_apply(force)));
+    assert(error_check(physics_torque_apply((TorqueDescription){.owner = a, .target = target})));
+    force.owner = stale;
+    assert(error_check(physics_force_add(force)));
+    assert(error_check(physics_torque_add((TorqueDescription){.owner = stale})));
+    assert(entity_alive_count_get() == before);
+    force.owner = a; force.magnitude = 7;
+    OK(rohr_physics_force_description_set(source, force));
+    assert(physics_torque_description_get(source).result.value.owner == a);
+    OK(physics_torque_description_set(source, (TorqueDescription){.target = target, .magnitude = 8}));
+    assert(physics_force_description_get(source).result.value.owner == ENTITY_INVALID);
+    OK(entity_owner_set(source, b));
+    OK(game_state_file_save("creation_ownership.json"));
+    OK(entity_delete(a)); OK(entity_delete(b)); OK(entity_delete(target));
+    OK(game_state_file_load("creation_ownership.json"));
+    source = take(entity_by_name_get("owned_source"));
+    b = take(entity_by_name_get("source_owner_b"));
+    a = take(entity_by_name_get("source_owner_a"));
+    target = take(entity_by_name_get("source_target"));
+    assert(physics_force_description_get(source).result.value.owner == b);
+    assert(physics_torque_description_get(source).result.value.owner == b);
+    assert(physics_force_description_get(source).result.value.target == target);
+    assert(physics_torque_description_get(source).result.value.target == target);
+    OK(entity_delete(b)); assert(!entity_alive_check(source) && entity_alive_check(target));
+    OK(entity_delete(target)); OK(entity_delete(a));
+    assert(remove("creation_ownership.json") == 0);
+}
+
+static void remaining_creation_rollback(void) {
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    for(unsigned kind = 0; kind < 5; ++kind) {
+        unsigned failures = 0, successes = 0;
+        for(long fail = 0; fail < 60; ++fail) {
+            Entity owner = make(), a = make();
+            Entity node = take(physics_soft_body_node_add((SoftBodyNodeDescription){.mass = 1, .radius = 1}));
+            JointAnchorIdResult anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(anchor);
+            size_t before = entity_alive_count_get();
+            ParticleDescription particle = physics_particle_description_default_get(); particle.owner = owner;
+            allocation_countdown = fail;
+            EntityResult created;
+            switch(kind) {
+            case 0: created = physics_particle_add(particle); break;
+            case 1: created = physics_joint_add((JointDescription){.owner = owner, .a = a, .b = node, .type = JOINT_PIN}); break;
+            case 2: {
+                SoftBodyNodeAnchorPinResult pin = physics_soft_body_node_to_anchor_pin_add(
+                    (SoftBodyNodeAnchorPinDescription){.owner = owner, .node = node, .anchor = anchor.result.value});
+                created = error_check(pin) ? ERROR_RESULT_MAKE_ERROR(EntityResult, pin.result.error) :
+                    ERROR_RESULT_MAKE_VALUE(EntityResult, pin.result.value.joint);
+                break;
+            }
+            case 3: created = physics_force_add((ForceDescription){.owner = owner, .target = a}); break;
+            default: created = physics_torque_add((TorqueDescription){.owner = owner, .target = a}); break;
+            }
+            allocation_countdown = -1;
+            if(error_check(created)) {
+                ++failures;
+                assert(entity_alive_count_get() == before);
+                assert(!entity_components_check(owner, ROHR_OBJECT));
+                assert(physics_joint_anchors_get(node).result.value.count == 0);
+            } else {
+                ++successes;
+                assert(entity_owner_get(created.result.value).result.value == owner);
+                assert(entity_alive_count_get() == before + 1);
+            }
+            OK(entity_delete(owner)); OK(entity_delete(a)); OK(entity_delete(node));
+            assert(entity_alive_count_get() == before - 3);
+        }
+        assert(failures && successes);
+    }
+    for(unsigned torque = 0; torque < 2; ++torque) {
+        unsigned failures = 0, successes = 0;
+        for(long fail = 0; fail < 20; ++fail) {
+            Entity a = make(), b = make();
+            Entity source = take(physics_force_add((ForceDescription){.owner = a, .magnitude = 2}));
+            OK(physics_torque_description_set(source, (TorqueDescription){.owner = a, .magnitude = 3}));
+            allocation_countdown = fail;
+            EngineResult result = torque ? physics_torque_description_set(source, (TorqueDescription){.owner = b, .magnitude = 9}) :
+                physics_force_description_set(source, (ForceDescription){.owner = b, .magnitude = 9});
+            allocation_countdown = -1;
+            if(error_check(result)) {
+                ++failures;
+                assert(entity_owner_get(source).result.value == a);
+                assert(physics_force_description_get(source).result.value.magnitude == 2);
+                assert(physics_torque_description_get(source).result.value.magnitude == 3);
+                assert(!entity_components_check(b, ROHR_OBJECT));
+            } else {
+                ++successes;
+                assert(physics_force_description_get(source).result.value.owner == b);
+                assert(physics_torque_description_get(source).result.value.owner == b);
+                assert(physics_force_description_get(source).result.value.magnitude == (torque ? 2 : 9));
+                assert(physics_torque_description_get(source).result.value.magnitude == (torque ? 9 : 3));
+            }
+            OK(entity_delete(a)); OK(entity_delete(b));
+        }
+        assert(failures && successes);
+    }
+#endif
+}
+
 int main(void) {
     OK(rohr_engine_start());
+    remaining_creation_descriptions(); source_description_ownership(); remaining_creation_rollback();
     soft_creation_descriptions(); soft_creation_rollback();
     ownership_transfers(); physics_ownership(); ownership_round_trip();
     ownership_capacity(); ownership_allocation_failure();

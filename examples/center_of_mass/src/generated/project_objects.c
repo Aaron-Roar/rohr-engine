@@ -102,7 +102,7 @@ static inline EngineResult generated_world_anchor_create(Entity *owner,
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_static_set(*owner);
     if(rohr_error_check(result)) goto fail;
-    created = rohr_physics_joint_anchor_create(*owner, (Vec2D){0});
+    created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = *owner, .local_offset = (Vec2D){0}});
     if(rohr_error_check(created)) {
         result = rohr_error_result_error(created.result.error);
         goto fail;
@@ -132,10 +132,10 @@ EngineResult mass_demo_create(MassDemo *object, Position position) {
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_hitbox_id_at_set(object->explicit_body, 0, UINT32_C(2));
     if(rohr_error_check(result)) goto fail;
-    { JointAnchorIdResult created = rohr_physics_joint_anchor_create(object->automatic_body, (Vec2D){100.000000f, 30.0000000f});
+    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = object->automatic_body, .local_offset = (Vec2D){100.000000f, 30.0000000f}});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->anchor_automatic_tip = created.result.value; }
-    { JointAnchorIdResult created = rohr_physics_joint_anchor_create(object->explicit_body, (Vec2D){100.000000f, 30.0000000f});
+    { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = object->explicit_body, .local_offset = (Vec2D){100.000000f, 30.0000000f}});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->anchor_explicit_tip = created.result.value; }
     { CameraIdResult created = rohr_camera_create((CameraConfig){.position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});

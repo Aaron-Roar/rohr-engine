@@ -549,7 +549,7 @@ EngineResult rohr_physics_target_set(Entity entity, Entity target) {
 EngineResult rohr_physics_joint_component_set(Entity entity, Joint joint) {
     return physics_joint_component_set(entity, joint);
 }
-JointAnchorIdResult rohr_physics_joint_anchor_create(Entity entity, Vec2D local_offset) { return physics_joint_anchor_create(entity, local_offset); }
+JointAnchorIdResult rohr_physics_joint_anchor_add(JointAnchorDescription description) { return physics_joint_anchor_add(description); }
 JointAnchorListResult rohr_physics_joint_anchors_get(Entity entity) { return physics_joint_anchors_get(entity); }
 JointAnchorPositionResult rohr_physics_joint_anchor_local_position_get(JointAnchorId anchor) { return physics_joint_anchor_local_position_get(anchor); }
 JointAnchorPositionResult rohr_physics_joint_anchor_world_position_get(JointAnchorId anchor) { return physics_joint_anchor_world_position_get(anchor); }
@@ -568,7 +568,7 @@ PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { ret
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
 EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
-SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(Entity node, JointAnchorId anchor) { return physics_soft_body_node_to_anchor_pin_create(node, anchor); }
+SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description) { return physics_soft_body_node_to_anchor_pin_add(description); }
 EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description) { return physics_soft_body_beam_add(description); }
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam) { return physics_soft_body_beam_get(beam); }
 EngineResult rohr_physics_soft_body_beam_collision_config_set(Entity beam, SoftBodyBeamCollisionConfig config) { return physics_soft_body_beam_collision_config_set(beam, config); }
@@ -583,12 +583,12 @@ EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index) 
 EngineResult rohr_graphics_soft_body_area_color_set(Entity area, Color color) { return graphics_soft_body_area_color_set(area, color); }
 EngineResult rohr_graphics_soft_body_area_color_clear(Entity area) { return graphics_soft_body_area_color_clear(area); }
 EngineResult rohr_graphics_soft_body_area_visibility_set(Entity area, bool visible) { return graphics_soft_body_area_visibility_set(area, visible); }
-EntityResult rohr_physics_joint_create(Entity a, Entity b, JointType type, Vec2D local_anchor_a, Vec2D local_anchor_b, float stiffness, float damping) {
-    return physics_joint_create(a, b, type, local_anchor_a, local_anchor_b, stiffness, damping);
+EntityResult rohr_physics_joint_add(JointDescription description) {
+    return physics_joint_add(description);
 }
 OverlapInfo rohr_physics_particle_overlap_get(Shape shape_1, Shape shape_2) { return physics_particle_overlap_get(shape_1, shape_2); }
-ParticleConfig rohr_physics_particle_config_default_get(void) { return physics_particle_config_default_get(); }
-EntityResult rohr_physics_particle_create(ParticleConfig config) { return physics_particle_create(config); }
+ParticleDescription rohr_physics_particle_description_default_get(void) { return physics_particle_description_default_get(); }
+EntityResult rohr_physics_particle_add(ParticleDescription config) { return physics_particle_add(config); }
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin) { return physics_particle_origin_set(entity, local_origin); }
 PositionResult rohr_physics_particle_origin_get(Entity entity) { return physics_particle_origin_get(entity); }
 EngineResult rohr_physics_particle_radius_set(Entity entity, float radius) { return physics_particle_radius_set(entity, radius); }

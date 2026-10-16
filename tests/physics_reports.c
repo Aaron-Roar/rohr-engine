@@ -57,8 +57,8 @@ static Position position(Entity e) {
 }
 static Entity joint_make(Entity a, Entity b, bool spring) {
     EntityResult joint = rohr_entity_add(); OK(joint);
-    JointAnchorIdResult first = rohr_physics_joint_anchor_create(a, (Vec2D){0}); OK(first);
-    JointAnchorIdResult second = rohr_physics_joint_anchor_create(b, (Vec2D){0}); OK(second);
+    JointAnchorIdResult first = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){0}}); OK(first);
+    JointAnchorIdResult second = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){0}}); OK(second);
     if(spring) {
         OK(rohr_physics_joint_spring_set(joint.result.value,
             first.result.value, second.result.value, 2, 1, 0));
@@ -295,9 +295,9 @@ static void allocation_failures(void) {
         .damping = 0
     }); OK(beam);
     OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, .1f));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.position = (Position){0, .5f}; config.radius = 1; config.gravity_enabled = false;
-    EntityResult particle = rohr_physics_particle_create(config); OK(particle);
+    EntityResult particle = rohr_physics_particle_add(config); OK(particle);
     physics_pipeline_substep_begin();
     report = physics_pipeline_contacts_gather();
     assert(!report.has_fatal && physics_step_contact_constraints.count > 0);

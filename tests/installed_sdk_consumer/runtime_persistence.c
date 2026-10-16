@@ -49,8 +49,8 @@ int main(void) {
         .location={.reference={.kind=ROHR_FORCE_BEAM_POSITION,
             .beam={.entity=beam,.anchor=ROHR_FORCE_BEAM_CENTER,.fraction=0.5f}}}};
     take(rohr_physics_force_add(description));
-    JointAnchorIdResult anchor=rohr_physics_joint_anchor_create(a,(Vec2D){0}); OK(anchor);
-    OK(rohr_physics_soft_body_node_to_anchor_pin_create(c,anchor.result.value));
+    JointAnchorIdResult anchor=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){0}}); OK(anchor);
+    OK(rohr_physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = c, .anchor = anchor.result.value}));
     OK(rohr_game_state_file_save(path));
     rohr_engine_stop(); OK(rohr_engine_start());
     OK(rohr_game_state_file_load(path));

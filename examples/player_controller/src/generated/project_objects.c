@@ -102,7 +102,7 @@ static inline EngineResult generated_world_anchor_create(Entity *owner,
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_static_set(*owner);
     if(rohr_error_check(result)) goto fail;
-    created = rohr_physics_joint_anchor_create(*owner, (Vec2D){0});
+    created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = *owner, .local_offset = (Vec2D){0}});
     if(rohr_error_check(created)) {
         result = rohr_error_result_error(created.result.error);
         goto fail;

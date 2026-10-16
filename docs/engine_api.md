@@ -1633,7 +1633,7 @@ EntityResult rohr_physics_torque_add(TorqueDescription description);
 ForceDescriptionResult rohr_physics_force_description_get(Entity source);
 ```
 
- Returns copied stored configuration; invalid handles or missing source components return an error.
+ Returns configuration with the current generic owner; invalid sources return an error.
 
 ### `rohr_physics_torque_description_get`
 
@@ -1641,7 +1641,7 @@ ForceDescriptionResult rohr_physics_force_description_get(Entity source);
 TorqueDescriptionResult rohr_physics_torque_description_get(Entity source);
 ```
 
- Returns copied stored configuration; invalid handles or missing source components return an error.
+ Returns configuration with the current generic owner; invalid sources return an error.
 
 ### `rohr_physics_force_description_set`
 
@@ -1649,7 +1649,7 @@ TorqueDescriptionResult rohr_physics_torque_description_get(Entity source);
 EngineResult rohr_physics_force_description_set(Entity source, ForceDescription description);
 ```
 
- Atomically stores the complete description on a live entity; invalid input leaves it unchanged.
+ Atomically replaces configuration and lifetime owner; invalid input leaves both unchanged.
 
 ### `rohr_physics_torque_description_set`
 
@@ -1657,7 +1657,7 @@ EngineResult rohr_physics_force_description_set(Entity source, ForceDescription 
 EngineResult rohr_physics_torque_description_set(Entity source, TorqueDescription description);
 ```
 
- Atomically stores the complete description on a live entity; invalid input leaves it unchanged.
+ Atomically replaces configuration and lifetime owner; invalid input leaves both unchanged.
 
 ### `rohr_physics_force_target_set`
 
@@ -1763,6 +1763,8 @@ EngineResult rohr_physics_force_apply(ForceDescription description);
 
  Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1.
 
+Requires owner == ENTITY_INVALID; use add for a persistent owned source.
+
 ### `rohr_physics_torque_apply`
 
 ```c
@@ -1770,6 +1772,8 @@ EngineResult rohr_physics_torque_apply(TorqueDescription description);
 ```
 
  Copies a source for engine tick T, expiring through lifecycle cleanup at T + 1.
+
+Requires owner == ENTITY_INVALID; use add for a persistent owned source.
 
 ### `rohr_physics_hitbox_set`
 
@@ -2308,18 +2312,17 @@ Adds or replaces complete joint data on an existing entity.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_joint_anchor_create`
+### `rohr_physics_joint_anchor_add`
 
 ```c
-JointAnchorIdResult rohr_physics_joint_anchor_create(Entity entity, Vec2D local_offset);
+JointAnchorIdResult rohr_physics_joint_anchor_add(JointAnchorDescription description);
 ```
 
 Creates an anchor owned by an entity.
 
 | Parameter | Description |
 | --- | --- |
-| `entity` | Entity that owns and moves the anchor. |
-| `local_offset` | Anchor offset from the entity's stable local origin. |
+| `description` | Attached entity and offset from its stable local origin. |
 
 **Returns:** JointAnchorIdResult containing the stable anchor handle, or an error.
 
@@ -2554,20 +2557,19 @@ Applies an immediate impulse to one soft-body node.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_node_to_anchor_pin_create`
+### `rohr_physics_soft_body_node_to_anchor_pin_add`
 
 ```c
-SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create( Entity node, JointAnchorId anchor );
+SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description);
 ```
 
 Pins a soft-body node to an existing anchor.
 
 | Parameter | Description |
 | --- | --- |
-| `node` | Soft-body node entity. |
-| `anchor` | Existing anchor to connect to the node. |
+| `description` | Joint owner, soft-body node, and existing target anchor. |
 
-**Returns:** SoftBodyNodeAnchorPinResult containing the joint and node-owned anchor. Remove node_anchor to remove both the attachment joint and the created anchor.
+**Returns:** SoftBodyNodeAnchorPinResult containing the joint and node-owned anchor. Delete the joint and remove node_anchor separately to release the attachment. Removing an anchor disconnects referencing joints; it does not delete them.
 
 ### `rohr_physics_soft_body_beam_add`
 
@@ -2703,23 +2705,17 @@ EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 Later areas draw on top within the same layer. Out-of-range indices fail.
 
-### `rohr_physics_joint_create`
+### `rohr_physics_joint_add`
 
 ```c
-EntityResult rohr_physics_joint_create( Entity a, Entity b, JointType type, Vec2D local_anchor_a, Vec2D local_anchor_b, float stiffness, float damping );
+EntityResult rohr_physics_joint_add(JointDescription description);
 ```
 
 Creates a joint between two entities.
 
 | Parameter | Description |
 | --- | --- |
-| `a` | First entity. |
-| `b` | Second entity. |
-| `type` | Joint behavior type. |
-| `local_anchor_a` | Anchor on the first entity in local space. |
-| `local_anchor_b` | Anchor on the second entity in local space. |
-| `stiffness` | Spring stiffness. |
-| `damping` | Spring damping. |
+| `description` | Lifetime owner, endpoints, local offsets, and joint behavior. |
 
 **Returns:** EntityResult containing the joint entity, or an error.
 
@@ -2738,20 +2734,20 @@ Gets overlap information for two particle shapes.
 
 **Returns:** Geometric overlap information.
 
-### `rohr_physics_particle_config_default_get`
+### `rohr_physics_particle_description_default_get`
 
 ```c
-ParticleConfig rohr_physics_particle_config_default_get(void);
+ParticleDescription rohr_physics_particle_description_default_get(void);
 ```
 
 Returns a valid standalone particle configuration with engine defaults.
 
-**Returns:** ParticleConfig with a unit radius, default material and collision.
+**Returns:** ParticleDescription with a unit radius, default material and collision.
 
-### `rohr_physics_particle_create`
+### `rohr_physics_particle_add`
 
 ```c
-EntityResult rohr_physics_particle_create(ParticleConfig config);
+EntityResult rohr_physics_particle_add(ParticleDescription config);
 ```
 
 Creates one translation-only particle entity.

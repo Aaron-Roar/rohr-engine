@@ -298,6 +298,8 @@ typedef struct ForceOrientation {
 } ForceOrientation;
 
 typedef struct ForceDescription {
+    /** Lifetime owner, independent of target and references; invalid for apply. */
+    Entity owner;
     Entity target;
     ForceLocation location;
     ForceOrientation orientation;
@@ -305,6 +307,8 @@ typedef struct ForceDescription {
 } ForceDescription;
 
 typedef struct TorqueDescription {
+    /** Lifetime owner, independent of target; invalid for apply. */
+    Entity owner;
     Entity target;
     Torque magnitude;
 } TorqueDescription;
@@ -323,8 +327,10 @@ ERROR_DECLARE_RESULT_TYPE(ForceMagnitudeResult, float);
 /** Default polygon vertex count used to approximate a particle circle. */
 #define ROHR_PARTICLE_RIGID_VERTICES_DEFAULT 16u
 
-/** Complete configuration used to create one standalone particle entity. */
-typedef struct ParticleConfig {
+/** Value description used to create one standalone particle entity. */
+typedef struct ParticleDescription {
+    /** Optional lifetime owner; connections do not imply ownership. */
+    Entity owner;
     /** Initial world position of the particle entity. */
     Position position;
     /** Shared local offset of the particle circle and polygon hitbox. */
@@ -348,7 +354,7 @@ typedef struct ParticleConfig {
     bool gravity_enabled;
     /** Whether overlaps enter physical collision response. */
     bool collision_enabled;
-} ParticleConfig;
+} ParticleDescription;
 
 ERROR_DECLARE_RESULT_TYPE(PositionResult, Position);
 ERROR_DECLARE_RESULT_TYPE(BoolResult, bool);
@@ -560,6 +566,31 @@ typedef struct SoftBodyAreaDescription {
     Entity owner;
     SoftBodyAreaGeometry geometry;
 } SoftBodyAreaDescription;
+
+/** Create a joint without inferring ownership from its endpoints. */
+typedef struct JointDescription {
+    Entity owner;
+    Entity a;
+    Entity b;
+    JointType type;
+    Vec2D local_anchor_a;
+    Vec2D local_anchor_b;
+    float stiffness;
+    float damping;
+} JointDescription;
+
+/** Anchors are resources attached to an entity, not independently owned entities. */
+typedef struct JointAnchorDescription {
+    Entity entity;
+    Vec2D local_offset;
+} JointAnchorDescription;
+
+/** Owner applies to the new joint; the new anchor remains attached to node. */
+typedef struct SoftBodyNodeAnchorPinDescription {
+    Entity owner;
+    Entity node;
+    JointAnchorId anchor;
+} SoftBodyNodeAnchorPinDescription;
 
 /** Value snapshot; generated triangles and caches remain private. */
 typedef struct SoftBodyArea {
@@ -847,7 +878,9 @@ EntityResult physics_torque_target_get(Entity source);
 EngineResult physics_torque_magnitude_set(Entity source, Torque magnitude);
 TorqueResult physics_torque_magnitude_get(Entity source);
 
+/** One-shot apply requires an invalid owner; persistent owned sources use add. */
 EngineResult physics_force_apply(ForceDescription description);
+/** One-shot apply requires an invalid owner; persistent owned sources use add. */
 EngineResult physics_torque_apply(TorqueDescription description);
 
 /**
@@ -999,7 +1032,7 @@ EngineResult physics_target_set(Entity entity, Entity target);
 /** Add or replace complete joint component data on an existing entity. */
 EngineResult physics_joint_component_set(Entity entity, Joint joint);
 
-JointAnchorIdResult physics_joint_anchor_create(Entity entity, Vec2D local_offset);
+JointAnchorIdResult physics_joint_anchor_add(JointAnchorDescription description);
 JointAnchorListResult physics_joint_anchors_get(Entity entity);
 JointAnchorPositionResult physics_joint_anchor_local_position_get(JointAnchorId anchor);
 JointAnchorPositionResult physics_joint_anchor_world_position_get(JointAnchorId anchor);
@@ -1031,10 +1064,7 @@ EngineResult physics_soft_body_node_collision_filter_set(
     RohrCollisionCategoryMask collides_with
 );
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
-SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
-    Entity node,
-    JointAnchorId anchor
-);
+SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description);
 EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description);
 SoftBodyBeamResult physics_soft_body_beam_get(Entity beam);
 /** Replace endpoints; ENTITY_INVALID leaves that endpoint disconnected. */
@@ -1060,24 +1090,16 @@ EngineResult physics_soft_body_area_order_set(Entity area, uint32_t index);
  *
  * @return EntityResult containing the new joint entity, or an error.
  */
-EntityResult physics_joint_create(
-    Entity a,
-    Entity b,
-    JointType type,
-    Vec2D local_anchor_a,
-    Vec2D local_anchor_b,
-    float stiffness,
-    float damping
-);
+EntityResult physics_joint_add(JointDescription description);
 
 /**
  * Run particle collision detection between two circle-like shapes.
  */
 OverlapInfo physics_particle_overlap_get(Shape shape_1, Shape shape_2);
 /** Return a valid standalone particle configuration with engine defaults. */
-ParticleConfig physics_particle_config_default_get(void);
+ParticleDescription physics_particle_description_default_get(void);
 /** Create one translation-only particle entity from a reusable configuration. */
-EntityResult physics_particle_create(ParticleConfig config);
+EntityResult physics_particle_add(ParticleDescription config);
 EngineResult physics_particle_origin_set(Entity entity, Position local_origin);
 PositionResult physics_particle_origin_get(Entity entity);
 EngineResult physics_particle_radius_set(Entity entity, float radius);

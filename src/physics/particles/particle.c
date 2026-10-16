@@ -8,8 +8,8 @@
 
 #include <math.h>
 
-ParticleConfig physics_particle_config_default_get(void) {
-    return (ParticleConfig){
+ParticleDescription physics_particle_description_default_get(void) {
+    return (ParticleDescription){
         .radius = 1.0f,
         .rigid_vertices = ROHR_PARTICLE_RIGID_VERTICES_DEFAULT,
         .mass_value = 1.0f,
@@ -19,7 +19,7 @@ ParticleConfig physics_particle_config_default_get(void) {
     };
 }
 
-EntityResult physics_particle_create(ParticleConfig config) {
+EntityResult physics_particle_add(ParticleDescription config) {
     uint32_t rigid_vertices = config.rigid_vertices == 0 ?
         ROHR_PARTICLE_RIGID_VERTICES_DEFAULT : config.rigid_vertices;
     Shape hitbox;
@@ -40,6 +40,8 @@ EntityResult physics_particle_create(ParticleConfig config) {
             config.restitution > 1.0f)
         return ERROR_RESULT_MAKE_ERROR(
             EntityResult, ERROR_ENGINE_STATE_INVALID);
+    if(config.owner != ENTITY_INVALID && !entity_alive_check(config.owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     added = entity_default_create("particle", ENTITY_INVALID);
     if(error_check(added)) return added;
     particle = added.result.value;
@@ -74,6 +76,7 @@ EntityResult physics_particle_create(ParticleConfig config) {
         particle, config.collision_filter));
     if(!config.collision_enabled)
         PARTICLE_APPLY(entity_components_delete(particle, ROHR_COLLISION));
+    PARTICLE_APPLY(entity_owner_set(particle, config.owner));
 #undef PARTICLE_APPLY
     EntityIndex index;
     if(entity_index_get(particle, &index)) particle_geometries_pool.objects[index].standalone = true;

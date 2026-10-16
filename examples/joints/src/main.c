@@ -161,8 +161,8 @@ int main(void) {
     bodies[0] = body_create((Position){-220.0f, 110.0f}, (Vec2D){70.0f, 22.0f}, 3.0f, pin_category, true);
     bodies[1] = body_create((Position){-150.0f, 110.0f}, (Vec2D){70.0f, 22.0f}, 3.0f, pin_category, true);
     pin_joint = joint_entity_create();
-    anchor_a = rohr_physics_joint_anchor_create(bodies[0], (Vec2D){35.0f, 0.0f});
-    anchor_b = rohr_physics_joint_anchor_create(bodies[1], (Vec2D){-35.0f, 0.0f});
+    anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[0], .local_offset = (Vec2D){35.0f, 0.0f}});
+    anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[1], .local_offset = (Vec2D){-35.0f, 0.0f}});
     if(bodies[0] == ENTITY_INVALID || bodies[1] == ENTITY_INVALID || pin_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
             !result_ok(rohr_physics_joint_pin_set(pin_joint, anchor_a.result.value, anchor_b.result.value))) goto fail;
@@ -172,8 +172,8 @@ int main(void) {
     if(bodies[3] != ENTITY_INVALID &&
             !result_ok(rohr_physics_orientation_set(bodies[3], -90.0f))) goto fail;
     weld_joint = joint_entity_create();
-    anchor_a = rohr_physics_joint_anchor_create(bodies[2], (Vec2D){30.0f, 0.0f});
-    anchor_b = rohr_physics_joint_anchor_create(bodies[3], (Vec2D){-30.0f, 0.0f});
+    anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[2], .local_offset = (Vec2D){30.0f, 0.0f}});
+    anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[3], .local_offset = (Vec2D){-30.0f, 0.0f}});
     if(bodies[2] == ENTITY_INVALID || bodies[3] == ENTITY_INVALID || weld_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
             !result_ok(rohr_physics_joint_weld_set(weld_joint, anchor_a.result.value, anchor_b.result.value))) goto fail;
@@ -181,8 +181,8 @@ int main(void) {
     bodies[4] = body_create((Position){105.0f, -70.0f}, (Vec2D){38.0f, 38.0f}, 2.0f, spring_category, true);
     bodies[5] = body_create((Position){215.0f, -70.0f}, (Vec2D){38.0f, 38.0f}, 2.0f, spring_category, true);
     spring_joint = joint_entity_create();
-    anchor_a = rohr_physics_joint_anchor_create(bodies[4], (Vec2D){0.0f, 0.0f});
-    anchor_b = rohr_physics_joint_anchor_create(bodies[5], (Vec2D){0.0f, 0.0f});
+    anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[4], .local_offset = (Vec2D){0.0f, 0.0f}});
+    anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[5], .local_offset = (Vec2D){0.0f, 0.0f}});
     if(bodies[4] == ENTITY_INVALID || bodies[5] == ENTITY_INVALID || spring_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
             !result_ok(rohr_physics_joint_spring_set(

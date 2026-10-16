@@ -168,7 +168,7 @@ static void setters(void) {
     BAD(rohr_physics_impulse_apply(a, (Vec2D){NAN, 0}));
     BAD(rohr_physics_axis_lock_set(a, (Axis){NAN, 1}, (Position){0}));
     BAD(rohr_physics_transform_lock_set(a, b, (Vec2D){INFINITY, 0}, 0, true, true, true));
-    BAD(rohr_physics_joint_anchor_create(a, (Vec2D){NAN, 0}));
+    BAD(rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){NAN, 0}}));
     assert(entity_alive_count_get() == count && entity_mask[i] == mask);
     assert(velocities[i].x == 0 && accelerations[i].y == 0);
     OK(rohr_physics_velocity_set(a, (Velocity){FLT_MAX, 0}));
@@ -180,8 +180,8 @@ static void setters(void) {
 static void joints_retry(void) {
     OK(rohr_engine_start());
     Entity a = body(0, 0, false), b = body(10, 0, false), joint = entity();
-    JointAnchorIdResult aa = rohr_physics_joint_anchor_create(a, (Vec2D){0}); OK(aa);
-    JointAnchorIdResult bb = rohr_physics_joint_anchor_create(b, (Vec2D){0}); OK(bb);
+    JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){0}}); OK(aa);
+    JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){0}}); OK(bb);
     OK(rohr_physics_joint_pin_set(joint, aa.result.value, bb.result.value));
     EntityIndex k = index_of(joint);
     joints[k].anchor_a = UINT64_MAX;
@@ -300,8 +300,8 @@ static void joint_corrections(void) {
     Entity a = body(ROHR_WORLD_COORDINATE_MAX, 0, false);
     Entity b = body(ROHR_WORLD_COORDINATE_MAX - 1, 0, false), joint = entity();
     EntityIndex i = index_of(a), j = index_of(b);
-    JointAnchorIdResult aa = rohr_physics_joint_anchor_create(a, (Vec2D){-ROHR_WORLD_COORDINATE_MAX, 0}); OK(aa);
-    JointAnchorIdResult bb = rohr_physics_joint_anchor_create(b, (Vec2D){ROHR_WORLD_COORDINATE_MAX, 0}); OK(bb);
+    JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){-ROHR_WORLD_COORDINATE_MAX, 0}}); OK(aa);
+    JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){ROHR_WORLD_COORDINATE_MAX, 0}}); OK(bb);
     OK(rohr_physics_joint_pin_set(joint, aa.result.value, bb.result.value));
     OK(rohr_physics_velocity_set(a, (Velocity){FLT_MAX, 0}));
     OK(rohr_physics_velocity_set(b, (Velocity){-FLT_MAX, 0}));
@@ -394,9 +394,9 @@ static void paired_contact_rejection(void) {
         .damping = 0
     }); OK(beam);
     OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, 2));
-    ParticleConfig config = rohr_physics_particle_config_default_get();
+    ParticleDescription config = rohr_physics_particle_description_default_get();
     config.position = (Position){0, 1.5f}; config.velocity = (Velocity){0, -FLT_MAX};
-    EntityResult particle = rohr_physics_particle_create(config); OK(particle);
+    EntityResult particle = rohr_physics_particle_add(config); OK(particle);
     OK(rohr_physics_velocity_set(n1.result.value, (Velocity){0, FLT_MAX}));
     OK(rohr_physics_velocity_set(n2.result.value, (Velocity){0, FLT_MAX}));
     physics_pipeline_substep_begin();

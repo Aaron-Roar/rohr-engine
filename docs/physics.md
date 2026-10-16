@@ -13,6 +13,40 @@ derived inertia, COM integration, persistence, generated APIs, and editor contro
 are implemented. The [center-of-mass example](../examples/center_of_mass/README.md)
 provides an editable project and generated runtime demonstration.
 
+## Physics creation and ownership
+
+Physics creation uses value descriptions with `_add` APIs and matching direct
+and `rohr_` entry points. Inline compound literals and reusable variables are
+both supported. `owner` optionally assigns lifetime ownership; omitting it
+creates an independent entity. Ownership does not follow endpoints, force
+targets, or reference entities, and `rohr_entity_owner_set` preserves connections.
+
+`ParticleDescription` retains particle configuration fields and defaults, with
+an optional owner. Use `rohr_physics_particle_description_default_get()` for a
+valid unit particle. `JointDescription` contains owner, endpoints `a`/`b`, type,
+local anchor offsets, stiffness, and damping; creation derives the initial rest
+length and angle from the endpoints as before.
+
+`rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body,
+.local_offset = {1, 0}})` returns a resource ID attached to `body`, not an entity
+with a separate lifetime owner. `SoftBodyNodeAnchorPinDescription` supplies
+`owner`, `node`, and an existing `anchor` to the node-to-anchor pin add helper.
+Its owner controls the resulting joint only. Delete the joint and remove the
+returned node anchor separately; removing an anchor disconnects referencing
+joints without deleting them. Deleting its attached entity releases the anchor.
+
+`ForceDescription` and `TorqueDescription` also carry `owner`, independently of
+`target`. Full description setters atomically replace configuration and owner;
+field setters preserve ownership. Description getters and entity snapshots
+report the current generic owner even after transfers, including when a source
+has both force and torque components. Failed creation or replacement leaves
+existing ownership and configuration unchanged.
+
+One-shot force/torque `_apply` requires `owner == ENTITY_INVALID`. It retains the
+existing temporary-source tick lifetime; use `_add` for persistent owned loads.
+There are no compatibility wrappers for replaced constructors or `ParticleConfig`.
+Regenerate existing projects and migrate handwritten calls when updating the SDK.
+
 ## Angles and angular motion
 
 Angles are clockwise degrees, angular velocity is degrees/second, and angular
@@ -191,20 +225,20 @@ polygon hitbox:
 - particle versus particle uses the configured circles;
 - particle versus ordinary rigid body uses both entities' polygon hitboxes.
 
-Create reusable standalone particles through `ParticleConfig`. The default
+Create reusable standalone particles through `ParticleDescription`. The default
 configuration is valid as-is; copy it and change instance state when manually
 emitting multiple particles:
 
 ```c
-ParticleConfig dust = rohr_physics_particle_config_default_get();
+ParticleDescription dust = rohr_physics_particle_description_default_get();
 dust.radius = 3.0f;
 dust.mass_value = 0.3f;
 
 for(size_t i = 0; i < amount; i += 1) {
-    ParticleConfig particle = dust;
+    ParticleDescription particle = dust;
     particle.position = positions[i];
     particle.velocity = velocities[i];
-    EntityResult created = rohr_physics_particle_create(particle);
+    EntityResult created = rohr_physics_particle_add(particle);
 }
 ```
 

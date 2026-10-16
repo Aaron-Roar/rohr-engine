@@ -269,7 +269,8 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         return entity_object_alias_restore(parent, target, d->name);
     }
     EntityResult created;
-    if(geometry_enabled && d->kind == OBJECT_PARTICLE) created = physics_particle_create((ParticleConfig){
+    if(geometry_enabled && d->kind == OBJECT_PARTICLE) created = physics_particle_add((ParticleDescription){
+        .owner=parent,
         .position=position,.local_origin=d->particle_origin,.radius=d->radius,.rigid_vertices=d->particle_vertices,
         .velocity=d->velocity,.acceleration=d->acceleration,.mass_value=d->mass,.friction=d->friction,
         .restitution=d->restitution,.collision_filter=d->collision_filter,.static_body=!physics || d->static_body,
@@ -354,8 +355,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         if(d->color_overridden) APPLY(graphics_soft_body_area_color_set(e, d->color));
     }
     if(physics && d->kind == OBJECT_ANCHOR) {
-        JointAnchorIdResult anchor = physics_joint_anchor_create(target ? target : e,
-            target ? d->position : (Position){0});
+        JointAnchorIdResult anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = target ? target : e, .local_offset = target ? d->position : (Position){0}});
         if(error_check(anchor)) return error_result_error(anchor.result.error);
         entry->anchor = anchor.result.value;
         APPLY(object_instance_anchor_restore(e, target ? target : e, anchor.result.value));

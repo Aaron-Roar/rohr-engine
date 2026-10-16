@@ -436,7 +436,7 @@ with particle properties retain COM authoring and visualization.
 radius, local origin, and **Rigid Vertices** produce one synchronized circular
 particle shape and polygon hitbox. Generated C exposes a reusable
 `<object>_<particle>_config` constant and creates the placed instance through
-`rohr_physics_particle_create()`, so game code can copy the same config to
+`rohr_physics_particle_add()`, so game code can copy the same config to
 create additional particles.
 
 Enable **Collision**, then enable **Particle** on a rigid body. The viewport

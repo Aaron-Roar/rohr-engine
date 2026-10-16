@@ -80,7 +80,7 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
         OK(rohr_physics_angular_velocity_radians_set(body, -0.8f));
         OK(rohr_physics_dynamic_set(body));
         OK(rohr_physics_center_of_mass_local_position_set(body, (Position){30,15}));
-        JointAnchorIdResult created_anchor = rohr_physics_joint_anchor_create(body, (Position){100,30});
+        JointAnchorIdResult created_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body, .local_offset = (Position){100,30}});
         OK(created_anchor); anchor = created_anchor.result.value;
     }
     Position initial = rohr_physics_center_of_mass_world_position_get(body).result.value;
