@@ -1,0 +1,127 @@
+# Object descriptions and instances
+
+Editor-generated catalogs and runtime-loaded editor documents share the public
+interface in `object.h`, also included by `rohr.h`. Regenerate existing projects
+to add their catalog; existing generated constructors remain available.
+
+```c
+#include "generated/project_objects.h"
+
+EntityResult body = entity_object_add(objects.mass_demo.automatic_body);
+EntityResult camera = entity_object_by_name_add(objects.mass_demo, "main_camera");
+ObjectDescriptionResult copy = object_copy(objects.mass_demo);
+if (!error_check(copy)) {
+    ObjectDescriptionResult child = object_description_by_name_get(copy.result.value,
+        "automatic_body");
+    if (!error_check(child)) object_mass_set(child.result.value, 7);
+    EntityResult instance = entity_object_add(copy.result.value);
+    /* Check instance, then use its entity handle. */
+    object_destroy(copy.result.value);
+}
+```
+
+Check every result in application code. The example uses the bundled COM
+project's names; a default project's catalog exposes its own object/child names.
+Generated views are lvalues. Common pointer functions such as
+`entity_object_description_add()` also accept pointer expressions directly.
+
+## Descriptions
+
+The generated immutable `objects` catalog exposes properties beside named
+children. Generated types are an implementation detail; common entry points
+accept generated descriptions and runtime description handles. Runtime file
+loading uses the editor document format and never manufactures C fields.
+Recursive scoped lookup matches description names exactly and rejects ambiguity.
+
+Copies own independent mutable data and include descendants by default. Copy and
+spawn filters are positive inclusion masks: `ROHR_ENTITY_OBJECT_PHYSICS`,
+`ROHR_ENTITY_OBJECT_VISUALS`, and their union `ROHR_ENTITY_OBJECT_ALL`. Omitted
+options mean ALL; zero and unknown bits are errors. Names, hierarchy, and placement
+survive filtering. No API creates descriptions from scratch. Mutation uses checked
+setters on editable handles; defaults remain immutable.
+
+Description resources have explicit release. Shared immutable assets follow
+existing retain/release rules; live instances do not borrow mutable description
+storage. Loading descriptions does not spawn entities or change global physics.
+`object_load("path/to/project/objects/project.rohr.json")` returns a cached,
+immutable catalog. Release every successful load, including cache hits, with
+`object_destroy()`. Release only copy roots, never borrowed descendants or
+generated constants. Standard project assets resolve relative to the project
+directory; other document paths resolve assets relative to their directory.
+
+Editable copies use common-handle setters for placement, linear motion, body
+angular velocity, mass, materials, collision settings, radius, visibility,
+colors, and sprite/animation scale. Soft-body mass edits proportionally update
+node masses. Copies have dynamic layouts and use scoped lookup for descendants;
+their property values are readable through the common description pointer.
+There is no mutable generated global and no raw-description creation API.
+
+## Instances
+
+Each spawn creates new entities. Connections resolve only within that spawn;
+existing entities are never recruited by matching names. Names first try the
+description name, then available `_1`, `_2`, etc. Scoped member lookup uses a
+separate description identity and survives ECS renaming.
+
+Top-level positions are world positions; descendant placement is parent-local.
+Direct descendant spawning retains resolved placement. An additional spawn
+offset applies once. Editor overview position never contributes to gameplay.
+
+`entity_object_add_with_options(description, flags)` and
+`entity_object_by_name_add_with_options(scope, name, flags)` select categories.
+Use `entity_object_description_add(object_get(description),
+(ObjectSpawnOptions){.flags = ROHR_ENTITY_OBJECT_ALL, .offset = {100, 0}})`
+for additional placement. Visual-only physical shapes retain static drawing
+geometry with collision response and gravity disabled. Physics-only instances
+do not load image resources. Included visuals attached to a body use its sprite
+components; scoped lookup of their names returns that body entity.
+Additional attached visuals of the same kind receive their own owned entity and
+transform lock, so they do not replace an earlier visual. Those names resolve to
+their individual entities. Body hitbox bindings use its primary animation.
+
+An instance root is an entity with `ROHR_OBJECT` and a protected owned-members
+group. Membership is recorded during spawning, separately from runtime hierarchy
+and ordinary groups. Each member has at most one instance owner. Ownership is
+acyclic. Nested instances own their immediate members. Deleting an owner deletes
+its members recursively; external connections or ordinary group membership never
+transfer ownership. Explicit release leaves the entity alive. Removing an object
+component performs the same owned-content cleanup while retaining its root entity.
+
+Use `entity_object_member_by_name_get()`, `entity_object_owner_get()`,
+`entity_object_members_get()`, and `entity_object_member_release()` to inspect
+and release ownership. Names of nested entities include their instance prefix;
+scoped lookup takes the original description name, independently of that prefix.
+Repeated names in a scope are ambiguous and return an error.
+
+`entity_object_camera_get()` and `entity_object_anchor_get()` return borrowed
+typed resource handles. Their proxy entities own destruction. Game code chooses
+camera callbacks and viewport mounts as usual. `entity_object_draw(root)` draws
+retained appearance and owned descendants in the active camera. Callback code
+and viewport composition remain caller-owned.
+
+Joints without anchors, nodes without owners, and beams/areas with missing topology
+are supported incomplete states. Detached nodes simulate normally. Incomplete
+topology skips only calculations that require its missing connections and is
+reported through inspection/update reports. Stale nonzero references, invalid
+numbers, and corrupt ownership remain errors. Deleting a target disconnects external
+connections without deleting their entities.
+
+## Restoration and failure
+
+Runtime saves preserve ownership, member identities, incomplete topology, and
+supported instance resources without requiring the original document. Save/load
+format changes follow exact-version validation. Templates remain separate from
+runtime snapshots. All creation and restoration operations roll back their own
+entities and resources on failure without modifying pre-existing world state.
+
+`game_state_file_save(path)`, `entity_delete(root)`, then
+`game_state_file_load(path)` restores the saved live instances directly. A
+snapshot contains the whole live world, so delete all entities represented in
+it before loading into the same world, or load into a fresh engine. Loading
+rejects name clashes; it does not silently clone a snapshot. Use descriptions
+for independent repeated spawning. Image files remain required assets, while
+the original editor document and description handles are unnecessary.
+
+Ordinary hierarchy parenting and generic group deletion retain their current
+behavior. Existing generated constructors and public entry points remain supported.
+Force/torque authoring and viewport redesign are outside this goal.

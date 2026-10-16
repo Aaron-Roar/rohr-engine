@@ -43,6 +43,7 @@ bool physics_entity_nonrotating_check(EntityIndex index);
 void physics_joint_state_init(void);
 void physics_joint_entity_clear(Entity entity, EntityIndex index);
 void physics_soft_body_entity_clear(Entity entity, EntityIndex index);
+void physics_soft_body_member_release(Entity entity, EntityIndex index);
 EngineResult physics_soft_body_origin_position_set(
     EntityIndex body_index, Position position);
 EngineResult physics_soft_body_origin_orientation_set(

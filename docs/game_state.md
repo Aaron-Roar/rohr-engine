@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `6`. A state may be split across
+Game state uses yyjson and schema version `7`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -8,7 +8,7 @@ in the same call.
 Angles and offsets use clockwise degrees; angular rates use degrees/second
 and degrees/second squared. Negative values and multiple turns are preserved.
 Zero keeps authored geometry unchanged, with local +Y as the world heading.
-Torque and inertia keep their physical units. Versions other than 6 are rejected
+Torque and inertia keep their physical units. Versions other than 7 are rejected
 without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 6,
+  "version": 7,
   "entities": [
     {
       "name": "player",
@@ -433,11 +433,51 @@ milestone goal.
 
 ## Version 6 runtime topology contract
 
-Every creation API assigns a unique editable name: `entity_n`, `force_n`,
+Version 7 retains the topology and lifetime fields below and extends their
+contract with object ownership and explicit incomplete connections. Exact-version
+validation remains in effect; version 6 documents must be regenerated or migrated.
+
+`object` is an ordered array of `{ "entity": "runtime name", "name":
+"description member name" }` entries. Its presence identifies a `ROHR_OBJECT`
+owner, including an empty owner. Members must belong to this load transaction,
+have only one owner, and form an acyclic ownership forest. Description member
+names may repeat; scoped lookup then reports ambiguity. Runtime ECS names remain
+unique. Ownership is independent of ordinary groups and hierarchy parenting.
+
+`object_aliases` records attached visual description names using the same entry
+shape. Alias targets must be the owner or its owned descendants. `object_anchor`
+stores an anchor proxy's `owner` name and per-owner anchor `index`.
+`object_appearance` retains kind, visibility, drawing enablement, and colors.
+`sprite_state` and `animation_state` store image paths, sizes, transforms,
+visibility, and independent playback state; entity, sprite, and animation layers
+are saved separately. `object_camera` stores dimensions, zoom, position,
+orientation, enable/pause flags, and an optional named attachment. Camera
+callbacks and viewport mounts remain application-owned.
+
+Engine snapshots carry `"runtime_snapshot": true`. Loading them restores live
+state without adding to the retained authored-template documents. This permits
+repeated save/delete/load cycles without accumulating template definitions.
+Authored documents omit this marker (or set it false) and remain available to
+`game_state_template_file_save()` without capturing later runtime edits. Runtime
+animation frames are self-contained records; template animation definitions
+remain in their original authored format. Image paths beneath the working
+directory are saved relatively, as with previous runtime saves.
+
+Soft-body `owner`, beam endpoints, area node slots, and joint endpoints may be
+explicit JSON null for disconnected state. Non-null references must resolve to
+the appropriate live type. Area loops may contain fewer than three nodes and
+null slots; such areas retain their definition without a fill. Duplicate non-null
+nodes remain invalid. Joint anchor indices must match their corresponding owner;
+either endpoint can independently use an anchor or an inline local offset.
+
+Ordinary entity creation APIs assign unique editable names: `entity_n`, `force_n`,
 `torque_n`, `particle_n`, `joint_n`, or `soft_body_n`. Soft-body children use
 `<owner>_node_n`, `<owner>_beam_n`, and `<owner>_area_n`. Generated suffixes skip
 occupied names. Only the generated owner prefix may be truncated to fit 63
 bytes. Component changes and owner renames preserve existing child names.
+Object-description spawning instead starts with description-derived names and
+uses `_1`, `_2`, and subsequent suffixes for collisions, as described in
+[the object interface](object_descriptions.md).
 
 The loader preflights all expanded names across every document and the existing
 world. It then creates exact names, loads ordinary state, restores topology and

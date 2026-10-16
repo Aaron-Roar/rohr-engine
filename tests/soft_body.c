@@ -253,7 +253,8 @@ int main(void) {
             rohr_entity_alive_check(node_a.result.value) || rohr_entity_alive_check(node_b.result.value) ||
             rohr_entity_alive_check(node_c.result.value) || rohr_entity_alive_check(beam.result.value) ||
             rohr_entity_alive_check(area.result.value) ||
-            rohr_entity_alive_check(attachment.result.value.joint)) goto fail;
+            !rohr_entity_alive_check(attachment.result.value.joint)) goto fail;
+    if(joints[rohr_entity_index_get(attachment.result.value.joint).result.value].a != ENTITY_INVALID) goto fail;
     {
         EntityResult collision_body = rohr_physics_soft_body_create();
         EntityResult collision_node;

@@ -627,7 +627,8 @@ extern SoftBodyBeamPool soft_body_beams_pool;
 #define positions positions_pool.objects
 #define velocities velocities_pool.objects
 #define accelerations accelerations_pool.objects
-#define mass mass_pool.objects
+/** Current mass table; refreshed after engine-managed table growth. */
+extern Mass *mass;
 #define forces forces_pool.objects
 #define force_accelerations force_accelerations_pool.objects
 #define hit_boxes hit_boxes_pool.objects
@@ -1002,6 +1003,8 @@ EntityResult physics_soft_body_node_local_create(
     float radius
 );
 SoftBodyNodeResult physics_soft_body_node_get(Entity node);
+/** Attach or detach a node without changing its world state. */
+EngineResult physics_soft_body_node_owner_set(Entity node, Entity soft_body);
 PositionResult physics_soft_body_node_local_position_get(Entity node);
 EngineResult physics_soft_body_node_local_position_set(
     Entity node, Position local_position);
@@ -1023,6 +1026,8 @@ EntityResult physics_soft_body_beam_create(
     float damping
 );
 SoftBodyBeamResult physics_soft_body_beam_get(Entity beam);
+/** Replace endpoints; ENTITY_INVALID leaves that endpoint disconnected. */
+EngineResult physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
 EngineResult physics_soft_body_beam_collision_config_set(
     Entity beam, SoftBodyBeamCollisionConfig config);
 EngineResult physics_soft_body_beam_collision_enable(Entity beam);

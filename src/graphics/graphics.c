@@ -3,6 +3,8 @@
  */
 
 #include "graphics.h"
+#include "camera_state.h"
+#include "object_drawing.h"
 #include "core/report_internal.h"
 #include "graphics/triangle_draw.h"
 #include "physics/collision/shape_decomposition.h"
@@ -1296,6 +1298,18 @@ CameraResult graphics_camera_get(CameraId id) {
         graphics_camera_store_active();
     }
     return ERROR_RESULT_MAKE_VALUE(CameraResult, cameras[slot]);
+}
+
+EngineResult graphics_camera_state_get(CameraId id, CameraStateSnapshot *snapshot) {
+    size_t slot;
+    if(!snapshot || !graphics_camera_slot(id, &slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    ActiveCameraAttachment attachment = id == active_camera ? camera_attachment : camera_attachments[slot];
+    *snapshot = (CameraStateSnapshot){.value = id == active_camera ? camera : cameras[slot],
+        .attachment = attachment.value, .attached = attachment.attached,
+        .enabled = camera_runtime[slot].enabled, .pause_with_engine = camera_runtime[slot].pause_with_engine,
+        .active = id == active_camera};
+    return error_result_value(true);
 }
 
 EngineResult graphics_camera_set(CameraId id, Camera value) {
@@ -5557,18 +5571,16 @@ void graphics_joints_draw(Color color) {
     }
 }
 
-bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
+static bool graphics_soft_body_value_draw(SoftBody body, Entity soft_body_entity, Color surface_color,
         Color beam_color, Color node_color) {
-    SoftBodyResult body_result = physics_soft_body_get(soft_body_entity);
-    SoftBody body;
     int previous_layer;
+    bool complete = true;
 
-    if(sdl_renderer == NULL || body_result.kind == ERROR_RESULT_ERROR) {
-        graphics_submission_issue(sdl_renderer == NULL ? ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED : body_result.result.error,
+    if(sdl_renderer == NULL) {
+        graphics_submission_issue(ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED,
             (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, soft_body_entity}, "Soft-body drawing is unavailable");
         return false;
     }
-    body = body_result.result.value;
     previous_layer = graphics_entity_layer_begin(soft_body_entity);
     for(uint32_t i = 0; i < body.area_count; i += 1) {
         EntityIndex area_index;
@@ -5580,8 +5592,8 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         if(error_check(fill_result)) {
             graphics_submission_issue(fill_result.result.error,
                 (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, body.areas[i]}, "Soft-body area fill failed");
-            graphics_layer_active_set(previous_layer);
-            return false;
+            if(fill_result.result.error == ERROR_ENGINE_INVALID_SHAPE) { complete = false; continue; }
+            graphics_layer_active_set(previous_layer); return false;
         }
         Color color = area->value.draw_color_overridden ? area->value.draw_color : surface_color;
         int previous_child_layer = graphics_entity_layer_begin(body.areas[i]);
@@ -5649,7 +5661,25 @@ bool graphics_soft_body_draw(Entity soft_body_entity, Color surface_color,
         graphics_layer_active_set(previous_child_layer);
     }
     graphics_layer_active_set(previous_layer);
-    return true;
+    return complete;
+}
+
+bool graphics_soft_body_draw(Entity entity, Color surface, Color beam, Color node) {
+    SoftBodyResult body = physics_soft_body_get(entity);
+    if(error_check(body)) {
+        graphics_submission_issue(body.result.error, (ReportObjectRef){ROHR_REPORT_OBJECT_ENTITY, entity},
+            "Soft-body drawing is unavailable");
+        return false;
+    }
+    return graphics_soft_body_value_draw(body.result.value, entity, surface, beam, node);
+}
+bool graphics_soft_body_element_draw(Entity entity, Color color) {
+    SoftBody body = {0};
+    if(entity_components_check(entity, ROHR_SOFT_BODY_NODE)) { body.nodes[0] = entity; body.node_count = 1; }
+    else if(entity_components_check(entity, ROHR_SOFT_BODY_BEAM)) { body.beams[0] = entity; body.beam_count = 1; }
+    else if(entity_components_check(entity, ROHR_SOFT_BODY_AREA)) { body.areas[0] = entity; body.area_count = 1; }
+    else return false;
+    return graphics_soft_body_value_draw(body, entity, color, color, color);
 }
 
 EngineResult graphics_soft_body_area_color_set(Entity area, Color color) {

@@ -10,8 +10,8 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-/* Version 6 preserves runtime soft-body topology and relative lifetimes. */
-#define GAME_STATE_VERSION 6
+/* Version 7 adds object ownership and explicitly disconnected topology. */
+#define GAME_STATE_VERSION 7
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

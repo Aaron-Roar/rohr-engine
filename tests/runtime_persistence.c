@@ -165,9 +165,9 @@ static void malformed(void) {
     OK(physics_position_set(retained,(Position){7,9}));
     char *snapshot=read_text("runtime_original.json");
     const char *bad[]={
-        "{\"version\":6,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
-        "{\"version\":6,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
-        "{\"version\":6,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
+        "{\"version\":7,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
+        "{\"version\":7,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
+        "{\"version\":7,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
         "{\"version\":5,\"entities\":[]}"};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
         write_text("runtime_bad.json",bad[i]); BAD(game_state_file_load("runtime_bad.json"));
@@ -204,7 +204,7 @@ static void multiple_documents(void) {
     for(int part=0;part<2;++part) {
         yyjson_mut_doc *doc=yyjson_mut_doc_new(NULL); assert(doc);
         yyjson_mut_val *out=yyjson_mut_obj(doc), *array=yyjson_mut_arr(doc);
-        yyjson_mut_doc_set_root(doc,out); assert(yyjson_mut_obj_add_uint(doc,out,"version",6));
+        yyjson_mut_doc_set_root(doc,out); assert(yyjson_mut_obj_add_uint(doc,out,"version",GAME_STATE_VERSION));
         assert(yyjson_mut_obj_add_val(doc,out,"entities",array));
         for(size_t i=(size_t)part;i<yyjson_arr_size(entities);i+=2)
             assert(yyjson_mut_arr_add_val(array,yyjson_val_mut_copy(doc,yyjson_arr_get(entities,i))));
@@ -225,13 +225,13 @@ static void multiple_documents(void) {
     /* A clash in a later document must prevent creation from an earlier one. */
     const char *duplicates[]={"runtime_part_a.json","runtime_part_a.json"};
     BAD(game_state_files_load(duplicates,2)); assert(entity_alive_count_get()==0);
-    write_text("runtime_exact_names.json","{\"version\":6,\"entities\":["
+    write_text("runtime_exact_names.json","{\"version\":7,\"entities\":["
         "{\"name\":\"entity_2\",\"components\":{}},{\"name\":\"entity_1\",\"components\":{}}]}");
     OK(game_state_file_load("runtime_exact_names.json")); named("entity_1"); named("entity_2"); restart();
 }
 
 static void lifetime(void) {
-    write_text("runtime_lifetime.json","{\"version\":6,\"entities\":["
+    write_text("runtime_lifetime.json","{\"version\":7,\"entities\":["
         "{\"name\":\"due\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":true}}},"
         "{\"name\":\"disabled\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":false}}},"
         "{\"name\":\"later\",\"components\":{\"lifetime\":{\"time\":12.5,\"tick\":42,\"time_enabled\":true,\"tick_enabled\":true}}}]}");
@@ -275,7 +275,10 @@ static void capacity(void) {
     Entity owner=named("soft_body_1");
     OK(entity_delete(value.nodes[0]));
     value=physics_soft_body_get(owner).result.value;
-    assert(value.node_count==SOFT_BODY_MAX_NODES-1 && value.area_count==0);
+    assert(value.node_count==SOFT_BODY_MAX_NODES-1 && value.area_count==SOFT_BODY_MAX_AREAS);
+    assert(physics_soft_body_area_get(value.areas[0]).result.value.geometry.outer.nodes[0]==ENTITY_INVALID);
+    OK(entity_delete(value.beams[0]));
+    OK(entity_delete(value.areas[0]));
     Entity replacement=take(physics_soft_body_node_create(owner,(Position){0,0},2,1));
     take(physics_soft_body_beam_create(owner,replacement,value.nodes[0],3,0.1f));
     take(physics_soft_body_area_create(owner,(SoftBodyAreaGeometry){

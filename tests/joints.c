@@ -90,7 +90,9 @@ int main(void) {
             positions[index_b.result.value].x) > 0.0001f) goto fail;
 
     if(rohr_error_check(rohr_physics_joint_anchor_remove(anchor_a.result.value)) ||
-            rohr_entity_alive_check(joint.result.value)) goto fail;
+            !rohr_entity_alive_check(joint.result.value)) goto fail;
+    if(joints[rohr_entity_index_get(joint.result.value).result.value].a != ENTITY_INVALID) goto fail;
+    if(rohr_error_check(rohr_entity_delete(joint.result.value))) goto fail;
 
     anchor_a = rohr_physics_joint_anchor_create(body_a.result.value, (Vec2D){1.0f, 0.0f});
     anchor_b = rohr_physics_joint_anchor_create(body_b.result.value, (Vec2D){-1.0f, 0.0f});
@@ -115,7 +117,7 @@ int main(void) {
                 joints[joint_index.result.value].rest_length != 2.0f) goto fail;
     }
     if(rohr_error_check(rohr_entity_delete(body_a.result.value)) ||
-            rohr_entity_alive_check(joint.result.value) ||
+            !rohr_entity_alive_check(joint.result.value) ||
             !rohr_error_check(rohr_physics_joint_anchor_local_position_get(anchor_a.result.value))) goto fail;
     rohr_engine_stop();
     return 0;

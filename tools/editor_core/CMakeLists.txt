@@ -2,12 +2,8 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 
 add_library(rohr_editor_core STATIC
-    ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_error.c
-    ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_log.c
-    ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project.c
-    ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_project_json.c
+    src/editor_object_catalog.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
-    src/editor_soft_area.c
     src/editor_mass_properties.c
     src/editor_command.c
     src/editor_auto_shape.c

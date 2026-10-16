@@ -194,7 +194,7 @@ static void joints_retry(void) {
     r = rohr_physics_pipeline_constraints_solve(3);
     assert(r.diagnostic_count == 0 && positions[index_of(a)].x == positions[index_of(b)].x);
     OK(rohr_entity_delete(a));
-    assert(!entity_alive_check(joint)); /* Explicit ownership cleanup is preserved. */
+    assert(entity_alive_check(joint) && joints[k].a == ENTITY_INVALID);
     rohr_engine_stop();
 }
 

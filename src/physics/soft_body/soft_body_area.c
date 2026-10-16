@@ -49,8 +49,11 @@ static EngineResult area_fill_build(const NodeLoopPoints *poses, size_t count, N
 static EngineResult area_poses_get(const SoftBodyAreaGeometry *geometry, NodeLoopPoints *poses) {
     for(uint32_t l=0;l<=geometry->hole_count;l+=1) {
         const SoftBodyAreaLoop *loop=area_loop_get(geometry,l);
+        if(loop->node_count < 3) return error_result_error(ERROR_ENGINE_INVALID_SHAPE);
         poses[l].count=loop->node_count;
         for(uint32_t i=0;i<loop->node_count;i+=1) {
+            if(loop->nodes[i] == ENTITY_INVALID)
+                return error_result_error(ERROR_ENGINE_INVALID_SHAPE);
             PositionResult position=physics_position_get(loop->nodes[i]);
             if(error_check(position)) return error_result_error(position.result.error);
             poses[l].points[i]=position.result.value;
@@ -63,14 +66,18 @@ static EngineResult physics_soft_body_area_prepare(Entity owner,
     if(geometry->hole_count > SOFT_BODY_MAX_AREA_HOLES)
         return error_result_error(ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED);
     SoftBodyAreaGeometry normalized={.hole_count=geometry->hole_count};
+    bool incomplete = false;
     for(uint32_t l=0;l<=geometry->hole_count;l+=1) {
         const SoftBodyAreaLoop *loop=area_loop_get(geometry,l);
-        if(loop->node_count<3 || loop->node_count>SOFT_BODY_MAX_NODES)
+        if(loop->node_count>SOFT_BODY_MAX_NODES)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(loop->node_count < 3) incomplete = true;
         for(uint32_t i=0;i<loop->node_count;i+=1) {
+            if(loop->nodes[i] == ENTITY_INVALID) { incomplete = true; continue; }
             SoftBodyNodeResult node=physics_soft_body_node_get(loop->nodes[i]);
             if(error_check(node)) return error_result_error(node.result.error);
-            if(node.result.value.soft_body!=owner) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            if(owner != ENTITY_INVALID && node.result.value.soft_body != owner)
+                return error_result_error(ERROR_ENGINE_STATE_INVALID);
             for(uint32_t j=0;j<i;j+=1)
                 if(loop->nodes[i]==loop->nodes[j]) return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
@@ -80,13 +87,14 @@ static EngineResult physics_soft_body_area_prepare(Entity owner,
     }
     SoftBodyAreaCache *cache=calloc(1,sizeof(*cache));
     if(cache==NULL) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
-    EngineResult result=area_poses_get(&normalized,cache->poses);
+    EngineResult result = incomplete ? error_result_error(ERROR_ENGINE_INVALID_SHAPE) :
+        area_poses_get(&normalized,cache->poses);
     if(!error_check(result)) result=area_fill_build(cache->poses,geometry->hole_count+1,&cache->fill);
     uint32_t required=(UINT32_C(1)<<(geometry->hole_count+1))-1;
     if(!error_check(result) && cache->fill.enclosed_loops!=required)
         result=error_result_error(ERROR_ENGINE_INVALID_SHAPE);
     if(error_check(result)) {
-        if(!restoring || result.result.error != ERROR_ENGINE_INVALID_SHAPE) {
+        if((!restoring && !incomplete) || result.result.error != ERROR_ENGINE_INVALID_SHAPE) {
             area_cache_destroy(cache); return result;
         }
         /* Leave poses empty so the normal drawing path retries the fill. */
@@ -117,15 +125,17 @@ EngineResult physics_soft_body_area_fill_get(Entity area, const NodeLoopFill **f
 }
 
 EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry) {
-    EntityIndex body_index, area_index;
-    SoftBodyResult body = physics_soft_body_get(soft_body);
+    EntityIndex body_index = 0, area_index;
     SoftBodyAreaState state = {.value = {.visible = true}};
-    if(error_check(body)) return ERROR_RESULT_MAKE_ERROR(EntityResult, body.result.error);
-    if(body.result.value.area_count >= SOFT_BODY_MAX_AREAS)
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+    if(soft_body != ENTITY_INVALID) {
+        SoftBodyResult body = physics_soft_body_get(soft_body);
+        if(error_check(body)) return ERROR_RESULT_MAKE_ERROR(EntityResult, body.result.error);
+        if(body.result.value.area_count >= SOFT_BODY_MAX_AREAS)
+            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+    }
     EngineResult prepared = physics_soft_body_area_prepare(soft_body, &geometry, &state, false);
     if(error_check(prepared)) return ERROR_RESULT_MAKE_ERROR(EntityResult, prepared.result.error);
-    if(!entity_index_get(soft_body, &body_index)) {
+    if(soft_body != ENTITY_INVALID && !entity_index_get(soft_body, &body_index)) {
         area_cache_destroy(state.cache);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     }
@@ -139,16 +149,18 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[area_index] |= ROHR_SOFT_BODY_AREA;
-    soft_bodies[body_index].areas[soft_bodies[body_index].area_count++] = created.result.value;
+    if(soft_body != ENTITY_INVALID)
+        soft_bodies[body_index].areas[soft_bodies[body_index].area_count++] = created.result.value;
     return created;
 }
 
 EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {
-    EntityIndex index, owner;
+    EntityIndex index, owner = 0;
     if(!entity_index_get(entity, &index) ||
-            !entity_index_get(value.soft_body, &owner) ||
-            !soft_bodies_pool.used[owner] || soft_body_area_states_pool.used[index] ||
-            soft_bodies[owner].area_count >= SOFT_BODY_MAX_AREAS)
+            soft_body_area_states_pool.used[index] ||
+            (value.soft_body != ENTITY_INVALID &&
+             (!entity_index_get(value.soft_body, &owner) || !soft_bodies_pool.used[owner] ||
+              soft_bodies[owner].area_count >= SOFT_BODY_MAX_AREAS)))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     SoftBodyAreaState state = {.value = value};
     EngineResult result = physics_soft_body_area_prepare(value.soft_body,
@@ -159,7 +171,8 @@ EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {
         return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[index] |= ROHR_SOFT_BODY_AREA;
-    soft_bodies[owner].areas[soft_bodies[owner].area_count++] = entity;
+    if(value.soft_body != ENTITY_INVALID)
+        soft_bodies[owner].areas[soft_bodies[owner].area_count++] = entity;
     return error_result_value(true);
 }
 
@@ -224,20 +237,14 @@ void physics_soft_body_area_entity_clear(Entity area, EntityIndex index) {
 }
 
 void physics_soft_body_areas_node_clear(Entity node, Entity owner) {
-    EntityIndex body_index;
-    if(!entity_index_get(owner, &body_index) || body_index >= soft_bodies_pool.capacity ||
-            !soft_bodies_pool.used[body_index]) return;
-    for(uint32_t i = soft_bodies[body_index].area_count; i > 0; i -= 1) {
-        Entity area = soft_bodies[body_index].areas[i - 1];
-        EntityIndex index;
-        if(error_check(physics_soft_body_area_index_get(area, &index))) continue;
-        const SoftBodyAreaGeometry *geometry=&soft_body_area_states[index].value.geometry;
-        bool dependent=false;
-        for(uint32_t l=0;l<=geometry->hole_count && !dependent;l+=1) {
-            const SoftBodyAreaLoop *loop=area_loop_get(geometry,l);
+    (void)owner;
+    for(EntityIndex index = 0; index < soft_body_area_states_pool.capacity; ++index) {
+        if(!soft_body_area_states_pool.used[index]) continue;
+        SoftBodyAreaGeometry *geometry=&soft_body_area_states[index].value.geometry;
+        for(uint32_t l=0;l<=geometry->hole_count;l+=1) {
+            SoftBodyAreaLoop *loop = l == 0 ? &geometry->outer : &geometry->holes[l - 1];
             for(uint32_t j=0;j<loop->node_count;j+=1)
-                if(loop->nodes[j]==node) { dependent=true; break; }
+                if(loop->nodes[j]==node) loop->nodes[j] = ENTITY_INVALID;
         }
-        if(dependent) (void)entity_delete(area);
     }
 }

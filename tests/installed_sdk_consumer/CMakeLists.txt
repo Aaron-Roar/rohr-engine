@@ -10,6 +10,16 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 find_package(Rohr CONFIG REQUIRED)
 
+set(object_fixture ${CMAKE_CURRENT_SOURCE_DIR}/../../examples/center_of_mass/src/generated)
+add_executable(rohr_object_descriptions object_descriptions.c ${object_fixture}/project_objects.c)
+target_include_directories(rohr_object_descriptions PRIVATE ${object_fixture})
+target_link_libraries(rohr_object_descriptions PRIVATE Rohr::Engine)
+if(MSVC)
+    target_compile_options(rohr_object_descriptions PRIVATE /UNDEBUG)
+else()
+    target_compile_options(rohr_object_descriptions PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+endif()
+
 add_executable(rohr_installed_sdk_consumer main.c)
 target_link_libraries(rohr_installed_sdk_consumer PRIVATE Rohr::Engine)
 

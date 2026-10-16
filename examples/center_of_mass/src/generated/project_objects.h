@@ -39,4 +39,33 @@ EngineResult project_objects_create_all(ProjectObjects *objects);
 void project_objects_draw_all(const ProjectObjects *objects);
 void project_objects_destroy_all(ProjectObjects *objects);
 
+typedef struct ObjectDescriptionView_5 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_5;
+typedef struct ObjectDescriptionView_3 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_5 automatic_tip;
+} ObjectDescriptionView_3;
+typedef struct ObjectDescriptionView_6 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_6;
+typedef struct ObjectDescriptionView_4 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_6 explicit_tip;
+} ObjectDescriptionView_4;
+typedef struct ObjectDescriptionView_7 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_7;
+typedef struct ObjectDescriptionView_2 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_3 automatic_body;
+    ObjectDescriptionView_4 explicit_body;
+    ObjectDescriptionView_7 main_camera;
+} ObjectDescriptionView_2;
+typedef struct ObjectDescriptionView_1 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_2 mass_demo;
+} ObjectDescriptionView_1;
+extern const ObjectDescriptionView_1 objects;
+
 #endif

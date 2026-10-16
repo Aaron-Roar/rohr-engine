@@ -710,13 +710,13 @@ static void dependencies_check(Snapshot *s, EntityInfoFlags flag) {
             FLAG(PHYSICS_SOFT_BODY_AREA_COUNT);
     }
     if(flag == FLAG(PHYSICS_SOFT_BODY_NODE)) {
-        reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, v->soft_body_node.soft_body,
+        if(v->soft_body_node.soft_body) reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, v->soft_body_node.soft_body,
             ROHR_SOFT_BODY, false, 0);
         if(!isfinite(v->soft_body_node.radius) || v->soft_body_node.radius <= 0) invalid(s, flag, false, 0);
     }
     if(flag == FLAG(PHYSICS_SOFT_BODY_BEAM)) {
         SoftBodyBeam *b = &v->soft_body_beam;
-        reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, b->soft_body, ROHR_SOFT_BODY, false, 0);
+        if(b->soft_body) reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, b->soft_body, ROHR_SOFT_BODY, false, 0);
         bool a = reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_BEAM_START, b->node_a,
             ROHR_SOFT_BODY_NODE, false, 0);
         bool z = reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_BEAM_END, b->node_b,
@@ -737,7 +737,11 @@ static void dependencies_check(Snapshot *s, EntityInfoFlags flag) {
     }
     if(flag == FLAG(PHYSICS_SOFT_BODY_AREA)) {
         SoftBodyArea *a = &v->soft_body_area;
-        reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, a->soft_body, ROHR_SOFT_BODY, false, 0);
+        if(a->soft_body) reference_check(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, a->soft_body, ROHR_SOFT_BODY, false, 0);
+        if(a->geometry.outer.node_count < 3)
+            issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_SHAPE, ROHR_ENTITY_INFO_GEOMETRY_UNRESOLVABLE,
+                object(ROHR_ENTITY_INFO_OBJECT_ENTITY, v->entity, 0), false, 0,
+                "Area needs at least three connected outer nodes");
         topology_check(s, flag, a->geometry.outer.nodes, a->geometry.outer.node_count,
             SOFT_BODY_MAX_NODES, ROHR_SOFT_BODY_NODE);
         if(a->geometry.hole_count > SOFT_BODY_MAX_AREA_HOLES) invalid(s, flag, false, 0);

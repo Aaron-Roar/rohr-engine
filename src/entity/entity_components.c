@@ -4,10 +4,13 @@
 
 #include "entity_components.h"
 #include "entity_internal.h"
+#include "object_internal.h"
+#include "physics/physics_internal.h"
 #include <stdio.h>
 #include "core/engine_internal.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 
 MEMORY_DECLARE_OBJECT_POOL(EntityAlivePool, bool);
 MEMORY_DEFINE_OBJECT_POOL(EntityAlivePool, bool)
@@ -55,6 +58,13 @@ static size_t free_group_count = 0;
 static GroupId next_group_id = 1;
 static GroupName entity_group_names[MAX_GROUPS] = {0};
 static bool entity_group_names_used[MAX_GROUPS] = {0};
+static GroupId object_member_groups[MAX_ENTITIES];
+static Entity object_member_owners[MAX_ENTITIES];
+static EntityName object_member_names[MAX_ENTITIES];
+static ObjectMemberAlias *object_aliases[MAX_ENTITIES];
+static size_t object_alias_counts[MAX_ENTITIES];
+
+static EngineResult entity_object_contents_clear(Entity object);
 
 static void entity_group_storage_destroy(EntityGroup *group);
 static EngineResult entity_group_ensure_capacity(EntityGroup *group, size_t capacity);
@@ -73,6 +83,9 @@ static EngineResult entity_group_membership_add(EntityGroupMembership *membershi
 static bool entity_group_membership_remove(EntityGroupMembership *membership, GroupId group);
 
 static void entity_id_pool_init(void) {
+    memset(object_member_groups, 0, sizeof(object_member_groups));
+    memset(object_member_owners, 0, sizeof(object_member_owners));
+    memset(object_member_names, 0, sizeof(object_member_names));
     memset(entity_id_pool.free_ids, 0, sizeof(entity_id_pool.free_ids));
     memset(entity_id_pool.free_indices, 0, sizeof(entity_id_pool.free_indices));
     memset(entity_to_index, 0, sizeof(entity_to_index));
@@ -165,6 +178,10 @@ EngineResult entity_tables_ensure_capacity(size_t capacity) {
 void entity_tables_destroy(void) {
     entity_tables_capacity = 0;
     size_t i;
+    for(i = 0; i < MAX_ENTITIES; ++i) {
+        object_instance_resources_clear((EntityIndex)i);
+        free(object_aliases[i]); object_aliases[i] = NULL; object_alias_counts[i] = 0;
+    }
 
     if(entity_groups_pool.objects != NULL && entity_groups_pool.used != NULL) {
         for(i = 0; i < entity_groups_pool.capacity; i += 1) {
@@ -765,6 +782,18 @@ EngineResult entity_delete(Entity entity) {
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
     }
+    result = entity_object_contents_clear(entity);
+    if(error_check(result)) return result;
+    result = entity_object_member_release(entity);
+    if(error_check(result)) return result;
+    for(size_t owner = 0; owner < MAX_ENTITIES; ++owner) {
+        for(size_t i = object_alias_counts[owner]; i > 0; --i) {
+            if(object_aliases[owner][i - 1].entity != entity) continue;
+            memmove(&object_aliases[owner][i - 1], &object_aliases[owner][i],
+                (object_alias_counts[owner] - i) * sizeof(ObjectMemberAlias));
+            --object_alias_counts[owner];
+        }
+    }
     result = entity_relationships_detach(entity, index);
     if(result.kind == ERROR_RESULT_ERROR) {
         return result;
@@ -773,6 +802,7 @@ EngineResult entity_delete(Entity entity) {
     if(result.kind == ERROR_RESULT_ERROR) {
         return result;
     }
+    object_instance_resources_clear(index);
     physics_entity_clear(entity, index);
     graphics_entity_clear(index);
     entity_index_clear(index);
@@ -821,6 +851,8 @@ EngineResult entity_components_add(Entity entity, RohrComponentMask mask) {
              !hit_boxes[index].collision_geometry_prepared)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
+    if((mask & ROHR_OBJECT) && !object_member_groups[index])
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     (void)EntityMaskPool_store_at(&entity_mask_pool, index, entity_mask[index] | mask);
     return error_result_value(true);
 }
@@ -833,6 +865,10 @@ EngineResult entity_components_delete(Entity entity, RohrComponentMask mask) {
     }
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+    }
+    if(mask & ROHR_OBJECT) {
+        EngineResult cleared = entity_object_contents_clear(entity);
+        if(error_check(cleared)) return cleared;
     }
     graphics_entity_components_clear(index, mask);
     (void)EntityMaskPool_store_at(&entity_mask_pool, index, entity_mask[index] & ~mask);
@@ -1123,6 +1159,187 @@ EntityGroupMembershipResult entity_groups_get(Entity entity) {
         return ERROR_RESULT_MAKE_ERROR(EntityGroupMembershipResult, ERROR_ENGINE_COMPONENT_MISSING);
     }
     return ERROR_RESULT_MAKE_VALUE(EntityGroupMembershipResult, entity_group_memberships[index]);
+}
+
+EngineResult entity_object_initialize(Entity object) {
+    EntityIndex index;
+    if(!entity_index_get(object, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    if(object_member_groups[index]) return error_result_value(true);
+    GroupIdResult created = entity_group_kind_create(GROUP_KIND_OBJECT);
+    if(error_check(created)) return error_result_error(created.result.error);
+    object_member_groups[index] = created.result.value;
+    entity_mask[index] |= ROHR_OBJECT;
+    return error_result_value(true);
+}
+
+GroupIdResult entity_object_members_get(Entity object) {
+    EntityIndex index;
+    if(!entity_index_get(object, &index))
+        return ERROR_RESULT_MAKE_ERROR(GroupIdResult, ERROR_ENGINE_INVALID_ENTITY);
+    if(!object_member_groups[index])
+        return ERROR_RESULT_MAKE_ERROR(GroupIdResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(GroupIdResult, object_member_groups[index]);
+}
+
+EntityResult entity_object_owner_get(Entity member) {
+    EntityIndex index;
+    if(!entity_index_get(member, &index))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    return ERROR_RESULT_MAKE_VALUE(EntityResult, object_member_owners[index]);
+}
+
+EntityNameResult entity_object_member_name_get(Entity member) {
+    EntityIndex index;
+    if(!entity_index_get(member, &index))
+        return ERROR_RESULT_MAKE_ERROR(EntityNameResult, ERROR_ENGINE_INVALID_ENTITY);
+    if(!object_member_owners[index])
+        return ERROR_RESULT_MAKE_ERROR(EntityNameResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(EntityNameResult, object_member_names[index]);
+}
+
+EngineResult entity_object_member_restore(Entity object, Entity member,
+        const char *description_name) {
+    EntityIndex owner_index, member_index;
+    if(!entity_index_get(object, &owner_index) ||
+            !entity_index_get(member, &member_index) || object == member)
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    if(!description_name || !description_name[0] ||
+            strlen(description_name) >= ENTITY_NAME_MAX ||
+            !object_member_groups[owner_index] || object_member_owners[member_index])
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    /* Ownership is a forest, independent of runtime parenting. */
+    for(Entity ancestor = object; ancestor != ENTITY_INVALID;) {
+        EntityIndex index;
+        if(ancestor == member || !entity_index_get(ancestor, &index))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        ancestor = object_member_owners[index];
+    }
+    EngineResult added = entity_group_internal_add(object_member_groups[owner_index], member);
+    if(error_check(added)) return added;
+    object_member_owners[member_index] = object;
+    snprintf(object_member_names[member_index].value, ENTITY_NAME_MAX, "%s", description_name);
+    return error_result_value(true);
+}
+
+EngineResult entity_object_member_release(Entity member) {
+    EntityIndex index, owner_index;
+    if(!entity_index_get(member, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    Entity owner = object_member_owners[index];
+    if(owner == ENTITY_INVALID) return error_result_value(true);
+    if(!entity_index_get(owner, &owner_index))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    EngineResult removed = entity_group_internal_remove(object_member_groups[owner_index], member);
+    if(error_check(removed)) return removed;
+    object_member_owners[index] = ENTITY_INVALID;
+    object_member_names[index] = (EntityName){0};
+    physics_soft_body_member_release(member, index);
+    return error_result_value(true);
+}
+
+EntityResult entity_object_member_by_name_get(Entity object, const char *name) {
+    GroupIdResult group = entity_object_members_get(object);
+    if(error_check(group)) return ERROR_RESULT_MAKE_ERROR(EntityResult, group.result.error);
+    if(!name || !name[0])
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY_NAME);
+    Entity found = ENTITY_INVALID;
+    for(EntityIndex i = 0; i < entity_mask_pool.capacity; ++i) {
+        if(!entity_index_alive_check(i) || !object_alias_counts[i]) continue;
+        Entity owner = entity_from_index_get(i).result.value;
+        while(owner != ENTITY_INVALID && owner != object) {
+            EntityIndex index;
+            if(!entity_index_get(owner, &index)) break;
+            owner = object_member_owners[index];
+        }
+        if(owner != object) continue;
+        for(size_t a = 0; a < object_alias_counts[i]; ++a) {
+            if(strcmp(object_aliases[i][a].name.value, name)) continue;
+            if(found) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+            found = object_aliases[i][a].entity;
+        }
+    }
+    /* Walk ancestor chains rather than allocating or recursing on a deep tree. */
+    for(EntityIndex i = 0; i < entity_mask_pool.capacity; ++i) {
+        if(!entity_index_alive_check(i) || strcmp(object_member_names[i].value, name)) continue;
+        for(Entity owner = object_member_owners[i]; owner != ENTITY_INVALID;) {
+            EntityIndex parent_index;
+            if(owner == object) {
+                if(found != ENTITY_INVALID)
+                    return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+                found = entity_from_index_get(i).result.value;
+                break;
+            }
+            if(!entity_index_get(owner, &parent_index))
+                return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+            owner = object_member_owners[parent_index];
+        }
+    }
+    if(found == ENTITY_INVALID)
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(EntityResult, found);
+}
+
+const ObjectMemberAlias *entity_object_aliases_get(Entity object, size_t *count) {
+    EntityIndex index;
+    if(count) *count = 0;
+    if(!count || !entity_index_get(object, &index)) return NULL;
+    *count = object_alias_counts[index];
+    return object_aliases[index];
+}
+EngineResult entity_object_alias_restore(Entity object, Entity member, const char *name) {
+    EntityIndex index, target_index;
+    if(!entity_index_get(object, &index) || !entity_index_get(member, &target_index) ||
+            !object_member_groups[index] || !name || !name[0] || strlen(name) >= ENTITY_NAME_MAX ||
+            object_alias_counts[index] >= MAX_ENTITIES)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    Entity ancestor = member;
+    while(ancestor != object && ancestor != ENTITY_INVALID) {
+        if(!entity_index_get(ancestor, &target_index)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        ancestor = object_member_owners[target_index];
+    }
+    if(ancestor != object) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    size_t count = object_alias_counts[index];
+    ObjectMemberAlias *values = realloc(object_aliases[index], (count + 1) * sizeof(*values));
+    if(!values) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    values[count] = (ObjectMemberAlias){.entity = member};
+    snprintf(values[count].name.value, ENTITY_NAME_MAX, "%s", name);
+    object_aliases[index] = values; object_alias_counts[index] = count + 1;
+    return error_result_value(true);
+}
+
+static EngineResult entity_object_contents_clear(Entity object) {
+    EntityIndex root_index;
+    if(!entity_index_get(object, &root_index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    GroupId root_group = object_member_groups[root_index];
+    if(!root_group) return error_result_value(true);
+    Entity current = object;
+    for(;;) {
+        EntityIndex index;
+        if(!entity_index_get(current, &index))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        GroupId group = object_member_groups[index];
+        Entity child;
+        if(group && entity_group_storage_last(&entity_groups[entity_group_index(group)], &child)) {
+            current = child;
+            continue;
+        }
+        /* Clear the group before entity_delete, so cleanup stays iterative. */
+        if(group) {
+            EngineResult removed = entity_group_internal_destroy(group);
+            if(error_check(removed)) return removed;
+            object_member_groups[index] = GROUP_INVALID;
+            entity_mask[index] &= ~ROHR_OBJECT;
+            free(object_aliases[index]); object_aliases[index] = NULL; object_alias_counts[index] = 0;
+        }
+        if(current == object) break;
+        Entity owner = object_member_owners[index];
+        EngineResult deleted = entity_delete(current);
+        if(error_check(deleted)) return deleted;
+        current = owner;
+    }
+    return error_result_value(true);
 }
 
 static EngineResult entity_ensure_children_component(Entity parent, EntityIndex parent_index) {

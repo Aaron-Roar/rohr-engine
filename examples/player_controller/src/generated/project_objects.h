@@ -40,4 +40,25 @@ EngineResult project_objects_create_all(ProjectObjects *objects);
 void project_objects_draw_all(const ProjectObjects *objects);
 void project_objects_destroy_all(ProjectObjects *objects);
 
+typedef struct ObjectDescriptionView_3 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_3;
+typedef struct ObjectDescriptionView_4 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_4;
+typedef struct ObjectDescriptionView_5 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+} ObjectDescriptionView_5;
+typedef struct ObjectDescriptionView_2 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_3 floor;
+    ObjectDescriptionView_4 player;
+    ObjectDescriptionView_5 main_camera;
+} ObjectDescriptionView_2;
+typedef struct ObjectDescriptionView_1 {
+    union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };
+    ObjectDescriptionView_2 player_world;
+} ObjectDescriptionView_1;
+extern const ObjectDescriptionView_1 objects;
+
 #endif

@@ -16,10 +16,40 @@
 #include "input.h"
 #include "math2d.h"
 #include "physics.h"
+#include "object.h"
 #include "report.h"
 #include "systems.h"
 #include "tools.h"
 #include "ui.h"
+
+/* Generated views and runtime description pointers share the same C interface. */
+#define rohr_object_get object_get
+#define rohr_object_load object_load
+#define rohr_object_copy object_copy
+#define rohr_object_copy_with_options object_copy_with_options
+#define rohr_object_destroy object_destroy
+#define rohr_object_description_by_name_get object_description_by_name_get
+#define rohr_object_mass_set object_mass_set
+#define rohr_object_position_set object_position_set
+#define rohr_object_orientation_set object_orientation_set
+#define rohr_object_velocity_set object_velocity_set
+#define rohr_object_acceleration_set object_acceleration_set
+#define rohr_object_angular_velocity_set object_angular_velocity_set
+#define rohr_object_material_set object_material_set
+#define rohr_object_collision_set object_collision_set
+#define rohr_object_radius_set object_radius_set
+#define rohr_object_visibility_set object_visibility_set
+#define rohr_object_color_set object_color_set
+#define rohr_object_scale_set object_scale_set
+#define rohr_entity_object_description_add entity_object_description_add
+#define rohr_entity_object_description_by_name_add entity_object_description_by_name_add
+#define rohr_entity_object_add entity_object_add
+#define rohr_entity_object_add_with_options entity_object_add_with_options
+#define rohr_entity_object_by_name_add entity_object_by_name_add
+#define rohr_entity_object_by_name_add_with_options entity_object_by_name_add_with_options
+#define rohr_entity_object_camera_get entity_object_camera_get
+#define rohr_entity_object_anchor_get entity_object_anchor_get
+#define rohr_entity_object_draw entity_object_draw
 
 /**
  * @brief Allocate a frozen current-state snapshot for the selected sections.
@@ -628,6 +658,13 @@ GroupNameResult rohr_entity_group_name_get(GroupId group);
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_entity_group_destroy(GroupId group);
+
+/** Get protected object members and inspect or release instance membership. */
+GroupIdResult rohr_entity_object_members_get(Entity object);
+EntityResult rohr_entity_object_owner_get(Entity member);
+EngineResult rohr_entity_object_member_release(Entity member);
+EntityResult rohr_entity_object_member_by_name_get(Entity object, const char *name);
+EntityNameResult rohr_entity_object_member_name_get(Entity member);
 
 /**
  * @brief Adds an entity to a generic group.
@@ -1501,6 +1538,8 @@ SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
  * @return EntityResult containing the node entity.
  */
 EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius);
+EngineResult rohr_physics_soft_body_node_owner_set(Entity node, Entity soft_body);
+EngineResult rohr_physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
 /** Creates a node from a position relative to the soft-body origin. */
 EntityResult rohr_physics_soft_body_node_local_create(
     Entity soft_body, Position local_position, Mass mass_value, float radius);

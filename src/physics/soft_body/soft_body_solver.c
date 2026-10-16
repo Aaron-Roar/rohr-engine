@@ -26,6 +26,14 @@ static void system_soft_body_beams_apply(Report *report) {
         if(!soft_body_beams_pool.used[beam_index] || !entity_index_alive_check(beam_index) ||
                 !entity_index_components_check(beam_index, ROHR_SOFT_BODY_BEAM)) continue;
         beam = soft_body_beams[beam_index];
+        if(beam.node_a == ENTITY_INVALID || beam.node_b == ENTITY_INVALID) {
+            physics_report_issue_add(report, ROHR_PHYSICS_BEAM_CONTRIBUTION,
+                ROHR_REPORT_SEVERITY_WARNING, ERROR_ENGINE_STATE_INVALID,
+                ROHR_REPORT_CONTRIBUTION_SKIPPED, physics_operation_entity_get(beam_index), 0,
+                "beam endpoint missing; operation skipped; definition retained");
+            physics_report_counter_add(report, ROHR_REPORT_SKIPPED_COUNT, 1);
+            continue;
+        }
         if(!entity_index_get(beam.node_a, &a) || !entity_index_alive_check(a) ||
                 !entity_index_get(beam.node_b, &b) || !entity_index_alive_check(b) ||
                 mass[a] <= 0.0f || mass[b] <= 0.0f) {
@@ -412,22 +420,14 @@ static bool system_soft_boundary_gather(Entity entity, void *context) {
 }
 
 static void system_soft_body_boundary_collisions_apply(Report *report) {
-    for(EntityIndex body_index = 0; body_index < soft_bodies_pool.capacity;
-            body_index += 1) {
-        SoftBody body;
-
-        if(!soft_bodies_pool.used[body_index] || !entity_index_alive_check(body_index)) continue;
-        body = soft_bodies[body_index];
-        for(uint32_t i = 0; i < body.beam_count; i += 1) {
-            EntityIndex beam_index;
+    for(EntityIndex beam_index = 0; beam_index < soft_body_beams_pool.capacity; ++beam_index) {
+        if(!soft_body_beams_pool.used[beam_index] || !entity_index_alive_check(beam_index)) continue;
+        {
             EntityIndex a;
             EntityIndex b;
             SoftBodyBeam beam;
             SystemSoftBoundaryQuery query;
 
-            if(!entity_index_get(body.beams[i], &beam_index) ||
-                    beam_index >= soft_body_beams_pool.capacity ||
-                    !soft_body_beams_pool.used[beam_index]) continue;
             beam = soft_body_beams[beam_index];
             if(!beam.collision_enabled ||
                     !entity_index_get(beam.node_a, &a) || !entity_index_alive_check(a) ||

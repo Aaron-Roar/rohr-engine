@@ -350,6 +350,11 @@ EngineResult rohr_entity_group_name_set(GroupId group, const char *name) { retur
 GroupIdResult rohr_entity_group_by_name_get(const char *name) { return entity_group_by_name_get(name); }
 GroupNameResult rohr_entity_group_name_get(GroupId group) { return entity_group_name_get(group); }
 EngineResult rohr_entity_group_destroy(GroupId group) { return entity_group_destroy(group); }
+GroupIdResult rohr_entity_object_members_get(Entity object) { return entity_object_members_get(object); }
+EntityResult rohr_entity_object_owner_get(Entity member) { return entity_object_owner_get(member); }
+EngineResult rohr_entity_object_member_release(Entity member) { return entity_object_member_release(member); }
+EntityResult rohr_entity_object_member_by_name_get(Entity object, const char *name) { return entity_object_member_by_name_get(object, name); }
+EntityNameResult rohr_entity_object_member_name_get(Entity member) { return entity_object_member_name_get(member); }
 EngineResult rohr_entity_group_add(GroupId group, Entity entity) { return entity_group_add(group, entity); }
 EngineResult rohr_entity_group_remove(GroupId group, Entity entity) { return entity_group_remove(group, entity); }
 bool rohr_entity_group_entity_check(GroupId group, Entity entity) { return entity_group_entity_check(group, entity); }
@@ -556,6 +561,8 @@ EngineResult rohr_physics_joint_spring_set(Entity joint, JointAnchorId anchor_a,
 EntityResult rohr_physics_soft_body_create(void) { return physics_soft_body_create(); }
 SoftBodyResult rohr_physics_soft_body_get(Entity soft_body) { return physics_soft_body_get(soft_body); }
 EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius) { return physics_soft_body_node_create(soft_body, position, mass_value, radius); }
+EngineResult rohr_physics_soft_body_node_owner_set(Entity node, Entity soft_body) { return physics_soft_body_node_owner_set(node, soft_body); }
+EngineResult rohr_physics_soft_body_beam_endpoints_set(Entity beam, Entity a, Entity b) { return physics_soft_body_beam_endpoints_set(beam, a, b); }
 EntityResult rohr_physics_soft_body_node_local_create(Entity soft_body, Position local_position, Mass mass_value, float radius) { return physics_soft_body_node_local_create(soft_body, local_position, mass_value, radius); }
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics_soft_body_node_get(node); }
 PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }

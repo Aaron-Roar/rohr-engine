@@ -303,10 +303,18 @@ static bool state_check(void) {
         .type=JOINT_WELD, .a=driver.result.value, .b=follower.result.value,
         .rest_angle=-450, .lock_angle=true, .angular_stiffness=2, .angular_damping=3}));
 
-    /* Both live-state and authored-template paths retain unwrapped fields. */
+    /* Both runtime snapshots and explicitly authored documents retain turns. */
     for(int authored=0; authored<2; authored+=1) {
         if(authored) OK(rohr_game_state_template_file_save(path));
         else OK(rohr_game_state_file_save(path));
+        if(!authored) {
+            /* Treat this fixture as an authored document for the template pass. */
+            char *text=SDL_LoadFile(path,NULL); CHECK(text != NULL);
+            const char *marker="\"runtime_snapshot\": true,";
+            char *at=strstr(text,marker); CHECK(at != NULL);
+            memmove(at,at+strlen(marker),strlen(at+strlen(marker))+1);
+            CHECK(SDL_SaveFile(path,text,strlen(text))); SDL_free(text);
+        }
         rohr_engine_stop();
         OK(rohr_engine_start());
         OK(rohr_game_state_file_load(path));

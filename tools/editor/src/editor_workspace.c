@@ -3,6 +3,7 @@
  */
 
 #include "editor_workspace.h"
+#include "editor_object_catalog.h"
 #include "editor_soft_area.h"
 #include "physics/soft_body/soft_body_motion.h"
 
@@ -759,7 +760,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    return result;\n"
         "}\n\n");
     fprintf(source,
-        "static EngineResult generated_sprite_create(Entity *output, Entity target,\n"
+        "static inline EngineResult generated_sprite_create(Entity *output, Entity target,\n"
         "    Position position, const char *path, Scale size, bool follow_rotation,\n"
         "    Orientation rotation, bool visible) {\n"
         "    EntityResult added = {.kind = ERROR_RESULT_VALUE};\n"
@@ -795,7 +796,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    return result;\n"
         "}\n\n");
     fprintf(source,
-        "static EngineResult generated_world_anchor_create(Entity *owner,\n"
+        "static inline EngineResult generated_world_anchor_create(Entity *owner,\n"
         "    JointAnchorId *anchor, Position position) {\n"
         "    EntityResult added = rohr_entity_add();\n"
         "    JointAnchorIdResult created;\n"
@@ -1792,11 +1793,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
     fprintf(source,
         "    project_controllers_destroy(&objects->controllers);\n"
         "    *objects = (ProjectObjects){0};\n}\n\n");
+    bool catalog_written = editor_object_catalog_write(header, source, project);
     fprintf(header, "#endif\n");
     {
         bool header_closed = fclose(header) == 0;
         bool source_closed = fclose(source) == 0;
-        return header_closed && source_closed;
+        return catalog_written && header_closed && source_closed;
     }
 }
 

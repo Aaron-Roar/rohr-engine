@@ -3,6 +3,7 @@
  */
 #include "editor_mass_properties.h"
 #include "editor_workspace.h"
+#include "editor_object_catalog.h"
 #include "project_objects.h"
 #include <math.h>
 #include <stdio.h>
@@ -115,9 +116,23 @@ static bool simulation_check(bool generated, Snapshot *snapshot) {
     return true;
 }
 
+static bool catalog_validation_check(void) {
+    EditorProject project;
+    editor_project_init(&project);
+    CHECK(!editor_result_check(editor_project_load(&project,
+        COM_EXAMPLE_SOURCE "/objects/project.rohr.json")));
+    FILE *header=tmpfile(), *source=tmpfile(); CHECK(header && source);
+    snprintf(project.objects[0].rigid_bodies[0].name,EDITOR_OBJECT_NAME_MAX,"mass");
+    CHECK(!editor_object_catalog_write(header,source,&project));
+    snprintf(project.objects[0].rigid_bodies[0].name,EDITOR_OBJECT_NAME_MAX,"fooBar");
+    snprintf(project.objects[0].rigid_bodies[1].name,EDITOR_OBJECT_NAME_MAX,"foo_bar");
+    CHECK(!editor_object_catalog_write(header,source,&project));
+    fclose(header); fclose(source); editor_project_destroy(&project);
+    return true;
+}
 int main(void) {
     Snapshot generated, direct;
-    return authoring_check() && simulation_check(true, &generated) &&
+    return catalog_validation_check() && authoring_check() && simulation_check(true, &generated) &&
         simulation_check(false, &direct) && near(generated.origin, direct.origin) &&
         near(generated.com, direct.com) && near(generated.anchor, direct.anchor) &&
         fabsf(generated.angle - direct.angle) < 0.002f ? 0 : 1;

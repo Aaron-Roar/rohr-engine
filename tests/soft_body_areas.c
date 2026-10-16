@@ -33,9 +33,8 @@ static bool runtime_check(void) {
     SoftBodyAreaState before = soft_body_area_states[index];
     CHECK(before.cache->fill.vertex_count > 0);
     SoftBodyAreaLoop invalid[] = {
-        {.node_count = 2}, {.node_count = SOFT_BODY_MAX_NODES + 1},
+        {.node_count = SOFT_BODY_MAX_NODES + 1},
         {.nodes = {loop.nodes[0], loop.nodes[1], loop.nodes[0]}, .node_count = 3},
-        {.nodes = {loop.nodes[0], loop.nodes[1], ENTITY_INVALID}, .node_count = 3},
     };
     for(unsigned i = 0; i < sizeof(invalid)/sizeof(*invalid); i += 1) {
         CHECK(rohr_error_check(rohr_physics_soft_body_area_geometry_set(area.result.value, (SoftBodyAreaGeometry){.outer = invalid[i]})));
@@ -86,10 +85,11 @@ static bool runtime_check(void) {
     EntityResult replacement = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = loop}); OK(replacement);
     CHECK(rohr_error_check(rohr_physics_soft_body_area_get(areas[1])));
     OK(rohr_entity_delete(loop.nodes[0]));
-    CHECK(rohr_physics_soft_body_get(body.result.value).result.value.area_count == 0);
+    CHECK(rohr_physics_soft_body_get(body.result.value).result.value.area_count == SOFT_BODY_MAX_AREAS);
     for(unsigned i = 0; i < SOFT_BODY_MAX_AREAS; i += 1)
-        CHECK(!rohr_entity_alive_check(areas[i]));
-    CHECK(!rohr_entity_alive_check(replacement.result.value));
+        CHECK(i == 1 || rohr_entity_alive_check(areas[i]));
+    CHECK(rohr_entity_alive_check(replacement.result.value));
+    OK(rohr_entity_delete(replacement.result.value));
     SoftBodyAreaLoop remaining = {.nodes = {loop.nodes[1],loop.nodes[2],loop.nodes[3]}, .node_count = 3};
     replacement = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = remaining}); OK(replacement);
     OK(rohr_entity_delete(body.result.value));
@@ -119,7 +119,8 @@ static bool limits_and_transform_check(void) {
     CHECK(rohr_entity_alive_check(area.result.value));
     EntityResult independent = rohr_physics_soft_body_area_create(body.result.value, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={loop.nodes[1],loop.nodes[2],loop.nodes[3]},.node_count=3}}); OK(independent);
     OK(rohr_entity_delete(loop.nodes[0]));
-    CHECK(!rohr_entity_alive_check(area.result.value) && rohr_entity_alive_check(independent.result.value));
+    CHECK(rohr_entity_alive_check(area.result.value) && rohr_entity_alive_check(independent.result.value));
+    CHECK(rohr_physics_soft_body_area_get(area.result.value).result.value.geometry.outer.nodes[0] == ENTITY_INVALID);
     OK(rohr_entity_delete(body.result.value));
     CHECK(!rohr_entity_alive_check(independent.result.value));
     return true;
@@ -169,7 +170,8 @@ static bool holes_check(void) {
     EntityResult crossed=rohr_physics_soft_body_area_create(body.result.value,geometry); OK(crossed);
     OK(rohr_entity_delete(crossed.result.value));
     OK(rohr_entity_delete(nodes[4]));
-    CHECK(!rohr_entity_alive_check(area.result.value));
+    CHECK(rohr_entity_alive_check(area.result.value));
+    CHECK(physics_soft_body_area_get(area.result.value).result.value.geometry.holes[0].nodes[0] == ENTITY_INVALID);
     CHECK(rohr_entity_alive_check(unrelated.result.value));
     OK(rohr_entity_delete(body.result.value));
     return true;

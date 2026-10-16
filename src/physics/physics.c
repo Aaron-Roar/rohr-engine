@@ -39,6 +39,7 @@ VelocityPool velocities_pool = {0};
 AccelerationPool accelerations_pool = {0};
 AccelerationPool force_accelerations_pool = {0};
 MassPool mass_pool = {0};
+Mass *mass = NULL;
 ForcePool forces_pool = {0};
 ShapePool hit_boxes_pool = {0};
 ShapePool world_hit_boxes_pool = {0};
@@ -78,6 +79,7 @@ EngineResult physics_tables_init(void) {
     if(AccelerationPool_init(&accelerations_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(AccelerationPool_init(&force_accelerations_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(MassPool_init(&mass_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
+    mass = mass_pool.objects;
     if(ForcePool_init(&forces_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(ShapePool_init(&hit_boxes_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
     if(ShapePool_init(&world_hit_boxes_pool, 0).kind == ERROR_RESULT_ERROR) { goto fail; }
@@ -131,6 +133,7 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > accelerations_pool.capacity && AccelerationPool_expand(&accelerations_pool, new_capacity - accelerations_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > force_accelerations_pool.capacity && AccelerationPool_expand(&force_accelerations_pool, new_capacity - force_accelerations_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > mass_pool.capacity && MassPool_expand(&mass_pool, new_capacity - mass_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    mass = mass_pool.objects;
     if(new_capacity > forces_pool.capacity && ForcePool_expand(&forces_pool, new_capacity - forces_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > hit_boxes_pool.capacity && ShapePool_expand(&hit_boxes_pool, new_capacity - hit_boxes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > world_hit_boxes_pool.capacity && ShapePool_expand(&world_hit_boxes_pool, new_capacity - world_hit_boxes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
@@ -167,6 +170,7 @@ void physics_tables_destroy(void) {
     (void)AccelerationPool_destroy(&accelerations_pool);
     (void)AccelerationPool_destroy(&force_accelerations_pool);
     (void)MassPool_destroy(&mass_pool);
+    mass = NULL;
     (void)ForcePool_destroy(&forces_pool);
     (void)ShapePool_destroy(&hit_boxes_pool);
     (void)ShapePool_destroy(&world_hit_boxes_pool);
@@ -218,4 +222,27 @@ void physics_entity_clear(Entity entity, EntityIndex index) {
     }
     physics_soft_body_entity_clear(entity, index);
     physics_joint_entity_clear(entity, index);
+    /* Entity indices are reusable. Release ordinary component entries as well
+     * as resource-owning topology so the next occupant cannot inherit state. */
+#define RELEASE(Pool, table) do { \
+    if(index < table.capacity && table.used[index]) (void)Pool##_release_at(&table, index); \
+} while(0)
+    RELEASE(PositionPool, positions_pool);
+    RELEASE(VelocityPool, velocities_pool);
+    RELEASE(AccelerationPool, accelerations_pool);
+    RELEASE(MassPool, mass_pool);
+    RELEASE(AccelerationPool, force_accelerations_pool);
+    RELEASE(ShapePool, hit_boxes_pool);
+    RELEASE(ShapePool, world_hit_boxes_pool);
+    RELEASE(CollisionFilterConfigPool, collision_filters_pool);
+    RELEASE(OrientationPool, orientations_pool);
+    RELEASE(AngularVelocityPool, angular_velocities_pool);
+    RELEASE(AngularAccelerationPool, angular_accelerations_pool);
+    RELEASE(AngularVelocityPool, torque_angular_accelerations_pool);
+    RELEASE(FrictionPool, frictions_pool);
+    RELEASE(RestitutionPool, restitutions_pool);
+    RELEASE(AngleLockPool, angle_locks_pool);
+    RELEASE(AxisLockPool, axis_locks_pool);
+    RELEASE(TransformLockPool, transform_locks_pool);
+#undef RELEASE
 }

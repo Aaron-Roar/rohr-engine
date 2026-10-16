@@ -87,9 +87,10 @@ Contract and Roadmap Reconciliation** documentation milestone is also complete;
 the approved design is recorded in [the contract](docs/force_torque_contract.md).
 Entity Inspection and Unified Forces and Torques Goals 1–4 are now complete.
 The documentation-only **Goal 5 Contract Clarification** and the single-goal
-**Runtime Soft-Body Persistence** milestone are complete. Unified Forces and
-Torques Goal 5 is next, pending explicit user instruction and review of the
-runtime persistence changes.
+**Runtime Soft-Body Persistence** and **Object Descriptions and Independent
+Spawning** single-goal milestones are complete. The object implementation awaits
+user review and a user-created commit. Unified Forces and Torques Goal 5 remains
+next and requires explicit user instruction; it has not been started.
 The user revised the goal sequence: shared reporting infrastructure, physics,
 console/JSON output, then remaining systems. Simulation-failure recovery comes
 after all reporting integrations and their coverage audit. The contract work is
@@ -1207,6 +1208,129 @@ Stop after this one goal for review and a user-created commit. Resume Unified
 Forces and Torques Goal 5 only on explicit user instruction. The `ENTITY_NONE`
 alias belongs to Goal 5; it is not implemented by this prerequisite.
 
+## Single-Goal Milestone: Object Descriptions and Independent Spawning
+
+Expose editor objects as reusable descriptions supporting direct access,
+runtime loading, editable copies, independent spawning, and complete instance
+restoration. This user-selected milestone precedes Unified Forces and Torques
+Goal 5. Its single goal is complete; stop for review and a user-created commit.
+
+1. [x] **Implement and verify object descriptions, selective spawning, and
+   instance persistence.**
+
+   Implemented immutable generated dot-access catalogs, cached runtime document
+   loading, editable filtered copies, independent spawning, protected instance
+   ownership, typed cameras/anchors, retained drawing, and detached topology.
+   Runtime state version 7 preserves instance membership, aliases, resources,
+   and playback without retaining snapshots as authored templates. Reused entity
+   slots now release stale physical component data. See the
+   [object interface](docs/object_descriptions.md) and
+   [persistence contract](docs/game_state.md).
+
+   Verified all 86 native tests and five focused ASan/UBSan tests with leak
+   detection. Linux and Windows engine/editor builds, installed-SDK consumers,
+   all 12 standalone examples, and a generated default project compile without
+   compiler warnings. Linux consumers, examples, and the default application run
+   outside source directories. The default-project probe verifies individual
+   box/camera spawning, independent compiled/runtime instances, complete cleanup,
+   snapshot restoration, and continued simulation. Generated identifier/property
+   clashes, failed allocation rollback, malformed ownership, filtered copies,
+   independent animations, anchor following, and repeated resource restoration
+   have focused coverage. Windows checks are compile-only. Interactive visual
+   review of instance drawing remains requested; no Goal 5 work was begun.
+
+### Description interface
+
+- Generate an immutable `objects` catalog with properties and children at the
+  same level through dot access, without requiring developers to spell generated
+  types. Diagnose generated identifier and reserved-property collisions.
+- Support runtime loading of editor object files through a common description
+  handle. Runtime-loaded descriptions support name lookup rather than generated
+  dot fields. Recursive `object_description_by_name_get(scope, name)` rejects
+  missing and ambiguous matches.
+- Provide explicitly owned editable copies through `object_copy`, common-handle
+  setters, and destruction. Copying a parent includes descendants. Do not add
+  creation of descriptions from scratch. Mutable copies are independent;
+  immutable assets may be shared with explicit lifetime management. Destroying
+  a description must not invalidate spawned instances.
+- Resolve descriptions internally when needed; explicit `object_get` is optional.
+  Cache runtime-loaded descriptions with explicit lifetime management. Generated
+  descriptions require no runtime parsing of editor files.
+
+### Spawning and filtering
+
+- Provide `entity_object_add` and `entity_object_by_name_add`, with options
+  variants sharing the same creation logic. Each spawn creates independent
+  mutable state and applies complete selected initial conditions, collision
+  settings, materials, and drawing settings.
+- Copying and spawning accept bitwise inclusion flags
+  `ROHR_ENTITY_OBJECT_PHYSICS`, `ROHR_ENTITY_OBJECT_VISUALS`, and
+  `ROHR_ENTITY_OBJECT_ALL`. Default calls equal `ALL`; reject zero and unknown
+  flags. Physics includes geometry, physical settings, anchors, and joints;
+  visuals includes sprites, animations, and cameras. Retain names, hierarchy,
+  and placement metadata. `ALL` cannot recover content excluded from a copy.
+- Resolve internal connections only among members created by that spawn; never
+  adopt existing entities by name. Separately spawning nodes and subsequently
+  spawning their original object creates additional independent members.
+- Try description-derived ECS names first, then `_1`, `_2`, and subsequent
+  available suffixes. Skip occupied names without renaming existing entities;
+  truncate generated prefixes as needed while preserving suffixes and uniqueness.
+  Keep description member identities separate for scoped instance lookup after
+  ECS renaming. Preserve existing unrelated entity-creation naming conventions.
+- Top-level object positions are world positions; descendant positions are local
+  to their description parent. Direct child spawning preserves resolved placement.
+  Optional additional spawn offsets apply once. Editor overview placement has no
+  gameplay effect. Preserve existing project placement when migrating hierarchy
+  semantics.
+
+### Instance ownership and incomplete topology
+
+- Whole-object spawning returns a root entity with a dedicated owned-members
+  component and group, proposed as `ROHR_OBJECT`. Nested spawned containers own
+  their corresponding descendants. Keep this separate from ordinary groups,
+  hierarchy parenting, and physical connections; these do not grant ownership.
+- Deleting an instance recursively deletes its owned members and releases owned
+  resources. Individual member deletion updates ownership and lookup records.
+  Provide explicit release from ownership without deletion. Preserve ordinary
+  parent/child deletion behavior and ordinary group semantics.
+- Restore described welds and other internal connections during whole-object
+  spawning. External connected entities survive instance deletion; references
+  to deleted members disconnect safely. Cameras remain typed resources owned by
+  instances, with typed access and standalone creation support.
+- Allow disconnected joints, ownerless soft-body nodes, and incomplete beams and
+  areas. Detached nodes retain applicable particle-like simulation. Skip only
+  operations requiring missing topology; retain incomplete entities and expose
+  warnings through reporting rather than per-tick log spam. Distinguish incomplete
+  topology from temporarily undrawable fills. Reject corrupt references, invalid
+  numeric data, and invalid ownership.
+
+### Persistence and acceptance
+
+- Extend engine save/load to preserve owned membership, scoped lookup, detached
+  topology, and visual/camera resources needed for complete supported instance
+  restoration. Restored instances must not require the original description to
+  remain loaded. Keep editor documents separate from runtime snapshots.
+- Update persistence contracts, fixtures, and format versions where necessary,
+  retaining exact-version validation. Loading, copying, and spawning must roll
+  back introduced entities and resources on failure. Saving must not mutate the
+  world and must preserve the destination on failure.
+- Preserve public entry points and generated constructors through compatible
+  integration. Add no dependencies. Do not begin force/torque authoring Goal 5.
+- Test direct/name-based parity, filtered recursive copies, independent repeated
+  spawns, naming collisions and limits, nested placement, detached topology,
+  ownership deletion/release, external connections, allocation failures, rollback,
+  and repeated save/load cleanup. Verify full restored instance behavior and
+  independent animation playback under matching caller-owned physics settings.
+- Run the full native suite, focused ASan/UBSan suites with leak detection,
+  Linux/Windows builds, installed-SDK consumers, affected standalone examples,
+  and generated-project checks. Run Linux consumers/examples outside source
+  directories; label Windows checks compile-only. Investigate warnings and review
+  the final diff.
+- Update this roadmap after verification. Report the outcome, changes, results,
+  recommended commit message, and full single-goal checklist; send the required
+  outcome notification. Stop for review without staging, committing, or advancing
+  to Unified Forces and Torques Goal 5.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,
@@ -1220,6 +1344,8 @@ milestone. Entity Inspection and Diagnostic Reliability are complete. Goal 2
 implements shared sources and rigid-body/particle behavior; Goal 3 adds receiving
 beam loads; Goal 4 adds whole-soft-body loads. These runtime goals are complete.
 Runtime Soft-Body Persistence is the completed prerequisite for Goal 5.
+The user-selected Object Descriptions and Independent Spawning milestone is also
+a completed prerequisite. Review its implementation before pursuing Goal 5.
 Editor handle presentation is finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
@@ -1326,7 +1452,8 @@ soft-body topology with named references, shared anchors, and relative lifetimes
 Authored source persistence remains Goal 5.
 
 Runtime Soft-Body Persistence is complete. Goal 5, authored definitions and
-persistence, is next and requires explicit user instruction after review.
+persistence, follows Object Descriptions and Independent Spawning and requires
+explicit user instruction after review.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

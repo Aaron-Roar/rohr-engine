@@ -141,6 +141,8 @@ typedef enum {
     ROHR_SPRITE                      = 1 << 28,
     /** Entity has physics-owned animation-frame to hitbox bindings. */
     ROHR_HITBOX_ANIMATION_BINDING    = 1 << 29,
+    /** Entity owns members of a spawned object instance. */
+    ROHR_OBJECT                     = 1 << 30,
 } Component;
 
 /** Fixed-size, engine-owned entity name. */
@@ -166,6 +168,8 @@ typedef enum GroupKind {
     GROUP_KIND_GENERIC,
     /** Parent-owned group containing child entities. */
     GROUP_KIND_CHILDREN,
+    /** Object-instance-owned members; mutate through object APIs only. */
+    GROUP_KIND_OBJECT,
 } GroupKind;
 
 /** Dynamic group of entity ids. */
@@ -402,6 +406,17 @@ GroupNameResult entity_group_name_get(GroupId group);
  * @return EngineResult describing success or failure.
  */
 EngineResult entity_group_destroy(GroupId group);
+
+/** Get an object's protected group of directly owned members. */
+GroupIdResult entity_object_members_get(Entity object);
+/** Get the instance owner, or ENTITY_INVALID for an independent entity. */
+EntityResult entity_object_owner_get(Entity member);
+/** Release an instance member without deleting it or changing its parent. */
+EngineResult entity_object_member_release(Entity member);
+/** Recursively find a member by its description name; ambiguous names fail. */
+EntityResult entity_object_member_by_name_get(Entity object, const char *name);
+/** Get the stable description name assigned when a member was spawned. */
+EntityNameResult entity_object_member_name_get(Entity member);
 
 /**
  * Add an entity to a generic group.

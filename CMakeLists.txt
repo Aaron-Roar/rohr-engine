@@ -187,6 +187,15 @@ set(ROHR_ENGINE_SOURCES
     src/core/rohr.c
     src/entity/entity_info.c
     src/entity/entity_components.c
+    src/entity/object_description.c
+    src/entity/object_document.c
+    src/entity/object_spawn.c
+    # Shared checked editor-document model used by runtime object loading.
+    tools/editor/src/editor_project.c
+    tools/editor/src/editor_project_json.c
+    tools/editor/src/editor_error.c
+    tools/editor/src/editor_log.c
+    tools/editor_core/src/editor_soft_area.c
     src/entity/entity_pair_set.c
     src/graphics/asset_path.c
     src/graphics/animation_assets.c
@@ -242,6 +251,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/soft_body/soft_body_solver.c
     src/state/game_state.c
     src/state/runtime_topology.c
+    src/state/runtime_visuals.c
     src/tools/tools.c
     lib/vorbis/stb_vorbis.c
     lib/yyjson/yyjson.c
@@ -259,6 +269,8 @@ target_include_directories(rohr_engine
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/editor/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/editor_core/include
 )
 target_compile_definitions(rohr_engine PUBLIC SDL_MAIN_HANDLED)
 if(ROHR_ENABLE_SANITIZERS)
@@ -965,6 +977,25 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(shared_sources_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME shared_sources COMMAND shared_sources_test)
 
+    add_executable(object_instances_test tests/object_instances.c)
+    target_link_libraries(object_instances_test PRIVATE rohr_engine)
+    target_include_directories(object_instances_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(object_instances_test PRIVATE ROHR_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(object_instances_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(object_instances_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(MSVC)
+        target_compile_options(object_instances_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(object_instances_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(object_instances_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+    endif()
+    set_target_properties(object_instances_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME object_instances COMMAND object_instances_test)
+
     add_executable(runtime_persistence_test tests/runtime_persistence.c)
     target_link_libraries(runtime_persistence_test PRIVATE rohr_engine)
     target_include_directories(runtime_persistence_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/lib)
@@ -1126,6 +1157,7 @@ if(ROHR_BUILD_TESTS)
         forces
         shared_sources
         runtime_persistence
+        object_instances
         angles
         rigid_contact_stability
         component_registry
@@ -1186,6 +1218,7 @@ if(ROHR_BUILD_TESTS)
         forces_test
         shared_sources_test
         runtime_persistence_test
+        object_instances_test
         angles_test
         example_flies_angles_test
         example_soft_body_angles_test

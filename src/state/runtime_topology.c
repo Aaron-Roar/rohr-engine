@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "runtime_topology.h"
+#include "entity/entity_internal.h"
+#include "entity/object_internal.h"
 #include "physics/soft_body/soft_body_area.h"
 #include <float.h>
 #include <math.h>
@@ -27,6 +29,7 @@ static bool uint64(yyjson_val *v, const char *key, uint64_t *out) {
     return true;
 }
 static bool reference(yyjson_val *v, Entity *out) {
+    if(yyjson_is_null(v)) { *out = ENTITY_INVALID; return true; }
     if(!yyjson_is_str(v) || strlen(yyjson_get_str(v)) != yyjson_get_len(v)) return false;
     EntityResult result = entity_by_name_get(yyjson_get_str(v));
     if(error_check(result)) return false;
@@ -39,8 +42,9 @@ static bool incoming(Entity e, const Entity *created, size_t count) {
 }
 static bool owner_read(yyjson_val *v, Entity *owner, EntityIndex *index,
         const Entity *created, size_t count) {
-    return reference(yyjson_obj_get(v, "owner"), owner) &&
-        incoming(*owner, created, count) && entity_index_get(*owner, index) &&
+    if(!reference(yyjson_obj_get(v, "owner"), owner)) return false;
+    if(*owner == ENTITY_INVALID) { *index = 0; return true; }
+    return incoming(*owner, created, count) && entity_index_get(*owner, index) &&
         soft_bodies_pool.used[*index];
 }
 static bool color_read(yyjson_val *v, Color *color, bool *overridden) {
@@ -58,7 +62,8 @@ static bool list_read(yyjson_val *v, Entity *entities, uint32_t *count, uint32_t
     *count = (uint32_t)yyjson_arr_size(v);
     for(uint32_t i = 0; i < *count; ++i) {
         if(!reference(yyjson_arr_get(v, i), &entities[i])) return false;
-        for(uint32_t j = 0; j < i; ++j) if(entities[j] == entities[i]) return false;
+        for(uint32_t j = 0; j < i; ++j)
+            if(entities[i] != ENTITY_INVALID && entities[j] == entities[i]) return false;
     }
     return true;
 }
@@ -83,16 +88,17 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
     yyjson_val *node = yyjson_obj_get(components, "soft_body_node");
     yyjson_val *beam = yyjson_obj_get(components, "soft_body_beam");
     yyjson_val *area = yyjson_obj_get(components, "soft_body_area");
+    yyjson_val *object = yyjson_obj_get(components, "object");
 #define REQUIRE(condition) do { if(!(condition)) return error_result_error(ERROR_ENGINE_STATE_INVALID); } while(0)
 #define STORE(call) do { if(error_check(call)) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED); } while(0)
     if(pass == 0) {
         REQUIRE((body != NULL) + (node != NULL) + (beam != NULL) + (area != NULL) <= 1);
         yyjson_val *mask = yyjson_obj_get(components, "mask");
         if(mask != NULL) {
-            const char *keys[] = {"soft_body", "soft_body_node", "soft_body_beam", "soft_body_area"};
+            const char *keys[] = {"soft_body", "soft_body_node", "soft_body_beam", "soft_body_area", "object"};
             const RohrComponentMask bits[] = {ROHR_SOFT_BODY, ROHR_SOFT_BODY_NODE,
-                ROHR_SOFT_BODY_BEAM, ROHR_SOFT_BODY_AREA};
-            for(size_t k = 0; k < 4; ++k)
+                ROHR_SOFT_BODY_BEAM, ROHR_SOFT_BODY_AREA, ROHR_OBJECT};
+            for(size_t k = 0; k < 5; ++k)
                 REQUIRE(((yyjson_get_uint(mask) & bits[k]) != 0) ==
                     (yyjson_obj_get(components, keys[k]) != NULL));
         }
@@ -101,12 +107,16 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             STORE(SoftBodyPool_store_at(&soft_bodies_pool, index, (SoftBody){.origin = entity}));
             entity_mask[index] |= ROHR_SOFT_BODY;
         }
+        if(object != NULL) {
+            REQUIRE(yyjson_is_arr(object) && yyjson_arr_size(object) <= MAX_ENTITIES);
+            STORE(entity_object_initialize(entity));
+        }
     }
     if(pass == 1 && node != NULL) {
         SoftBodyNode value = {0};
         REQUIRE(yyjson_is_obj(node) && owner_read(node, &value.soft_body, &owner_index, created, count));
-        SoftBody *owner = &soft_bodies[owner_index];
-        REQUIRE(owner->node_count < SOFT_BODY_MAX_NODES && number(node, "radius", &value.radius) &&
+        SoftBody *owner = value.soft_body ? &soft_bodies[owner_index] : NULL;
+        REQUIRE((!owner || owner->node_count < SOFT_BODY_MAX_NODES) && number(node, "radius", &value.radius) &&
             value.radius > 0 && positions_pool.used[index] && mass_pool.used[index] && mass[index] > 0 &&
             velocities_pool.used[index] && accelerations_pool.used[index] &&
             color_read(node, &value.draw_color, &value.draw_color_overridden));
@@ -116,19 +126,22 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         value.collides_with = filter.result.value.collides_with;
         STORE(SoftBodyNodePool_store_at(&soft_body_nodes_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_NODE | ROHR_PARTICLE;
-        owner->nodes[owner->node_count++] = entity;
+        if(owner) owner->nodes[owner->node_count++] = entity;
     }
     if(pass == 2 && beam != NULL) {
         SoftBodyBeam value = {0};
-        EntityIndex a, b;
+        EntityIndex a = 0, b = 0;
         REQUIRE(yyjson_is_obj(beam) && owner_read(beam, &value.soft_body, &owner_index, created, count) &&
             reference(yyjson_obj_get(beam, "node_a"), &value.node_a) &&
-            reference(yyjson_obj_get(beam, "node_b"), &value.node_b) && value.node_a != value.node_b &&
-            entity_index_get(value.node_a, &a) && entity_index_get(value.node_b, &b) &&
-            soft_body_nodes_pool.used[a] && soft_body_nodes_pool.used[b] &&
-            soft_body_nodes[a].soft_body == value.soft_body && soft_body_nodes[b].soft_body == value.soft_body);
-        SoftBody *owner = &soft_bodies[owner_index];
-        REQUIRE(owner->beam_count < SOFT_BODY_MAX_BEAMS);
+            reference(yyjson_obj_get(beam, "node_b"), &value.node_b) &&
+            (!value.node_a || value.node_a != value.node_b) &&
+            (!value.node_a || (entity_index_get(value.node_a, &a) && soft_body_nodes_pool.used[a])) &&
+            (!value.node_b || (entity_index_get(value.node_b, &b) && soft_body_nodes_pool.used[b])));
+        REQUIRE(!value.soft_body ||
+            ((!value.node_a || soft_body_nodes[a].soft_body == value.soft_body) &&
+             (!value.node_b || soft_body_nodes[b].soft_body == value.soft_body)));
+        SoftBody *owner = value.soft_body ? &soft_bodies[owner_index] : NULL;
+        REQUIRE(!owner || owner->beam_count < SOFT_BODY_MAX_BEAMS);
 #define BEAM_NUMBER(field) REQUIRE(number(beam, #field, &value.field))
         BEAM_NUMBER(rest_length); BEAM_NUMBER(stiffness); BEAM_NUMBER(damping);
         BEAM_NUMBER(collision_thickness); BEAM_NUMBER(friction); BEAM_NUMBER(restitution);
@@ -139,11 +152,11 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             boolean(beam, "collision_enabled", &value.collision_enabled) &&
             uint64(beam, "category", &value.category) && uint64(beam, "collides_with", &value.collides_with) &&
             color_read(beam, &value.draw_color, &value.draw_color_overridden));
-        REQUIRE(!value.collision_enabled || value.collision_thickness <=
+        REQUIRE(!value.collision_enabled || !value.node_a || !value.node_b || value.collision_thickness <=
             2.0f * fminf(soft_body_nodes[a].radius, soft_body_nodes[b].radius));
         STORE(SoftBodyBeamPool_store_at(&soft_body_beams_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_BEAM;
-        owner->beams[owner->beam_count++] = entity;
+        if(owner) owner->beams[owner->beam_count++] = entity;
     }
     if(pass == 2 && area != NULL) {
         SoftBodyArea value = {0};
@@ -180,12 +193,48 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             order_read(yyjson_obj_get(body, "beams"), value->beams, value->beam_count, SOFT_BODY_MAX_BEAMS) &&
             order_read(yyjson_obj_get(body, "areas"), value->areas, value->area_count, SOFT_BODY_MAX_AREAS));
     }
+    if(pass == 3 && object != NULL) {
+        for(size_t n = 0; n < yyjson_arr_size(object); ++n) {
+            yyjson_val *entry = yyjson_arr_get(object, n);
+            yyjson_val *name = yyjson_obj_get(entry, "name");
+            Entity member;
+            REQUIRE(yyjson_is_obj(entry) && yyjson_is_str(name) &&
+                yyjson_get_len(name) == strlen(yyjson_get_str(name)) &&
+                reference(yyjson_obj_get(entry, "entity"), &member) && incoming(member, created, count));
+            EngineResult result = entity_object_member_restore(entity, member, yyjson_get_str(name));
+            if(error_check(result)) return result;
+        }
+    }
+    if(pass == 4) {
+        yyjson_val *owned_anchor = yyjson_obj_get(components, "object_anchor");
+        if(owned_anchor) {
+            Entity owner; JointAnchorId anchor;
+            REQUIRE(yyjson_is_obj(owned_anchor) && reference(yyjson_obj_get(owned_anchor, "owner"), &owner) &&
+                incoming(owner, created, count) && state_joint_anchor_read(yyjson_obj_get(owned_anchor, "index"), owner, &anchor));
+            EngineResult restored = object_instance_anchor_restore(entity, owner, anchor);
+            if(error_check(restored)) return restored;
+        }
+        yyjson_val *aliases = yyjson_obj_get(components, "object_aliases");
+        if(aliases) {
+            REQUIRE(object && yyjson_is_arr(aliases) && yyjson_arr_size(aliases) <= MAX_ENTITIES);
+            for(size_t n = 0; n < yyjson_arr_size(aliases); ++n) {
+                yyjson_val *entry = yyjson_arr_get(aliases, n), *name = yyjson_obj_get(entry, "name");
+                Entity member;
+                REQUIRE(yyjson_is_obj(entry) && yyjson_is_str(name) &&
+                    yyjson_get_len(name) == strlen(yyjson_get_str(name)) &&
+                    reference(yyjson_obj_get(entry, "entity"), &member) && incoming(member, created, count));
+                EngineResult result = entity_object_alias_restore(entity, member, yyjson_get_str(name));
+                if(error_check(result)) return result;
+            }
+        }
+    }
 #undef REQUIRE
 #undef STORE
     return error_result_value(true);
 }
 
 static bool reference_write(yyjson_mut_doc *doc, yyjson_mut_val *v, const char *key, Entity entity) {
+    if(entity == ENTITY_INVALID) return yyjson_mut_obj_add_null(doc, v, key);
     EntityNameResult name = entity_name_get(entity);
     return !error_check(name) && yyjson_mut_obj_add_strcpy(doc, v, key, name.result.value.value);
 }
@@ -193,6 +242,10 @@ static yyjson_mut_val *list_write(yyjson_mut_doc *doc, const Entity *entities, u
     yyjson_mut_val *array = yyjson_mut_arr(doc);
     if(!array) return NULL;
     for(uint32_t i = 0; i < count; ++i) {
+        if(entities[i] == ENTITY_INVALID) {
+            if(!yyjson_mut_arr_add_null(doc, array)) return NULL;
+            continue;
+        }
         EntityNameResult name = entity_name_get(entities[i]);
         if(error_check(name) || !yyjson_mut_arr_add_strcpy(doc, array, name.result.value.value)) return NULL;
     }
@@ -212,6 +265,45 @@ bool state_topology_write(yyjson_mut_doc *doc, yyjson_mut_val *components, Entit
     EntityIndex index;
     if(!entity_index_get(entity, &index)) return false;
 #define WRITE(condition) do { if(!(condition)) return false; } while(0)
+    JointAnchorIdResult anchor = entity_object_anchor_get(entity);
+    if(!error_check(anchor)) {
+        Entity owner = object_instance_anchor_owner_get(entity);
+        yyjson_mut_val *v = yyjson_mut_obj(doc);
+        WRITE(v && reference_write(doc, v, "owner", owner) &&
+            state_joint_anchor_write(doc, v, "index", owner, anchor.result.value) &&
+            yyjson_mut_obj_add_val(doc, components, "object_anchor", v));
+    }
+    if(entity_mask[index] & ROHR_OBJECT) {
+        GroupIdResult members = entity_object_members_get(entity);
+        WRITE(!error_check(members));
+        EntityGroupResult group = entity_group_get(members.result.value);
+        WRITE(!error_check(group));
+        yyjson_mut_val *array = yyjson_mut_arr(doc);
+        WRITE(array);
+        const GroupEntityPool *pool = &group.result.value.entities;
+        for(size_t n = 0; n < pool->capacity; ++n) {
+            if(!pool->used[n]) continue;
+            EntityNameResult name = entity_object_member_name_get(pool->objects[n]);
+            yyjson_mut_val *entry = yyjson_mut_obj(doc);
+            WRITE(!error_check(name) && entry &&
+                reference_write(doc, entry, "entity", pool->objects[n]) &&
+                yyjson_mut_obj_add_strcpy(doc, entry, "name", name.result.value.value) &&
+                yyjson_mut_arr_add_val(array, entry));
+        }
+        WRITE(yyjson_mut_obj_add_val(doc, components, "object", array));
+        size_t count;
+        const ObjectMemberAlias *aliases = entity_object_aliases_get(entity, &count);
+        if(count) {
+            array = yyjson_mut_arr(doc); WRITE(array);
+            for(size_t i = 0; i < count; ++i) {
+                yyjson_mut_val *entry = yyjson_mut_obj(doc);
+                WRITE(entry && reference_write(doc, entry, "entity", aliases[i].entity) &&
+                    yyjson_mut_obj_add_strcpy(doc, entry, "name", aliases[i].name.value) &&
+                    yyjson_mut_arr_add_val(array, entry));
+            }
+            WRITE(yyjson_mut_obj_add_val(doc, components, "object_aliases", array));
+        }
+    }
     if(soft_bodies_pool.used[index]) {
         const SoftBody *value = &soft_bodies[index];
         WRITE(value->origin == entity && value->node_count <= SOFT_BODY_MAX_NODES &&
