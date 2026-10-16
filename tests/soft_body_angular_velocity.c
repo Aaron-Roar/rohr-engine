@@ -17,11 +17,16 @@ static void near(double actual, double expected, double tolerance) {
     assert(isfinite(actual) && fabs(actual - expected) <= tolerance);
 }
 static Entity body_create(void) {
-    EntityResult result = rohr_physics_soft_body_create(); OK(result);
+    EntityResult result = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(result);
     return result.result.value;
 }
 static Entity node_create(Entity body, Position point, float mass_value) {
-    EntityResult result = rohr_physics_soft_body_node_create(body, point, mass_value, .1f);
+    EntityResult result = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = point,
+        .mass = mass_value,
+        .radius = .1f
+    });
     OK(result); return result.result.value;
 }
 static Velocity velocity_get(Entity node) {
@@ -100,7 +105,13 @@ static void simulation_check(void) {
     OK(rohr_physics_orientation_set(body, 23));
     Entity a = node_create(body, (Position){-10,0}, 1);
     Entity b = node_create(body, (Position){10,0}, 1);
-    EntityResult beam = rohr_physics_soft_body_beam_create(body, a, b, 100, 0); OK(beam);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body,
+        .node_a = a,
+        .node_b = b,
+        .stiffness = 100,
+        .damping = 0
+    }); OK(beam);
     OK(rohr_physics_angular_velocity_radians_set(body, 1));
     near(velocity_get(a).y, 10, 1e-5);
     near(velocity_get(b).y, -10, 1e-5);

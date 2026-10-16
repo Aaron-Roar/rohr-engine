@@ -906,8 +906,8 @@ int main(void) {
                 !file_contains(path, "rohr_camera_create") ||
                 !file_contains(path, "rohr_camera_attach") ||
                 !file_contains(path, "rohr_physics_joint_spring_set") ||
-                !file_contains(path, "rohr_physics_soft_body_create") ||
-                !file_contains(path, "rohr_physics_soft_body_node_create") ||
+                !file_contains(path, "rohr_physics_soft_body_add") ||
+                !file_contains(path, "rohr_physics_soft_body_node_add") ||
                 !file_contains(path, "(Velocity){11.0000000f, 12.0000000f}") ||
                 !file_contains(path, "(Acceleration){13.0000000f, 14.0000000f}") ||
                 !file_contains(path, "15.0000000f, (Shape)") ||
@@ -918,13 +918,13 @@ int main(void) {
                 !file_contains(path, "rohr_physics_restitution_set") ||
                 !file_contains(path,
                     "rohr_physics_soft_body_node_collision_filter_set") ||
-                !file_contains(path, "rohr_physics_soft_body_beam_create") ||
+                !file_contains(path, "rohr_physics_soft_body_beam_add") ||
                 !file_contains(path,
                     "rohr_physics_soft_body_beam_collision_config_set") ||
                 !file_contains(path,
                     ".enabled = false, .thickness = 4.00000000f") ||
                 /* Node-loop areas are generated for the starter soft body. */
-                !file_contains(path, "rohr_physics_soft_body_area_create") ||
+                !file_contains(path, "rohr_physics_soft_body_area_add") ||
                 !file_contains(path, "rohr_graphics_soft_body_node_color_set") ||
                 !file_contains(path, "rohr_graphics_animation_load") ||
                 !file_contains(path, "rohr_graphics_animation_release") ||

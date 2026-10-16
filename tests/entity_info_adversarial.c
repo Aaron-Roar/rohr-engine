@@ -42,10 +42,26 @@ static void selector_composition(void) {
     OK(entity_delete(e));
 }
 static void independent_dependencies(void) {
-    EntityResult body=physics_soft_body_create(); OK(body);
-    EntityResult a=physics_soft_body_node_create(body.result.value,(Position){0,0},1,1); OK(a);
-    EntityResult b=physics_soft_body_node_create(body.result.value,(Position){4,0},1,1); OK(b);
-    EntityResult beam=physics_soft_body_beam_create(body.result.value,a.result.value,b.result.value,1,1); OK(beam);
+    EntityResult body=physics_soft_body_add((SoftBodyDescription){0}); OK(body);
+    EntityResult a=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body.result.value,
+        .position = (Position){0,0},
+        .mass = 1,
+        .radius = 1
+    }); OK(a);
+    EntityResult b=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body.result.value,
+        .position = (Position){4,0},
+        .mass = 1,
+        .radius = 1
+    }); OK(b);
+    EntityResult beam=physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 1,
+        .damping = 1
+    }); OK(beam);
     EntityIndex bi=index_of(b.result.value), ei=index_of(beam.result.value);
     Entity original=soft_body_beams[ei].node_a;
     soft_body_beams[ei].node_a=ENTITY_INVALID;

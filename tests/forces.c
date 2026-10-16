@@ -215,13 +215,29 @@ static bool persistence_check(const ForceApi *api) {
 static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
     OK(rohr_physics_substeps_set(substeps));
     for(unsigned variant=0;variant<3;++variant) {
-        EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
-        EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
-        EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+        EntityResult owner=rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
+        EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = owner.result.value,
+            .position = (Position){0,0},
+            .mass = 2,
+            .radius = 0.1f
+        });
+        EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = owner.result.value,
+            .position = (Position){10,0},
+            .mass = 4,
+            .radius = 0.1f
+        });
         OK(a); OK(b);
         OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
         OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
-        EntityResult beam=rohr_physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+        EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+            .owner = owner.result.value,
+            .node_a = a.result.value,
+            .node_b = b.result.value,
+            .stiffness = 0,
+            .damping = 0
+        });
         OK(beam); OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
         EntityIndex ia=rohr_entity_index_get(a.result.value).result.value;
         EntityIndex ib=rohr_entity_index_get(b.result.value).result.value;
@@ -255,13 +271,29 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
     }
     /* Pure torque via both API layers; multiple substeps preserve net momentum. */
     OK(rohr_physics_substeps_set(substeps));
-    EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
-    EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
-    EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    EntityResult owner=rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
+    EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){0,0},
+        .mass = 2,
+        .radius = 0.1f
+    });
+    EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){10,0},
+        .mass = 4,
+        .radius = 0.1f
+    });
     OK(a); OK(b);
     OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
     OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
-    EntityResult beam=rohr_physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+    EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = owner.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 0,
+        .damping = 0
+    });
     OK(beam); OK(rohr_physics_soft_body_beam_collision_disable(beam.result.value));
     EntityResult torque=api->torque_add((TorqueDescription){beam.result.value,20}); OK(torque);
     OK(api->torque_apply((TorqueDescription){beam.result.value,20}));
@@ -275,9 +307,19 @@ static bool beam_sources_check(const ForceApi *api, unsigned substeps) {
 }
 
 static bool soft_sources_check(const ForceApi *api, unsigned substeps) {
-    EntityResult owner=rohr_physics_soft_body_create(); OK(owner);
-    EntityResult a=rohr_physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
-    EntityResult b=rohr_physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    EntityResult owner=rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
+    EntityResult a=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){0,0},
+        .mass = 2,
+        .radius = 0.1f
+    });
+    EntityResult b=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){10,0},
+        .mass = 4,
+        .radius = 0.1f
+    });
     OK(a); OK(b);
     OK(rohr_entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
     OK(rohr_entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));

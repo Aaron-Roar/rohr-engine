@@ -532,6 +532,35 @@ typedef struct SoftBodyAreaGeometry {
     uint32_t hole_count;
 } SoftBodyAreaGeometry;
 
+/** Creation descriptions are copied by value. An invalid owner means independent
+ * lifetime; any live owner is accepted. Connections never imply ownership. */
+typedef struct SoftBodyDescription {
+    Entity owner;
+    Position position;
+    Orientation orientation;
+} SoftBodyDescription;
+
+typedef struct SoftBodyNodeDescription {
+    Entity owner;
+    /** World position for node_add; owner-local position for node_local_add. */
+    Position position;
+    Mass mass;
+    float radius;
+} SoftBodyNodeDescription;
+
+typedef struct SoftBodyBeamDescription {
+    Entity owner;
+    Entity node_a;
+    Entity node_b;
+    float stiffness;
+    float damping;
+} SoftBodyBeamDescription;
+
+typedef struct SoftBodyAreaDescription {
+    Entity owner;
+    SoftBodyAreaGeometry geometry;
+} SoftBodyAreaDescription;
+
 /** Value snapshot; generated triangles and caches remain private. */
 typedef struct SoftBodyArea {
     Entity soft_body;
@@ -988,20 +1017,10 @@ EngineResult physics_joint_spring_set(
     float damping
 );
 
-EntityResult physics_soft_body_create(void);
+EntityResult physics_soft_body_add(SoftBodyDescription description);
 SoftBodyResult physics_soft_body_get(Entity soft_body);
-EntityResult physics_soft_body_node_create(
-    Entity soft_body,
-    Position position,
-    Mass mass_value,
-    float radius
-);
-EntityResult physics_soft_body_node_local_create(
-    Entity soft_body,
-    Position local_position,
-    Mass mass_value,
-    float radius
-);
+EntityResult physics_soft_body_node_add(SoftBodyNodeDescription description);
+EntityResult physics_soft_body_node_local_add(SoftBodyNodeDescription description);
 SoftBodyNodeResult physics_soft_body_node_get(Entity node);
 PositionResult physics_soft_body_node_local_position_get(Entity node);
 EngineResult physics_soft_body_node_local_position_set(
@@ -1016,13 +1035,7 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     Entity node,
     JointAnchorId anchor
 );
-EntityResult physics_soft_body_beam_create(
-    Entity soft_body,
-    Entity node_a,
-    Entity node_b,
-    float stiffness,
-    float damping
-);
+EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description);
 SoftBodyBeamResult physics_soft_body_beam_get(Entity beam);
 /** Replace endpoints; ENTITY_INVALID leaves that endpoint disconnected. */
 EngineResult physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
@@ -1037,7 +1050,7 @@ EngineResult physics_soft_body_beam_collision_filter_set(
     RohrCollisionCategoryMask category,
     RohrCollisionCategoryMask collides_with
 );
-EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
+EntityResult physics_soft_body_area_add(SoftBodyAreaDescription description);
 SoftBodyAreaResult physics_soft_body_area_get(Entity area);
 EngineResult physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry);
 EngineResult physics_soft_body_area_order_set(Entity area, uint32_t index);

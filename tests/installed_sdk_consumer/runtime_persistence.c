@@ -12,13 +12,37 @@ static Entity named(const char *name) { return take(rohr_entity_by_name_get(name
 int main(void) {
     const char *path="installed_runtime_persistence.json";
     OK(rohr_engine_start());
-    Entity body=take(rohr_physics_soft_body_create());
-    Entity a=take(rohr_physics_soft_body_node_create(body,(Position){0,0},1,1));
-    Entity b=take(rohr_physics_soft_body_node_create(body,(Position){10,0},2,1));
-    Entity c=take(rohr_physics_soft_body_node_create(body,(Position){0,10},3,1));
-    Entity beam=take(rohr_physics_soft_body_beam_create(body,a,b,10,0.2f));
-    Entity area=take(rohr_physics_soft_body_area_create(body,(SoftBodyAreaGeometry){
-        .outer={.nodes={a,b,c},.node_count=3}}));
+    Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0}));
+    Entity a=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){0,0},
+        .mass = 1,
+        .radius = 1
+    }));
+    Entity b=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){10,0},
+        .mass = 2,
+        .radius = 1
+    }));
+    Entity c=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){0,10},
+        .mass = 3,
+        .radius = 1
+    }));
+    Entity beam=take(rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body,
+        .node_a = a,
+        .node_b = b,
+        .stiffness = 10,
+        .damping = 0.2f
+    }));
+    Entity area=take(rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = body,
+        .geometry = (SoftBodyAreaGeometry){
+        .outer={.nodes={a,b,c},.node_count=3}}
+    }));
     OK(rohr_graphics_soft_body_area_visibility_set(area,false));
     OK(rohr_physics_position_set(b,(Position){13,1}));
     ForceDescription description={.target=body,.magnitude=8,

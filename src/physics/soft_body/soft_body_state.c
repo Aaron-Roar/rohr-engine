@@ -182,15 +182,18 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
     physics_soft_body_area_entity_clear(entity, index);
 }
 
-EntityResult physics_soft_body_create(void) {
-    EntityResult result = entity_default_create("soft_body", ENTITY_INVALID);
+EntityResult physics_soft_body_add(SoftBodyDescription description) {
+    if((description.owner != ENTITY_INVALID && !entity_alive_check(description.owner)) ||
+            !physics_world_position_check(description.position) || !isfinite(description.orientation))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+    EntityResult result = entity_default_create("soft_body", description.owner);
     EntityIndex index;
 
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(!entity_index_get(result.result.value, &index) ||
-            physics_position_set(result.result.value, (Position){0}).kind ==
+            physics_position_set(result.result.value, description.position).kind ==
                 ERROR_RESULT_ERROR ||
-            physics_orientation_set(result.result.value, 0.0f).kind ==
+            physics_orientation_set(result.result.value, description.orientation).kind ==
                 ERROR_RESULT_ERROR ||
             SoftBodyPool_store_at(&soft_bodies_pool, index,
                 (SoftBody){.origin = result.result.value}).kind ==
@@ -199,6 +202,11 @@ EntityResult physics_soft_body_create(void) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[index] |= ROHR_SOFT_BODY;
+    EngineResult owned = entity_owner_set(result.result.value, description.owner);
+    if(error_check(owned)) {
+        (void)entity_delete(result.result.value);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);
+    }
     return result;
 }
 
@@ -213,23 +221,23 @@ SoftBodyResult physics_soft_body_get(Entity soft_body) {
     return ERROR_RESULT_MAKE_VALUE(SoftBodyResult, soft_bodies[index]);
 }
 
-EntityResult physics_soft_body_node_create(Entity soft_body, Position position,
-        Mass node_mass, float radius) {
+EntityResult physics_soft_body_node_add(SoftBodyNodeDescription description) {
+    Entity owner = description.owner;
+    Position position = description.position;
+    Mass node_mass = description.mass;
+    float radius = description.radius;
     EntityIndex body_index = 0;
     EntityIndex node_index;
     EntityResult node;
-    if((soft_body != ENTITY_INVALID &&
-            (error_check(physics_live_index_get(soft_body, &body_index)) ||
-             !entity_index_components_check(body_index, ROHR_SOFT_BODY) ||
-             !soft_bodies_pool.used[body_index])) ||
+    if((owner != ENTITY_INVALID && !entity_index_get(owner, &body_index)) ||
             !isfinite(node_mass) || !isfinite(radius) ||
             node_mass <= 0.0f || radius <= 0.0f || !physics_world_position_check(position)) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
     }
-    if(soft_body != ENTITY_INVALID && soft_bodies[body_index].node_count >= SOFT_BODY_MAX_NODES) {
+    if(owner != ENTITY_INVALID && soft_bodies_pool.used[body_index] && soft_bodies[body_index].node_count >= SOFT_BODY_MAX_NODES) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    node = entity_default_create("node", soft_body);
+    node = entity_default_create("node", owner);
     if(node.kind == ERROR_RESULT_ERROR) return node;
     if(!entity_index_get(node.result.value, &node_index) ||
             physics_position_set(node.result.value, position).kind == ERROR_RESULT_ERROR ||
@@ -258,7 +266,7 @@ EntityResult physics_soft_body_node_create(Entity soft_body, Position position,
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[node_index] |= ROHR_SOFT_BODY_NODE | ROHR_PARTICLE;
-    EngineResult owned = entity_owner_set(node.result.value, soft_body);
+    EngineResult owned = entity_owner_set(node.result.value, owner);
     if(error_check(owned)) {
         (void)entity_delete(node.result.value);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);
@@ -266,8 +274,8 @@ EntityResult physics_soft_body_node_create(Entity soft_body, Position position,
     return node;
 }
 
-EntityResult physics_soft_body_node_local_create(Entity soft_body,
-        Position local_position, Mass node_mass, float radius) {
+EntityResult physics_soft_body_node_local_add(SoftBodyNodeDescription description) {
+    Entity soft_body = description.owner;
     EntityIndex body_index;
     EngineResult result = physics_live_index_get(soft_body, &body_index);
     Position world_position;
@@ -279,9 +287,9 @@ EntityResult physics_soft_body_node_local_create(Entity soft_body,
         return ERROR_RESULT_MAKE_ERROR(EntityResult,
             ERROR_ENGINE_COMPONENT_MISSING);
     world_position = physics_soft_body_vector_add(positions[body_index],
-        math_vector_rotate(local_position, orientations[body_index]));
-    return physics_soft_body_node_create(
-        soft_body, world_position, node_mass, radius);
+        math_vector_rotate(description.position, orientations[body_index]));
+    description.position = world_position;
+    return physics_soft_body_node_add(description);
 }
 
 SoftBodyNodeResult physics_soft_body_node_get(Entity node) {
@@ -399,8 +407,10 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_create(
     }));
 }
 
-EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Entity node_b,
-        float stiffness, float damping) {
+EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description) {
+    Entity owner = description.owner;
+    Entity node_a = description.node_a, node_b = description.node_b;
+    float stiffness = description.stiffness, damping = description.damping;
     EntityIndex body_index = 0;
     EntityIndex a_index;
     EntityIndex b_index;
@@ -414,17 +424,15 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
     bool collision_enabled;
 
     if(!isfinite(stiffness) || !isfinite(damping) || stiffness < 0 || damping < 0 ||
-            (soft_body != ENTITY_INVALID &&
-             (error_check(physics_live_index_get(soft_body, &body_index)) ||
-              !entity_index_components_check(body_index, ROHR_SOFT_BODY))))
+            (owner != ENTITY_INVALID && !entity_index_get(owner, &body_index)))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    if(soft_body != ENTITY_INVALID && soft_bodies[body_index].beam_count >= SOFT_BODY_MAX_BEAMS)
+    if(owner != ENTITY_INVALID && soft_bodies_pool.used[body_index] && soft_bodies[body_index].beam_count >= SOFT_BODY_MAX_BEAMS)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     if(node_a == ENTITY_INVALID || node_b == ENTITY_INVALID) {
         if((node_a != ENTITY_INVALID && error_check(physics_soft_body_node_get(node_a))) ||
                 (node_b != ENTITY_INVALID && error_check(physics_soft_body_node_get(node_b))))
             return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-        beam = entity_default_create("beam", soft_body);
+        beam = entity_default_create("beam", owner);
         if(error_check(beam)) return beam;
         if(!entity_index_get(beam.result.value, &beam_index) ||
                 error_check(SoftBodyBeamPool_store_at(&soft_body_beams_pool, beam_index,
@@ -435,7 +443,7 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
             return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
         }
         entity_mask[beam_index] |= ROHR_SOFT_BODY_BEAM;
-        EngineResult owned = entity_owner_set(beam.result.value, soft_body);
+        EngineResult owned = entity_owner_set(beam.result.value, owner);
         if(error_check(owned)) {
             (void)entity_delete(beam.result.value);
             return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);
@@ -470,10 +478,10 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
         collision_thickness >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
     collision_thickness = fmaxf(
         collision_thickness, ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN);
-    if(soft_body != ENTITY_INVALID && soft_bodies[body_index].beam_count >= SOFT_BODY_MAX_BEAMS) {
+    if(owner != ENTITY_INVALID && soft_bodies_pool.used[body_index] && soft_bodies[body_index].beam_count >= SOFT_BODY_MAX_BEAMS) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
     }
-    beam = entity_default_create("beam", soft_body);
+    beam = entity_default_create("beam", owner);
     if(beam.kind == ERROR_RESULT_ERROR) return beam;
     if(!entity_index_get(beam.result.value, &beam_index)) {
         (void)entity_delete(beam.result.value);
@@ -498,7 +506,7 @@ EntityResult physics_soft_body_beam_create(Entity soft_body, Entity node_a, Enti
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[beam_index] |= ROHR_SOFT_BODY_BEAM;
-    EngineResult owned = entity_owner_set(beam.result.value, soft_body);
+    EngineResult owned = entity_owner_set(beam.result.value, owner);
     if(error_check(owned)) {
         (void)entity_delete(beam.result.value);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);

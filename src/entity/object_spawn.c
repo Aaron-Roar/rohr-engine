@@ -255,7 +255,6 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     bool geometry_enabled = physics || visual;
     if((pass == 0 && topology && geometry_enabled) || (pass == 1 && (!topology || !geometry_enabled))) return error_result_value(true);
     Entity parent = d->parent ? target_get(c, d->parent->id) : ENTITY_INVALID;
-    Entity soft = d->parent && d->parent->kind == OBJECT_SOFT_BODY ? parent : ENTITY_INVALID;
     Position position; Orientation orientation;
     EngineResult result = object_description_world_pose_get(d, &position, &orientation);
     if(error_check(result)) return result;
@@ -275,10 +274,21 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         .velocity=d->velocity,.acceleration=d->acceleration,.mass_value=d->mass,.friction=d->friction,
         .restitution=d->restitution,.collision_filter=d->collision_filter,.static_body=!physics || d->static_body,
         .gravity_enabled=physics && d->gravity_enabled,.collision_enabled=physics && d->collision_enabled});
-    else if(geometry_enabled && d->kind == OBJECT_SOFT_BODY) created = physics_soft_body_create();
-    else if(geometry_enabled && d->kind == OBJECT_NODE) created = physics_soft_body_node_create(soft, position, physics ? d->mass : 1, d->radius);
-    else if(geometry_enabled && d->kind == OBJECT_BEAM) created = physics_soft_body_beam_create(soft,
-        target_get(c, d->endpoint_a), target_get(c, d->endpoint_b), physics ? d->stiffness : 0, physics ? d->damping : 0);
+    else if(geometry_enabled && d->kind == OBJECT_SOFT_BODY) created = physics_soft_body_add(
+        (SoftBodyDescription){.owner = parent, .position = position, .orientation = orientation});
+    else if(geometry_enabled && d->kind == OBJECT_NODE) created = physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = parent,
+        .position = position,
+        .mass = physics ? d->mass : 1,
+        .radius = d->radius
+    });
+    else if(geometry_enabled && d->kind == OBJECT_BEAM) created = physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = parent,
+        .node_a = target_get(c, d->endpoint_a),
+        .node_b = target_get(c, d->endpoint_b),
+        .stiffness = physics ? d->stiffness : 0,
+        .damping = physics ? d->damping : 0
+    });
     else if(geometry_enabled && d->kind == OBJECT_AREA) {
         SoftBodyAreaGeometry geometry = {0};
         if(d->area) {
@@ -292,7 +302,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
                 for(uint32_t j = 0; j < loop->node_count; ++j) loop->nodes[j] = target_get(c, source->nodes[j]);
             }
         }
-        created = physics_soft_body_area_create(soft, geometry);
+        created = physics_soft_body_area_add((SoftBodyAreaDescription){.owner = parent, .geometry = geometry});
     } else created = entity_add();
     if(error_check(created)) return error_result_error(created.result.error);
     entry->entity = created.result.value;
@@ -301,8 +311,10 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     APPLY(name_set(e, d, parent));
     APPLY(object_instance_appearance_set(e, (ObjectAppearance){.kind = d->kind, .color = d->color,
         .border_color = d->border_color, .visible = d->visible, .enabled = visual}));
-    APPLY(physics_position_set(e, position));
-    APPLY(physics_orientation_set(e, d->kind == OBJECT_PARTICLE ? 0 : orientation));
+    if(!geometry_enabled || d->kind != OBJECT_SOFT_BODY) {
+        APPLY(physics_position_set(e, position));
+        APPLY(physics_orientation_set(e, d->kind == OBJECT_PARTICLE ? 0 : orientation));
+    }
     if(d->child_count || d->kind == OBJECT_CONTAINER) APPLY(entity_object_initialize(e));
     if(parent) APPLY(entity_object_member_restore(parent, e, d->name));
     if(geometry_enabled && d->kind == OBJECT_BODY) {

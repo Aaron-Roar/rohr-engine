@@ -272,13 +272,28 @@ static void allocation_failures(void) {
     rohr_engine_stop();
 
     OK(rohr_engine_start());
-    EntityResult soft = rohr_physics_soft_body_create(); OK(soft);
-    EntityResult left = rohr_physics_soft_body_node_create(soft.result.value, (Position){-10, 0}, 1, 1); OK(left);
-    EntityResult right = rohr_physics_soft_body_node_create(soft.result.value, (Position){10, 0}, 1, 1); OK(right);
+    EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult left = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){-10, 0},
+        .mass = 1,
+        .radius = 1
+    }); OK(left);
+    EntityResult right = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){10, 0},
+        .mass = 1,
+        .radius = 1
+    }); OK(right);
     OK(rohr_physics_static_set(left.result.value));
     OK(rohr_physics_static_set(right.result.value));
-    EntityResult beam = rohr_physics_soft_body_beam_create(soft.result.value,
-        left.result.value, right.result.value, 0, 0); OK(beam);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = soft.result.value,
+        .node_a = left.result.value,
+        .node_b = right.result.value,
+        .stiffness = 0,
+        .damping = 0
+    }); OK(beam);
     OK(rohr_physics_soft_body_beam_collision_thickness_set(beam.result.value, .1f));
     ParticleConfig config = rohr_physics_particle_config_default_get();
     config.position = (Position){0, .5f}; config.radius = 1; config.gravity_enabled = false;

@@ -1527,27 +1527,29 @@ EngineResult rohr_physics_joint_spring_set(
  *
  * The returned owner entity is also the body's origin and may be passed to
  * rohr_physics_position_set and rohr_physics_orientation_set. Changing that
- * transform translates or rotates all existing nodes without changing their
+ * transform translates or rotates owned nodes without changing their
  * topology. SoftBody.origin exposes the same entity for attachment APIs.
  *
+ * @param description Copied owner and initial world pose; zero initializes an
+ * independent empty body at the origin. Owner may be any live entity.
  * @return EntityResult containing the owner/origin entity.
  */
-EntityResult rohr_physics_soft_body_create(void);
+EntityResult rohr_physics_soft_body_add(SoftBodyDescription description);
 /** @brief Returns soft-body topology. @param soft_body Soft-body owner. @return SoftBodyResult. */
 SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
 /**
  * @brief Creates a lightweight point-mass node.
- * @param soft_body Owning soft body.
- * @param position Initial world position.
- * @param mass Node mass.
- * @param radius Collision radius.
+ * @param description Copied owner, world position, positive mass and radius.
+ * An invalid owner means independent lifetime; any live owner is accepted.
+ * Omitted or zero mass/radius is invalid. Other initialization defaults match
+ * existing nodes: zero motion, default node collision filter and material.
  * @return EntityResult containing the node entity.
  */
-EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius);
+EntityResult rohr_physics_soft_body_node_add(SoftBodyNodeDescription description);
 EngineResult rohr_physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
-/** Creates a node from a position relative to the soft-body origin. */
-EntityResult rohr_physics_soft_body_node_local_create(
-    Entity soft_body, Position local_position, Mass mass_value, float radius);
+/** Creates a node from an owner-local position. Requires a live soft-body owner;
+ * uses its origin position and orientation exactly once. */
+EntityResult rohr_physics_soft_body_node_local_add(SoftBodyNodeDescription description);
 /** @brief Returns soft-body node data. @param node Node entity. @return SoftBodyNodeResult. */
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node);
 /** Returns a node position relative to its soft-body origin. */
@@ -1592,16 +1594,13 @@ SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_create(
  * enabled only when both nodes can collide, filters are combined, and
  * thickness uses the smaller endpoint diameter. They do not remain inherited.
  * Beams start with independent friction 0 and restitution 0.25.
- * @param soft_body Owning soft body.
- * @param node_a First node.
- * @param node_b Second node.
- * @param stiffness Spring stiffness.
- * @param damping Relative velocity damping.
+ * @param description Copied owner, node endpoints, stiffness and damping.
+ * Endpoints may have different owners or be ENTITY_INVALID. Rest length is
+ * derived from complete endpoints. Stiffness and damping are finite and
+ * nonnegative; explicit zero remains zero. Any live owner is accepted.
  * @return EntityResult containing the beam entity.
  */
-EntityResult rohr_physics_soft_body_beam_create(
-    Entity soft_body, Entity node_a, Entity node_b, float stiffness, float damping
-);
+EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description);
 /** @brief Returns soft-body beam data. @param beam Beam entity. @return SoftBodyBeamResult. */
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam);
 /**
@@ -1635,8 +1634,10 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set(
  * Node motion updates the fill, including collapse and crossings. Delete with
  * rohr_entity_delete. Deleting its owner deletes the area; deleting a referenced
  * node clears that slot and leaves the area alive. Nodes may have other owners.
+ * @param description Copied owner and geometry. Any live owner is accepted;
+ * ENTITY_INVALID means independent lifetime. Incomplete loops remain supported.
  */
-EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
+EntityResult rohr_physics_soft_body_area_add(SoftBodyAreaDescription description);
 /** Returns a copied geometry/style snapshot, without cache or borrowed storage. */
 SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area);
 /** Replaces all loops transactionally. Invalid geometry (including more than

@@ -64,10 +64,11 @@ Updates accumulated engine time from the platform clock.
 Report rohr_engine_update(void);
 ```
 
-Advances time/ticks, then cleans expired entities. Returns an owned
-`ROHR_ENGINE_REPORT_ID` with one lifecycle child. Requires engine startup;
-paused and zero-tick updates still clean expired entities. Other systems remain
-independently driven.
+ Advance clock/ticks, then lifecycle cleanup; returns an owned ROHR_ENGINE_REPORT_ID.
+
+Requires engine startup. Paused/zero-tick calls still run cleanup.
+
+Does not update physics, graphics, audio or UI.
 
 ### `rohr_engine_tick_update`
 
@@ -75,8 +76,7 @@ independently driven.
 Tick rohr_engine_tick_update(void);
 ```
 
-Advances time and consumes complete fixed ticks without lifecycle cleanup.
-Returns and stores the ticks advanced, including zero when paused or unstarted.
+ Advance clock/ticks only and replace the latest tick delta (possibly zero).
 
 ### `rohr_engine_lifecycle_update`
 
@@ -84,9 +84,9 @@ Returns and stores the ticks advanced, including zero when paused or unstarted.
 Report rohr_engine_lifecycle_update(void);
 ```
 
-Cleans expired entities at the current time/tick without advancing the clock or
-changing the tick delta. Returns an owned `ROHR_ENGINE_LIFECYCLE_REPORT_ID`.
-Requires engine startup; individual cleanup errors are recoverable warnings.
+ Delete expired entities at current time/ticks; leave clock and delta unchanged.
+
+Returns an owned ROHR_ENGINE_LIFECYCLE_REPORT_ID. Requires engine startup.
 
 ### `rohr_engine_tick_delta_get`
 
@@ -94,9 +94,7 @@ Requires engine startup; individual cleanup errors are recoverable warnings.
 Tick rohr_engine_tick_delta_get(void);
 ```
 
-Returns ticks advanced by the latest tick update, not total ticks or ticks since
-this getter was last called. Reads do not consume the value. Startup, shutdown,
-and clock reset clear it; time-only and lifecycle-only calls leave it unchanged.
+ Latest tick-update delta; reads do not consume it. Cleared on start/stop/reset.
 
 ### `rohr_engine_time_get`
 
@@ -660,6 +658,34 @@ Destroys a generic entity group and clears member group references.
 | `group` | Group id to destroy. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_entity_object_members_get`
+
+```c
+GroupIdResult rohr_entity_object_members_get(Entity object);
+```
+
+ Get protected directly owned members.
+
+### `rohr_entity_owner_get`
+
+```c
+EntityResult rohr_entity_owner_get(Entity entity);
+```
+
+ Get the immediate lifetime owner; ENTITY_INVALID means independent.
+
+### `rohr_entity_owner_set`
+
+```c
+EngineResult rohr_entity_owner_set(Entity entity, Entity owner);
+```
+
+Transfer ownership or release with ENTITY_INVALID, preserving world state,
+
+parenting and connections. Updates soft-body membership without converting
+
+entity types. May allocate ownership storage; failure leaves ownership intact.
 
 ### `rohr_entity_group_add`
 
@@ -1501,9 +1527,13 @@ EngineResult rohr_physics_center_of_mass_local_position_set(Entity entity, Posit
 
 Selects explicit COM using a finite origin-relative offset.
 
-Geometry is optional. Standalone particles reject overrides. Soft bodies instead
-redistribute positive node masses, preserving total mass and all positions and
-velocities; unreachable or unrepresentable requests fail atomically.
+Geometry is optional. Standalone particles reject overrides.
+
+Soft bodies redistribute positive node masses at fixed total mass to the
+
+requested COM, preserving their prior proportions as closely as possible.
+
+Unreachable targets and numerical failures leave every node unchanged.
 
 Failure preserves configuration; success preserves origin, geometry, and velocities.
 
@@ -1517,8 +1547,11 @@ Returns the effective COM in local origin axes.
 
 Automatic COM requires valid active geometry; an explicit offset does not.
 
-Standalone particles use their circle centroid. Soft-body COM is derived from
-current node masses and positions and is unavailable for empty or zero-mass bodies.
+Standalone particles use their circle centroid.
+
+Soft bodies derive COM from current node positions and masses; an empty
+
+or zero-total-mass soft body has no available COM.
 
 ### `rohr_physics_center_of_mass_world_position_get`
 
@@ -1536,8 +1569,7 @@ Requires a transform and an available local COM.
 EngineResult rohr_physics_center_of_mass_automatic_set(Entity entity);
 ```
 
- Discards the explicit offset and selects automatic geometry-derived COM.
-For soft bodies this succeeds without changing any node masses.
+ Discards explicit COM for ordinary bodies. Soft bodies: successful no-op.
 
 ### `rohr_physics_center_of_mass_automatic_check`
 
@@ -1545,8 +1577,7 @@ For soft bodies this succeeds without changing any node masses.
 BoolResult rohr_physics_center_of_mass_automatic_check(Entity entity);
 ```
 
- Returns the COM mode, or an error for an invalid entity. Soft bodies always
-return true.
+ Returns the COM mode (always true for soft bodies), or an invalid-entity error.
 
 ### `rohr_physics_moment_of_inertia_get`
 
@@ -1566,10 +1597,11 @@ Static and locked bodies may report inertia without enabling angular response.
 EngineResult rohr_physics_mass_set(Entity entity, Mass m);
 ```
 
- Sets finite, non-negative ordinary mass. Zero represents an explicitly massless entity.
-For a soft body, requires a finite positive total and positive existing node
-masses; scales all node masses proportionally without adding a mass component to
-the container. Failure preserves every node.
+ Sets finite non-negative ordinary mass. For soft bodies, proportionally
+
+scales positive node masses to a positive total; failures preserve all nodes.
+
+No ROHR_MASS component is added to the soft-body container.
 
 ### `rohr_physics_mass_get`
 
@@ -1577,11 +1609,7 @@ the container. Failure preserves every node.
 MassResult rohr_physics_mass_get(Entity entity);
 ```
 
-Returns stored ordinary mass or the sum of current soft-body node masses.
-An empty soft body returns zero. Invalid entities, missing node mass components,
-and unrepresentable totals return an error. `mass_check` and `mass_remove` retain
-their ordinary mass-component semantics; aggregate mass is not a container
-component.
+ Returns stored mass, or summed node mass for a soft body (zero when empty).
 
 ### `rohr_physics_force_add`
 
@@ -1927,10 +1955,17 @@ EngineResult rohr_physics_orientation_radians_set(Entity entity, Orientation ang
 EngineResult rohr_physics_angular_velocity_set(Entity entity, AngularVelocity v);
 ```
 
-Sets clockwise angular velocity in degrees per second. For soft bodies this
-adjusts node velocities around COM once, preserving COM translation, residual
-deformation, and node body modes. Invalid or unrepresentable edits fail without
-mutation; no container angular-velocity component is created.
+Sets clockwise angular velocity in degrees per second.
+
+For a soft body, adjusts node velocities around its mass-weighted COM,
+
+preserving COM translation and deformation motion. This is a one-time edit,
+
+not a constraint. Node body modes are preserved; no container angular state
+
+is created. Empty/degenerate bodies and invalid or overflowing values fail
+
+without mutation.
 
 | Parameter | Description |
 | --- | --- |
@@ -1953,10 +1988,13 @@ EngineResult rohr_physics_angular_velocity_radians_set(Entity entity, AngularVel
 AngularVelocityResult rohr_physics_angular_velocity_get(Entity entity);
 ```
 
-Returns an entity angular velocity. For soft bodies this derives clockwise
-angular momentum divided by node inertia about COM, converted to degrees per
-second. Empty or degenerate bodies return an error. See
-[soft-body angular velocity](physics.md#soft-body-angular-velocity).
+Returns an entity angular velocity.
+
+For a soft body, derives clockwise angular momentum divided by inertia from
+
+current node motion about COM. Empty or degenerate bodies return an error;
+
+no single physical orientation is implied.
 
 | Parameter | Description |
 | --- | --- |
@@ -2027,6 +2065,7 @@ EngineResult rohr_physics_restitution_set(Entity entity, Restitution restitution
 Sets an entity restitution value.
 
 For soft-body beams, stores an independent coefficient without enabling
+
 collision. Beam values must be finite and in [0, 1]; errors preserve state.
 
 | Parameter | Description |
@@ -2169,6 +2208,7 @@ EngineResult rohr_physics_friction_set(Entity entity, float friction);
 Sets an entity friction value.
 
 For soft-body beams, stores an independent coefficient without enabling
+
 collision. Beam values must be finite and nonnegative; errors preserve state.
 
 | Parameter | Description |
@@ -2405,10 +2445,10 @@ Configures a joint entity as a damped spring between two anchors.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_soft_body_create`
+### `rohr_physics_soft_body_add`
 
 ```c
-EntityResult rohr_physics_soft_body_create(void);
+EntityResult rohr_physics_soft_body_add(SoftBodyDescription description);
 ```
 
 Creates an empty soft body and its origin transform.
@@ -2417,9 +2457,13 @@ The returned owner entity is also the body's origin and may be passed to
 
 rohr_physics_position_set and rohr_physics_orientation_set. Changing that
 
-transform translates or rotates all existing nodes without changing their
+transform translates or rotates owned nodes without changing their
 
 topology. SoftBody.origin exposes the same entity for attachment APIs.
+
+| Parameter | Description |
+| --- | --- |
+| `description` | Copied owner and initial world pose; zero initializes an independent empty body at the origin. Owner may be any live entity. |
 
 **Returns:** EntityResult containing the owner/origin entity.
 
@@ -2431,30 +2475,29 @@ SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
 
  @brief Returns soft-body topology. @param soft_body Soft-body owner. @return SoftBodyResult.
 
-### `rohr_physics_soft_body_node_create`
+### `rohr_physics_soft_body_node_add`
 
 ```c
-EntityResult rohr_physics_soft_body_node_create(Entity soft_body, Position position, Mass mass_value, float radius);
+EntityResult rohr_physics_soft_body_node_add(SoftBodyNodeDescription description);
 ```
 
 Creates a lightweight point-mass node.
 
 | Parameter | Description |
 | --- | --- |
-| `soft_body` | Owning soft body. |
-| `position` | Initial world position. |
-| `mass` | Node mass. |
-| `radius` | Collision radius. |
+| `description` | Copied owner, world position, positive mass and radius. An invalid owner means independent lifetime; any live owner is accepted. Omitted or zero mass/radius is invalid. Other initialization defaults match existing nodes: zero motion, default node collision filter and material. |
 
 **Returns:** EntityResult containing the node entity.
 
-### `rohr_physics_soft_body_node_local_create`
+### `rohr_physics_soft_body_node_local_add`
 
 ```c
-EntityResult rohr_physics_soft_body_node_local_create( Entity soft_body, Position local_position, Mass mass_value, float radius);
+EntityResult rohr_physics_soft_body_node_local_add(SoftBodyNodeDescription description);
 ```
 
- Creates a node from a position relative to the soft-body origin.
+ Creates a node from an owner-local position. Requires a live soft-body owner;
+
+uses its origin position and orientation exactly once.
 
 ### `rohr_physics_soft_body_node_get`
 
@@ -2511,15 +2554,6 @@ Applies an immediate impulse to one soft-body node.
 
 **Returns:** EngineResult describing success or failure.
 
-### Whole-soft-body loads
-
-Whole-body forces and torques use `rohr_physics_force_apply(ForceDescription)`
-and `rohr_physics_torque_apply(TorqueDescription)`, or their persistent `add`
-equivalents, with the soft-body owner as target. Select a COM location reference
-explicitly for pure translation. Current node masses and geometry determine the
-shares each substep, including shares absorbed by fixed/held nodes. See the
-[shared contract](force_torque_contract.md) for distribution and failure rules.
-
 ### `rohr_physics_soft_body_node_to_anchor_pin_create`
 
 ```c
@@ -2535,10 +2569,10 @@ Pins a soft-body node to an existing anchor.
 
 **Returns:** SoftBodyNodeAnchorPinResult containing the joint and node-owned anchor. Remove node_anchor to remove both the attachment joint and the created anchor.
 
-### `rohr_physics_soft_body_beam_create`
+### `rohr_physics_soft_body_beam_add`
 
 ```c
-EntityResult rohr_physics_soft_body_beam_create( Entity soft_body, Entity node_a, Entity node_b, float stiffness, float damping );
+EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description);
 ```
 
 Creates an elastic beam between two nodes.
@@ -2553,11 +2587,7 @@ Beams start with independent friction 0 and restitution 0.25.
 
 | Parameter | Description |
 | --- | --- |
-| `soft_body` | Owning soft body. |
-| `node_a` | First node. |
-| `node_b` | Second node. |
-| `stiffness` | Spring stiffness. |
-| `damping` | Relative velocity damping. |
+| `description` | Copied owner, node endpoints, stiffness and damping. Endpoints may have different owners or be ENTITY_INVALID. Rest length is derived from complete endpoints. Stiffness and damping are finite and nonnegative; explicit zero remains zero. Any live owner is accepted. |
 
 **Returns:** EntityResult containing the beam entity.
 
@@ -2611,26 +2641,37 @@ EngineResult rohr_physics_soft_body_beam_collision_filter_set( Entity beam, Rohr
 
  Sets the collision filters owned independently by a beam.
 
-### `rohr_physics_soft_body_area_create`
+### `rohr_physics_soft_body_area_add`
 
 ```c
-EntityResult rohr_physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry);
+EntityResult rohr_physics_soft_body_area_add(SoftBodyAreaDescription description);
 ```
 
 Creates an area from an outer loop minus its owned hole loops.
 
-Copies geometry. Each loop has 3–64 distinct live nodes from the owning soft
-body and closes implicitly. Self-crossing loops are accepted when they enclose
-space. Every enclosed outer region is filled once, minus all enclosed hole
-regions, independent of traversal direction. Holes may extend beyond the outer
-loop.
+Copies geometry. Each loop has 3..64 distinct live nodes from soft_body and
 
-More than 16 holes returns `ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED`. Invalid creation
-creates nothing. Areas add no mass or collision.
+closes implicitly. Self-crossing loops are accepted when they enclose space.
+
+Every enclosed outer region is filled once, minus all enclosed hole regions,
+
+independent of traversal direction. Holes may extend beyond the outer loop.
+
+More than 16 holes returns ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED.
+
+Invalid creation creates nothing. Areas add no mass or collision.
 
 New areas are visible, inherit the draw surface color and append to list order.
+
 Node motion updates the fill, including collapse and crossings. Delete with
-`rohr_entity_delete`; deleting any referenced node or the owner deletes the area.
+
+rohr_entity_delete. Deleting its owner deletes the area; deleting a referenced
+
+node clears that slot and leaves the area alive. Nodes may have other owners.
+
+| Parameter | Description |
+| --- | --- |
+| `description` | Copied owner and geometry. Any live owner is accepted; ENTITY_INVALID means independent lifetime. Incomplete loops remain supported. |
 
 ### `rohr_physics_soft_body_area_get`
 
@@ -3043,7 +3084,11 @@ bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float 
 Report rohr_graphics_show(void);
 ```
 
-Runs camera preparation, command execution, viewport composition, recording, and presentation; returns their combined report. Recording failure still permits presentation. See [graphics reporting](reports.md#graphics-reports).
+ Return a composed frame report. Recording failure still permits presentation.
+
+Standalone order: cameras, commands, viewports, recording, presentation.
+
+Frame pipelines must not be called recursively from camera callbacks.
 
 ### `rohr_graphics_pipeline_cameras_update`
 
@@ -3051,7 +3096,7 @@ Runs camera preparation, command execution, viewport composition, recording, and
 Report rohr_graphics_pipeline_cameras_update(void);
 ```
 
-Updates camera motion and queues drawing through camera callbacks. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+ Update camera motion and queue camera callback drawing.
 
 ### `rohr_graphics_pipeline_commands_execute`
 
@@ -3059,7 +3104,7 @@ Updates camera motion and queues drawing through camera callbacks. See [pipeline
 Report rohr_graphics_pipeline_commands_execute(void);
 ```
 
-Executes queued commands and consumes pending submission diagnostics. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+ Consume pending submission diagnostics and execute queued commands.
 
 ### `rohr_graphics_pipeline_viewports_draw`
 
@@ -3067,7 +3112,7 @@ Executes queued commands and consumes pending submission diagnostics. See [pipel
 Report rohr_graphics_pipeline_viewports_draw(void);
 ```
 
-Composes screens and viewport UI into the window. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+ Compose screens and viewport UI after command execution.
 
 ### `rohr_graphics_pipeline_recording_update`
 
@@ -3075,7 +3120,7 @@ Composes screens and viewport UI into the window. See [pipeline prerequisites an
 Report rohr_graphics_pipeline_recording_update(void);
 ```
 
-Captures and writes a recording frame; returns NOT_RUN when recording is inactive. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+ Capture the composed frame; inactive recording returns NOT_RUN.
 
 ### `rohr_graphics_pipeline_present`
 
@@ -3083,7 +3128,7 @@ Captures and writes a recording frame; returns NOT_RUN when recording is inactiv
 Report rohr_graphics_pipeline_present(void);
 ```
 
-Applies frame limiting and presents the composed frame. See [pipeline prerequisites and ownership](reports.md#boundaries-prerequisites-and-ownership).
+ Apply frame limiting and present the composed frame.
 
 ### `rohr_graphics_vsync_set`
 
@@ -3378,62 +3423,63 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
 ```
 
-Loads or shares an image catalog using `frame_files[]`, stable IDs, and default
-timing. Descriptors contain no dimensions or transforms. Catalog frame lookup
-returns a copied value with scale 1, offset/rotation zero, and a borrowed image.
-Each sprite receives independent transform copies while sharing image resources.
+Loads or shares an immutable animation resource.
 
-Frame scale multiplies the native pixel dimensions. Negative X/Y flips image
-content before rotation; Left XORs the horizontal flip. Zero collapses drawing
-and image selection. Frame offsets and centers never change when frame scale
-changes. Sprite scale multiplies frame dimensions without scaling offsets or
-moving frame centers; sprite orientation still rotates the arrangement around
-its origin. Rotation defaults to clockwise degrees;
-the `_radians_` setter/getter explicitly converts radians.
+The descriptor supplies image paths, stable IDs, and default timing.
 
-Reusable values and post-creation mutation:
-
-```c
-TextureAssetResult image = rohr_graphics_texture_load(
-    (TextureDescriptor){.file = "assets/walk_1.png"});
-if(rohr_error_check(image)) return;
-AnimationFrame frame = rohr_graphics_animation_frame_create(image.result.value);
-frame.scale = (Scale){-0.5f, 0.5f};
-frame.offset = (Position){12, -4};
-frame.rotation = 15;
-
-AnimatedSprite animation = rohr_graphics_animated_sprite_create(
-    (AnimationAsset){0}, (Scale){1, 1});
-EngineResult result = rohr_graphics_animated_sprite_value_frame_add(&animation, frame);
-if(!rohr_error_check(result)) result = rohr_graphics_animated_sprite_add(entity_a, animation);
-if(!rohr_error_check(result)) result = rohr_graphics_animated_sprite_add(entity_b, animation);
-(void)rohr_graphics_texture_release(&image.result.value);
-if(rohr_error_check(result)) return;
-
-result = rohr_graphics_animated_sprite_frame_scale_set(entity_a, 0, (Scale){2, 1});
-/* entity_b and the reusable value retain their previous transforms. */
-```
-
-Value builders borrow image handles; keep the original owners until component
-insertion. Component insertion and entity frame setters acquire their own image
-references. Never use value builders directly on an installed component.
-Getters return copies containing borrowed images, which must not be released.
-Mutating a reusable value after insertion does not change previously inserted copies.
-
-The instance API offers `frame_get`, `frame_set`, and `frame_add`, plus
-`frame_scale_set/get`, `frame_offset_set/get`, and
-`frame_rotation_set/get` (`frame_rotation_radians_set/get` for radians),
-all prefixed `rohr_graphics_animated_sprite_` and addressed by entity and
-zero-based frame index. `rohr_graphics_texture_size_get` returns native pixels.
-Setters accept finite signed/zero scale, preserve playback progress and timing,
-and leave prior state and ownership intact on error. Frame ID zero auto-assigns
-on add and preserves the previous ID on replacement; duplicate IDs are rejected.
+Frame transforms are copied into each instance and edited after creation.
 
 | Parameter | Description |
 | --- | --- |
 | `anim_desc` | Animation descriptor containing load settings. |
 
 **Returns:** AnimationAssetResult containing the asset, or an error.
+
+### `rohr_graphics_texture_size_get`
+
+```c
+TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset);
+```
+
+ Native pixel dimensions, independent of TextureAsset.size.
+
+### `rohr_graphics_animation_frame_create`
+
+```c
+AnimationFrame rohr_graphics_animation_frame_create(TextureAsset texture);
+```
+
+ Borrowed image value with native size, scale {1,1}, zero offset/rotation/id.
+
+### `rohr_graphics_animated_sprite_value_frame_add`
+
+```c
+EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame);
+```
+
+ Non-owning builders: copy values; keep image owners alive until component add.
+
+Use only on unattached values, never directly on an installed component.
+
+ID zero assigns an unused ID on add and preserves the current ID on set.
+
+### `rohr_graphics_animated_sprite_frame_get`
+
+```c
+AnimationFrameResult rohr_graphics_animated_sprite_frame_get(Entity entity, size_t index);
+```
+
+ Get a copied instance frame with a borrowed image. Do not release its texture.
+
+### `rohr_graphics_animated_sprite_frame_set`
+
+```c
+EngineResult rohr_graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame);
+```
+
+ Instance mutation retains images, preserves playback, and rolls back on error.
+
+Signed scale flips content; zero collapses the image. All transforms must be finite.
 
 ### `rohr_graphics_animation_retain`
 
@@ -3477,7 +3523,7 @@ AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
 AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index);
 ```
 
- @brief Returns a copied catalog frame with scale one and a borrowed texture value.
+ @brief Returns a reusable catalog frame with scale one and a borrowed texture.
 
 ### `rohr_graphics_animation_player_create`
 
@@ -3589,7 +3635,7 @@ Draws all animated sprite components.
 Report rohr_graphics_sprite_frames_update(Tick current_tick, Time current_time);
 ```
 
-Updates animated sprite frames and returns an independent animation report. Graphics presentation does not automatically advance animation.
+Updates animated sprite frames.
 
 | Parameter | Description |
 | --- | --- |
@@ -4738,20 +4784,6 @@ Returns a random float in a range.
 
 ## Other
 
-### `rohr_report_get`
-
-```c
-ReportResult rohr_report_get(ReportFlags flags);
-```
-
-Returns an independent, non-consuming snapshot or composes selectors combined
-with `|`. `ROHR_REPORT` selects all supported stored reports. Zero, unknown bits,
-and input selection return `ERROR_ENGINE_REPORT_INVALID`. Composition omits only
-child versions covered by selected parents. A single never-published selection
-returns NOT_RUN. Report identities use `_ID` constants, not selection flags.
-Thread-safe retrieval persists across shutdown/restart; see
-[Stored reports](reports.md#stored-reports).
-
 ### `rohr_report_create`
 
 ```c
@@ -4759,6 +4791,16 @@ Report rohr_report_create(void);
 ```
 
  Returns an empty caller-owned report builder, independent of engine startup.
+
+### `rohr_report_get`
+
+```c
+ReportResult rohr_report_get(ReportFlags flags);
+```
+
+ Return an owned snapshot or compose selectors joined with |. Zero and
+
+unsupported bits return an error; ROHR_REPORT selects all supported reports.
 
 ### `rohr_report_valid_check`
 
@@ -4830,8 +4872,7 @@ loss counts; the reserved first fatal is not dropped. Merge each child once.
 EngineResult rohr_report_console_write(const Report *report);
 ```
 
-Writes an existing report through the engine console, one prefixed line at a time.
-Preserves the report; returns output failures separately from reported failures.
+ Write a validated report through the console; no engine startup required.
 
 ### `rohr_report_json_write`
 
@@ -4839,9 +4880,11 @@ Preserves the report; returns output failures separately from reported failures.
 EngineResult rohr_report_json_write(const Report *report, const char *path, bool pretty);
 ```
 
-Replaces a file with version 2 report JSON, including publication and group metadata. Pretty mode changes whitespace only.
-Uses temporary allocation; invalid reports and serialization failures do not open
-the destination. I/O failure may leave a partial file. Does not create directories.
+ Replace a file with versioned JSON; pretty changes whitespace only.
+
+Uses temporary allocation. Invalid reports/paths fail before opening the file.
+
+An I/O failure can leave a partial file. The source report is never modified.
 
 ### `rohr_report_text_write`
 
@@ -4849,9 +4892,9 @@ the destination. I/O failure may leave a partial file. Does not create directori
 EngineResult rohr_report_text_write(const Report *report, const char *path);
 ```
 
-Replaces a file with the console report format without console prefixes. Does not
-require engine startup or create directories. I/O failure may leave a partial file.
-See [report output](reports.md#console-and-file-output) for errors and format details.
+ Replace a file with readable report text, without console prefixes.
+
+Does not create directories. An I/O failure can leave a partial file.
 
 ### `rohr_audio_start`
 
@@ -5237,7 +5280,7 @@ UISliderDefinitionResult rohr_ui_slider_by_name_get(const char *name);
 EngineResult rohr_game_state_file_save(const char *path);
 ```
 
- Saves all named live entities to a JSON game-state file.
+ Saves all live entities using their unique names to a JSON game-state file.
 
 ### `rohr_game_state_template_file_save`
 
@@ -5586,31 +5629,3 @@ UISliderResult rohr_ui_slider_with_text(const char *id, float value, const UISli
 ```
 
  @brief Draws a slider with optional caller-owned label and value text.
-
-
-### Soft-body areas in the editor
-
-Node-loop areas and owned holes persist in editor projects and generate through
-`rohr_physics_soft_body_area_create`. Scene and camera previews use the same
-current-boundary geometry as runtime rendering. Each area owns its color,
-visibility, layer binding, and position in the area's drawing order. Holes
-subtract only from that area. The editor stores node IDs, not reference poses
-or authored triangles. Manual triangle primitives and beam-derived area APIs
-remain removed.
-
-New soft bodies have four square nodes, six beams, and one filled square area.
-Existing schema-7 projects without an `areas` property load without adding areas
-to their existing bodies. New area and hole IDs are stable within their owner.
-
-Unfinished loops are saved as drafts. If the outer loop or any hole is
-incomplete, the whole area displays amber boundaries and crossed node markers
-without a fill. Generation rejects that definition before replacing generated
-files, identifying the object, soft body, area, and loop. Hidden drafts also
-require completion or removal before generation. Deleting a referenced node
-removes dependent areas; undo restores their complete definitions.
-
-Fill picking respects holes, visibility, layer order, and body transforms.
-Open a soft body for its Areas accordion, then add or open an area to edit its
-ordered node loop and owned holes. The same operations are available through
-CLI selectors and undo/redo. See [Soft bodies](editor.md#soft-bodies) for the
-authoring workflow and commands.

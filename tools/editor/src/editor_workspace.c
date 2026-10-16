@@ -1197,19 +1197,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 soft_body_index += 1) {
             const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
             fprintf(source,
-                "    { EntityResult created = rohr_physics_soft_body_create();\n"
+                "    { EntityResult created = rohr_physics_soft_body_add((SoftBodyDescription){\n"
+                "        .position = {position.x + %#.9gf, position.y + %#.9gf}, .orientation = %#.9gf});\n"
                 "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                 "created.result.error); goto fail; }\n"
                 "      object->%s = created.result.value; }\n",
-                body->name);
-            /* Establish the authored frame before adding world-space nodes. */
-            fprintf(source,
-                "    result = rohr_physics_position_set(object->%s, "
-                "(Position){position.x + %#.9gf, position.y + %#.9gf});\n"
-                "    if(rohr_error_check(result)) goto fail;\n"
-                "    result = rohr_physics_orientation_set(object->%s, %#.9gf);\n"
-                "    if(rohr_error_check(result)) goto fail;\n",
-                body->name, body->position.x, body->position.y, body->name, body->rotation);
+                body->position.x, body->position.y, body->rotation, body->name);
             bool inherited_motion = false;
             Position motion_points[SOFT_BODY_MAX_NODES];
             Mass motion_masses[SOFT_BODY_MAX_NODES];
@@ -1242,9 +1235,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 Acceleration acceleration = node->initial_motion_inherited ?
                     body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_node_create("
-                    "object->%s, (Position){position.x + %#.9gf, "
-                    "position.y + %#.9gf}, %#.9gf, %#.9gf);\n"
+                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){"
+                    ".owner = object->%s, .position = {position.x + %#.9gf, "
+                    "position.y + %#.9gf}, .mass = %#.9gf, .radius = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                     "created.result.error); goto fail; }\n"
                     "      object->%s = created.result.value; }\n",
@@ -1289,9 +1282,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body, beam->node_b);
                 if(node_a == NULL || node_b == NULL) continue;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_beam_create("
-                    "object->%s, object->%s, "
-                    "object->%s, %#.9gf, %#.9gf);\n"
+                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){"
+                    ".owner = object->%s, .node_a = object->%s, "
+                    ".node_b = object->%s, .stiffness = %#.9gf, .damping = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                     "created.result.error); goto fail; }\n"
                     "      object->%s = created.result.value; }\n",
@@ -1342,7 +1335,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     }
                 }
                 fprintf(source,
-                    "      EntityResult created = rohr_physics_soft_body_area_create(object->%s, geometry);\n"
+                    "      EntityResult created = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.owner = object->%s, .geometry = geometry});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }\n"
                     "      object->%s_areas[%zu] = created.result.value; }\n"
                     "    result = rohr_graphics_soft_body_area_color_set(object->%s_areas[%zu], "

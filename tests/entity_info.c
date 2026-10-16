@@ -196,17 +196,31 @@ static void geometry_and_sources(void) {
     positions_pool.used[index] = previous; OK(entity_info_release(&info));
     OK(entity_delete(e));
 
-    EntityResult body = physics_soft_body_create(); OK(body);
+    EntityResult body = physics_soft_body_add((SoftBodyDescription){0}); OK(body);
     Entity nodes[3];
     Position points[] = {{0,0}, {4,0}, {0,4}};
     for(size_t i = 0; i < 3; ++i) {
-        EntityResult node = physics_soft_body_node_create(body.result.value, points[i], 1, 0.5f);
+        EntityResult node = physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = body.result.value,
+            .position = points[i],
+            .mass = 1,
+            .radius = 0.5f
+        });
         OK(node); nodes[i] = node.result.value;
     }
-    EntityResult beam = physics_soft_body_beam_create(body.result.value, nodes[0], nodes[1], 10, 1); OK(beam);
+    EntityResult beam = physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body.result.value,
+        .node_a = nodes[0],
+        .node_b = nodes[1],
+        .stiffness = 10,
+        .damping = 1
+    }); OK(beam);
     SoftBodyAreaGeometry geometry = {.outer = {.node_count = 3}};
     memcpy(geometry.outer.nodes, nodes, sizeof(nodes));
-    EntityResult area = physics_soft_body_area_create(body.result.value, geometry); OK(area);
+    EntityResult area = physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = body.result.value,
+        .geometry = geometry
+    }); OK(area);
     info = capture(body.result.value, F(PHYSICS_SOFT_BODY) | F(PHYSICS_COM_WORLD) | F(PHYSICS_MASS));
     assert(info.soft_body_node_count == 3 && info.soft_body_beam_count == 1 && info.soft_body_area_count == 1);
     assert(info.mass_value == 3 && fabsf(info.center_of_mass_world.x - 4.0f/3) < 0.001f);

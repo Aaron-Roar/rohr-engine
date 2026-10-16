@@ -33,11 +33,15 @@ int main(void) {
     if(rohr_error_check(hitbox) ||
             !position_check(hitbox.result.value.vertices[0], -4.0f, -2.0f))
         goto fail;
-    soft_body = rohr_physics_soft_body_create();
+    soft_body = rohr_physics_soft_body_add((SoftBodyDescription){0});
     if(rohr_error_check(soft_body)) goto fail;
     for(size_t i = 0; i < 4; i += 1) {
-        nodes[i] = rohr_physics_soft_body_node_create(soft_body.result.value,
-            shuffled.vertices[i], 1.0f, 0.5f);
+        nodes[i] = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = soft_body.result.value,
+            .position = shuffled.vertices[i],
+            .mass = 1.0f,
+            .radius = 0.5f
+        });
         if(rohr_error_check(nodes[i])) goto fail;
     }
     if(rohr_error_check(rohr_physics_soft_body_autoshape_rectangle_set(

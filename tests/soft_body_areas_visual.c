@@ -39,13 +39,17 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
     bool layered = kind == 1;
     static const Position window[] = {{-110,-110},{110,-110},{110,110},{-110,110},
         {-45,-45},{45,-45},{45,45},{-45,45}};
-    EntityResult body = rohr_physics_soft_body_create(); OK(body);
+    EntityResult body = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(body);
     scene->body = body.result.value;
     scene->count = layered ? 9 : kind == 2 ? 8 : 4;
     memcpy(scene->reference, layered ? layers : kind == 2 ? window : square, scene->count * sizeof(Position));
     for(unsigned i = 0; i < scene->count; i += 1) {
-        EntityResult node = rohr_physics_soft_body_node_create(
-            scene->body, scene->reference[i], 1, 4); OK(node);
+        EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = scene->body,
+            .position = scene->reference[i],
+            .mass = 1,
+            .radius = 4
+        }); OK(node);
         scene->nodes[i] = node.result.value;
         OK(rohr_graphics_layer_entity_set(node.result.value, 10));
     }
@@ -56,24 +60,38 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
         geometry.hole_count=1;
         geometry.holes[0]=(SoftBodyAreaLoop){.nodes={scene->nodes[4],scene->nodes[5],scene->nodes[6],scene->nodes[7]},.node_count=4};
     }
-    EntityResult area = rohr_physics_soft_body_area_create(scene->body, geometry); OK(area);
+    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = scene->body,
+        .geometry = geometry
+    }); OK(area);
     scene->area = area.result.value;
     if(layered) {
-        EntityResult overlay = rohr_physics_soft_body_area_create(scene->body, (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={scene->nodes[6],scene->nodes[7],scene->nodes[8]},.node_count=3}});
+        EntityResult overlay = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+            .owner = scene->body,
+            .geometry = (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={scene->nodes[6],scene->nodes[7],scene->nodes[8]},.node_count=3}}
+        });
         OK(overlay); scene->overlay = overlay.result.value;
         OK(rohr_graphics_soft_body_area_color_set(scene->overlay,(Color){235,95,65,255}));
         OK(rohr_graphics_layer_entity_set(scene->overlay,3));
     } else {
         if(kind == 2) {
-            EntityResult behind=rohr_physics_soft_body_area_create(scene->body,(SoftBodyAreaGeometry){.outer=loop}); OK(behind);
+            EntityResult behind=rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+                .owner = scene->body,
+                .geometry = (SoftBodyAreaGeometry){.outer=loop}
+            }); OK(behind);
             scene->overlay=behind.result.value;
             OK(rohr_graphics_soft_body_area_color_set(scene->overlay,(Color){235,95,65,255}));
             OK(rohr_graphics_layer_entity_set(scene->overlay,-1));
         }
         for(unsigned i = 0; i < scene->count; i += 1) {
             unsigned next=(i/4)*4+(i+1)%4;
-            EntityResult edge = rohr_physics_soft_body_beam_create(
-                scene->body,scene->nodes[i],scene->nodes[next],1,0); OK(edge);
+            EntityResult edge = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+                .owner = scene->body,
+                .node_a = scene->nodes[i],
+                .node_b = scene->nodes[next],
+                .stiffness = 1,
+                .damping = 0
+            }); OK(edge);
             OK(rohr_graphics_layer_entity_set(edge.result.value,10));
         }
     }

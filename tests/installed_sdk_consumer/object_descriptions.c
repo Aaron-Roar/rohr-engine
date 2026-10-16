@@ -8,6 +8,19 @@
 #define OK(call) assert(!rohr_error_check(call))
 int main(void) {
     OK(rohr_engine_start());
+    SoftBodyDescription soft_description = {.position = {2, 3}};
+    EntityResult soft = rohr_physics_soft_body_add(soft_description); OK(soft);
+    SoftBodyNodeDescription node_description = {.owner = soft.result.value,
+        .position = {1, 0}, .mass = 1, .radius = 1};
+    EntityResult local = rohr_physics_soft_body_node_local_add(node_description); OK(local);
+    EntityResult world = physics_soft_body_node_add(node_description); OK(world);
+    assert(rohr_physics_position_get(local.result.value).result.value.x == 3);
+    assert(rohr_physics_position_get(world.result.value).result.value.x == 1);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = soft.result.value, .node_a = local.result.value, .node_b = world.result.value}); OK(beam);
+    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.owner = soft.result.value}); OK(area);
+    OK(rohr_entity_delete(soft.result.value));
+    assert(!rohr_entity_alive_check(local.result.value) && !rohr_entity_alive_check(beam.result.value));
     assert(objects.mass_demo.automatic_body.mass > 0);
     EntityResult direct=rohr_entity_object_add(objects.mass_demo.automatic_body); OK(direct);
     EntityResult named=rohr_entity_object_by_name_add(objects.mass_demo,"automatic_body"); OK(named);

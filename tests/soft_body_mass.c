@@ -117,7 +117,7 @@ static void api_tests(void) {
     assert(rohr_error_check(rohr_physics_mass_get(ordinary.result.value)));
     OK(rohr_physics_mass_set(ordinary.result.value, 3));
     near(rohr_physics_mass_get(ordinary.result.value).result.value, 3, 0);
-    EntityResult body = rohr_physics_soft_body_create(); OK(body);
+    EntityResult body = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(body);
     near(rohr_physics_mass_get(body.result.value).result.value, 0, 0);
     assert(rohr_error_check(rohr_physics_center_of_mass_local_position_get(body.result.value)));
     assert(rohr_error_check(rohr_physics_mass_set(body.result.value, 10)));
@@ -126,7 +126,12 @@ static void api_tests(void) {
     Position points[] = {{-1,-1},{1,-1},{1,1},{-1,1}};
     Entity nodes[4];
     for(int i=0;i<4;i++) {
-        EntityResult node = rohr_physics_soft_body_node_create(body.result.value, points[i], 1, .1f);
+        EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = body.result.value,
+            .position = points[i],
+            .mass = 1,
+            .radius = .1f
+        });
         OK(node); nodes[i] = node.result.value;
         OK(rohr_physics_velocity_set(nodes[i], (Velocity){2,3}));
     }

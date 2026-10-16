@@ -47,20 +47,46 @@ static void naming(void) {
     expect_name(take(physics_force_add((ForceDescription){0})),"force_1");
     expect_name(take(rohr_physics_torque_add((TorqueDescription){0})),"torque_1");
     expect_name(take(rohr_physics_particle_create(physics_particle_config_default_get())),"particle_1");
-    Entity body=take(rohr_physics_soft_body_create()); expect_name(body,"soft_body_1");
-    Entity node=take(physics_soft_body_node_create(body,(Position){0},1,1));
+    Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0})); expect_name(body,"soft_body_1");
+    Entity node=take(physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){0},
+        .mass = 1,
+        .radius = 1
+    }));
     expect_name(node,"soft_body_1_node_1");
     OK(entity_name_set(body,"renamed"));
-    Entity node2=take(rohr_physics_soft_body_node_create(body,(Position){2,0},1,1));
+    Entity node2=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){2,0},
+        .mass = 1,
+        .radius = 1
+    }));
     expect_name(node2,"renamed_node_1"); expect_name(node,"soft_body_1_node_1");
-    expect_name(take(physics_soft_body_beam_create(body,node,node2,1,1)),"renamed_beam_1");
+    expect_name(take(physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body,
+        .node_a = node,
+        .node_b = node2,
+        .stiffness = 1,
+        .damping = 1
+    })),"renamed_beam_1");
     char long_name[ENTITY_NAME_MAX]; memset(long_name,'x',sizeof(long_name)-1); long_name[sizeof(long_name)-1]=0;
     OK(entity_name_set(body,long_name));
-    Entity first=take(physics_soft_body_node_create(body,(Position){0},1,1));
+    Entity first=take(physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = (Position){0},
+        .mass = 1,
+        .radius = 1
+    }));
     EntityName n=entity_name_get(first).result.value;
     assert(strlen(n.value)==ENTITY_NAME_MAX-1 && strcmp(n.value+strlen(n.value)-7,"_node_1")==0);
-    Entity other=take(physics_soft_body_create()); long_name[ENTITY_NAME_MAX-2]='y'; OK(entity_name_set(other,long_name));
-    n=entity_name_get(take(physics_soft_body_node_create(other,(Position){0},1,1))).result.value;
+    Entity other=take(physics_soft_body_add((SoftBodyDescription){0})); long_name[ENTITY_NAME_MAX-2]='y'; OK(entity_name_set(other,long_name));
+    n=entity_name_get(take(physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = other,
+        .position = (Position){0},
+        .mass = 1,
+        .radius = 1
+    }))).result.value;
     assert(strcmp(n.value+strlen(n.value)-7,"_node_2")==0);
     restart();
 }
@@ -68,15 +94,26 @@ static void naming(void) {
 static void fixture(void) {
     /* Source created before topology: reconnection must be a separate pass. */
     Entity source=take(physics_force_add((ForceDescription){0}));
-    Entity body=take(physics_soft_body_create());
+    Entity body=take(physics_soft_body_add((SoftBodyDescription){0}));
     Entity nodes[8];
     const Position node_positions[8]={{0,0},{20,0},{20,20},{0,20},{5,5},{5,10},{10,10},{10,5}};
-    for(int i=0;i<8;++i) nodes[i]=take(physics_soft_body_node_create(body,node_positions[i],i+1,1));
-    Entity beam=take(physics_soft_body_beam_create(body,nodes[0],nodes[1],17,0.4f));
+    for(int i=0;i<8;++i) nodes[i]=take(physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = body,
+        .position = node_positions[i],
+        .mass = i+1,
+        .radius = 1
+    }));
+    Entity beam=take(physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body,
+        .node_a = nodes[0],
+        .node_b = nodes[1],
+        .stiffness = 17,
+        .damping = 0.4f
+    }));
     OK(physics_friction_set(beam,0.7f)); OK(physics_restitution_set(beam,0.6f));
     SoftBodyAreaGeometry geometry={.outer={.node_count=4},.hole_count=1,.holes={{.node_count=4}}};
     memcpy(geometry.outer.nodes,nodes,4*sizeof(Entity)); memcpy(geometry.holes[0].nodes,nodes+4,4*sizeof(Entity));
-    Entity area=take(physics_soft_body_area_create(body,geometry));
+    Entity area=take(physics_soft_body_area_add((SoftBodyAreaDescription){.owner = body, .geometry = geometry}));
     expect_name(area,"soft_body_1_area_1");
     OK(graphics_soft_body_area_color_set(area,(Color){11,22,33,44}));
     OK(graphics_soft_body_area_visibility_set(area,false));
@@ -115,7 +152,7 @@ static void fixture(void) {
     take(physics_torque_add((TorqueDescription){0}));
     OK(physics_force_apply((ForceDescription){.target=nodes[1],.magnitude=3}));
     OK(physics_torque_apply((TorqueDescription){.target=body,.magnitude=3}));
-    take(physics_soft_body_create()); /* empty owner */
+    take(physics_soft_body_add((SoftBodyDescription){0})); /* empty owner */
 }
 static void same_file(const char *a,const char *b) {
     char *first=read_text(a),*second=read_text(b);
@@ -267,13 +304,27 @@ static void lifetime(void) {
     restart();
 }
 static void capacity(void) {
-    Entity body=take(physics_soft_body_create()); Entity nodes[SOFT_BODY_MAX_NODES];
+    Entity body=take(physics_soft_body_add((SoftBodyDescription){0})); Entity nodes[SOFT_BODY_MAX_NODES];
     for(unsigned i=0;i<SOFT_BODY_MAX_NODES;++i)
-        nodes[i]=take(physics_soft_body_node_create(body,(Position){(float)(i%8)*10,(float)(i/8)*10},1,1));
+        nodes[i]=take(physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = body,
+            .position = (Position){(float)(i%8)*10,(float)(i/8)*10},
+            .mass = 1,
+            .radius = 1
+        }));
     for(unsigned i=0;i<SOFT_BODY_MAX_BEAMS;++i)
-        take(physics_soft_body_beam_create(body,nodes[i%64],nodes[(i+1)%64],1,0));
+        take(physics_soft_body_beam_add((SoftBodyBeamDescription){
+            .owner = body,
+            .node_a = nodes[i%64],
+            .node_b = nodes[(i+1)%64],
+            .stiffness = 1,
+            .damping = 0
+        }));
     SoftBodyAreaGeometry geometry={.outer={.nodes={nodes[0],nodes[1],nodes[8]},.node_count=3}};
-    for(unsigned i=0;i<SOFT_BODY_MAX_AREAS;++i) take(physics_soft_body_area_create(body,geometry));
+    for(unsigned i=0;i<SOFT_BODY_MAX_AREAS;++i) take(physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = body,
+        .geometry = geometry
+    }));
     OK(game_state_file_save("runtime_capacity.json")); restart();
     OK(game_state_file_load("runtime_capacity.json"));
     SoftBody value=physics_soft_body_get(named("soft_body_1")).result.value;
@@ -286,10 +337,24 @@ static void capacity(void) {
     assert(physics_soft_body_area_get(value.areas[0]).result.value.geometry.outer.nodes[0]==ENTITY_INVALID);
     OK(entity_delete(value.beams[0]));
     OK(entity_delete(value.areas[0]));
-    Entity replacement=take(physics_soft_body_node_create(owner,(Position){0,0},2,1));
-    take(physics_soft_body_beam_create(owner,replacement,value.nodes[0],3,0.1f));
-    take(physics_soft_body_area_create(owner,(SoftBodyAreaGeometry){
-        .outer={.nodes={replacement,named("soft_body_1_node_2"),named("soft_body_1_node_9")},.node_count=3}}));
+    Entity replacement=take(physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner,
+        .position = (Position){0,0},
+        .mass = 2,
+        .radius = 1
+    }));
+    take(physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = owner,
+        .node_a = replacement,
+        .node_b = value.nodes[0],
+        .stiffness = 3,
+        .damping = 0.1f
+    }));
+    take(physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = owner,
+        .geometry = (SoftBodyAreaGeometry){
+        .outer={.nodes={replacement,named("soft_body_1_node_2"),named("soft_body_1_node_9")},.node_count=3}}
+    }));
     OK(game_state_file_save("runtime_changed.json")); restart();
     OK(game_state_file_load("runtime_changed.json"));
     OK(game_state_file_save("runtime_changed_again.json")); same_file("runtime_changed.json","runtime_changed_again.json");

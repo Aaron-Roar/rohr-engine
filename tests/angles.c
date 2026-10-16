@@ -122,9 +122,19 @@ static bool physics_check(void) {
     OK(entity_delete(e));
 
     /* Positive soft-body torque rotates the top node toward the right. */
-    EntityResult soft=physics_soft_body_create(); OK(soft);
-    EntityResult top=physics_soft_body_node_create(soft.result.value,(Position){0,2},1,0.1f);
-    EntityResult bottom=physics_soft_body_node_create(soft.result.value,(Position){0,-2},1,0.1f);
+    EntityResult soft=physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult top=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){0,2},
+        .mass = 1,
+        .radius = 0.1f
+    });
+    EntityResult bottom=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){0,-2},
+        .mass = 1,
+        .radius = 0.1f
+    });
     OK(top); OK(bottom);
     OK(physics_torque_apply((TorqueDescription){soft.result.value,8}));
     CHECK((system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);

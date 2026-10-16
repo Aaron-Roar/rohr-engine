@@ -180,10 +180,26 @@ static void force_geometry(void) {
     assert(metric(report,ROHR_REPORT_SOURCE_SUSPENDED_COUNT)==1);
 }
 static void beam_references(void) {
-    EntityResult soft=physics_soft_body_create(); OK(soft);
-    EntityResult a=physics_soft_body_node_create(soft.result.value,(Position){0,0},1,0.1f); OK(a);
-    EntityResult b=physics_soft_body_node_create(soft.result.value,(Position){4,0},1,0.1f); OK(b);
-    EntityResult beam=physics_soft_body_beam_create(soft.result.value,a.result.value,b.result.value,0,0); OK(beam);
+    EntityResult soft=physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult a=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){0,0},
+        .mass = 1,
+        .radius = 0.1f
+    }); OK(a);
+    EntityResult b=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){4,0},
+        .mass = 1,
+        .radius = 0.1f
+    }); OK(b);
+    EntityResult beam=physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = soft.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 0,
+        .damping = 0
+    }); OK(beam);
     Entity target=body((Position){0,0});
     ForceDescription d={.target=target,.magnitude=2,
         .location={.offset={1,2},.reference={.kind=ROHR_FORCE_BEAM_POSITION,
@@ -247,8 +263,13 @@ static void particles(void) {
     config.collision_enabled=false;
     EntityResult p=physics_particle_create(config); OK(p);
     Entity rigid=body((Position){10,0}); OK(physics_particle_radius_set(rigid,1));
-    EntityResult soft=physics_soft_body_create(); OK(soft);
-    EntityResult node=physics_soft_body_node_create(soft.result.value,(Position){20,0},2,0.2f); OK(node);
+    EntityResult soft=physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult node=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){20,0},
+        .mass = 2,
+        .radius = 0.2f
+    }); OK(node);
     Entity entities[]={p.result.value,node.result.value,rigid};
     for(unsigned n=0;n<3;++n) {
         Entity source=add((ForceDescription){.target=entities[n],.location.offset={100,2},
@@ -361,11 +382,27 @@ static Report source_report(void) {
     return report;
 }
 static void beam_loads(void) {
-    EntityResult owner=physics_soft_body_create(); OK(owner);
-    EntityResult a=physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
-    EntityResult b=physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    EntityResult owner=physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
+    EntityResult a=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){0,0},
+        .mass = 2,
+        .radius = 0.1f
+    });
+    EntityResult b=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){10,0},
+        .mass = 4,
+        .radius = 0.1f
+    });
     OK(a); OK(b);
-    EntityResult beam=physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,0,0);
+    EntityResult beam=physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = owner.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 0,
+        .damping = 0
+    });
     OK(beam);
     ForceDescription d={.target=beam.result.value,.magnitude=12,.orientation.offset=90,
         .location.reference={.kind=ROHR_FORCE_BEAM_POSITION,
@@ -391,13 +428,29 @@ static void beam_loads(void) {
 
 typedef struct BeamFixture { Entity owner, a, b, beam, source; } BeamFixture;
 static BeamFixture beam_fixture(float stiffness, float damping) {
-    EntityResult owner=physics_soft_body_create(); OK(owner);
-    EntityResult a=physics_soft_body_node_create(owner.result.value,(Position){0,0},2,0.1f);
-    EntityResult b=physics_soft_body_node_create(owner.result.value,(Position){10,0},4,0.1f);
+    EntityResult owner=physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
+    EntityResult a=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){0,0},
+        .mass = 2,
+        .radius = 0.1f
+    });
+    EntityResult b=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = owner.result.value,
+        .position = (Position){10,0},
+        .mass = 4,
+        .radius = 0.1f
+    });
     OK(a); OK(b);
     OK(entity_components_delete(a.result.value,ROHR_GRAVITY|ROHR_COLLISION));
     OK(entity_components_delete(b.result.value,ROHR_GRAVITY|ROHR_COLLISION));
-    EntityResult beam=physics_soft_body_beam_create(owner.result.value,a.result.value,b.result.value,stiffness,damping);
+    EntityResult beam=physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = owner.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = stiffness,
+        .damping = damping
+    });
     OK(beam); OK(physics_soft_body_beam_collision_disable(beam.result.value));
     return (BeamFixture){owner.result.value,a.result.value,b.result.value,beam.result.value,
         add((ForceDescription){.target=beam.result.value,.magnitude=12,.location.offset={5,0}})};
@@ -544,7 +597,12 @@ static void beam_failures_and_lifetime(void) {
     assert(entity_alive_count_get()==count && metric(report,ROHR_REPORT_SOURCE_CONTRIBUTING_COUNT)==1);
     assert(near(force_accelerations[idx(f.a)].y,3) && near(force_accelerations[idx(f.b)].y,1.5));
     /* Endpoint replacement is re-resolved, and stale generation handles never retarget. */
-    EntityResult c=physics_soft_body_node_create(f.owner,(Position){20,0},8,0.1f); OK(c);
+    EntityResult c=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = f.owner,
+        .position = (Position){20,0},
+        .mass = 8,
+        .radius = 0.1f
+    }); OK(c);
     soft_body_beams[idx(f.beam)].node_b=c.result.value;
     OK(physics_source_change_get(f.source,false,&changes,&active));
     assert(active && changes.values[1].index==idx(c.result.value));
@@ -553,7 +611,13 @@ static void beam_failures_and_lifetime(void) {
     BAD(physics_source_change_get(f.source,false,&changes,&active)); assert(!active);
     /* Endpoint deletion also deletes its connected beam; repair with a new beam. */
     if(entity_alive_check(f.beam)) OK(entity_delete(f.beam));
-    EntityResult rebuilt=physics_soft_body_beam_create(f.owner,f.a,f.b,0,0); OK(rebuilt);
+    EntityResult rebuilt=physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = f.owner,
+        .node_a = f.a,
+        .node_b = f.b,
+        .stiffness = 0,
+        .damping = 0
+    }); OK(rebuilt);
     OK(physics_force_target_set(f.source,rebuilt.result.value));
     OK(physics_source_change_get(f.source,false,&changes,&active)); assert(active);
     assert(original.force.target==f.beam && original.force_eligible);
@@ -679,7 +743,12 @@ static void soft_analytics(void) {
     c=soft_evaluate(f.source,true,2); soft_result_check(c,0,0,30);
     assert(near(c.values[0].force_acceleration.x,-0.75));
     assert(near(c.values[1].force_acceleration.x,0.375));
-    EntityResult extra=physics_soft_body_node_create(f.owner,(Position){5,-4},3,0.1f); OK(extra);
+    EntityResult extra=physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = f.owner,
+        .position = (Position){5,-4},
+        .mass = 3,
+        .radius = 0.1f
+    }); OK(extra);
     c=soft_evaluate(f.source,true,3); soft_result_check(c,0,0,30);
     OK(entity_delete(extra.result.value));
     c=soft_evaluate(f.source,true,2); soft_result_check(c,0,0,30);
@@ -690,10 +759,15 @@ static void soft_analytics(void) {
     assert(velocities[idx(f.a)].x==3 && velocities[idx(f.a)].y==4);
 }
 static void soft_capacity_and_failures(void) {
-    EntityResult owner=physics_soft_body_create(); OK(owner);
+    EntityResult owner=physics_soft_body_add((SoftBodyDescription){0}); OK(owner);
     Entity nodes[SOFT_BODY_MAX_NODES];
     for(unsigned n=0;n<SOFT_BODY_MAX_NODES;++n) {
-        EntityResult node=physics_soft_body_node_create(owner.result.value,(Position){n,n%3},n+1,0.1f);
+        EntityResult node=physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = owner.result.value,
+            .position = (Position){n,n%3},
+            .mass = n+1,
+            .radius = 0.1f
+        });
         OK(node); nodes[n]=node.result.value;
     }
     Entity source=add(at_com(owner.result.value,0,2080)); /* sum 1..64 */

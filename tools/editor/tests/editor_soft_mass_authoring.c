@@ -233,10 +233,10 @@ int main(int argc, char **argv) {
     editor_project_destroy(&loaded);
     char source_path[2048]; snprintf(source_path,sizeof(source_path),"%s/src/generated/project_objects.c",fixture);
     char *source = SDL_LoadFile(source_path,NULL); assert(source != NULL);
-    assert(strstr(source,"rohr_physics_position_set(object->fabric, (Position){position.x + 7.00000000f, position.y + 9.00000000f})") != NULL);
-    assert(strstr(source,"rohr_physics_orientation_set(object->fabric, 90.0000000f)") != NULL);
-    assert(strstr(source,"}, 3.00000000f, 4.00000000f)") != NULL);
-    assert(strstr(source,"}, 5.00000000f, 4.00000000f)") != NULL);
+    assert(strstr(source,".position = {position.x + 7.00000000f, position.y + 9.00000000f}") != NULL);
+    assert(strstr(source,".orientation = 90.0000000f") != NULL);
+    assert(strstr(source,"}, .mass = 3.00000000f, .radius = 4.00000000f}") != NULL);
+    assert(strstr(source,"}, .mass = 5.00000000f, .radius = 4.00000000f}") != NULL);
     SDL_free(source);
     /* Derived readouts react immediately; empty and zero-total bodies have no COM. */
     soft->nodes[0].position.x -= 16;

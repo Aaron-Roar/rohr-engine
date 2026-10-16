@@ -243,19 +243,32 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
         OK(rohr_entity_components_add(a, ROHR_COLLISION)); OK(rohr_entity_components_add(b, ROHR_COLLISION));
     } else if(kind==4 || kind==5) {
         OK(rohr_physics_hitbox_remove(b));
-        EntityResult soft=rohr_physics_soft_body_create();
+        EntityResult soft=rohr_physics_soft_body_add((SoftBodyDescription){0});
         OK(soft);
-        EntityResult na=rohr_physics_soft_body_node_create(soft.result.value,
-            (Position){kind==4 ? 0 : 5,1},1,0.5f);
+        EntityResult na=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = soft.result.value,
+            .position = (Position){kind==4 ? 0 : 5,1},
+            .mass = 1,
+            .radius = 0.5f
+        });
         OK(na);
         OK(rohr_physics_static_set(na.result.value));
         if(kind==4) {
-            EntityResult nb=rohr_physics_soft_body_node_create(soft.result.value,
-                (Position){10,1},1,0.5f);
+            EntityResult nb=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+                .owner = soft.result.value,
+                .position = (Position){10,1},
+                .mass = 1,
+                .radius = 0.5f
+            });
             OK(nb);
             OK(rohr_physics_static_set(nb.result.value));
-            EntityResult beam=rohr_physics_soft_body_beam_create(soft.result.value,
-                na.result.value,nb.result.value,10,1);
+            EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+                .owner = soft.result.value,
+                .node_a = na.result.value,
+                .node_b = nb.result.value,
+                .stiffness = 10,
+                .damping = 1
+            });
             OK(beam);
             OK(rohr_physics_soft_body_beam_collision_enable(beam.result.value));
         }

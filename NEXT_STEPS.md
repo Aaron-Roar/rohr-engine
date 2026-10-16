@@ -108,11 +108,17 @@ instruction; stop for review and a user-created commit after each goal.
    86 native tests, four ASan/UBSan checks, Linux/Windows engine/editor builds,
    installed-SDK consumers and standalone examples on both platforms, plus
    Linux runtime/startup checks outside source directories. Windows execution
-   remains unverified. Await user review and a user-created commit; Goals 2–3
-   require explicit instruction.
-2. [ ] **Migrate soft-body creation to descriptions** — Replace soft-body, node,
-   local-node, beam, and area constructors with typed description-based add APIs.
-   Migrate callers, generators, generated artifacts, examples, and tests together.
+   remains unverified. Committed as `ffbd4ff`.
+2. [x] **Migrate soft-body creation to descriptions** — Replaced soft-body,
+   node, local-node, beam, and area constructors with typed description-based
+   add APIs, without compatibility wrappers. Migrated callers and C generation,
+   regenerated bundled examples and API documentation, and preserved defaults,
+   independent ownership, and world/local placement. Verified 86 native tests,
+   four ASan/UBSan tests, Linux/Windows builds, installed-SDK consumers and
+   standalone examples, plus a regenerated 90-degree/offset placement probe
+   comparing direct, generated, and catalog-spawned nodes on Linux. Windows
+   execution remains unverified. Await user review and a user-created commit;
+   Goal 3 requires explicit instruction.
 3. [ ] **Complete physics creation consistency** — Migrate particle, joint,
    anchor, and attachment-helper creation. Add explicit force/torque ownership,
    update persistence and defaults, and complete the public/direct API audit.

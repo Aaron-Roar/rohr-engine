@@ -263,7 +263,7 @@ constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
 Soft bodies own particle nodes, beams, and optional visual node-loop areas.
-Every beam remains a soft-body-owned constraint and owns thick-segment collision
+Each beam has independent lifetime ownership and owns thick-segment collision
 independently of visual areas. On creation, collision is enabled only when
 both endpoint nodes enable collision, the node category and collide-with masks
 are combined, and thickness starts at the smaller endpoint diameter. These are
@@ -342,10 +342,47 @@ a selectable/draggable COM marker, and CLI properties. Edits store only node
 masses, preserving runtime behavior in generated projects. See
 [soft-body authoring](editor.md#soft-bodies).
 
+### Creating soft-body entities
+
+Soft-body creation takes typed descriptions by value, either reusable variables
+or inline compound literals. Use `rohr_physics_soft_body_add`, `node_add`,
+`node_local_add`, `beam_add`, and `area_add` (each element name has the
+`rohr_physics_soft_body_` prefix). Matching direct APIs omit `rohr_`.
+These replace the positional constructors; there are no compatibility wrappers.
+
+```c
+EntityResult created_body = rohr_physics_soft_body_add(
+    (SoftBodyDescription){.position = {10, 20}, .orientation = 90});
+if(rohr_error_check(created_body)) return;
+Entity body = created_body.result.value;
+SoftBodyNodeDescription node = {
+    .owner = body, .position = {2, 0}, .mass = 1, .radius = 2
+};
+EntityResult local = rohr_physics_soft_body_node_local_add(node);
+// Check local before using its handle. The description is unchanged and reusable.
+```
+
+`SoftBodyDescription` carries owner, world position, and orientation.
+`SoftBodyNodeDescription` carries owner, position, positive mass, and positive
+radius. `SoftBodyBeamDescription` carries owner, node endpoints, stiffness, and
+damping. `SoftBodyAreaDescription` carries owner and copied geometry.
+An omitted owner means independent lifetime; any live owner is accepted by the
+world-space constructors. Only immediate soft-body ownership establishes
+membership in its physics lists. The local-node constructor requires a soft-body
+owner and applies its origin position and rotation exactly once.
+
+Descriptions do not change ownership or connections until creation succeeds.
+Failure rolls back the new entity and its resources. Explicit zero values remain
+zero: zero node mass/radius is invalid; zero beam stiffness/damping is valid.
+Nodes retain zero initial motion and their existing material/collision defaults;
+complete beams derive rest length and initial collision settings from their
+endpoints. Incomplete beams and areas remain supported. Both descriptions and
+created entities can be changed independently after creation.
+
 ### Runtime visual areas
 
 An area owns a copied outer node loop and up to 16 copied hole loops. Each loop
-closes implicitly, contains 3–64 distinct live nodes from the same body, and
+closes implicitly, contains 3–64 distinct live nodes that may have different owners, and
 needs no connecting beams. Different loops and areas may share nodes.
 
 The fill is every bounded region of the current outer boundary, minus the union
@@ -361,7 +398,8 @@ SoftBodyAreaGeometry geometry = {
     .holes = {{.nodes = {e, f, g, h}, .node_count = 4}},
     .hole_count = 1
 };
-EntityResult created = rohr_physics_soft_body_area_create(body, geometry);
+EntityResult created = rohr_physics_soft_body_area_add(
+    (SoftBodyAreaDescription){.owner = body, .geometry = geometry});
 if(!rohr_error_check(created)) {
     Entity area = created.result.value;
     rohr_graphics_soft_body_area_color_set(area, (Color){40,120,220,255});
@@ -400,8 +438,9 @@ draw layer. Geometry replacement preserves style, entity identity, and ordering.
 The getter returns owner, geometry, visibility, and color override by value.
 Changing a snapshot does not mutate the area. Reordering uses a zero-based
 destination index and preserves other areas' relative order. Entity deletion
-removes an area; deleting any node referenced by its outer or hole loops deletes
-the dependent area. Deleting beams does not delete areas. Limits remain 64 nodes
+removes an area, as does deleting its lifetime owner. Deleting a referenced node
+clears that slot and leaves the area alive with incomplete geometry. Deleting
+beams does not delete areas. Limits remain 64 nodes
 per body, 64 nodes per loop, 16 holes per area, and 128 areas per body.
 
 This is a breaking replacement of the single-loop creation argument,

@@ -195,15 +195,20 @@ static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_
 
 static bool soft_beam_create(Entity body, Entity node_a, Entity node_b,
         float stiffness, float damping, bool collision_enabled) {
-    EntityResult beam = rohr_physics_soft_body_beam_create(
-        body, node_a, node_b, stiffness, damping);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = body,
+        .node_a = node_a,
+        .node_b = node_b,
+        .stiffness = stiffness,
+        .damping = damping
+    });
     if(rohr_error_check(beam)) return false;
     return collision_enabled || result_ok(
         rohr_physics_soft_body_beam_collision_disable(beam.result.value));
 }
 
 static bool wheel_soft_body_create(Wheel *wheel, Position center) {
-    EntityResult body = rohr_physics_soft_body_create();
+    EntityResult body = rohr_physics_soft_body_add((SoftBodyDescription){0});
 
     if(wheel == NULL || rohr_error_check(body)) return false;
     wheel->soft_body = body.result.value;
@@ -214,12 +219,12 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
         float radius = anchored ? wheel_inner_radius : wheel_outer_radius;
         float angle = 2.0f * PI_F * (float)ring_index / (float)ring_count;
         Vec2D offset = {cosf(angle) * radius, sinf(angle) * radius};
-        EntityResult node = rohr_physics_soft_body_node_create(
-            wheel->soft_body,
-            (Position){center.x + offset.x, center.y + offset.y},
-            node_mass,
-            anchored ? inner_node_radius : outer_node_radius
-        );
+        EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .owner = wheel->soft_body,
+            .position = (Position){center.x + offset.x, center.y + offset.y},
+            .mass = node_mass,
+            .radius = anchored ? inner_node_radius : outer_node_radius
+        });
         if(rohr_error_check(node)) return false;
         wheel->nodes[i] = node.result.value;
         if(!result_ok(rohr_physics_acceleration_set(
@@ -274,7 +279,10 @@ static bool wheel_soft_body_create(Wheel *wheel, Position center) {
         tire.outer.nodes[i] = wheel->nodes[OUTER_NODE_START + i];
     for(uint32_t i = 0; i < ANCHOR_NODE_COUNT; i += 1)
         tire.holes[0].nodes[i] = wheel->nodes[i];
-    if(rohr_error_check(rohr_physics_soft_body_area_create(wheel->soft_body, tire))) return false;
+    if(rohr_error_check(rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+        .owner = wheel->soft_body,
+        .geometry = tire
+    }))) return false;
     return true;
 }
 

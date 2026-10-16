@@ -122,18 +122,18 @@ EngineResult physics_soft_body_area_fill_get(Entity area, const NodeLoopFill **f
     return error_result_value(true);
 }
 
-EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometry geometry) {
-    EntityIndex area_index;
+EntityResult physics_soft_body_area_add(SoftBodyAreaDescription description) {
+    Entity owner = description.owner;
+    EntityIndex area_index, owner_index = 0;
+    if(owner != ENTITY_INVALID && !entity_index_get(owner, &owner_index))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
     SoftBodyAreaState state = {.value = {.visible = true}};
-    if(soft_body != ENTITY_INVALID) {
-        SoftBodyResult body = physics_soft_body_get(soft_body);
-        if(error_check(body)) return ERROR_RESULT_MAKE_ERROR(EntityResult, body.result.error);
-        if(body.result.value.area_count >= SOFT_BODY_MAX_AREAS)
-            return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
-    }
-    EngineResult prepared = physics_soft_body_area_prepare(ENTITY_INVALID, &geometry, &state, false);
+    if(owner != ENTITY_INVALID && soft_bodies_pool.used[owner_index] &&
+            soft_bodies[owner_index].area_count >= SOFT_BODY_MAX_AREAS)
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+    EngineResult prepared = physics_soft_body_area_prepare(ENTITY_INVALID, &description.geometry, &state, false);
     if(error_check(prepared)) return ERROR_RESULT_MAKE_ERROR(EntityResult, prepared.result.error);
-    EntityResult created = entity_default_create("area", soft_body);
+    EntityResult created = entity_default_create("area", owner);
     if(error_check(created)) { area_cache_destroy(state.cache); return created; }
     if(!entity_index_get(created.result.value, &area_index) ||
             error_check(SoftBodyAreaStatePool_store_at(&soft_body_area_states_pool,
@@ -143,7 +143,7 @@ EntityResult physics_soft_body_area_create(Entity soft_body, SoftBodyAreaGeometr
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     }
     entity_mask[area_index] |= ROHR_SOFT_BODY_AREA;
-    EngineResult owned = entity_owner_set(created.result.value, soft_body);
+    EngineResult owned = entity_owner_set(created.result.value, owner);
     if(error_check(owned)) {
         (void)entity_delete(created.result.value);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);

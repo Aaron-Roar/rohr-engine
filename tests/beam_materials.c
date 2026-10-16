@@ -16,14 +16,30 @@ static void impact(float x, float edge_bounce, float target_bounce,
         float edge_friction, float expected_x, float expected_y, bool node_contact) {
     static float scene_x = 100;
     float offset = scene_x; scene_x += 100;
-    EntityResult soft = rohr_physics_soft_body_create(); OK(soft);
-    EntityResult a = rohr_physics_soft_body_node_create(soft.result.value, (Position){offset - 10, 0}, 1, 1);
-    EntityResult b = rohr_physics_soft_body_node_create(soft.result.value, (Position){offset + 10, 0}, 1, 1);
+    EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){offset - 10, 0},
+        .mass = 1,
+        .radius = 1
+    });
+    EntityResult b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){offset + 10, 0},
+        .mass = 1,
+        .radius = 1
+    });
     OK(a); OK(b);
     OK(rohr_physics_static_set(a.result.value)); OK(rohr_physics_static_set(b.result.value));
     OK(rohr_physics_restitution_set(a.result.value, node_contact ? .1f : 0));
     OK(rohr_physics_restitution_set(b.result.value, 0));
-    EntityResult beam = rohr_physics_soft_body_beam_create(soft.result.value, a.result.value, b.result.value, 0, 0);
+    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = soft.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 0,
+        .damping = 0
+    });
     OK(beam);
     OK(rohr_physics_restitution_set(beam.result.value, edge_bounce));
     OK(rohr_physics_friction_set(beam.result.value, edge_friction));
@@ -60,13 +76,29 @@ static void impact(float x, float edge_bounce, float target_bounce,
 }
 int main(void) {
     OK(rohr_engine_start());
-    EntityResult soft = rohr_physics_soft_body_create(); OK(soft);
-    EntityResult a = rohr_physics_soft_body_node_create(soft.result.value, (Position){-10, 0}, 1, 1);
-    EntityResult b = rohr_physics_soft_body_node_create(soft.result.value, (Position){10, 0}, 1, 1);
+    EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){-10, 0},
+        .mass = 1,
+        .radius = 1
+    });
+    EntityResult b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value,
+        .position = (Position){10, 0},
+        .mass = 1,
+        .radius = 1
+    });
     OK(a); OK(b);
     OK(rohr_physics_restitution_set(a.result.value, 1));
     OK(rohr_physics_friction_set(b.result.value, 2));
-    EntityResult created = rohr_physics_soft_body_beam_create(soft.result.value, a.result.value, b.result.value, 0, 0);
+    EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .owner = soft.result.value,
+        .node_a = a.result.value,
+        .node_b = b.result.value,
+        .stiffness = 0,
+        .damping = 0
+    });
     OK(created); Entity beam = created.result.value;
     SoftBodyBeamResult value = rohr_physics_soft_body_beam_get(beam); OK(value);
     assert(value.result.value.friction == 0 && value.result.value.restitution == .25f);
