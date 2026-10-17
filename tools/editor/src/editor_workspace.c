@@ -3,6 +3,7 @@
  */
 
 #include "editor_workspace.h"
+#include "editor_log.h"
 #include "editor_object_catalog.h"
 #include "editor_soft_area.h"
 #include "physics/soft_body/soft_body_motion.h"
@@ -2499,6 +2500,13 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
 
 bool editor_workspace_c_generate(const EditorWorkspace *workspace,
     const EditorProject *project) {
+    if(!project) return false;
+    for(size_t i = 0; i < project->object_count; ++i) {
+        if(project->objects[i].force_count || project->objects[i].torque_count) {
+            editor_log_error("generate", "Authored force/torque generation is not implemented; existing generated files were preserved");
+            return false;
+        }
+    }
     return workspace != NULL && workspace->open &&
         editor_project_center_of_mass_check(project) &&
         editor_soft_areas_generation_validate(project).kind != ERROR_RESULT_ERROR &&

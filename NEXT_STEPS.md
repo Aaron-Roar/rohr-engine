@@ -1384,7 +1384,8 @@ implements shared sources and rigid-body/particle behavior; Goal 3 adds receivin
 beam loads; Goal 4 adds whole-soft-body loads. These runtime goals are complete.
 Runtime Soft-Body Persistence is the completed prerequisite for Goal 5.
 The user-selected Object Descriptions and Independent Spawning milestone is also
-a completed prerequisite. Review its implementation before pursuing Goal 5.
+a completed prerequisite. Goal 5 now provides authored definitions and persistence;
+runtime source instantiation and generation remain Goal 6.
 Editor handle presentation is finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
@@ -1433,15 +1434,24 @@ Editor handle presentation is finalized in the relevant editor goals.
    consumers, all 12 standalone examples, and a generated project build on both
    platforms and run on Linux outside their source directories. Windows checks
    are compile-only. Stop for user review before Goal 5.
-5. [ ] **Add authored definitions and persistence** — After Runtime Soft-Body
-   Persistence, add object-owned source descriptions with references restricted
-   to their owning object, CLI operations, project/runtime serialization,
-   validation, history, copying, duplication, and deletion. Retain sources on
-   referenced-element deletion: reset receiving targets to no target, affected
-   locations to world origin, and affected orientations to world zero. Add
-   `ENTITY_NONE` as a zero-valued alias of `ENTITY_INVALID`, without weakening
-   runtime validation. Preserve initial/persistent mode, zero-magnitude sources,
-   and remapping to restored soft-body entities. See the
+5. [x] **Add authored definitions and persistence** — Added object-owned force
+   and torque definitions, object-local typed references, CLI operations,
+   validation, history, independent copying/duplication, and editable object
+   descriptions. Project format 8 preserves modes, signed/zero magnitudes, and
+   nested references. Referenced-element deletion retains sources and resets
+   affected targets to none, locations to world origin, and orientations to
+   world zero in the same undo transaction. Malformed documents are rejected
+   transactionally. Added `ENTITY_NONE` as an alias of `ENTITY_INVALID` without
+   changing runtime validation or game-state format 8. Until Goal 6, source-bearing
+   physics spawns fail before entity allocation and generation fails before
+   overwriting files; visual-only spawning and source-free generation continue.
+   All 87 native tests and five focused ASan/UBSan suites pass with leak detection.
+   Linux/Windows builds have no compiler warnings. Seven installed-SDK consumers,
+   all 12 standalone examples, and a generated project build on both platforms;
+   consumers and the generated object probe run on Linux, and applications pass
+   bounded startup checks outside their source directories. Windows verification
+   is compilation only. CLI lifecycle checks confirm invalid-edit rollback and
+   generated-file preservation. Stop for user review before Goal 6. See the
    [Goal 5 contract](docs/force_torque_contract.md#goal-5-authored-definitions-and-persistence).
 6. [ ] **Generate runtime sources and verify API parity** — Generate initial
    applications, persistent source references, and instance cleanup. Verify
@@ -1486,13 +1496,12 @@ signatures without aliases. Nodes and whole soft bodies use the shared API;
 whole-body sources recompute and atomically distribute loads each substep.
 Joint point loads use one force-at-point source per endpoint. Beam references
 and beam-target loads use the resolved application point for equivalent endpoint
-contributions. Runtime state version 6 serializes source descriptions and full
-soft-body topology with named references, shared anchors, and relative lifetimes.
-Authored source persistence remains Goal 5.
+contributions. Runtime state version 8 serializes source descriptions and full
+soft-body topology with named references, shared anchors, relative lifetimes,
+and generic ownership. Authored source persistence is complete in project format 8.
 
-Runtime Soft-Body Persistence is complete. Goal 5, authored definitions and
-persistence, follows Object Descriptions and Independent Spawning and requires
-explicit user instruction after review.
+Runtime Soft-Body Persistence and Goal 5 are complete. Goal 6, runtime source
+generation and API parity, requires explicit user instruction after review.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

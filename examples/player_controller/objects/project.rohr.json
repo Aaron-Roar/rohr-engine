@@ -1,5 +1,5 @@
 {
-    "format_version": 7,
+    "format_version": 8,
     "physics_settings": {
         "engine_time_per_tick": 0.008333333767950535,
         "timestep_override": true,
@@ -391,7 +391,9 @@
                     "kind": 0,
                     "id": 2
                 }
-            ]
+            ],
+            "forces": [],
+            "torques": []
         }
     ],
     "layout_viewports": [
@@ -448,5 +450,7 @@
             "kind": 2,
             "id": 1
         }
-    ]
+    ],
+    "next_force_id": 1,
+    "next_torque_id": 1
 }

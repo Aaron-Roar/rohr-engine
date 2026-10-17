@@ -221,6 +221,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             !editor_command_world_position_check(position))
         return editor_command_world_position_error();
     switch(command->type) {
+        case EDITOR_COMMAND_SOURCE: return editor_source_command_execute(project, &command->data.source);
+        case EDITOR_COMMAND_OBJECT_DUPLICATE: {
+            EditorObject *copy = editor_project_object_duplicate(project, command->data.object_remove.object);
+            if(!copy) return editor_command_error((EditorError){EDITOR_ERROR_INVALID_ARGUMENT, "Object duplication failed"});
+            return (EditorCommandResult){.kind=ERROR_RESULT_VALUE,.result.object=copy->id};
+        }
         case EDITOR_COMMAND_OBJECT_ADD: {
             EditorObjectIdResult result = editor_object_command_add(project,
                 &(EditorObjectAddArgs){

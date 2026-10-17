@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "editor_sources_json.h"
 
 #include "editor_project.h"
 #include "editor_soft_area.h"
@@ -801,6 +802,8 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     yyjson_mut_obj_add_uint(document, root, "next_vertex_id", project->next_vertex_id);
     yyjson_mut_obj_add_uint(document, root, "next_rigid_body_id", project->next_rigid_body_id);
     yyjson_mut_obj_add_uint(document, root, "next_hitbox_id", project->next_hitbox_id);
+    yyjson_mut_obj_add_uint(document, root, "next_force_id", project->next_force_id);
+    yyjson_mut_obj_add_uint(document, root, "next_torque_id", project->next_torque_id);
     yyjson_mut_obj_add_uint(document, root, "next_joint_id", project->next_joint_id);
     yyjson_mut_obj_add_uint(document, root, "next_anchor_id", project->next_anchor_id);
     yyjson_mut_obj_add_uint(document, root, "next_soft_body_id", project->next_soft_body_id);
@@ -900,6 +903,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_val *animated_sprite_values = yyjson_mut_arr(document);
         yyjson_mut_val *camera_values = yyjson_mut_arr(document);
         yyjson_mut_val *hierarchy = yyjson_mut_arr(document);
+        if(!editor_sources_json_write(document, value, object)) { yyjson_mut_doc_free(document); return false; }
         yyjson_mut_obj_add_uint(document, value, "id", object->id);
         yyjson_mut_obj_add_strcpy(document, value, "name", object->name);
         yyjson_mut_obj_add_val(document, value, "position",
@@ -2153,6 +2157,9 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             !editor_json_uint(root, "next_vertex_id", &loaded.next_vertex_id) ||
             !editor_json_uint(root, "next_rigid_body_id", &loaded.next_rigid_body_id) ||
             !editor_json_uint(root, "next_hitbox_id", &loaded.next_hitbox_id) ||
+            !editor_json_uint(root, "next_force_id", &loaded.next_force_id) ||
+            !editor_json_uint(root, "next_torque_id", &loaded.next_torque_id) ||
+            !loaded.next_force_id || !loaded.next_torque_id ||
             !editor_json_uint(root, "next_joint_id", &loaded.next_joint_id) ||
             !editor_json_uint(root, "next_anchor_id", &loaded.next_anchor_id) ||
             !editor_json_uint(root, "next_soft_body_id", &loaded.next_soft_body_id) ||
@@ -2525,6 +2532,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         for(size_t j = 0; j < object->soft_body_count; j += 1)
             if(!editor_json_soft_body_read(yyjson_arr_get(soft_body_values, j),
                     &object->soft_body_items[j], &loaded)) goto done;
+        if(!editor_sources_json_read(value, object, &loaded)) goto done;
         for(size_t j = 0; j < object->animated_sprite_count; j += 1)
             if(!editor_json_animated_sprite_read(
                     yyjson_arr_get(animated_sprite_values, j),

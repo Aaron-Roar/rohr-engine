@@ -31,8 +31,8 @@
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Version 7 removes beam-derived areas and their editor navigation kinds. */
-#define EDITOR_PROJECT_FORMAT_VERSION 7
+/* Version 8 adds authored force/torque definitions with stable references. */
+#define EDITOR_PROJECT_FORMAT_VERSION 8
 #define EDITOR_NAVIGATION_MODE_MAX 31
 #define EDITOR_NAVIGATION_SELECTION_MAX 28
 
@@ -413,6 +413,19 @@ typedef struct EditorCamera {
     bool visible;
 } EditorCamera;
 
+#define EDITOR_SOURCE_MAX 256
+
+typedef struct EditorForce {
+    uint32_t id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    ObjectForceDescription description;
+} EditorForce;
+typedef struct EditorTorque {
+    uint32_t id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    ObjectTorqueDescription description;
+} EditorTorque;
+
 typedef struct EditorObject {
     EditorObjectId id;
     char name[EDITOR_OBJECT_NAME_MAX];
@@ -423,6 +436,10 @@ typedef struct EditorObject {
     EditorRigidBody *rigid_bodies;
     size_t rigid_body_count;
     size_t rigid_body_capacity;
+    EditorForce *force_items;
+    size_t force_count, force_capacity;
+    EditorTorque *torque_items;
+    size_t torque_count, torque_capacity;
     EditorJoint *joint_items;
     size_t joint_count;
     size_t joint_capacity;
@@ -648,6 +665,7 @@ typedef struct EditorProject {
     EditorVertexId next_vertex_id;
     EditorRigidBodyId next_rigid_body_id;
     EditorHitboxId next_hitbox_id;
+    uint32_t next_force_id, next_torque_id;
     EditorJointId next_joint_id;
     EditorAnchorId next_anchor_id;
     EditorSoftBodyId next_soft_body_id;
@@ -868,5 +886,17 @@ bool editor_project_animation_frame_add(EditorProject *project,
     Scale size);
 bool editor_project_animation_frame_remove(EditorAnimatedSprite *animated_sprite,
     size_t index);
+
+EditorObject *editor_project_object_duplicate(EditorProject *project, uint32_t id);
+bool editor_source_reference_check(const EditorObject *object, ObjectSourceReference reference);
+bool editor_force_description_check(const EditorObject *object, ObjectForceDescription description);
+bool editor_torque_description_check(const EditorObject *object, ObjectTorqueDescription description);
+bool editor_sources_check(const EditorObject *object);
+void editor_sources_reference_remove(EditorObject *object, ObjectSourceReference reference);
+EditorForce *editor_project_force_add(EditorProject *project, EditorObject *object);
+EditorTorque *editor_project_torque_add(EditorProject *project, EditorObject *object);
+bool editor_project_force_set(EditorObject *object, uint32_t id, ObjectForceDescription description);
+bool editor_project_torque_set(EditorObject *object, uint32_t id, ObjectTorqueDescription description);
+bool editor_project_source_remove(EditorObject *object, bool torque, uint32_t id);
 
 #endif

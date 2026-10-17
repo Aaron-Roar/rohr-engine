@@ -249,6 +249,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
 static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     SpawnEntry *entry = &c->entries[i];
     const ObjectDescription *d = entry->description;
+    if(d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE) return error_result_value(true);
     bool physics = (d->categories & c->options.flags & ROHR_ENTITY_OBJECT_PHYSICS) != 0;
     bool visual = (d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS) != 0;
     bool topology = d->kind == OBJECT_BEAM || d->kind == OBJECT_AREA;
@@ -392,10 +393,19 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
 #undef APPLY
 }
 
+static bool source_pending_check(const ObjectDescription *d, unsigned depth) {
+    if(!d || depth > OBJECT_DEPTH_MAX || d->child_count > MAX_ENTITIES || (d->child_count && !d->children)) return true;
+    if((d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE) && (d->categories & ROHR_ENTITY_OBJECT_PHYSICS)) return true;
+    for(size_t i = 0; i < d->child_count; ++i) if(source_pending_check(d->children[i], depth + 1)) return true;
+    return false;
+}
 EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnOptions options) {
     if(!description || (!(description->categories & options.flags) && !description->child_count) ||
             !object_flags_check(options.flags) || !isfinite(options.offset.x) || !isfinite(options.offset.y))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+    /* Authored source instantiation is introduced in Goal 6. */
+    if((options.flags & ROHR_ENTITY_OBJECT_PHYSICS) && source_pending_check(description, 0))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_AUTHORED_SOURCE_PENDING);
     SpawnContext c = {.options = options};
     c.entries = calloc(MAX_ENTITIES, sizeof(*c.entries));
     if(!c.entries) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);

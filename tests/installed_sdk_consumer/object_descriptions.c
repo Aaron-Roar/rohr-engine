@@ -8,6 +8,27 @@
 #define OK(call) assert(!rohr_error_check(call))
 int main(void) {
     OK(rohr_engine_start());
+    ObjectDescription source_object = {.id=1,.name="loads",.kind=OBJECT_CONTAINER,.categories=ROHR_ENTITY_OBJECT_ALL};
+    ObjectDescription receiving_body = {.id=2,.name="receiver",.kind=OBJECT_BODY,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS};
+    ObjectDescription authored_force = {.id=3,.name="thrust",.kind=OBJECT_FORCE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
+        .force={.target={OBJECT_SOURCE_BODY,2,0},.magnitude=7}};
+    ObjectDescription authored_torque = {.id=4,.name="turn",.kind=OBJECT_TORQUE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
+        .torque={.target={OBJECT_SOURCE_BODY,2,0},.mode=OBJECT_SOURCE_INITIAL}};
+    const ObjectDescription *source_children[] = {&receiving_body,&authored_force,&authored_torque};
+    source_object.children=source_children;source_object.child_count=3;
+    ObjectDescriptionResult source_copy=rohr_object_copy(source_object);OK(source_copy);
+    ObjectDescriptionResult force_copy=rohr_object_description_by_name_get(source_copy.result.value,"thrust");OK(force_copy);
+    ObjectDescriptionResult torque_copy=rohr_object_description_by_name_get(source_copy.result.value,"turn");OK(torque_copy);
+    ObjectForceDescription force_value=force_copy.result.value->force;force_value.magnitude=9;
+    OK(rohr_object_force_description_set(force_copy.result.value,force_value));
+    ObjectTorqueDescription torque_value=torque_copy.result.value->torque;torque_value.magnitude=-5;
+    OK(rohr_object_torque_description_set(torque_copy.result.value,torque_value));
+    assert(authored_force.force.magnitude==7 && authored_torque.torque.magnitude==0);
+    EntityResult pending=rohr_entity_object_add(source_copy.result.value);
+    assert(rohr_error_check(pending) && pending.result.error==ERROR_ENGINE_AUTHORED_SOURCE_PENDING);
+    assert(ENTITY_NONE==ENTITY_INVALID);
+    OK(rohr_object_destroy(source_copy.result.value));
+
     SoftBodyDescription soft_description = {.position = {2, 3}};
     EntityResult soft = rohr_physics_soft_body_add(soft_description); OK(soft);
     SoftBodyNodeDescription node_description = {.owner = soft.result.value,

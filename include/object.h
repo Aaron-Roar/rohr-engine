@@ -10,8 +10,48 @@
 typedef enum ObjectKind {
     OBJECT_CONTAINER, OBJECT_BODY, OBJECT_PARTICLE, OBJECT_SOFT_BODY,
     OBJECT_NODE, OBJECT_BEAM, OBJECT_AREA, OBJECT_ANCHOR, OBJECT_JOINT,
-    OBJECT_SPRITE, OBJECT_ANIMATION, OBJECT_CAMERA
+    OBJECT_SPRITE, OBJECT_ANIMATION, OBJECT_CAMERA, OBJECT_FORCE, OBJECT_TORQUE
 } ObjectKind;
+
+/** Authored source references are stable document/description IDs, never entities. */
+typedef enum ObjectSourceReferenceKind {
+    OBJECT_SOURCE_NONE, OBJECT_SOURCE_BODY, OBJECT_SOURCE_PARTICLE,
+    OBJECT_SOURCE_SOFT_BODY, OBJECT_SOURCE_NODE, OBJECT_SOURCE_BEAM
+} ObjectSourceReferenceKind;
+typedef struct ObjectSourceReference {
+    ObjectSourceReferenceKind kind;
+    uint64_t id;
+    uint64_t soft_body; /* Required for nodes/beams; zero otherwise. */
+} ObjectSourceReference;
+typedef enum ObjectSourceMode {
+    OBJECT_SOURCE_PERSISTENT, OBJECT_SOURCE_INITIAL
+} ObjectSourceMode;
+typedef struct ObjectForceLocation {
+    ForcePositionReferenceKind kind;
+    Vec2D offset;
+    ObjectSourceReference reference;
+    ForceBeamAnchor anchor;
+    float fraction;
+} ObjectForceLocation;
+typedef struct ObjectForceOrientation {
+    ForceOrientationReferenceKind kind;
+    Orientation offset;
+    ObjectSourceReference reference;
+    ObjectForceLocation from;
+    ObjectForceLocation to;
+} ObjectForceOrientation;
+typedef struct ObjectForceDescription {
+    ObjectSourceMode mode;
+    ObjectSourceReference target;
+    ObjectForceLocation location;
+    ObjectForceOrientation orientation;
+    float magnitude;
+} ObjectForceDescription;
+typedef struct ObjectTorqueDescription {
+    ObjectSourceMode mode;
+    ObjectSourceReference target;
+    Torque magnitude;
+} ObjectTorqueDescription;
 
 typedef uint32_t EntityObjectFlags;
 enum {
@@ -103,7 +143,9 @@ typedef struct ObjectDescription ObjectDescription;
     bool playing; \
     bool follow_position; \
     bool follow_orientation; \
-    float zoom
+    float zoom; \
+    ObjectForceDescription force; \
+    ObjectTorqueDescription torque
 
 struct ObjectDescription { ROHR_OBJECT_DESCRIPTION_FIELDS; };
 ERROR_DECLARE_RESULT_TYPE(ObjectDescriptionResult, const ObjectDescription *);
@@ -128,6 +170,8 @@ ObjectDescriptionResult object_description_copy(const ObjectDescription *descrip
 #define object_copy(value) object_description_copy(object_description_ref(value), ROHR_ENTITY_OBJECT_ALL)
 #define object_copy_with_options(value, flags) object_description_copy(object_description_ref(value), flags)
 EngineResult object_destroy(const ObjectDescription *description);
+EngineResult object_force_description_set(const ObjectDescription *description, ObjectForceDescription value);
+EngineResult object_torque_description_set(const ObjectDescription *description, ObjectTorqueDescription value);
 EngineResult object_mass_set(const ObjectDescription *description, Mass mass);
 EngineResult object_position_set(const ObjectDescription *description, Position position);
 EngineResult object_velocity_set(const ObjectDescription *description, Velocity velocity);

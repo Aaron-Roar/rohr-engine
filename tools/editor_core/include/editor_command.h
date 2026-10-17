@@ -77,7 +77,9 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET,
     EDITOR_COMMAND_SOFT_AREA_LOOP_SET,
     EDITOR_COMMAND_SOFT_AREA_ORDER_SET,
-    EDITOR_COMMAND_SOFT_AREA_LAYER_SET
+    EDITOR_COMMAND_SOFT_AREA_LAYER_SET,
+    EDITOR_COMMAND_SOURCE,
+    EDITOR_COMMAND_OBJECT_DUPLICATE
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -101,7 +103,8 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_ANIMATED_SPRITE,
     EDITOR_ITEM_ANIMATION_FRAME,
     EDITOR_ITEM_SOFT_AREA,
-    EDITOR_ITEM_SOFT_HOLE
+    EDITOR_ITEM_SOFT_HOLE,
+    EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE
 } EditorItemKind;
 
 typedef struct EditorInputControllerCommand {
@@ -268,9 +271,24 @@ typedef enum EditorVisibilityKind {
     EDITOR_VISIBILITY_SOFT_AREA
 } EditorVisibilityKind;
 
+typedef enum EditorSourceOperation {
+    EDITOR_SOURCE_ADD, EDITOR_SOURCE_SET, EDITOR_SOURCE_REMOVE,
+    EDITOR_SOURCE_RENAME, EDITOR_SOURCE_DUPLICATE, EDITOR_SOURCE_GET, EDITOR_SOURCE_LIST
+} EditorSourceOperation;
+typedef struct EditorSourceCommand {
+    EditorObjectId object;
+    uint32_t id;
+    bool torque;
+    EditorSourceOperation operation;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    ObjectForceDescription force;
+    ObjectTorqueDescription torque_description;
+} EditorSourceCommand;
+
 typedef struct EditorCommand {
     EditorCommandType type;
     union {
+        EditorSourceCommand source;
         struct {
             char name[EDITOR_OBJECT_NAME_MAX];
             Position position;
@@ -498,5 +516,10 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
     const EditorCommand *command, const EditorCommandResult *result,
     const char *document_path, char *output, size_t output_capacity);
+
+EditorCommandResult editor_source_command_execute(EditorProject *project, const EditorSourceCommand *command);
+EditorResult editor_source_cli_parse(const EditorProject *project, int count, char **arguments, const char **path, EditorCommand *command, bool *handled);
+EditorResult editor_source_cli_write(const EditorProject *project, const EditorCommand *command, const char *path, char *output, size_t capacity);
+char *editor_source_query_json(const EditorProject *project, const EditorSourceCommand *command);
 
 #endif

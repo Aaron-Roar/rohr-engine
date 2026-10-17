@@ -201,6 +201,7 @@ typedef enum EngineError {
     ERROR_ENGINE_UI_SCOPE_UNBALANCED,
     /** Invalid entity inspection selector, snapshot handle, or destination. */
     ERROR_ENGINE_ENTITY_INFO_INVALID,
+    ERROR_ENGINE_AUTHORED_SOURCE_PENDING
 } EngineError;
 
 /**

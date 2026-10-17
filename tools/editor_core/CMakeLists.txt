@@ -5,6 +5,7 @@ add_library(rohr_editor_core STATIC
     src/editor_object_catalog.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
     src/editor_mass_properties.c
+    src/editor_source_commands.c
     src/editor_command.c
     src/editor_auto_shape.c
     src/editor_cli_selectors.c
@@ -31,6 +32,25 @@ if(ROHR_ENABLE_SANITIZERS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_sources_test tests/editor_sources.c ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
+    target_include_directories(editor_sources_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_sources_test PRIVATE rohr_editor_core)
+    if(MSVC)
+        target_compile_options(editor_sources_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(editor_sources_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(UNIX AND NOT APPLE)
+        target_compile_definitions(editor_sources_test PRIVATE ROHR_TEST_ALLOCATION_WRAP)
+        target_link_options(editor_sources_test PRIVATE -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_sources_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(editor_sources_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    set_target_properties(editor_sources_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_sources COMMAND editor_sources_test)
+    set_tests_properties(editor_sources PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     set(COM_EXAMPLE_SOURCE ${PROJECT_SOURCE_DIR}/examples/center_of_mass)
     add_executable(center_of_mass_example_test tests/center_of_mass_example.c
         ${COM_EXAMPLE_SOURCE}/src/generated/project_objects.c)

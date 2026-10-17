@@ -374,13 +374,13 @@ category from either list also assigns it to the selection in the same undo step
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 7. Earlier formats must be rewritten; loading
+Project data uses format version 8. Earlier formats must be rewritten; loading
 them returns a schema error without replacing the current project. Beam-derived
 area data is no longer supported.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
-generated C use the same units. Runtime state and templates use version 4;
+generated C use the same units. Runtime state and templates use version 8;
 old project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or
@@ -604,3 +604,67 @@ produces one stderr warning per logging session and does not prevent editing.
 This log captures editor-reported failures, including text-asset exhaustion;
 it is not a crash dump or a capture of embedded shell/generated game output.
 No engine API or project JSON changes are required.
+
+## Authored force and torque commands
+
+Force and torque definitions are stored in their owning object. They default to
+persistent mode, no target, and zero magnitude. Force application and orientation
+start at world origin and world zero. Graphical source editors and runtime
+source generation are scheduled separately; these commands edit saved data.
+
+```sh
+rohr-cli --project objects/project.rohr.json --object car --force thrust add
+rohr-cli --project objects/project.rohr.json --object car --force thrust --property magnitude 25
+rohr-cli --project objects/project.rohr.json --object car --force thrust --property mode initial
+rohr-cli --project objects/project.rohr.json --object car --force thrust --property target '{"kind":"body","id":1,"soft_body":0}'
+rohr-cli --project objects/project.rohr.json --object car --force thrust get
+rohr-cli --project objects/project.rohr.json --object car --force list
+rohr-cli --project objects/project.rohr.json --object car --force thrust duplicate spare_thrust
+rohr-cli --project objects/project.rohr.json --object car --force spare_thrust rename backup_thrust
+rohr-cli --project objects/project.rohr.json --object car --force backup_thrust remove
+rohr-cli --project objects/project.rohr.json --object-id 1 duplicate
+```
+
+Use `--torque` for torque definitions; `--force-id` and `--torque-id` select by
+stable ID. `get` and `list` print JSON without saving or modifying the document.
+Whole-object duplication gives the copy independent storage and source IDs;
+references resolve against elements inside the new object.
+
+Properties are `mode`, `magnitude`, `target`, and `description`; forces also have
+`location` and `orientation`. `set <JSON>` replaces the complete description,
+or use `--property description <JSON>`. Individual property edits preserve all
+other fields. Names are formatted using existing editor property-name rules.
+References have exactly `kind`, `id`, and `soft_body` fields. Kinds are `none`,
+`body`, `particle`, `soft_body`, `node`, and `beam`; only nodes/beams require a
+nonzero `soft_body`. An absent target is `{"kind":"none","id":0,"soft_body":0}`.
+
+A complete force definition, using object-local stable IDs:
+
+```json
+{
+  "mode": "persistent",
+  "target": {"kind":"node","id":2,"soft_body":1},
+  "magnitude": -10,
+  "location": {
+    "kind":"beam", "x":0, "y":0,
+    "reference":{"kind":"beam","id":1,"soft_body":1},
+    "anchor":1, "fraction":0
+  },
+  "orientation": {"kind":"world","offset":90}
+}
+```
+
+Locations use `world`, `com`, `origin`, or `beam`, with `x`/`y` offsets; non-world
+locations add a `reference`. Beam locations additionally have `anchor` (0=start,
+1=center, 2=end) and finite signed `fraction`. Orientations use `world`, `body`,
+`beam`, or `between` and a degree `offset`; body/beam add a `reference`, while
+between adds `from` and `to` location objects. Torques omit location/orientation.
+Invalid references, non-finite values, or malformed definitions reject the edit.
+
+Deleting a referenced element keeps the source: its affected target becomes
+none, application location becomes world origin, and orientation becomes world
+zero. Losing either nested reference in a between-locations orientation resets
+the entire orientation. These edits share the deletion's history transaction;
+undo restores both the element and previous source fields. Deleting a whole
+soft body covers its nodes and beams. Malformed saved references are rejected,
+not repaired by these deletion rules.

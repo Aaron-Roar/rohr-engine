@@ -42,6 +42,10 @@ typedef struct CliHelpDomain {
 } CliHelpDomain;
 
 static const CliHelpDomain cli_help_domains[] = {
+    {"--force", "force", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>, location <JSON>, orientation <JSON>; operations add, get, list, rename, duplicate, remove",
+        "--object car --force thrust --property magnitude 10", 1},
+    {"--torque", "torque", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>; operations add, get, list, rename, duplicate, remove",
+        "--object car --torque drive --property magnitude 10", 1},
     {"--object", "object", "position <x> <y>, visibility <true|false>",
         "--object car --property position 10 20", 0},
     {"--body", "rigid body",
@@ -162,7 +166,7 @@ static void cli_help_print(int count, char **arguments) {
             "  --object, --body, --hitbox, --joint, --anchor, --soft-body,\n"
             "  --node, --beam, --area, --hole, --vertex, --line, --sprite,\n"
             "  --animated-sprite, --frame-index, --controller, --action,\n"
-            "  --binding, --binding-index\n"
+            "  --binding, --binding-index, --force, --torque\n"
             "  Every named selector also accepts its -id form.");
         return;
     }
@@ -184,6 +188,8 @@ static void cli_help_print(int count, char **arguments) {
             "  Axis 1D: source input modifiers scale inverted\n"
             "  Axis 2D: source input modifiers affects-x affects-y scale-x "
             "scale-y inverted-x inverted-y direction-x direction-y");
+    else if(!strcmp(domain->selector, "--force") || !strcmp(domain->selector, "--torque"))
+        puts("Operations at this depth:\n  add [name], get, list, set <JSON>, rename <name>, duplicate [name], delete");
     else puts("Operations at this depth:\n  rename <new-name>, delete");
 }
 
@@ -199,6 +205,8 @@ static bool cli_help_request_check(int count, char **arguments) {
         bool operation = false;
         for(int i = 1; i < count; i += 1) {
             if(arguments[i][0] == '-') {
+                if((!strcmp(arguments[i], "--force") || !strcmp(arguments[i], "--torque")) && i + 1 < count &&
+                        (!strcmp(arguments[i+1], "list") || !strcmp(arguments[i+1], "add"))) return false;
                 if(i + 1 < count) i += 1;
             } else {
                 operation = true;
@@ -471,6 +479,14 @@ static int cli_object_command(int count, char **arguments) {
         editor_command_cli_named_parse(document.project, count, arguments,
             &path, &command);
     if(editor_result_check(result)) return cli_error(result);
+    if(command.type == EDITOR_COMMAND_SOURCE &&
+            (command.data.source.operation == EDITOR_SOURCE_GET || command.data.source.operation == EDITOR_SOURCE_LIST)) {
+        char *json = editor_source_query_json(document.project, &command.data.source);
+        if(!json) return cli_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Source query failed"));
+        puts(json); free(json);
+        editor_document_destroy(&document);
+        return 0;
+    }
     command_result = editor_command_execute(document.project, &command);
     if(command_result.kind == ERROR_RESULT_ERROR)
         return cli_error((EditorResult){.kind = ERROR_RESULT_ERROR,

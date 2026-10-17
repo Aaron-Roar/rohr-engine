@@ -30,4 +30,8 @@ ObjectDescriptionResult object_description_project_read(const struct EditorProje
 char *object_string_copy(const char *text);
 EngineResult object_description_world_pose_get(const ObjectDescription *description,
     Position *position, Orientation *orientation);
+typedef bool (*ObjectSourceReferenceCheck)(const void *scope, ObjectSourceReference reference);
+bool object_source_force_check(const void *scope, ObjectForceDescription value, ObjectSourceReferenceCheck check);
+bool object_source_torque_check(const void *scope, ObjectTorqueDescription value, ObjectSourceReferenceCheck check);
+bool object_source_reference_check(const void *scope, ObjectSourceReference reference);
 #endif

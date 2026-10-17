@@ -423,9 +423,13 @@ presentation remains with the editor goals.
 
 ### Goal 5: authored definitions and persistence
 
-These settled requirements govern the pending authored-model work. Runtime
-source descriptions already serialize; authored definitions and complete
-runtime soft-body reconstruction are separate work.
+Goal 5 implements these authored-model requirements through object-owned
+collections, commands, document version 8, and loadable/editable object
+descriptions. New entries default to persistent, no target, and zero magnitude;
+forces default to world-origin application and world-zero orientation.
+Runtime spawning and generated catalogs remain Goal 6. Until then source-bearing
+physics spawns and project generation fail explicitly before side effects.
+Runtime source descriptions continue to serialize in game-state version 8.
 
 **Ownership and reference scope.** Forces and torques are top-level items owned
 by an object. Their receiving targets and every entity used by location or
@@ -479,8 +483,8 @@ Save force/torque descriptions with stable serialized references and reconnect
 them to the restored bodies, nodes, and beams. Old runtime entity handles are
 not persistent identities. The prerequisite includes validation, failure
 cleanup, round-trip state/reference checks, and continued-simulation checks.
-Goal 5 then adds authored source definitions, CLI operations, project/runtime
-serialization integration, validation, history, copying, duplication and
+Goal 5 adds authored source definitions, CLI operations, project serialization,
+validation, history, copying, duplication and
 deletion, including the agreed fallbacks and `ENTITY_NONE` alias. Preserve
 zero-magnitude and no-target sources and initial versus persistent mode.
 Existing engine-tick lifetime rules remain authoritative. Generated source
@@ -492,8 +496,9 @@ reference round trips; independent whole-object copies; target/location/
 orientation deletion fallbacks, including nested orientation references;
 undo/redo; zero/no-target and initial/persistent preservation; and alias parity
 without weakening explicit-reference validation. Runtime save/load checks must
-reconnect source descriptions to restored soft-body topology. This documentation
-clarification does not begin either implementation goal.
+reconnect source descriptions to restored soft-body topology. Authored source
+instantiation remains Goal 6; the runtime persistence checks exercise sources
+created through the existing runtime API.
 
 ### Milestone acceptance
 

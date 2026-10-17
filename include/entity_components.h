@@ -28,6 +28,8 @@ ERROR_DECLARE_RESULT_TYPE(EntityIndexResult, EntityIndex);
 
 /** Invalid entity id sentinel. */
 #define ENTITY_INVALID 0
+/** Intentionally absent optional entity; identical to ENTITY_INVALID. */
+#define ENTITY_NONE ENTITY_INVALID
 
 /** Maximum number of live or reusable entity slots. */
 #define MAX_ENTITIES 10000

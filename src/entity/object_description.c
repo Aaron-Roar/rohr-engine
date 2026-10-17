@@ -167,6 +167,9 @@ static ObjectDescription *tree_copy(const ObjectDescription *s, ObjectDescriptio
     if(!d) return NULL;
     *d = *s;
     d->parent = parent; d->categories &= flags;
+    if(!(flags & ROHR_ENTITY_OBJECT_PHYSICS)) {
+        d->force = (ObjectForceDescription){0}; d->torque = (ObjectTorqueDescription){0};
+    }
     d->name = NULL; d->children = NULL; d->child_count = 0;
     d->geometry = NULL; d->geometry_count = 0;
     d->hitbox_bindings = NULL; d->hitbox_binding_count = 0;
@@ -335,4 +338,21 @@ EngineResult object_scale_set(const ObjectDescription *description, Scale scale)
     if(!d || (d->kind != OBJECT_SPRITE && d->kind != OBJECT_ANIMATION) ||
             !isfinite(scale.x) || !isfinite(scale.y)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     d->scale = scale; return error_result_value(true);
+}
+
+EngineResult object_force_description_set(const ObjectDescription *description, ObjectForceDescription value) {
+    ObjectDescription *d = editable_get(description);
+    if(!d || d->kind != OBJECT_FORCE || !(d->categories & ROHR_ENTITY_OBJECT_PHYSICS) ||
+            !object_source_force_check(d->parent, value, object_source_reference_check))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    d->force = value;
+    return error_result_value(true);
+}
+EngineResult object_torque_description_set(const ObjectDescription *description, ObjectTorqueDescription value) {
+    ObjectDescription *d = editable_get(description);
+    if(!d || d->kind != OBJECT_TORQUE || !(d->categories & ROHR_ENTITY_OBJECT_PHYSICS) ||
+            !object_source_torque_check(d->parent, value, object_source_reference_check))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    d->torque = value;
+    return error_result_value(true);
 }

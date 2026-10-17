@@ -29,6 +29,8 @@
 #define rohr_object_copy_with_options object_copy_with_options
 #define rohr_object_destroy object_destroy
 #define rohr_object_description_by_name_get object_description_by_name_get
+#define rohr_object_force_description_set object_force_description_set
+#define rohr_object_torque_description_set object_torque_description_set
 #define rohr_object_mass_set object_mass_set
 #define rohr_object_position_set object_position_set
 #define rohr_object_orientation_set object_orientation_set

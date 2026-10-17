@@ -42,7 +42,7 @@ static ObjectDescription *add(ImportContext *c, ObjectDescription *parent,
     d->name = object_string_copy(name);
     if(!d->name) { free(d); return NULL; }
     d->id = c->count + 1; d->parent = parent; d->kind = kind;
-    d->categories = kind >= OBJECT_SPRITE ? ROHR_ENTITY_OBJECT_VISUALS : ROHR_ENTITY_OBJECT_PHYSICS;
+    d->categories = (kind == OBJECT_SPRITE || kind == OBJECT_ANIMATION || kind == OBJECT_CAMERA) ? ROHR_ENTITY_OBJECT_VISUALS : ROHR_ENTITY_OBJECT_PHYSICS;
     if(kind <= OBJECT_AREA)
         d->categories = ROHR_ENTITY_OBJECT_ALL;
     d->visible = true; d->scale = (Scale){1, 1};
@@ -179,6 +179,48 @@ static ObjectDescription *node_find(ImportContext *c, const EditorObject *o, uin
         if(o->soft_body_items[i].id == body) return find(c, o, &o->soft_body_items[i], OBJECT_NODE, node);
     return NULL;
 }
+static bool source_reference_import(ImportContext *c, const EditorObject *o, ObjectSourceReference *r) {
+    if(r->kind == OBJECT_SOURCE_NONE) return true;
+    ObjectKind kinds[] = {OBJECT_CONTAINER, OBJECT_BODY, OBJECT_PARTICLE, OBJECT_SOFT_BODY, OBJECT_NODE, OBJECT_BEAM};
+    if(r->kind < OBJECT_SOURCE_BODY || r->kind > OBJECT_SOURCE_BEAM) return false;
+    const EditorSoftBody *soft = NULL;
+    if(r->soft_body) for(size_t i = 0; i < o->soft_body_count; ++i)
+        if(o->soft_body_items[i].id == r->soft_body) soft = &o->soft_body_items[i];
+    ObjectDescription *d = find(c, o, soft, kinds[r->kind], (uint32_t)r->id);
+    if(!d) return false;
+    r->id = d->id;
+    if(soft) {
+        ObjectDescription *body = find(c, o, NULL, OBJECT_SOFT_BODY, soft->id);
+        if(!body) return false;
+        r->soft_body = body->id;
+    }
+    return true;
+}
+static bool source_location_import(ImportContext *c, const EditorObject *o, ObjectForceLocation *l) {
+    return l->kind == ROHR_FORCE_WORLD_POSITION || source_reference_import(c, o, &l->reference);
+}
+static bool sources_import(ImportContext *c, ObjectDescription *root, const EditorObject *o) {
+    if(!editor_sources_check(o)) return false;
+    for(size_t i = 0; i < o->force_count; ++i) {
+        const EditorForce *f = &o->force_items[i];
+        ObjectDescription *d = add(c, root, o, NULL, OBJECT_FORCE, f->id, f->name);
+        if(!d) return false;
+        d->force = f->description;
+        ObjectForceOrientation *v = &d->force.orientation;
+        if(!source_reference_import(c,o,&d->force.target) || !source_location_import(c,o,&d->force.location)) return false;
+        if(v->kind == ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION) {
+            if(!source_location_import(c,o,&v->from) || !source_location_import(c,o,&v->to)) return false;
+        } else if(v->kind != ROHR_FORCE_WORLD_ORIENTATION && !source_reference_import(c,o,&v->reference)) return false;
+    }
+    for(size_t i = 0; i < o->torque_count; ++i) {
+        const EditorTorque *t = &o->torque_items[i];
+        ObjectDescription *d = add(c,root,o,NULL,OBJECT_TORQUE,t->id,t->name);
+        if(!d) return false;
+        d->torque = t->description;
+        if(!source_reference_import(c,o,&d->torque.target)) return false;
+    }
+    return true;
+}
 static bool attachments_read(ImportContext *c, ObjectDescription *root, const EditorObject *o) {
     for(size_t i = 0; i < o->anchor_count; ++i) {
         const EditorAnchor *s = &o->anchors[i];
@@ -260,7 +302,7 @@ ObjectDescriptionResult object_description_project_read(const EditorProject *pro
         d->position = o->position; d->visible = o->visible;
         for(size_t j = 0; j < o->rigid_body_count; ++j) if(!body_read(&c, d, o, &o->rigid_bodies[j])) goto fail;
         for(size_t j = 0; j < o->soft_body_count; ++j) if(!soft_read(&c, d, o, &o->soft_body_items[j])) goto fail;
-        if(!attachments_read(&c, d, o)) goto fail;
+        if(!attachments_read(&c, d, o) || !sources_import(&c, d, o)) goto fail;
         for(size_t j = 0; j < o->rigid_body_count; ++j) {
             ObjectDescription *body = find(&c, o, NULL, OBJECT_BODY, o->rigid_bodies[j].id);
             HitboxAnimationBinding *bindings = (HitboxAnimationBinding *)body->hitbox_bindings;

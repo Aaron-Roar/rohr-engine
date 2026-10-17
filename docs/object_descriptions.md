@@ -144,3 +144,39 @@ the original editor document and description handles are unnecessary.
 Ordinary hierarchy parenting and generic group deletion retain their current
 behavior. Existing generated constructors and public entry points remain supported.
 Force/torque authoring and viewport redesign are outside this goal.
+
+## Authored forces and torques
+
+Editor document version 8 includes top-level force and torque items in each
+object. Loading a document exposes them as `OBJECT_FORCE` and `OBJECT_TORQUE`
+descriptions with `.force` and `.torque` values. `ObjectForceDescription` and
+`ObjectTorqueDescription` use `ObjectSourceMode`: persistent (zero/default) or
+initial. Defaults have no target and zero magnitude; force location and
+orientation default to world origin and world zero.
+
+`ObjectSourceReference` identifies a body, standalone particle, soft body, node,
+or beam using a stable description ID. Nodes and beams also identify their
+containing soft body. These are description identities, **not runtime entity
+handles**. References stay within the owning object; world references and an
+explicit `OBJECT_SOURCE_NONE` target are supported. `ENTITY_NONE` is an alias
+of `ENTITY_INVALID` for optional runtime entity arguments; neither sentinel can
+replace a required reference.
+
+Object copies own their source data independently. Physics inclusion flags
+include source definitions; visual-only copies exclude their physical values.
+Use `object_force_description_set` and `object_torque_description_set` (also
+available with `rohr_` prefixes) to atomically replace definitions on editable
+copies. Read their values through `object_get`; immutable documents reject edits.
+Definitions do not imply ownership of their targets.
+
+Authored source spawning and generated catalogs are deferred to Unified Forces
+and Torques Goal 6. Physics spawning of a source-bearing description currently
+returns `ERROR_ENGINE_AUTHORED_SOURCE_PENDING` before allocating entities.
+Source-bearing project generation fails before overwriting generated files.
+Visual-only spawning and source-free generation remain supported. Runtime
+`physics_force_add`, `physics_torque_add`, and their one-shot APIs remain usable.
+
+Editor document version 7 is no longer accepted. Bundled documents use version
+8, with `forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
+Runtime game-state format remains version 8 and keeps its existing generic
+ownership, target restoration, and temporary-source lifetime rules.

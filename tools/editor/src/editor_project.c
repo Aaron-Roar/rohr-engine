@@ -162,6 +162,7 @@ void editor_project_init(EditorProject *project) {
         .next_vertex_id = 1,
         .next_rigid_body_id = 1,
         .next_hitbox_id = 1,
+        .next_force_id = 1, .next_torque_id = 1,
         .next_joint_id = 1,
         .next_anchor_id = 1,
         .next_soft_body_id = 1,
@@ -493,6 +494,7 @@ void editor_project_object_destroy(EditorObject *object) {
     for(size_t i = 0; i < object->animated_sprite_count; i += 1)
         editor_project_animated_sprite_destroy(&object->animated_sprite_items[i]);
     free(object->rigid_bodies);
+    free(object->force_items); free(object->torque_items);
     free(object->joint_items);
     free(object->anchors);
     free(object->soft_body_items);
@@ -508,6 +510,8 @@ bool editor_project_object_clone(EditorObject *destination,
     if(destination == NULL || source == NULL) return false;
     *destination = *source;
     destination->rigid_bodies = NULL;
+    destination->force_items = NULL; destination->torque_items = NULL;
+    destination->force_capacity = destination->torque_capacity = 0;
     destination->joint_items = NULL;
     destination->anchors = NULL;
     destination->soft_body_items = NULL;
@@ -530,6 +534,8 @@ bool editor_project_object_clone(EditorObject *destination,
     destination->hierarchy_capacity = 0;
     if(!EDITOR_ARRAY_RESERVE(destination->rigid_bodies,
             destination->rigid_body_capacity, source->rigid_body_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->force_items, destination->force_capacity, source->force_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->torque_items, destination->torque_capacity, source->torque_count) ||
             !EDITOR_ARRAY_RESERVE(destination->joint_items,
                 destination->joint_capacity, source->joint_count) ||
             !EDITOR_ARRAY_RESERVE(destination->anchors,
@@ -546,6 +552,8 @@ bool editor_project_object_clone(EditorObject *destination,
             !EDITOR_ARRAY_RESERVE(destination->hierarchy,
                 destination->hierarchy_capacity, source->hierarchy_count))
         goto fail;
+    if(source->force_count) memcpy(destination->force_items, source->force_items, source->force_count * sizeof(*source->force_items));
+    if(source->torque_count) memcpy(destination->torque_items, source->torque_items, source->torque_count * sizeof(*source->torque_items));
     if(source->joint_count > 0) memcpy(destination->joint_items,
         source->joint_items, source->joint_count * sizeof(*source->joint_items));
     if(source->anchor_count > 0) memcpy(destination->anchors,
@@ -605,6 +613,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
     if(
             !EDITOR_ARRAY_RESERVE(destination->rigid_bodies,
                 destination->rigid_body_capacity, source->rigid_body_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->force_items, destination->force_capacity, source->force_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->torque_items, destination->torque_capacity, source->torque_count) ||
             !EDITOR_ARRAY_RESERVE(destination->joint_items,
                 destination->joint_capacity, source->joint_count) ||
             !EDITOR_ARRAY_RESERVE(destination->anchors,
@@ -633,6 +643,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
             (destination->animated_sprite_capacity - old_animated_sprite_capacity) *
                 sizeof(*destination->animated_sprite_items));
     rigid_bodies = destination->rigid_bodies;
+    EditorForce *force_items = destination->force_items; EditorTorque *torque_items = destination->torque_items;
+    size_t force_capacity = destination->force_capacity, torque_capacity = destination->torque_capacity;
     editor_joints = destination->joint_items;
     anchors = destination->anchors;
     editor_soft_bodies = destination->soft_body_items;
@@ -667,6 +679,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
     for(size_t i = source->animated_sprite_count;
             i < old_animated_sprite_count; i += 1)
         editor_project_animated_sprite_destroy(&sprite_items[i]);
+    if(source->force_count) memcpy(force_items, source->force_items, source->force_count * sizeof(*force_items));
+    if(source->torque_count) memcpy(torque_items, source->torque_items, source->torque_count * sizeof(*torque_items));
     if(source->joint_count > 0) memcpy(editor_joints, source->joint_items,
         source->joint_count * sizeof(*editor_joints));
     if(source->anchor_count > 0) memcpy(anchors, source->anchors,
@@ -679,6 +693,8 @@ bool editor_project_object_copy_set(EditorObject *destination,
         source->hierarchy_count * sizeof(*hierarchy));
     *destination = *source;
     destination->rigid_bodies = rigid_bodies;
+    destination->force_items = force_items; destination->force_capacity = force_capacity;
+    destination->torque_items = torque_items; destination->torque_capacity = torque_capacity;
     destination->joint_items = editor_joints;
     destination->anchors = anchors;
     destination->soft_body_items = editor_soft_bodies;
@@ -2037,6 +2053,7 @@ bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id
     if(object == NULL || id == 0) return false;
     for(size_t i = 0; i < object->rigid_body_count; i += 1) {
         if(object->rigid_bodies[i].id != id) continue;
+        editor_sources_reference_remove(object, (ObjectSourceReference){.kind = object->rigid_bodies[i].standalone_particle ? OBJECT_SOURCE_PARTICLE : OBJECT_SOURCE_BODY, .id = id});
         for(size_t j = 0; j < object->anchor_count; j += 1) {
             EditorAnchor *anchor = &object->anchors[j];
             if(anchor->rigid_body != id) continue;
@@ -2708,6 +2725,7 @@ bool editor_project_soft_body_remove(EditorObject *object, EditorSoftBodyId id) 
     if(object == NULL || id == 0) return false;
     for(size_t i = 0; i < object->soft_body_count; i += 1) {
         if(object->soft_body_items[i].id != id) continue;
+        editor_sources_reference_remove(object, (ObjectSourceReference){.kind = OBJECT_SOURCE_SOFT_BODY, .id = id});
         editor_project_soft_body_destroy(&object->soft_body_items[i]);
         for(size_t j = i + 1; j < object->soft_body_count; j += 1) {
             object->soft_body_items[j - 1] = object->soft_body_items[j];
@@ -2841,6 +2859,10 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
     }
     for(size_t i = 0; i < body->node_count; i += 1) {
         if(body->nodes[i].id != id) continue;
+        for(size_t o = 0; o < project->object_count; ++o)
+            for(size_t b = 0; b < project->objects[o].soft_body_count; ++b)
+                if(&project->objects[o].soft_body_items[b] == body)
+                    editor_sources_reference_remove(&project->objects[o], (ObjectSourceReference){.kind = OBJECT_SOURCE_NODE, .id = id, .soft_body = body->id});
         for(size_t a = body->area_count; a > 0; a -= 1)
             if(editor_soft_area_node_check(&body->areas[a - 1], id))
                 (void)editor_soft_area_remove(body, body->areas[a - 1].id);
@@ -2919,6 +2941,10 @@ bool editor_project_soft_beam_remove(EditorProject *project, EditorSoftBody *bod
     if(project == NULL || body == NULL || id == 0) return false;
     for(size_t i = 0; i < body->beam_count; i += 1) {
         if(body->beams[i].id != id) continue;
+        for(size_t o = 0; o < project->object_count; ++o)
+            for(size_t b = 0; b < project->objects[o].soft_body_count; ++b)
+                if(&project->objects[o].soft_body_items[b] == body)
+                    editor_sources_reference_remove(&project->objects[o], (ObjectSourceReference){.kind = OBJECT_SOURCE_BEAM, .id = id, .soft_body = body->id});
         for(size_t j = i + 1; j < body->beam_count; j += 1) {
             body->beams[j - 1] = body->beams[j];
         }

@@ -408,6 +408,8 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
     uint32_t parent;
     if(project == NULL || command == NULL) return NULL;
     switch(command->type) {
+        case EDITOR_COMMAND_SOURCE:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT, command->data.source.object, 0);
         case EDITOR_COMMAND_VISIBILITY:
             if(command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_AREA)
                 return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
@@ -1477,7 +1479,7 @@ void editor_history_command_begin(EditorHistory *history,
         history->pending_sprites = editor_history_sprites_capture(project, object);
         return;
     }
-    if(command->type == EDITOR_COMMAND_OBJECT_ADD ||
+    if(command->type == EDITOR_COMMAND_OBJECT_ADD || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE ||
             (command->type == EDITOR_COMMAND_ITEM_ADD &&
                 command->data.item_add.kind == EDITOR_ITEM_OBJECT)) {
         history->pending_object = calloc(1, sizeof(*history->pending_object));
@@ -1508,7 +1510,7 @@ void editor_history_command_begin(EditorHistory *history,
     if(command->type == EDITOR_COMMAND_ITEM_REMOVE &&
             command->data.item_remove.kind != EDITOR_ITEM_OBJECT) {
         history->pending_aggregate = editor_history_aggregate_capture(
-            history->project, command->data.item_remove.kind,
+            history->project, EDITOR_ITEM_OBJECT,
             command->data.item_remove.object, command->data.item_remove.parent);
         return;
     }
@@ -1532,7 +1534,7 @@ void editor_history_command_finish(EditorHistory *history,
                 result->kind == ERROR_RESULT_VALUE) {
             EditorHistoryObjectChange forward = *history->pending_object;
             EditorHistoryObjectChange inverse = *history->pending_object;
-            if(command->type == EDITOR_COMMAND_OBJECT_ADD ||
+            if(command->type == EDITOR_COMMAND_OBJECT_ADD || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE ||
                     (command->type == EDITOR_COMMAND_ITEM_ADD &&
                         command->data.item_add.kind == EDITOR_ITEM_OBJECT)) {
                 for(size_t i = 0; i < history->project->object_count; i += 1)
@@ -1602,7 +1604,7 @@ void editor_history_command_finish(EditorHistory *history,
             result->kind == ERROR_RESULT_VALUE) {
         EditorHistoryObjectChange forward = *history->pending_object;
         EditorHistoryObjectChange inverse = *history->pending_object;
-        if(command->type == EDITOR_COMMAND_OBJECT_ADD ||
+        if(command->type == EDITOR_COMMAND_OBJECT_ADD || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE ||
                 (command->type == EDITOR_COMMAND_ITEM_ADD &&
                     command->data.item_add.kind == EDITOR_ITEM_OBJECT)) {
             EditorObjectId id = result->result.object;

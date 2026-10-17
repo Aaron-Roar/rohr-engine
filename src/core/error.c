@@ -158,6 +158,8 @@ const char *error_code_message_get(EngineError error) {
             return "duplicate entity name";
         case ERROR_ENGINE_STATE_IO_FAILED:
             return "game state file I/O failed";
+        case ERROR_ENGINE_AUTHORED_SOURCE_PENDING:
+            return "authored source spawning is not implemented; requires source generation support";
         case ERROR_ENGINE_STATE_INVALID:
             return "invalid game state";
         case ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND:

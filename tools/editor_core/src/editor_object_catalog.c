@@ -20,7 +20,7 @@ static bool reserved(const char *name) {
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
-        "direction", "playing", "follow_position", "follow_orientation", "zoom"};
+        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque"};
     for(size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) if(!strcmp(name, fields[i])) return true;
     return false;
 }
@@ -167,6 +167,9 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     fputs("}", f);
 }
 bool editor_object_catalog_write(FILE *header, FILE *source, const EditorProject *project) {
+    if(!project) return false;
+    for(size_t i = 0; i < project->object_count; ++i)
+        if(project->objects[i].force_count || project->objects[i].torque_count) return false;
     ObjectDescriptionResult converted = object_description_project_read(project, "");
     if(error_check(converted)) return false;
     Catalog *catalog = calloc(1,sizeof(*catalog));

@@ -187,6 +187,9 @@ set(ROHR_ENGINE_SOURCES
     src/core/rohr.c
     src/entity/entity_info.c
     src/entity/entity_components.c
+    src/entity/object_source.c
+    tools/editor/src/editor_sources.c
+    tools/editor/src/editor_sources_json.c
     src/entity/object_description.c
     src/entity/object_document.c
     src/entity/object_spawn.c

@@ -488,6 +488,9 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
+    if(command && (command->type == EDITOR_COMMAND_SOURCE || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE))
+        return editor_source_cli_write(project, command, path, output, capacity);
+
     char legacy[4096], token[CLI_MAX][CLI_TEXT];
     size_t count, at = 4, used = 0;
     const char *property;
@@ -1322,7 +1325,15 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
     const char *operation;
     const char *property = NULL;
     const char *domain;
+    if(count == 6 && !strcmp(arguments[1], "--project") && !strcmp(arguments[3], "--object-id") && !strcmp(arguments[5], "duplicate")) {
+        char *end; unsigned long id = strtoul(arguments[4], &end, 10);
+        if(*end || !id || id > UINT32_MAX) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid object ID");
+        *path = arguments[2]; *command = (EditorCommand){.type=EDITOR_COMMAND_OBJECT_DUPLICATE,.data.object_remove.object=(uint32_t)id};
+        return editor_result_value(true);
+    }
     bool input_handled = false;
+    EditorResult source_result = editor_source_cli_parse(project, count, arguments, path, command, &input_handled);
+    if(input_handled) return source_result;
     EditorResult area_result = cli_area_command_parse(project, count, arguments, path, command, &input_handled);
     if(input_handled) return area_result;
     EditorResult input_result = cli_input_command_parse(project, count, arguments,
