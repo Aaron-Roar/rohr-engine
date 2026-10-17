@@ -20,9 +20,16 @@ static bool reserved(const char *name) {
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
-        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque", "source_instance"};
+        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque", "visuals", "source_instance"};
     for(size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) if(!strcmp(name, fields[i])) return true;
     return false;
+}
+static void visual_style_write(FILE *f,const char *name,ObjectVisualStyle v) {
+    if(!v.specified) v=(ObjectVisualStyle){0};
+    fprintf(f,".%s={.specified=%u,.fill_color=UINT32_C(%u),.border_color=UINT32_C(%u),"
+        ".border_thickness=%.9ef,.scale={%.9ef,%.9ef},.offset={%.9ef,%.9ef},.rotation=%.9ef}",
+        name,v.specified,v.fill_color,v.border_color,(double)v.border_thickness,
+        (double)v.scale.x,(double)v.scale.y,(double)v.offset.x,(double)v.offset.y,(double)v.rotation);
 }
 static bool collect(Catalog *c, const ObjectDescription *d, const char *path, unsigned depth) {
     if(c->count >= MAX_ENTITIES || depth > OBJECT_DEPTH_MAX) return false;
@@ -178,6 +185,11 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     U(geometry_count); U(active_geometry); U(hitbox_binding_count);
     if(d->geometry_count) fprintf(f, ",.geometry=object_geometry_%llu", id);
     if(d->hitbox_binding_count) fprintf(f, ",.hitbox_bindings=object_bindings_%llu", id);
+    if(d->visuals.main.specified || d->visuals.endpoint_a.specified || d->visuals.endpoint_b.specified) {
+        fputs(",.visuals={",f); visual_style_write(f,"main",d->visuals.main);
+        fputs(",",f); visual_style_write(f,"endpoint_a",d->visuals.endpoint_a);
+        fputs(",",f); visual_style_write(f,"endpoint_b",d->visuals.endpoint_b); fputs("}",f);
+    }
     C(color); C(border_color); U(color_overridden); fprintf(f, ",.layer=%d", d->layer);
     U(target); U(endpoint_a); U(endpoint_b); U(joint_type);
     F(rest_length); F(stiffness); F(damping); F(rest_angle); F(thickness);

@@ -45,6 +45,32 @@ typedef struct EditorBulkProperty {
     EditorPropertyKind property;
 } EditorBulkProperty;
 
+static const EditorBulkProperty visual_properties[]={
+    {"Visual Fill Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_FILL_COLOR},
+    {"Visual Border Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_BORDER_COLOR},
+    {"Visual Border Thickness",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_BORDER_THICKNESS},
+    {"Visual Scale X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_SCALE_X},
+    {"Visual Scale Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_SCALE_Y},
+    {"Visual Offset X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_OFFSET_X},
+    {"Visual Offset Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_OFFSET_Y},
+    {"Visual Rotation",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_ROTATION},
+    {"Endpoint A Fill Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_A_FILL_COLOR},
+    {"Endpoint A Border Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_A_BORDER_COLOR},
+    {"Endpoint A Border Thickness",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_BORDER_THICKNESS},
+    {"Endpoint A Scale X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_SCALE_X},
+    {"Endpoint A Scale Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_SCALE_Y},
+    {"Endpoint A Offset X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_OFFSET_X},
+    {"Endpoint A Offset Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_OFFSET_Y},
+    {"Endpoint A Rotation",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_A_ROTATION},
+    {"Endpoint B Fill Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_B_FILL_COLOR},
+    {"Endpoint B Border Color",EDITOR_BULK_PROPERTY,EDITOR_BULK_COLOR,EDITOR_PROPERTY_VISUAL_B_BORDER_COLOR},
+    {"Endpoint B Border Thickness",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_BORDER_THICKNESS},
+    {"Endpoint B Scale X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_SCALE_X},
+    {"Endpoint B Scale Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_SCALE_Y},
+    {"Endpoint B Offset X",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_OFFSET_X},
+    {"Endpoint B Offset Y",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_OFFSET_Y},
+    {"Endpoint B Rotation",EDITOR_BULK_PROPERTY,EDITOR_BULK_FLOAT,EDITOR_PROPERTY_VISUAL_B_ROTATION},
+};
 static const EditorBulkProperty force_properties[] = {
     {"Visible in Editor",EDITOR_BULK_VISIBILITY,EDITOR_BULK_CHECKBOX,0},
     {"World X",EDITOR_BULK_POSITION_X,EDITOR_BULK_FLOAT,0},
@@ -258,6 +284,20 @@ static size_t editor_bulk_selection_properties_get(EditorProject *project,
     }
     if(app_supported) output[used++] = (EditorBulkProperty){"Visible in App",
         EDITOR_BULK_APP_VISIBILITY, EDITOR_BULK_CHECKBOX, 0};
+    bool visual_supported=state->selected_item_count>0,springs=visual_supported;
+    for(size_t i=0;i<state->selected_item_count;++i) {
+        EditorSelectionRef ref=state->selected_items[i];
+        if(ref.kind!=EDITOR_SELECTION_FORCE && ref.kind!=EDITOR_SELECTION_JOINT) visual_supported=false;
+        if(ref.kind!=EDITOR_SELECTION_JOINT) springs=false;
+        else {
+            const EditorObject *o=editor_object_query_const_get(project,ref.object); bool spring=false;
+            if(o) for(size_t n=0;n<o->joint_count;++n)
+                if(o->joint_items[n].id==ref.item) spring=o->joint_items[n].kind==EDITOR_JOINT_SPRING;
+            springs&=spring;
+        }
+    }
+    if(visual_supported) for(size_t i=0;i<(springs?24u:8u) && used<EDITOR_BULK_PROPERTY_MAX;++i)
+        output[used++]=visual_properties[i];
     for(size_t i = 0; i < count && used < EDITOR_BULK_PROPERTY_MAX; ++i) output[used++] = properties[i];
     return used;
 }

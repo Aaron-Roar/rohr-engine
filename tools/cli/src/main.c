@@ -191,6 +191,16 @@ static void cli_help_print(int count, char **arguments) {
     else if(!strcmp(domain->selector, "--force") || !strcmp(domain->selector, "--torque"))
         puts("Operations at this depth:\n  add [name], get, list, set <JSON>, rename <name>, duplicate [name], delete");
     else puts("Operations at this depth:\n  rename <new-name>, delete");
+    if(!strcmp(domain->selector, "--force") || !strcmp(domain->selector, "--torque") ||
+            !strcmp(domain->selector, "--joint")) {
+        puts("Visual properties:\n"
+            "  visual-fill-color <rrggbbaa>, visual-border-color <rrggbbaa>,\n"
+            "  visual-border-thickness <nonnegative number>, visual-scale-x <number>,\n"
+            "  visual-scale-y <number>, visual-offset-x <number>, visual-offset-y <number>,\n"
+            "  visual-rotation <clockwise degrees>");
+        if(!strcmp(domain->selector, "--joint"))
+            puts("  Spring endpoint properties use visual-a- and visual-b- prefixes.");
+    }
 }
 
 static bool cli_help_request_check(int count, char **arguments) {

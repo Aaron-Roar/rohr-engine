@@ -113,10 +113,13 @@ int main(void) {
     editor_viewport_selection_clear(&s);
     assert(editor_viewport_selection_set(&p,&s,(EditorSelectionRef){EDITOR_SELECTION_FORCE,oid,0,0,id},false));
     editor_project_force_get(o,id)->app_hidden=true;
+    editor_project_force_get(o,id)->visuals.main=(ObjectVisualStyle){.specified=true,
+        .fill_color=0x12345678,.scale={-2,3},.offset={4,5},.rotation=30};
     EditorForceClipboard clipboard={0}; assert(editor_navigation_forces_copy(&p,&s,&clipboard));
     assert(editor_navigation_forces_paste(&p,&s,&history,&clipboard)); assert(o->force_count==2);
     EditorForce *copy=editor_project_force_get(o,s.selected_force); assert(copy && copy->id!=id && copy->description.target.id==body.id);
     assert(copy->app_hidden);
+    assert(copy->visuals.main.fill_color==0x12345678 && copy->visuals.main.scale.x==-2);
     copy->description.magnitude=123; near(editor_project_force_get(o,id)->description.magnitude,-2);
     editor_project_object_hierarchy_sync(o);
     assert(editor_navigation_selection_reorder(&p,&s,(EditorSelectionRef){EDITOR_SELECTION_FORCE,oid,0,0,copy->id},(EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,oid,0,0,body.id},false,&history));

@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "object_internal.h"
+#include "object_visuals.h"
 #include "editor_project.h"
 #include "physics/soft_body/soft_body_motion.h"
 #include <stdlib.h>
@@ -204,8 +205,8 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
     for(size_t i = 0; i < o->force_count; ++i) {
         const EditorForce *f = &o->force_items[i];
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_FORCE, f->id, f->name);
-        if(!d) return false;
-        d->force = f->description;
+        if(!d || !object_visuals_check(f->visuals)) return false;
+        d->force = f->description; d->visuals = f->visuals;
         d->visible = !f->app_hidden; d->color = (Color){240, 180, 70, 255};
         ObjectForceOrientation *v = &d->force.orientation;
         if(!source_reference_import(c,o,&d->force.target) || !source_location_import(c,o,&d->force.location)) return false;
@@ -216,8 +217,8 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
     for(size_t i = 0; i < o->torque_count; ++i) {
         const EditorTorque *t = &o->torque_items[i];
         ObjectDescription *d = add(c,root,o,NULL,OBJECT_TORQUE,t->id,t->name);
-        if(!d) return false;
-        d->torque = t->description;
+        if(!d || !object_visuals_check(t->visuals)) return false;
+        d->torque = t->description; d->visuals = t->visuals;
         d->visible = !t->app_hidden; d->color = (Color){240, 180, 70, 255};
         if(!source_reference_import(c,o,&d->torque.target)) return false;
     }
@@ -239,8 +240,8 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         const EditorJoint *s = &o->joint_items[i];
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_JOINT, s->id, s->name);
         ObjectDescription *a = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_a), *b = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_b);
-        if(!d || !a || !b) return false;
-        d->endpoint_a = a->id; d->endpoint_b = b->id;
+        if(!d || !a || !b || !object_visuals_check(s->visuals)) return false;
+        d->endpoint_a = a->id; d->endpoint_b = b->id; d->visuals = s->visuals;
         d->color = (Color){225, 190, 85, 255};
         d->joint_type = s->kind == EDITOR_JOINT_REVOLUTE ? JOINT_PIN : s->kind == EDITOR_JOINT_WELD ? JOINT_WELD : JOINT_SPRING;
         d->rest_length = s->rest_length; d->stiffness = s->stiffness; d->damping = s->damping; d->rest_angle = s->rest_angle;

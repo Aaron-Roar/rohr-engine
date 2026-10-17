@@ -4,6 +4,7 @@
 
 #include "editor_viewport.h"
 #include "editor_force_geometry.h"
+#include "graphics/marker_geometry.h"
 #include "editor_soft_area.h"
 #include "graphics/triangle_draw.h"
 #include "editor_command.h"
@@ -6300,10 +6301,56 @@ static void editor_viewport_sprites_draw(const EditorObject *object,
     }
 }
 
+static bool editor_marker_polygon_draw(const Position *points,size_t count,Color color,void *context) {
+    (void)context;
+    Shape shape={.amount_of_vertices=(int)count};
+    for(size_t i=0;i<count;++i) shape.vertices[i]=editor_view_world_to_screen(points[i]);
+    return rohr_graphics_screen_shape_filled_draw(shape,color);
+}
+static void editor_marker_previews_draw(const EditorObject *o) {
+    if(!o || !o->visible || o->app_hidden) return;
+    for(size_t i=0;i<o->joint_count;++i) {
+        const EditorJoint *j=&o->joint_items[i];
+        if(!j->visible || j->app_hidden) continue;
+        const EditorAnchor *a=NULL,*b=NULL;
+        for(size_t n=0;n<o->anchor_count;++n) {
+            if(o->anchors[n].id==j->anchor_a) a=&o->anchors[n];
+            if(o->anchors[n].id==j->anchor_b) b=&o->anchors[n];
+        }
+        if(!a || !b) continue;
+        MarkerGeometry g={.kind=OBJECT_JOINT,.visuals=j->visuals,.magnitude=1,
+            .joint=j->kind==EDITOR_JOINT_REVOLUTE?JOINT_PIN:j->kind==EDITOR_JOINT_WELD?JOINT_WELD:JOINT_SPRING,
+            .endpoint_a=editor_anchor_world_get(o,a),.endpoint_b=editor_anchor_world_get(o,b)};
+        g.origin=(Position){(g.endpoint_a.x+g.endpoint_b.x)*0.5f,(g.endpoint_a.y+g.endpoint_b.y)*0.5f};
+        editor_view_scene_layer_set(j->graphics_layer,EDITOR_GRAPHICS_LAYER_JOINT-1);
+        (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
+    }
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT-1);
+    for(size_t i=0;i<o->force_count;++i) {
+        const EditorForce *f=&o->force_items[i];
+        if(!f->visible || f->app_hidden) continue;
+        MarkerGeometry g={.kind=OBJECT_FORCE,.visuals=f->visuals,.magnitude=f->description.magnitude};
+        if(!editor_force_location_get(o,f->description.location,&g.origin) ||
+                !editor_force_orientation_get(o,f->description.orientation,&g.orientation)) continue;
+        if(g.magnitude<0) g.orientation+=180;
+        (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
+    }
+    for(size_t i=0;i<o->torque_count;++i) {
+        const EditorTorque *t=&o->torque_items[i];
+        if(t->app_hidden || t->description.target.kind==OBJECT_SOURCE_NONE) continue;
+        MarkerGeometry g={.kind=OBJECT_TORQUE,.visuals=t->visuals,.magnitude=t->description.magnitude};
+        ObjectForceLocation location={.kind=t->description.target.kind==OBJECT_SOURCE_BEAM?ROHR_FORCE_BEAM_POSITION:ROHR_FORCE_COM_POSITION,
+            .reference=t->description.target,.anchor=ROHR_FORCE_BEAM_CENTER};
+        if(!editor_force_location_get(o,location,&g.origin)) continue;
+        (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
+    }
+}
+
 static void editor_viewport_object_draw(const EditorObject *object,
     const EditorViewportState *state, bool object_selected) {
     bool object_highlighted;
     if(object == NULL || state == NULL || !object->visible) return;
+    editor_marker_previews_draw(object);
     object_highlighted = (state->mode == EDITOR_VIEWPORT_HIERARCHY &&
         state->selection == EDITOR_SELECTION_OBJECT && object_selected) ||
         editor_viewport_path_selected(state, EDITOR_SELECTION_OBJECT,
@@ -6612,6 +6659,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
 static void editor_viewport_camera_preview_object_draw(
         const EditorObject *object, const EditorViewportState *state) {
     if(object == NULL || state == NULL || !object->visible) return;
+    editor_marker_previews_draw(object);
     editor_viewport_particle_fills_draw(object);
     editor_viewport_sprites_draw(object, state, false);
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_RIGID_BODY);

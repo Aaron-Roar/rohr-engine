@@ -3,6 +3,7 @@
  */
 #include "editor_command.h"
 #include "editor_sources_json.h"
+#include "entity/object_visuals.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,19 +49,21 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
             return failure("Source name already exists in this object");
     bool app_hidden=c->operation==EDITOR_SOURCE_DUPLICATE &&
         (c->torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden);
+    ObjectVisuals visuals=c->operation==EDITOR_SOURCE_DUPLICATE?
+        (c->torque?o->torque_items[i].visuals:o->force_items[i].visuals):(ObjectVisuals){0};
     uint32_t id=c->id;
     if(c->torque) {
         ObjectTorqueDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].description:(ObjectTorqueDescription){0};
         EditorTorque *t=c->operation==EDITOR_SOURCE_RENAME?&o->torque_items[i]:editor_project_torque_add(p,o);
         if(!t) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->app_hidden=app_hidden; }
+        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->app_hidden=app_hidden; t->visuals=visuals; }
         strcpy(t->name,name); id=t->id;
     } else {
         bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].visible:true;
         ObjectForceDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].description:(ObjectForceDescription){0};
         EditorForce *f=c->operation==EDITOR_SOURCE_RENAME?&o->force_items[i]:editor_project_force_add(p,o);
         if(!f) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) { f->description=value; f->visible=visible; f->app_hidden=app_hidden; }
+        if(c->operation!=EDITOR_SOURCE_RENAME) { f->description=value; f->visible=visible; f->app_hidden=app_hidden; f->visuals=visuals; }
         strcpy(f->name,name); id=f->id;
     }
     EditorCommandResult result={.kind=ERROR_RESULT_VALUE,.created={.valid=true,
@@ -137,6 +140,13 @@ EditorResult editor_source_cli_parse(const EditorProject *p,int count,char **arg
         if(property_set || (value && strlen(value)>=sizeof(c.name))) return invalid("Invalid source name or property");
         if(value) strcpy(c.name,value);
     } else if(c.operation==EDITOR_SOURCE_SET) {
+        EditorPropertyKind visual_property; EditorPropertyValueKind visual_kind;
+        if(editor_visual_property_parse(property,&visual_property,&visual_kind)) {
+            char object_id[24],item_id[24]; snprintf(object_id,sizeof(object_id),"%u",c.object); snprintf(item_id,sizeof(item_id),"%u",c.id);
+            if(!value) return invalid("Visual property requires a value");
+            char *raw[]={"rohr-cli",c.torque?"torque":"force","set",(char *)*path,object_id,item_id,(char *)property,(char *)value};
+            return editor_command_cli_parse(8,raw,path,command);
+        }
         if(!strcmp(property,"visible_in_app")) {
             if(!value || (strcmp(value,"true") && strcmp(value,"false"))) return invalid("visible_in_app requires true or false");
             *command=(EditorCommand){.type=EDITOR_COMMAND_APP_VISIBILITY,
@@ -183,6 +193,7 @@ char *editor_source_query_json(const EditorProject *p,const EditorSourceCommand 
         uint32_t id=c->torque?o->torque_items[i].id:o->force_items[i].id;
         if(c->operation!=EDITOR_SOURCE_LIST && c->id!=id) continue;
         yyjson_mut_val *v=c->torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
+        if(v) ok=ok && yyjson_mut_obj_add_val(d,v,"visuals",object_visuals_json_write(d,c->torque?o->torque_items[i].visuals:o->force_items[i].visuals));
         if(v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible_in_app",
             !(c->torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden));
         if(!c->torque && v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible",o->force_items[i].visible);

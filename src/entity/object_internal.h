@@ -13,6 +13,7 @@ Entity object_instance_anchor_owner_get(Entity entity);
 EngineResult object_instance_anchor_restore(Entity entity, Entity owner, JointAnchorId anchor);
 typedef struct ObjectAppearance {
     ObjectKind kind;
+    ObjectVisuals visuals;
     Color color;
     Color border_color;
     bool visible;

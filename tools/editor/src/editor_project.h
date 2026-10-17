@@ -240,6 +240,7 @@ typedef struct EditorJoint {
     bool visible;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectVisuals visuals;
 } EditorJoint;
 
 EditorRigidBody editor_project_rigid_body_default_get(void);
@@ -440,12 +441,14 @@ typedef struct EditorForce {
     ObjectForceDescription description;
     bool visible;
     bool app_hidden;
+    ObjectVisuals visuals;
 } EditorForce;
 typedef struct EditorTorque {
     uint32_t id;
     char name[EDITOR_OBJECT_NAME_MAX];
     ObjectTorqueDescription description;
     bool app_hidden;
+    ObjectVisuals visuals;
 } EditorTorque;
 
 typedef struct EditorObject {

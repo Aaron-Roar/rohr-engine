@@ -6,6 +6,8 @@
 #include "editors/render/editor_camera.h"
 #include "entity/object_internal.h"
 #include "physics/physics_internal.h"
+#include "graphics/marker_geometry.h"
+#include "entity/object_visuals.h"
 #include <math.h>
 #include "yyjson/yyjson.h"
 #include <assert.h>
@@ -53,12 +55,108 @@ static void runtime_check(EditorProject *p, bool draws) {
 static void legacy(yyjson_mut_val *v) {
     if(yyjson_mut_is_obj(v)) {
         yyjson_mut_obj_remove_str(v,"visible_in_app");
+        yyjson_mut_obj_remove_str(v,"visuals");
         size_t i,max; yyjson_mut_val *key,*value;
         yyjson_mut_obj_foreach(v,i,max,key,value) legacy(value);
     } else if(yyjson_mut_is_arr(v)) {
         size_t i,max; yyjson_mut_val *value;
         yyjson_mut_arr_foreach(v,i,max,value) legacy(value);
     }
+}
+typedef struct GeometryCapture { unsigned count; Position a,b; bool seen_a,seen_b; } GeometryCapture;
+static bool capture_polygon(const Position *points,size_t count,Color color,void *context) {
+    GeometryCapture *capture=context; ++capture->count;
+    Shape shape={.amount_of_vertices=(uint16_t)count}; Position center={0};
+    for(size_t i=0;i<count;++i) { shape.vertices[i]=points[i]; center.x+=points[i].x/count; center.y+=points[i].y/count; }
+    if(color.red==255 && color.green==0 && color.blue==0) { capture->a=center; capture->seen_a=true; }
+    if(color.red==0 && color.green==255 && color.blue==0) { capture->b=center; capture->seen_b=true; }
+    bool ok=rohr_graphics_screen_shape_filled_draw(shape,color);
+    if(!ok) fprintf(stderr,"marker polygon failed with %zu points and color %u,%u,%u\n",count,color.red,color.green,color.blue);
+    return ok;
+}
+static void marker_geometry_check(void) {
+    MarkerGeometry g={.kind=OBJECT_JOINT,.joint=JOINT_SPRING,.endpoint_a={-50,0},.endpoint_b={50,0},.magnitude=1};
+    g.visuals.main=object_visual_style_get((ObjectVisualStyle){0},OBJECT_JOINT);
+    g.visuals.endpoint_a=g.visuals.endpoint_b=g.visuals.main;
+    g.visuals.endpoint_a.fill_color=0xff0000ff; g.visuals.endpoint_b.fill_color=0x00ff00ff;
+    g.visuals.endpoint_a.offset=(Position){10,20}; g.visuals.endpoint_b.offset=(Position){-5,-10};
+    g.visuals.endpoint_a.scale=(Scale){2,0.5f}; g.visuals.endpoint_a.rotation=45;
+    g.visuals.main.scale=(Scale){2,3}; g.visuals.main.rotation=90; g.visuals.main.offset=(Position){7,11};
+    GeometryCapture capture={0}; assert(graphics_marker_geometry_draw(&g,capture_polygon,&capture));
+    assert(capture.seen_a && capture.seen_b);
+    assert(fabsf(capture.a.x-67)<0.001f && fabsf(capture.a.y-91)<0.001f);
+    assert(fabsf(capture.b.x+23)<0.001f && fabsf(capture.b.y+79)<0.001f);
+    assert(g.endpoint_a.x==-50 && g.endpoint_b.x==50);
+    for(unsigned kind=0;kind<4;++kind) {
+        g=(MarkerGeometry){.kind=kind<2?OBJECT_FORCE:OBJECT_TORQUE,.magnitude=kind%2?-1:1};
+        capture=(GeometryCapture){0}; assert(graphics_marker_geometry_draw(&g,capture_polygon,&capture)); assert(capture.count>0);
+        g.visuals.main=object_visual_style_get(g.visuals.main,g.kind); g.visuals.main.scale.x=0;
+        capture=(GeometryCapture){0}; assert(graphics_marker_geometry_draw(&g,capture_polygon,&capture)); assert(capture.count==0);
+    }
+    g=(MarkerGeometry){.kind=OBJECT_JOINT,.joint=JOINT_SPRING,.magnitude=1,.endpoint_b={20,0}};
+    capture=(GeometryCapture){0}; assert(graphics_marker_geometry_draw(&g,capture_polygon,&capture));
+    (void)rohr_graphics_pipeline_commands_execute();
+}
+static void visual_persistence_check(void) {
+    EditorProject p={0},loaded={0}; editor_project_init(&p); editor_project_init(&loaded);
+    EditorObject *o=editor_project_object_add(&p,(Position){0}); assert(o); strcpy(o->name,"styled");
+    EditorForce *f=editor_project_force_add(&p,o); assert(f); strcpy(f->name,"force");
+    EditorTorque *t=editor_project_torque_add(&p,o); assert(t); strcpy(t->name,"torque");
+    EditorJoint *j=editor_project_joint_add(&p,o,EDITOR_JOINT_SPRING); assert(j);
+    const char *path=NULL; EditorCommand command; char output[512];
+    char *force_args[]={"rohr-cli","--project","/tmp/rohr_styles.json","--object","styled",
+        "--force","force","--property","visual-fill-color","set","#11223344"};
+    assert(!editor_result_check(editor_command_cli_standard_parse(&p,11,force_args,&path,&command)));
+    assert(editor_command_execute(&p,&command).kind==ERROR_RESULT_VALUE);
+    assert(f->visuals.main.fill_color==0x11223344 && f->visuals.main.scale.x==1);
+    assert(!editor_result_check(editor_command_cli_standard_write(&p,&command,NULL,path,output,sizeof(output))));
+    assert(strstr(output,"--force-id") && strstr(output,"visual-fill-color"));
+    FILE *replay=fopen("/tmp/rohr_visual_command.txt","w"); assert(replay);
+    assert(fputs(output,replay)>=0 && fclose(replay)==0);
+    char *torque_args[]={"rohr-cli","--project","/tmp/rohr_styles.json","--object","styled",
+        "--torque","torque","--property","visual-scale-x","set","-2"};
+    assert(!editor_result_check(editor_command_cli_standard_parse(&p,11,torque_args,&path,&command)));
+    assert(editor_command_execute(&p,&command).kind==ERROR_RESULT_VALUE);
+    assert(t->visuals.main.scale.x==-2);
+    char oid[24],jid[24]; snprintf(oid,sizeof(oid),"%u",o->id); snprintf(jid,sizeof(jid),"%u",j->id);
+    char *joint_args[]={"rohr-cli","--project","/tmp/rohr_styles.json","--object-id",oid,
+        "--joint-id",jid,"--property","visual-a-offset-x","12"};
+    assert(!editor_result_check(editor_command_cli_standard_parse(&p,10,joint_args,&path,&command)));
+    assert(editor_command_execute(&p,&command).kind==ERROR_RESULT_VALUE);
+    assert(j->visuals.endpoint_a.offset.x==12 && !j->visuals.endpoint_b.specified);
+    command.data.property_set.property=EDITOR_PROPERTY_VISUAL_BORDER_THICKNESS;
+    command.data.property_set.value.number=-1;
+    assert(editor_command_execute(&p,&command).kind==ERROR_RESULT_ERROR && !j->visuals.main.specified);
+    command.data.property_set.value.number=NAN;
+    assert(editor_command_execute(&p,&command).kind==ERROR_RESULT_ERROR && !j->visuals.main.specified);
+    assert(editor_project_save(&p,"/tmp/rohr_styles.json"));
+    assert(!editor_result_check(editor_project_load(&loaded,"/tmp/rohr_styles.json")));
+    assert(loaded.objects[0].force_items[0].visuals.main.fill_color==0x11223344);
+    assert(loaded.objects[0].torque_items[0].visuals.main.scale.x==-2);
+    assert(loaded.objects[0].joint_items[0].visuals.endpoint_a.offset.x==12);
+    yyjson_doc *doc=yyjson_read_file("/tmp/rohr_styles.json",0,NULL,NULL); assert(doc);
+    yyjson_mut_doc *copy=yyjson_doc_mut_copy(doc,NULL); yyjson_doc_free(doc); assert(copy);
+    yyjson_mut_val *object=yyjson_mut_arr_get_first(yyjson_mut_obj_get(yyjson_mut_doc_get_root(copy),"objects"));
+    yyjson_mut_val *force=yyjson_mut_arr_get_first(yyjson_mut_obj_get(object,"forces")); assert(force);
+    yyjson_mut_val *style=yyjson_mut_obj_get(yyjson_mut_obj_get(force,"visuals"),"main"); assert(style);
+    yyjson_mut_obj_put(style,yyjson_mut_str(copy,"border_thickness"),yyjson_mut_real(copy,-1));
+    assert(yyjson_mut_write_file("/tmp/rohr_styles_invalid.json",copy,0,NULL,NULL));
+    assert(editor_result_check(editor_project_load(&loaded,"/tmp/rohr_styles_invalid.json")));
+    assert(loaded.objects[0].force_items[0].visuals.main.fill_color==0x11223344);
+    legacy(yyjson_mut_doc_get_root(copy));
+    assert(yyjson_mut_write_file("/tmp/rohr_styles_legacy.json",copy,0,NULL,NULL));
+    assert(!editor_result_check(editor_project_load(&loaded,"/tmp/rohr_styles_legacy.json")));
+    assert(!loaded.objects[0].force_items[0].visuals.main.specified);
+    assert(!loaded.objects[0].joint_items[0].visuals.endpoint_a.specified);
+    yyjson_mut_doc_free(copy); editor_project_destroy(&loaded); editor_project_destroy(&p);
+}
+static void visual_color_open(void *context,uint32_t *color,EditorItemKind kind,
+        EditorObjectId object,uint32_t parent,uint32_t item,EditorPropertyKind property) {
+    (void)color;
+    EditorCommand command={.type=EDITOR_COMMAND_PROPERTY_SET,.data.property_set={
+        .kind=kind,.object=object,.parent=parent,.item=item,.property=property,
+        .value_kind=EDITOR_PROPERTY_VALUE_UINT,.value.integer=0x11223344}};
+    assert(editor_command_execute(context,&command).kind==ERROR_RESULT_VALUE);
 }
 static uint64_t drawn(Entity entity) {
     (void)rohr_graphics_pipeline_commands_execute();
@@ -89,6 +187,10 @@ static void source_runtime_check(void) {
         .orientation={.kind=ROHR_FORCE_BODY_ORIENTATION,.reference={OBJECT_SOURCE_BODY,b->id,0}}};
     EditorTorque *t=editor_project_torque_add(&p,o); assert(t); strcpy(t->name,"torque");
     t->description=(ObjectTorqueDescription){.target={OBJECT_SOURCE_BODY,b->id,0},.magnitude=-20};
+    f->visuals.main=object_visual_style_get((ObjectVisualStyle){0},OBJECT_FORCE);
+    f->visuals.main.scale=(Scale){2,3}; f->visuals.main.offset=(Position){8,9};
+    j->visuals.endpoint_b=object_visual_style_get((ObjectVisualStyle){0},OBJECT_JOINT);
+    j->visuals.endpoint_b.offset=(Position){4,5}; j->visuals.endpoint_b.fill_color=0xff0000ff;
     ObjectDescriptionResult d=object_description_project_read(&p,""); assert(!rohr_error_check(d));
     EntityResult root=rohr_entity_object_description_add(d.result.value->children[0],
         (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL}); assert(!rohr_error_check(root));
@@ -125,6 +227,10 @@ static void source_runtime_check(void) {
     root=rohr_entity_by_name_get(root_name.result.value.value); assert(!rohr_error_check(root));
     for(size_t i=0;i<3;++i) entities[i]=rohr_entity_object_member_by_name_get(root.result.value,names[i]).result.value;
     assert(drawn(root.result.value)==0 && drawn(entities[0])>0 && drawn(entities[1])>0);
+    ObjectAppearance restored; assert(object_instance_appearance_get(entities[0],&restored));
+    assert(restored.visuals.main.scale.x==2 && restored.visuals.main.offset.y==9);
+    assert(object_instance_appearance_get(entities[2],&restored));
+    assert(restored.visuals.endpoint_b.offset.y==5 && restored.visuals.endpoint_b.fill_color==0xff0000ff);
     assert(!rohr_error_check(rohr_entity_delete(root.result.value)));
     for(size_t i=0;i<3;++i) assert(!rohr_entity_alive_check(entities[i]));
     root=rohr_entity_object_description_add(d.result.value->children[0],
@@ -136,6 +242,8 @@ static void source_runtime_check(void) {
 int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
+    marker_geometry_check();
+    visual_persistence_check();
     source_runtime_check();
     EditorProject p={0}; editor_project_init(&p);
     EditorObject *o=editor_project_object_add(&p,(Position){0}); assert(o);
@@ -178,6 +286,23 @@ int main(void) {
         {EDITOR_SELECTION_FORCE,o->id,0,0,force->id}};
     EditorHistory history={0}; assert(editor_history_init(&history,&p));
     editor_command_executing_callback_set(begin,&history); editor_command_finished_callback_set(finish,&history);
+    EditorVisualControls visuals={0}; FontAsset visual_font=rohr_graphics_font_default_get();
+    assert(editor_visual_controls_create(&visuals,&visual_font));
+    EditorModeContext visual_context={.project=&p,.history=&history,.width=300,.color_open=visual_color_open,.color_context=&p};
+    for(unsigned step=0;step<2;++step) {
+        EditorModeAccordionLayoutCursor cursor=editor_mode_accordion_layout_cursor_get(0,300,0);
+        rohr_ui_input_set((UIInput){{200,50},step?MOUSE_BUTTON_STATE_RELEASED:MOUSE_BUTTON_STATE_PRESSED});
+        (void)editor_visual_controls_draw(&visuals,&visual_context,&cursor,EDITOR_ITEM_FORCE,o->id,force->id,false);
+        rohr_ui_update();
+    }
+    assert(force->visuals.main.specified && force->visuals.main.fill_color==0x11223344);
+    assert(editor_history_undo(&history)); o=editor_project_selected_get(&p); force=&o->force_items[0];
+    assert(!force->visuals.main.specified);
+    assert(editor_history_redo(&history)); o=editor_project_selected_get(&p); force=&o->force_items[0];
+    assert(force->visuals.main.fill_color==0x11223344);
+    /* Aggregate history can replace child arrays; reacquire all borrowed model pointers. */
+    body=&o->rigid_bodies[0]; camera=&o->cameras[0]; torque=&o->torque_items[0];
+    editor_visual_controls_destroy(&visuals);
     EditorViewportState state; editor_viewport_state_init(&state);
     state.selected_camera_entity = camera->id;
     state.mode = EDITOR_VIEWPORT_CAMERA_ENTITY;

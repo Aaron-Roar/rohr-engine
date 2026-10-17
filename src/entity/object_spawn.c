@@ -1,10 +1,12 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "entity/object_visuals.h"
 #include "object_internal.h"
 #include "entity_internal.h"
 #include "physics/soft_body/soft_body_area.h"
 #include "graphics/object_drawing.h"
+#include "graphics/marker_geometry.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +42,7 @@ bool object_instance_appearance_get(Entity entity, ObjectAppearance *appearance)
 }
 EngineResult object_instance_appearance_set(Entity entity, ObjectAppearance appearance) {
     EntityIndex index;
-    if(!entity_index_get(entity, &index) || appearance.kind < OBJECT_CONTAINER || appearance.kind > OBJECT_TORQUE)
+    if(!entity_index_get(entity, &index) || appearance.kind < OBJECT_CONTAINER || appearance.kind > OBJECT_TORQUE || !object_visuals_check(appearance.visuals))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     instance_appearance[index] = appearance; instance_appearance_used[index] = true;
     return error_result_value(true);
@@ -61,9 +63,9 @@ bool entity_object_draw(Entity entity) {
                 } else if(appearance.kind == OBJECT_NODE || appearance.kind == OBJECT_BEAM || appearance.kind == OBJECT_AREA)
                     ok = graphics_soft_body_element_draw(current, appearance.color) && ok;
                 else if(appearance.kind == OBJECT_JOINT && entity_components_check(current, ROHR_JOINT))
-                    ok = graphics_joint_draw(current, appearance.color) && ok;
+                    ok = graphics_marker_entity_draw(current, appearance.kind, appearance.visuals) && ok;
                 else if(appearance.kind == OBJECT_FORCE || appearance.kind == OBJECT_TORQUE)
-                    ok = graphics_source_draw(current, appearance.kind == OBJECT_TORQUE, appearance.color) && ok;
+                    ok = graphics_marker_entity_draw(current, appearance.kind, appearance.visuals) && ok;
                 if(entity_components_check(current, ROHR_SPRITE)) ok = graphics_sprite_draw(current) && ok;
                 if(entity_components_check(current, ROHR_ANIMATED_SPRITE)) ok = graphics_animated_sprite_draw(current) && ok;
             }
@@ -321,7 +323,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     Entity e = entry->entity;
 #define APPLY(call) do { result = (call); if(error_check(result)) return result; } while(0)
     APPLY(name_set(e, d, parent));
-    APPLY(object_instance_appearance_set(e, (ObjectAppearance){.kind = d->kind, .color = d->color,
+    APPLY(object_instance_appearance_set(e, (ObjectAppearance){.kind = d->kind, .visuals = d->visuals, .color = d->color,
         .border_color = d->border_color, .visible = d->visible, .enabled = visual}));
     if(!geometry_enabled || d->kind != OBJECT_SOFT_BODY) {
         APPLY(physics_position_set(e, position));
@@ -458,7 +460,7 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
     if(error_check(created)) return error_result_error(created.result.error);
     entry->entity = created.result.value;
     EngineResult result = object_instance_appearance_set(entry->entity, (ObjectAppearance){
-        .kind=d->kind, .color=d->color, .visible=d->visible,
+        .kind=d->kind, .visuals=d->visuals, .color=d->color, .visible=d->visible,
         .enabled=(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS)!=0});
     if(!error_check(result)) result = graphics_layer_entity_set(entry->entity, d->layer);
     if(!error_check(result)) result = name_set(entry->entity, d, parent);

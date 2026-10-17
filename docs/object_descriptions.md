@@ -151,6 +151,19 @@ Editor eyes are excluded from runtime descriptions. Each visual item's
 `visible_in_app` becomes its description visibility; hidden parents also
 suppress child sprite and camera output. Visibility does not change physics.
 
+Force, torque, and joint descriptions store app styling in `.visuals`, an
+`ObjectVisuals` value with `main`, `endpoint_a`, and `endpoint_b` styles.
+`ObjectVisualStyle` contains `specified`, RGBA `fill_color` and `border_color`,
+`border_thickness`, `scale`, `offset`, and clockwise degree `rotation`.
+An unspecified style uses the engine defaults: unit scale, zero offset/rotation,
+one-unit dark border, and amber fill (gold for joints). Set `specified = true`
+when providing a style; all its fields then apply, including transparent colors
+and zero scales. Borders must be nonnegative; numeric transforms must be finite.
+Endpoint styles affect spring markers only. The main transform affects the whole
+spring around its midpoint; endpoint offsets move marker centers and coil ends,
+without changing anchors. Generated and loaded descriptions share the same
+geometry and styling, which also survives runtime snapshots.
+
 Editor document version 9 (with version 8 migration) includes top-level force and torque items in each
 object. Loading a document exposes them as `OBJECT_FORCE` and `OBJECT_TORQUE`
 descriptions with `.force` and `.torque` values. `ObjectForceDescription` and

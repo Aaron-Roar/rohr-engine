@@ -5,5 +5,4 @@
 #define ROHR_OBJECT_DRAWING_H
 #include "graphics.h"
 bool graphics_soft_body_element_draw(Entity entity, Color color);
-bool graphics_source_draw(Entity entity, bool torque, Color color);
 #endif

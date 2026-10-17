@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "entity/object_visuals.h"
 #include "editor_sources_json.h"
 
 #include "editor_project.h"
@@ -450,6 +451,7 @@ static yyjson_mut_val *editor_json_joint_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_real(document, value, "damping", joint->damping);
     yyjson_mut_obj_add_real(document, value, "rest_angle", joint->rest_angle);
     yyjson_mut_obj_add_real(document, value, "visual_size", joint->visual_size);
+    if(!yyjson_mut_obj_add_val(document,value,"visuals",object_visuals_json_write(document,joint->visuals))) return NULL;
     yyjson_mut_obj_add_bool(document, value, "visible", joint->visible);
     yyjson_mut_obj_add_bool(document, value, "visible_in_app", !joint->app_hidden);
     return value;
@@ -1336,6 +1338,7 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
             !editor_json_real(value, "damping", &joint->damping) ||
             !editor_json_real(value, "rest_angle", &joint->rest_angle) ||
             !editor_json_real(value, "visual_size", &joint->visual_size) ||
+            !object_visuals_json_read(yyjson_obj_get(value,"visuals"),&joint->visuals) ||
             !editor_json_bool(value, "visible", &joint->visible) ||
             !editor_json_app_visibility_read(value, &joint->app_hidden) ||
             !editor_json_graphics_layer_binding_read(value,

@@ -5,6 +5,7 @@
 #include "editor_log.h"
 #include "editor_mode_controls.h"
 #include "editor_layout.h"
+#include "entity/object_visuals.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -1076,4 +1077,78 @@ bool editor_mode_layer_control_draw(EditorModeLayerControl *control,
         active = result.active;
     }
     return active;
+}
+
+static const char *visual_labels[]={"Fill Color","Border Color","Border Thickness","Scale X","Scale Y","Offset X","Offset Y","Rotation (deg)"};
+bool editor_visual_controls_create(EditorVisualControls *v,FontAsset *font) {
+    if(!v || !font) return false;
+    *v=(EditorVisualControls){0};
+    if(!editor_mode_accordion_section_create(&v->outer,font,"Visuals",true)) goto fail;
+    const char *parts[]={"Spring","Endpoint A","Endpoint B"};
+    for(size_t p=0;p<3;++p) {
+        if(!editor_mode_accordion_section_create(&v->parts[p],font,parts[p],true)) goto fail;
+        for(size_t i=0;i<8;++i) if(!editor_mode_text_create(font,"",&v->fields[p][i])) goto fail;
+    }
+    for(size_t i=0;i<8;++i) if(!editor_mode_text_create(font,visual_labels[i],&v->labels[i])) goto fail;
+    return true;
+fail: editor_visual_controls_destroy(v); return false;
+}
+void editor_visual_controls_destroy(EditorVisualControls *v) {
+    if(!v) return;
+    editor_mode_accordion_section_destroy(&v->outer);
+    for(size_t p=0;p<3;++p) {
+        editor_mode_accordion_section_destroy(&v->parts[p]);
+        for(size_t i=0;i<8;++i) rohr_graphics_text_destroy(&v->fields[p][i]);
+    }
+    for(size_t i=0;i<8;++i) rohr_graphics_text_destroy(&v->labels[i]);
+    *v=(EditorVisualControls){0};
+}
+bool editor_visual_controls_draw(EditorVisualControls *v,const EditorModeContext *c,
+        EditorModeAccordionLayoutCursor *cursor,EditorItemKind kind,EditorObjectId object,
+        uint32_t item,bool spring) {
+    ObjectVisuals *visuals=editor_command_visuals_get(c->project,kind,object,item);
+    if(!visuals) return false;
+    bool reset=v->object!=object || v->item!=item || v->kind!=kind,editing=false;
+    v->object=object; v->item=item; v->kind=kind;
+    float rows[8]={28,28,28,28,28,28,28,28};
+    float height=0;
+    if(spring) for(size_t p=0;p<3;++p) {
+        EditorModeAccordionLayoutMetrics m=editor_mode_accordion_layout_metrics_get(height,cursor->padding,cursor->section_gap,rows,8,6,v->parts[p].expanded);
+        height=m.next_y;
+    }
+    EditorModeAccordionLayoutResult outer=editor_mode_accordion_layout_section(cursor,&v->outer,
+        "editor.visuals",spring?&height:rows,spring?1:8,6);
+    if(!outer.expanded) return false;
+    EditorModeAccordionLayoutCursor nested=editor_mode_accordion_layout_cursor_get(cursor->x+8,cursor->width-16,outer.content_y);
+    for(size_t p=0;p<(spring?3u:1u);++p) {
+        char section_id[64]; snprintf(section_id,sizeof(section_id),"editor.visuals.part.%zu",p);
+        EditorModeAccordionLayoutResult section=spring?editor_mode_accordion_layout_section(&nested,&v->parts[p],section_id,rows,8,6):outer;
+        if(!section.expanded) continue;
+        ObjectVisualStyle style=object_visual_style_get(p==0?visuals->main:p==1?visuals->endpoint_a:visuals->endpoint_b,
+            kind==EDITOR_ITEM_JOINT?OBJECT_JOINT:OBJECT_FORCE);
+        float numbers[]={style.border_thickness,style.scale.x,style.scale.y,style.offset.x,style.offset.y,style.rotation};
+        uint32_t colors[]={style.fill_color,style.border_color};
+        for(size_t i=0;i<8;++i) {
+            char id[80]; snprintf(id,sizeof(id),"editor.visuals.%zu.%zu",p,i);
+            float x=spring?nested.x:cursor->x,width=spring?nested.width:cursor->width;
+            float y=editor_mode_accordion_layout_row_y(&section,rows,i,6);
+            rohr_ui_label(&v->labels[i],(UIRect){x+10,y,116,28});
+            UIRect bounds={x+130,y,width-140,28};
+            EditorPropertyKind property=EDITOR_PROPERTY_VISUAL_FILL_COLOR+p*8+i;
+            if(i<2) {
+                if(reset || colors[i]!=v->stored_colors[p][i]) v->colors[p][i]=colors[i];
+                v->stored_colors[p][i]=colors[i];
+                (void)editor_mode_color_swatch(id,&v->colors[p][i],false,bounds,c,kind,object,0,item,property);
+            } else {
+                UIFieldResult result=editor_mode_field(id,(UIFieldBinding){.kind=UI_FIELD_FLOAT,.number=&numbers[i-2]},&v->fields[p][i],bounds,NULL);
+                editing|=result.active;
+                if(result.changed) {
+                    EditorCommand command={.type=EDITOR_COMMAND_PROPERTY_SET,.data.property_set={
+                        .kind=kind,.object=object,.item=item,.property=property,.value_kind=EDITOR_PROPERTY_VALUE_FLOAT,.value.number=numbers[i-2]}};
+                    (void)editor_command_execute(c->project,&command);
+                }
+            }
+        }
+    }
+    return editing;
 }

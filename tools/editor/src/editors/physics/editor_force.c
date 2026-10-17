@@ -13,6 +13,7 @@ static const char *choices[]={"Persistent","Initial (one tick)","World","COM","O
 bool editor_force_editor_create(EditorForceEditor *e, FontAsset *font) {
     if(!e || !font) return false;
     *e=(EditorForceEditor){.font=font,.content_height=500};
+    if(!editor_visual_controls_create(&e->visuals,font)) goto fail;
     e->references=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->references));
     e->options=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->options));
     e->indices=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->indices));
@@ -29,6 +30,7 @@ fail: editor_force_editor_destroy(e); return false;
 }
 void editor_force_editor_destroy(EditorForceEditor *e) {
     if(!e) return;
+    editor_visual_controls_destroy(&e->visuals);
     for(size_t i=0;i<16;++i) rohr_graphics_text_destroy(&e->choices[i]);
     for(size_t i=0;i<EDITOR_FORCE_FIELD_MAX;++i) {
         rohr_graphics_text_destroy(&e->labels[i]); rohr_graphics_text_destroy(&e->fields[i]);
@@ -156,6 +158,7 @@ bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
     }
     ObjectForceDescription d=f->description; bool changed=false;
     EditorModeAccordionLayoutCursor cursor=editor_mode_accordion_layout_cursor_get(c->x,c->width,y+6);
+    e->editing|=editor_visual_controls_draw(&e->visuals,c,&cursor,EDITOR_ITEM_FORCE,o->id,f->id,false);
     EditorModeAccordionLayoutResult s=section(&cursor,&e->source_section,"editor.force.source",3);
     if(s.expanded) {
         e->scope="source"; y=s.content_y; int mode=d.mode; changed|=choice(e,c,&y,"Mode",0,2,&mode); d.mode=mode;

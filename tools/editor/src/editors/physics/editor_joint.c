@@ -62,9 +62,10 @@ static UIButtonStyle selected_style_get(void) {
 bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     if(editor == NULL || font == NULL) return false;
     *editor = (EditorJointEditor){.font = font};
+    if(!editor_visual_controls_create(&editor->visuals,font)) goto fail;
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
-    CREATE("Name", name_label); CREATE("Visual Size", visual_size_label);
+    CREATE("Name", name_label); CREATE("Editor Symbol Size", visual_size_label);
     CREATE("Revolute", revolute_label); CREATE("Weld", weld_label);
     CREATE("Spring", spring_label); CREATE("Anchor A", anchor_a_label);
     CREATE("Anchor B", anchor_b_label); CREATE("None", none_label);
@@ -89,6 +90,7 @@ fail:
 
 void editor_joint_editor_destroy(EditorJointEditor *editor) {
     if(editor == NULL) return;
+    editor_visual_controls_destroy(&editor->visuals);
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(visual_size_label); DESTROY(revolute_label);
     DESTROY(weld_label); DESTROY(spring_label); DESTROY(anchor_a_label);
@@ -178,6 +180,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(
             context->x, context->width, 114.0f);
+    field_active|=editor_visual_controls_draw(&editor->visuals,context,&accordion,EDITOR_ITEM_JOINT,object->id,joint->id,joint->kind==EDITOR_JOINT_SPRING);
     const float configuration_rows[] = {38.0f, 30.0f};
     size_t shown_anchors = object->anchor_count < 6 ? object->anchor_count : 6;
     float connection_rows[EDITOR_ANCHOR_MAX + 3] = {30.0f, 32.0f, 32.0f};

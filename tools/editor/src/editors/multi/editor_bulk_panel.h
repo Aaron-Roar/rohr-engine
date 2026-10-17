@@ -10,7 +10,7 @@
 #include "editor_viewport.h"
 #include "editors/geometry/editor_auto_shape_editor.h"
 
-#define EDITOR_BULK_PROPERTY_MAX 24
+#define EDITOR_BULK_PROPERTY_MAX 48
 
 typedef void (*EditorBulkColorOpen)(void *context, uint32_t *color,
     EditorPropertyKind property);

@@ -1390,7 +1390,22 @@ Separate editing convenience from app rendering, then improve force controls.
    Regenerated and rebuilt `/tmp/rohr-projects/project-dir`; its unchanged entry
    point renders the scene, force arrow, and all three joint types. Windows
    execution remains unverified. Manual application and panel review is requested.
-2. [ ] **Improve force editing affordances** — Replace the rotation dot with
+2. [x] **Add shared visual styling and previews** — Added force/torque/joint fill,
+   border, signed X/Y scale, local offsets and rotation. Spring endpoint markers
+   have independent styles; the coil connects their visual centers without
+   changing physics anchors. App output and editor previews share world-space
+   geometry below editing controls. Visuals accordions, compatible multi-edit,
+   color pickers, history, clipboard, CLI replay/help, JSON, generated catalogs,
+   and runtime snapshots preserve styles. Missing styles use defaults. Increased
+   text-asset capacity for the expanded panels. Verified 90 native tests, six
+   ASan/UBSan/leak suites, GUI startup, and Linux/Windows builds with no new
+   compiler diagnostics. Seven installed-SDK consumers, all 12 examples, default
+   generation, and a separately styled generated project build on both platforms;
+   Linux runtime/probe and bounded startup checks pass. Regenerated and rebuilt
+   `/tmp/rohr-projects/project-dir` with its entry point unchanged; the scene
+   callback and force/joint output pass. Windows execution remains unverified.
+   Manual editor/application review is requested; the torque editor stays deferred.
+3. [ ] **Improve force editing affordances** — Replace the rotation dot with
    opposing curved arrows around the force origin, and highlight referenced
    bodies/particles/soft-body elements when hovering target/reference choices.
    Preserve selection, reference-aware transforms, cancellation and history.

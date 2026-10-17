@@ -46,6 +46,20 @@ typedef struct EditorModeAccordionLayoutGroup {
     float gap_before;
 } EditorModeAccordionLayoutGroup;
 
+typedef struct EditorVisualControls {
+    EditorModeAccordionSection outer, parts[3];
+    TextAsset labels[8], fields[3][8];
+    uint32_t colors[3][2], stored_colors[3][2];
+    EditorObjectId object;
+    uint32_t item;
+    EditorItemKind kind;
+} EditorVisualControls;
+bool editor_visual_controls_create(EditorVisualControls *controls, FontAsset *font);
+void editor_visual_controls_destroy(EditorVisualControls *controls);
+bool editor_visual_controls_draw(EditorVisualControls *controls, const EditorModeContext *context,
+    EditorModeAccordionLayoutCursor *cursor, EditorItemKind kind, EditorObjectId object,
+    uint32_t item, bool spring);
+
 typedef struct EditorModeLayerControl {
     FontAsset *font;
     TextAsset layer_label;

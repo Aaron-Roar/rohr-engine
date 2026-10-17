@@ -36,6 +36,44 @@ visibility fields. Version 8 projects load with app visibility on while keeping
 all eye states. Saving writes version 9. Both settings survive copying and
 undo/redo; generation and loaded runtime objects use only app visibility.
 
+## Force and joint visuals
+
+The **Visuals** accordion controls the app representation of forces and joints:
+fill color, border color and thickness, X/Y scale, X/Y offset, and clockwise
+rotation in degrees. These are world-sized graphics, so camera zoom scales them.
+The editor previews them below its existing symbols and manipulation handles.
+The editor eye hides both representations; **Visible in App** hides only the app
+representation and its preview. Joint **Editor Symbol Size** remains independent.
+None of these properties changes physics or reference bindings.
+
+Spring visuals contain **Spring**, **Endpoint A**, and **Endpoint B** sections.
+Each endpoint is an independently styled circular marker; unequal scales make it
+elliptical. Endpoint offsets move their visual centers, and the coil connects
+those centers without moving the physical anchors. The Spring scale and rotation
+transform the entire assembly around the physical midpoint, followed by its
+offset. Endpoint transforms apply first, in world axes. Other joint types share
+one marker and need no endpoint sections.
+
+Colors use RGBA. Border thickness must be finite and nonnegative. Scale, offset,
+and rotation must be finite; negative scales mirror graphics and zero scales
+collapse them. Missing styles retain defaults. Styles survive save/load,
+copy/paste, undo/redo, generated C, and runtime snapshots. Compatible multiple
+selections expose shared visual properties; endpoint properties appear when all
+selected items are springs.
+
+CLI properties are `visual-fill-color`, `visual-border-color`,
+`visual-border-thickness`, `visual-scale-x`, `visual-scale-y`, `visual-offset-x`,
+`visual-offset-y`, and `visual-rotation`. Spring endpoint properties use
+`visual-a-` and `visual-b-` prefixes. For example:
+
+```sh
+rohr-cli --project objects/project.rohr.json --object car --force drive --property visual-fill-color set '#FFA040FF'
+rohr-cli --project objects/project.rohr.json --object-id 1 --joint-id 7 --property visual-a-offset-x 10
+```
+
+Torques use the same persisted styles, CLI properties, and app previews. Their
+dedicated editor remains a later goal.
+
 ## Build and run
 
 From the engine repository:

@@ -201,7 +201,31 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_INITIAL_ACCELERATION_X,
     EDITOR_PROPERTY_INITIAL_ACCELERATION_Y,
     EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY,
-    EDITOR_PROPERTY_INITIAL_MOTION_INHERITED
+    EDITOR_PROPERTY_INITIAL_MOTION_INHERITED,
+    EDITOR_PROPERTY_VISUAL_FILL_COLOR,
+    EDITOR_PROPERTY_VISUAL_BORDER_COLOR,
+    EDITOR_PROPERTY_VISUAL_BORDER_THICKNESS,
+    EDITOR_PROPERTY_VISUAL_SCALE_X,
+    EDITOR_PROPERTY_VISUAL_SCALE_Y,
+    EDITOR_PROPERTY_VISUAL_OFFSET_X,
+    EDITOR_PROPERTY_VISUAL_OFFSET_Y,
+    EDITOR_PROPERTY_VISUAL_ROTATION,
+    EDITOR_PROPERTY_VISUAL_A_FILL_COLOR,
+    EDITOR_PROPERTY_VISUAL_A_BORDER_COLOR,
+    EDITOR_PROPERTY_VISUAL_A_BORDER_THICKNESS,
+    EDITOR_PROPERTY_VISUAL_A_SCALE_X,
+    EDITOR_PROPERTY_VISUAL_A_SCALE_Y,
+    EDITOR_PROPERTY_VISUAL_A_OFFSET_X,
+    EDITOR_PROPERTY_VISUAL_A_OFFSET_Y,
+    EDITOR_PROPERTY_VISUAL_A_ROTATION,
+    EDITOR_PROPERTY_VISUAL_B_FILL_COLOR,
+    EDITOR_PROPERTY_VISUAL_B_BORDER_COLOR,
+    EDITOR_PROPERTY_VISUAL_B_BORDER_THICKNESS,
+    EDITOR_PROPERTY_VISUAL_B_SCALE_X,
+    EDITOR_PROPERTY_VISUAL_B_SCALE_Y,
+    EDITOR_PROPERTY_VISUAL_B_OFFSET_X,
+    EDITOR_PROPERTY_VISUAL_B_OFFSET_Y,
+    EDITOR_PROPERTY_VISUAL_B_ROTATION
 } EditorPropertyKind;
 
 typedef enum EditorPropertyValueKind {
@@ -531,6 +555,11 @@ EditorResult editor_source_cli_write(const EditorProject *project, const EditorC
 char *editor_source_query_json(const EditorProject *project, const EditorSourceCommand *command);
 
 /* Returns the independently stored app-hidden flag, or NULL for nonvisual items. */
+ObjectVisuals *editor_command_visuals_get(EditorProject *project, EditorItemKind kind,
+    EditorObjectId object, uint32_t item);
+bool editor_visual_property_check(EditorPropertyKind property);
+const char *editor_visual_property_name_get(EditorPropertyKind property);
+bool editor_visual_property_parse(const char *name, EditorPropertyKind *property, EditorPropertyValueKind *kind);
 bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
     EditorObjectId object, uint32_t parent, uint32_t item);
 

@@ -428,6 +428,21 @@ beam midpoint. Zero sources are muted, and unresolved geometry is omitted.
 Visibility never disables a source. Movable torque editor markers remain the
 next editor goal.
 
+App markers and editor app previews share world-space filled geometry. Their
+Visuals properties are fill/border color, border thickness, signed X/Y scale,
+local X/Y offset, and clockwise rotation. Editing controls remain above the app
+preview at their established screen size. The editor eye hides both; app
+visibility hides the preview and runtime marker independently of editing controls.
+Force offsets use the signed arrow's local axes; torque offsets use world axes.
+Visual transforms never mutate source descriptions, targets, or physics.
+
+Joints use the same visual style. Springs additionally have independently styled
+Endpoint A/B markers, with the coil connecting their offset visual centers.
+Endpoint scale/rotation affects each marker; assembly scale/rotation acts about
+the physical midpoint, and assembly offset moves the complete graphic. Pin and
+weld joints retain a single marker. The torque editor is still deferred; torque
+styles are available through documents, CLI, generated output, and app previews.
+
 ### Goal 5: authored definitions and persistence
 
 Goal 5 implements these authored-model requirements through object-owned

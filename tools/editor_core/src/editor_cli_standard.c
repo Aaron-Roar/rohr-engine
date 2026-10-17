@@ -488,6 +488,27 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
+    if(command && command->type==EDITOR_COMMAND_PROPERTY_SET &&
+            editor_visual_property_check(command->data.property_set.property)) {
+        const EditorPropertySetCommand *set=&command->data.property_set;
+        const char *selector=set->kind==EDITOR_ITEM_FORCE?"--force-id":
+            set->kind==EDITOR_ITEM_TORQUE?"--torque-id":set->kind==EDITOR_ITEM_JOINT?"--joint-id":NULL;
+        if(!selector || !path || !output || !capacity) return editor_result_error(
+            EDITOR_ERROR_INVALID_ARGUMENT,"Invalid visual command output");
+        char object[24],item[24],value[64]; size_t used=0;
+        snprintf(object,sizeof(object),"%u",set->object); snprintf(item,sizeof(item),"%u",set->item);
+        if(set->value_kind==EDITOR_PROPERTY_VALUE_UINT) snprintf(value,sizeof(value),"#%08X",set->value.integer);
+        else if(set->value_kind==EDITOR_PROPERTY_VALUE_FLOAT) snprintf(value,sizeof(value),"%.9g",(double)set->value.number);
+        else return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Invalid visual value");
+        const char *tokens[]={"rohr-cli","--project",path,"--object-id",object,selector,item,
+            "--property",editor_visual_property_name_get(set->property)};
+        output[0]=0;
+        for(size_t i=0;i<sizeof(tokens)/sizeof(*tokens);++i)
+            if(!cli_token_add(output,capacity,&used,tokens[i])) goto full;
+        if(set->kind!=EDITOR_ITEM_JOINT && !cli_token_add(output,capacity,&used,"set")) goto full;
+        if(!cli_token_add(output,capacity,&used,value)) goto full;
+        return editor_result_value(true);
+    }
     if(command && command->type == EDITOR_COMMAND_APP_VISIBILITY)
         return editor_command_cli_write(command, path, output, capacity);
     if(command && ((command->type==EDITOR_COMMAND_ITEM_ADD && command->data.item_add.kind==EDITOR_ITEM_FORCE) ||

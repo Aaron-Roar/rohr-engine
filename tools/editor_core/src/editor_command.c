@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 
+#include "entity/object_visuals.h"
 #include "editor_command.h"
 #include "editor_mass_properties.h"
 #include "editor_soft_area.h"
@@ -211,6 +212,7 @@ static bool editor_command_collision_mask_find(const EditorProject *project,
     return false;
 }
 
+static bool visual_property_set(EditorProject *p,const EditorPropertySetCommand *set);
 static EditorCommandResult editor_command_execute_internal(EditorProject *project,
         const EditorCommand *command) {
     Position position;
@@ -1112,6 +1114,10 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         }
         case EDITOR_COMMAND_PROPERTY_SET: {
             const EditorPropertySetCommand *set = &command->data.property_set;
+            if(editor_visual_property_check(set->property)) {
+                if(visual_property_set(project,set)) return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Invalid visual property").result.error);
+            }
             EditorObject *object = editor_object_query_get(project, set->object);
             if(object == NULL) return editor_command_not_found("object", set->object);
             if(set->kind == EDITOR_ITEM_RIGID_BODY) {
@@ -2151,6 +2157,53 @@ property_invalid:
         "unknown editor command"});
 }
 
+static const char *visual_property_names[]={"visual-fill-color","visual-border-color","visual-border-thickness","visual-scale-x","visual-scale-y","visual-offset-x","visual-offset-y","visual-rotation","visual-a-fill-color","visual-a-border-color","visual-a-border-thickness","visual-a-scale-x","visual-a-scale-y","visual-a-offset-x","visual-a-offset-y","visual-a-rotation","visual-b-fill-color","visual-b-border-color","visual-b-border-thickness","visual-b-scale-x","visual-b-scale-y","visual-b-offset-x","visual-b-offset-y","visual-b-rotation"};
+bool editor_visual_property_check(EditorPropertyKind p) {
+    return p>=EDITOR_PROPERTY_VISUAL_FILL_COLOR && p<=EDITOR_PROPERTY_VISUAL_B_ROTATION;
+}
+const char *editor_visual_property_name_get(EditorPropertyKind p) {
+    return editor_visual_property_check(p)?visual_property_names[p-EDITOR_PROPERTY_VISUAL_FILL_COLOR]:NULL;
+}
+bool editor_visual_property_parse(const char *name,EditorPropertyKind *p,EditorPropertyValueKind *kind) {
+    if(!name || !p || !kind) return false;
+    for(size_t i=0;i<24;++i) if(!strcmp(name,visual_property_names[i])) {
+        *p=EDITOR_PROPERTY_VISUAL_FILL_COLOR+i;
+        *kind=i%8<2?EDITOR_PROPERTY_VALUE_UINT:EDITOR_PROPERTY_VALUE_FLOAT;
+        return true;
+    }
+    return false;
+}
+ObjectVisuals *editor_command_visuals_get(EditorProject *p,EditorItemKind kind,EditorObjectId object,uint32_t item) {
+    EditorObject *o=editor_object_query_get(p,object);
+    if(!o) return NULL;
+    if(kind==EDITOR_ITEM_FORCE) {
+        EditorForce *v=editor_project_force_get(o,item); return v?&v->visuals:NULL;
+    }
+    if(kind==EDITOR_ITEM_TORQUE) for(size_t i=0;i<o->torque_count;++i)
+        if(o->torque_items[i].id==item) return &o->torque_items[i].visuals;
+    if(kind==EDITOR_ITEM_JOINT) for(size_t i=0;i<o->joint_count;++i)
+        if(o->joint_items[i].id==item) return &o->joint_items[i].visuals;
+    return NULL;
+}
+static bool visual_property_set(EditorProject *p,const EditorPropertySetCommand *set) {
+    ObjectVisuals *v=editor_command_visuals_get(p,set->kind,set->object,set->item);
+    if(!v || !editor_visual_property_check(set->property)) return false;
+    unsigned index=set->property-EDITOR_PROPERTY_VISUAL_FILL_COLOR,part=index/8,field=index%8;
+    if(part && set->kind!=EDITOR_ITEM_JOINT) return false;
+    ObjectVisualStyle *target=part==0?&v->main:part==1?&v->endpoint_a:&v->endpoint_b;
+    ObjectVisualStyle style=object_visual_style_get(*target,set->kind==EDITOR_ITEM_JOINT?OBJECT_JOINT:OBJECT_FORCE);
+    if(field<2) {
+        if(set->value_kind!=EDITOR_PROPERTY_VALUE_UINT) return false;
+        if(field==0) style.fill_color=set->value.integer; else style.border_color=set->value.integer;
+    } else {
+        if(set->value_kind!=EDITOR_PROPERTY_VALUE_FLOAT || !isfinite(set->value.number) ||
+                (field==2 && set->value.number<0)) return false;
+        float *values[]={&style.border_thickness,&style.scale.x,&style.scale.y,&style.offset.x,&style.offset.y,&style.rotation};
+        *values[field-2]=set->value.number;
+    }
+    *target=style; return true;
+}
+
 bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
         EditorObjectId object_id, uint32_t parent, uint32_t item) {
     if(!project) return NULL;
@@ -2261,8 +2314,9 @@ static bool editor_command_color_parse(const char *text, uint32_t *value) {
 }
 
 static bool editor_command_property_color_check(EditorPropertyKind property) {
-    return property >= EDITOR_PROPERTY_OUTLINE_COLOR &&
-        property <= EDITOR_PROPERTY_COLOR;
+    return (editor_visual_property_check(property) &&
+        (property-EDITOR_PROPERTY_VISUAL_FILL_COLOR)%8<2) ||
+        (property >= EDITOR_PROPERTY_OUTLINE_COLOR && property <= EDITOR_PROPERTY_COLOR);
 }
 
 static bool editor_command_float_parse(const char *text, float *value) {
@@ -2324,6 +2378,8 @@ static bool editor_command_named_uint_parse(const char *text,
 
 static bool editor_command_item_kind_parse(const char *domain, EditorItemKind *kind) {
     if(domain == NULL || kind == NULL) return false;
+    if(strcmp(domain, "force") == 0) { *kind=EDITOR_ITEM_FORCE; return true; }
+    if(strcmp(domain, "torque") == 0) { *kind=EDITOR_ITEM_TORQUE; return true; }
     if(strcmp(domain, "object") == 0) *kind = EDITOR_ITEM_OBJECT;
     else if(strcmp(domain, "rigid-body") == 0) *kind = EDITOR_ITEM_RIGID_BODY;
     else if(strcmp(domain, "hitbox") == 0) *kind = EDITOR_ITEM_HITBOX;
@@ -2349,6 +2405,7 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
         case EDITOR_ITEM_HITBOX: return "hitbox";
         case EDITOR_ITEM_JOINT: return "joint";
         case EDITOR_ITEM_FORCE: return "force";
+        case EDITOR_ITEM_TORQUE: return "torque";
         case EDITOR_ITEM_ANCHOR: return "anchor";
         case EDITOR_ITEM_SOFT_BODY: return "soft-body";
         case EDITOR_ITEM_SOFT_NODE: return "soft-node";
@@ -2364,6 +2421,7 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
 static bool editor_command_property_parse(const char *name,
         EditorPropertyKind *property, EditorPropertyValueKind *value_kind) {
     if(name == NULL || property == NULL || value_kind == NULL) return false;
+    if(editor_visual_property_parse(name,property,value_kind)) return true;
 #define EDITOR_FLOAT_PROPERTY(text, value) \
     if(strcmp(name, text) == 0) { *property = value; \
         *value_kind = EDITOR_PROPERTY_VALUE_FLOAT; return true; }
@@ -2438,6 +2496,7 @@ static bool editor_command_property_parse(const char *name,
 }
 
 static const char *editor_command_property_name_get(EditorPropertyKind property) {
+    if(editor_visual_property_check(property)) return editor_visual_property_name_get(property);
     switch(property) {
         case EDITOR_PROPERTY_CENTER_OF_MASS: return "center-of-mass";
         case EDITOR_PROPERTY_MASS: return "mass";

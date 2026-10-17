@@ -74,7 +74,7 @@ install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_BINDIR}/assets)
 
 if(ROHR_BUILD_TESTS)
     add_executable(editor_log_test tests/editor_log.c src/editors/editor_mode_controls.c)
-    target_include_directories(editor_log_test PRIVATE src)
+    target_include_directories(editor_log_test PRIVATE src ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/lib)
     target_link_libraries(editor_log_test PRIVATE rohr_editor_core)
     set_target_properties(editor_log_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)

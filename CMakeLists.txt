@@ -193,6 +193,8 @@ set(ROHR_ENGINE_SOURCES
     src/entity/object_description.c
     src/entity/object_document.c
     src/entity/object_spawn.c
+    src/entity/object_visuals.c
+    src/graphics/marker_geometry.c
     # Shared checked editor-document model used by runtime object loading.
     tools/editor/src/editor_project.c
     tools/editor/src/editor_project_json.c

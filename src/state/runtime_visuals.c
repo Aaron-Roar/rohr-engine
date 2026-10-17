@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "entity/object_visuals.h"
 #include "runtime_visuals.h"
 #include "entity/object_internal.h"
 #include "graphics/texture_assets.h"
@@ -98,6 +99,7 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
         WRITE(v && yyjson_mut_obj_add_uint(doc,v,"kind",appearance.kind) &&
             yyjson_mut_obj_add_bool(doc,v,"visible",appearance.visible) && yyjson_mut_obj_add_bool(doc,v,"enabled",appearance.enabled) &&
             color_write(doc,v,"color",appearance.color) && color_write(doc,v,"border",appearance.border_color) &&
+            yyjson_mut_obj_add_val(doc,v,"visuals",object_visuals_json_write(doc,appearance.visuals)) &&
             yyjson_mut_obj_add_val(doc,components,"object_appearance",v));
     }
     if(sprites_pool.used[index]) {
@@ -197,7 +199,8 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
         uint64_t kind; ObjectAppearance appearance;
         if(!integer(v,"kind",&kind) || kind>OBJECT_TORQUE || !boolean(v,"visible",&appearance.visible) ||
                 !boolean(v,"enabled",&appearance.enabled) || !color_read(v,"color",&appearance.color) ||
-                !color_read(v,"border",&appearance.border_color)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+                !color_read(v,"border",&appearance.border_color) ||
+                !object_visuals_json_read(yyjson_obj_get(v,"visuals"),&appearance.visuals)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
         appearance.kind=(ObjectKind)kind;
         EngineResult result=object_instance_appearance_set(entity,appearance);
         if(error_check(result)) return result;

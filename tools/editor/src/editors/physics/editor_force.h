@@ -14,6 +14,7 @@ typedef struct EditorForceReferenceLabel {
 } EditorForceReferenceLabel;
 typedef struct EditorForceEditor {
     FontAsset *font;
+    EditorVisualControls visuals;
     TextAsset labels[EDITOR_FORCE_FIELD_MAX], fields[EDITOR_FORCE_FIELD_MAX];
     char label_cache[EDITOR_FORCE_FIELD_MAX][EDITOR_OBJECT_NAME_MAX];
     TextAsset choices[16], name, delete_label;

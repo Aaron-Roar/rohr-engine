@@ -7,6 +7,19 @@
 #include "physics.h"
 #include "graphics.h"
 
+/* Packed colors use RGBA (0xRRGGBBAA). Unspecified styles use marker defaults. */
+typedef struct ObjectVisualStyle {
+    bool specified;
+    uint32_t fill_color, border_color;
+    float border_thickness;
+    Scale scale;
+    Position offset;
+    Orientation rotation;
+} ObjectVisualStyle;
+typedef struct ObjectVisuals {
+    ObjectVisualStyle main, endpoint_a, endpoint_b;
+} ObjectVisuals;
+
 typedef enum ObjectKind {
     OBJECT_CONTAINER, OBJECT_BODY, OBJECT_PARTICLE, OBJECT_SOFT_BODY,
     OBJECT_NODE, OBJECT_BEAM, OBJECT_AREA, OBJECT_ANCHOR, OBJECT_JOINT,
@@ -145,7 +158,8 @@ typedef struct ObjectDescription ObjectDescription;
     bool follow_orientation; \
     float zoom; \
     ObjectForceDescription force; \
-    ObjectTorqueDescription torque
+    ObjectTorqueDescription torque; \
+    ObjectVisuals visuals
 
 struct ObjectDescription { ROHR_OBJECT_DESCRIPTION_FIELDS; };
 ERROR_DECLARE_RESULT_TYPE(ObjectDescriptionResult, const ObjectDescription *);

@@ -3080,6 +3080,7 @@ int main(int argc, char **argv) {
                     .delete_context = &delete_context,
                     .delete_footer = true});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_JOINT) {
+            EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};
             EditorModeHierarchyContext hierarchy_context = {
@@ -3092,6 +3093,7 @@ int main(int argc, char **argv) {
                 .additive_selection = hierarchy_additive_selection};
             field_editing = editor_joint_editor_draw(&joint_editor,
                 &(EditorModeContext){.history = &history, .project = &project,
+                    .color_open=editor_mode_color_picker_open,.color_context=&color_context,
                     .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
                     .width = EDITOR_TOOLS_WIDTH,
                     .delete_y_get = editor_mode_delete_y_get,
@@ -3102,9 +3104,11 @@ int main(int argc, char **argv) {
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_FORCE) {
+            EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
             field_editing=editor_force_editor_draw(&force_editor,&(EditorModeContext){
                 .history=&history,.project=&project,.viewport=&viewport_state,
-                .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true});
+                .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true,
+                .color_open=editor_mode_color_picker_open,.color_context=&color_context});
         } else if(viewport_state.mode == EDITOR_VIEWPORT_ANCHOR) {
             EditorModeDeleteContext delete_context = {
                 .project = &project, .viewport = &viewport_state};

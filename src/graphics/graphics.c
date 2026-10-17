@@ -5,6 +5,7 @@
 #include "graphics.h"
 #include "camera_state.h"
 #include "object_drawing.h"
+#include "marker_geometry.h"
 #include "core/report_internal.h"
 #include "graphics/triangle_draw.h"
 #include "physics/collision/shape_decomposition.h"
@@ -5560,52 +5561,28 @@ bool graphics_joint_draw(Entity joint_entity, Color color) {
     return drawn;
 }
 
-/* Source markers are screen-sized, like joint symbols. Unresolved references
- * have no drawable geometry; drawing never changes the source or physics. */
-bool graphics_source_draw(Entity entity, bool torque, Color color) {
-    Position world; Vec2D direction; float magnitude;
-    if(!physics_source_geometry_get(entity, torque, &world, &direction, &magnitude)) return true;
-    Position center = graphics_world_to_screen_get(world);
-    if(magnitude == 0) color.alpha = (uint8_t)(color.alpha / 2);
-    int previous_layer = graphics_entity_layer_begin(entity);
-    SDL_FPoint tail[33], head[3];
-    int count;
-    Vec2D tangent;
-    if(torque) {
-        float sign = magnitude < 0 ? -1.0f : 1.0f;
-        count = 33;
-        for(int i = 0; i < count; ++i) {
-            float angle = sign * (float)i / (count - 1) * 1.5f * PI_F;
-            tail[i] = (SDL_FPoint){center.x + 22 * sinf(angle), center.y - 22 * cosf(angle)};
-        }
-        tangent = (Vec2D){0, -1};
+static bool graphics_marker_polygon_draw(const Position *points,size_t count,Color color,void *context) {
+    (void)context;
+    Shape shape={.amount_of_vertices=(int)count};
+    for(size_t i=0;i<count;++i) shape.vertices[i]=points[i];
+    return graphics_shape_filled_draw(shape,color);
+}
+bool graphics_marker_entity_draw(Entity entity,ObjectKind kind,ObjectVisuals visuals) {
+    MarkerGeometry g={.kind=kind,.visuals=visuals,.magnitude=1};
+    if(kind==OBJECT_JOINT) {
+        EntityIndex index;
+        if(!entity_index_get(entity,&index) || !entity_components_check(entity,ROHR_JOINT)) return false;
+        Joint joint=joints[index]; g.joint=joint.type;
+        if(!graphics_joint_world_anchors_get(joint,&g.endpoint_a,&g.endpoint_b)) return true;
+        g.origin=(Position){(g.endpoint_a.x+g.endpoint_b.x)*0.5f,(g.endpoint_a.y+g.endpoint_b.y)*0.5f};
     } else {
-        /* Transform a vector independently of world translation to preserve
-         * small markers even at large coordinates and non-square camera scales. */
-        Vec2D local = math_vector_rotate(direction, -camera.orientation);
-        float width = WINDOW_WIDTH, height = WINDOW_HEIGHT;
-        size_t slot;
-        if(graphics_screen_slot(drawing_screen, &slot)) {
-            width = (float)screens[slot].width; height = (float)screens[slot].height;
-        }
-        tangent = (Vec2D){local.x * width / camera.dimensions.x,
-            -local.y * height / camera.dimensions.y};
-        float length = hypotf(tangent.x, tangent.y);
-        if(length <= 0 || !isfinite(length)) { graphics_layer_active_set(previous_layer); return true; }
-        tangent.x /= length; tangent.y /= length;
-        count = 2;
-        tail[0] = (SDL_FPoint){center.x, center.y};
-        tail[1] = (SDL_FPoint){center.x + tangent.x * 60, center.y + tangent.y * 60};
+        Vec2D direction;
+        if(!physics_source_geometry_get(entity,kind==OBJECT_TORQUE,&g.origin,&direction,&g.magnitude)) return true;
+        if(kind==OBJECT_FORCE) g.orientation=atan2f(direction.x,direction.y)*180/PI_F;
     }
-    SDL_FPoint tip = tail[count - 1];
-    head[0] = (SDL_FPoint){tip.x - tangent.x * 10 - tangent.y * 5,
-        tip.y - tangent.y * 10 + tangent.x * 5};
-    head[1] = tip;
-    head[2] = (SDL_FPoint){tip.x - tangent.x * 10 + tangent.y * 5,
-        tip.y - tangent.y * 10 - tangent.x * 5};
-    bool ok = graphics_lines_draw(tail, count, color);
-    ok = graphics_lines_draw(head, 3, color) && ok;
-    graphics_layer_active_set(previous_layer);
+    int previous=graphics_entity_layer_begin(entity);
+    bool ok=graphics_marker_geometry_draw(&g,graphics_marker_polygon_draw,NULL);
+    graphics_layer_active_set(previous);
     return ok;
 }
 

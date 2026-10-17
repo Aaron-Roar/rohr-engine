@@ -10,6 +10,7 @@
 
 typedef struct EditorJointEditor {
     FontAsset *font;
+    EditorVisualControls visuals;
     TextAsset name_label, visual_size_label;
     TextAsset revolute_label, weld_label, spring_label;
     TextAsset anchor_a_label, anchor_b_label, none_label, add_anchor_label;

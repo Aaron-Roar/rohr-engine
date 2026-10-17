@@ -1,6 +1,7 @@
 /* Copyright 2026 Aaron Rohrer
  * SPDX-License-Identifier: LGPL-3.0-only
  */
+#include "entity/object_visuals.h"
 #include "editor_sources_json.h"
 #include "editor_array.h"
 #include <math.h>
@@ -113,6 +114,8 @@ bool editor_sources_json_write(yyjson_mut_doc *d, yyjson_mut_val *v, const Edito
             if(!torque && source && !yyjson_mut_obj_add_bool(d,source,"visible",o->force_items[i].visible)) return false;
             if(source && !yyjson_mut_obj_add_bool(d,source,"visible_in_app",
                     !(torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden))) return false;
+            if(source && !yyjson_mut_obj_add_val(d,source,"visuals",object_visuals_json_write(d,
+                    torque?o->torque_items[i].visuals:o->force_items[i].visuals))) return false;
             if(!source || !yyjson_mut_obj_add_uint(d,source,"id",torque?o->torque_items[i].id:o->force_items[i].id) ||
                 !yyjson_mut_obj_add_strcpy(d,source,"name",torque?o->torque_items[i].name:o->force_items[i].name) || !yyjson_mut_arr_add_val(arr,source)) return false;
         }
@@ -132,6 +135,8 @@ bool editor_sources_json_read(yyjson_val *v, EditorObject *o, EditorProject *p) 
             yyjson_val *name=yyjson_obj_get(source,"name");
             if(!uint_value(source,"id",&id) || !id || id>=UINT32_MAX || !yyjson_is_str(name) || !yyjson_get_len(name) ||
                     yyjson_get_len(name)>=EDITOR_OBJECT_NAME_MAX || strlen(yyjson_get_str(name))!=yyjson_get_len(name)) return false;
+            if(!object_visuals_json_read(yyjson_obj_get(source,"visuals"),
+                    torque?&o->torque_items[i].visuals:&o->force_items[i].visuals)) return false;
             yyjson_val *app=yyjson_obj_get(source,"visible_in_app");
             if(app && !yyjson_is_bool(app)) return false;
             if(torque) o->torque_items[i].app_hidden=app && !yyjson_get_bool(app);
