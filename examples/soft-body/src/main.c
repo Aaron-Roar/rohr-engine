@@ -5,15 +5,12 @@
 #include "rohr.h"
 #include "example_viewport.h"
 #include "example_input.h"
+#include "car_controls.h"
 
 #include <math.h>
 #include <stdio.h>
 
 #define WHEEL_COUNT 2
-#define ANCHOR_NODE_COUNT 10
-#define OUTER_NODE_COUNT 40
-#define OUTER_NODE_START ANCHOR_NODE_COUNT
-#define WHEEL_NODE_COUNT (ANCHOR_NODE_COUNT + OUTER_NODE_COUNT)
 #define RAMP_TRIANGLE_COUNT 4
 #define LEVEL_WALL_COUNT 5
 #define PIT_PARTICLE_COUNT 200
@@ -23,7 +20,6 @@ typedef struct Wheel {
     Entity hub;
     Entity disk;
     Entity soft_body;
-    Entity nodes[WHEEL_NODE_COUNT];
 } Wheel;
 
 static const Color background_color;
@@ -38,41 +34,12 @@ static const Color node_color;
 static const Color ramp_color;
 static const Color particle_color;
 static const RohrCollisionCategoryMask room_category;
-static const RohrCollisionCategoryMask soft_node_category;
-static const RohrCollisionCategoryMask disk_category;
-static const RohrCollisionCategoryMask chassis_category;
 static const RohrCollisionCategoryMask particle_category;
-static const float inner_beam_stiffness;
-static const float outer_beam_stiffness;
-static const float support_beam_stiffness;
 static const float physics_tick_time;
 static const Acceleration gravity;
 static const float rigid_friction;
-static const float node_friction;
 static const Restitution collision_restitution;
-static const float cabin_half_side;
-static const float cabin_height;
-static const float wheel_inner_radius;
-static const float wheel_outer_radius;
-static const float inner_node_radius;
-static const float outer_node_radius;
-static const Mass node_mass;
-static const float inner_beam_damping;
-static const float outer_beam_damping;
-static const float support_beam_damping;
-static const float hub_radius;
-static const Mass hub_mass;
-static const float disk_radius;
-static const Mass disk_mass;
-static const Torque control_torque;
 static const AngularVelocity maximum_wheel_angular_velocity;
-static const Vec2D chassis_dimensions;
-static const Mass chassis_mass;
-static const Mass cabin_mass;
-static const float wheel_center_y;
-static const float wheel_horizontal_position_ratio;
-static const float wheel_vertical_position_ratio;
-static const float cabin_right_recess_ratio;
 static const Position level_wall_positions[LEVEL_WALL_COUNT];
 static const Vec2D level_wall_dimensions[LEVEL_WALL_COUNT];
 static const Position ramp_vertices[RAMP_TRIANGLE_COUNT][3];
@@ -102,43 +69,13 @@ static Entity wall_create(Position position, Vec2D dimensions) {
     if(!result_ok(rohr_physics_position_set(wall, position)) ||
             !result_ok(rohr_physics_hitbox_set(
                 wall, rohr_math_square_create(dimensions.x, dimensions.y))) ||
+            !result_ok(rohr_entity_components_add(wall, ROHR_COLLISION)) ||
             !result_ok(rohr_physics_static_set(wall)) ||
             !result_ok(rohr_physics_friction_set(wall, rigid_friction)) ||
             !result_ok(rohr_physics_restitution_set(wall, collision_restitution)) ||
             !result_ok(rohr_physics_collision_category_set(wall, room_category)) ||
             !result_ok(rohr_physics_collision_with_all_set(wall))) return ENTITY_INVALID;
     return wall;
-}
-
-static Shape truck_cabin_shape_create(void) {
-    return (Shape){
-        .amount_of_vertices = 3,
-        .vertices = {
-            {-cabin_half_side, -cabin_height / 3.0f},
-            {cabin_half_side, -cabin_height / 3.0f},
-            {0.0f, cabin_height * 2.0f / 3.0f}
-        }
-    };
-}
-
-static Entity rigid_body_create(Position position, Shape hitbox, Mass body_mass,
-        RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) {
-    EntityResult result = rohr_entity_add();
-    Entity body;
-    if(rohr_error_check(result)) return ENTITY_INVALID;
-    body = result.result.value;
-    if(!result_ok(rohr_physics_position_set(body, position)) ||
-            !result_ok(rohr_physics_hitbox_set(body, hitbox)) ||
-            !result_ok(rohr_physics_mass_set(body, body_mass)) ||
-            !result_ok(rohr_physics_velocity_set(body, (Velocity){0})) ||
-            !result_ok(rohr_physics_angular_velocity_set(body, 0.0f)) ||
-            !result_ok(rohr_physics_acceleration_set(body, gravity)) ||
-            !result_ok(rohr_physics_dynamic_set(body)) ||
-            !result_ok(rohr_physics_friction_set(body, rigid_friction)) ||
-            !result_ok(rohr_physics_restitution_set(body, collision_restitution)) ||
-            !result_ok(rohr_physics_collision_category_set(body, category)) ||
-            !result_ok(rohr_physics_collision_with_set(body, collides_with))) return ENTITY_INVALID;
-    return body;
 }
 
 static Entity static_triangle_create(Position a, Position b, Position c) {
@@ -161,6 +98,7 @@ static Entity static_triangle_create(Position a, Position b, Position c) {
     entity = result.result.value;
     if(!result_ok(rohr_physics_position_set(entity, center)) ||
             !result_ok(rohr_physics_hitbox_set(entity, triangle)) ||
+            !result_ok(rohr_entity_components_add(entity, ROHR_COLLISION)) ||
             !result_ok(rohr_physics_dynamic_set(entity)) ||
             !result_ok(rohr_physics_friction_set(entity, rigid_friction)) ||
             !result_ok(rohr_physics_restitution_set(entity, collision_restitution)) ||
@@ -193,119 +131,6 @@ static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_
         joint.result.value, anchor_a.result.value, anchor_b.result.value));
 }
 
-static bool soft_beam_create(Entity body, Entity node_a, Entity node_b,
-        float stiffness, float damping, bool collision_enabled) {
-    EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
-        .owner = body,
-        .node_a = node_a,
-        .node_b = node_b,
-        .stiffness = stiffness,
-        .damping = damping
-    });
-    if(rohr_error_check(beam)) return false;
-    return collision_enabled || result_ok(
-        rohr_physics_soft_body_beam_collision_disable(beam.result.value));
-}
-
-static bool wheel_soft_body_create(Wheel *wheel, Position center) {
-    EntityResult body = rohr_physics_soft_body_add((SoftBodyDescription){0});
-
-    if(wheel == NULL || rohr_error_check(body)) return false;
-    wheel->soft_body = body.result.value;
-    for(uint32_t i = 0; i < WHEEL_NODE_COUNT; i += 1) {
-        bool anchored = i < ANCHOR_NODE_COUNT;
-        uint32_t ring_index = anchored ? i : i - OUTER_NODE_START;
-        uint32_t ring_count = anchored ? ANCHOR_NODE_COUNT : OUTER_NODE_COUNT;
-        float radius = anchored ? wheel_inner_radius : wheel_outer_radius;
-        float angle = 2.0f * PI_F * (float)ring_index / (float)ring_count;
-        Vec2D offset = {cosf(angle) * radius, sinf(angle) * radius};
-        EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
-            .owner = wheel->soft_body,
-            .position = (Position){center.x + offset.x, center.y + offset.y},
-            .mass = node_mass,
-            .radius = anchored ? inner_node_radius : outer_node_radius
-        });
-        if(rohr_error_check(node)) return false;
-        wheel->nodes[i] = node.result.value;
-        if(!result_ok(rohr_physics_acceleration_set(
-                    wheel->nodes[i], gravity)) ||
-                !result_ok(rohr_physics_friction_set(wheel->nodes[i], node_friction)) ||
-                !result_ok(rohr_physics_restitution_set(
-                    wheel->nodes[i], collision_restitution)) ||
-                !result_ok(rohr_physics_soft_body_node_collision_filter_set(
-                    wheel->nodes[i], soft_node_category,
-                    room_category | disk_category | particle_category))) return false;
-        if(anchored) {
-            JointAnchorIdResult anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = wheel->disk, .local_offset = offset});
-            SoftBodyNodeAnchorPinResult connection;
-            if(rohr_error_check(anchor)) return false;
-            connection = rohr_physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = wheel->nodes[i], .anchor = anchor.result.value});
-            if(rohr_error_check(connection)) return false;
-        }
-    }
-    for(uint32_t i = 0; i < ANCHOR_NODE_COUNT; i += 1) {
-        uint32_t next = (i + 1) % ANCHOR_NODE_COUNT;
-        if(!soft_beam_create(wheel->soft_body, wheel->nodes[i], wheel->nodes[next],
-                    inner_beam_stiffness, inner_beam_damping, false)) return false;
-    }
-    for(uint32_t i = 0; i < OUTER_NODE_COUNT; i += 1) {
-        uint32_t next = (i + 1) % OUTER_NODE_COUNT;
-        uint32_t anchor = i * ANCHOR_NODE_COUNT / OUTER_NODE_COUNT;
-        uint32_t previous_anchor =
-            (anchor + ANCHOR_NODE_COUNT - 1) % ANCHOR_NODE_COUNT;
-        uint32_t next_anchor = (anchor + 1) % ANCHOR_NODE_COUNT;
-        if(!soft_beam_create(
-                    wheel->soft_body, wheel->nodes[OUTER_NODE_START + i],
-                    wheel->nodes[OUTER_NODE_START + next], outer_beam_stiffness,
-                    outer_beam_damping, true) ||
-                !soft_beam_create(
-                    wheel->soft_body, wheel->nodes[anchor],
-                    wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping, false) ||
-                !soft_beam_create(
-                    wheel->soft_body, wheel->nodes[next_anchor],
-                    wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping, false) ||
-                !soft_beam_create(
-                    wheel->soft_body, wheel->nodes[previous_anchor],
-                    wheel->nodes[OUTER_NODE_START + i], support_beam_stiffness,
-                    support_beam_damping, false)) return false;
-    }
-    /* Tire paint follows its two node loops independently of support beams. */
-    SoftBodyAreaGeometry tire = {.outer.node_count = OUTER_NODE_COUNT, .hole_count = 1};
-    tire.holes[0].node_count = ANCHOR_NODE_COUNT;
-    for(uint32_t i = 0; i < OUTER_NODE_COUNT; i += 1)
-        tire.outer.nodes[i] = wheel->nodes[OUTER_NODE_START + i];
-    for(uint32_t i = 0; i < ANCHOR_NODE_COUNT; i += 1)
-        tire.holes[0].nodes[i] = wheel->nodes[i];
-    if(rohr_error_check(rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
-        .owner = wheel->soft_body,
-        .geometry = tire
-    }))) return false;
-    return true;
-}
-
-static bool wheel_create(Wheel *wheel, Entity chassis, Position center,
-        Vec2D chassis_hub_offset) {
-    if(wheel == NULL) return false;
-    wheel->hub = rigid_body_create(center, rohr_math_circle_create(hub_radius, 12), hub_mass,
-        chassis_category, particle_category);
-    wheel->disk = rigid_body_create(center, rohr_math_circle_create(disk_radius, 16), disk_mass,
-        disk_category, room_category | soft_node_category | particle_category);
-    if(wheel->hub == ENTITY_INVALID || wheel->disk == ENTITY_INVALID ||
-            !anchored_joint_set(chassis, chassis_hub_offset, wheel->hub,
-                (Vec2D){0}, JOINT_WELD) ||
-            !anchored_joint_set(wheel->hub, (Vec2D){0}, wheel->disk,
-                (Vec2D){0}, JOINT_PIN)) return false;
-    if(!result_ok(rohr_physics_angular_velocity_maximum_set(
-                wheel->disk, maximum_wheel_angular_velocity))) return false;
-    return wheel_soft_body_create(wheel, center);
-}
-
-static EngineResult wheel_drive_apply(Entity disk, float drive_axis) {
-    return rohr_physics_torque_apply((TorqueDescription){.target = disk, .magnitude = drive_axis * control_torque});
-}
-
 static const Color background_color = {18, 22, 30, 255};
 static const Color wall_color = {90, 100, 115, 255};
 static const Color chassis_color = {65, 145, 105, 255};
@@ -318,42 +143,13 @@ static const Color node_color = {255, 170, 70, 255};
 static const Color ramp_color = {145, 120, 85, 255};
 static const Color particle_color = {45, 120, 230, 255};
 static const RohrCollisionCategoryMask room_category = UINT64_C(1) << 1;
-static const RohrCollisionCategoryMask soft_node_category = UINT64_C(1) << 2;
-static const RohrCollisionCategoryMask disk_category = UINT64_C(1) << 3;
-static const RohrCollisionCategoryMask chassis_category = UINT64_C(1) << 4;
 static const RohrCollisionCategoryMask particle_category = UINT64_C(1) << 5;
-static const float inner_beam_stiffness = 1280.0f;
-static const float outer_beam_stiffness = 1477.5f;
-static const float support_beam_stiffness = 818.75f;
 static const float physics_tick_time = 1.0f / 240.0f;
 static const Acceleration gravity = {0.0f, -175.0f};
 static const float rigid_friction = 2.0f;
-static const float node_friction = 3.0f;
 static const Restitution collision_restitution = 0.4f;
-static const float cabin_half_side = 30.0f;
-static const float cabin_height = 51.961524f;
-static const float wheel_inner_radius = 17.5f;
-static const float wheel_outer_radius = 31.0f;
-static const float inner_node_radius = 2.0f;
-static const float outer_node_radius = 1.0f;
-static const Mass node_mass = 0.40f;
-static const float inner_beam_damping = 10.0f;
-static const float outer_beam_damping = 8.0f;
-static const float support_beam_damping = 7.0f;
-static const float hub_radius = 5.0f;
-static const Mass hub_mass = 1.0f;
-static const float disk_radius = 15.0f;
-static const Mass disk_mass = 15.0f;
-static const Torque control_torque = 11111900000.0f;
 /* Preserve the physical limit of 7 radians/second in degree-based storage. */
 static const AngularVelocity maximum_wheel_angular_velocity = 7.0f * 180.0f / PI_F;
-static const Vec2D chassis_dimensions = {170.0f, 40.0f};
-static const Mass chassis_mass = 3.0f;
-static const Mass cabin_mass = 0.10f;
-static const float wheel_center_y = -175.5f;
-static const float wheel_horizontal_position_ratio = 65.0f / 190.0f;
-static const float wheel_vertical_position_ratio = 1.0f;
-static const float cabin_right_recess_ratio = 0.1f;
 static const Position level_wall_positions[LEVEL_WALL_COUNT] = {
     {-60.0f, -225.0f},
     {900.0f, 225.0f},
@@ -432,15 +228,6 @@ static void render_scene(CameraId camera, void *context_value) {
 }
 
 int main(void) {
-    const float wheel_horizontal_offset =
-        chassis_dimensions.x * wheel_horizontal_position_ratio;
-    const float chassis_wheel_vertical_offset =
-        chassis_dimensions.y * wheel_vertical_position_ratio;
-    const float chassis_center_y = wheel_center_y + chassis_wheel_vertical_offset;
-    const Vec2D cabin_offset = {
-        chassis_dimensions.x * (0.5f - cabin_right_recess_ratio) - cabin_half_side,
-        chassis_dimensions.y * 0.5f + cabin_height / 3.0f
-    };
     Entity walls[LEVEL_WALL_COUNT];
     Entity ramp[RAMP_TRIANGLE_COUNT];
     Entity particles[PIT_PARTICLE_COUNT];
@@ -449,7 +236,9 @@ int main(void) {
     ParticleDescription particle_config;
     Wheel wheels[WHEEL_COUNT] = {0};
     InputControllerId input_controller = INPUT_CONTROLLER_INVALID;
-    InputActionId exit_action, debug_action, torque_action;
+    InputActionId exit_action, debug_action, torque_action, jump_action;
+    Car car = {0};
+    CarControls controls = {0};
     Tick zoom_end_tick = 0;
     Tick camera_return_end_tick = 0;
     bool collision_zoom_started = false;
@@ -465,6 +254,7 @@ int main(void) {
             1.0f, (Vec2D){0});
         InputBinding debug_binding = example_input_key_binding(SDL_SCANCODE_B,
             1.0f, (Vec2D){0});
+        InputBinding jump_binding = example_input_key_binding(SDL_SCANCODE_SPACE, 1.0f, (Vec2D){0});
         InputBinding torque_bindings[] = {
             example_input_key_binding(SDL_SCANCODE_A, -1.0f, (Vec2D){0}),
             example_input_key_binding(SDL_SCANCODE_D, 1.0f, (Vec2D){0})};
@@ -474,7 +264,9 @@ int main(void) {
                 !example_input_action_create(input_controller, "toggle_debug",
                     INPUT_ACTION_BUTTON, &debug_binding, 1, &debug_action) ||
                 !example_input_action_create(input_controller, "torque",
-                    INPUT_ACTION_AXIS_1D, torque_bindings, 2, &torque_action))
+                    INPUT_ACTION_AXIS_1D, torque_bindings, 2, &torque_action) ||
+                !example_input_action_create(input_controller, "jump",
+                    INPUT_ACTION_BUTTON, &jump_binding, 1, &jump_action))
             goto fail;
     }
     if(!result_ok(rohr_engine_time_per_tick_set(physics_tick_time)) ||
@@ -522,15 +314,13 @@ int main(void) {
                     JOINT_WELD)) goto fail;
         }
     }
-    chassis = rigid_body_create((Position){0.0f, chassis_center_y},
-        rohr_math_square_create(chassis_dimensions.x, chassis_dimensions.y), chassis_mass,
-        chassis_category,
-        room_category | particle_category | chassis_category);
-    cabin = rigid_body_create(
-        (Position){cabin_offset.x, chassis_center_y + cabin_offset.y},
-        truck_cabin_shape_create(), cabin_mass,
-        chassis_category,
-        room_category | particle_category | chassis_category);
+    if(!result_ok(car_create(&car, (Position){0}))) goto fail;
+    chassis = car.chassis; cabin = car.cabin;
+    wheels[0] = (Wheel){.hub=car.rear_hub,.disk=car.rear_disk,.soft_body=car.rear_tire};
+    wheels[1] = (Wheel){.hub=car.front_hub,.disk=car.front_disk,.soft_body=car.front_tire};
+    for(unsigned i=0;i<WHEEL_COUNT;++i)
+        if(!result_ok(rohr_physics_angular_velocity_maximum_set(
+                wheels[i].disk, maximum_wheel_angular_velocity))) goto fail;
     for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
         uint32_t column = i % PIT_PARTICLE_COLUMNS;
         uint32_t row = i / PIT_PARTICLE_COLUMNS;
@@ -540,15 +330,6 @@ int main(void) {
         });
         if(particles[i] == ENTITY_INVALID) goto fail;
     }
-    if(chassis == ENTITY_INVALID || cabin == ENTITY_INVALID ||
-            !anchored_joint_set(chassis, cabin_offset, cabin,
-                (Vec2D){0}, JOINT_WELD) ||
-            !wheel_create(&wheels[0], chassis,
-                (Position){-wheel_horizontal_offset, wheel_center_y},
-                (Vec2D){-wheel_horizontal_offset, -chassis_wheel_vertical_offset}) ||
-            !wheel_create(&wheels[1], chassis,
-                (Position){wheel_horizontal_offset, wheel_center_y},
-                (Vec2D){wheel_horizontal_offset, -chassis_wheel_vertical_offset})) goto fail;
     if(!result_ok(rohr_graphics_camera_with_options_attach(
                 chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
     if(!result_ok(rohr_camera_zoom_set(
@@ -573,6 +354,7 @@ int main(void) {
         if(rohr_input_action_button_pressed_check(exit_action))
             exit_requested = true;
         if(exit_requested) break;
+        car_jump_request(&controls, &car, rohr_input_action_button_pressed_check(jump_action));
         {
             if(rohr_engine_update().header.status == ROHR_REPORT_FAILED) goto fail;
             Tick ticks = rohr_engine_tick_delta_get();
@@ -600,8 +382,8 @@ int main(void) {
                     rohr_input_action_axis_1d_get(torque_action);
                 float torque_axis = rohr_error_check(torque_result) ? 0.0f :
                     torque_result.result.value;
-                if(!result_ok(wheel_drive_apply(
-                            wheels[0].disk, torque_axis))) goto fail;
+                if(!result_ok(car_controls_update(
+                            &controls, &car, torque_axis))) goto fail;
             }
             if(((rohr_physics_update(ticks)).header.status == ROHR_REPORT_FAILED)) goto fail;
             if(!collision_zoom_started) {
@@ -625,6 +407,7 @@ int main(void) {
         }
         rohr_graphics_show();
     }
+    car_destroy(&car);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);
@@ -634,6 +417,7 @@ int main(void) {
 
 fail:
     fprintf(stderr, "soft-body example failed\n");
+    car_destroy(&car);
     example_viewport_destroy(&viewport);
     if(input_controller != INPUT_CONTROLLER_INVALID)
         (void)rohr_input_controller_destroy(input_controller);

@@ -6,7 +6,7 @@
 
 #include "project_objects.h"
 
-static EngineResult generated_body_create(Entity *output, Position position,
+static inline EngineResult generated_body_create(Entity *output, Position position,
     float rotation, Velocity velocity, Acceleration acceleration,
     AngularVelocity angular_velocity, Shape hitbox, float mass_value, float friction,
     float restitution, bool static_body, bool rotation_locked,

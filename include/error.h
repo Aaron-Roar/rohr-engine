@@ -200,8 +200,7 @@ typedef enum EngineError {
     /** UI scope end was unmatched or a scope remained open at update. */
     ERROR_ENGINE_UI_SCOPE_UNBALANCED,
     /** Invalid entity inspection selector, snapshot handle, or destination. */
-    ERROR_ENGINE_ENTITY_INFO_INVALID,
-    ERROR_ENGINE_AUTHORED_SOURCE_PENDING
+    ERROR_ENGINE_ENTITY_INFO_INVALID
 } EngineError;
 
 /**

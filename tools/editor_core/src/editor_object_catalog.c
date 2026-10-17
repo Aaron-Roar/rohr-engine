@@ -20,7 +20,7 @@ static bool reserved(const char *name) {
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
-        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque"};
+        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque", "source_instance"};
     for(size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) if(!strcmp(name, fields[i])) return true;
     return false;
 }
@@ -126,6 +126,39 @@ static void array_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
         fputs("};\n", f);
     }
 }
+static void source_reference_write(FILE *f, ObjectSourceReference r) {
+    fprintf(f, "{.kind=%u,.id=UINT64_C(%llu),.soft_body=UINT64_C(%llu)}",
+        (unsigned)r.kind, (unsigned long long)r.id, (unsigned long long)r.soft_body);
+}
+static void source_location_write(FILE *f, ObjectForceLocation v) {
+    fprintf(f, "{.kind=%u,.offset={%#.9gf,%#.9gf}", (unsigned)v.kind, v.offset.x, v.offset.y);
+    if(v.kind != ROHR_FORCE_WORLD_POSITION) {
+        fputs(",.reference=", f); source_reference_write(f, v.reference);
+    }
+    if(v.kind == ROHR_FORCE_BEAM_POSITION)
+        fprintf(f, ",.anchor=%u,.fraction=%#.9gf", (unsigned)v.anchor, v.fraction);
+    fputc('}', f);
+}
+static void source_write(FILE *f, const ObjectDescription *d) {
+    if(d->kind != OBJECT_FORCE && d->kind != OBJECT_TORQUE) return;
+    bool force = d->kind == OBJECT_FORCE;
+    fprintf(f, ",.%s={.mode=%u,.magnitude=%#.9gf,.target=", force ? "force" : "torque",
+        (unsigned)(force ? d->force.mode : d->torque.mode), force ? d->force.magnitude : d->torque.magnitude);
+    source_reference_write(f, force ? d->force.target : d->torque.target);
+    if(force) {
+        fputs(",.location=", f); source_location_write(f, d->force.location);
+        ObjectForceOrientation o = d->force.orientation;
+        fprintf(f, ",.orientation={.kind=%u,.offset=%#.9gf", (unsigned)o.kind, o.offset);
+        if(o.kind == ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION) {
+            fputs(",.from=", f); source_location_write(f, o.from);
+            fputs(",.to=", f); source_location_write(f, o.to);
+        } else if(o.kind != ROHR_FORCE_WORLD_ORIENTATION) {
+            fputs(",.reference=", f); source_reference_write(f, o.reference);
+        }
+        fputc('}', f);
+    }
+    fputc('}', f);
+}
 static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     unsigned long long id = d->id;
     fputs("{._description={.name=", f); string_write(f, d->name);
@@ -155,6 +188,7 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     U(ticks_per_frame); fprintf(f, ",.time_per_frame=%.17g", d->time_per_frame);
     U(starting_frame); fprintf(f, ",.direction=%d", (int)d->direction);
     U(playing); U(follow_position); U(follow_orientation); F(zoom);
+    source_write(f, d);
 #undef U
 #undef F
 #undef V
@@ -168,8 +202,6 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
 }
 bool editor_object_catalog_write(FILE *header, FILE *source, const EditorProject *project) {
     if(!project) return false;
-    for(size_t i = 0; i < project->object_count; ++i)
-        if(project->objects[i].force_count || project->objects[i].torque_count) return false;
     ObjectDescriptionResult converted = object_description_project_read(project, "");
     if(error_check(converted)) return false;
     Catalog *catalog = calloc(1,sizeof(*catalog));

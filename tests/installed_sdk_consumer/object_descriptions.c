@@ -9,7 +9,7 @@
 int main(void) {
     OK(rohr_engine_start());
     ObjectDescription source_object = {.id=1,.name="loads",.kind=OBJECT_CONTAINER,.categories=ROHR_ENTITY_OBJECT_ALL};
-    ObjectDescription receiving_body = {.id=2,.name="receiver",.kind=OBJECT_BODY,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS};
+    ObjectDescription receiving_body = {.id=2,.name="receiver",.kind=OBJECT_BODY,.mass=1,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS};
     ObjectDescription authored_force = {.id=3,.name="thrust",.kind=OBJECT_FORCE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
         .force={.target={OBJECT_SOURCE_BODY,2,0},.magnitude=7}};
     ObjectDescription authored_torque = {.id=4,.name="turn",.kind=OBJECT_TORQUE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
@@ -25,7 +25,8 @@ int main(void) {
     OK(rohr_object_torque_description_set(torque_copy.result.value,torque_value));
     assert(authored_force.force.magnitude==7 && authored_torque.torque.magnitude==0);
     EntityResult pending=rohr_entity_object_add(source_copy.result.value);
-    assert(rohr_error_check(pending) && pending.result.error==ERROR_ENGINE_AUTHORED_SOURCE_PENDING);
+    OK(pending);
+    OK(rohr_entity_delete(pending.result.value));
     assert(ENTITY_NONE==ENTITY_INVALID);
     OK(rohr_object_destroy(source_copy.result.value));
 

@@ -609,8 +609,9 @@ No engine API or project JSON changes are required.
 
 Force and torque definitions are stored in their owning object. They default to
 persistent mode, no target, and zero magnitude. Force application and orientation
-start at world origin and world zero. Graphical source editors and runtime
-source generation are scheduled separately; these commands edit saved data.
+start at world origin and world zero. Commands edit saved data, and generated
+catalogs and constructors instantiate those sources. Graphical source editors
+remain scheduled for the force and torque editor goals.
 
 ```sh
 rohr-cli --project objects/project.rohr.json --object car --force thrust add

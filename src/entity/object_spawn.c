@@ -151,9 +151,11 @@ static bool collect(SpawnContext *c, const ObjectDescription *d, unsigned depth)
     if(!d || !d->name || !d->name[0] || strlen(d->name) >= ENTITY_NAME_MAX ||
             !d->id || entry_get(c, d->id) || depth > OBJECT_DEPTH_MAX ||
             c->count >= MAX_ENTITIES || d->child_count > MAX_ENTITIES ||
-            (d->child_count && !d->children) || d->kind < OBJECT_CONTAINER || d->kind > OBJECT_CAMERA ||
+            (d->child_count && !d->children) || d->kind < OBJECT_CONTAINER || d->kind > OBJECT_TORQUE ||
             (d->categories & ~ROHR_ENTITY_OBJECT_ALL) || d->geometry_count > MAX_ENTITIES ||
             (d->hitbox_binding_count && !d->hitbox_bindings)) return false;
+    if((d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE) &&
+            (d->categories != ROHR_ENTITY_OBJECT_PHYSICS || d->child_count)) return false;
     c->entries[c->count++].description = d;
     for(size_t i = 0; i < d->child_count; ++i) {
         const ObjectDescription *child = d->children[i];
@@ -393,19 +395,70 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
 #undef APPLY
 }
 
-static bool source_pending_check(const ObjectDescription *d, unsigned depth) {
-    if(!d || depth > OBJECT_DEPTH_MAX || d->child_count > MAX_ENTITIES || (d->child_count && !d->children)) return true;
-    if((d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE) && (d->categories & ROHR_ENTITY_OBJECT_PHYSICS)) return true;
-    for(size_t i = 0; i < d->child_count; ++i) if(source_pending_check(d->children[i], depth + 1)) return true;
-    return false;
+typedef struct SourceScope {
+    SpawnContext *spawn;
+    const ObjectDescription *object;
+} SourceScope;
+static bool source_reference_check(const void *scope, ObjectSourceReference ref) {
+    const SourceScope *s = scope;
+    return object_source_reference_check(s->object, ref) &&
+        (ref.kind == OBJECT_SOURCE_NONE || target_get(s->spawn, ref.id) != ENTITY_NONE);
+}
+static ForceLocation source_location_get(SpawnContext *c, ObjectForceLocation v) {
+    ForceLocation result = {.offset = v.offset, .reference.kind = v.kind};
+    if(v.kind == ROHR_FORCE_BEAM_POSITION) {
+        result.reference.beam.entity = target_get(c, v.reference.id);
+        result.reference.beam.anchor = v.anchor;
+        result.reference.beam.fraction = v.fraction;
+    } else if(v.kind != ROHR_FORCE_WORLD_POSITION)
+        result.reference.entity = target_get(c, v.reference.id);
+    return result;
+}
+static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
+    const ObjectDescription *d = entry->description;
+    if((d->kind != OBJECT_FORCE && d->kind != OBJECT_TORQUE) ||
+            !(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_PHYSICS))
+        return error_result_value(true);
+    Entity parent = d->parent ? target_get(c, d->parent->id) : ENTITY_NONE;
+    if(!parent || d->parent->kind != OBJECT_CONTAINER || d->child_count)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    SourceScope scope = {c, d->parent};
+    EntityResult created;
+    ObjectSourceMode mode;
+    if(d->kind == OBJECT_FORCE) {
+        ObjectForceDescription v = d->force;
+        if(!object_source_force_check(&scope, v, source_reference_check))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        ForceDescription value = {.owner = parent, .target = target_get(c, v.target.id),
+            .magnitude = v.magnitude, .location = source_location_get(c, v.location),
+            .orientation = {.offset = v.orientation.offset, .reference.kind = v.orientation.kind}};
+        if(v.orientation.kind == ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION) {
+            value.orientation.reference.between.from = source_location_get(c, v.orientation.from);
+            value.orientation.reference.between.to = source_location_get(c, v.orientation.to);
+        } else if(v.orientation.kind != ROHR_FORCE_WORLD_ORIENTATION)
+            value.orientation.reference.entity = target_get(c, v.orientation.reference.id);
+        created = physics_force_add(value);
+        mode = v.mode;
+    } else {
+        ObjectTorqueDescription v = d->torque;
+        if(!object_source_torque_check(&scope, v, source_reference_check))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        created = physics_torque_add((TorqueDescription){.owner = parent,
+            .target = target_get(c, v.target.id), .magnitude = v.magnitude});
+        mode = v.mode;
+    }
+    if(error_check(created)) return error_result_error(created.result.error);
+    entry->entity = created.result.value;
+    EngineResult result = name_set(entry->entity, d, parent);
+    if(!error_check(result)) result = entity_object_member_restore(parent, entry->entity, d->name);
+    if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
+        result = entity_life_time_set(entry->entity, 0.0, engine_tick_get() + 1);
+    return result;
 }
 EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnOptions options) {
     if(!description || (!(description->categories & options.flags) && !description->child_count) ||
             !object_flags_check(options.flags) || !isfinite(options.offset.x) || !isfinite(options.offset.y))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    /* Authored source instantiation is introduced in Goal 6. */
-    if((options.flags & ROHR_ENTITY_OBJECT_PHYSICS) && source_pending_check(description, 0))
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_AUTHORED_SOURCE_PENDING);
     SpawnContext c = {.options = options};
     c.entries = calloc(MAX_ENTITIES, sizeof(*c.entries));
     if(!c.entries) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
@@ -442,6 +495,11 @@ EntityResult entity_object_description_add(const ObjectDescription *description,
             result=physics_joint_component_set(c.entries[i].entity,joint);
             if(error_check(result)) goto fail;
         }
+    }
+    /* All bodies, topology, and joint bindings exist before source validation. */
+    for(size_t i = 0; i < c.count; ++i) {
+        result = source_spawn(&c, &c.entries[i]);
+        if(error_check(result)) goto fail;
     }
     Entity root = c.entries[0].entity;
     free(c.entries);

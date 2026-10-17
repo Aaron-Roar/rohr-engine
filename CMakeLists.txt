@@ -961,6 +961,28 @@ if(ROHR_BUILD_TESTS)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/examples/flies-in-pit/assets
             ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests/assets/flies-in-pit)
+    target_sources(example_soft_body_angles_test PRIVATE
+        examples/soft-body/src/car_controls.c examples/soft-body/src/generated/project_objects.c)
+    target_include_directories(example_soft_body_angles_test PRIVATE
+        examples/soft-body/src examples/soft-body/src/generated)
+    add_executable(authored_car_test tests/authored_car.c
+        examples/cmake/example_viewport.c
+        examples/soft-body/src/car_controls.c examples/soft-body/src/generated/project_objects.c)
+    target_include_directories(authored_car_test PRIVATE examples/cmake examples/soft-body/src examples/soft-body/src/generated)
+    target_compile_definitions(authored_car_test PRIVATE CAR_SOURCE_DIRECTORY="${CMAKE_CURRENT_SOURCE_DIR}/examples/soft-body")
+    target_link_libraries(authored_car_test PRIVATE rohr_engine)
+    if(MSVC)
+        target_compile_options(authored_car_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(authored_car_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(authored_car_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(authored_car_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    set_target_properties(authored_car_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME authored_car COMMAND authored_car_test)
+    set_tests_properties(authored_car PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(shared_sources_test tests/shared_sources.c)
     target_link_libraries(shared_sources_test PRIVATE rohr_engine)

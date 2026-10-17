@@ -71,6 +71,77 @@ static void malformed_document(const char *path,EditorProject *live) {
     assert(live->objects[0].force_count==before);
     assert(remove("sources_invalid.json")==0);
 }
+static Entity member(Entity object,const char *name) {
+    EntityResult result=entity_object_member_by_name_get(object,name);OK(result);return result.result.value;
+}
+static void runtime_source_tests(const ObjectDescription *root) {
+    size_t baseline=entity_alive_count_get();
+    ObjectDescriptionResult copied=object_copy(root);OK(copied);
+    ObjectDescriptionResult source=object_description_name_get(copied.result.value,"push");OK(source);
+    ObjectForceDescription original=source.result.value->force;
+    ObjectDescriptionResult particle=object_description_name_get(copied.result.value,"test_particle");OK(particle);
+    ObjectSourceReference refs[]={original.target,original.location.reference,original.orientation.from.reference,
+        {OBJECT_SOURCE_SOFT_BODY,original.target.soft_body,0},{OBJECT_SOURCE_PARTICLE,particle.result.value->id,0},{0}};
+    for(size_t target=0;target<sizeof(refs)/sizeof(refs[0]);++target)
+        for(unsigned location=0;location<4;++location)
+            for(unsigned orientation=0;orientation<4;++orientation) {
+                ObjectForceDescription value=original;
+                value.mode=OBJECT_SOURCE_PERSISTENT;value.target=refs[target];
+                value.location.kind=location;
+                value.location.reference=location==ROHR_FORCE_BEAM_POSITION?original.location.reference:original.target;
+                value.orientation.kind=orientation;
+                value.orientation.reference=orientation==ROHR_FORCE_BEAM_ORIENTATION?original.location.reference:original.target;
+                OK(object_force_description_set(source.result.value,value));
+                EntityResult a=entity_object_add(copied.result.value);
+                if(error_check(a)) fprintf(stderr,"source case target=%zu location=%u orientation=%u: error %d\n",target,location,orientation,a.result.error);
+                OK(a);
+                EntityResult b=entity_object_description_add(copied.result.value,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset={100,40}});OK(b);
+                ForceDescriptionResult first=physics_force_description_get(member(a.result.value,"push"));OK(first);
+                ForceDescriptionResult second=physics_force_description_get(member(b.result.value,"push"));OK(second);
+                assert(first.result.value.owner==a.result.value && second.result.value.owner==b.result.value);
+                assert((!first.result.value.target && !second.result.value.target) || first.result.value.target!=second.result.value.target);
+                assert(second.result.value.location.offset.x==value.location.offset.x); /* World points stay absolute. */
+                ForceDescription direct=second.result.value;direct.owner=ENTITY_NONE;
+                EntityResult standalone=physics_force_add(direct);OK(standalone);
+                ForceDescriptionResult roundtrip=physics_force_description_get(standalone.result.value);OK(roundtrip);
+                assert(roundtrip.result.value.magnitude==value.magnitude && roundtrip.result.value.target==second.result.value.target);
+                OK(entity_delete(standalone.result.value));OK(entity_delete(a.result.value));
+                assert(entity_alive_check(member(b.result.value,"push")));
+                OK(entity_delete(b.result.value));assert(entity_alive_count_get()==baseline);
+            }
+    /* A late source failure removes earlier bodies and sources atomically. */
+    ObjectDescription *mutable_source=(ObjectDescription *)source.result.value;
+    mutable_source->force=original;mutable_source->force.target.id=UINT64_MAX;
+    EntityResult bad=entity_object_add(copied.result.value);assert(error_check(bad));
+    assert(entity_alive_count_get()==baseline);mutable_source->force=original;
+    EntityResult instance=entity_object_add(copied.result.value);OK(instance);
+    Entity initial=member(instance.result.value,"push"),persistent=member(instance.result.value,"torque_1");
+    EntityNameResult root_name=entity_name_get(instance.result.value);OK(root_name);
+    OK(game_state_file_save("source_runtime.json"));OK(entity_delete(instance.result.value));
+    assert(!entity_alive_check(initial));OK(game_state_file_load("source_runtime.json"));
+    EntityResult restored=entity_by_name_get(root_name.result.value.value);OK(restored);
+    initial=member(restored.result.value,"push");persistent=member(restored.result.value,"torque_1");
+    ForceDescriptionResult restored_force=physics_force_description_get(initial);OK(restored_force);
+    assert(restored_force.result.value.owner==restored.result.value && entity_alive_check(restored_force.result.value.target));
+    assert(physics_dt_update(0.001).header.status!=ROHR_REPORT_FAILED && entity_alive_check(initial));
+    OK(engine_time_per_tick_set(0.001));SDL_Delay(3);engine_tick_update();engine_lifecycle_update();
+    assert(!entity_alive_check(initial) && entity_alive_check(persistent));
+    OK(game_state_file_save("source_runtime.json"));OK(entity_delete(restored.result.value));
+    OK(game_state_file_load("source_runtime.json"));restored=entity_by_name_get(root_name.result.value.value);OK(restored);
+    assert(error_check(entity_object_member_by_name_get(restored.result.value,"push")));
+    OK(entity_delete(restored.result.value));assert(remove("source_runtime.json")==0);
+    assert(entity_alive_count_get()==baseline);
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    unsigned failed=0,passed=0;
+    for(long n=0;n<100;++n) {
+        fail_after=n;EntityResult attempt=entity_object_add(copied.result.value);fail_after=-1;
+        if(error_check(attempt)) ++failed;else { ++passed;OK(entity_delete(attempt.result.value)); }
+        assert(entity_alive_count_get()==baseline);
+    }
+    assert(failed && passed);
+#endif
+    OK(object_destroy(copied.result.value));
+}
 int main(void) {
     OK(engine_start()); assert(ENTITY_NONE==ENTITY_INVALID); source_failure_tests();
     EditorProject p;editor_project_init(&p);
@@ -78,6 +149,10 @@ int main(void) {
     uint32_t object=o->id;
     EditorRigidBody *rigid=editor_project_rigid_body_add(&p,o);assert(rigid);
     uint32_t rigid_id=rigid->id;
+    EditorRigidBody *particle=editor_project_rigid_body_add(&p,o);assert(particle);
+    strcpy(particle->name,"test_particle");particle->particle=true;particle->standalone_particle=true;
+    particle->particle_auto_fit=false;particle->particle_radius=1;particle->particle_rigid_vertices=16;
+    assert(editor_project_particle_hitbox_sync(&p,particle));
     EditorSoftBody *body=editor_project_soft_body_add(&p,o);assert(body);uint32_t body_id=body->id;
     EditorSoftNode *node=editor_project_soft_node_add(&p,body,(Position){0});assert(node);uint32_t node_id=node->id;
     EditorSoftNode *other=editor_project_soft_node_add(&p,body,(Position){10,0});assert(other);
@@ -131,6 +206,7 @@ int main(void) {
     editor_project_destroy(&loaded);
     ObjectDescriptionResult asset=object_load("sources.json");OK(asset);
     const ObjectDescription *root=asset.result.value->children[0];
+    runtime_source_tests(root);
     ObjectDescriptionResult f=object_description_name_get(root,"push");OK(f);
     assert(f.result.value->kind==OBJECT_FORCE && f.result.value->force.target.id!=0);
     ObjectDescriptionResult copy=object_copy(root);OK(copy);
@@ -139,8 +215,11 @@ int main(void) {
     OK(rohr_object_force_description_set(copied_force.result.value,changed));
     assert(f.result.value->force.magnitude==-8);
     assert(error_check(object_force_description_set(f.result.value,changed)));
-    size_t entities=entity_alive_count_get();EntityResult unsupported=entity_object_add(copy.result.value);
-    assert(error_check(unsupported) && unsupported.result.error==ERROR_ENGINE_AUTHORED_SOURCE_PENDING && entity_alive_count_get()==entities);
+    size_t entities=entity_alive_count_get();EntityResult spawned=entity_object_add(copy.result.value);OK(spawned);
+    EntityResult source=entity_object_member_by_name_get(spawned.result.value,"push");OK(source);
+    ForceDescriptionResult runtime=physics_force_description_get(source.result.value);OK(runtime);
+    assert(runtime.result.value.owner==spawned.result.value && runtime.result.value.magnitude==22);
+    OK(entity_delete(spawned.result.value));assert(entity_alive_count_get()==entities);
     ObjectDescriptionResult visuals=object_copy_with_options(root,ROHR_ENTITY_OBJECT_VISUALS);OK(visuals);
     EntityResult visual_instance=entity_object_add_with_options(visuals.result.value,ROHR_ENTITY_OBJECT_VISUALS);OK(visual_instance);OK(entity_delete(visual_instance.result.value));
     OK(object_destroy(visuals.result.value));OK(object_destroy(copy.result.value));OK(object_destroy(asset.result.value));
@@ -175,8 +254,6 @@ int main(void) {
     OK(execute(&p,&h,remove_body));o=editor_object_query_get(&p,object);
     assert(!o->force_items[0].description.target.id && !o->force_items[0].description.location.reference.id);
     assert(editor_history_undo(&h));o=editor_object_query_get(&p,object);assert(editor_sources_check(o));
-    EditorWorkspace workspace={.open=true};snprintf(workspace.directory,sizeof(workspace.directory),".");
-    assert(!editor_workspace_c_generate(&workspace,&p));
     /* Source deletion and undo retain the full description. */
     cli.data.source.operation=EDITOR_SOURCE_REMOVE;OK(execute(&p,&h,cli));assert(o->force_count==1);
     assert(editor_history_undo(&h));assert(o->force_count==2 && o->force_items[0].description.magnitude==-8);

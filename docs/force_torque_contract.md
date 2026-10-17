@@ -98,14 +98,13 @@ typedef struct TorqueDescription {
 no target, zero magnitude, and (for forces) world origin and world orientation
 zero. No description-default getter or separate create function is needed.
 
-Goal 5 will add `ENTITY_NONE` as an alias of `ENTITY_INVALID`, with the same
+Goal 5 added `ENTITY_NONE` as an alias of `ENTITY_INVALID`, with the same
 zero value. Use `ENTITY_NONE` to express an intentionally absent optional target;
 retain `ENTITY_INVALID` for invalid-handle results and internal validity checks.
 This adds no entity type or distinct sentinel and changes no validation rules.
 `NONE` is accepted only where an API already permits an absent entity. Explicit
 COM/origin/beam and entity-based orientation references still require suitable
-entities; world references do not require an entity. The alias is not yet
-implemented.
+entities; world references do not require an entity.
 
 | Position reference | Offset meaning |
 | --- | --- |
@@ -427,8 +426,8 @@ Goal 5 implements these authored-model requirements through object-owned
 collections, commands, document version 8, and loadable/editable object
 descriptions. New entries default to persistent, no target, and zero magnitude;
 forces default to world-origin application and world-zero orientation.
-Runtime spawning and generated catalogs remain Goal 6. Until then source-bearing
-physics spawns and project generation fail explicitly before side effects.
+Goal 6 enables runtime spawning and generated catalogs through the shared
+object spawner, including named persistent sources and expiring initial sources.
 Runtime source descriptions continue to serialize in game-state version 8.
 
 **Ownership and reference scope.** Forces and torques are top-level items owned
@@ -488,7 +487,7 @@ validation, history, copying, duplication and
 deletion, including the agreed fallbacks and `ENTITY_NONE` alias. Preserve
 zero-magnitude and no-target sources and initial versus persistent mode.
 Existing engine-tick lifetime rules remain authoritative. Generated source
-creation and instance cleanup remain Goal 6; detailed editor presentation
+creation and instance cleanup are implemented in Goal 6; detailed editor presentation
 remains Goals 7 and 8.
 
 Goal 5 verification must cover object-local reference validation; source and
@@ -497,8 +496,31 @@ orientation deletion fallbacks, including nested orientation references;
 undo/redo; zero/no-target and initial/persistent preservation; and alias parity
 without weakening explicit-reference validation. Runtime save/load checks must
 reconnect source descriptions to restored soft-body topology. Authored source
-instantiation remains Goal 6; the runtime persistence checks exercise sources
-created through the existing runtime API.
+instantiation uses the same runtime source components and lifetime serialization.
+
+### Goal 6: source instantiation and the car example
+
+Create sources after instance topology and joint bindings are ready. Resolve
+every authored reference within that instance, and roll back all newly created
+entities if any step fails. Persistent sources belong to the containing object,
+independently of their target. Initial sources have that same ownership and the
+existing creation-tick-plus-one expiry; cancellation and normal expiry remove
+the source completely. Public `apply()` still requires absent ownership.
+
+Loaded descriptions, generated catalogs, and generated source-bearing constructor
+wrappers share spawning behavior. Visual-only spawning excludes sources. World
+references remain absolute; instance placement does not shift world application
+points or headings. Runtime saves retain source ownership and remaining expiry,
+and loading does not replay expired initial definitions.
+
+The existing soft-body car example stores its geometry, joints, and rear-wheel
+drive torque in an editable project. A/D updates the persistent rear-disk torque.
+Each Space press applies an upward one-tick force at chassis COM only when both
+wheels currently contact external rigid bodies. Disk, tire-node, and tire-beam
+contacts qualify; self-contacts, standalone particles, and soft-body targets do
+not. The wheels may contact different rigid bodies. An accepted press can wait
+for the next physics update, but rejected airborne presses are never buffered.
+The default project remains unchanged; graphical source editing remains Goals 7–8.
 
 ### Milestone acceptance
 

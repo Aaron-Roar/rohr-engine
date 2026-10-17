@@ -671,6 +671,83 @@ static void editor_workspace_particle_config_write(FILE *source,
         body->collision_enabled ? "true" : "false");
 }
 
+static void catalog_binding_write(FILE *f, const char *field, const char *name,
+        const char *resource, const char *scope) {
+    fprintf(f, "    { EntityResult member = rohr_entity_object_member_by_name_get(%s, ", scope);
+    editor_workspace_c_string_write(f, name);
+    fputs(");\n      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }\n", f);
+    if(resource) {
+        fprintf(f, "      %sIdResult handle = rohr_entity_object_%s_get(member.result.value);\n"
+            "      if(rohr_error_check(handle)) { result = rohr_error_result_error(handle.result.error); goto fail; }\n"
+            "      object->%s = handle.result.value; }\n", !strcmp(resource,"camera") ? "Camera" : "JointAnchor", resource, field);
+    } else fprintf(f, "      object->%s = member.result.value; }\n", field);
+}
+static void catalog_constructor_write(FILE *f, const EditorObject *o, const char *variable) {
+    fprintf(f, "EngineResult %s_create(%s *object, Position position) {\n"
+        "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
+        "    *object = (%s){0};\n"
+        "    EntityResult added = rohr_entity_object_description_add(rohr_object_get(objects.%s),\n"
+        "        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});\n"
+        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
+        "    object->source_instance = added.result.value;\n"
+        "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);
+    char field[160], scope[160];
+    for(size_t i=0;i<o->rigid_body_count;++i)
+        catalog_binding_write(f,o->rigid_bodies[i].name,o->rigid_bodies[i].name,NULL,"object->source_instance");
+    for(size_t i=0;i<o->soft_body_count;++i) {
+        const EditorSoftBody *b=&o->soft_body_items[i];
+        catalog_binding_write(f,b->name,b->name,NULL,"object->source_instance");
+        snprintf(scope,sizeof(scope),"object->%s",b->name);
+        for(size_t n=0;n<b->node_count;++n) catalog_binding_write(f,b->nodes[n].name,b->nodes[n].name,NULL,scope);
+        for(size_t n=0;n<b->beam_count;++n) catalog_binding_write(f,b->beams[n].name,b->beams[n].name,NULL,scope);
+        for(size_t n=0;n<b->area_count;++n) {
+            snprintf(field,sizeof(field),"%s_areas[%zu]",b->name,n);
+            catalog_binding_write(f,field,b->areas[n].name,NULL,scope);
+        }
+    }
+    for(size_t i=0;i<o->anchor_count;++i) {
+        const EditorAnchor *a=&o->anchors[i];
+        if(a->attachment_kind==EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) continue;
+        snprintf(field,sizeof(field),"anchor_%s",a->name);
+        catalog_binding_write(f,field,a->name,"anchor","object->source_instance");
+        if(a->attachment_kind==EDITOR_ANCHOR_ATTACHMENT_NONE || !a->position_follows_body) {
+            snprintf(field,sizeof(field),"anchor_%s_owner",a->name);
+            catalog_binding_write(f,field,a->name,NULL,"object->source_instance");
+        }
+    }
+    for(size_t i=0;i<o->joint_count;++i) {
+        snprintf(field,sizeof(field),"joint_%s",o->joint_items[i].name);
+        catalog_binding_write(f,field,o->joint_items[i].name,NULL,"object->source_instance");
+    }
+    for(size_t i=0;i<o->sprite_count;++i) {
+        snprintf(field,sizeof(field),"sprite_%s",o->sprites[i].name);
+        catalog_binding_write(f,field,o->sprites[i].name,NULL,"object->source_instance");
+    }
+    for(size_t i=0;i<o->animated_sprite_count;++i) {
+        const EditorAnimatedSprite *a=&o->animated_sprite_items[i];
+        if(editor_workspace_body_get(o,a->rigid_body)) continue;
+        snprintf(field,sizeof(field),"animation_%s",a->name);
+        catalog_binding_write(f,field,a->name,NULL,"object->source_instance");
+    }
+    for(size_t i=0;i<o->camera_count;++i) {
+        snprintf(field,sizeof(field),"camera_%s",o->cameras[i].name);
+        catalog_binding_write(f,field,o->cameras[i].name,"camera","object->source_instance");
+    }
+    for(size_t i=0;i<o->force_count;++i) if(o->force_items[i].description.mode==OBJECT_SOURCE_PERSISTENT) {
+        snprintf(field,sizeof(field),"force_%s",o->force_items[i].name);
+        catalog_binding_write(f,field,o->force_items[i].name,NULL,"object->source_instance");
+    }
+    for(size_t i=0;i<o->torque_count;++i) if(o->torque_items[i].description.mode==OBJECT_SOURCE_PERSISTENT) {
+        snprintf(field,sizeof(field),"torque_%s",o->torque_items[i].name);
+        catalog_binding_write(f,field,o->torque_items[i].name,NULL,"object->source_instance");
+    }
+    fprintf(f,"    return result;\nfail:\n    %s_destroy(object);\n    return result;\n}\n\n"
+        "void %s_draw(const %s *object) {\n    if(object) (void)rohr_entity_object_draw(object->source_instance);\n}\n\n"
+        "void %s_destroy(%s *object) {\n    if(!object) return;\n"
+        "    if(rohr_entity_alive_check(object->source_instance)) (void)rohr_entity_delete(object->source_instance);\n"
+        "    *object = (%s){0};\n}\n\n",variable,variable,o->name,variable,o->name,o->name);
+}
+
 static bool editor_workspace_generated_objects_write(const EditorWorkspace *workspace,
     const EditorProject *project) {
     char header_path[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -710,7 +787,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         " * The project's developer may use, modify, and distribute it without restriction.\n"
         " */\n\n"
         "#include \"project_objects.h\"\n\n"
-        "static EngineResult generated_body_create(Entity *output, Position position,\n"
+        "static inline EngineResult generated_body_create(Entity *output, Position position,\n"
         "    float rotation, Velocity velocity, Acceleration acceleration,\n"
         "    AngularVelocity angular_velocity, Shape hitbox, float mass_value, float friction,\n"
         "    float restitution, bool static_body, bool rotation_locked,\n"
@@ -839,6 +916,15 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         fprintf(header, "\n");
         fprintf(header, "typedef struct %s {\n", object->name);
+        if(object->force_count || object->torque_count) {
+            fprintf(header, "    Entity source_instance;\n");
+            for(size_t s=0;s<object->force_count;++s)
+                if(object->force_items[s].description.mode==OBJECT_SOURCE_PERSISTENT)
+                    fprintf(header,"    Entity force_%s;\n",object->force_items[s].name);
+            for(size_t s=0;s<object->torque_count;++s)
+                if(object->torque_items[s].description.mode==OBJECT_SOURCE_PERSISTENT)
+                    fprintf(header,"    Entity torque_%s;\n",object->torque_items[s].name);
+        }
         for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
             fprintf(header, "    Entity %s;\n", object->rigid_bodies[body_index].name);
         }
@@ -884,6 +970,10 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             "void %s_destroy(%s *object);\n\n",
             object->name, function_name, object->name, function_name, object->name,
             function_name, object->name);
+        if(object->force_count || object->torque_count) {
+            catalog_constructor_write(source,object,function_name);
+            continue;
+        }
         fprintf(source, "EngineResult %s_create(%s *object, Position position) {\n"
             "    EngineResult result;\n"
             "    if(object == NULL) return rohr_error_result_error("
@@ -2501,12 +2591,8 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
 bool editor_workspace_c_generate(const EditorWorkspace *workspace,
     const EditorProject *project) {
     if(!project) return false;
-    for(size_t i = 0; i < project->object_count; ++i) {
-        if(project->objects[i].force_count || project->objects[i].torque_count) {
-            editor_log_error("generate", "Authored force/torque generation is not implemented; existing generated files were preserved");
-            return false;
-        }
-    }
+    for(size_t i = 0; i < project->object_count; ++i)
+        if(!editor_sources_check(&project->objects[i])) return false;
     return workspace != NULL && workspace->open &&
         editor_project_center_of_mass_check(project) &&
         editor_soft_areas_generation_validate(project).kind != ERROR_RESULT_ERROR &&

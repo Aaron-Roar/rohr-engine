@@ -1384,8 +1384,8 @@ implements shared sources and rigid-body/particle behavior; Goal 3 adds receivin
 beam loads; Goal 4 adds whole-soft-body loads. These runtime goals are complete.
 Runtime Soft-Body Persistence is the completed prerequisite for Goal 5.
 The user-selected Object Descriptions and Independent Spawning milestone is also
-a completed prerequisite. Goal 5 now provides authored definitions and persistence;
-runtime source instantiation and generation remain Goal 6.
+a completed prerequisite. Goals 5 and 6 now provide authored definitions,
+persistence, runtime source instantiation, and generated catalog parity.
 Editor handle presentation is finalized in the relevant editor goals.
 
 1. [x] **Finalize the shared API contract** — Completed through **Force/Torque
@@ -1442,9 +1442,9 @@ Editor handle presentation is finalized in the relevant editor goals.
    affected targets to none, locations to world origin, and orientations to
    world zero in the same undo transaction. Malformed documents are rejected
    transactionally. Added `ENTITY_NONE` as an alias of `ENTITY_INVALID` without
-   changing runtime validation or game-state format 8. Until Goal 6, source-bearing
-   physics spawns fail before entity allocation and generation fails before
-   overwriting files; visual-only spawning and source-free generation continue.
+   changing runtime validation or game-state format 8. Goal 5 introduced temporary
+   source spawning/generation guards, subsequently replaced by Goal 6 support;
+   visual-only spawning and source-free generation continue.
    All 87 native tests and five focused ASan/UBSan suites pass with leak detection.
    Linux/Windows builds have no compiler warnings. Seven installed-SDK consumers,
    all 12 standalone examples, and a generated project build on both platforms;
@@ -1453,10 +1453,28 @@ Editor handle presentation is finalized in the relevant editor goals.
    is compilation only. CLI lifecycle checks confirm invalid-edit rollback and
    generated-file preservation. Stop for user review before Goal 6. See the
    [Goal 5 contract](docs/force_torque_contract.md#goal-5-authored-definitions-and-persistence).
-6. [ ] **Generate runtime sources and verify API parity** — Generate initial
-   applications, persistent source references, and instance cleanup. Verify
-   independent instances, runtime mutation, and direct/generated parity. Add
-   a focused demonstration and API documentation.
+6. [x] **Generate runtime sources and verify API parity** — Loaded descriptions,
+   generated catalogs, and source-bearing generated constructors share the object
+   spawner. Sources resolve after topology and joint bindings, belong to their
+   containing object, and roll back with failed instances. Persistent sources
+   expose named mutable handles; initial sources use existing one-tick expiry
+   with cancellation on instance deletion and no permanent placeholder. Save/load
+   preserves ownership and remaining expiry without replaying expired sources.
+   World references remain absolute and visual-only spawns exclude sources.
+   Converted the existing soft-body car to an editable authored document with
+   rear-wheel torque driven by A/D. Space applies a one-tick chassis-COM jump
+   only when both wheels contact external rigid bodies; particle and self-contacts
+   do not qualify. Enabled collision response on the existing walls/ramp and
+   verified the actual starting-platform jump. Default project behavior is
+   unchanged; graphical source controls remain Goals 7–8.
+   All 88 native tests and five focused ASan/UBSan suites pass with leak detection.
+   Linux/Windows builds have no compiler warnings. Seven installed SDK consumers,
+   all 12 standalone examples, and the generated default project build on both
+   platforms and pass Linux consumer/probe or bounded startup checks outside
+   their source directories. An 85-source generated reference matrix compiles on
+   both platforms and matches loaded descriptions on Linux. Windows verification
+   is compilation only. Manual car-control review is requested at this boundary;
+   stop for user review before Goal 7.
 7. [ ] **Implement the force editor** — Add top-level object rows, dedicated
    properties, target selection, application-dot/arrow rendering, and
    position/direction/magnitude controls. Integrate selection, visibility,
@@ -1500,8 +1518,8 @@ contributions. Runtime state version 8 serializes source descriptions and full
 soft-body topology with named references, shared anchors, relative lifetimes,
 and generic ownership. Authored source persistence is complete in project format 8.
 
-Runtime Soft-Body Persistence and Goal 5 are complete. Goal 6, runtime source
-generation and API parity, requires explicit user instruction after review.
+Runtime Soft-Body Persistence and Goals 5–6 are complete. Goal 7, the graphical
+force editor, requires explicit user instruction after review.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

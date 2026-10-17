@@ -169,12 +169,33 @@ available with `rohr_` prefixes) to atomically replace definitions on editable
 copies. Read their values through `object_get`; immutable documents reject edits.
 Definitions do not imply ownership of their targets.
 
-Authored source spawning and generated catalogs are deferred to Unified Forces
-and Torques Goal 6. Physics spawning of a source-bearing description currently
-returns `ERROR_ENGINE_AUTHORED_SOURCE_PENDING` before allocating entities.
-Source-bearing project generation fails before overwriting generated files.
-Visual-only spawning and source-free generation remain supported. Runtime
-`physics_force_add`, `physics_torque_add`, and their one-shot APIs remain usable.
+Loaded and generated source descriptions use the same object spawner. Bodies,
+topology, and joint bindings are created before sources, and every active
+reference resolves inside the new instance. Failed spawning removes the entire
+partial instance. Visual-only spawning excludes sources.
+
+Persistent sources are named entities owned by the containing object. Retrieve
+them through `entity_object_member_by_name_get(instance, "rear_drive")` and use
+the existing force/torque setters. Ownership remains independent of the receiving
+target; explicit ownership transfers preserve connections. Deleting the object
+deletes its sources, while transferred sources follow their new owner.
+
+Initial sources are also instance-owned but expire at creation tick plus one,
+using the existing engine lifecycle. They leave no placeholder and are cancelled
+if their instance is deleted first. Physics updates alone do not advance expiry.
+Runtime snapshots preserve the remaining lifetime and never replay expired
+initial applications. The public one-shot `apply()` APIs still require no owner.
+
+Generated `*_create()` wrappers for source-bearing objects delegate to this same
+spawner. Their `source_instance` field owns the object; `force_<name>` and
+`torque_<name>` fields expose persistent handles. Initial handles are deliberately
+omitted from these structs. Generated destruction deletes the instance, and
+generated drawing uses its retained appearance.
+
+World application points and headings remain absolute, including when spawning
+with an offset or rotating a copied object. Use origin references for a point
+that follows an instance transform, or COM references for a world-axis offset
+from an instance's current COM.
 
 Editor document version 7 is no longer accepted. Bundled documents use version
 8, with `forces`/`torques` arrays and `next_force_id`/`next_torque_id` counters.
