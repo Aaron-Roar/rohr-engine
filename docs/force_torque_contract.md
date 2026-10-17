@@ -422,8 +422,11 @@ presentation for forces is now fixed: a constant screen-size arrow and applicati
 dot, with magnitude edited numerically. Dot/shaft dragging updates the location
 offset; the shared rotation handle updates orientation offset while preserving
 references and magnitude sign. Zero arrows remain selectable with muted styling.
-Force visibility is editor-only metadata. Torque uses a static circular arrow
-with a gap and remains the next editor goal.
+Editor eyes are independent of persisted app visibility. Runtime forces draw
+signed arrows; runtime torques draw static 270-degree arrows at target COM or
+beam midpoint. Zero sources are muted, and unresolved geometry is omitted.
+Visibility never disables a source. Movable torque editor markers remain the
+next editor goal.
 
 ### Goal 5: authored definitions and persistence
 

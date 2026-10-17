@@ -8,6 +8,8 @@
 #include "editor_viewport.h"
 #include "editor_history.h"
 
+bool editor_navigation_panel_visibility_ref_get(EditorProject *project,
+    const EditorViewportState *state, EditorSelectionRef *ref);
 bool editor_navigation_selected_open(EditorProject *project,
     EditorViewportState *state);
 bool editor_navigation_open_item_selection_set(EditorViewportState *state);

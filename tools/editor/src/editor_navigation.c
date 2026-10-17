@@ -793,6 +793,7 @@ bool editor_navigation_app_visibility_command_get(EditorProject *project,
         case EDITOR_SELECTION_OBJECT: kind = EDITOR_ITEM_OBJECT; break;
         case EDITOR_SELECTION_RIGID_BODY: kind = EDITOR_ITEM_RIGID_BODY; break;
         case EDITOR_SELECTION_PARTICLE: kind = EDITOR_ITEM_RIGID_BODY; break;
+        case EDITOR_SELECTION_FORCE: kind = EDITOR_ITEM_FORCE; break;
         case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
@@ -813,6 +814,29 @@ bool editor_navigation_app_visibility_command_get(EditorProject *project,
     *command = (EditorCommand){.type = EDITOR_COMMAND_APP_VISIBILITY,
         .data.app_visibility = {kind, ref.object, ref.parent, ref.item, !*hidden}};
     return true;
+}
+
+bool editor_navigation_panel_visibility_ref_get(EditorProject *project,
+        const EditorViewportState *state, EditorSelectionRef *ref) {
+    if(!project || !state || !ref || state->mode == EDITOR_VIEWPORT_HIERARCHY) return false;
+    EditorViewportState opened = *state;
+    if(state->mode == EDITOR_VIEWPORT_LAYOUT) {
+        *ref = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT, 0, 0, 0,
+            state->selected_layout_viewport};
+    } else if(state->mode == EDITOR_VIEWPORT_LAYOUT_CAMERA_EDITOR) {
+        *ref = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            state->selected_layout_viewport, 1, 0, state->selected_viewport_camera_item};
+    } else if(state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ||
+            state->mode == EDITOR_VIEWPORT_UI_SLIDER_EDITOR) {
+        *ref = (EditorSelectionRef){state->mode == EDITOR_VIEWPORT_UI_SHAPE_EDITOR ?
+            EDITOR_SELECTION_UI_SHAPE : state->mode == EDITOR_VIEWPORT_UI_TEXT_EDITOR ?
+            EDITOR_SELECTION_UI_TEXT : EDITOR_SELECTION_UI_SLIDER,
+            state->selected_layout_viewport, 0, 0, state->selected_viewport_ui_item};
+    } else if(!editor_navigation_open_item_selection_set(&opened) ||
+            !editor_viewport_selection_ref_get(project, &opened, ref)) return false;
+    bool visible;
+    return editor_navigation_selection_visibility_get(project, *ref, &visible);
 }
 
 bool editor_navigation_selection_visibility_get(EditorProject *project,
@@ -1638,6 +1662,9 @@ bool editor_navigation_forces_paste(EditorProject *project, EditorViewportState 
         if(editor_command_execute(project,&command).kind==ERROR_RESULT_ERROR) goto fail;
         EditorCommand visible={.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,object->id,0,ids[i],clipboard->items[i].visible}};
         if(editor_command_execute(project,&visible).kind==ERROR_RESULT_ERROR) goto fail;
+        EditorCommand app={.type=EDITOR_COMMAND_APP_VISIBILITY,
+            .data.app_visibility={EDITOR_ITEM_FORCE,object->id,0,ids[i],!clipboard->items[i].app_hidden}};
+        if(editor_command_execute(project,&app).kind==ERROR_RESULT_ERROR) goto fail;
     }
     if(!editor_history_transaction_end(history)) return false;
     editor_viewport_selection_clear(state);

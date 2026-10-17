@@ -2911,6 +2911,12 @@ int main(int argc, char **argv) {
             panel_scroll_offset, 42.0f).offset;
         if(workspace.open) {
             EditorViewportMode panel_mode = viewport_state.mode;
+            EditorSelectionRef eye_ref; bool eye_visible = true;
+            bool has_eye = editor_navigation_panel_visibility_ref_get(&project, &viewport_state, &eye_ref) &&
+                editor_navigation_selection_visibility_get(&project, eye_ref, &eye_visible);
+            if(has_eye && editor_mode_visibility_button("editor.panel.eye", eye_visible, false,
+                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 42.0f, 32.0f, 32.0f}).clicked)
+                (void)editor_navigation_selection_visibility_set(&project, eye_ref, !eye_visible);
             const TextAsset *navigation_label = panel_mode ==
                 EDITOR_VIEWPORT_HIERARCHY ? &close_project_label : &back_label;
             float navigation_width = panel_mode == EDITOR_VIEWPORT_HIERARCHY ?
@@ -2918,8 +2924,8 @@ int main(int argc, char **argv) {
             if(rohr_ui_button(panel_mode == EDITOR_VIEWPORT_HIERARCHY ?
                         "editor.project.close" : "editor.mode.back",
                     navigation_label,
-                    (UIRect){EDITOR_VIEWPORT_WIDTH + 10.0f, 42.0f,
-                        fminf(navigation_width, EDITOR_TOOLS_WIDTH - 20.0f), 32.0f},
+                    (UIRect){EDITOR_VIEWPORT_WIDTH + (has_eye ? 48.0f : 10.0f), 42.0f,
+                        fminf(navigation_width, EDITOR_TOOLS_WIDTH - (has_eye ? 58.0f : 20.0f)), 32.0f},
                     NULL).clicked) {
                 if(panel_mode == EDITOR_VIEWPORT_HIERARCHY)
                     close_project_requested = true;

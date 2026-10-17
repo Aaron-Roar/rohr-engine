@@ -6,21 +6,30 @@ runtime behavior remains developer-owned C code.
 
 ## Editor and app visibility
 
-The eye icon and context-menu **Hide/Show** affect only editing convenience.
+The eye at the top left of each visual item’s editor, hierarchy eyes, and
+context-menu **Hide/Show** share the same editor-only visibility.
 They never disable game rendering or simulation. For objects with runtime
 visuals, **Visible in App** is the first property below the name/header, above
 all data fields and accordions. It uses a checkbox, not an eye icon. Compatible
 multiple selections share the same property and show a mixed state when needed.
 
 App visibility controls objects, bodies/particles, joints, soft bodies and their
-nodes/beams/areas, sprites, animations, cameras, viewports, screens, and mounted
+nodes/beams/areas, forces, torques, sprites, animations, cameras, viewports, screens, and mounted
 UI. A hidden parent suppresses child rendering without changing the children's
 stored settings. A hidden camera stops its screen output; viewport UI remains
 independent. Physics, collisions, forces, constraints, animation playback, and
-input activation keep their own behavior. Collision hitbox variants, anchors,
-and force markers have no separate runtime visual output; their editor
-visibility remains an editing aid. Input controllers use their explicit
+input activation keep their own behavior. Collision hitbox variants and anchors
+have no separate runtime visual output; their editor visibility remains an
+editing aid. Input controllers use their explicit
 **Enabled** setting and have no visibility eye.
+
+Runtime forces draw signed arrows from their current application references.
+Torques draw signed 270-degree arrows at the target COM (beam midpoint for beams);
+unassigned torques or unresolved geometry have no marker. Zero sources use muted
+markers. Initial sources disappear when their one-tick entities expire. Torque
+app visibility is available through JSON and CLI ahead of the torque editor:
+`--torque-id <id> --property visible_in_app set false`. Forces support the same
+property. Both default visible when older files omit it.
 
 Project format 9 stores `visible_in_app` independently of the existing editor
 visibility fields. Version 8 projects load with app visibility on while keeping
@@ -652,7 +661,8 @@ and left distance. Between-location directions expose both endpoint locations.
 Unresolvable geometry shows a diagnostic and disables dependent viewport handles;
 the force remains accessible from its row.
 
-Visibility hides only the editor arrow. Force rows support ordering, rename,
+The header and hierarchy eyes hide only the editor arrow. **Visible in App**
+independently controls its runtime arrow. Force rows support ordering, rename,
 delete, copy, duplicate, and multi-selection. Ctrl+C copies selected forces,
 Ctrl+V pastes into the current object, and Ctrl+D duplicates them. The context
 menu provides Copy and Duplicate; the background menu provides Paste. Clipboard

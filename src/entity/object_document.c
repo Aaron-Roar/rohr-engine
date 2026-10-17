@@ -43,7 +43,7 @@ static ObjectDescription *add(ImportContext *c, ObjectDescription *parent,
     if(!d->name) { free(d); return NULL; }
     d->id = c->count + 1; d->parent = parent; d->kind = kind;
     d->categories = (kind == OBJECT_SPRITE || kind == OBJECT_ANIMATION || kind == OBJECT_CAMERA) ? ROHR_ENTITY_OBJECT_VISUALS : ROHR_ENTITY_OBJECT_PHYSICS;
-    if(kind <= OBJECT_AREA)
+    if(kind <= OBJECT_AREA || kind == OBJECT_JOINT || kind == OBJECT_FORCE || kind == OBJECT_TORQUE)
         d->categories = ROHR_ENTITY_OBJECT_ALL;
     d->visible = true; d->scale = (Scale){1, 1};
     c->entries[c->count++] = (ImportEntry){d, object, soft, id};
@@ -206,6 +206,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_FORCE, f->id, f->name);
         if(!d) return false;
         d->force = f->description;
+        d->visible = !f->app_hidden; d->color = (Color){240, 180, 70, 255};
         ObjectForceOrientation *v = &d->force.orientation;
         if(!source_reference_import(c,o,&d->force.target) || !source_location_import(c,o,&d->force.location)) return false;
         if(v->kind == ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION) {
@@ -217,6 +218,7 @@ static bool sources_import(ImportContext *c, ObjectDescription *root, const Edit
         ObjectDescription *d = add(c,root,o,NULL,OBJECT_TORQUE,t->id,t->name);
         if(!d) return false;
         d->torque = t->description;
+        d->visible = !t->app_hidden; d->color = (Color){240, 180, 70, 255};
         if(!source_reference_import(c,o,&d->torque.target)) return false;
     }
     return true;
@@ -239,6 +241,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         ObjectDescription *a = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_a), *b = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_b);
         if(!d || !a || !b) return false;
         d->endpoint_a = a->id; d->endpoint_b = b->id;
+        d->color = (Color){225, 190, 85, 255};
         d->joint_type = s->kind == EDITOR_JOINT_REVOLUTE ? JOINT_PIN : s->kind == EDITOR_JOINT_WELD ? JOINT_WELD : JOINT_SPRING;
         d->rest_length = s->rest_length; d->stiffness = s->stiffness; d->damping = s->damping; d->rest_angle = s->rest_angle;
         d->visible = !s->app_hidden; d->layer = layer(c->project, s->graphics_layer);

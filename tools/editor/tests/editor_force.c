@@ -112,9 +112,11 @@ int main(void) {
     }
     editor_viewport_selection_clear(&s);
     assert(editor_viewport_selection_set(&p,&s,(EditorSelectionRef){EDITOR_SELECTION_FORCE,oid,0,0,id},false));
+    editor_project_force_get(o,id)->app_hidden=true;
     EditorForceClipboard clipboard={0}; assert(editor_navigation_forces_copy(&p,&s,&clipboard));
     assert(editor_navigation_forces_paste(&p,&s,&history,&clipboard)); assert(o->force_count==2);
     EditorForce *copy=editor_project_force_get(o,s.selected_force); assert(copy && copy->id!=id && copy->description.target.id==body.id);
+    assert(copy->app_hidden);
     copy->description.magnitude=123; near(editor_project_force_get(o,id)->description.magnitude,-2);
     editor_project_object_hierarchy_sync(o);
     assert(editor_navigation_selection_reorder(&p,&s,(EditorSelectionRef){EDITOR_SELECTION_FORCE,oid,0,0,copy->id},(EditorSelectionRef){EDITOR_SELECTION_RIGID_BODY,oid,0,0,body.id},false,&history));
@@ -130,6 +132,7 @@ int main(void) {
     assert(loaded.navigation.mode==EDITOR_VIEWPORT_FORCE && loaded.navigation.force==s.selected_force);
     assert(loaded.objects[0].force_count==2 && loaded.objects[0].force_items[0].visible);
     assert(loaded.objects[0].hierarchy[0].kind==EDITOR_HIERARCHY_FORCE);
+    assert(loaded.objects[0].force_items[0].app_hidden);
     FontAsset loaded_font=rohr_graphics_font_default_get(); EditorForceEditor loaded_ui={0};
     assert(editor_force_editor_create(&loaded_ui,&loaded_font));
     EditorModeContext loaded_context={.project=&loaded,.viewport=&s,.x=0,.width=320};
@@ -147,20 +150,24 @@ int main(void) {
     assert(!editor_result_check(editor_source_cli_parse(&p,11,args,&path,&parsed,&handled)) && handled);
     assert(parsed.type==EDITOR_COMMAND_VISIBILITY && !parsed.data.visibility.visible);
 
+    args[8]="visible_in_app";
+    assert(!editor_result_check(editor_source_cli_parse(&p,11,args,&path,&parsed,&handled)) && handled);
+    assert(parsed.type==EDITOR_COMMAND_APP_VISIBILITY && !parsed.data.app_visibility.visible);
+
     /* Property controls own their text resources and use command history. */
     FontAsset font=rohr_graphics_font_default_get(); EditorForceEditor ui={0};
     assert(editor_force_editor_create(&ui,&font));
     EditorModeContext context={.project=&p,.viewport=&s,.history=&history,.x=0,.width=320};
     other=editor_project_selected_get(&p); assert(other);
+    editor_project_force_get(other,s.selected_force)->app_hidden=false;
     panel(&ui,&context,(Position){200,90},MOUSE_BUTTON_STATE_UP);
     assert(ui.content_height>300);
     panel(&ui,&context,(Position){200,90},MOUSE_BUTTON_STATE_PRESSED);
     panel(&ui,&context,(Position){200,90},MOUSE_BUTTON_STATE_RELEASED);
-    panel(&ui,&context,(Position){200,145},MOUSE_BUTTON_STATE_PRESSED);
-    panel(&ui,&context,(Position){200,145},MOUSE_BUTTON_STATE_RELEASED);
     panel(&ui,&context,(Position){0,0},MOUSE_BUTTON_STATE_UP);
-    assert(!editor_project_force_get(other,s.selected_force)->visible);
-    assert(editor_history_undo(&history)); assert(editor_project_force_get(other,s.selected_force)->visible);
+    assert(editor_project_force_get(other,s.selected_force)->app_hidden);
+    assert(editor_project_force_get(other,s.selected_force)->visible);
+    assert(editor_history_undo(&history)); assert(!editor_project_force_get(other,s.selected_force)->app_hidden);
     /* Every property branch can mount, including unresolved between-locations. */
     f=editor_project_force_get(other,s.selected_force);
     f->description.orientation.kind=ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION;

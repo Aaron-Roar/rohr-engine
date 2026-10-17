@@ -439,11 +439,13 @@ typedef struct EditorForce {
     char name[EDITOR_OBJECT_NAME_MAX];
     ObjectForceDescription description;
     bool visible;
+    bool app_hidden;
 } EditorForce;
 typedef struct EditorTorque {
     uint32_t id;
     char name[EDITOR_OBJECT_NAME_MAX];
     ObjectTorqueDescription description;
+    bool app_hidden;
 } EditorTorque;
 
 typedef struct EditorObject {

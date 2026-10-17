@@ -1375,20 +1375,21 @@ Goal 5. Its single goal is complete; stop for review and a user-created commit.
 User-selected corrections take priority over Unified Forces and Torques Goal 8.
 Separate editing convenience from app rendering, then improve force controls.
 
-1. [x] **Separate editor and app visibility** — Eyes and Hide/Show now affect
-   editing only. Visible in App is a checkbox below names/headers and above
-   fields and accordions, including mixed selections. Format 9 migrates version 8
-   with app visibility on and existing eyes preserved. Rendering follows parent
-   visibility without changing physics or child settings; copying, duplication,
-   history, loaded descriptions and generated catalogs preserve the split.
-   Rebuilt `/tmp/rohr-projects/project-dir` with its entry point unchanged; its
-   scene callback now renders with the camera eye hidden and UI present.
-   All 90 native tests, four ASan/UBSan/leak suites, GUI startup, and Linux/Windows
-   builds pass with no new compiler diagnostics. Seven installed-SDK consumers,
-   all 12 standalone examples, and a generated default project build on both
-   platforms and pass Linux runtime/probe or bounded startup checks outside
-   their source directories. Windows verification is compilation only.
-   Manual application and property-layout review is requested before Goal 2.
+1. [x] **Separate editor and app visibility** — Completed the reopened goal with
+   runtime force arrows, signed 270-degree torque markers, and visible joint
+   symbols. Visual item panels have a shared editor-only eye at the top left;
+   Visible in App remains the first property below the header/name. Format 9
+   preserves independent editor/app state, defaults missing app flags to visible,
+   and retains parent suppression without changing child settings or physics.
+   Source visibility survives CLI edits, copying, history, generation, and runtime
+   save/load. The torque editor itself remains a later goal. Verified 90 native
+   tests, six ASan/UBSan/leak suites, GUI startup, and Linux/Windows builds with no
+   new compiler diagnostics. Seven installed-SDK consumers, all 12 standalone
+   examples, and a generated default project compile on both platforms; Linux
+   runtime/probe or bounded startup checks pass outside source directories.
+   Regenerated and rebuilt `/tmp/rohr-projects/project-dir`; its unchanged entry
+   point renders the scene, force arrow, and all three joint types. Windows
+   execution remains unverified. Manual application and panel review is requested.
 2. [ ] **Improve force editing affordances** — Replace the rotation dot with
    opposing curved arrows around the force origin, and highlight referenced
    bodies/particles/soft-body elements when hovering target/reference choices.

@@ -5560,6 +5560,55 @@ bool graphics_joint_draw(Entity joint_entity, Color color) {
     return drawn;
 }
 
+/* Source markers are screen-sized, like joint symbols. Unresolved references
+ * have no drawable geometry; drawing never changes the source or physics. */
+bool graphics_source_draw(Entity entity, bool torque, Color color) {
+    Position world; Vec2D direction; float magnitude;
+    if(!physics_source_geometry_get(entity, torque, &world, &direction, &magnitude)) return true;
+    Position center = graphics_world_to_screen_get(world);
+    if(magnitude == 0) color.alpha = (uint8_t)(color.alpha / 2);
+    int previous_layer = graphics_entity_layer_begin(entity);
+    SDL_FPoint tail[33], head[3];
+    int count;
+    Vec2D tangent;
+    if(torque) {
+        float sign = magnitude < 0 ? -1.0f : 1.0f;
+        count = 33;
+        for(int i = 0; i < count; ++i) {
+            float angle = sign * (float)i / (count - 1) * 1.5f * PI_F;
+            tail[i] = (SDL_FPoint){center.x + 22 * sinf(angle), center.y - 22 * cosf(angle)};
+        }
+        tangent = (Vec2D){0, -1};
+    } else {
+        /* Transform a vector independently of world translation to preserve
+         * small markers even at large coordinates and non-square camera scales. */
+        Vec2D local = math_vector_rotate(direction, -camera.orientation);
+        float width = WINDOW_WIDTH, height = WINDOW_HEIGHT;
+        size_t slot;
+        if(graphics_screen_slot(drawing_screen, &slot)) {
+            width = (float)screens[slot].width; height = (float)screens[slot].height;
+        }
+        tangent = (Vec2D){local.x * width / camera.dimensions.x,
+            -local.y * height / camera.dimensions.y};
+        float length = hypotf(tangent.x, tangent.y);
+        if(length <= 0 || !isfinite(length)) { graphics_layer_active_set(previous_layer); return true; }
+        tangent.x /= length; tangent.y /= length;
+        count = 2;
+        tail[0] = (SDL_FPoint){center.x, center.y};
+        tail[1] = (SDL_FPoint){center.x + tangent.x * 60, center.y + tangent.y * 60};
+    }
+    SDL_FPoint tip = tail[count - 1];
+    head[0] = (SDL_FPoint){tip.x - tangent.x * 10 - tangent.y * 5,
+        tip.y - tangent.y * 10 + tangent.x * 5};
+    head[1] = tip;
+    head[2] = (SDL_FPoint){tip.x - tangent.x * 10 + tangent.y * 5,
+        tip.y - tangent.y * 10 - tangent.x * 5};
+    bool ok = graphics_lines_draw(tail, count, color);
+    ok = graphics_lines_draw(head, 3, color) && ok;
+    graphics_layer_active_set(previous_layer);
+    return ok;
+}
+
 void graphics_joints_draw(Color color) {
     for(EntityIndex index = 0; index < joints_pool.capacity; index += 1) {
         EntityResult joint;

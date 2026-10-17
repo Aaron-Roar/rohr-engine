@@ -143,9 +143,15 @@ bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
         snprintf(command.data.source.name,sizeof(command.data.source.name),"%s",name);
         (void)editor_command_execute(c->project,&command);
     }
-    int visible=f->visible?0:1;
-    if(choice(e,c,&y,"Editor Visibility",13,2,&visible)) {
-        EditorCommand command={.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,o->id,0,f->id,visible==0}};
+    bool visible=!f->app_hidden;
+    size_t visibility_row=e->row;
+    snprintf(id,sizeof(id),"editor.force.app_visibility");
+    if(!editor_mode_named_text_sync(e->font,"Visible in App",&e->labels[e->row],
+            e->label_cache[e->row],sizeof(e->label_cache[e->row]))) return false;
+    ++e->row; y+=34;
+    if(editor_mode_checkbox_left(id,&e->labels[visibility_row],
+            (UIRect){c->x+10,y-34,c->width-20,28},&visible)) {
+        EditorCommand command={.type=EDITOR_COMMAND_APP_VISIBILITY,.data.app_visibility={EDITOR_ITEM_FORCE,o->id,0,f->id,visible}};
         (void)editor_command_execute(c->project,&command);
     }
     ObjectForceDescription d=f->description; bool changed=false;

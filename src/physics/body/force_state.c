@@ -403,6 +403,30 @@ static EngineResult orientation_resolve(ForceOrientation orientation, Vec2D *dir
     return error_result_value(true);
 }
 
+bool physics_source_geometry_get(Entity source, bool torque, Position *point,
+        Vec2D *direction, float *magnitude) {
+    if(!point || !direction || !magnitude) return false;
+    if(torque) {
+        TorqueDescriptionResult value = physics_torque_description_get(source);
+        if(error_check(value) || !entity_alive_check(value.result.value.target)) return false;
+        Entity target = value.result.value.target;
+        ForceLocation location = {.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target}};
+        if(entity_components_check(target, ROHR_SOFT_BODY_BEAM))
+            location.reference = (ForcePositionReference){.kind = ROHR_FORCE_BEAM_POSITION,
+                .beam = {.entity = target, .anchor = ROHR_FORCE_BEAM_CENTER}};
+        if(error_check(location_resolve(location, point))) return false;
+        *magnitude = value.result.value.magnitude;
+        *direction = (Vec2D){0, 1};
+        return true;
+    }
+    ForceDescriptionResult value = physics_force_description_get(source);
+    if(error_check(value) || error_check(location_resolve(value.result.value.location, point)) ||
+            error_check(orientation_resolve(value.result.value.orientation, direction))) return false;
+    *magnitude = value.result.value.magnitude;
+    if(*magnitude < 0) { direction->x = -direction->x; direction->y = -direction->y; }
+    return true;
+}
+
 ForceDescription physics_force_vector_description(Entity target, Force vector) {
     return (ForceDescription){.target = target,
         .location.reference = {.kind = ROHR_FORCE_COM_POSITION, .entity = target},

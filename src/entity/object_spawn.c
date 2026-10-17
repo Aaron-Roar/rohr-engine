@@ -40,7 +40,7 @@ bool object_instance_appearance_get(Entity entity, ObjectAppearance *appearance)
 }
 EngineResult object_instance_appearance_set(Entity entity, ObjectAppearance appearance) {
     EntityIndex index;
-    if(!entity_index_get(entity, &index) || appearance.kind < OBJECT_CONTAINER || appearance.kind > OBJECT_CAMERA)
+    if(!entity_index_get(entity, &index) || appearance.kind < OBJECT_CONTAINER || appearance.kind > OBJECT_TORQUE)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     instance_appearance[index] = appearance; instance_appearance_used[index] = true;
     return error_result_value(true);
@@ -62,6 +62,8 @@ bool entity_object_draw(Entity entity) {
                     ok = graphics_soft_body_element_draw(current, appearance.color) && ok;
                 else if(appearance.kind == OBJECT_JOINT && entity_components_check(current, ROHR_JOINT))
                     ok = graphics_joint_draw(current, appearance.color) && ok;
+                else if(appearance.kind == OBJECT_FORCE || appearance.kind == OBJECT_TORQUE)
+                    ok = graphics_source_draw(current, appearance.kind == OBJECT_TORQUE, appearance.color) && ok;
                 if(entity_components_check(current, ROHR_SPRITE)) ok = graphics_sprite_draw(current) && ok;
                 if(entity_components_check(current, ROHR_ANIMATED_SPRITE)) ok = graphics_animated_sprite_draw(current) && ok;
             }
@@ -161,7 +163,7 @@ static bool collect(SpawnContext *c, const ObjectDescription *d, unsigned depth)
             (d->categories & ~ROHR_ENTITY_OBJECT_ALL) || d->geometry_count > MAX_ENTITIES ||
             (d->hitbox_binding_count && !d->hitbox_bindings)) return false;
     if((d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE) &&
-            (d->categories != ROHR_ENTITY_OBJECT_PHYSICS || d->child_count)) return false;
+            d->child_count) return false;
     c->entries[c->count++].description = d;
     for(size_t i = 0; i < d->child_count; ++i) {
         const ObjectDescription *child = d->children[i];
@@ -455,7 +457,11 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
     }
     if(error_check(created)) return error_result_error(created.result.error);
     entry->entity = created.result.value;
-    EngineResult result = name_set(entry->entity, d, parent);
+    EngineResult result = object_instance_appearance_set(entry->entity, (ObjectAppearance){
+        .kind=d->kind, .color=d->color, .visible=d->visible,
+        .enabled=(d->categories & c->options.flags & ROHR_ENTITY_OBJECT_VISUALS)!=0});
+    if(!error_check(result)) result = graphics_layer_entity_set(entry->entity, d->layer);
+    if(!error_check(result)) result = name_set(entry->entity, d, parent);
     if(!error_check(result)) result = entity_object_member_restore(parent, entry->entity, d->name);
     if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
         result = entity_life_time_set(entry->entity, 0.0, engine_tick_get() + 1);

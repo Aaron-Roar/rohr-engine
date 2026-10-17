@@ -195,7 +195,7 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
     yyjson_val *v=yyjson_obj_get(components,"object_appearance");
     if(v) {
         uint64_t kind; ObjectAppearance appearance;
-        if(!integer(v,"kind",&kind) || kind>OBJECT_CAMERA || !boolean(v,"visible",&appearance.visible) ||
+        if(!integer(v,"kind",&kind) || kind>OBJECT_TORQUE || !boolean(v,"visible",&appearance.visible) ||
                 !boolean(v,"enabled",&appearance.enabled) || !color_read(v,"color",&appearance.color) ||
                 !color_read(v,"border",&appearance.border_color)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
         appearance.kind=(ObjectKind)kind;

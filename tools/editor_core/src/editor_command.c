@@ -2176,6 +2176,8 @@ bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
 } while(0)
     switch(kind) {
         case EDITOR_ITEM_RIGID_BODY: APP_ITEM(object->rigid_bodies, object->rigid_body_count); break;
+        case EDITOR_ITEM_FORCE: APP_ITEM(object->force_items, object->force_count); break;
+        case EDITOR_ITEM_TORQUE: APP_ITEM(object->torque_items, object->torque_count); break;
         case EDITOR_ITEM_JOINT: APP_ITEM(object->joint_items, object->joint_count); break;
         case EDITOR_ITEM_SOFT_BODY: APP_ITEM(object->soft_body_items, object->soft_body_count); break;
         case EDITOR_ITEM_CAMERA: APP_ITEM(object->cameras, object->camera_count); break;
