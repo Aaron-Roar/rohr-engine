@@ -27,6 +27,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
     CREATE("Add Force", add_force_label);
+    CREATE("Add Torque", add_torque_label);
     CREATE("Add Anchor", add_anchor_label);
     CREATE("Elements", elements_label);
     CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
@@ -47,6 +48,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
     DESTROY(add_force_label);
+    DESTROY(add_torque_label);
     DESTROY(add_anchor_label);
     DESTROY(elements_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
@@ -62,6 +64,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY_ARRAY(editor->animation_names, 32);
     DESTROY_ARRAY(editor->camera_names, EDITOR_CAMERA_MAX);
     DESTROY_ARRAY(editor->force_names, EDITOR_SOURCE_MAX);
+    DESTROY_ARRAY(editor->torque_names, EDITOR_SOURCE_MAX);
     DESTROY_ARRAY(editor->anchor_names, EDITOR_ANCHOR_MAX);
 #undef DESTROY_ARRAY
     *editor = (EditorObjectEditor){0};
@@ -131,6 +134,12 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             *label=&editor->force_names[i]; *cache=editor->force_cache[i];
         }
         *selection=EDITOR_SELECTION_FORCE; *visibility=EDITOR_VISIBILITY_FORCE;
+    } else if(item.kind == EDITOR_HIERARCHY_TORQUE) {
+        for(size_t i=0;i<object->torque_count;++i) if(object->torque_items[i].id==item.id) {
+            *name=object->torque_items[i].name; *visible=object->torque_items[i].visible;
+            *label=&editor->torque_names[i]; *cache=editor->torque_cache[i];
+        }
+        *selection=EDITOR_SELECTION_TORQUE; *visibility=EDITOR_VISIBILITY_TORQUE;
     } else {
         for(size_t i = 0; i < object->anchor_count && i < EDITOR_ANCHOR_MAX; i += 1)
             if(object->anchors[i].id == item.id) {
@@ -232,6 +241,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     y += 38.0f;
     ADD_BUTTON("editor.add_force", editor->add_force_label, y,
         EDITOR_ITEM_FORCE, 0, EDITOR_SELECTION_FORCE, selected_force);
+    y += 38.0f;
+    ADD_BUTTON("editor.add_torque", editor->add_torque_label, y,
+        EDITOR_ITEM_TORQUE, 0, EDITOR_SELECTION_TORQUE, selected_torque);
     y += 38.0f;
     ADD_BUTTON("editor.add_anchor", editor->add_anchor_label, y,
         EDITOR_ITEM_ANCHOR, 0, EDITOR_SELECTION_ANCHOR, selected_anchor);

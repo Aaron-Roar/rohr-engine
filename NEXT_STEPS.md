@@ -1554,10 +1554,25 @@ Editor handle presentation is finalized in the relevant editor goals.
    rendering, GUI startup, 89 native tests, four ASan/UBSan/leak checks, and full
    Linux/Windows builds including examples. Windows verification is compilation
    only. Manual arrow/control review is requested before Goal 8.
-8. [ ] **Implement the torque editor and complete visual verification** — Add
-   dedicated properties and movable 270-degree arrow markers. Reuse source
-   interactions; show particle torque as having no physical effect. Verify
-   both editors across all targets and request final manual review.
+8. [x] **Implement the torque editor and complete visual verification** — Added
+   top-level torque rows, dedicated Visuals/Source/Editor Marker properties,
+   target-hover outlines, and fixed-screen-size signed 270-degree controls.
+   Markers follow target COM or beam midpoint plus editor-only world offsets;
+   missing targets fall back to object origin. App-preview clicks select without
+   dragging. Integrated editor eyes, independent app visibility, ordering,
+   clipboard, duplicate, multi-edit, grouped transforms, cancellation, and history.
+   Particle/node targets show no angular effect; rigid bodies with particle
+   properties retain angular response. App torque defaults are red-orange;
+   explicit styles are preserved. Project format 10 stores editor metadata and
+   navigation while reading formats 8/9 with visible/zero defaults. CLI replay
+   preserves offsets; generated/runtime descriptions exclude editor metadata.
+   Verified 91 native tests, six ASan/UBSan/leak checks, GUI startup, saved-project
+   force/joint picking, and Linux/Windows builds including examples. Installed-SDK
+   generated applications compile on both platforms; Linux runtime probes confirm
+   independent torque instances and editor/app separation. The generated app and
+   standalone joints example launch from outside their source directories.
+   Windows verification is compilation only. Final manual editor/app review is
+   requested; stop for user review before beginning another goal.
 
 ### Approved contract summary
 
@@ -1593,9 +1608,9 @@ contributions. Runtime state version 8 serializes source descriptions and full
 soft-body topology with named references, shared anchors, relative lifetimes,
 and generic ownership. Authored source persistence is complete in project format 8.
 
-Runtime Soft-Body Persistence and Goals 5–7 are complete. Goal 8, the graphical
-torque editor and final visual verification, requires explicit user instruction
-after review.
+Runtime Soft-Body Persistence and all eight Unified Forces and Torques goals
+are complete. Review the force and torque controls in the editor and app before
+choosing the next roadmap goal.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

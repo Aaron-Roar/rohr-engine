@@ -856,20 +856,23 @@ static bool bulk_visuals_check(void) {
     EditorObject *o=editor_project_object_add(&p,(Position){0});
     if(!o) return false;
     EditorForce *f=editor_project_force_add(&p,o);
+    EditorTorque *t=editor_project_torque_add(&p,o);
     EditorJoint *j=editor_project_joint_add(&p,o,EDITOR_JOINT_SPRING);
-    if(!f || !j) return false;
+    if(!f || !t || !j) return false;
     EditorViewportState state={0}; editor_viewport_state_init(&state);
     EditorHistory history={0}; if(!editor_history_init(&history,&p)) return false;
     EditorPropertySetCommand property={.property=EDITOR_PROPERTY_VISUAL_SCALE_X,
         .value_kind=EDITOR_PROPERTY_VALUE_FLOAT,.value.number=-3};
     bool ok=editor_viewport_selection_set(&p,&state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,o->id,0,0,f->id},false) &&
         editor_viewport_selection_set(&p,&state,(EditorSelectionRef){EDITOR_SELECTION_JOINT,o->id,0,0,j->id},true) &&
+        editor_viewport_selection_set(&p,&state,(EditorSelectionRef){EDITOR_SELECTION_TORQUE,o->id,0,0,t->id},true) &&
         editor_bulk_property_set(&p,&state,&history,&property) && history.undo_count==1;
     o=&p.objects[0];
     ok=ok && o->force_items[0].visuals.main.scale.x==-3 && o->joint_items[0].visuals.main.scale.x==-3 &&
+        o->torque_items[0].visuals.main.scale.x==-3 &&
         !o->joint_items[0].visuals.endpoint_a.specified && editor_history_undo(&history);
     o=&p.objects[0];
-    ok=ok && !o->force_items[0].visuals.main.specified && !o->joint_items[0].visuals.main.specified && editor_history_redo(&history);
+    ok=ok && !o->torque_items[0].visuals.main.specified && !o->force_items[0].visuals.main.specified && !o->joint_items[0].visuals.main.specified && editor_history_redo(&history);
     property.property=EDITOR_PROPERTY_VISUAL_A_OFFSET_X; property.value.number=12;
     /* A property incompatible with part of the selection must roll back all items. */
     ok=ok && !editor_bulk_property_set(&p,&state,&history,&property);

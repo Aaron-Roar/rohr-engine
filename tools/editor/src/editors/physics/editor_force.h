@@ -26,10 +26,15 @@ typedef struct EditorForceEditor {
     size_t row;
     const char *scope;
     bool editing;
+    bool torque;
+    TextAsset torque_delete_label;
     float content_height;
     EditorModeAccordionSection source_section, location_section, orientation_section;
 } EditorForceEditor;
 bool editor_force_editor_create(EditorForceEditor *editor, FontAsset *font);
 void editor_force_editor_destroy(EditorForceEditor *editor);
 bool editor_force_editor_draw(EditorForceEditor *editor, const EditorModeContext *context);
+typedef EditorForceEditor EditorTorqueEditor;
+bool editor_torque_editor_create(EditorTorqueEditor *editor, FontAsset *font);
+bool editor_torque_editor_draw(EditorTorqueEditor *editor, const EditorModeContext *context);
 #endif

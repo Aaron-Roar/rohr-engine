@@ -294,12 +294,14 @@ typedef enum EditorVisibilityKind {
     EDITOR_VISIBILITY_SOFT_BEAM,
     EDITOR_VISIBILITY_CAMERA,
     EDITOR_VISIBILITY_SOFT_AREA,
-    EDITOR_VISIBILITY_FORCE
+    EDITOR_VISIBILITY_FORCE,
+    EDITOR_VISIBILITY_TORQUE
 } EditorVisibilityKind;
 
 typedef enum EditorSourceOperation {
     EDITOR_SOURCE_ADD, EDITOR_SOURCE_SET, EDITOR_SOURCE_REMOVE,
-    EDITOR_SOURCE_RENAME, EDITOR_SOURCE_DUPLICATE, EDITOR_SOURCE_GET, EDITOR_SOURCE_LIST
+    EDITOR_SOURCE_RENAME, EDITOR_SOURCE_DUPLICATE, EDITOR_SOURCE_GET, EDITOR_SOURCE_LIST,
+    EDITOR_SOURCE_MARKER_SET
 } EditorSourceOperation;
 typedef struct EditorSourceCommand {
     EditorObjectId object;
@@ -309,6 +311,7 @@ typedef struct EditorSourceCommand {
     char name[EDITOR_OBJECT_NAME_MAX];
     ObjectForceDescription force;
     ObjectTorqueDescription torque_description;
+    Position marker_offset;
 } EditorSourceCommand;
 
 typedef struct EditorCommand {

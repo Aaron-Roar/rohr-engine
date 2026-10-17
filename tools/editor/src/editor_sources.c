@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <limits.h>
+#include <math.h>
 
 bool editor_source_reference_check(const EditorObject *o, ObjectSourceReference r) {
     if(!o) return false;
@@ -46,13 +47,13 @@ bool editor_sources_check(const EditorObject *o) {
         for(size_t j = 0; j < i; ++j) if(o->force_items[i].id == o->force_items[j].id || !strcmp(o->force_items[i].name, o->force_items[j].name)) return false;
     }
     for(size_t i = 0; i < o->torque_count; ++i) {
-        if(!o->torque_items[i].id || !o->torque_items[i].name[0] || !memchr(o->torque_items[i].name, 0, sizeof(o->torque_items[i].name)) || !editor_torque_description_check(o, o->torque_items[i].description)) return false;
+        if(!o->torque_items[i].id || !o->torque_items[i].name[0] || !memchr(o->torque_items[i].name, 0, sizeof(o->torque_items[i].name)) || !editor_torque_description_check(o, o->torque_items[i].description) || !isfinite(o->torque_items[i].marker_offset.x) || !isfinite(o->torque_items[i].marker_offset.y)) return false;
         for(size_t j = 0; j < i; ++j) if(o->torque_items[i].id == o->torque_items[j].id || !strcmp(o->torque_items[i].name, o->torque_items[j].name)) return false;
     }
     return true;
 }
 static void force_defaults(EditorForce *v) { v->visible = true; }
-static void torque_defaults(EditorTorque *v) { (void)v; }
+static void torque_defaults(EditorTorque *v) { v->visible = true; }
 #define SOURCE_FUNCTIONS(kind, Type) \
 Editor##Type *editor_project_##kind##_add(EditorProject *p, EditorObject *o) { \
     if(!p || !o || o->kind##_count >= EDITOR_SOURCE_MAX || !p->next_##kind##_id || p->next_##kind##_id == UINT32_MAX || \
@@ -61,6 +62,7 @@ Editor##Type *editor_project_##kind##_add(EditorProject *p, EditorObject *o) { \
     *v = (Editor##Type){.id = p->next_##kind##_id++}; \
     snprintf(v->name, sizeof(v->name), #kind "_%u", v->id); \
     kind##_defaults(v); \
+    editor_project_object_hierarchy_sync(o); \
     return v; \
 } \
 bool editor_project_##kind##_set(EditorObject *o, uint32_t id, Object##Type##Description value) { \
@@ -76,14 +78,21 @@ EditorForce *editor_project_force_get(EditorObject *o, uint32_t id) {
         if(o->force_items[i].id==id) return &o->force_items[i];
     return NULL;
 }
+EditorTorque *editor_project_torque_get(EditorObject *o, uint32_t id) {
+    if(o) for(size_t i=0;i<o->torque_count;++i)
+        if(o->torque_items[i].id==id) return &o->torque_items[i];
+    return NULL;
+}
 bool editor_project_source_remove(EditorObject *o, bool torque, uint32_t id) {
     if(!o || !id) return false;
     if(torque) {
         for(size_t i = 0; i < o->torque_count; ++i) if(o->torque_items[i].id == id) {
-            memmove(&o->torque_items[i], &o->torque_items[i+1], (--o->torque_count-i)*sizeof(*o->torque_items)); return true;
+            memmove(&o->torque_items[i], &o->torque_items[i+1], (--o->torque_count-i)*sizeof(*o->torque_items));
+            editor_project_object_hierarchy_sync(o); return true;
         }
     } else for(size_t i = 0; i < o->force_count; ++i) if(o->force_items[i].id == id) {
-        memmove(&o->force_items[i], &o->force_items[i+1], (--o->force_count-i)*sizeof(*o->force_items)); return true;
+        memmove(&o->force_items[i], &o->force_items[i+1], (--o->force_count-i)*sizeof(*o->force_items));
+        editor_project_object_hierarchy_sync(o); return true;
     }
     return false;
 }
@@ -136,6 +145,12 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
             if(added->hierarchy[h].kind==EDITOR_HIERARCHY_FORCE && added->hierarchy[h].id==old)
                 added->hierarchy[h].id=id;
     }
-    for(size_t i=0;i<added->torque_count;++i) added->torque_items[i].id=p->next_torque_id++;
+    for(size_t i=0;i<added->torque_count;++i) {
+        uint32_t old=added->torque_items[i].id, id=p->next_torque_id++;
+        added->torque_items[i].id=id;
+        for(size_t h=0;h<added->hierarchy_count;++h)
+            if(added->hierarchy[h].kind==EDITOR_HIERARCHY_TORQUE && added->hierarchy[h].id==old)
+                added->hierarchy[h].id=id;
+    }
     return added;
 }

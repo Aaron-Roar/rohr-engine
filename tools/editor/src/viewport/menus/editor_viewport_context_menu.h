@@ -29,6 +29,7 @@ typedef struct EditorViewportContextMenu {
     TextAsset rename_field;
     TextAsset background_labels[5];
     bool force_paste_available;
+    bool torque_paste_available;
     bool open;
     bool target_valid;
     bool from_column;

@@ -111,7 +111,9 @@ bool editor_sources_json_write(yyjson_mut_doc *d, yyjson_mut_val *v, const Edito
         size_t count=torque?o->torque_count:o->force_count;
         for(size_t i=0;i<count;++i) {
             yyjson_mut_val *source=torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
-            if(!torque && source && !yyjson_mut_obj_add_bool(d,source,"visible",o->force_items[i].visible)) return false;
+            if(source && !yyjson_mut_obj_add_bool(d,source,"visible",torque?o->torque_items[i].visible:o->force_items[i].visible)) return false;
+            if(torque && source && (!yyjson_mut_obj_add_real(d,source,"marker_offset_x",o->torque_items[i].marker_offset.x) ||
+                    !yyjson_mut_obj_add_real(d,source,"marker_offset_y",o->torque_items[i].marker_offset.y))) return false;
             if(source && !yyjson_mut_obj_add_bool(d,source,"visible_in_app",
                     !(torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden))) return false;
             if(source && !yyjson_mut_obj_add_val(d,source,"visuals",object_visuals_json_write(d,
@@ -141,7 +143,13 @@ bool editor_sources_json_read(yyjson_val *v, EditorObject *o, EditorProject *p) 
             if(app && !yyjson_is_bool(app)) return false;
             if(torque) o->torque_items[i].app_hidden=app && !yyjson_get_bool(app);
             else o->force_items[i].app_hidden=app && !yyjson_get_bool(app);
-            if(torque) { o->torque_items[i].id=id; strcpy(o->torque_items[i].name,yyjson_get_str(name)); if(!editor_torque_json_read(source,&o->torque_items[i].description) || p->next_torque_id<=id) return false; }
+            if(torque) {
+                yyjson_val *visible=yyjson_obj_get(source,"visible");
+                if(visible && !yyjson_is_bool(visible)) return false;
+                o->torque_items[i].visible=!visible || yyjson_get_bool(visible);
+                if((yyjson_obj_get(source,"marker_offset_x") && !number(source,"marker_offset_x",&o->torque_items[i].marker_offset.x)) ||
+                   (yyjson_obj_get(source,"marker_offset_y") && !number(source,"marker_offset_y",&o->torque_items[i].marker_offset.y))) return false;
+                o->torque_items[i].id=id; strcpy(o->torque_items[i].name,yyjson_get_str(name)); if(!editor_torque_json_read(source,&o->torque_items[i].description) || p->next_torque_id<=id) return false; }
             else { yyjson_val *visible=yyjson_obj_get(source,"visible"); if(visible && !yyjson_is_bool(visible)) return false; o->force_items[i].visible=!visible || yyjson_get_bool(visible); o->force_items[i].id=id; strcpy(o->force_items[i].name,yyjson_get_str(name)); if(!editor_force_json_read(source,&o->force_items[i].description) || p->next_force_id<=id) return false; }
         }
     }

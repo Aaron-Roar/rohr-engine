@@ -49,6 +49,15 @@ bool editor_navigation_forces_copy(EditorProject *project, const EditorViewportS
     EditorForceClipboard *clipboard);
 bool editor_navigation_forces_paste(EditorProject *project, EditorViewportState *state,
     EditorHistory *history, const EditorForceClipboard *clipboard);
+typedef struct EditorTorqueClipboard {
+    EditorTorque items[EDITOR_SOURCE_MAX];
+    EditorObjectId objects[EDITOR_SOURCE_MAX];
+    size_t count;
+} EditorTorqueClipboard;
+bool editor_navigation_torques_copy(EditorProject *project, const EditorViewportState *state,
+    EditorTorqueClipboard *clipboard);
+bool editor_navigation_torques_paste(EditorProject *project, EditorViewportState *state,
+    EditorHistory *history, const EditorTorqueClipboard *clipboard);
 bool editor_navigation_app_visibility_command_get(EditorProject *project,
     EditorSelectionRef ref, EditorCommand *command);
 

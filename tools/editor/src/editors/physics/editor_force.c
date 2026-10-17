@@ -37,11 +37,23 @@ void editor_force_editor_destroy(EditorForceEditor *e) {
     }
     if(e->references) for(size_t i=0;i<EDITOR_FORCE_REFERENCE_MAX;++i) rohr_graphics_text_destroy(&e->references[i].text);
     free(e->references); free(e->options); free(e->indices);
-    rohr_graphics_text_destroy(&e->name); rohr_graphics_text_destroy(&e->delete_label);
+    rohr_graphics_text_destroy(&e->name); rohr_graphics_text_destroy(&e->delete_label); rohr_graphics_text_destroy(&e->torque_delete_label);
     editor_mode_accordion_section_destroy(&e->source_section);
     editor_mode_accordion_section_destroy(&e->location_section);
     editor_mode_accordion_section_destroy(&e->orientation_section);
     *e=(EditorForceEditor){0};
+}
+bool editor_torque_editor_create(EditorTorqueEditor *e, FontAsset *font) {
+    if(!editor_force_editor_create(e,font)) return false;
+    e->torque=true;
+    editor_mode_accordion_section_destroy(&e->location_section);
+    if(!editor_mode_accordion_section_create(&e->location_section,font,"Editor Marker",true)) {
+        editor_force_editor_destroy(e); return false;
+    }
+    if(!editor_mode_text_create(font,"Delete Torque",&e->torque_delete_label)) {
+        editor_force_editor_destroy(e); return false;
+    }
+    return true;
 }
 static bool reference_add(EditorForceEditor *e,ObjectSourceReference r,const char *prefix,const char *name) {
     if(e->reference_count>=EDITOR_FORCE_REFERENCE_MAX) return false;
@@ -68,7 +80,7 @@ static bool references_sync(EditorForceEditor *e,const EditorObject *o) {
 }
 static UIRect row(EditorForceEditor *e,const EditorModeContext *c,float *y,const char *label,char *id) {
     size_t n=e->row++;
-    snprintf(id,64,"editor.force.%s.%s",e->scope,label);
+    snprintf(id,64,"editor.%s.%s.%s",e->torque?"torque":"force",e->scope,label);
     if(n<EDITOR_FORCE_FIELD_MAX && editor_mode_named_text_sync(e->font,label,&e->labels[n],e->label_cache[n],sizeof(e->label_cache[n])))
         rohr_ui_label(&e->labels[n],(UIRect){c->x+10,*y,110,28});
     UIRect r={c->x+122,*y,c->width-132,28}; *y+=34; return r;
@@ -136,43 +148,73 @@ static EditorModeAccordionLayoutResult section(EditorModeAccordionLayoutCursor *
     float rows[EDITOR_FORCE_FIELD_MAX]; for(size_t i=0;i<count;++i) rows[i]=28;
     return editor_mode_accordion_layout_section(cursor,s,id,rows,count,6);
 }
-bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
+static bool editor_source_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
     if(!e || !c || !c->project || !c->viewport) return false;
     c->viewport->preview_reference_object=0;
     c->viewport->preview_reference=(ObjectSourceReference){0};
     EditorObject *o=editor_project_selected_get(c->project);
     EditorForce *f=editor_project_force_get(o,c->viewport->selected_force);
-    if(!f || !references_sync(e,o)) return false;
+    EditorTorque *t=editor_project_torque_get(o,c->viewport->selected_torque);
+    if((e->torque?!t:!f) || !references_sync(e,o)) return false;
+    uint32_t item=e->torque?t->id:f->id;
+    EditorItemKind item_kind=e->torque?EDITOR_ITEM_TORQUE:EDITOR_ITEM_FORCE;
     e->row=0; e->scope="common"; e->editing=false; float y=42; char id[64],name[EDITOR_OBJECT_NAME_MAX];
-    snprintf(name,sizeof(name),"%s",f->name);
+    snprintf(name,sizeof(name),"%s",e->torque?t->name:f->name);
     if(!editor_mode_named_text_sync(e->font,name,&e->name,e->name_cache,sizeof(e->name_cache))) return false;
     UIRect bounds=row(e,c,&y,"Name",id);
-    UIFieldResult named=editor_mode_name_field("editor.force.name",name,sizeof(name),&e->name,bounds);
+    UIFieldResult named=editor_mode_name_field(e->torque?"editor.torque.name":"editor.force.name",name,sizeof(name),&e->name,bounds);
     e->editing|=named.active;
     if(named.changed) {
-        EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=o->id,.id=f->id,.operation=EDITOR_SOURCE_RENAME}};
+        EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=o->id,.id=item,.torque=e->torque,.operation=EDITOR_SOURCE_RENAME}};
         snprintf(command.data.source.name,sizeof(command.data.source.name),"%s",name);
         (void)editor_command_execute(c->project,&command);
     }
-    bool visible=!f->app_hidden;
+    bool visible=!(e->torque?t->app_hidden:f->app_hidden);
     size_t visibility_row=e->row;
-    snprintf(id,sizeof(id),"editor.force.app_visibility");
+    snprintf(id,sizeof(id),e->torque?"editor.torque.app_visibility":"editor.force.app_visibility");
     if(!editor_mode_named_text_sync(e->font,"Visible in App",&e->labels[e->row],
             e->label_cache[e->row],sizeof(e->label_cache[e->row]))) return false;
     ++e->row; y+=34;
     if(editor_mode_checkbox_left(id,&e->labels[visibility_row],
             (UIRect){c->x+10,y-34,c->width-20,28},&visible)) {
-        EditorCommand command={.type=EDITOR_COMMAND_APP_VISIBILITY,.data.app_visibility={EDITOR_ITEM_FORCE,o->id,0,f->id,visible}};
+        EditorCommand command={.type=EDITOR_COMMAND_APP_VISIBILITY,.data.app_visibility={item_kind,o->id,0,item,visible}};
         (void)editor_command_execute(c->project,&command);
     }
-    ObjectForceDescription d=f->description; bool changed=false;
+    ObjectForceDescription d=e->torque?(ObjectForceDescription){.mode=t->description.mode,.target=t->description.target,.magnitude=t->description.magnitude}:f->description; bool changed=false;
     EditorModeAccordionLayoutCursor cursor=editor_mode_accordion_layout_cursor_get(c->x,c->width,y+6);
-    e->editing|=editor_visual_controls_draw(&e->visuals,c,&cursor,EDITOR_ITEM_FORCE,o->id,f->id,false);
-    EditorModeAccordionLayoutResult s=section(&cursor,&e->source_section,"editor.force.source",3);
+    e->editing|=editor_visual_controls_draw(&e->visuals,c,&cursor,item_kind,o->id,item,false);
+    EditorModeAccordionLayoutResult s=section(&cursor,&e->source_section,e->torque?"editor.torque.source":"editor.force.source",3);
     if(s.expanded) {
         e->scope="source"; y=s.content_y; int mode=d.mode; changed|=choice(e,c,&y,"Mode",0,2,&mode); d.mode=mode;
         changed|=reference(e,c,&y,"Target",REFERENCE_ENTITIES|(1u<<OBJECT_SOURCE_BEAM)|1u,&d.target);
         changed|=number(e,c,&y,"Magnitude",&d.magnitude);
+    }
+    if(e->torque) {
+        if(changed) {
+            EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=o->id,.id=item,.torque=true,
+                .operation=EDITOR_SOURCE_SET,.torque_description={.mode=d.mode,.target=d.target,.magnitude=d.magnitude}}};
+            (void)editor_command_execute(c->project,&command);
+        }
+        /* Editor placement is deliberately separate from the app's Visuals offset. */
+        s=section(&cursor,&e->location_section,"editor.torque.marker",2);
+        if(s.expanded) {
+            Position offset=t->marker_offset; e->scope="marker"; y=s.content_y;
+            bool moved=number(e,c,&y,"X offset",&offset.x);
+            moved|=number(e,c,&y,"Y offset",&offset.y);
+            if(moved) {
+                EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=o->id,.id=item,.torque=true,
+                    .operation=EDITOR_SOURCE_MARKER_SET,.marker_offset=offset}};
+                (void)editor_command_execute(c->project,&command);
+            }
+        }
+        y=cursor.y; e->scope="status";
+        Position center;
+        const char *status=d.target.kind==OBJECT_SOURCE_NONE?"No target":
+            !editor_torque_target_position_get(o,t,&center)?"Unresolved target":
+            (d.target.kind==OBJECT_SOURCE_PARTICLE || d.target.kind==OBJECT_SOURCE_NODE)?"No angular effect":NULL;
+        if(status) (void)row(e,c,&y,status,id);
+        e->content_height=y+60;
+        return e->editing;
     }
     s=section(&cursor,&e->location_section,"editor.force.application",location_rows(d.location));
     if(s.expanded) { e->scope="application"; y=s.content_y; changed|=location(e,c,&y,&d.location); }
@@ -203,4 +245,11 @@ bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
         (void)row(e,c,&y,"Unresolved reference",id);
     e->content_height=y+60;
     return e->editing;
+}
+
+bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
+    return editor_source_editor_draw(e,c);
+}
+bool editor_torque_editor_draw(EditorTorqueEditor *e,const EditorModeContext *c) {
+    return editor_source_editor_draw(e,c);
 }

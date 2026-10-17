@@ -135,3 +135,38 @@ bool editor_force_orientation_set(const EditorObject *o, ObjectForceOrientation 
     if(!editor_force_orientation_get(o,zero,&base)) return false;
     v->offset=angle-base; return true;
 }
+
+bool editor_torque_target_position_get(const EditorObject *object,const EditorTorque *torque,Position *position) {
+    if(!object || !torque || !position || torque->description.target.kind==OBJECT_SOURCE_NONE) return false;
+    ObjectForceLocation location={.kind=torque->description.target.kind==OBJECT_SOURCE_BEAM?ROHR_FORCE_BEAM_POSITION:ROHR_FORCE_COM_POSITION,
+        .reference=torque->description.target,.anchor=ROHR_FORCE_BEAM_CENTER};
+    return editor_force_location_get(object,location,position);
+}
+Position editor_torque_marker_position_get(const EditorObject *object,const EditorTorque *torque) {
+    Position p=object?object->position:(Position){0};
+    if(torque) {
+        (void)editor_torque_target_position_get(object,torque,&p);
+        p.x+=torque->marker_offset.x; p.y+=torque->marker_offset.y;
+    }
+    return p;
+}
+
+bool editor_torque_marker_strokes_get(const EditorObject *object,const EditorTorque *torque,float scale,
+        Position strokes[EDITOR_TORQUE_MARKER_STROKE_COUNT][2]) {
+    if(!object || !torque || !torque->visible || !strokes || scale<=0) return false;
+    Position center=editor_torque_marker_position_get(object,torque);
+    float sign=torque->description.magnitude<0?-1.0f:1.0f;
+    const float radius=44.0f/scale,head=14.0f/scale;
+    Position previous={center.x,center.y+radius};
+    for(size_t i=0;i<32;++i) {
+        float angle=math_degrees_to_radians(sign*270.0f*(i+1)/32);
+        Position next={center.x+radius*sinf(angle),center.y+radius*cosf(angle)};
+        strokes[i][0]=previous; strokes[i][1]=next; previous=next;
+    }
+    for(size_t i=0;i<2;++i) {
+        float angle=math_degrees_to_radians(sign*360.0f+180.0f+(i?30.0f:-30.0f));
+        strokes[32+i][0]=previous;
+        strokes[32+i][1]=(Position){previous.x+head*sinf(angle),previous.y+head*cosf(angle)};
+    }
+    return true;
+}

@@ -420,6 +420,17 @@ void editor_mode_element_icon_draw(EditorHierarchySelection kind,
                 center.y - 4.0f * scale}, 5.0f * scale, 5.0f * scale,
                 45.0f, color);
             break;
+        case EDITOR_SELECTION_TORQUE: {
+            Position previous={center.x,center.y-half};
+            for(size_t i=1;i<=16;++i) {
+                float angle=math_degrees_to_radians(270.0f*i/16);
+                Position next={center.x+half*sinf(angle),center.y-half*cosf(angle)};
+                editor_mode_icon_line(previous,next,2*scale,color); previous=next;
+            }
+            editor_mode_icon_line(previous,(Position){previous.x-3*scale,previous.y+4*scale},2*scale,color);
+            editor_mode_icon_line(previous,(Position){previous.x+3*scale,previous.y+4*scale},2*scale,color);
+            break;
+        }
         case EDITOR_SELECTION_FORCE:
             editor_mode_icon_line((Position){center.x,center.y+half},(Position){center.x,center.y-half},2*scale,color);
             editor_mode_icon_line((Position){center.x,center.y-half},(Position){center.x-half,center.y},2*scale,color);
@@ -812,6 +823,7 @@ const char *editor_mode_name_field_id_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_HITBOX: return "editor.hitbox.name";
         case EDITOR_VIEWPORT_JOINT: return "editor.joint.name";
         case EDITOR_VIEWPORT_FORCE: return "editor.force.name";
+        case EDITOR_VIEWPORT_TORQUE: return "editor.torque.name";
         case EDITOR_VIEWPORT_ANCHOR: return "editor.anchor.name";
         case EDITOR_VIEWPORT_SOFT_BODY: return "editor.soft_body.name";
         case EDITOR_VIEWPORT_SOFT_NODE: return "editor.soft_node.name";

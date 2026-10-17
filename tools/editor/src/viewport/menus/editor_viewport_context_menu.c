@@ -157,7 +157,7 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
             EDITOR_CONTEXT_MENU_DELETE};
         for(size_t i = 0; i < 6; i += 1) {
             char id[64];
-            bool enabled = ((i != 3 && i != 4) || menu->target.kind==EDITOR_SELECTION_FORCE) &&
+            bool enabled = ((i != 3 && i != 4) || (menu->target.kind==EDITOR_SELECTION_FORCE || menu->target.kind==EDITOR_SELECTION_TORQUE)) &&
                 !(i == 1 && menu->target.kind == EDITOR_SELECTION_SOFT_HOLE);
             snprintf(id, sizeof(id), "editor.context.action.%zu", i);
             if(action_button(id, labels[i], (UIRect){bounds.x + 4.0f,
@@ -183,7 +183,7 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
             snprintf(id, sizeof(id), "editor.context.background.%zu", i);
             if(action_button(id, &menu->background_labels[i],
                 (UIRect){bounds.x + 4.0f, bounds.y + 4.0f + (float)i * 32.0f,
-                    bounds.width - 8.0f, 28.0f}, i==1 && menu->force_paste_available))
+                    bounds.width - 8.0f, 28.0f}, i==1 && (menu->force_paste_available || menu->torque_paste_available)))
                 action=EDITOR_CONTEXT_MENU_PASTE;
         }
     }

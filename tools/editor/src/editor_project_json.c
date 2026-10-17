@@ -794,6 +794,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_uint(document, value, "hitbox", navigation->hitbox);
         yyjson_mut_obj_add_uint(document, value, "joint", navigation->joint);
         yyjson_mut_obj_add_uint(document, value, "force", navigation->force);
+        yyjson_mut_obj_add_uint(document, value, "torque", navigation->torque);
         yyjson_mut_obj_add_uint(document, value, "anchor", navigation->anchor);
         yyjson_mut_obj_add_uint(document, value, "soft_body", navigation->soft_body);
         yyjson_mut_obj_add_uint(document, value, "soft_node", navigation->soft_node);
@@ -2073,7 +2074,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != 8 && version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != 8 && version != 9 && version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
@@ -2134,6 +2135,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !editor_json_uint(navigation, "hitbox", &loaded.navigation.hitbox) ||
                 !editor_json_uint(navigation, "joint", &loaded.navigation.joint) ||
                 (yyjson_obj_get(navigation,"force") && !editor_json_uint(navigation,"force",&loaded.navigation.force)) ||
+                (yyjson_obj_get(navigation,"torque") && !editor_json_uint(navigation,"torque",&loaded.navigation.torque)) ||
                 !editor_json_uint(navigation, "anchor", &loaded.navigation.anchor) ||
                 !editor_json_uint(navigation, "soft_body", &loaded.navigation.soft_body) ||
                 !editor_json_uint(navigation, "soft_node", &loaded.navigation.soft_node) ||
@@ -2614,7 +2616,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *item = yyjson_arr_get(hierarchy, j);
                 uint32_t kind;
                 if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                        kind > EDITOR_HIERARCHY_FORCE ||
+                        kind > EDITOR_HIERARCHY_TORQUE ||
                         !editor_json_uint(item, "id", &object->hierarchy[j].id) ||
                         object->hierarchy[j].id == 0) goto done;
                 object->hierarchy[j].kind = (EditorHierarchyItemKind)kind;
@@ -2625,7 +2627,14 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             size_t expected_count = object->rigid_body_count + object->joint_count +
                 object->soft_body_count + object->sprite_count +
                 object->animated_sprite_count + object->camera_count +
-                object->anchor_count + object->force_count;
+                object->anchor_count + object->force_count + object->torque_count;
+            if(version < 10) {
+                size_t existing_torques=0;
+                for(size_t j=0;j<object->hierarchy_count;++j)
+                    if(object->hierarchy[j].kind==EDITOR_HIERARCHY_TORQUE) ++existing_torques;
+                if(existing_torques>object->torque_count) goto done;
+                serialized_count += object->torque_count-existing_torques;
+            }
             editor_project_object_hierarchy_sync(object);
             if(hierarchy != NULL && (object->hierarchy_count != expected_count ||
                     (serialized_count != expected_count && serialized_count !=

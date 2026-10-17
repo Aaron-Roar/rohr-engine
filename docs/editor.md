@@ -27,18 +27,19 @@ Runtime forces draw signed arrows from their current application references.
 Torques draw signed 270-degree arrows at the target COM (beam midpoint for beams);
 unassigned torques or unresolved geometry have no marker. Zero sources use muted
 markers. Initial sources disappear when their one-tick entities expire. Torque
-app visibility is available through JSON and CLI ahead of the torque editor:
+app visibility is available in Torque Properties, JSON, and CLI:
 `--torque-id <id> --property visible_in_app set false`. Forces support the same
 property. Both default visible when older files omit it.
 
-Project format 9 stores `visible_in_app` independently of the existing editor
+Project format 10 stores `visible_in_app` independently of the existing editor
 visibility fields. Version 8 projects load with app visibility on while keeping
-all eye states. Saving writes version 9. Both settings survive copying and
+all eye states. Versions 8 and 9 load torque editor eyes as visible and marker
+offsets as zero when those fields are absent. Saving writes version 10. Both settings survive copying and
 undo/redo; generation and loaded runtime objects use only app visibility.
 
-## Force and joint visuals
+## Force, torque, and joint visuals
 
-The **Visuals** accordion controls the app representation of forces and joints:
+The **Visuals** accordion controls the app representation of forces, torques, and joints:
 fill color, border color and thickness, X/Y scale, X/Y offset, and clockwise
 rotation in degrees. These are world-sized graphics, so camera zoom scales them.
 The editor previews them below its existing symbols and manipulation handles.
@@ -71,10 +72,10 @@ rohr-cli --project objects/project.rohr.json --object car --force drive --proper
 rohr-cli --project objects/project.rohr.json --object-id 1 --joint-id 7 --property visual-a-offset-x 10
 ```
 
-Torques use the same persisted styles, CLI properties, and app previews. Their
-dedicated editor remains a later goal.
+Torques use the same persisted styles, CLI properties, and app previews through
+their dedicated editor.
 
-Viewport selection follows the visible force arrow and joint annotation, including
+Viewport selection follows the visible force arrow, torque arc, and joint annotation, including
 the joint's **Editor Symbol Size**. Clicking a visible styled app preview selects
 the same item, including offset spring endpoints. Anchors retain priority over
 overlapping joints at the same scene layer, using their rotated diamond and a
@@ -456,7 +457,7 @@ category from either list also assigns it to the selection in the same undo step
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 9 and migrates version 8 visibility as described
+Project data uses format version 10 and migrates versions 8 and 9 as described
 above. Older formats must be rewritten; loading them returns a schema error without replacing the current project. Beam-derived
 area data is no longer supported.
 All authored rotations use clockwise degrees, with zero heading up and no
@@ -693,9 +694,8 @@ Force and torque definitions are stored in their owning object. They default to
 persistent mode, no target, and zero magnitude. Force application and orientation
 start at world origin and world zero. Commands edit saved data, and generated
 catalogs and constructors instantiate those sources. The object editor provides
-**Add Force** and top-level force rows. Single-click a row to select it;
-double-click to open Force Properties. Torque properties remain scheduled for
-the next goal.
+**Add Force**, **Add Torque**, and top-level rows for both. Single-click a row
+to select it; double-click to open its properties.
 
 Forces display a cyan application dot and straight arrow with a fixed
 screen size; selected controls use yellow. App visuals default to
@@ -717,6 +717,24 @@ and left distance. Between-location directions expose both endpoint locations.
 Unresolvable geometry shows a diagnostic and disables dependent viewport handles;
 the force remains accessible from its row.
 
+Torque Properties has **Visuals**, **Source**, and **Editor Marker** accordions.
+The cyan editor arrow follows a 270-degree arc at a 44-pixel radius, with
+4-pixel strokes and 14-pixel arrowhead legs. Positive magnitude is clockwise,
+negative is counterclockwise, and zero uses a muted clockwise marker. The marker
+follows target COM or beam midpoint plus a world-axis editor offset. Without a
+resolved target it uses the owning object origin plus that offset. Changing the
+target preserves the offset. Dragging edits only the editor offset; clicking the
+app preview selects the torque without dragging it. App visuals default to
+red-orange, independently of the cyan editing control.
+
+Particle and individual node targets show **No angular effect**; rigid bodies
+with particle properties still support rotation. Group translation and rotation
+move marker positions once even when their targets are also selected. Torque
+multi-edit supports visibility, world marker position, magnitude, mode, and app
+visuals; it has no physical angle property. Editor offsets survive saving,
+clipboard operations, undo/redo, and CLI replay, but never enter generated or
+runtime descriptions. Deleting the target clears it and uses the origin fallback.
+
 Hover a target or reference choice to outline its geometry in yellow. Hovering
 a closed selector outlines its current reference. This includes particles,
 whole soft bodies, individual nodes and beams, and both between-location
@@ -725,9 +743,9 @@ hidden parents; their eye settings, selection and history do not change. The
 outline disappears when the pointer leaves and is never included in app or
 camera output.
 
-The header and hierarchy eyes hide only the editor arrow. **Visible in App**
-independently controls its runtime arrow. Force rows support ordering, rename,
-delete, copy, duplicate, and multi-selection. Ctrl+C copies selected forces,
+The header and hierarchy eyes hide the editor controls and app preview. **Visible in App**
+independently controls its runtime arrow. Force and torque rows support ordering, rename,
+delete, copy, duplicate, and multi-selection. Ctrl+C copies selected forces or selected torques,
 Ctrl+V pastes into the current object, and Ctrl+D duplicates them. The context
 menu provides Copy and Duplicate; the background menu provides Paste. Clipboard
 contents clear when a project is closed or replaced. Same-object copies retain
@@ -755,7 +773,9 @@ Whole-object duplication gives the copy independent storage and source IDs;
 references resolve against elements inside the new object.
 
 Properties are `mode`, `magnitude`, `target`, and `description`; forces also have
-`location`, `orientation`, and editor-only `visible` (true/false). `set <JSON>` replaces the complete description,
+`location` and `orientation`. Both support editor-only `visible` (true/false)
+and `visible_in_app`. Torques also support editor-only `marker_offset` as
+`{"x":number,"y":number}`. `set <JSON>` replaces the complete description,
 or use `--property description <JSON>`. Individual property edits preserve all
 other fields. Names are formatted using existing editor property-name rules.
 References have exactly `kind`, `id`, and `soft_body` fields. Kinds are `none`,

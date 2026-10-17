@@ -425,8 +425,14 @@ references and magnitude sign. Zero arrows remain selectable with muted styling.
 Editor eyes are independent of persisted app visibility. Runtime forces draw
 signed arrows; runtime torques draw static 270-degree arrows at target COM or
 beam midpoint. Zero sources are muted, and unresolved geometry is omitted.
-Visibility never disables a source. Movable torque editor markers remain the
-next editor goal.
+Visibility never disables a source. Torque editor markers follow target COM or
+beam midpoint plus an editor-only world-axis offset, falling back to the object
+origin when the target cannot resolve. Changing targets preserves this offset.
+Dragging changes only that offset; an app-preview click only selects the source.
+The editor arc is 270 degrees at a fixed 44-pixel radius, with 4-pixel strokes
+and 14-pixel arrowhead legs. Positive is clockwise, negative counterclockwise,
+and zero is muted clockwise. Editor controls are cyan (yellow when selected);
+force and torque app visuals default to red-orange while preserving explicit colors.
 
 App markers and editor app previews share world-space filled geometry. Their
 Visuals properties are fill/border color, border thickness, signed X/Y scale,
@@ -440,8 +446,12 @@ Joints use the same visual style. Springs additionally have independently styled
 Endpoint A/B markers, with the coil connecting their offset visual centers.
 Endpoint scale/rotation affects each marker; assembly scale/rotation acts about
 the physical midpoint, and assembly offset moves the complete graphic. Pin and
-weld joints retain a single marker. The torque editor is still deferred; torque
-styles are available through documents, CLI, generated output, and app previews.
+weld joints retain a single marker. Torque Properties exposes Visuals, Source,
+and Editor Marker accordions, with Visible in App first below the header/name.
+The editor eye, ordering, clipboard, multi-edit, history, navigation, and CLI
+replay follow the shared source interactions. Project format 10 stores torque
+editor visibility and marker offsets; formats 8 and 9 remain readable with
+visible/zero defaults. Editor metadata never enters runtime descriptions.
 
 ### Goal 5: authored definitions and persistence
 
@@ -543,8 +553,8 @@ wheels currently contact external rigid bodies. Disk, tire-node, and tire-beam
 contacts qualify; self-contacts, standalone particles, and soft-body targets do
 not. The wheels may contact different rigid bodies. An accepted press can wait
 for the next physics update, but rejected airborne presses are never buffered.
-The default project remains unchanged. Graphical force editing is Goal 7; torque
-editing remains Goal 8.
+The default project remains unchanged. Graphical force editing is implemented
+in Goal 7 and torque editing in Goal 8.
 
 ### Milestone acceptance
 

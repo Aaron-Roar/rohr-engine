@@ -29,12 +29,13 @@
 #define EDITOR_UI_FONT_MAX 32
 #define EDITOR_OBJECT_HIERARCHY_MAX \
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
-        EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX + EDITOR_SOURCE_MAX)
+        EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX + 2 * EDITOR_SOURCE_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Version 8 adds authored force/torque definitions with stable references. */
-#define EDITOR_PROJECT_FORMAT_VERSION 9
-#define EDITOR_NAVIGATION_MODE_MAX 32
-#define EDITOR_NAVIGATION_SELECTION_MAX 29
+/* Version 10 adds torque editor visibility, marker offsets, and hierarchy rows.
+ * Versions 8 (authored sources) and 9 (app visibility) remain readable. */
+#define EDITOR_PROJECT_FORMAT_VERSION 10
+#define EDITOR_NAVIGATION_MODE_MAX 33
+#define EDITOR_NAVIGATION_SELECTION_MAX 30
 
 typedef uint32_t EditorObjectId;
 typedef uint32_t EditorVertexId;
@@ -108,7 +109,8 @@ typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_ANIMATED_SPRITE,
     EDITOR_HIERARCHY_CAMERA,
     EDITOR_HIERARCHY_ANCHOR,
-    EDITOR_HIERARCHY_FORCE
+    EDITOR_HIERARCHY_FORCE,
+    EDITOR_HIERARCHY_TORQUE
 } EditorHierarchyItemKind;
 
 typedef struct EditorHierarchyItem {
@@ -447,6 +449,8 @@ typedef struct EditorTorque {
     uint32_t id;
     char name[EDITOR_OBJECT_NAME_MAX];
     ObjectTorqueDescription description;
+    bool visible;
+    Position marker_offset;
     bool app_hidden;
     ObjectVisuals visuals;
 } EditorTorque;
@@ -644,6 +648,7 @@ typedef struct EditorNavigationState {
     EditorHitboxId hitbox;
     EditorJointId joint;
     uint32_t force;
+    uint32_t torque;
     EditorAnchorId anchor;
     EditorSoftBodyId soft_body;
     EditorSoftNodeId soft_node;
@@ -928,6 +933,7 @@ bool editor_torque_description_check(const EditorObject *object, ObjectTorqueDes
 bool editor_sources_check(const EditorObject *object);
 void editor_sources_reference_remove(EditorObject *object, ObjectSourceReference reference);
 EditorForce *editor_project_force_get(EditorObject *object, uint32_t id);
+EditorTorque *editor_project_torque_get(EditorObject *object, uint32_t id);
 EditorForce *editor_project_force_add(EditorProject *project, EditorObject *object);
 EditorTorque *editor_project_torque_add(EditorProject *project, EditorObject *object);
 bool editor_project_force_set(EditorObject *object, uint32_t id, ObjectForceDescription description);

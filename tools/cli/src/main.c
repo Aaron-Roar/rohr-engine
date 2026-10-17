@@ -44,7 +44,7 @@ typedef struct CliHelpDomain {
 static const CliHelpDomain cli_help_domains[] = {
     {"--force", "force", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>, location <JSON>, orientation <JSON>; operations add, get, list, rename, duplicate, remove",
         "--object car --force thrust --property magnitude 10", 1},
-    {"--torque", "torque", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>; operations add, get, list, rename, duplicate, remove",
+    {"--torque", "torque", "description <JSON>, mode <persistent|initial>, magnitude <number>, target <JSON>, marker_offset <{\"x\":number,\"y\":number}>, visible <bool>, visible_in_app <bool>; operations add, get, list, rename, duplicate, remove",
         "--object car --torque drive --property magnitude 10", 1},
     {"--object", "object", "position <x> <y>, visibility <true|false>",
         "--object car --property position 10 20", 0},

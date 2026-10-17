@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
+#include <float.h>
 
 static EditorCommandResult failure(const char *message) {
     EditorCommandResult r = {.kind=ERROR_RESULT_ERROR};
@@ -29,6 +31,11 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
     if(c->operation==EDITOR_SOURCE_GET) return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
     if(c->operation==EDITOR_SOURCE_REMOVE) {
         if(!editor_project_source_remove(o,c->torque,c->id)) return failure("Source removal failed");
+        return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
+    }
+    if(c->operation==EDITOR_SOURCE_MARKER_SET) {
+        if(!c->torque || !isfinite(c->marker_offset.x) || !isfinite(c->marker_offset.y)) return failure("Invalid torque marker offset");
+        o->torque_items[i].marker_offset=c->marker_offset;
         return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
     }
     if(c->operation==EDITOR_SOURCE_SET) {
@@ -53,10 +60,12 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
         (c->torque?o->torque_items[i].visuals:o->force_items[i].visuals):(ObjectVisuals){0};
     uint32_t id=c->id;
     if(c->torque) {
+        bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].visible:true;
+        Position marker=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].marker_offset:(Position){0};
         ObjectTorqueDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->torque_items[i].description:(ObjectTorqueDescription){0};
         EditorTorque *t=c->operation==EDITOR_SOURCE_RENAME?&o->torque_items[i]:editor_project_torque_add(p,o);
         if(!t) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->app_hidden=app_hidden; t->visuals=visuals; }
+        if(c->operation!=EDITOR_SOURCE_RENAME) { t->description=value; t->visible=visible; t->marker_offset=marker; t->app_hidden=app_hidden; t->visuals=visuals; }
         strcpy(t->name,name); id=t->id;
     } else {
         bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].visible:true;
@@ -153,9 +162,22 @@ EditorResult editor_source_cli_parse(const EditorProject *p,int count,char **arg
                 .data.app_visibility={c.torque?EDITOR_ITEM_TORQUE:EDITOR_ITEM_FORCE,c.object,0,c.id,!strcmp(value,"true")}};
             return editor_result_value(true);
         }
-        if(!c.torque && !strcmp(property,"visible")) {
+        if(!strcmp(property,"visible")) {
             if(!value || (strcmp(value,"true") && strcmp(value,"false"))) return invalid("visible requires true or false");
-            *command=(EditorCommand){.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,c.object,0,c.id,!strcmp(value,"true")}};
+            *command=(EditorCommand){.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={c.torque?EDITOR_VISIBILITY_TORQUE:EDITOR_VISIBILITY_FORCE,c.object,0,c.id,!strcmp(value,"true")}};
+            return editor_result_value(true);
+        }
+        if(c.torque && !strcmp(property,"marker_offset")) {
+            yyjson_doc *d=value?yyjson_read(value,strlen(value),0):NULL;
+            yyjson_val *v=d?yyjson_doc_get_root(d):NULL;
+            yyjson_val *x=yyjson_obj_get(v,"x"),*y=yyjson_obj_get(v,"y");
+            bool ok=yyjson_is_obj(v) && yyjson_obj_size(v)==2 && yyjson_is_num(x) && yyjson_is_num(y) &&
+                isfinite(yyjson_get_num(x)) && isfinite(yyjson_get_num(y)) && fabs(yyjson_get_num(x))<=FLT_MAX && fabs(yyjson_get_num(y))<=FLT_MAX;
+            c.marker_offset=(Position){(float)yyjson_get_num(x),(float)yyjson_get_num(y)};
+            yyjson_doc_free(d);
+            if(!ok) return invalid("marker_offset requires finite x and y");
+            c.operation=EDITOR_SOURCE_MARKER_SET;
+            *command=(EditorCommand){.type=EDITOR_COMMAND_SOURCE,.data.source=c};
             return editor_result_value(true);
         }
         if(!value) return invalid("set requires a value (JSON for descriptions and references)");
@@ -196,7 +218,9 @@ char *editor_source_query_json(const EditorProject *p,const EditorSourceCommand 
         if(v) ok=ok && yyjson_mut_obj_add_val(d,v,"visuals",object_visuals_json_write(d,c->torque?o->torque_items[i].visuals:o->force_items[i].visuals));
         if(v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible_in_app",
             !(c->torque?o->torque_items[i].app_hidden:o->force_items[i].app_hidden));
-        if(!c->torque && v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible",o->force_items[i].visible);
+        if(v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible",c->torque?o->torque_items[i].visible:o->force_items[i].visible);
+        if(c->torque && v) ok=ok && yyjson_mut_obj_add_real(d,v,"marker_offset_x",o->torque_items[i].marker_offset.x) &&
+            yyjson_mut_obj_add_real(d,v,"marker_offset_y",o->torque_items[i].marker_offset.y);
         ok=ok && v && yyjson_mut_obj_add_uint(d,v,"id",id) && yyjson_mut_obj_add_strcpy(d,v,"name",c->torque?o->torque_items[i].name:o->force_items[i].name) && yyjson_mut_arr_add_val(arr,v);++found;
     }
     char *result=ok && (found || c->operation==EDITOR_SOURCE_LIST)?yyjson_mut_write(d,YYJSON_WRITE_PRETTY,NULL):NULL;
@@ -215,14 +239,14 @@ static bool quote(char *out,size_t cap,size_t *used,const char *s) {
     out[(*used)++]='\'';out[*used]=0;return true;
 }
 EditorResult editor_source_cli_write(const EditorProject *p,const EditorCommand *command,const char *path,char *out,size_t cap) {
-    if(command->type==EDITOR_COMMAND_VISIBILITY && command->data.visibility.kind==EDITOR_VISIBILITY_FORCE) {
+    if(command->type==EDITOR_COMMAND_VISIBILITY && (command->data.visibility.kind==EDITOR_VISIBILITY_FORCE || command->data.visibility.kind==EDITOR_VISIBILITY_TORQUE)) {
         if(!out || !cap || !path) return invalid("Invalid CLI output");
         int n=snprintf(out,cap,"rohr-cli --project ");
         if(n<0 || (size_t)n>=cap) return invalid("CLI output too small");
         size_t used=(size_t)n;
         if(!quote(out,cap,&used,path)) return invalid("CLI output too small");
-        n=snprintf(out+used,cap-used," --object-id %u --force-id %u --property visible set %s",
-            command->data.visibility.object,command->data.visibility.item,command->data.visibility.visible?"true":"false");
+        n=snprintf(out+used,cap-used," --object-id %u --%s-id %u --property visible set %s",
+            command->data.visibility.object,command->data.visibility.kind==EDITOR_VISIBILITY_TORQUE?"torque":"force",command->data.visibility.item,command->data.visibility.visible?"true":"false");
         return n>=0 && (size_t)n<cap-used?editor_result_value(true):invalid("CLI output too small");
     }
     if(command->type == EDITOR_COMMAND_OBJECT_DUPLICATE) {
@@ -236,8 +260,8 @@ EditorResult editor_source_cli_write(const EditorProject *p,const EditorCommand 
     }
     (void)p; const EditorSourceCommand *c=&command->data.source;
     if(!out || !cap || !path) return invalid("Invalid CLI output");
-    const char *ops[]={"add","set","remove","rename","duplicate","get","list"};
-    if(c->operation<EDITOR_SOURCE_ADD || c->operation>EDITOR_SOURCE_LIST) return invalid("Invalid source operation");
+    const char *ops[]={"add","set","remove","rename","duplicate","get","list","set"};
+    if(c->operation<EDITOR_SOURCE_ADD || c->operation>EDITOR_SOURCE_MARKER_SET) return invalid("Invalid source operation");
     size_t used=0;int n=snprintf(out,cap,"rohr-cli --project ");if(n<0 || (size_t)n>=cap) return invalid("CLI output too small");used=n;
     if(!quote(out,cap,&used,path)) return invalid("CLI output too small");
     bool id=c->operation!=EDITOR_SOURCE_ADD && c->operation!=EDITOR_SOURCE_LIST;
@@ -246,6 +270,10 @@ EditorResult editor_source_cli_write(const EditorProject *p,const EditorCommand 
     used+=n;
     if(id) { n=snprintf(out+used,cap-used," %u",c->id);if(n<0 || (size_t)n>=cap-used) return invalid("CLI output too small");
     used+=n; }
+    if(c->operation==EDITOR_SOURCE_MARKER_SET) {
+        n=snprintf(out+used,cap-used," --property marker_offset set '{\"x\":%.9g,\"y\":%.9g}'",c->marker_offset.x,c->marker_offset.y);
+        return n>=0 && (size_t)n<cap-used?editor_result_value(true):invalid("CLI output too small");
+    }
     n=snprintf(out+used,cap-used," %s",ops[c->operation]);if(n<0 || (size_t)n>=cap-used) return invalid("CLI output too small");
     used+=n;
     char *json=NULL; const char *value=NULL;

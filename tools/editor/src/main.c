@@ -827,7 +827,7 @@ static float editor_panel_content_height_get(const EditorProject *project,
     }
     if(object == NULL) return height;
     if(state->mode == EDITOR_VIEWPORT_OBJECT) {
-        return fmaxf(height, 520.0f + (float)(object->force_count + object->rigid_body_count +
+        return fmaxf(height, 520.0f + (float)(object->force_count + object->torque_count + object->rigid_body_count +
             object->joint_count + object->anchor_count + object->soft_body_count +
             object->sprite_count + object->animated_sprite_count +
             object->camera_count) * 30.0f);
@@ -917,7 +917,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
     return mode == EDITOR_VIEWPORT_OBJECT || mode == EDITOR_VIEWPORT_RIGID_BODY ||
         mode == EDITOR_VIEWPORT_HITBOX || mode == EDITOR_VIEWPORT_VERTEX ||
         mode == EDITOR_VIEWPORT_LINE || mode == EDITOR_VIEWPORT_JOINT ||
-        mode == EDITOR_VIEWPORT_FORCE || mode == EDITOR_VIEWPORT_ANCHOR || mode == EDITOR_VIEWPORT_SOFT_BODY ||
+        mode == EDITOR_VIEWPORT_FORCE || mode == EDITOR_VIEWPORT_TORQUE || mode == EDITOR_VIEWPORT_ANCHOR || mode == EDITOR_VIEWPORT_SOFT_BODY ||
         mode == EDITOR_VIEWPORT_SOFT_NODE || mode == EDITOR_VIEWPORT_SOFT_BEAM ||
         mode == EDITOR_VIEWPORT_SOFT_AREA || mode == EDITOR_VIEWPORT_SOFT_HOLE ||
         mode == EDITOR_VIEWPORT_SPRITE ||
@@ -936,7 +936,7 @@ static bool editor_panel_delete_footer_check(const EditorViewportState *state) {
         mode == EDITOR_VIEWPORT_INPUT_BINDING;
 }
 
-#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_FORCE + 1)
+#define EDITOR_MODE_ACCORDION_COUNT ((size_t)EDITOR_VIEWPORT_TORQUE + 1)
 
 static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
     return mode != EDITOR_VIEWPORT_HIERARCHY &&
@@ -944,7 +944,7 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_OBJECT &&
         mode != EDITOR_VIEWPORT_RIGID_BODY &&
         mode != EDITOR_VIEWPORT_PARTICLE &&
-        mode != EDITOR_VIEWPORT_FORCE &&
+        mode != EDITOR_VIEWPORT_FORCE && mode != EDITOR_VIEWPORT_TORQUE &&
         mode != EDITOR_VIEWPORT_ANCHOR &&
         mode != EDITOR_VIEWPORT_JOINT &&
         mode != EDITOR_VIEWPORT_SOFT_BODY &&
@@ -975,6 +975,7 @@ static const char *editor_mode_properties_title_get(EditorViewportMode mode) {
         case EDITOR_VIEWPORT_HITBOX: return "Hitbox Properties";
         case EDITOR_VIEWPORT_JOINT: return "Joint Properties";
         case EDITOR_VIEWPORT_FORCE: return "Force Properties";
+        case EDITOR_VIEWPORT_TORQUE: return "Torque Properties";
         case EDITOR_VIEWPORT_ANCHOR: return "Anchor Properties";
         case EDITOR_VIEWPORT_SOFT_BODY: return "Soft Body Properties";
         case EDITOR_VIEWPORT_SOFT_NODE: return "Node Properties";
@@ -1736,13 +1737,14 @@ static bool editor_single_selected_delete(
         }
         return true;
     }
-    if(viewport_state->selection == EDITOR_SELECTION_FORCE) {
+    if(viewport_state->selection == EDITOR_SELECTION_FORCE || viewport_state->selection == EDITOR_SELECTION_TORQUE) {
         EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=selected->id,
-            .id=viewport_state->selected_force,.operation=EDITOR_SOURCE_REMOVE}};
+            .id=viewport_state->selection==EDITOR_SELECTION_TORQUE?viewport_state->selected_torque:viewport_state->selected_force,
+            .torque=viewport_state->selection==EDITOR_SELECTION_TORQUE,.operation=EDITOR_SOURCE_REMOVE}};
         if(editor_command_execute(project,&command).kind==ERROR_RESULT_ERROR) return false;
         editor_viewport_selection_clear(viewport_state);
         viewport_state->mode=EDITOR_VIEWPORT_OBJECT; viewport_state->selection=EDITOR_SELECTION_OBJECT;
-        viewport_state->selected_force=0; return true;
+        viewport_state->selected_force=0; viewport_state->selected_torque=0; return true;
     }
     if(viewport_state->selection == EDITOR_SELECTION_ANCHOR) {
         EditorAnchor *anchor = editor_project_anchor_get(
@@ -2187,6 +2189,23 @@ static bool editor_open_item_delete(
     if(!editor_navigation_open_item_selection_set(viewport_state)) return false;
     return editor_selected_delete(project, viewport_state);
 }
+static bool editor_sources_copy(EditorProject *project,const EditorViewportState *state,
+        EditorForceClipboard *force_copy,EditorTorqueClipboard *torque_copy) {
+    if(editor_navigation_forces_copy(project,state,force_copy)) { torque_copy->count=0; return true; }
+    if(editor_navigation_torques_copy(project,state,torque_copy)) { force_copy->count=0; return true; }
+    return false;
+}
+static bool editor_sources_paste(EditorProject *project,EditorViewportState *state,EditorHistory *history,
+        const EditorForceClipboard *force_copy,const EditorTorqueClipboard *torque_copy) {
+    return torque_copy->count?editor_navigation_torques_paste(project,state,history,torque_copy):
+        editor_navigation_forces_paste(project,state,history,force_copy);
+}
+static void editor_sources_duplicate(EditorProject *project,EditorViewportState *state,EditorHistory *history) {
+    EditorForceClipboard force_copy={0}; EditorTorqueClipboard torque_copy={0};
+    if(editor_sources_copy(project,state,&force_copy,&torque_copy))
+        (void)editor_sources_paste(project,state,history,&force_copy,&torque_copy);
+}
+
 int main(int argc, char **argv) {
     const char *startup_stage = "editor history initialization";
     bool startup_check = argc == 2 && argv != NULL &&
@@ -2247,7 +2266,9 @@ int main(int argc, char **argv) {
     EditorProjectLauncherState project_launcher_state;
     EditorParticleEditor particle_editor = {0};
     EditorForceClipboard force_clipboard={0};
+    EditorTorqueClipboard torque_clipboard={0};
     EditorForceEditor force_editor = {0};
+    EditorTorqueEditor torque_editor = {0};
     EditorAnchorEditor anchor_editor = {0};
     EditorRigidBodyEditor rigid_body_editor = {0};
     EditorJointEditor joint_editor = {0};
@@ -2443,6 +2464,7 @@ int main(int argc, char **argv) {
             !editor_origin_panel_create(&origin_panel, &font) ||
             !editor_particle_editor_create(&particle_editor, &font) ||
             !editor_force_editor_create(&force_editor, &font) ||
+            !editor_torque_editor_create(&torque_editor, &font) ||
             !editor_anchor_editor_create(&anchor_editor, &font) ||
             !editor_rigid_body_editor_create(&rigid_body_editor, &font) ||
             !editor_joint_editor_create(&joint_editor, &font) ||
@@ -2679,10 +2701,10 @@ int main(int argc, char **argv) {
         } else if(!field_editing &&
                 !editor_terminal_panel_focused_check(&terminal_panel) &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
-            if(viewport_state.dragged_force || viewport_state.rotated_force) {
+            if(viewport_state.dragged_force || viewport_state.rotated_force || viewport_state.dragged_torque) {
                 editor_history_transaction_cancel(&history);
                 editor_viewport_transform_cancel(&viewport_state);
-            } else if(viewport_state.mode==EDITOR_VIEWPORT_FORCE && viewport_state.selected_item_count<=1) {
+            } else if((viewport_state.mode==EDITOR_VIEWPORT_FORCE || viewport_state.mode==EDITOR_VIEWPORT_TORQUE) && viewport_state.selected_item_count<=1) {
                 editor_viewport_back(&viewport_state);
             } else if(viewport_state.selected_item_count > 1) {
                 editor_viewport_multi_selection_dismiss(&project, &viewport_state);
@@ -2728,13 +2750,11 @@ int main(int argc, char **argv) {
                 close_action == EDITOR_CLOSE_NONE) {
             if(!viewport_context_menu.open && editor_control_modifier_check()) {
                 if(rohr_input_key_pressed_check(SDL_SCANCODE_C))
-                    (void)editor_navigation_forces_copy(&project,&viewport_state,&force_clipboard);
+                    (void)editor_sources_copy(&project,&viewport_state,&force_clipboard,&torque_clipboard);
                 if(rohr_input_key_pressed_check(SDL_SCANCODE_V))
-                    (void)editor_navigation_forces_paste(&project,&viewport_state,&history,&force_clipboard);
+                    (void)editor_sources_paste(&project,&viewport_state,&history,&force_clipboard,&torque_clipboard);
                 if(rohr_input_key_pressed_check(SDL_SCANCODE_D)) {
-                    EditorForceClipboard duplicate={0};
-                    if(editor_navigation_forces_copy(&project,&viewport_state,&duplicate))
-                        (void)editor_navigation_forces_paste(&project,&viewport_state,&history,&duplicate);
+                    editor_sources_duplicate(&project,&viewport_state,&history);
                 }
             }
             Position pointer = rohr_graphics_mouse_screen_position_get();
@@ -2900,6 +2920,7 @@ int main(int argc, char **argv) {
             panel_content_height = panel_content_offset +
                 mode_measured_heights[viewport_state.mode];
         if(viewport_state.mode==EDITOR_VIEWPORT_FORCE) panel_content_height=panel_content_offset+force_editor.content_height;
+        if(viewport_state.mode==EDITOR_VIEWPORT_TORQUE) panel_content_height=panel_content_offset+torque_editor.content_height;
         if(mode_accordion_applies &&
                 !mode_accordions[viewport_state.mode].expanded)
             panel_content_height = panel_content_offset + 76.0f;
@@ -3108,6 +3129,12 @@ int main(int argc, char **argv) {
         } else if(viewport_state.mode == EDITOR_VIEWPORT_FORCE) {
             EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
             field_editing=editor_force_editor_draw(&force_editor,&(EditorModeContext){
+                .history=&history,.project=&project,.viewport=&viewport_state,
+                .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true,
+                .color_open=editor_mode_color_picker_open,.color_context=&color_context});
+        } else if(viewport_state.mode == EDITOR_VIEWPORT_TORQUE) {
+            EditorModeColorContext color_context = {.picker=&color_picker,.project=&project};
+            field_editing=editor_torque_editor_draw(&torque_editor,&(EditorModeContext){
                 .history=&history,.project=&project,.viewport=&viewport_state,
                 .x=EDITOR_VIEWPORT_WIDTH,.width=EDITOR_TOOLS_WIDTH,.delete_footer=true,
                 .color_open=editor_mode_color_picker_open,.color_context=&color_context});
@@ -3559,6 +3586,9 @@ int main(int argc, char **argv) {
                     delete_label = &joint_editor.delete_label;
                     delete_id = "editor.joint.delete";
                     break;
+                case EDITOR_VIEWPORT_TORQUE:
+                    delete_label = &torque_editor.torque_delete_label;
+                    break;
                 case EDITOR_VIEWPORT_FORCE:
                     delete_label = &force_editor.delete_label;
                     break;
@@ -3690,6 +3720,7 @@ int main(int argc, char **argv) {
                     viewport_context_menu.target, context_name,
                     sizeof(context_name));
             viewport_context_menu.force_paste_available=workspace.open && project.selected && force_clipboard.count>0;
+            viewport_context_menu.torque_paste_available=workspace.open && project.selected && torque_clipboard.count>0;
             EditorContextMenuAction context_action;
             rohr_ui_modal_controls_begin();
             context_action = editor_viewport_context_menu_draw(
@@ -3698,7 +3729,7 @@ int main(int argc, char **argv) {
                 EDITOR_VIEWPORT_BOTTOM, EDITOR_WINDOW_HEIGHT);
             rohr_ui_modal_controls_end();
             if(context_action==EDITOR_CONTEXT_MENU_PASTE)
-                (void)editor_navigation_forces_paste(&project,&viewport_state,&history,&force_clipboard);
+                (void)editor_sources_paste(&project,&viewport_state,&history,&force_clipboard,&torque_clipboard);
             if(context_action != EDITOR_CONTEXT_MENU_NONE &&
                     viewport_context_menu.target_valid) {
                 {
@@ -3726,11 +3757,9 @@ int main(int argc, char **argv) {
                         viewport_context_menu.target,
                         viewport_context_menu.rename_value);
                 else if(context_action == EDITOR_CONTEXT_MENU_COPY)
-                    (void)editor_navigation_forces_copy(&project,&viewport_state,&force_clipboard);
+                    (void)editor_sources_copy(&project,&viewport_state,&force_clipboard,&torque_clipboard);
                 else if(context_action == EDITOR_CONTEXT_MENU_DUPLICATE) {
-                    EditorForceClipboard duplicate={0};
-                    if(editor_navigation_forces_copy(&project,&viewport_state,&duplicate))
-                        (void)editor_navigation_forces_paste(&project,&viewport_state,&history,&duplicate);
+                    editor_sources_duplicate(&project,&viewport_state,&history);
                 }
                 else if(context_action == EDITOR_CONTEXT_MENU_DELETE)
                     (void)editor_single_selected_delete(&project, &viewport_state);
@@ -4043,7 +4072,7 @@ int main(int argc, char **argv) {
                 (void)editor_terminal_panel_project_open(
                     &terminal_panel, startup_directory);
                 editor_history_reset(&history);
-                        force_clipboard.count=0;
+                        force_clipboard.count=0; torque_clipboard.count=0;
                 saved_project_hash = editor_project_hash_get(&project);
                 editor_viewport_state_init(&viewport_state);
                 panel_scroll_offset = 0.0f;
@@ -4120,7 +4149,7 @@ int main(int argc, char **argv) {
                         (void)editor_terminal_panel_project_open(
                             &terminal_panel, startup_directory);
                         editor_history_reset(&history);
-                        force_clipboard.count=0;
+                        force_clipboard.count=0; torque_clipboard.count=0;
                         saved_project_hash = editor_project_hash_get(&project);
                         editor_viewport_state_init(&viewport_state);
                         panel_scroll_offset = 0.0f;
@@ -4147,7 +4176,7 @@ int main(int argc, char **argv) {
                     (void)editor_terminal_panel_project_open(
                         &terminal_panel, startup_directory);
                     editor_history_reset(&history);
-                        force_clipboard.count=0;
+                        force_clipboard.count=0; torque_clipboard.count=0;
                     saved_project_hash = editor_project_hash_get(&project);
                     editor_viewport_state_init(&viewport_state);
                     panel_scroll_offset = 0.0f;
@@ -4377,7 +4406,7 @@ int main(int argc, char **argv) {
                         editor_app_state_transition(&app_state,
                             EDITOR_APP_STATE_WORKSPACE);
                         editor_history_reset(&history);
-                        force_clipboard.count=0;
+                        force_clipboard.count=0; torque_clipboard.count=0;
                         editor_viewport_state_init(&viewport_state);
                         if(command.type == EDITOR_WORKSPACE_COMMAND_LOAD) {
                             editor_project_selection_clear(&project);
@@ -4655,6 +4684,7 @@ int main(int argc, char **argv) {
     editor_origin_panel_destroy(&origin_panel);
     editor_particle_editor_destroy(&particle_editor);
     editor_force_editor_destroy(&force_editor);
+    editor_force_editor_destroy(&torque_editor);
     editor_anchor_editor_destroy(&anchor_editor);
     editor_rigid_body_editor_destroy(&rigid_body_editor);
     editor_joint_editor_destroy(&joint_editor);
@@ -4749,6 +4779,7 @@ fail:
     editor_origin_panel_destroy(&origin_panel);
     editor_particle_editor_destroy(&particle_editor);
     editor_force_editor_destroy(&force_editor);
+    editor_force_editor_destroy(&torque_editor);
     editor_anchor_editor_destroy(&anchor_editor);
     editor_rigid_body_editor_destroy(&rigid_body_editor);
     editor_joint_editor_destroy(&joint_editor);
