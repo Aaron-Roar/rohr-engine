@@ -7,7 +7,7 @@
 ObjectVisualStyle object_visual_style_get(ObjectVisualStyle v, ObjectKind kind) {
     if(v.specified) return v;
     return (ObjectVisualStyle){.specified=true,
-        .fill_color=kind==OBJECT_JOINT?0xe1be55ffu:0xf0b446ffu,
+        .fill_color=kind==OBJECT_FORCE?0xff6633ffu:kind==OBJECT_JOINT?0xe1be55ffu:0xf0b446ffu,
         .border_color=0x20242cffu,.border_thickness=1,.scale={1,1}};
 }
 bool object_visuals_check(ObjectVisuals value) {

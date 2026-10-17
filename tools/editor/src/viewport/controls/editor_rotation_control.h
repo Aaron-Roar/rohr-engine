@@ -7,6 +7,15 @@
 
 #include "rohr.h"
 
+enum { EDITOR_ROTATION_ARC_STROKE_COUNT = 16 };
+/* World-space strokes; scale is screen pixels per world unit. */
+void editor_rotation_control_arcs_get(Position center, Orientation orientation,
+    float arm_length, float scale,
+    Position strokes[EDITOR_ROTATION_ARC_STROKE_COUNT][2]);
+bool editor_rotation_control_arcs_begin(Position center, Orientation orientation,
+    float arm_length, float scale, Position pointer, float radius,
+    float *pointer_offset);
+
 Position editor_rotation_control_position_get(Position center,
     Orientation orientation, float arm_length);
 bool editor_rotation_control_hit_check(Position pointer, Position control,

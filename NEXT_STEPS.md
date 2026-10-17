@@ -1412,13 +1412,31 @@ Separate editing convenience from app rendering, then improve force controls.
    `/tmp/rohr-projects/project-dir` with its entry point unchanged; the scene
    callback and force/joint output pass. Windows execution remains unverified.
    Manual editor/application review is requested; the torque editor stays deferred.
-3. [ ] **Improve force editing affordances** — Replace the rotation dot with
-   opposing curved arrows around the force origin, and highlight referenced
-   bodies/particles/soft-body elements when hovering target/reference choices.
-   Preserve selection, reference-aware transforms, cancellation and history.
+3. [x] **Improve force editing affordances** — Corrected the color follow-up:
+   editor annotations retain cyan (muted gray for zero forces); only default app
+   visuals use red-orange (`#FF6633`), retaining yellow selection and custom
+   authored colors. The annotation-only correction passes focused force and
+   visibility tests, GUI startup, and Linux/Windows editor builds without compiler
+   diagnostics. The supplied application was rebuilt and its runtime marker
+   drawing, scene callback and bounded startup checks pass. Completed the size follow-up:
+   editor force arrows are now 88 pixels long with 4-pixel strokes; rotation
+   arcs use a 120-pixel radius. Arrowheads, origin markers and picking tolerance
+   scale by the same factor of two, independently of zoom and app visuals.
+   Replaced the rotation dot with
+   two short opposing curved arrows using shared drawing/picking geometry.
+   Target and reference choices preview bodies, particles, whole soft bodies,
+   nodes and beams, including filtered/scrolled lists and both between-location
+   references. Hidden references temporarily show an outline without changing
+   visibility, selection or history; previews never enter app/camera output.
+   Verified signed/zero and reference-relative rotation, zoom-independent
+   controls, cancellation and undo/redo. All 90 native tests and five focused
+   ASan/UBSan/leak suites pass. Linux/Windows builds have no compiler diagnostics;
+   GUI startup and the supplied project's selection, hover, curved-handle and
+   rendering probe pass. Windows execution remains unverified. Manual editor
+   visual review is requested.
 
-Stop for review after each goal. Resume the torque editor only after both
-corrections and explicit user instruction.
+Milestone complete. Stop for review; resume the torque editor only after
+explicit user instruction.
 
 ## Milestone: Unified Forces and Torques
 

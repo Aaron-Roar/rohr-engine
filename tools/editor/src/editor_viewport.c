@@ -498,9 +498,13 @@ static Position editor_particle_center_world_get(const EditorObject *object,
             local.x * sine + local.y * cosine};
 }
 
-#define EDITOR_FORCE_ARROW_LENGTH 44.0f
-#define EDITOR_FORCE_ARROW_HEAD 10.0f
-#define EDITOR_FORCE_PICK_RADIUS 7.0f
+#define EDITOR_FORCE_CONTROL_SCALE 2.0f
+#define EDITOR_FORCE_ARROW_LENGTH (44.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_ARROW_HEAD (10.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_ORIGIN_RADIUS (4.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_STROKE_WIDTH (2.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_PICK_RADIUS (7.0f * EDITOR_FORCE_CONTROL_SCALE)
+#define EDITOR_FORCE_ROTATION_ARM_LENGTH (EDITOR_VIEWPORT_ROTATION_ARM_LENGTH * EDITOR_FORCE_CONTROL_SCALE)
 static bool editor_force_arrow_get(const EditorObject *object, const EditorForce *force,
         Position *tail, Position *tip, float *angle) {
     if(!force->visible || !editor_force_location_get(object,force->description.location,tail) ||
@@ -612,7 +616,7 @@ static float editor_segment_distance_squared(Position point, Position start, Pos
     return distance.x * distance.x + distance.y * distance.y;
 }
 
-static void editor_line_draw(Position start, Position end, Color color) {
+static void editor_line_width_draw(Position start, Position end, float width, Color color) {
     start = editor_view_world_to_screen(start);
     end = editor_view_world_to_screen(end);
     Vec2D delta = {end.x - start.x, end.y - start.y};
@@ -621,7 +625,11 @@ static void editor_line_draw(Position start, Position end, Color color) {
     if(length <= 0.0f) return;
     (void)rohr_graphics_screen_quad_draw(
         (Position){(start.x + end.x) * 0.5f, (start.y + end.y) * 0.5f},
-        length, 2.0f, math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
+        length, width, math_radians_to_degrees(atan2f(delta.y, delta.x)), color);
+}
+
+static void editor_line_draw(Position start, Position end, Color color) {
+    editor_line_width_draw(start, end, 2.0f, color);
 }
 
 static void editor_hitbox_filled_draw(const EditorObject *object,
@@ -692,15 +700,19 @@ static void editor_quad_draw(Position center, float width, float height,
         width, height, rotation, color);
 }
 
-static void editor_circle_draw(Position center, float radius, Color color) {
+static void editor_circle_width_draw(Position center, float radius, float width, Color color) {
     Position previous = {center.x + radius, center.y};
     for(uint32_t i = 1; i <= 16; i += 1) {
         float angle = 6.28318530718f * (float)i / 16.0f;
         Position current = {center.x + cosf(angle) * radius,
             center.y + sinf(angle) * radius};
-        editor_line_draw(previous, current, color);
+        editor_line_width_draw(previous, current, width, color);
         previous = current;
     }
+}
+
+static void editor_circle_draw(Position center, float radius, Color color) {
+    editor_circle_width_draw(center, radius, 2.0f, color);
 }
 
 static void editor_circle_filled_draw(Position center, float radius, Color color) {
@@ -872,7 +884,7 @@ static int editor_force_pick_layer_get(const EditorObject *object,const EditorFo
     if(editor_segment_distance_squared(p,a,b)<=tolerance ||
             editor_segment_distance_squared(p,b,left)<=tolerance ||
             editor_segment_distance_squared(p,b,right)<=tolerance ||
-            editor_circle_hit_check(p,tail,4/editor_view_scale,EDITOR_FORCE_PICK_RADIUS)) return EDITOR_GRAPHICS_LAYER_JOINT;
+            editor_circle_hit_check(p,tail,EDITOR_FORCE_ORIGIN_RADIUS/editor_view_scale,EDITOR_FORCE_PICK_RADIUS)) return EDITOR_GRAPHICS_LAYER_JOINT;
     MarkerGeometry geometry;
     if(!object->app_hidden && !force->app_hidden && editor_force_marker_get(object,force,&geometry) &&
             editor_marker_hit_check(&geometry,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT-1;
@@ -2012,6 +2024,8 @@ void editor_viewport_object_editor_enter(EditorViewportState *state) {
     state->preview_anchor = 0;
     state->preview_soft_node = 0;
     state->preview_camera = 0;
+    state->preview_reference_object = 0;
+    state->preview_reference = (ObjectSourceReference){0};
     state->dragged_vertex = -1;
 }
 
@@ -5260,8 +5274,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         EditorForce *force=editor_project_force_get(object,state->selected_force);
         Position tail,tip; float angle;
         if(force && editor_force_arrow_get(object,force,&tail,&tip,&angle) &&
-                editor_rotation_control_begin(tail,angle,EDITOR_VIEWPORT_ROTATION_ARM_LENGTH/editor_view_scale,
-                    pointer,EDITOR_FORCE_PICK_RADIUS/editor_view_scale,&state->rotation_pointer_offset)) {
+                editor_rotation_control_arcs_begin(tail,angle,EDITOR_FORCE_ROTATION_ARM_LENGTH/editor_view_scale,
+                    editor_view_scale/EDITOR_FORCE_CONTROL_SCALE,pointer,
+                    EDITOR_FORCE_PICK_RADIUS/editor_view_scale,&state->rotation_pointer_offset)) {
             state->rotated_force=true; return true;
         }
     }
@@ -6424,6 +6439,85 @@ static void editor_marker_previews_draw(const EditorObject *o) {
     }
 }
 
+static void editor_reference_ring_visit(Position center, float radius,
+        EditorViewportOutlineVisitor visitor, void *context) {
+    enum { SEGMENTS = 48 };
+    Position previous = {center.x, center.y + radius};
+    for(int i = 1; i <= SEGMENTS; ++i) {
+        Position next = editor_rotation_control_position_get(center,
+            360.0f * i / SEGMENTS, radius);
+        visitor(previous, next, context);
+        previous = next;
+    }
+}
+
+bool editor_viewport_reference_outline_visit(const EditorObject *object,
+        ObjectSourceReference reference, float scale,
+        EditorViewportOutlineVisitor visitor, void *context) {
+    if(object == NULL || visitor == NULL || scale <= 0.0f || reference.id == 0)
+        return false;
+    if(reference.kind == OBJECT_SOURCE_BODY || reference.kind == OBJECT_SOURCE_PARTICLE) {
+        const EditorRigidBody *body = NULL;
+        for(size_t i = 0; i < object->rigid_body_count; ++i)
+            if(object->rigid_bodies[i].id == reference.id) body = &object->rigid_bodies[i];
+        if(body == NULL || body->standalone_particle != (reference.kind == OBJECT_SOURCE_PARTICLE))
+            return false;
+        if(body->standalone_particle) {
+            editor_reference_ring_visit(editor_particle_center_world_get(object, body),
+                body->particle_radius, visitor, context);
+        } else for(size_t h = 0; h < body->hitbox_count; ++h) {
+            const EditorHitbox *hitbox = &body->hitboxes[h];
+            for(uint32_t i = 0; i < hitbox->vertex_count; ++i)
+                visitor(editor_hitbox_vertex_world_get(object, body, hitbox, i),
+                    editor_hitbox_vertex_world_get(object, body, hitbox,
+                        (i + 1) % hitbox->vertex_count), context);
+        }
+        return true;
+    }
+    if(reference.kind != OBJECT_SOURCE_SOFT_BODY && reference.kind != OBJECT_SOURCE_NODE &&
+            reference.kind != OBJECT_SOURCE_BEAM) return false;
+    const EditorSoftBody *body = NULL;
+    uint32_t owner = reference.kind == OBJECT_SOURCE_SOFT_BODY ? reference.id : reference.soft_body;
+    for(size_t i = 0; i < object->soft_body_count; ++i)
+        if(object->soft_body_items[i].id == owner) body = &object->soft_body_items[i];
+    if(body == NULL) return false;
+    bool found = reference.kind == OBJECT_SOURCE_SOFT_BODY;
+    for(size_t i = 0; i < body->beam_count; ++i) {
+        const EditorSoftBeam *beam = &body->beams[i];
+        if(reference.kind != OBJECT_SOURCE_SOFT_BODY &&
+                (reference.kind != OBJECT_SOURCE_BEAM || reference.id != beam->id)) continue;
+        const EditorSoftNode *a = NULL, *b = NULL;
+        for(size_t n = 0; n < body->node_count; ++n) {
+            if(body->nodes[n].id == beam->node_a) a = &body->nodes[n];
+            if(body->nodes[n].id == beam->node_b) b = &body->nodes[n];
+        }
+        if(a != NULL && b != NULL) {
+            visitor(editor_soft_node_world_get(object, body, a),
+                editor_soft_node_world_get(object, body, b), context);
+            found = true;
+        }
+    }
+    for(size_t i = 0; i < body->node_count; ++i) {
+        const EditorSoftNode *node = &body->nodes[i];
+        if(reference.kind != OBJECT_SOURCE_SOFT_BODY &&
+                (reference.kind != OBJECT_SOURCE_NODE || reference.id != node->id)) continue;
+        Position center = editor_soft_node_world_get(object, body, node);
+        float radius = 4.0f / scale;
+        Position corners[4] = {{center.x-radius, center.y-radius},
+            {center.x+radius, center.y-radius}, {center.x+radius, center.y+radius},
+            {center.x-radius, center.y+radius}};
+        for(size_t edge = 0; edge < 4; ++edge)
+            visitor(corners[edge], corners[(edge+1)%4], context);
+        found = true;
+    }
+    return found;
+}
+
+static void editor_reference_outline_draw(Position a, Position b, void *context) {
+    (void)context;
+    editor_line_draw(a, b, (Color){255, 215, 70, 255});
+}
+
 static void editor_viewport_object_draw(const EditorObject *object,
     const EditorViewportState *state, bool object_selected) {
     bool object_highlighted;
@@ -6712,13 +6806,17 @@ static void editor_viewport_object_draw(const EditorObject *object,
             editor_viewport_path_selected(state,EDITOR_SELECTION_FORCE,object->id,0,0,force->id);
         Color color=selected?(Color){255,215,70,255}:force->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
         editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
-        editor_line_draw(tail,tip,color);
-        editor_line_draw(tip,editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);
-        editor_line_draw(tip,editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);
-        editor_circle_draw(tail,4.0f/editor_view_scale,color);
+        editor_line_width_draw(tail,tip,EDITOR_FORCE_STROKE_WIDTH,color);
+        editor_line_width_draw(tip,editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),EDITOR_FORCE_STROKE_WIDTH,color);
+        editor_line_width_draw(tip,editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),EDITOR_FORCE_STROKE_WIDTH,color);
+        editor_circle_width_draw(tail,EDITOR_FORCE_ORIGIN_RADIUS/editor_view_scale,EDITOR_FORCE_STROKE_WIDTH,color);
         if(selected && state->mode==EDITOR_VIEWPORT_FORCE && state->selected_item_count<2) {
-            Position handle=editor_rotation_control_position_get(tail,angle,EDITOR_VIEWPORT_ROTATION_ARM_LENGTH/editor_view_scale);
-            editor_circle_draw(handle,5.0f/editor_view_scale,color);
+            Position strokes[EDITOR_ROTATION_ARC_STROKE_COUNT][2];
+            editor_rotation_control_arcs_get(tail,angle,
+                EDITOR_FORCE_ROTATION_ARM_LENGTH/editor_view_scale,
+                editor_view_scale/EDITOR_FORCE_CONTROL_SCALE,strokes);
+            for(size_t stroke=0;stroke<EDITOR_ROTATION_ARC_STROKE_COUNT;++stroke)
+                editor_line_width_draw(strokes[stroke][0],strokes[stroke][1],EDITOR_FORCE_STROKE_WIDTH,color);
         }
     }
 
@@ -7334,6 +7432,10 @@ static void editor_viewport_content_draw(const EditorProject *project,
         editor_viewport_object_draw(selected, state, true);
     }
     rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+    if(state->mode == EDITOR_VIEWPORT_FORCE && selected != NULL &&
+            selected->id == state->preview_reference_object)
+        (void)editor_viewport_reference_outline_visit(selected, state->preview_reference,
+            editor_view_scale, editor_reference_outline_draw, NULL);
     if(state->selected_item_count >= 2) {
         Position pivot;
         for(size_t i = 0; i < state->selected_item_count; i += 1) {

@@ -697,10 +697,16 @@ catalogs and constructors instantiate those sources. The object editor provides
 double-click to open Force Properties. Torque properties remain scheduled for
 the next goal.
 
-Forces display an application dot and a straight arrow with a fixed screen size.
+Forces display a cyan application dot and straight arrow with a fixed
+screen size; selected controls use yellow. App visuals default to
+red-orange (`#FF6633`), while explicit Visuals colors are preserved.
 The arrow includes the magnitude's sign; zero forces remain visible in muted
-styling. Drag the dot or shaft to move the application point, or use the shared
-rotation handle beyond the tip to change direction. These gestures preserve the
+styling. Drag the dot or shaft to move the application point, or drag either of
+the two opposing curved arrows beyond the tip to change direction. The arcs
+follow a circle around the application point. The editor arrow is 88 pixels
+long with 20-pixel arrowhead legs and 4-pixel strokes. Rotation arcs sit at a
+120-pixel radius with 14-pixel arrowheads and the same stroke thickness. These
+dimensions stay fixed as you zoom. These gestures preserve the
 chosen references and change their offsets. Magnitude is edited numerically.
 Each drag is one undo step; Escape cancels it.
 
@@ -710,6 +716,14 @@ rotation). Beam application locations expose anchor, fraction, along distance,
 and left distance. Between-location directions expose both endpoint locations.
 Unresolvable geometry shows a diagnostic and disables dependent viewport handles;
 the force remains accessible from its row.
+
+Hover a target or reference choice to outline its geometry in yellow. Hovering
+a closed selector outlines its current reference. This includes particles,
+whole soft bodies, individual nodes and beams, and both between-location
+references. Hidden references temporarily show only their outline, even beneath
+hidden parents; their eye settings, selection and history do not change. The
+outline disappears when the pointer leaves and is never included in app or
+camera output.
 
 The header and hierarchy eyes hide only the editor arrow. **Visible in App**
 independently controls its runtime arrow. Force rows support ordering, rename,

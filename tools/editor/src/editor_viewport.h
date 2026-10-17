@@ -183,10 +183,18 @@ typedef struct EditorViewportState {
     EditorAnchorId preview_anchor;
     EditorSoftNodeId preview_soft_node;
     EditorCameraId preview_camera;
+    EditorObjectId preview_reference_object;
+    ObjectSourceReference preview_reference;
     EditorSelectionRef *selected_items;
     size_t selected_item_count;
     size_t selected_item_capacity;
 } EditorViewportState;
+
+typedef void (*EditorViewportOutlineVisitor)(Position a, Position b, void *context);
+/* Reference outlines deliberately ignore editor visibility; they are transient overlays. */
+bool editor_viewport_reference_outline_visit(const EditorObject *object,
+    ObjectSourceReference reference, float scale,
+    EditorViewportOutlineVisitor visitor, void *context);
 
 bool editor_viewport_soft_area_node_toggle(EditorProject *project,
     EditorViewportState *state, EditorSoftNodeId node);

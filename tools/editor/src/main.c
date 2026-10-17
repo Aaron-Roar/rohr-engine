@@ -2945,6 +2945,8 @@ int main(int argc, char **argv) {
         viewport_state.preview_anchor = 0;
         viewport_state.preview_soft_node = 0;
         viewport_state.preview_camera = 0;
+        viewport_state.preview_reference_object = 0;
+        viewport_state.preview_reference = (ObjectSourceReference){0};
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =

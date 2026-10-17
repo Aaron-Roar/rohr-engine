@@ -89,15 +89,22 @@ static bool choice(EditorForceEditor *e,const EditorModeContext *c,float *y,cons
 /* mask selects valid reference kinds; None is permitted only for the target. */
 static bool reference(EditorForceEditor *e,const EditorModeContext *c,float *y,const char *label,unsigned mask,ObjectSourceReference *ref) {
     size_t count=0,selected=0;
+    bool resolved=false;
     for(size_t i=0;i<e->reference_count;++i) {
         ObjectSourceReference r=e->references[i].reference;
         if(!(mask & (1u<<r.kind))) continue;
-        if(r.kind==ref->kind && r.id==ref->id && r.soft_body==ref->soft_body) selected=count;
+        if(r.kind==ref->kind && r.id==ref->id && r.soft_body==ref->soft_body) { selected=count; resolved=true; }
         e->indices[count]=i; e->options[count++]=&e->references[i].text;
     }
     char id[64]; UIRect bounds=row(e,c,y,label,id);
     if(!count) { rohr_ui_label(&e->choices[15],bounds); return false; }
     UIDropdownResult result=editor_mode_dropdown(id,e->options,count,selected,bounds,NULL);
+    int hovered=result.hovered_index;
+    if(hovered<0 && result.button_hovered && resolved) hovered=(int)selected;
+    if(hovered>=0 && (size_t)hovered<count) {
+        c->viewport->preview_reference_object=c->project->selected;
+        c->viewport->preview_reference=e->references[e->indices[hovered]].reference;
+    }
     if(result.changed) *ref=e->references[e->indices[result.selected_index]].reference;
     return result.changed;
 }
@@ -131,6 +138,8 @@ static EditorModeAccordionLayoutResult section(EditorModeAccordionLayoutCursor *
 }
 bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
     if(!e || !c || !c->project || !c->viewport) return false;
+    c->viewport->preview_reference_object=0;
+    c->viewport->preview_reference=(ObjectSourceReference){0};
     EditorObject *o=editor_project_selected_get(c->project);
     EditorForce *f=editor_project_force_get(o,c->viewport->selected_force);
     if(!f || !references_sync(e,o)) return false;
