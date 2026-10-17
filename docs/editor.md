@@ -610,8 +610,34 @@ No engine API or project JSON changes are required.
 Force and torque definitions are stored in their owning object. They default to
 persistent mode, no target, and zero magnitude. Force application and orientation
 start at world origin and world zero. Commands edit saved data, and generated
-catalogs and constructors instantiate those sources. Graphical source editors
-remain scheduled for the force and torque editor goals.
+catalogs and constructors instantiate those sources. The object editor provides
+**Add Force** and top-level force rows. Single-click a row to select it;
+double-click to open Force Properties. Torque properties remain scheduled for
+the next goal.
+
+Forces display an application dot and a straight arrow with a fixed screen size.
+The arrow includes the magnitude's sign; zero forces remain visible in muted
+styling. Drag the dot or shaft to move the application point, or use the shared
+rotation handle beyond the tip to change direction. These gestures preserve the
+chosen references and change their offsets. Magnitude is edited numerically.
+Each drag is one undo step; Escape cancels it.
+
+Force Properties separates Source (mode, target, magnitude), Application
+(position reference and offsets), and Direction (orientation reference and
+rotation). Beam application locations expose anchor, fraction, along distance,
+and left distance. Between-location directions expose both endpoint locations.
+Unresolvable geometry shows a diagnostic and disables dependent viewport handles;
+the force remains accessible from its row.
+
+Visibility hides only the editor arrow. Force rows support ordering, rename,
+delete, copy, duplicate, and multi-selection. Ctrl+C copies selected forces,
+Ctrl+V pastes into the current object, and Ctrl+D duplicates them. The context
+menu provides Copy and Duplicate; the background menu provides Paste. Clipboard
+contents clear when a project is closed or replaced. Same-object copies retain
+valid references; cross-object copies reset referenced fields to the established
+no-target/world-origin/world-up defaults. Copies receive fresh IDs and names.
+Multi-edit supports visibility, world position, rotation, magnitude, and mode.
+Existing saved forces default visible when their editor visibility is absent.
 
 ```sh
 rohr-cli --project objects/project.rohr.json --object car --force thrust add
@@ -632,7 +658,7 @@ Whole-object duplication gives the copy independent storage and source IDs;
 references resolve against elements inside the new object.
 
 Properties are `mode`, `magnitude`, `target`, and `description`; forces also have
-`location` and `orientation`. `set <JSON>` replaces the complete description,
+`location`, `orientation`, and editor-only `visible` (true/false). `set <JSON>` replaces the complete description,
 or use `--property description <JSON>`. Individual property edits preserve all
 other fields. Names are formatted using existing editor property-name rules.
 References have exactly `kind`, `id`, and `soft_body` fields. Kinds are `none`,

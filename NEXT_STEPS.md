@@ -1475,10 +1475,17 @@ Editor handle presentation is finalized in the relevant editor goals.
    both platforms and matches loaded descriptions on Linux. Windows verification
    is compilation only. Manual car-control review is requested at this boundary;
    stop for user review before Goal 7.
-7. [ ] **Implement the force editor** — Add top-level object rows, dedicated
-   properties, target selection, application-dot/arrow rendering, and
-   position/direction/magnitude controls. Integrate selection, visibility,
-   ordering, clipboard, multi-edit, and history. Verify saved projects in app.
+7. [x] **Implement the force editor** — Added top-level force rows and dedicated
+   source/application/direction properties, with object-local reference pickers.
+   Fixed-screen-size signed arrows support reference-preserving translation and
+   rotation; zero forces remain selectable and magnitude is numeric. Integrated
+   editor-only visibility, ordering, clipboard, duplication, multi-edit, history,
+   cancellation, navigation persistence, and replayable visibility commands.
+   Cross-object paste resets unavailable references; grouped transforms preserve
+   offsets independently of selection order. Verified saved-project loading and
+   rendering, GUI startup, 89 native tests, four ASan/UBSan/leak checks, and full
+   Linux/Windows builds including examples. Windows verification is compilation
+   only. Manual arrow/control review is requested before Goal 8.
 8. [ ] **Implement the torque editor and complete visual verification** — Add
    dedicated properties and movable 270-degree arrow markers. Reuse source
    interactions; show particle torque as having no physical effect. Verify
@@ -1518,8 +1525,9 @@ contributions. Runtime state version 8 serializes source descriptions and full
 soft-body topology with named references, shared anchors, relative lifetimes,
 and generic ownership. Authored source persistence is complete in project format 8.
 
-Runtime Soft-Body Persistence and Goals 5–6 are complete. Goal 7, the graphical
-force editor, requires explicit user instruction after review.
+Runtime Soft-Body Persistence and Goals 5–7 are complete. Goal 8, the graphical
+torque editor and final visual verification, requires explicit user instruction
+after review.
 
 Each implementation goal includes relevant regression tests, sanitizer checks,
 and Linux/Windows builds. Generated-code changes require application checks;

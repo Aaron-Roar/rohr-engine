@@ -54,10 +54,11 @@ EditorCommandResult editor_source_command_execute(EditorProject *p, const Editor
         if(c->operation!=EDITOR_SOURCE_RENAME) t->description=value;
         strcpy(t->name,name); id=t->id;
     } else {
+        bool visible=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].visible:true;
         ObjectForceDescription value=c->operation==EDITOR_SOURCE_DUPLICATE?o->force_items[i].description:(ObjectForceDescription){0};
         EditorForce *f=c->operation==EDITOR_SOURCE_RENAME?&o->force_items[i]:editor_project_force_add(p,o);
         if(!f) return failure("Source capacity or allocation failed");
-        if(c->operation!=EDITOR_SOURCE_RENAME) f->description=value;
+        if(c->operation!=EDITOR_SOURCE_RENAME) { f->description=value; f->visible=visible; }
         strcpy(f->name,name); id=f->id;
     }
     EditorCommandResult result={.kind=ERROR_RESULT_VALUE,.created={.valid=true,
@@ -134,6 +135,11 @@ EditorResult editor_source_cli_parse(const EditorProject *p,int count,char **arg
         if(property_set || (value && strlen(value)>=sizeof(c.name))) return invalid("Invalid source name or property");
         if(value) strcpy(c.name,value);
     } else if(c.operation==EDITOR_SOURCE_SET) {
+        if(!c.torque && !strcmp(property,"visible")) {
+            if(!value || (strcmp(value,"true") && strcmp(value,"false"))) return invalid("visible requires true or false");
+            *command=(EditorCommand){.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,c.object,0,c.id,!strcmp(value,"true")}};
+            return editor_result_value(true);
+        }
         if(!value) return invalid("set requires a value (JSON for descriptions and references)");
         yyjson_mut_doc *d=yyjson_mut_doc_new(NULL);
         if(!d) return invalid("Allocation failed");
@@ -169,6 +175,7 @@ char *editor_source_query_json(const EditorProject *p,const EditorSourceCommand 
         uint32_t id=c->torque?o->torque_items[i].id:o->force_items[i].id;
         if(c->operation!=EDITOR_SOURCE_LIST && c->id!=id) continue;
         yyjson_mut_val *v=c->torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
+        if(!c->torque && v) ok=ok && yyjson_mut_obj_add_bool(d,v,"visible",o->force_items[i].visible);
         ok=ok && v && yyjson_mut_obj_add_uint(d,v,"id",id) && yyjson_mut_obj_add_strcpy(d,v,"name",c->torque?o->torque_items[i].name:o->force_items[i].name) && yyjson_mut_arr_add_val(arr,v);++found;
     }
     char *result=ok && (found || c->operation==EDITOR_SOURCE_LIST)?yyjson_mut_write(d,YYJSON_WRITE_PRETTY,NULL):NULL;
@@ -187,6 +194,16 @@ static bool quote(char *out,size_t cap,size_t *used,const char *s) {
     out[(*used)++]='\'';out[*used]=0;return true;
 }
 EditorResult editor_source_cli_write(const EditorProject *p,const EditorCommand *command,const char *path,char *out,size_t cap) {
+    if(command->type==EDITOR_COMMAND_VISIBILITY && command->data.visibility.kind==EDITOR_VISIBILITY_FORCE) {
+        if(!out || !cap || !path) return invalid("Invalid CLI output");
+        int n=snprintf(out,cap,"rohr-cli --project ");
+        if(n<0 || (size_t)n>=cap) return invalid("CLI output too small");
+        size_t used=(size_t)n;
+        if(!quote(out,cap,&used,path)) return invalid("CLI output too small");
+        n=snprintf(out+used,cap-used," --object-id %u --force-id %u --property visible set %s",
+            command->data.visibility.object,command->data.visibility.item,command->data.visibility.visible?"true":"false");
+        return n>=0 && (size_t)n<cap-used?editor_result_value(true):invalid("CLI output too small");
+    }
     if(command->type == EDITOR_COMMAND_OBJECT_DUPLICATE) {
         if(!out || !cap || !path) return invalid("Invalid CLI output");
         int n=snprintf(out,cap,"rohr-cli --project ");

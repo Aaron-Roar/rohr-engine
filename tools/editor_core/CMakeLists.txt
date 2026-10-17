@@ -4,6 +4,7 @@
 add_library(rohr_editor_core STATIC
     src/editor_object_catalog.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
+    src/editor_force_geometry.c
     src/editor_mass_properties.c
     src/editor_source_commands.c
     src/editor_command.c

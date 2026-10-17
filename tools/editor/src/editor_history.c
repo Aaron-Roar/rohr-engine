@@ -411,6 +411,8 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
         case EDITOR_COMMAND_SOURCE:
             return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT, command->data.source.object, 0);
         case EDITOR_COMMAND_VISIBILITY:
+            if(command->data.visibility.kind==EDITOR_VISIBILITY_FORCE)
+                return editor_history_aggregate_capture(project,EDITOR_ITEM_OBJECT,command->data.visibility.object,0);
             if(command->data.visibility.kind == EDITOR_VISIBILITY_SOFT_AREA)
                 return editor_history_aggregate_capture(project, EDITOR_ITEM_SOFT_AREA,
                     command->data.visibility.object, command->data.visibility.parent);

@@ -776,6 +776,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_uint(document, value, "rigid_body", navigation->rigid_body);
         yyjson_mut_obj_add_uint(document, value, "hitbox", navigation->hitbox);
         yyjson_mut_obj_add_uint(document, value, "joint", navigation->joint);
+        yyjson_mut_obj_add_uint(document, value, "force", navigation->force);
         yyjson_mut_obj_add_uint(document, value, "anchor", navigation->anchor);
         yyjson_mut_obj_add_uint(document, value, "soft_body", navigation->soft_body);
         yyjson_mut_obj_add_uint(document, value, "soft_node", navigation->soft_node);
@@ -2101,6 +2102,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !editor_json_uint(navigation, "rigid_body", &loaded.navigation.rigid_body) ||
                 !editor_json_uint(navigation, "hitbox", &loaded.navigation.hitbox) ||
                 !editor_json_uint(navigation, "joint", &loaded.navigation.joint) ||
+                (yyjson_obj_get(navigation,"force") && !editor_json_uint(navigation,"force",&loaded.navigation.force)) ||
                 !editor_json_uint(navigation, "anchor", &loaded.navigation.anchor) ||
                 !editor_json_uint(navigation, "soft_body", &loaded.navigation.soft_body) ||
                 !editor_json_uint(navigation, "soft_node", &loaded.navigation.soft_node) ||
@@ -2578,7 +2580,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 yyjson_val *item = yyjson_arr_get(hierarchy, j);
                 uint32_t kind;
                 if(!yyjson_is_obj(item) || !editor_json_uint(item, "kind", &kind) ||
-                        kind > EDITOR_HIERARCHY_ANCHOR ||
+                        kind > EDITOR_HIERARCHY_FORCE ||
                         !editor_json_uint(item, "id", &object->hierarchy[j].id) ||
                         object->hierarchy[j].id == 0) goto done;
                 object->hierarchy[j].kind = (EditorHierarchyItemKind)kind;
@@ -2589,11 +2591,12 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             size_t expected_count = object->rigid_body_count + object->joint_count +
                 object->soft_body_count + object->sprite_count +
                 object->animated_sprite_count + object->camera_count +
-                object->anchor_count;
+                object->anchor_count + object->force_count;
             editor_project_object_hierarchy_sync(object);
             if(hierarchy != NULL && (object->hierarchy_count != expected_count ||
                     (serialized_count != expected_count && serialized_count !=
-                        expected_count - object->anchor_count))) goto done;
+                        expected_count - object->anchor_count && serialized_count != expected_count - object->force_count &&
+                        serialized_count != expected_count - object->anchor_count - object->force_count))) goto done;
         }
         if(loaded.next_id <= object->id) loaded.next_id = object->id + 1;
     }

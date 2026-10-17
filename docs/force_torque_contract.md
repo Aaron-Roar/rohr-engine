@@ -418,7 +418,12 @@ application dot and arrow showing the actual signed direction; torque uses a
 movable 270-degree marker whose position is visual only. Preserve selection,
 visibility, ordering, clipboard, multi-edit, history, persistence, and independent
 generated instances. No delayed event system is introduced. Exact handle
-presentation remains with the editor goals.
+presentation for forces is now fixed: a constant screen-size arrow and application
+dot, with magnitude edited numerically. Dot/shaft dragging updates the location
+offset; the shared rotation handle updates orientation offset while preserving
+references and magnitude sign. Zero arrows remain selectable with muted styling.
+Force visibility is editor-only metadata. Torque uses a static circular arrow
+with a gap and remains the next editor goal.
 
 ### Goal 5: authored definitions and persistence
 
@@ -520,7 +525,8 @@ wheels currently contact external rigid bodies. Disk, tire-node, and tire-beam
 contacts qualify; self-contacts, standalone particles, and soft-body targets do
 not. The wheels may contact different rigid bodies. An accepted press can wait
 for the next physics update, but rejected airborne presses are never buffered.
-The default project remains unchanged; graphical source editing remains Goals 7–8.
+The default project remains unchanged. Graphical force editing is Goal 7; torque
+editing remains Goal 8.
 
 ### Milestone acceptance
 

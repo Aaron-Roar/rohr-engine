@@ -6,6 +6,7 @@
 
 #include "editors/editor_mode_controls.h"
 #include "editor_command.h"
+#include "editor_force_geometry.h"
 #include "editor_navigation.h"
 
 #include <errno.h>
@@ -31,7 +32,9 @@ typedef enum EditorBulkTargetKind {
     EDITOR_BULK_POSITION_Y,
     EDITOR_BULK_ROTATION,
     EDITOR_BULK_FRAME_WIDTH,
-    EDITOR_BULK_FRAME_HEIGHT
+    EDITOR_BULK_FRAME_HEIGHT,
+    EDITOR_BULK_FORCE_MAGNITUDE,
+    EDITOR_BULK_FORCE_INITIAL
 } EditorBulkTargetKind;
 
 typedef struct EditorBulkProperty {
@@ -41,6 +44,14 @@ typedef struct EditorBulkProperty {
     EditorPropertyKind property;
 } EditorBulkProperty;
 
+static const EditorBulkProperty force_properties[] = {
+    {"Visible",EDITOR_BULK_VISIBILITY,EDITOR_BULK_CHECKBOX,0},
+    {"World X",EDITOR_BULK_POSITION_X,EDITOR_BULK_FLOAT,0},
+    {"World Y",EDITOR_BULK_POSITION_Y,EDITOR_BULK_FLOAT,0},
+    {"Rotation (deg)",EDITOR_BULK_ROTATION,EDITOR_BULK_FLOAT,0},
+    {"Magnitude",EDITOR_BULK_FORCE_MAGNITUDE,EDITOR_BULK_FLOAT,0},
+    {"Initial (one tick)",EDITOR_BULK_FORCE_INITIAL,EDITOR_BULK_CHECKBOX,0}
+};
 static const EditorBulkProperty object_properties[] = {
     {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
@@ -187,6 +198,7 @@ static const EditorBulkProperty *editor_bulk_properties_get(
         case EDITOR_SELECTION_PARTICLE: EDITOR_BULK_LIST(rigid_body_properties);
         case EDITOR_SELECTION_HITBOX: EDITOR_BULK_LIST(visible_properties);
         case EDITOR_SELECTION_JOINT: EDITOR_BULK_LIST(joint_properties);
+        case EDITOR_SELECTION_FORCE: EDITOR_BULK_LIST(force_properties);
         case EDITOR_SELECTION_ANCHOR: EDITOR_BULK_LIST(anchor_properties);
         case EDITOR_SELECTION_SOFT_BODY: EDITOR_BULK_LIST(soft_body_properties);
         case EDITOR_SELECTION_SOFT_NODE: EDITOR_BULK_LIST(soft_node_properties);
@@ -212,6 +224,7 @@ static const EditorBulkProperty *editor_bulk_mixed_properties_get(
             case EDITOR_SELECTION_RIGID_BODY:
             case EDITOR_SELECTION_PARTICLE:
             case EDITOR_SELECTION_SOFT_BODY:
+            case EDITOR_SELECTION_FORCE:
             case EDITOR_SELECTION_ANCHOR:
                 break;
             case EDITOR_SELECTION_OBJECT:
@@ -261,6 +274,7 @@ static EditorItemKind editor_bulk_item_kind_get(EditorHierarchySelection kind) {
         case EDITOR_SELECTION_PARTICLE: return EDITOR_ITEM_RIGID_BODY;
         case EDITOR_SELECTION_HITBOX: return EDITOR_ITEM_HITBOX;
         case EDITOR_SELECTION_JOINT: return EDITOR_ITEM_JOINT;
+        case EDITOR_SELECTION_FORCE: return EDITOR_ITEM_FORCE;
         case EDITOR_SELECTION_ANCHOR: return EDITOR_ITEM_ANCHOR;
         case EDITOR_SELECTION_SOFT_BODY: return EDITOR_ITEM_SOFT_BODY;
         case EDITOR_SELECTION_SOFT_NODE: return EDITOR_ITEM_SOFT_NODE;
@@ -392,6 +406,25 @@ static bool editor_bulk_transform_command_get(EditorProject *project,
             return true;
         }
         return false;
+    }
+    if(ref.kind==EDITOR_SELECTION_FORCE) {
+        EditorForce *force=editor_project_force_get(object,ref.item);
+        if(!force) return false;
+        ObjectForceDescription d=force->description;
+        if(target==EDITOR_BULK_FORCE_MAGNITUDE) d.magnitude=value;
+        else if(target==EDITOR_BULK_FORCE_INITIAL) d.mode=value?OBJECT_SOURCE_INITIAL:OBJECT_SOURCE_PERSISTENT;
+        else if(target==EDITOR_BULK_ROTATION) {
+            if(!editor_force_orientation_set(object,&d.orientation,value)) return false;
+        } else {
+            Position p;
+            if(!editor_force_location_get(object,d.location,&p)) return false;
+            if(target==EDITOR_BULK_POSITION_X) p.x=value;
+            else if(target==EDITOR_BULK_POSITION_Y) p.y=value;
+            else return false;
+            if(!editor_force_location_set(object,&d.location,p)) return false;
+        }
+        *command=(EditorCommand){.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.id=force->id,.operation=EDITOR_SOURCE_SET,.force=d}};
+        return true;
     }
     if(ref.kind == EDITOR_SELECTION_ANCHOR) {
         EditorAnchor *anchor = editor_project_anchor_get(object, ref.item);
@@ -541,6 +574,7 @@ static bool editor_bulk_visibility_command_get(EditorSelectionRef ref,
         case EDITOR_SELECTION_PARTICLE: kind = EDITOR_VISIBILITY_RIGID_BODY; break;
         case EDITOR_SELECTION_HITBOX: kind = EDITOR_VISIBILITY_HITBOX; break;
         case EDITOR_SELECTION_JOINT: kind = EDITOR_VISIBILITY_JOINT; break;
+        case EDITOR_SELECTION_FORCE: kind = EDITOR_VISIBILITY_FORCE; break;
         case EDITOR_SELECTION_ANCHOR: kind = EDITOR_VISIBILITY_ANCHOR; break;
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
         case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
@@ -625,9 +659,13 @@ static bool editor_bulk_apply(EditorProject *project, EditorViewportState *state
     bool boolean = false;
     if(project == NULL || state == NULL || history == NULL || property == NULL ||
             text == NULL || text[0] == '\0') return false;
+    if(property->target==EDITOR_BULK_FORCE_INITIAL) {
+        if(!editor_bulk_bool_parse(text,&boolean)) return false;
+        number=boolean?1:0;
+    }
     if(property->target == EDITOR_BULK_VISIBILITY &&
             !editor_bulk_bool_parse(text, &boolean)) return false;
-    if((property->target == EDITOR_BULK_POSITION_X ||
+    if((property->target == EDITOR_BULK_FORCE_MAGNITUDE || property->target == EDITOR_BULK_POSITION_X ||
             property->target == EDITOR_BULK_POSITION_Y ||
             property->target == EDITOR_BULK_ROTATION ||
             property->target == EDITOR_BULK_FRAME_WIDTH ||

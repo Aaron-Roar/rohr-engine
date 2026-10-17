@@ -1808,6 +1808,9 @@ static bool editor_project_hierarchy_item_exists(const EditorObject *object,
     } else if(item.kind == EDITOR_HIERARCHY_CAMERA) {
         for(size_t i = 0; i < object->camera_count; i += 1)
             if(object->cameras[i].id == item.id) return true;
+    } else if(item.kind == EDITOR_HIERARCHY_FORCE) {
+        for(size_t i = 0; i < object->force_count; ++i)
+            if(object->force_items[i].id == item.id) return true;
     } else if(item.kind == EDITOR_HIERARCHY_ANCHOR) {
         for(size_t i = 0; i < object->anchor_count; i += 1)
             if(object->anchors[i].id == item.id) return true;
@@ -1886,6 +1889,11 @@ void editor_project_object_hierarchy_sync(EditorObject *object) {
             if(object->hierarchy[j].kind == item.kind &&
                     object->hierarchy[j].id == item.id) found = true;
         if(!found) editor_project_hierarchy_item_add(object, item.kind, item.id);
+    }
+    for(size_t i = 0; i < object->force_count; ++i) {
+        EditorHierarchyItem item = {EDITOR_HIERARCHY_FORCE, object->force_items[i].id};
+        if(editor_project_object_hierarchy_index_get(object, item.kind, item.id) == SIZE_MAX)
+            editor_project_hierarchy_item_add(object, item.kind, item.id);
     }
     for(size_t i = 0; i < object->anchor_count; i += 1) {
         EditorHierarchyItem item = {EDITOR_HIERARCHY_ANCHOR,

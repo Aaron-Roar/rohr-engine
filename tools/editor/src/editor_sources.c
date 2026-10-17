@@ -51,6 +51,8 @@ bool editor_sources_check(const EditorObject *o) {
     }
     return true;
 }
+static void force_defaults(EditorForce *v) { v->visible = true; }
+static void torque_defaults(EditorTorque *v) { (void)v; }
 #define SOURCE_FUNCTIONS(kind, Type) \
 Editor##Type *editor_project_##kind##_add(EditorProject *p, EditorObject *o) { \
     if(!p || !o || o->kind##_count >= EDITOR_SOURCE_MAX || !p->next_##kind##_id || p->next_##kind##_id == UINT32_MAX || \
@@ -58,6 +60,7 @@ Editor##Type *editor_project_##kind##_add(EditorProject *p, EditorObject *o) { \
     Editor##Type *v = &o->kind##_items[o->kind##_count++]; \
     *v = (Editor##Type){.id = p->next_##kind##_id++}; \
     snprintf(v->name, sizeof(v->name), #kind "_%u", v->id); \
+    kind##_defaults(v); \
     return v; \
 } \
 bool editor_project_##kind##_set(EditorObject *o, uint32_t id, Object##Type##Description value) { \
@@ -68,6 +71,11 @@ bool editor_project_##kind##_set(EditorObject *o, uint32_t id, Object##Type##Des
 SOURCE_FUNCTIONS(force, Force)
 SOURCE_FUNCTIONS(torque, Torque)
 #undef SOURCE_FUNCTIONS
+EditorForce *editor_project_force_get(EditorObject *o, uint32_t id) {
+    if(o) for(size_t i=0;i<o->force_count;++i)
+        if(o->force_items[i].id==id) return &o->force_items[i];
+    return NULL;
+}
 bool editor_project_source_remove(EditorObject *o, bool torque, uint32_t id) {
     if(!o || !id) return false;
     if(torque) {
@@ -121,7 +129,13 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
     editor_project_object_destroy(added); *added=copy; added->id=new_id; strcpy(added->name,name);
     /* Element references are object-local. Retaining element IDs remaps every
      * connection into this independent copy; source identities remain unique. */
-    for(size_t i=0;i<added->force_count;++i) added->force_items[i].id=p->next_force_id++;
+    for(size_t i=0;i<added->force_count;++i) {
+        uint32_t old=added->force_items[i].id, id=p->next_force_id++;
+        added->force_items[i].id=id;
+        for(size_t h=0;h<added->hierarchy_count;++h)
+            if(added->hierarchy[h].kind==EDITOR_HIERARCHY_FORCE && added->hierarchy[h].id==old)
+                added->hierarchy[h].id=id;
+    }
     for(size_t i=0;i<added->torque_count;++i) added->torque_items[i].id=p->next_torque_id++;
     return added;
 }

@@ -268,7 +268,8 @@ typedef enum EditorVisibilityKind {
     EDITOR_VISIBILITY_SOFT_NODE,
     EDITOR_VISIBILITY_SOFT_BEAM,
     EDITOR_VISIBILITY_CAMERA,
-    EDITOR_VISIBILITY_SOFT_AREA
+    EDITOR_VISIBILITY_SOFT_AREA,
+    EDITOR_VISIBILITY_FORCE
 } EditorVisibilityKind;
 
 typedef enum EditorSourceOperation {

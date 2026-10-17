@@ -591,6 +591,11 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         if(object->joint_items[i].id == command->data.visibility.item)
                             visible = &object->joint_items[i].visible;
                     break;
+                case EDITOR_VISIBILITY_FORCE: {
+                    EditorForce *force = editor_project_force_get(object, command->data.visibility.item);
+                    if(force) visible = &force->visible;
+                    break;
+                }
                 case EDITOR_VISIBILITY_ANCHOR: {
                     EditorAnchor *anchor = editor_project_anchor_get(object,
                         command->data.visibility.item);
@@ -776,6 +781,12 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 EditorJoint *value = editor_project_joint_add(project, object,
                     (EditorJointKind)command->data.item_add.option);
                 if(value != NULL) { created = value->id; created_name = value->name; }
+            } else if(kind == EDITOR_ITEM_FORCE) {
+                EditorSourceCommand source={.object=object->id,.operation=EDITOR_SOURCE_ADD};
+                snprintf(source.name,sizeof(source.name),"%s",command->data.item_add.name);
+                EditorCommandResult result=editor_source_command_execute(project,&source);
+                if(result.kind==ERROR_RESULT_VALUE) result.result.object=result.created.item;
+                return result;
             } else if(kind == EDITOR_ITEM_ANCHOR) {
                 EditorAnchor *value = editor_project_anchor_add(project, object,
                     command->data.item_add.position, command->data.item_add.parent);
@@ -920,6 +931,8 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             } else if(kind == EDITOR_ITEM_JOINT)
                 removed = editor_project_joint_remove(object,
                     command->data.item_remove.item);
+            else if(kind == EDITOR_ITEM_FORCE)
+                removed = editor_project_source_remove(object, false, command->data.item_remove.item);
             else if(kind == EDITOR_ITEM_ANCHOR)
                 removed = editor_project_anchor_remove(object,
                     command->data.item_remove.item);
@@ -1029,6 +1042,10 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 EditorJoint *value = editor_command_joint_get(object,
                     command->data.item_rename.item);
                 if(value != NULL) name = value->name;
+            } else if(kind == EDITOR_ITEM_FORCE) {
+                EditorSourceCommand source = {.object=object->id, .id=command->data.item_rename.item, .operation=EDITOR_SOURCE_RENAME};
+                snprintf(source.name, sizeof(source.name), "%s", command->data.item_rename.name);
+                return editor_source_command_execute(project, &source);
             } else if(kind == EDITOR_ITEM_ANCHOR) {
                 EditorAnchor *value = editor_project_anchor_get(object,
                     command->data.item_rename.item);
@@ -2275,6 +2292,7 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
         case EDITOR_ITEM_RIGID_BODY: return "rigid-body";
         case EDITOR_ITEM_HITBOX: return "hitbox";
         case EDITOR_ITEM_JOINT: return "joint";
+        case EDITOR_ITEM_FORCE: return "force";
         case EDITOR_ITEM_ANCHOR: return "anchor";
         case EDITOR_ITEM_SOFT_BODY: return "soft-body";
         case EDITOR_ITEM_SOFT_NODE: return "soft-node";
@@ -3628,6 +3646,7 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 case EDITOR_VISIBILITY_RIGID_BODY: domain = "rigid-body"; break;
                 case EDITOR_VISIBILITY_HITBOX: domain = "hitbox"; break;
                 case EDITOR_VISIBILITY_JOINT: domain = "joint"; break;
+                case EDITOR_VISIBILITY_FORCE: domain = "force"; break;
                 case EDITOR_VISIBILITY_ANCHOR: domain = "anchor"; break;
                 case EDITOR_VISIBILITY_SOFT_BODY: domain = "soft-body"; break;
                 case EDITOR_VISIBILITY_SOFT_NODE: domain = "soft-node"; break;

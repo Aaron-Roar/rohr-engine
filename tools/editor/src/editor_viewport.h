@@ -42,7 +42,8 @@ typedef enum EditorViewportMode {
     EDITOR_VIEWPORT_INPUT_BINDING,
     EDITOR_VIEWPORT_SOFT_AREA,
     EDITOR_VIEWPORT_SOFT_HOLE,
-    EDITOR_VIEWPORT_CENTER_OF_MASS
+    EDITOR_VIEWPORT_CENTER_OF_MASS,
+    EDITOR_VIEWPORT_FORCE
 } EditorViewportMode;
 
 typedef enum EditorHierarchySelection {
@@ -75,7 +76,8 @@ typedef enum EditorHierarchySelection {
     EDITOR_SELECTION_SOFT_AREA,
     EDITOR_SELECTION_SOFT_HOLE,
     /* COM references use item=rigid body, or parent=soft body with item=0. */
-    EDITOR_SELECTION_CENTER_OF_MASS
+    EDITOR_SELECTION_CENTER_OF_MASS,
+    EDITOR_SELECTION_FORCE
 } EditorHierarchySelection;
 
 typedef enum EditorOriginKind {
@@ -97,6 +99,8 @@ typedef struct EditorViewportState {
     bool dragged_body;
     bool dragged_particle_radius;
     bool rotated_body;
+    bool dragged_force;
+    bool rotated_force;
     bool dragged_anchor;
     bool dragged_soft_node;
     bool dragged_soft_body;
@@ -152,6 +156,7 @@ typedef struct EditorViewportState {
     EditorRigidBodyId selected_rigid_body;
     EditorHitboxId selected_hitbox;
     EditorJointId selected_joint;
+    uint32_t selected_force;
     EditorAnchorId selected_anchor;
     EditorSoftBodyId selected_soft_body;
     EditorSoftNodeId selected_soft_node;

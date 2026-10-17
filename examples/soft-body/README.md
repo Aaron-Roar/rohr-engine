@@ -2,8 +2,8 @@
 
 Open `project.rohr.json` in the editor to inspect the car's chassis, wheels,
 soft tires, anchors, and joints. Source definitions live in
-`objects/project.rohr.json`; use the CLI to edit them until the graphical force
-and torque editors are available.
+`objects/project.rohr.json`. Edit forces through Add Force and Force Properties;
+use the CLI for torque definitions until the torque editor is available.
 
 - **A/D:** drive the rear wheel by updating its persistent `rear_drive` torque.
 - **Space:** jump with an upward one-tick force at the chassis COM. Both wheels

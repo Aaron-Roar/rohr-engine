@@ -29,6 +29,7 @@ add_executable(rohr_editor_gui
     src/editors/geometry/editor_hitbox.c
     src/editors/physics/editor_center_of_mass.c
     src/editors/physics/editor_particle.c
+    src/editors/physics/editor_force.c
     src/editors/physics/editor_anchor.c
     src/editors/physics/editor_rigid_body.c
     src/editors/physics/editor_joint.c
@@ -317,6 +318,15 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_viewport_context_menu PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
+    add_executable(editor_force_test
+        tests/editor_force.c src/editors/physics/editor_force.c src/editors/editor_mode_controls.c
+        src/editor_history.c src/editor_navigation.c src/editor_viewport.c
+        src/viewport/controls/editor_rotation_control.c)
+    target_include_directories(editor_force_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_force_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_force_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_force COMMAND editor_force_test)
+    set_tests_properties(editor_force PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_executable(editor_history_test
         tests/editor_history.c
         src/editor_history.c
@@ -345,7 +355,7 @@ if(ROHR_BUILD_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS AND ROHR_ENABLE_SANITIZERS)
-    foreach(area_editor_target editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test)
+    foreach(area_editor_target editor_force_test editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test)
         target_compile_options(${area_editor_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endforeach()
 endif()

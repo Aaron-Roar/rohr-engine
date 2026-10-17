@@ -16,9 +16,9 @@ typedef struct EditorReorderStorage {
     size_t stride;
 } EditorReorderStorage;
 
-_Static_assert(EDITOR_VIEWPORT_CENTER_OF_MASS == EDITOR_NAVIGATION_MODE_MAX,
+_Static_assert(EDITOR_VIEWPORT_FORCE == EDITOR_NAVIGATION_MODE_MAX,
     "Navigation mode persistence bound must include COM");
-_Static_assert(EDITOR_SELECTION_CENTER_OF_MASS == EDITOR_NAVIGATION_SELECTION_MAX,
+_Static_assert(EDITOR_SELECTION_FORCE == EDITOR_NAVIGATION_SELECTION_MAX,
     "Navigation selection persistence bound must include COM");
 
 static bool editor_selection_equal(EditorSelectionRef first,
@@ -29,6 +29,7 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
     bool object_children = (first.kind == EDITOR_SELECTION_RIGID_BODY ||
             first.kind == EDITOR_SELECTION_PARTICLE ||
             first.kind == EDITOR_SELECTION_JOINT ||
+            first.kind == EDITOR_SELECTION_FORCE ||
             first.kind == EDITOR_SELECTION_ANCHOR ||
             first.kind == EDITOR_SELECTION_SOFT_BODY ||
             first.kind == EDITOR_SELECTION_SPRITE ||
@@ -37,6 +38,7 @@ static bool editor_selection_sibling_check(EditorSelectionRef first,
         (second.kind == EDITOR_SELECTION_RIGID_BODY ||
             second.kind == EDITOR_SELECTION_PARTICLE ||
             second.kind == EDITOR_SELECTION_JOINT ||
+            second.kind == EDITOR_SELECTION_FORCE ||
             second.kind == EDITOR_SELECTION_ANCHOR ||
             second.kind == EDITOR_SELECTION_SOFT_BODY ||
             second.kind == EDITOR_SELECTION_SPRITE ||
@@ -139,6 +141,7 @@ static EditorHierarchyItemKind editor_hierarchy_kind_get(
     if(kind == EDITOR_SELECTION_ANIMATED_SPRITE)
         return EDITOR_HIERARCHY_ANIMATED_SPRITE;
     if(kind == EDITOR_SELECTION_CAMERA) return EDITOR_HIERARCHY_CAMERA;
+    if(kind == EDITOR_SELECTION_FORCE) return EDITOR_HIERARCHY_FORCE;
     if(kind == EDITOR_SELECTION_ANCHOR) return EDITOR_HIERARCHY_ANCHOR;
     return EDITOR_HIERARCHY_RIGID_BODY;
 }
@@ -152,6 +155,7 @@ static EditorSelectionRef editor_hierarchy_selection_get(EditorObjectId object,
     else if(item.kind == EDITOR_HIERARCHY_ANIMATED_SPRITE)
         kind = EDITOR_SELECTION_ANIMATED_SPRITE;
     else if(item.kind == EDITOR_HIERARCHY_CAMERA) kind = EDITOR_SELECTION_CAMERA;
+    else if(item.kind == EDITOR_HIERARCHY_FORCE) kind = EDITOR_SELECTION_FORCE;
     else if(item.kind == EDITOR_HIERARCHY_ANCHOR) kind = EDITOR_SELECTION_ANCHOR;
     return (EditorSelectionRef){kind, object, 0, 0, item.id};
 }
@@ -251,6 +255,9 @@ static bool editor_reorder_storage_get(EditorProject *project,
         case EDITOR_SELECTION_JOINT:
             *storage = (EditorReorderStorage){(unsigned char *)object->joint_items,
                 object->joint_count, sizeof(object->joint_items[0])};
+            return true;
+        case EDITOR_SELECTION_FORCE:
+            *storage = (EditorReorderStorage){(unsigned char *)object->force_items, object->force_count, sizeof(object->force_items[0])};
             return true;
         case EDITOR_SELECTION_ANCHOR:
             *storage = (EditorReorderStorage){(unsigned char *)object->anchors,
@@ -431,14 +438,16 @@ bool editor_navigation_selection_reorder(EditorProject *project,
             after, history);
     if((source.kind == EDITOR_SELECTION_RIGID_BODY ||
                 source.kind == EDITOR_SELECTION_JOINT ||
-                source.kind == EDITOR_SELECTION_ANCHOR ||
+                source.kind == EDITOR_SELECTION_FORCE ||
+            source.kind == EDITOR_SELECTION_ANCHOR ||
                 source.kind == EDITOR_SELECTION_SOFT_BODY ||
                 source.kind == EDITOR_SELECTION_SPRITE ||
                 source.kind == EDITOR_SELECTION_CAMERA ||
                 source.kind == EDITOR_SELECTION_ANIMATED_SPRITE) &&
                 (target.kind == EDITOR_SELECTION_RIGID_BODY ||
                     target.kind == EDITOR_SELECTION_JOINT ||
-                    target.kind == EDITOR_SELECTION_ANCHOR ||
+                    target.kind == EDITOR_SELECTION_FORCE ||
+            target.kind == EDITOR_SELECTION_ANCHOR ||
                     target.kind == EDITOR_SELECTION_SOFT_BODY ||
                     target.kind == EDITOR_SELECTION_SPRITE ||
                     target.kind == EDITOR_SELECTION_CAMERA ||
@@ -615,6 +624,7 @@ static bool editor_selection_remove_command_get(EditorProject *project,
         case EDITOR_SELECTION_PARTICLE: kind = EDITOR_ITEM_RIGID_BODY; break;
         case EDITOR_SELECTION_HITBOX: kind = EDITOR_ITEM_HITBOX; break;
         case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
+        case EDITOR_SELECTION_FORCE: kind = EDITOR_ITEM_FORCE; break;
         case EDITOR_SELECTION_ANCHOR: kind = EDITOR_ITEM_ANCHOR; break;
         case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
         case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
@@ -835,6 +845,8 @@ bool editor_navigation_selection_visibility_get(EditorProject *project,
 } while(0)
     if(ref.kind == EDITOR_SELECTION_JOINT)
         EDITOR_VISIBILITY_FIND(object->joint_items, object->joint_count);
+    if(ref.kind == EDITOR_SELECTION_FORCE)
+        EDITOR_VISIBILITY_FIND(object->force_items, object->force_count);
     if(ref.kind == EDITOR_SELECTION_ANCHOR)
         EDITOR_VISIBILITY_FIND(object->anchors, object->anchor_count);
     if(ref.kind == EDITOR_SELECTION_SOFT_BODY)
@@ -920,7 +932,8 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
             case EDITOR_SELECTION_PARTICLE: kind = EDITOR_VISIBILITY_RIGID_BODY; break;
             case EDITOR_SELECTION_HITBOX: kind = EDITOR_VISIBILITY_HITBOX; break;
             case EDITOR_SELECTION_JOINT: kind = EDITOR_VISIBILITY_JOINT; break;
-            case EDITOR_SELECTION_ANCHOR: kind = EDITOR_VISIBILITY_ANCHOR; break;
+            case EDITOR_SELECTION_FORCE: kind = EDITOR_VISIBILITY_FORCE; break;
+        case EDITOR_SELECTION_ANCHOR: kind = EDITOR_VISIBILITY_ANCHOR; break;
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_VISIBILITY_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_VISIBILITY_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_VISIBILITY_SOFT_BEAM; break;
@@ -1004,6 +1017,8 @@ bool editor_navigation_selection_name_get(EditorProject *project,
         EDITOR_NAME_FIND(object->rigid_bodies, object->rigid_body_count);
     if(ref.kind == EDITOR_SELECTION_JOINT)
         EDITOR_NAME_FIND(object->joint_items, object->joint_count);
+    if(ref.kind == EDITOR_SELECTION_FORCE)
+        EDITOR_NAME_FIND(object->force_items, object->force_count);
     if(ref.kind == EDITOR_SELECTION_ANCHOR)
         EDITOR_NAME_FIND(object->anchors, object->anchor_count);
     if(ref.kind == EDITOR_SELECTION_SOFT_BODY)
@@ -1129,7 +1144,8 @@ bool editor_navigation_selection_name_set(EditorProject *project,
             case EDITOR_SELECTION_PARTICLE: kind = EDITOR_ITEM_RIGID_BODY; break;
             case EDITOR_SELECTION_HITBOX: kind = EDITOR_ITEM_HITBOX; break;
             case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
-            case EDITOR_SELECTION_ANCHOR: kind = EDITOR_ITEM_ANCHOR; break;
+            case EDITOR_SELECTION_FORCE: kind = EDITOR_ITEM_FORCE; break;
+        case EDITOR_SELECTION_ANCHOR: kind = EDITOR_ITEM_ANCHOR; break;
             case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
             case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
             case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
@@ -1263,6 +1279,10 @@ bool editor_navigation_selected_open(EditorProject *project,
         case EDITOR_SELECTION_JOINT:
             state->mode = EDITOR_VIEWPORT_JOINT;
             return true;
+        case EDITOR_SELECTION_FORCE:
+            if(!editor_project_force_get(selected, state->selected_force)) return false;
+            state->mode = EDITOR_VIEWPORT_FORCE;
+            return true;
         case EDITOR_SELECTION_ANCHOR:
             if(editor_project_anchor_get(selected, state->selected_anchor) == NULL)
                 return false;
@@ -1352,6 +1372,9 @@ bool editor_navigation_open_item_selection_set(EditorViewportState *state) {
             return true;
         case EDITOR_VIEWPORT_JOINT:
             state->selection = EDITOR_SELECTION_JOINT;
+            return true;
+        case EDITOR_VIEWPORT_FORCE:
+            state->selection = EDITOR_SELECTION_FORCE;
             return true;
         case EDITOR_VIEWPORT_ANCHOR:
             state->selection = EDITOR_SELECTION_ANCHOR;
@@ -1480,6 +1503,7 @@ EditorNavigationState editor_navigation_state_get(
         .rigid_body = state->selected_rigid_body,
         .hitbox = state->selected_hitbox,
         .joint = state->selected_joint,
+        .force = state->selected_force,
         .anchor = state->selected_anchor,
         .soft_body = state->selected_soft_body,
         .soft_node = state->selected_soft_node,
@@ -1508,6 +1532,7 @@ void editor_navigation_state_apply(EditorProject *project,
     state->selected_rigid_body = navigation->rigid_body;
     state->selected_hitbox = navigation->hitbox;
     state->selected_joint = navigation->joint;
+    state->selected_force = navigation->force;
     state->selected_anchor = navigation->anchor;
     state->selected_soft_body = navigation->soft_body;
     state->selected_soft_node = navigation->soft_node;
@@ -1543,4 +1568,69 @@ void editor_navigation_state_apply(EditorProject *project,
                 (EditorSelectionRef){EDITOR_SELECTION_CENTER_OF_MASS, object->id, 0, 0, body->id}, false);
         }
     }
+}
+
+bool editor_navigation_forces_copy(EditorProject *project, const EditorViewportState *state,
+        EditorForceClipboard *clipboard) {
+    if(!project || !state || !clipboard) return false;
+    EditorForceClipboard next={0};
+    EditorSelectionRef single;
+    size_t count=state->selected_item_count;
+    if(!count && !editor_viewport_selection_ref_get(project,state,&single)) return false;
+    for(size_t i=0;i<(count?count:1);++i) {
+        EditorSelectionRef ref=count?state->selected_items[i]:single;
+        if(ref.kind!=EDITOR_SELECTION_FORCE || next.count>=EDITOR_SOURCE_MAX) return false;
+        EditorForce *force=editor_project_force_get(editor_object_query_get(project,ref.object),ref.item);
+        if(!force) return false;
+        next.items[next.count]=*force; next.objects[next.count++]=ref.object;
+    }
+    *clipboard=next; return next.count>0;
+}
+static ObjectForceDescription editor_pasted_force_get(const EditorObject *object,
+        ObjectForceDescription value, bool same_object) {
+    if(!same_object) {
+        value.target=(ObjectSourceReference){0};
+        if(value.location.kind!=ROHR_FORCE_WORLD_POSITION) value.location=(ObjectForceLocation){0};
+        if(value.orientation.kind==ROHR_FORCE_BODY_ORIENTATION || value.orientation.kind==ROHR_FORCE_BEAM_ORIENTATION ||
+                (value.orientation.kind==ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION &&
+                 (value.orientation.from.kind!=ROHR_FORCE_WORLD_POSITION || value.orientation.to.kind!=ROHR_FORCE_WORLD_POSITION)))
+            value.orientation=(ObjectForceOrientation){0};
+    } else {
+        if(!editor_source_reference_check(object,value.target)) value.target=(ObjectSourceReference){0};
+        if(value.location.kind!=ROHR_FORCE_WORLD_POSITION && !editor_source_reference_check(object,value.location.reference)) value.location=(ObjectForceLocation){0};
+        ObjectForceOrientation v=value.orientation;
+        if(((v.kind==ROHR_FORCE_BODY_ORIENTATION || v.kind==ROHR_FORCE_BEAM_ORIENTATION) && !editor_source_reference_check(object,v.reference)) ||
+                (v.kind==ROHR_FORCE_BETWEEN_LOCATIONS_ORIENTATION &&
+                 ((v.from.kind!=ROHR_FORCE_WORLD_POSITION && !editor_source_reference_check(object,v.from.reference)) ||
+                  (v.to.kind!=ROHR_FORCE_WORLD_POSITION && !editor_source_reference_check(object,v.to.reference)))))
+            value.orientation=(ObjectForceOrientation){0};
+    }
+    return value;
+}
+bool editor_navigation_forces_paste(EditorProject *project, EditorViewportState *state,
+        EditorHistory *history, const EditorForceClipboard *clipboard) {
+    if(!project || !state || !history || !clipboard || !clipboard->count) return false;
+    EditorObject *object=editor_project_selected_get(project);
+    if(!object || clipboard->count>EDITOR_SOURCE_MAX-object->force_count || !editor_history_transaction_begin(history)) return false;
+    if(!editor_history_transaction_object_track(history,object->id)) goto fail;
+    uint32_t ids[EDITOR_SOURCE_MAX];
+    for(size_t i=0;i<clipboard->count;++i) {
+        EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.operation=EDITOR_SOURCE_ADD}};
+        EditorCommandResult result=editor_command_execute(project,&command);
+        if(result.kind==ERROR_RESULT_ERROR) goto fail;
+        ids[i]=result.created.item;
+        command.data.source.id=ids[i]; command.data.source.operation=EDITOR_SOURCE_SET;
+        command.data.source.force=editor_pasted_force_get(object,clipboard->items[i].description,clipboard->objects[i]==object->id);
+        if(editor_command_execute(project,&command).kind==ERROR_RESULT_ERROR) goto fail;
+        EditorCommand visible={.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,object->id,0,ids[i],clipboard->items[i].visible}};
+        if(editor_command_execute(project,&visible).kind==ERROR_RESULT_ERROR) goto fail;
+    }
+    if(!editor_history_transaction_end(history)) return false;
+    editor_viewport_selection_clear(state);
+    for(size_t i=0;i<clipboard->count;++i)
+        (void)editor_viewport_selection_set(project,state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,object->id,0,0,ids[i]},i!=0);
+    state->mode=EDITOR_VIEWPORT_FORCE;
+    return true;
+fail:
+    editor_history_transaction_cancel(history); return false;
 }

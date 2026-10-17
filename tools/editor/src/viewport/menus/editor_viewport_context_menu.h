@@ -12,7 +12,8 @@ typedef enum EditorContextMenuAction {
     EDITOR_CONTEXT_MENU_OPEN,
     EDITOR_CONTEXT_MENU_VISIBILITY,
     EDITOR_CONTEXT_MENU_RENAME,
-    EDITOR_CONTEXT_MENU_DELETE
+    EDITOR_CONTEXT_MENU_DELETE,
+    EDITOR_CONTEXT_MENU_COPY, EDITOR_CONTEXT_MENU_DUPLICATE, EDITOR_CONTEXT_MENU_PASTE
 } EditorContextMenuAction;
 
 typedef struct EditorViewportContextMenu {
@@ -27,6 +28,7 @@ typedef struct EditorViewportContextMenu {
     TextAsset cancel_label;
     TextAsset rename_field;
     TextAsset background_labels[5];
+    bool force_paste_available;
     bool open;
     bool target_valid;
     bool from_column;

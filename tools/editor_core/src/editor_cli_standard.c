@@ -488,7 +488,28 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
-    if(command && (command->type == EDITOR_COMMAND_SOURCE || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE))
+    if(command && ((command->type==EDITOR_COMMAND_ITEM_ADD && command->data.item_add.kind==EDITOR_ITEM_FORCE) ||
+            (command->type==EDITOR_COMMAND_ITEM_REMOVE && command->data.item_remove.kind==EDITOR_ITEM_FORCE) ||
+            (command->type==EDITOR_COMMAND_ITEM_RENAME && command->data.item_rename.kind==EDITOR_ITEM_FORCE))) {
+        EditorCommand source={.type=EDITOR_COMMAND_SOURCE};
+        if(command->type==EDITOR_COMMAND_ITEM_ADD) {
+            source.data.source.object=command->data.item_add.object;
+            source.data.source.operation=EDITOR_SOURCE_ADD;
+            snprintf(source.data.source.name,sizeof(source.data.source.name),"%s",result && result->created.valid?result->created.name:command->data.item_add.name);
+        } else if(command->type==EDITOR_COMMAND_ITEM_REMOVE) {
+            source.data.source.object=command->data.item_remove.object;
+            source.data.source.id=command->data.item_remove.item;
+            source.data.source.operation=EDITOR_SOURCE_REMOVE;
+        } else {
+            source.data.source.object=command->data.item_rename.object;
+            source.data.source.id=command->data.item_rename.item;
+            source.data.source.operation=EDITOR_SOURCE_RENAME;
+            snprintf(source.data.source.name,sizeof(source.data.source.name),"%s",command->data.item_rename.name);
+        }
+        return editor_source_cli_write(project,&source,path,output,capacity);
+    }
+    if(command && (command->type == EDITOR_COMMAND_SOURCE || command->type == EDITOR_COMMAND_OBJECT_DUPLICATE ||
+            (command->type==EDITOR_COMMAND_VISIBILITY && command->data.visibility.kind==EDITOR_VISIBILITY_FORCE)))
         return editor_source_cli_write(project, command, path, output, capacity);
 
     char legacy[4096], token[CLI_MAX][CLI_TEXT];

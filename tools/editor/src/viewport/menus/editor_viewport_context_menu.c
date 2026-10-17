@@ -153,11 +153,11 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
             &menu->delete_label};
         const EditorContextMenuAction actions[] = {EDITOR_CONTEXT_MENU_OPEN,
             EDITOR_CONTEXT_MENU_VISIBILITY, EDITOR_CONTEXT_MENU_RENAME,
-            EDITOR_CONTEXT_MENU_NONE, EDITOR_CONTEXT_MENU_NONE,
+            EDITOR_CONTEXT_MENU_COPY, EDITOR_CONTEXT_MENU_DUPLICATE,
             EDITOR_CONTEXT_MENU_DELETE};
         for(size_t i = 0; i < 6; i += 1) {
             char id[64];
-            bool enabled = i != 3 && i != 4 &&
+            bool enabled = ((i != 3 && i != 4) || menu->target.kind==EDITOR_SELECTION_FORCE) &&
                 !(i == 1 && menu->target.kind == EDITOR_SELECTION_SOFT_HOLE);
             snprintf(id, sizeof(id), "editor.context.action.%zu", i);
             if(action_button(id, labels[i], (UIRect){bounds.x + 4.0f,
@@ -181,9 +181,10 @@ EditorContextMenuAction editor_viewport_context_menu_draw(
         for(size_t i = 0; i < 5; i += 1) {
             char id[64];
             snprintf(id, sizeof(id), "editor.context.background.%zu", i);
-            (void)action_button(id, &menu->background_labels[i],
+            if(action_button(id, &menu->background_labels[i],
                 (UIRect){bounds.x + 4.0f, bounds.y + 4.0f + (float)i * 32.0f,
-                    bounds.width - 8.0f, 28.0f}, false);
+                    bounds.width - 8.0f, 28.0f}, i==1 && menu->force_paste_available))
+                action=EDITOR_CONTEXT_MENU_PASTE;
         }
     }
     if(scroll_active) rohr_ui_scroll_region_end();

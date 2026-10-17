@@ -38,4 +38,13 @@ EditorNavigationState editor_navigation_state_get(const EditorProject *project,
 void editor_navigation_state_apply(EditorProject *project,
     EditorViewportState *state, const EditorNavigationState *navigation);
 
+typedef struct EditorForceClipboard {
+    EditorForce items[EDITOR_SOURCE_MAX];
+    EditorObjectId objects[EDITOR_SOURCE_MAX];
+    size_t count;
+} EditorForceClipboard;
+bool editor_navigation_forces_copy(EditorProject *project, const EditorViewportState *state,
+    EditorForceClipboard *clipboard);
+bool editor_navigation_forces_paste(EditorProject *project, EditorViewportState *state,
+    EditorHistory *history, const EditorForceClipboard *clipboard);
 #endif

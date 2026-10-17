@@ -26,6 +26,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Joint", add_joint_label); CREATE("Add Soft Body", add_soft_body_label);
     CREATE("Add Sprite", add_sprite_label); CREATE("Add Animation", add_animation_label);
     CREATE("Add Camera", add_camera_label);
+    CREATE("Add Force", add_force_label);
     CREATE("Add Anchor", add_anchor_label);
     CREATE("Elements", elements_label);
     CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
@@ -45,6 +46,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY(add_particle_label); DESTROY(add_joint_label);
     DESTROY(add_soft_body_label); DESTROY(add_sprite_label); DESTROY(add_animation_label);
     DESTROY(add_camera_label);
+    DESTROY(add_force_label);
     DESTROY(add_anchor_label);
     DESTROY(elements_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
@@ -59,6 +61,7 @@ void editor_object_editor_destroy(EditorObjectEditor *editor) {
     DESTROY_ARRAY(editor->sprite_names, 64);
     DESTROY_ARRAY(editor->animation_names, 32);
     DESTROY_ARRAY(editor->camera_names, EDITOR_CAMERA_MAX);
+    DESTROY_ARRAY(editor->force_names, EDITOR_SOURCE_MAX);
     DESTROY_ARRAY(editor->anchor_names, EDITOR_ANCHOR_MAX);
 #undef DESTROY_ARRAY
     *editor = (EditorObjectEditor){0};
@@ -122,6 +125,12 @@ static bool item_info_get(EditorObjectEditor *editor, EditorObject *object,
             }
         *selection = EDITOR_SELECTION_CAMERA;
         *visibility = EDITOR_VISIBILITY_CAMERA;
+    } else if(item.kind == EDITOR_HIERARCHY_FORCE) {
+        for(size_t i=0;i<object->force_count;++i) if(object->force_items[i].id==item.id) {
+            *name=object->force_items[i].name; *visible=object->force_items[i].visible;
+            *label=&editor->force_names[i]; *cache=editor->force_cache[i];
+        }
+        *selection=EDITOR_SELECTION_FORCE; *visibility=EDITOR_VISIBILITY_FORCE;
     } else {
         for(size_t i = 0; i < object->anchor_count && i < EDITOR_ANCHOR_MAX; i += 1)
             if(object->anchors[i].id == item.id) {
@@ -218,6 +227,9 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
     y += 38.0f;
     ADD_BUTTON("editor.add_particle", editor->add_particle_label, y,
         EDITOR_ITEM_RIGID_BODY, 1, EDITOR_SELECTION_PARTICLE, selected_rigid_body);
+    y += 38.0f;
+    ADD_BUTTON("editor.add_force", editor->add_force_label, y,
+        EDITOR_ITEM_FORCE, 0, EDITOR_SELECTION_FORCE, selected_force);
     y += 38.0f;
     ADD_BUTTON("editor.add_anchor", editor->add_anchor_label, y,
         EDITOR_ITEM_ANCHOR, 0, EDITOR_SELECTION_ANCHOR, selected_anchor);

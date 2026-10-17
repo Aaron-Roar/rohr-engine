@@ -3,6 +3,7 @@
  */
 
 #include "editor_viewport.h"
+#include "editor_force_geometry.h"
 #include "editor_soft_area.h"
 #include "graphics/triangle_draw.h"
 #include "editor_command.h"
@@ -491,6 +492,25 @@ static Position editor_particle_center_world_get(const EditorObject *object,
             local.x * cosine - local.y * sine,
         object->position.y + body->position.y +
             local.x * sine + local.y * cosine};
+}
+
+#define EDITOR_FORCE_ARROW_LENGTH 44.0f
+#define EDITOR_FORCE_ARROW_HEAD 10.0f
+#define EDITOR_FORCE_PICK_RADIUS 7.0f
+static bool editor_force_arrow_get(const EditorObject *object, const EditorForce *force,
+        Position *tail, Position *tip, float *angle) {
+    if(!force->visible || !editor_force_location_get(object,force->description.location,tail) ||
+            !editor_force_orientation_get(object,force->description.orientation,angle)) return false;
+    *angle += force->description.magnitude < 0 ? 180.0f : 0.0f;
+    *tip=editor_rotation_control_position_get(*tail,*angle,EDITOR_FORCE_ARROW_LENGTH/editor_view_scale);
+    return true;
+}
+static bool editor_force_hit_check(const EditorObject *object, const EditorForce *force, Position p) {
+    Position a,b; float angle;
+    if(!editor_force_arrow_get(object,force,&a,&b,&angle)) return false;
+    float dx=b.x-a.x,dy=b.y-a.y;
+    float t=fminf(1,fmaxf(0,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy)));
+    return hypotf(p.x-a.x-t*dx,p.y-a.y-t*dy)<=EDITOR_FORCE_PICK_RADIUS/editor_view_scale;
 }
 
 static Position editor_soft_node_world_get(const EditorObject *object,
@@ -1031,6 +1051,9 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
         case EDITOR_SELECTION_JOINT:
             selection->item = state->selected_joint;
             return selection->item != 0;
+        case EDITOR_SELECTION_FORCE:
+            selection->item = state->selected_force;
+            return selection->item != 0;
         case EDITOR_SELECTION_ANCHOR:
             selection->item = state->selected_anchor;
             return selection->item != 0;
@@ -1217,6 +1240,7 @@ bool editor_viewport_selection_primary_set(EditorProject *project,
             state->selected_line = selection.item;
             break;
         case EDITOR_SELECTION_JOINT: state->selected_joint = selection.item; break;
+        case EDITOR_SELECTION_FORCE: state->selected_force = selection.item; break;
         case EDITOR_SELECTION_ANCHOR: state->selected_anchor = selection.item; break;
         case EDITOR_SELECTION_SOFT_BODY:
             state->selected_soft_body = selection.item;
@@ -1421,6 +1445,12 @@ static EditorMarqueeBounds editor_marquee_object_bounds_get(
                 (Position){child.right, child.top});
         }
     }
+    for(size_t i=0;i<object->force_count;++i) {
+        Position a,b; float angle;
+        if(editor_force_arrow_get(object,&object->force_items[i],&a,&b,&angle)) {
+            editor_marquee_bounds_point_add(&bounds,a); editor_marquee_bounds_point_add(&bounds,b);
+        }
+    }
     for(size_t i = 0; i < object->anchor_count; i += 1)
         if(object->anchors[i].visible) editor_marquee_bounds_point_add(&bounds,
             editor_anchor_world_get(object, &object->anchors[i]));
@@ -1470,6 +1500,13 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_SOFT_BODY,
                     object->id, 0, 0, body->id});
+    }
+    for(size_t i=0;i<object->force_count;++i) {
+        Position a,b; float angle;
+        if(!editor_force_arrow_get(object,&object->force_items[i],&a,&b,&angle)) continue;
+        EditorMarqueeBounds bounds={fminf(a.x,b.x),fmaxf(a.x,b.x),fminf(a.y,b.y),fmaxf(a.y,b.y),true};
+        if(editor_marquee_bounds_overlap(marquee,bounds))
+            (void)editor_marquee_selection_add(state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,object->id,0,0,object->force_items[i].id});
     }
     for(size_t i = 0; i < object->anchor_count; i += 1) {
         const EditorAnchor *anchor = &object->anchors[i];
@@ -1720,6 +1757,14 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
                                 object->id, body->id, hitbox->id, i});
                 }
             }
+        } else if(kind==EDITOR_SELECTION_FORCE || state->mode==EDITOR_VIEWPORT_FORCE) {
+    for(size_t i=0;i<object->force_count;++i) {
+        Position a,b; float angle;
+        if(!editor_force_arrow_get(object,&object->force_items[i],&a,&b,&angle)) continue;
+        EditorMarqueeBounds bounds={fminf(a.x,b.x),fmaxf(a.x,b.x),fminf(a.y,b.y),fmaxf(a.y,b.y),true};
+        if(editor_marquee_bounds_overlap(marquee,bounds))
+            (void)editor_marquee_selection_add(state,(EditorSelectionRef){EDITOR_SELECTION_FORCE,object->id,0,0,object->force_items[i].id});
+    }
         } else if(kind == EDITOR_SELECTION_ANCHOR ||
                 state->mode == EDITOR_VIEWPORT_ANCHOR) {
             for(size_t i = 0; i < object->anchor_count; i += 1) {
@@ -1778,6 +1823,8 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
                 case EDITOR_SELECTION_JOINT:
                     state->mode = EDITOR_VIEWPORT_JOINT;
                     break;
+                case EDITOR_SELECTION_FORCE:
+                    state->mode=EDITOR_VIEWPORT_FORCE; break;
                 case EDITOR_SELECTION_ANCHOR:
                     state->mode = EDITOR_VIEWPORT_ANCHOR;
                     break;
@@ -1897,6 +1944,8 @@ void editor_viewport_back(EditorViewportState *state) {
     } else if(state->mode == EDITOR_VIEWPORT_PARTICLE) {
         state->mode = EDITOR_VIEWPORT_OBJECT;
         state->selection = EDITOR_SELECTION_OBJECT;
+    } else if(state->mode == EDITOR_VIEWPORT_FORCE) {
+        state->mode=EDITOR_VIEWPORT_OBJECT; state->selection=EDITOR_SELECTION_OBJECT;
     } else if(state->mode == EDITOR_VIEWPORT_ANCHOR) {
         state->mode = EDITOR_VIEWPORT_OBJECT;
         state->selection = EDITOR_SELECTION_NONE;
@@ -2038,6 +2087,8 @@ static void editor_soft_areas_draw(const EditorObject *object, const EditorSoftB
 static bool editor_object_visual_point_contains(const EditorObject *object,
         const EditorViewportState *state, Position point) {
     if(object == NULL || !object->visible) return false;
+    for(size_t i=0;i<object->force_count;++i)
+        if(editor_force_hit_check(object,&object->force_items[i],point)) return true;
     for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
         const EditorRigidBody *body = &object->rigid_bodies[body_index];
         if(!body->visible) continue;
@@ -2948,6 +2999,10 @@ static bool editor_group_point_get(EditorProject *project,
         *point = editor_camera_world_get(object, camera, NULL);
         return true;
     }
+    if(ref.kind == EDITOR_SELECTION_FORCE) {
+        EditorForce *force=editor_project_force_get(object,ref.item);
+        return force && editor_force_location_get(object,force->description.location,point);
+    }
     if(ref.kind == EDITOR_SELECTION_ANCHOR) {
         EditorAnchor *anchor = editor_project_anchor_get(object, ref.item);
         if(anchor == NULL) return false;
@@ -3066,6 +3121,10 @@ static bool editor_group_point_hit(EditorProject *project,
         EditorObject *object = editor_group_object_get(project, ref.object);
         Position point;
         if(editor_group_parent_selected(project, state, ref) || object == NULL) continue;
+        if(ref.kind==EDITOR_SELECTION_FORCE) {
+            EditorForce *force=editor_project_force_get(object,ref.item);
+            if(force && editor_force_hit_check(object,force,pointer)) return true;
+        }
         if(ref.kind == EDITOR_SELECTION_OBJECT &&
                 editor_object_visual_point_contains(object, state, pointer)) return true;
         if(ref.kind == EDITOR_SELECTION_RIGID_BODY ||
@@ -3201,6 +3260,23 @@ static bool editor_group_transform_apply(EditorProject *project,
         const EditorViewportState *state, Vec2D translation, float angle,
         bool rotate_about_group_pivot) {
     bool changed = false;
+    /* Resolve selected forces before moving their reference geometry, then
+     * reconstruct offsets afterwards. Selection order cannot double a move. */
+    typedef struct ForcePose { Position point; float angle; bool position_valid, angle_valid; } ForcePose;
+    bool has_forces=false;
+    for(size_t i=0;i<state->selected_item_count;++i)
+        if(state->selected_items[i].kind==EDITOR_SELECTION_FORCE) has_forces=true;
+    ForcePose *poses=has_forces?calloc(state->selected_item_count,sizeof(*poses)):NULL;
+    if(has_forces && !poses) return false;
+    for(size_t i=0;poses && i<state->selected_item_count;++i) {
+        EditorSelectionRef ref=state->selected_items[i];
+        if(ref.kind!=EDITOR_SELECTION_FORCE) continue;
+        EditorObject *object=editor_group_object_get(project,ref.object);
+        EditorForce *force=editor_project_force_get(object,ref.item);
+        if(!force) continue;
+        poses[i].position_valid=editor_force_location_get(object,force->description.location,&poses[i].point);
+        poses[i].angle_valid=editor_force_orientation_get(object,force->description.orientation,&poses[i].angle);
+    }
     for(size_t i = 0; i < state->selected_item_count; i += 1) {
         EditorSelectionRef ref = state->selected_items[i];
         EditorObject *object = editor_group_object_get(project, ref.object);
@@ -3208,7 +3284,7 @@ static bool editor_group_transform_apply(EditorProject *project,
         Position world;
         Position desired;
         EditorCommand command = {0};
-        if(object == NULL) continue;
+        if(object == NULL || ref.kind==EDITOR_SELECTION_FORCE) continue;
         if(parent_selected) {
             if(angle != 0.0f && ref.kind == EDITOR_SELECTION_SPRITE) {
                 EditorSprite *sprite = editor_project_sprite_get(object, ref.item);
@@ -3369,6 +3445,21 @@ static bool editor_group_transform_apply(EditorProject *project,
         changed = editor_command_execute(project, &command).kind ==
             ERROR_RESULT_VALUE || changed;
     }
+    for(size_t i=0;poses && i<state->selected_item_count;++i) {
+        EditorSelectionRef ref=state->selected_items[i];
+        if(ref.kind!=EDITOR_SELECTION_FORCE || !poses[i].position_valid) continue;
+        EditorObject *object=editor_group_object_get(project,ref.object);
+        EditorForce *force=editor_project_force_get(object,ref.item);
+        if(!force) continue;
+        ObjectForceDescription d=force->description;
+        Position desired={poses[i].point.x+translation.x,poses[i].point.y+translation.y};
+        if(rotate_about_group_pivot) desired=editor_group_rotate_point(desired,state->group_pivot,angle);
+        if(!editor_force_location_set(object,&d.location,desired)) continue;
+        if(angle!=0 && (!poses[i].angle_valid || !editor_force_orientation_set(object,&d.orientation,poses[i].angle+angle))) continue;
+        EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.id=force->id,.operation=EDITOR_SOURCE_SET,.force=d}};
+        changed=editor_command_execute(project,&command).kind==ERROR_RESULT_VALUE || changed;
+    }
+    free(poses);
     return changed;
 }
 
@@ -3382,7 +3473,7 @@ bool editor_viewport_transform_active_check(const EditorViewportState *state) {
         state->dragged_animation_frame || state->rotated_animation_frame ||
         state->dragged_camera_entity || state->rotated_camera_entity ||
         state->rotated_sprite || state->rotated_animated_sprite ||
-        state->rotated_soft_body || state->dragged_origin || state->dragged_center_of_mass ||
+        state->rotated_soft_body || state->dragged_origin || state->dragged_center_of_mass || state->dragged_force || state->rotated_force ||
         state->group_dragging || state->group_rotating;
 }
 
@@ -3411,6 +3502,8 @@ void editor_viewport_transform_cancel(EditorViewportState *state) {
     state->dragged_project_object = false;
     state->dragged_project_viewport = false;
     state->dragged_origin = false;
+    state->dragged_force = false;
+    state->rotated_force = false;
     state->dragged_center_of_mass = false;
     state->group_dragging = false;
     state->group_rotating = false;
@@ -3498,6 +3591,13 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
     }
 
+    for(size_t i=object->force_count;i>0;--i) {
+        const EditorForce *force=&object->force_items[i-1];
+        if(editor_force_hit_check(object,force,pointer)) {
+            EditorSelectionRef hit={EDITOR_SELECTION_FORCE,object->id,0,0,force->id};
+            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT,hit,selection,layer);
+        }
+    }
     kind = EDITOR_GRAPHICS_LAYER_JOINT;
     for(size_t i = object->anchor_count; i > 0; i -= 1) {
         EditorAnchor *anchor = &object->anchors[i - 1];
@@ -4423,6 +4523,26 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             (state->mode == EDITOR_VIEWPORT_OBJECT &&
                 state->object_elements_hidden)) return false;
     pointer = editor_view_screen_to_world(pointer);
+    if(object && (state->dragged_force || state->rotated_force) && primary_button==MOUSE_BUTTON_STATE_DOWN) {
+        EditorForce *force=editor_project_force_get(object,state->selected_force);
+        if(!force) { editor_viewport_transform_cancel(state); return false; }
+        ObjectForceDescription d=force->description; bool valid=false;
+        if(state->dragged_force) valid=editor_force_location_set(object,&d.location,
+            (Position){pointer.x-state->drag_offset.x,pointer.y-state->drag_offset.y});
+        else {
+            Position tail; float angle;
+            if(editor_force_location_get(object,d.location,&tail) && editor_force_orientation_get(object,d.orientation,&angle)) {
+                float sign=d.magnitude<0?180.0f:0.0f;
+                float desired=editor_rotation_control_orientation_get(tail,pointer,state->rotation_pointer_offset,angle+sign);
+                valid=editor_force_orientation_set(object,&d.orientation,desired-sign);
+            }
+        }
+        if(valid) {
+            EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.id=force->id,.operation=EDITOR_SOURCE_SET,.force=d}};
+            (void)editor_command_execute(project,&command);
+        }
+        return true;
+    }
     if(state->group_dragging && primary_button == MOUSE_BUTTON_STATE_DOWN) {
         Vec2D delta = {pointer.x - state->group_pointer.x,
             pointer.y - state->group_pointer.y};
@@ -4903,7 +5023,9 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
                 math_vector_rotate(local, -soft->rotation)).kind == ERROR_RESULT_VALUE;
         }
         if(body == NULL || !body->center_of_mass_explicit || body->standalone_particle) {
-            state->dragged_center_of_mass = false;
+            state->dragged_force = false;
+    state->rotated_force = false;
+    state->dragged_center_of_mass = false;
             return false;
         }
         Vec2D local = {pointer.x - object->position.x - body->position.x -
@@ -5036,6 +5158,15 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     }
     if(primary_button != MOUSE_BUTTON_STATE_PRESSED || !object->visible) return false;
     /* The visible COM is a viewport overlay, independent of scene occlusion. */
+    if(state->mode==EDITOR_VIEWPORT_FORCE && !state->selection_modifier && state->selected_item_count<2) {
+        EditorForce *force=editor_project_force_get(object,state->selected_force);
+        Position tail,tip; float angle;
+        if(force && editor_force_arrow_get(object,force,&tail,&tip,&angle) &&
+                editor_rotation_control_begin(tail,angle,EDITOR_VIEWPORT_ROTATION_ARM_LENGTH/editor_view_scale,
+                    pointer,EDITOR_FORCE_PICK_RADIUS/editor_view_scale,&state->rotation_pointer_offset)) {
+            state->rotated_force=true; return true;
+        }
+    }
     if(editor_center_of_mass_press(project, object, body, state, pointer)) return true;
     /* Capture is handled above. Only a new press consults occlusion. */
     if(body != NULL && !editor_pick_owner_check(front,
@@ -5371,6 +5502,16 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         }
     }
 
+    if(object->visible && front.kind==EDITOR_SELECTION_FORCE) {
+        EditorForce *force=editor_project_force_get(object,front.item); Position tail;
+        if(force && editor_force_hit_check(object,force,pointer) && editor_force_location_get(object,force->description.location,&tail)) {
+            (void)editor_viewport_selection_set(project,state,front,state->selection_modifier);
+            if(state->selection_modifier) return true;
+            state->mode=EDITOR_VIEWPORT_FORCE; state->selection=EDITOR_SELECTION_FORCE;
+            state->selected_force=force->id; state->dragged_force=true;
+            state->drag_offset=(Vec2D){pointer.x-tail.x,pointer.y-tail.y}; return true;
+        }
+    }
     if(object->visible) {
         for(size_t i = 0; i < object->anchor_count; i += 1) {
             EditorAnchor *anchor = &object->anchors[i];
@@ -6449,6 +6590,23 @@ static void editor_viewport_object_draw(const EditorObject *object,
                 state->preview_anchor == anchor->id ?
                 (Color){255, 215, 70, 255} : (Color){235, 150, 215, 255});
     }
+    if(!editor_view_camera_preview) for(size_t i=0;i<object->force_count;++i) {
+        const EditorForce *force=&object->force_items[i]; Position tail,tip; float angle;
+        if(!editor_force_arrow_get(object,force,&tail,&tip,&angle)) continue;
+        bool selected=(state->selection==EDITOR_SELECTION_FORCE && state->selected_force==force->id) ||
+            editor_viewport_path_selected(state,EDITOR_SELECTION_FORCE,object->id,0,0,force->id);
+        Color color=selected?(Color){255,215,70,255}:force->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
+        editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_line_draw(tail,tip,color);
+        editor_line_draw(tip,editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);
+        editor_line_draw(tip,editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);
+        editor_circle_draw(tail,4.0f/editor_view_scale,color);
+        if(selected && state->mode==EDITOR_VIEWPORT_FORCE && state->selected_item_count<2) {
+            Position handle=editor_rotation_control_position_get(tail,angle,EDITOR_VIEWPORT_ROTATION_ARM_LENGTH/editor_view_scale);
+            editor_circle_draw(handle,5.0f/editor_view_scale,color);
+        }
+    }
+
 }
 
 static void editor_viewport_camera_preview_object_draw(
@@ -7146,6 +7304,15 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
                             screen_delta.y * cosine}}};
             return editor_command_execute(project, &command).kind == ERROR_RESULT_VALUE;
         }
+    }
+    if(state->selection==EDITOR_SELECTION_FORCE) {
+        EditorForce *force=editor_project_force_get(object,state->selected_force); Position world;
+        if(!force || !editor_force_location_get(object,force->description.location,&world)) return false;
+        ObjectForceDescription d=force->description;
+        world.x+=screen_delta.x; world.y+=screen_delta.y;
+        if(!editor_force_location_set(object,&d.location,world)) return false;
+        EditorCommand command={.type=EDITOR_COMMAND_SOURCE,.data.source={.object=object->id,.id=force->id,.operation=EDITOR_SOURCE_SET,.force=d}};
+        return editor_command_execute(project,&command).kind==ERROR_RESULT_VALUE;
     }
     if(state->selection == EDITOR_SELECTION_ANCHOR) {
         EditorAnchor *anchor = editor_project_anchor_get(object, state->selected_anchor);
