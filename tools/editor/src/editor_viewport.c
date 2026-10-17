@@ -27,6 +27,9 @@
 #define EDITOR_ORIGIN_PICK_RADIUS 10.0f
 #define EDITOR_ROTATION_PICK_RADIUS 12.0f
 #define EDITOR_ROTATION_HANDLE_RADIUS 10.0f
+#define EDITOR_JOINT_PICK_TOLERANCE 4.0f
+#define EDITOR_ANCHOR_PICK_TOLERANCE 2.0f
+#define EDITOR_CAMERA_PICK_TOLERANCE 4.0f
 
 static FontAsset *editor_viewport_ui_font = NULL;
 static TextAsset editor_viewport_ui_text_assets[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
@@ -506,13 +509,7 @@ static bool editor_force_arrow_get(const EditorObject *object, const EditorForce
     *tip=editor_rotation_control_position_get(*tail,*angle,EDITOR_FORCE_ARROW_LENGTH/editor_view_scale);
     return true;
 }
-static bool editor_force_hit_check(const EditorObject *object, const EditorForce *force, Position p) {
-    Position a,b; float angle;
-    if(!editor_force_arrow_get(object,force,&a,&b,&angle)) return false;
-    float dx=b.x-a.x,dy=b.y-a.y;
-    float t=fminf(1,fmaxf(0,((p.x-a.x)*dx+(p.y-a.y)*dy)/(dx*dx+dy*dy)));
-    return hypotf(p.x-a.x-t*dx,p.y-a.y-t*dy)<=EDITOR_FORCE_PICK_RADIUS/editor_view_scale;
-}
+static bool editor_force_hit_check(const EditorObject *object, const EditorForce *force, Position p);
 
 static Position editor_soft_node_world_get(const EditorObject *object,
     const EditorSoftBody *body, const EditorSoftNode *node) {
@@ -735,32 +732,106 @@ static void editor_circle_dotted_draw(Position center, float radius, Color color
     }
 }
 
-static void editor_joint_symbol_draw(EditorJointKind kind, Position start,
-    Position end, float scale, Color color) {
+/* Screen-space tests keep tolerances stable through zoom and camera transforms. */
+static bool editor_quad_hit_check(Position pointer, Position center, float width,
+        float height, float rotation, float tolerance) {
+    center=editor_view_world_to_screen(center);
+    Vec2D local=editor_screen_vector_rotate((Vec2D){pointer.x-center.x,pointer.y-center.y},-rotation);
+    float x=fmaxf(0,fabsf(local.x)-width*0.5f),y=fmaxf(0,fabsf(local.y)-height*0.5f);
+    return x*x+y*y<=tolerance*tolerance;
+}
+static bool editor_circle_hit_check(Position pointer, Position center, float radius, float tolerance) {
+    Position previous=editor_view_world_to_screen((Position){center.x+radius,center.y});
+    for(unsigned i=1;i<=16;++i) {
+        float angle=2*PI_F*i/16;
+        Position current=editor_view_world_to_screen((Position){center.x+cosf(angle)*radius,center.y+sinf(angle)*radius});
+        if(editor_segment_distance_squared(pointer,previous,current)<=tolerance*tolerance) return true;
+        previous=current;
+    }
+    return false;
+}
+static Orientation editor_anchor_visual_rotation_get(const EditorObject *object,const EditorAnchor *anchor) {
+    Orientation rotation=anchor->rotation+45;
+    if(anchor->rotation_follows_body) for(size_t i=0;i<object->rigid_body_count;++i)
+        if(object->rigid_bodies[i].id==anchor->rigid_body) rotation+=object->rigid_bodies[i].rotation;
+    return rotation;
+}
+static bool editor_anchor_hit_check(const EditorObject *object,const EditorAnchor *anchor,Position pointer) {
+    return object->visible && anchor->visible && editor_quad_hit_check(editor_view_world_to_screen(pointer),
+        editor_anchor_world_get(object,anchor),9,9,editor_anchor_visual_rotation_get(object,anchor),EDITOR_ANCHOR_PICK_TOLERANCE);
+}
+static bool editor_joint_marker_get(const EditorObject *object,const EditorJoint *joint,MarkerGeometry *geometry) {
+    const EditorAnchor *a=NULL,*b=NULL;
+    if(!object->visible || !joint->visible) return false;
+    for(size_t i=0;i<object->anchor_count;++i) {
+        if(object->anchors[i].id==joint->anchor_a) a=&object->anchors[i];
+        if(object->anchors[i].id==joint->anchor_b) b=&object->anchors[i];
+    }
+    if(!a || !b) return false;
+    *geometry=(MarkerGeometry){.kind=OBJECT_JOINT,.visuals=joint->visuals,.magnitude=1,
+        .joint=joint->kind==EDITOR_JOINT_REVOLUTE?JOINT_PIN:joint->kind==EDITOR_JOINT_WELD?JOINT_WELD:JOINT_SPRING,
+        .endpoint_a=editor_anchor_world_get(object,a),.endpoint_b=editor_anchor_world_get(object,b)};
+    geometry->origin=(Position){(geometry->endpoint_a.x+geometry->endpoint_b.x)*0.5f,
+        (geometry->endpoint_a.y+geometry->endpoint_b.y)*0.5f};
+    return true;
+}
+static bool editor_force_marker_get(const EditorObject *object,const EditorForce *force,MarkerGeometry *geometry) {
+    if(!object->visible || !force->visible) return false;
+    *geometry=(MarkerGeometry){.kind=OBJECT_FORCE,.visuals=force->visuals,.magnitude=force->description.magnitude};
+    if(!editor_force_location_get(object,force->description.location,&geometry->origin) ||
+            !editor_force_orientation_get(object,force->description.orientation,&geometry->orientation)) return false;
+    if(geometry->magnitude<0) geometry->orientation+=180;
+    return true;
+}
+typedef struct EditorMarkerPick { Position pointer; bool hit; } EditorMarkerPick;
+static bool editor_marker_polygon_pick(const Position *points,size_t count,Color color,void *context) {
+    EditorMarkerPick *pick=context;
+    if(!color.alpha || pick->hit || count<3) return true;
+    bool inside=false;
+    Position a=editor_view_world_to_screen(points[count-1]);
+    for(size_t i=0;i<count;++i) {
+        Position b=editor_view_world_to_screen(points[i]);
+        if(editor_segment_distance_squared(pick->pointer,a,b)<=0.0001f) { pick->hit=true; return true; }
+        if((a.y>pick->pointer.y)!=(b.y>pick->pointer.y) &&
+                pick->pointer.x<(b.x-a.x)*(pick->pointer.y-a.y)/(b.y-a.y)+a.x) inside=!inside;
+        a=b;
+    }
+    pick->hit=inside; return true;
+}
+static bool editor_marker_hit_check(const MarkerGeometry *geometry,Position pointer) {
+    EditorMarkerPick pick={.pointer=editor_view_world_to_screen(pointer)};
+    return graphics_marker_geometry_draw(geometry,editor_marker_polygon_pick,&pick) && pick.hit;
+}
+static bool editor_joint_symbol_visit(EditorJointKind kind, Position start,
+    Position end, float scale, Color color, const Position *pointer) {
+    bool hit = false;
+#define LINE(a,b) do { if(pointer) hit |= editor_segment_distance_squared(*pointer, editor_view_world_to_screen(a), editor_view_world_to_screen(b)) <= EDITOR_JOINT_PICK_TOLERANCE * EDITOR_JOINT_PICK_TOLERANCE; else editor_line_draw(a,b,color); } while(0)
+#define CIRCLE(c,r) do { if(pointer) hit |= editor_circle_hit_check(*pointer,c,r,EDITOR_JOINT_PICK_TOLERANCE); else editor_circle_draw(c,r,color); } while(0)
     Position center = {(start.x + end.x) * 0.5f, (start.y + end.y) * 0.5f};
     float radius = 9.0f * scale;
 
     if(kind == EDITOR_JOINT_REVOLUTE) {
-        editor_circle_draw(center, radius, color);
-        editor_quad_draw(center, 6.0f * scale, 6.0f * scale, 0.0f, color);
+        CIRCLE(center, radius);
+        if(pointer) hit |= editor_quad_hit_check(*pointer, center, 6.0f * scale, 6.0f * scale, 0, EDITOR_JOINT_PICK_TOLERANCE);
+        else editor_quad_draw(center, 6.0f * scale, 6.0f * scale, 0.0f, color);
     } else if(kind == EDITOR_JOINT_WELD) {
         Position top_left = {center.x - radius, center.y - radius};
         Position top_right = {center.x + radius, center.y - radius};
         Position bottom_right = {center.x + radius, center.y + radius};
         Position bottom_left = {center.x - radius, center.y + radius};
-        editor_line_draw(top_left, top_right, color);
-        editor_line_draw(top_right, bottom_right, color);
-        editor_line_draw(bottom_right, bottom_left, color);
-        editor_line_draw(bottom_left, top_left, color);
-        editor_line_draw(top_left, bottom_right, color);
-        editor_line_draw(top_right, bottom_left, color);
+        LINE(top_left, top_right);
+        LINE(top_right, bottom_right);
+        LINE(bottom_right, bottom_left);
+        LINE(bottom_left, top_left);
+        LINE(top_left, bottom_right);
+        LINE(top_right, bottom_left);
     } else {
         Position points[10];
         Vec2D delta = {end.x - start.x, end.y - start.y};
         float length = sqrtf(delta.x * delta.x + delta.y * delta.y);
         if(length <= 0.001f) {
-            editor_circle_draw(start, radius, color);
-            return;
+            CIRCLE(start, radius);
+            return hit;
         }
         Vec2D perpendicular = {-delta.y / length, delta.x / length};
         for(uint32_t i = 0; i < 10; i += 1) {
@@ -769,9 +840,73 @@ static void editor_joint_symbol_draw(EditorJointKind kind, Position start,
                 (i % 2 == 0 ? 7.0f * scale : -7.0f * scale);
             points[i] = (Position){start.x + delta.x * amount + perpendicular.x * offset,
                 start.y + delta.y * amount + perpendicular.y * offset};
-            if(i > 0) editor_line_draw(points[i - 1], points[i], color);
+            if(i > 0) LINE(points[i - 1], points[i]);
         }
     }
+    return hit;
+#undef LINE
+#undef CIRCLE
+}
+static void editor_joint_symbol_draw(EditorJointKind kind, Position start,
+        Position end, float scale, Color color) {
+    (void)editor_joint_symbol_visit(kind,start,end,scale,color,NULL);
+}
+
+static int editor_joint_pick_layer_get(const EditorObject *object,const EditorJoint *joint,Position pointer) {
+    MarkerGeometry geometry;
+    if(!editor_joint_marker_get(object,joint,&geometry)) return 0;
+    Position screen=editor_view_world_to_screen(pointer);
+    if(editor_joint_symbol_visit(joint->kind,geometry.endpoint_a,geometry.endpoint_b,
+            fmaxf(0.1f,joint->visual_size),(Color){0},&screen)) return EDITOR_GRAPHICS_LAYER_JOINT;
+    if(!object->app_hidden && !joint->app_hidden && editor_marker_hit_check(&geometry,pointer))
+        return EDITOR_GRAPHICS_LAYER_JOINT-1;
+    return 0;
+}
+static int editor_force_pick_layer_get(const EditorObject *object,const EditorForce *force,Position pointer) {
+    Position tail,tip; float angle;
+    if(!object->visible || !editor_force_arrow_get(object,force,&tail,&tip,&angle)) return 0;
+    Position p=editor_view_world_to_screen(pointer),a=editor_view_world_to_screen(tail),b=editor_view_world_to_screen(tip);
+    Position left=editor_view_world_to_screen(editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale));
+    Position right=editor_view_world_to_screen(editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale));
+    float tolerance=EDITOR_FORCE_PICK_RADIUS*EDITOR_FORCE_PICK_RADIUS;
+    if(editor_segment_distance_squared(p,a,b)<=tolerance ||
+            editor_segment_distance_squared(p,b,left)<=tolerance ||
+            editor_segment_distance_squared(p,b,right)<=tolerance ||
+            editor_circle_hit_check(p,tail,4/editor_view_scale,EDITOR_FORCE_PICK_RADIUS)) return EDITOR_GRAPHICS_LAYER_JOINT;
+    MarkerGeometry geometry;
+    if(!object->app_hidden && !force->app_hidden && editor_force_marker_get(object,force,&geometry) &&
+            editor_marker_hit_check(&geometry,pointer)) return EDITOR_GRAPHICS_LAYER_JOINT-1;
+    return 0;
+}
+static bool editor_force_hit_check(const EditorObject *object,const EditorForce *force,Position pointer) {
+    return editor_force_pick_layer_get(object,force,pointer)!=0;
+}
+static bool editor_camera_hit_check(const EditorObject *object,const EditorCamera *camera,
+        const EditorViewportState *state,Position pointer) {
+    if(!object->visible || !camera->visible) return false;
+    Orientation rotation; Position center=editor_camera_world_get(object,camera,&rotation);
+    Position p=editor_view_world_to_screen(pointer),screen=editor_view_world_to_screen(center);
+    /* Upright icon and optional attachment indicator are fixed-size controls. */
+    if(p.x>=screen.x-11-EDITOR_CAMERA_PICK_TOLERANCE && p.x<=screen.x+12+EDITOR_CAMERA_PICK_TOLERANCE &&
+            p.y>=screen.y-(camera->attachment_kind==EDITOR_CAMERA_ATTACHMENT_NONE?6:15)-EDITOR_CAMERA_PICK_TOLERANCE &&
+            p.y<=screen.y+6+EDITOR_CAMERA_PICK_TOLERANCE) return true;
+    float zoom=camera->zoom>0?camera->zoom:1;
+    float x=camera->dimensions.x/zoom*.5f,y=camera->dimensions.y/zoom*.5f;
+    Position corners[]={{-x,-y},{x,-y},{x,y},{-x,y}};
+    for(size_t i=0;i<4;++i) {
+        Vec2D v=math_vector_rotate(corners[i],rotation);
+        corners[i]=editor_view_world_to_screen((Position){center.x+v.x,center.y+v.y});
+    }
+    float tolerance=EDITOR_CAMERA_PICK_TOLERANCE*EDITOR_CAMERA_PICK_TOLERANCE;
+    for(size_t i=0;i<4;++i) if(editor_segment_distance_squared(p,corners[i],corners[(i+1)%4])<=tolerance) return true;
+    if(editor_segment_distance_squared(p,corners[0],corners[2])<=tolerance ||
+            editor_segment_distance_squared(p,corners[1],corners[3])<=tolerance) return true;
+    if(state->selected_camera_entity==camera->id && state->selection==EDITOR_SELECTION_CAMERA) {
+        Position handle=editor_view_world_to_screen(editor_sprite_rotation_handle_get(center,rotation));
+        if(hypotf(p.x-handle.x,p.y-handle.y)<=EDITOR_ROTATION_PICK_RADIUS ||
+                editor_segment_distance_squared(p,screen,handle)<=tolerance) return true;
+    }
+    return false;
 }
 
 static void editor_origin_draw(Position center, Orientation rotation) {
@@ -2123,31 +2258,10 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
                         editor_soft_node_world_get(object, body, b)) <= 36.0f) return true;
         }
     }
-    for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-        const EditorAnchor *anchor = &object->anchors[anchor_index];
-        Position world;
-        if(!anchor->visible) continue;
-        world = editor_anchor_world_get(object, anchor);
-        if((point.x - world.x) * (point.x - world.x) +
-                (point.y - world.y) * (point.y - world.y) <= 100.0f) return true;
-    }
-    for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
-        const EditorJoint *joint = &object->joint_items[joint_index];
-        const EditorAnchor *a = NULL;
-        const EditorAnchor *b = NULL;
-        if(!joint->visible) continue;
-        for(size_t anchor_index = 0; anchor_index < object->anchor_count; anchor_index += 1) {
-            if(object->anchors[anchor_index].id == joint->anchor_a) {
-                a = &object->anchors[anchor_index];
-            }
-            if(object->anchors[anchor_index].id == joint->anchor_b) {
-                b = &object->anchors[anchor_index];
-            }
-        }
-        if(a != NULL && b != NULL && editor_segment_distance_squared(point,
-                editor_anchor_world_get(object, a),
-                editor_anchor_world_get(object, b)) <= 64.0f) return true;
-    }
+    for(size_t i=0;i<object->anchor_count;++i)
+        if(editor_anchor_hit_check(object,&object->anchors[i],point)) return true;
+    for(size_t i=0;i<object->joint_count;++i)
+        if(editor_joint_pick_layer_get(object,&object->joint_items[i],point)) return true;
     for(size_t i = 0; i < object->sprite_count; i += 1) {
         const EditorSprite *sprite = &object->sprites[i];
         Position center;
@@ -2171,15 +2285,7 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
     }
     for(size_t i = 0; i < object->camera_count; i += 1) {
         const EditorCamera *camera = &object->cameras[i];
-        Position center;
-        Orientation rotation;
-        float zoom;
-        if(!camera->visible) continue;
-        center = editor_camera_world_get(object, camera, &rotation);
-        zoom = camera->zoom > 0.0f ? camera->zoom : 1.0f;
-        if(editor_sprite_point_contains(center,
-                (Scale){camera->dimensions.x / zoom,
-                    camera->dimensions.y / zoom}, rotation, point)) return true;
+        if(editor_camera_hit_check(object,camera,state,point)) return true;
     }
     return false;
 }
@@ -3125,6 +3231,18 @@ static bool editor_group_point_hit(EditorProject *project,
         if(ref.kind==EDITOR_SELECTION_FORCE) {
             EditorForce *force=editor_project_force_get(object,ref.item);
             if(force && editor_force_hit_check(object,force,pointer)) return true;
+            continue;
+        }
+        if(ref.kind==EDITOR_SELECTION_JOINT) {
+            for(size_t j=0;j<object->joint_count;++j)
+                if(object->joint_items[j].id==ref.item &&
+                        editor_joint_pick_layer_get(object,&object->joint_items[j],pointer)) return true;
+            continue;
+        }
+        if(ref.kind==EDITOR_SELECTION_ANCHOR) {
+            EditorAnchor *anchor=editor_project_anchor_get(object,ref.item);
+            if(anchor && editor_anchor_hit_check(object,anchor,pointer)) return true;
+            continue;
         }
         if(ref.kind == EDITOR_SELECTION_OBJECT &&
                 editor_object_visual_point_contains(object, state, pointer)) return true;
@@ -3161,15 +3279,7 @@ static bool editor_group_point_hit(EditorProject *project,
             }
         } else if(ref.kind == EDITOR_SELECTION_CAMERA) {
             EditorCamera *camera = editor_project_camera_get(object, ref.item);
-            Orientation rotation;
-            if(camera != NULL && camera->visible &&
-                    editor_sprite_point_contains(editor_camera_world_get(object,
-                        camera, &rotation), (Scale){camera->dimensions.x /
-                            (camera->zoom > 0.0f ? camera->zoom : 1.0f),
-                            camera->dimensions.y /
-                            (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
-                        rotation, pointer))
-                return true;
+            if(camera && editor_camera_hit_check(object,camera,state,pointer)) return true;
         } else if(editor_group_point_get(project, ref, &point) &&
                 hypotf(pointer.x - point.x, pointer.y - point.y) <= tolerance) {
             return true;
@@ -3548,16 +3658,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
     for(size_t i = object->camera_count; i > 0; i -= 1) {
         EditorCamera *camera = &object->cameras[i - 1];
         binding = (EditorGraphicsLayerBinding){0};
-        Orientation rotation;
-        Position center;
-        if(!camera->visible) continue;
-        center = editor_camera_world_get(object, camera, &rotation);
-        if(!editor_sprite_point_contains(center,
-                (Scale){camera->dimensions.x /
-                    (camera->zoom > 0.0f ? camera->zoom : 1.0f),
-                    camera->dimensions.y /
-                    (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
-                rotation, pointer)) continue;
+        if(!editor_camera_hit_check(object,camera,state,pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
             object->id, 0, 0, camera->id};
         editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
@@ -3594,17 +3695,17 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
 
     for(size_t i=object->force_count;i>0;--i) {
         const EditorForce *force=&object->force_items[i-1];
-        if(editor_force_hit_check(object,force,pointer)) {
+        int force_layer=editor_force_pick_layer_get(object,force,pointer);
+        if(force_layer) {
             EditorSelectionRef hit={EDITOR_SELECTION_FORCE,object->id,0,0,force->id};
-            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT,hit,selection,layer);
+            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},force_layer,hit,selection,layer);
         }
     }
     kind = EDITOR_GRAPHICS_LAYER_JOINT;
     for(size_t i = object->anchor_count; i > 0; i -= 1) {
         EditorAnchor *anchor = &object->anchors[i - 1];
         binding = (EditorGraphicsLayerBinding){0};
-        Position world = editor_anchor_world_get(object, anchor);
-        if(anchor->visible && hypotf(pointer.x - world.x, pointer.y - world.y) <= 10.0f) {
+        if(editor_anchor_hit_check(object,anchor,pointer)) {
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
                 object->id, 0, 0, anchor->id};
             editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
@@ -3614,15 +3715,11 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
     for(size_t i = object->joint_count; i > 0; i -= 1) {
         EditorJoint *joint = &object->joint_items[i - 1];
         binding = joint->graphics_layer;
-        EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
-        EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
-        if(!joint->visible || a == NULL || b == NULL ||
-                editor_segment_distance_squared(pointer,
-                    editor_anchor_world_get(object, a),
-                    editor_anchor_world_get(object, b)) > 64.0f) continue;
+        int joint_layer=editor_joint_pick_layer_get(object,joint,pointer);
+        if(!joint_layer) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_JOINT,
             object->id, 0, 0, joint->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+        editor_pick_candidate_set(project, binding, joint_layer, hit, selection, layer);
     }
     kind = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
     for(size_t i = object->soft_body_count; i > 0; i -= 1) {
@@ -5401,16 +5498,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             EditorCamera *camera = &object->cameras[i - 1];
             if(!editor_pick_owner_check(front, EDITOR_SELECTION_CAMERA,
                     camera->id)) continue;
-            Orientation rotation;
-            Position world;
             EditorSelectionRef selection;
-            if(!camera->visible) continue;
-            world = editor_camera_world_get(object, camera, &rotation);
-            if(!editor_sprite_point_contains(world, (Scale){camera->dimensions.x /
-                    (camera->zoom > 0.0f ? camera->zoom : 1.0f),
-                    camera->dimensions.y /
-                    (camera->zoom > 0.0f ? camera->zoom : 1.0f)},
-                    rotation, pointer)) continue;
+            if(!editor_camera_hit_check(object,camera,state,pointer)) continue;
             selection = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
                 object->id, 0, 0, camera->id};
             (void)editor_viewport_selection_set(project, state, selection,
@@ -5519,8 +5608,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             if(!editor_pick_owner_check(front, EDITOR_SELECTION_ANCHOR,
                     anchor->id)) continue;
             Position world = editor_anchor_world_get(object, anchor);
-            if(!anchor->visible || (pointer.x - world.x) * (pointer.x - world.x) +
-                    (pointer.y - world.y) * (pointer.y - world.y) > 100.0f) continue;
+            if(!editor_anchor_hit_check(object,anchor,pointer)) continue;
             if(state->selection_modifier) {
                 (void)editor_viewport_selection_set(project, state,
                     (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
@@ -6312,27 +6400,17 @@ static void editor_marker_previews_draw(const EditorObject *o) {
     for(size_t i=0;i<o->joint_count;++i) {
         const EditorJoint *j=&o->joint_items[i];
         if(!j->visible || j->app_hidden) continue;
-        const EditorAnchor *a=NULL,*b=NULL;
-        for(size_t n=0;n<o->anchor_count;++n) {
-            if(o->anchors[n].id==j->anchor_a) a=&o->anchors[n];
-            if(o->anchors[n].id==j->anchor_b) b=&o->anchors[n];
-        }
-        if(!a || !b) continue;
-        MarkerGeometry g={.kind=OBJECT_JOINT,.visuals=j->visuals,.magnitude=1,
-            .joint=j->kind==EDITOR_JOINT_REVOLUTE?JOINT_PIN:j->kind==EDITOR_JOINT_WELD?JOINT_WELD:JOINT_SPRING,
-            .endpoint_a=editor_anchor_world_get(o,a),.endpoint_b=editor_anchor_world_get(o,b)};
-        g.origin=(Position){(g.endpoint_a.x+g.endpoint_b.x)*0.5f,(g.endpoint_a.y+g.endpoint_b.y)*0.5f};
+        MarkerGeometry g;
+        if(!editor_joint_marker_get(o,j,&g)) continue;
         editor_view_scene_layer_set(j->graphics_layer,EDITOR_GRAPHICS_LAYER_JOINT-1);
         (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
     }
-    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT-1);
+    editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT-1);
     for(size_t i=0;i<o->force_count;++i) {
         const EditorForce *f=&o->force_items[i];
         if(!f->visible || f->app_hidden) continue;
-        MarkerGeometry g={.kind=OBJECT_FORCE,.visuals=f->visuals,.magnitude=f->description.magnitude};
-        if(!editor_force_location_get(o,f->description.location,&g.origin) ||
-                !editor_force_orientation_get(o,f->description.orientation,&g.orientation)) continue;
-        if(g.magnitude<0) g.orientation+=180;
+        MarkerGeometry g;
+        if(!editor_force_marker_get(o,f,&g)) continue;
         (void)graphics_marker_geometry_draw(&g,editor_marker_polygon_draw,NULL);
     }
     for(size_t i=0;i<o->torque_count;++i) {
@@ -6617,19 +6695,9 @@ static void editor_viewport_object_draw(const EditorObject *object,
     for(size_t i = 0; i < object->anchor_count; i += 1) {
         const EditorAnchor *anchor = &object->anchors[i];
         editor_view_scene_layer_set((EditorGraphicsLayerBinding){0}, EDITOR_GRAPHICS_LAYER_JOINT);
-        const EditorRigidBody *anchor_body = NULL;
-        float rotation = anchor->rotation;
         if(!anchor->visible) continue;
-        for(size_t j = 0; j < object->rigid_body_count; j += 1) {
-            if(object->rigid_bodies[j].id == anchor->rigid_body) {
-                anchor_body = &object->rigid_bodies[j];
-            }
-        }
-        if(anchor_body != NULL && anchor->rotation_follows_body) {
-            rotation += anchor_body->rotation;
-        }
         editor_quad_draw(editor_anchor_world_get(object, anchor),
-            9.0f, 9.0f, rotation + 45.0f,
+            9.0f, 9.0f, editor_anchor_visual_rotation_get(object,anchor),
             object_highlighted || (state->selection == EDITOR_SELECTION_ANCHOR &&
                 state->selected_anchor == anchor->id) ||
                 editor_viewport_path_selected(state, EDITOR_SELECTION_ANCHOR,
@@ -6643,7 +6711,7 @@ static void editor_viewport_object_draw(const EditorObject *object,
         bool selected=(state->selection==EDITOR_SELECTION_FORCE && state->selected_force==force->id) ||
             editor_viewport_path_selected(state,EDITOR_SELECTION_FORCE,object->id,0,0,force->id);
         Color color=selected?(Color){255,215,70,255}:force->description.magnitude==0?(Color){130,140,150,255}:(Color){80,210,245,255};
-        editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_JOINT);
+        editor_view_scene_layer_set((EditorGraphicsLayerBinding){0},EDITOR_GRAPHICS_LAYER_JOINT);
         editor_line_draw(tail,tip,color);
         editor_line_draw(tip,editor_rotation_control_position_get(tip,angle+150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);
         editor_line_draw(tip,editor_rotation_control_position_get(tip,angle-150,EDITOR_FORCE_ARROW_HEAD/editor_view_scale),color);

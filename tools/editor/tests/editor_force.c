@@ -25,9 +25,103 @@ static void panel(EditorForceEditor *ui,EditorModeContext *context,Position at,M
     rohr_ui_input_set((UIInput){at,button});
     (void)editor_force_editor_draw(ui,context); rohr_ui_update();
 }
+static bool picked(EditorProject *p,EditorViewportState *state,Position world,EditorHierarchySelection kind,uint32_t id) {
+    EditorSelectionRef hit={0};
+    bool found=editor_viewport_selection_at_get(p,state,screen(world,p->viewport_camera_zoom),&hit);
+    bool ok=kind==EDITOR_SELECTION_NONE?!found:found && hit.kind==kind && hit.item==id;
+    if(!ok) fprintf(stderr,"pick at %.2f,%.2f zoom %.2f: found %u kind %u id %u; expected %u id %u\n",
+        world.x,world.y,p->viewport_camera_zoom,found,hit.kind,hit.item,kind,id);
+    return ok;
+}
+static void marker_picking_check(void) {
+    EditorProject p={0}; editor_project_init(&p); p.viewport_local_view=false; p.viewport_camera_zoom=1;
+    EditorObject *o=editor_project_object_add(&p,(Position){0}); assert(o);
+    EditorAnchor *a=editor_project_anchor_add(&p,o,(Position){0},0); assert(a); uint32_t aid=a->id;
+    EditorAnchor *b=editor_project_anchor_add(&p,o,(Position){0},0); assert(b); uint32_t bid=b->id;
+    EditorJoint *j=editor_project_joint_add(&p,o,EDITOR_JOINT_REVOLUTE); assert(j);
+    j->anchor_a=aid; j->anchor_b=bid; j->visual_size=3;
+    uint32_t jid=j->id;
+    EditorViewportState state={0}; editor_viewport_state_init(&state); state.mode=EDITOR_VIEWPORT_OBJECT;
+    for(unsigned kind=0;kind<2;++kind) for(unsigned z=0;z<3;++z) {
+        j=&o->joint_items[0]; j->kind=kind?EDITOR_JOINT_WELD:EDITOR_JOINT_REVOLUTE;
+        float zoom=z==0?.25f:z==1?1:4; p.viewport_camera_zoom=zoom;
+        assert(picked(&p,&state,(Position){0},EDITOR_SELECTION_ANCHOR,bid));
+        Position hit=kind?(Position){27+2/zoom,20}:(Position){(27+2/zoom)*.70710678f,(27+2/zoom)*.70710678f};
+        assert(picked(&p,&state,hit,EDITOR_SELECTION_JOINT,jid));
+        assert(editor_viewport_update(&state,&p,screen(hit,zoom),MOUSE_BUTTON_STATE_PRESSED,MOUSE_BUTTON_STATE_UP,false,0,false));
+        assert(state.mode==EDITOR_VIEWPORT_JOINT && state.selected_joint==jid && !state.dragged_anchor);
+        (void)editor_viewport_update(&state,&p,screen(hit,zoom),MOUSE_BUTTON_STATE_RELEASED,MOUSE_BUTTON_STATE_UP,false,0,false);
+        state.mode=EDITOR_VIEWPORT_OBJECT;
+    }
+    p.viewport_camera_zoom=1; j->kind=EDITOR_JOINT_REVOLUTE; j->app_hidden=true;
+    assert(picked(&p,&state,(Position){27,0},EDITOR_SELECTION_JOINT,jid));
+    j->visual_size=1; assert(picked(&p,&state,(Position){27,0},EDITOR_SELECTION_NONE,0));
+    /* The actual rotated anchor diamond remains usable, with no world-size disk. */
+    a=editor_project_anchor_get(o,aid); b=editor_project_anchor_get(o,bid);
+    b->visible=false; a->rotation=45;
+    assert(picked(&p,&state,(Position){4,4},EDITOR_SELECTION_ANCHOR,aid));
+    a->visible=false; j->visible=false;
+    EditorForce *f=editor_project_force_add(&p,o); assert(f); uint32_t fid=f->id;
+    f->description.magnitude=10;
+    /* Force origin/shaft/head remain selectable independently of app visibility. */
+    f->app_hidden=true;
+    assert(picked(&p,&state,(Position){0,0},EDITOR_SELECTION_FORCE,fid));
+    assert(picked(&p,&state,(Position){9,36},EDITOR_SELECTION_FORCE,fid));
+    f->app_hidden=false;
+    f->visuals.main=(ObjectVisualStyle){.specified=true,.fill_color=0xff8844ff,.border_color=0xffffffff,
+        .border_thickness=3,.scale={-2,.5f},.offset={100,30},.rotation=90};
+    Position preview={112.5f,30};
+    assert(picked(&p,&state,preview,EDITOR_SELECTION_FORCE,fid));
+    EditorCamera *camera=editor_project_camera_add(&p,o); assert(camera);
+    camera->position=(Position){0,100}; camera->dimensions=(Scale){400,300}; camera->zoom=1;
+    assert(picked(&p,&state,preview,EDITOR_SELECTION_FORCE,fid));
+    assert(picked(&p,&state,(Position){0,100},EDITOR_SELECTION_CAMERA,camera->id));
+    assert(picked(&p,&state,(Position){200,100},EDITOR_SELECTION_CAMERA,camera->id));
+    assert(picked(&p,&state,(Position){100,100},EDITOR_SELECTION_NONE,0));
+    f->app_hidden=true; assert(picked(&p,&state,preview,EDITOR_SELECTION_NONE,0)); f->app_hidden=false;
+    o->app_hidden=true; assert(picked(&p,&state,preview,EDITOR_SELECTION_NONE,0)); o->app_hidden=false;
+    f->visuals.main.fill_color=0;
+    assert(picked(&p,&state,preview,EDITOR_SELECTION_NONE,0));
+    assert(picked(&p,&state,(Position){112.5f,38},EDITOR_SELECTION_FORCE,fid));
+    f->visuals.main.fill_color=0; f->visuals.main.border_color=0;
+    assert(picked(&p,&state,preview,EDITOR_SELECTION_NONE,0));
+    f->visuals.main.fill_color=0xff8844ff; f->visuals.main.scale.x=0;
+    assert(picked(&p,&state,preview,EDITOR_SELECTION_NONE,0)); f->visuals.main.scale.x=-2;
+    f->visible=false; assert(picked(&p,&state,(Position){0,20},EDITOR_SELECTION_NONE,0)); f->visible=true;
+    /* Starting from the offset preview must neither snap nor change its style. */
+    EditorHistory history={0}; assert(editor_history_init(&history,&p));
+    editor_command_executing_callback_set(begin,&history); editor_command_finished_callback_set(finish,&history);
+    assert(pointer(&p,&state,&history,screen(preview,1),MOUSE_BUTTON_STATE_PRESSED));
+    assert(state.mode==EDITOR_VIEWPORT_FORCE && state.dragged_force);
+    point(f->description.location.offset,(Position){0});
+    assert(pointer(&p,&state,&history,screen((Position){preview.x+12,preview.y+6},1),MOUSE_BUTTON_STATE_DOWN));
+    point(f->description.location.offset,(Position){12,6});
+    (void)pointer(&p,&state,&history,screen(preview,1),MOUSE_BUTTON_STATE_RELEASED);
+    assert(history.undo_count==1 && editor_history_undo(&history));
+    o=editor_project_selected_get(&p); f=&o->force_items[0]; point(f->description.location.offset,(Position){0});
+    assert(f->visuals.main.offset.x==100 && f->visuals.main.rotation==90);
+    editor_command_executing_callback_set(NULL,NULL); editor_command_finished_callback_set(NULL,NULL);
+    editor_history_destroy(&history); camera=&o->cameras[0]; camera->visible=false; f->visible=false;
+    /* Spring coil and each transformed marker use the app's exact geometry. */
+    j=&o->joint_items[0]; j->visible=true; j->app_hidden=false; j->kind=EDITOR_JOINT_SPRING;
+    a=editor_project_anchor_get(o,aid); b=editor_project_anchor_get(o,bid); a->position=(Position){-50,0}; b->position=(Position){50,0};
+    j->visuals.main=(ObjectVisualStyle){.specified=true,.fill_color=0xff8844ff,.scale={1,1},.offset={0,100}};
+    j->visuals.endpoint_a=(ObjectVisualStyle){.specified=true,.fill_color=0xffffffff,.scale={3,.5f},.offset={10,20},.rotation=90};
+    j->visuals.endpoint_b=(ObjectVisualStyle){.specified=true,.fill_color=0xffffffff,.scale={2,1},.offset={-5,-10}};
+    assert(picked(&p,&state,(Position){-40,120},EDITOR_SELECTION_JOINT,jid));
+    assert(picked(&p,&state,(Position){45,90},EDITOR_SELECTION_JOINT,jid));
+    assert(picked(&p,&state,(Position){-40,128},EDITOR_SELECTION_JOINT,jid));
+    float length=hypotf(85,30);
+    Position coil={-40+85/18.0f-7*30/length*.5f,120-30/18.0f-7*85/length*.5f};
+    assert(picked(&p,&state,coil,EDITOR_SELECTION_JOINT,jid));
+    assert(picked(&p,&state,(Position){-32,120},EDITOR_SELECTION_NONE,0));
+    j->app_hidden=true; assert(picked(&p,&state,(Position){-40,120},EDITOR_SELECTION_NONE,0));
+    editor_viewport_state_destroy(&state); editor_project_destroy(&p);
+}
 int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
+    marker_picking_check();
     EditorProject p={0}; editor_project_init(&p);
     EditorObject *o=editor_project_object_add(&p,(Position){20,30}); assert(o);
     uint32_t oid=o->id;

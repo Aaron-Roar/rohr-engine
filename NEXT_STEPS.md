@@ -1390,7 +1390,14 @@ Separate editing convenience from app rendering, then improve force controls.
    Regenerated and rebuilt `/tmp/rohr-projects/project-dir`; its unchanged entry
    point renders the scene, force arrow, and all three joint types. Windows
    execution remains unverified. Manual application and panel review is requested.
-2. [x] **Add shared visual styling and previews** — Added force/torque/joint fill,
+2. [x] **Add shared visual styling and previews** — Completed the selection
+   follow-up: viewport picking now follows annotation and app-preview geometry,
+   preserves anchor priority over overlapping same-layer joints, and aligns force
+   rendering with picking. Camera guides no longer claim their empty interiors.
+   Verified 90 native tests, five focused ASan/UBSan/leak suites, GUI startup,
+   Linux/Windows compilation, and selectable force/pin/weld/spring regions in
+   `/tmp/rohr-projects/project-dir`. No compiler warnings were introduced.
+   Added force/torque/joint fill,
    border, signed X/Y scale, local offsets and rotation. Spring endpoint markers
    have independent styles; the coil connects their visual centers without
    changing physics anchors. App output and editor previews share world-space

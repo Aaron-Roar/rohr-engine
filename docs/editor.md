@@ -74,6 +74,18 @@ rohr-cli --project objects/project.rohr.json --object-id 1 --joint-id 7 --proper
 Torques use the same persisted styles, CLI properties, and app previews. Their
 dedicated editor remains a later goal.
 
+Viewport selection follows the visible force arrow and joint annotation, including
+the joint's **Editor Symbol Size**. Clicking a visible styled app preview selects
+the same item, including offset spring endpoints. Anchors retain priority over
+overlapping joints at the same scene layer, using their rotated diamond and a
+small screen-space tolerance. Exposed joint strokes remain selectable with a
+zoom-independent tolerance. Hidden, transparent, or collapsed app-preview parts
+do not contribute hit regions; editor annotations remain available when app
+visibility is off. Dragging from an offset force preview preserves the grab point.
+
+Camera guides are selectable at their icon, boundary, diagonals, and selected
+controls. Empty camera interiors let clicks reach the scene elements beneath.
+
 ## Build and run
 
 From the engine repository:
