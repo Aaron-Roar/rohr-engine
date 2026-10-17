@@ -244,6 +244,13 @@ static void visual_resources(void) {
     a=entity_object_add(visual.result.value); OK(a);
     assert(!entity_components_check(member(a.result.value,"box"),ROHR_COLLISION | ROHR_MASS));
     OK(object_destroy(visual.result.value)); OK(entity_delete(a.result.value));
+    root.visible=false;
+    a=entity_object_add(root); OK(a);
+    assert(!animated_sprites[index_of(member(a.result.value,"box"))].visible);
+    assert(!animated_sprites[index_of(member(a.result.value,"overlay"))].visible);
+    assert(entity_components_check(member(a.result.value,"box"),ROHR_MASS));
+    assert(animation.visible && overlay.visible && camera.visible);
+    OK(entity_delete(a.result.value)); root.visible=true;
     frames[0].path="missing_object_frame.png";
     assert(error_check(entity_object_add(root)));
     assert(error_check(entity_by_name_get("scene")));

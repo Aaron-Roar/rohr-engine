@@ -1125,7 +1125,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 sprite->size.x, sprite->size.y,
                 sprite->follow_body_rotation ? "true" : "false",
                 sprite->rotation,
-                sprite->visible ? "true" : "false");
+                !sprite->app_hidden ? "true" : "false");
         }
         for(size_t sprite_index = 0; sprite_index < object->animated_sprite_count;
                 sprite_index += 1) {
@@ -1187,7 +1187,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 sprite->direction == DIRECTION_LEFT ? "DIRECTION_LEFT" :
                     "DIRECTION_RIGHT",
                 sprite->follow_body_rotation ? "true" : "false",
-                sprite->visible ? "true" : "false");
+                !sprite->app_hidden ? "true" : "false");
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
                 const EditorAnimationFrame *value = &sprite->frames[frame];
                 fprintf(source,
@@ -1435,7 +1435,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    result = rohr_graphics_soft_body_area_visibility_set(object->%s_areas[%zu], %s);\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     body->name, body->name, area_index, body->name, area_index, area->color,
-                    body->name, area_index, body->visible && area->visible ? "true" : "false");
+                    body->name, area_index, !body->app_hidden && !area->app_hidden ? "true" : "false");
             }
 
             for(size_t node_index = 0; node_index < body->node_count; node_index += 1) {
@@ -2126,7 +2126,7 @@ static bool editor_workspace_generated_viewports_write(
                 item->content_offset.x, item->content_offset.y,
                 item->content_scale.x, item->content_scale.y,
                 item->content_rotation, item->placement.layer,
-                item->placement.visible ? "true" : "false",
+                !item->app_hidden ? "true" : "false",
                 (int)item->placement.drag_mode);
             if(item->graphics_layer != 0)
                 for(size_t layer_index = 0;
@@ -2217,7 +2217,7 @@ static bool editor_workspace_generated_viewports_write(
                         "rohr_error_result_error(added.result.error); goto fail; }\n",
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
-                    item->layer, item->visible ? "true" : "false",
+                    item->layer, !item->app_hidden ? "true" : "false",
                     (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
@@ -2263,7 +2263,7 @@ static bool editor_workspace_generated_viewports_write(
                     text->width_scale * 2.0f, text->height_scale * 2.0f,
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
-                    item->layer, item->visible ? "true" : "false",
+                    item->layer, !item->app_hidden ? "true" : "false",
                     (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
@@ -2322,7 +2322,7 @@ static bool editor_workspace_generated_viewports_write(
                     slider->enabled ? "true" : "false",
                     item->position.x, item->position.y,
                     item->scale.x, item->scale.y, item->rotation,
-                    item->layer, item->visible ? "true" : "false",
+                    item->layer, !item->app_hidden ? "true" : "false",
                     (int)item->drag_mode,
                     item->clip_enabled ? "true" : "false",
                     item->clip_rectangle.x, item->clip_rectangle.y,
@@ -2344,7 +2344,7 @@ static bool editor_workspace_generated_viewports_write(
             }
             text_count += has_text ? 1 : 0;
         }
-        if(viewport->enabled) fprintf(source,
+        if(!viewport->app_hidden) fprintf(source,
             "      if(rohr_error_check(result = rohr_viewport_enable_set("
                 "resources->viewports[resources->viewport_count - 1]))) goto fail;\n");
         fprintf(source, "    }\n");

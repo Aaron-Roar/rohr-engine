@@ -72,7 +72,7 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Gravity", gravity_label);
 
     CREATE("Node Color", color_label);
-    CREATE("Inherit", inherit_label); CREATE("Visibility", visibility_label);
+    CREATE("Inherit", inherit_label); CREATE("Visible in App", visibility_label);
     CREATE("Inherit From Soft Body", motion_inherit_label);
     CREATE("Velocity X", velocity_x_label); CREATE("Velocity Y", velocity_y_label);
     CREATE("Acceleration X", acceleration_x_label);
@@ -185,14 +185,13 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = node->visible;
-        if(editor_mode_visibility_field("editor.soft_node.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !node->app_hidden;
+        if(editor_mode_checkbox_left("editor.soft_node.visibility",
+                &editor->visibility_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_SOFT_NODE, object->id,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_SOFT_NODE, object->id,
                     body->id, node->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }

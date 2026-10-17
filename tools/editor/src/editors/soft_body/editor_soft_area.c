@@ -12,7 +12,7 @@ bool editor_soft_area_editor_create(EditorSoftAreaEditor *editor, FontAsset *fon
     *editor = (EditorSoftAreaEditor){.font = font};
 #define TEXT(field, value) if(!editor_mode_text_create(font, value, &editor->field)) goto fail
     TEXT(add_area, "Add Area"); TEXT(add_hole, "Add Hole"); TEXT(name_label, "Name");
-    TEXT(name_field, ""); TEXT(visible, "[X]"); TEXT(hidden, "[ ]"); TEXT(visibility, "Visibility");
+    TEXT(name_field, ""); TEXT(visible, "[X]"); TEXT(hidden, "[ ]"); TEXT(visibility, "Visible in App");
     TEXT(select_nodes, "Select nodes to define area");
     TEXT(picking, "Picking nodes (click to finish)"); TEXT(inactive, "Click to select nodes");
     TEXT(up, "Up"); TEXT(down, "Down"); TEXT(remove, "X"); TEXT(color, "Color");
@@ -132,10 +132,13 @@ bool editor_soft_area_editor_draw(EditorSoftAreaEditor *editor, const EditorMode
     bool layer_active = false;
     float y = 80;
     if(!is_hole) {
-        bool visible = area->visible;
-        if(editor_mode_visibility_field("editor.soft_area.visibility", &editor->visibility,
-                &editor->visible, &editor->hidden, (UIRect){context->x + 10,y,context->width - 20,28}, &visible))
-            (void)editor_navigation_selection_visibility_set(context->project, ref, visible);
+        bool visible = !area->app_hidden;
+        if(editor_mode_checkbox_left("editor.soft_area.visibility", &editor->visibility, (UIRect){context->x + 10,y,context->width - 20,28}, &visible))
+        {
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_SOFT_AREA, object->id, body->id, area->id, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
         y += 36;
         EditorModeAccordionLayoutCursor cursor = editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
         float rows[] = {28, context->layer_control != NULL &&

@@ -27,7 +27,7 @@ bool editor_anchor_editor_create(EditorAnchorEditor *editor, FontAsset *font) {
     CREATE("Follow Position", position_body_label);
     CREATE("Global Rotation", rotation_global_label);
     CREATE("Follow Rotation", rotation_body_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Editor Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Anchor", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);

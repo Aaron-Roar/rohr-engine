@@ -15,6 +15,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Missing app visibility migrates legacy editor eyes to editor-only state. */
+static bool editor_json_app_visibility_read(yyjson_val *value, bool *hidden) {
+    yyjson_val *visible = yyjson_obj_get(value, "visible_in_app");
+    if(visible && !yyjson_is_bool(visible)) return false;
+    *hidden = visible ? !yyjson_get_bool(visible) : false;
+    return true;
+}
+
 static yyjson_mut_val *editor_json_position_write(yyjson_mut_doc *document,
     Position position) {
     yyjson_mut_val *value = yyjson_mut_obj(document);
@@ -381,6 +389,7 @@ static yyjson_mut_val *editor_json_body_write(yyjson_mut_doc *document,
         body->collision_category);
     yyjson_mut_obj_add_uint(document, value, "collision_with", body->collision_with);
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !body->app_hidden);
     yyjson_mut_obj_add_uint(document, value, "border_color", body->border_color);
     yyjson_mut_obj_add_uint(document, value, "surface_color", body->surface_color);
     yyjson_mut_obj_add_uint(document, value, "active_hitbox_index",
@@ -442,6 +451,7 @@ static yyjson_mut_val *editor_json_joint_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_real(document, value, "rest_angle", joint->rest_angle);
     yyjson_mut_obj_add_real(document, value, "visual_size", joint->visual_size);
     yyjson_mut_obj_add_bool(document, value, "visible", joint->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !joint->app_hidden);
     return value;
 }
 
@@ -459,6 +469,7 @@ static yyjson_mut_val *editor_json_area_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_uint(document, value, "id", area->id);
     yyjson_mut_obj_add_strcpy(document, value, "name", area->name);
     yyjson_mut_obj_add_bool(document, value, "visible", area->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !area->app_hidden);
     yyjson_mut_obj_add_uint(document, value, "color", area->color);
     editor_json_graphics_layer_binding_write(document, value, area->graphics_layer);
     yyjson_mut_obj_add_bool(document, value, "graphics_layer_inherited",
@@ -500,6 +511,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
     yyjson_mut_obj_add_real(document, value, "initial_angular_velocity",
         body->initial_angular_velocity);
     yyjson_mut_obj_add_bool(document, value, "visible", body->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !body->app_hidden);
     yyjson_mut_obj_add_uint(document, value, "node_color", body->node_color);
     yyjson_mut_obj_add_uint(document, value, "beam_color", body->beam_color);
     for(size_t i = 0; i < body->node_count; i += 1) {
@@ -528,6 +540,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "collision_category", node->collision_category);
         yyjson_mut_obj_add_uint(document, item, "collision_with", node->collision_with);
         yyjson_mut_obj_add_bool(document, item, "visible", node->visible);
+    yyjson_mut_obj_add_bool(document, item, "visible_in_app", !node->app_hidden);
         yyjson_mut_obj_add_uint(document, item, "color", node->color);
         yyjson_mut_obj_add_bool(document, item, "color_overridden", node->color_overridden);
         yyjson_mut_arr_add_val(nodes, item);
@@ -556,6 +569,7 @@ static yyjson_mut_val *editor_json_soft_body_write(yyjson_mut_doc *document,
         yyjson_mut_obj_add_uint(document, item, "collision_with",
             beam->collision_with);
         yyjson_mut_obj_add_bool(document, item, "visible", beam->visible);
+    yyjson_mut_obj_add_bool(document, item, "visible_in_app", !beam->app_hidden);
         yyjson_mut_obj_add_uint(document, item, "color", beam->color);
         yyjson_mut_obj_add_bool(document, item, "color_overridden", beam->color_overridden);
         yyjson_mut_arr_add_val(beams, item);
@@ -617,6 +631,7 @@ static yyjson_mut_val *editor_json_animated_sprite_write(yyjson_mut_doc *documen
     yyjson_mut_obj_add_bool(document, value, "follow_body_rotation",
         sprite->follow_body_rotation);
     yyjson_mut_obj_add_bool(document, value, "visible", sprite->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !sprite->app_hidden);
     yyjson_mut_obj_add_bool(document, value, "playing", sprite->playing);
     return value;
 }
@@ -912,6 +927,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_val(document, value, "overview_position",
             editor_json_position_write(document, object->overview_position));
         yyjson_mut_obj_add_bool(document, value, "visible", object->visible);
+    yyjson_mut_obj_add_bool(document, value, "visible_in_app", !object->app_hidden);
         for(size_t j = 0; j < object->rigid_body_count; j += 1)
             yyjson_mut_arr_add_val(bodies, editor_json_body_write(document,
                 &object->rigid_bodies[j]));
@@ -943,6 +959,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                 object->sprites[j].follow_body_rotation);
             yyjson_mut_obj_add_bool(document, sprite, "visible",
                 object->sprites[j].visible);
+            yyjson_mut_obj_add_bool(document, sprite, "visible_in_app", !object->sprites[j].app_hidden);
             yyjson_mut_arr_add_val(sprites, sprite);
         }
         for(size_t j = 0; j < object->animated_sprite_count; j += 1)
@@ -968,6 +985,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_bool(document, item, "inherit_orientation",
                 camera->inherit_orientation);
             yyjson_mut_obj_add_bool(document, item, "visible", camera->visible);
+    yyjson_mut_obj_add_bool(document, item, "visible_in_app", !camera->app_hidden);
             yyjson_mut_arr_add_val(camera_values, item);
         }
         for(size_t j = 0; j < object->hierarchy_count; j += 1) {
@@ -1007,6 +1025,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_uint(document, value, "background_color",
             viewport->background_color);
         yyjson_mut_obj_add_bool(document, value, "enabled", viewport->enabled);
+        yyjson_mut_obj_add_bool(document, value, "visible_in_app", !viewport->app_hidden);
         for(size_t j = 0; j < viewport->camera_item_count; j += 1) {
             const EditorViewportCameraItem *camera = &viewport->camera_items[j];
             yyjson_mut_val *item = yyjson_mut_obj(document);
@@ -1028,6 +1047,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
                 camera->graphics_layer);
             yyjson_mut_obj_add_bool(document, item, "visible",
                 camera->placement.visible);
+            yyjson_mut_obj_add_bool(document, item, "visible_in_app", !camera->app_hidden);
             yyjson_mut_obj_add_uint(document, item, "drag_mode",
                 camera->placement.drag_mode);
             yyjson_mut_obj_add_real(document, item, "content_x",
@@ -1065,6 +1085,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
             yyjson_mut_obj_add_uint(document, item, "graphics_layer",
                 ui->graphics_layer);
             yyjson_mut_obj_add_bool(document, item, "visible", ui->visible);
+    yyjson_mut_obj_add_bool(document, item, "visible_in_app", !ui->app_hidden);
             yyjson_mut_obj_add_uint(document, item, "drag_mode", ui->drag_mode);
             yyjson_mut_arr_add_val(ui_items, item);
         }
@@ -1177,7 +1198,8 @@ static bool editor_json_body_read(yyjson_val *value, EditorRigidBody *body,
             !editor_json_bool(value, "static", &body->static_body) ||
             !editor_json_bool(value, "rotation_locked", &body->rotation_locked) ||
             !editor_json_bool(value, "gravity_enabled", &body->gravity_enabled) ||
-            !editor_json_bool(value, "visible", &body->visible) || !yyjson_is_arr(hitboxes)) {
+            !editor_json_bool(value, "visible", &body->visible) ||
+            !editor_json_app_visibility_read(value, &body->app_hidden) || !yyjson_is_arr(hitboxes)) {
         return false;
     }
     if(collision_enabled != NULL && (!editor_json_bool(value, "collision_enabled",
@@ -1315,6 +1337,7 @@ static bool editor_json_joint_read(yyjson_val *value, EditorJoint *joint,
             !editor_json_real(value, "rest_angle", &joint->rest_angle) ||
             !editor_json_real(value, "visual_size", &joint->visual_size) ||
             !editor_json_bool(value, "visible", &joint->visible) ||
+            !editor_json_app_visibility_read(value, &joint->app_hidden) ||
             !editor_json_graphics_layer_binding_read(value,
                 &joint->graphics_layer)) return false;
     editor_project_property_name_format(joint->name, sizeof(joint->name), joint->name);
@@ -1351,6 +1374,7 @@ static bool editor_json_areas_read(yyjson_val *value, EditorSoftBody *body) {
         if(!editor_json_uint(item, "id", &area->id) || area->id == 0 ||
                 area->id >= body->next_area_id || !editor_json_name(item, area->name) ||
                 !editor_json_bool(item, "visible", &area->visible) ||
+            !editor_json_app_visibility_read(item, &area->app_hidden) ||
                 !editor_json_uint(item, "color", &area->color) ||
                 !editor_json_graphics_layer_binding_read(item, &area->graphics_layer) ||
                 !editor_json_bool(item, "graphics_layer_inherited", &area->graphics_layer_inherited) ||
@@ -1390,7 +1414,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
     if(!yyjson_is_obj(value) || !editor_json_uint(value, "id", &body->id) || body->id == 0 ||
             !editor_json_name(value, body->name) || !editor_json_position_read(
                 yyjson_obj_get(value, "position"), &body->position) ||
-            !editor_json_bool(value, "visible", &body->visible) || !yyjson_is_arr(nodes) ||
+            !editor_json_bool(value, "visible", &body->visible) ||
+            !editor_json_app_visibility_read(value, &body->app_hidden) || !yyjson_is_arr(nodes) ||
             !yyjson_is_arr(beams)) return false;
     if(hierarchy != NULL && !yyjson_is_arr(hierarchy)) return false;
     if(yyjson_obj_get(value, "node_color") != NULL &&
@@ -1434,7 +1459,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                     yyjson_obj_get(item, "position"), &node->position) ||
                 !editor_json_real(item, "mass", &node->node_mass) ||
                 !editor_json_bool(item, "gravity_enabled", &node->gravity_enabled) ||
-                !editor_json_bool(item, "visible", &node->visible)) return false;
+                !editor_json_bool(item, "visible", &node->visible) ||
+            !editor_json_app_visibility_read(item, &node->app_hidden)) return false;
         if(yyjson_obj_get(item, "initial_velocity") != NULL &&
                 (!editor_json_position_read(yyjson_obj_get(item,
                     "initial_velocity"), &node->initial_velocity) ||
@@ -1484,7 +1510,8 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
                     &beam->collision_category) ||
                 !editor_json_uint64(item, "collision_with",
                     &beam->collision_with) ||
-                !editor_json_bool(item, "visible", &beam->visible)) return false;
+                !editor_json_bool(item, "visible", &beam->visible) ||
+            !editor_json_app_visibility_read(item, &beam->app_hidden)) return false;
         if((yyjson_obj_get(item, "friction") != NULL &&
                 !editor_json_real(item, "friction", &beam->friction)) ||
                 (yyjson_obj_get(item, "restitution") != NULL &&
@@ -1586,6 +1613,7 @@ static bool editor_json_animated_sprite_read(yyjson_val *value,
             !editor_json_bool(value, "follow_body_rotation",
                 &sprite->follow_body_rotation) ||
             !editor_json_bool(value, "visible", &sprite->visible) ||
+            !editor_json_app_visibility_read(value, &sprite->app_hidden) ||
             !editor_json_bool(value, "playing", &sprite->playing)) return false;
     time = yyjson_obj_get(value, "time_per_frame");
     frames = yyjson_obj_get(value, "frames");
@@ -2042,7 +2070,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != 8 && version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
@@ -2447,6 +2475,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 object->id == 0 || !editor_json_name(value, object->name) ||
                 !editor_json_position_read(yyjson_obj_get(value, "position"), &object->position) ||
                 !editor_json_bool(value, "visible", &object->visible) ||
+            !editor_json_app_visibility_read(value, &object->app_hidden) ||
                 !yyjson_is_arr(bodies) || !yyjson_is_arr(anchors) ||
                 !yyjson_is_arr(joint_values) || !yyjson_is_arr(soft_body_values) ||
                 (sprites != NULL && !yyjson_is_arr(sprites)) ||
@@ -2510,6 +2539,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(sprite_value, "follow_body_rotation",
                         &sprite->follow_body_rotation) ||
                     !editor_json_bool(sprite_value, "visible", &sprite->visible) ||
+            !editor_json_app_visibility_read(sprite_value, &sprite->app_hidden) ||
                     !editor_json_graphics_layer_binding_read(sprite_value,
                         &sprite->graphics_layer) ||
                     sprite->size.x <= 0.0f || sprite->size.y <= 0.0f) goto done;
@@ -2560,6 +2590,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_bool(item, "inherit_orientation",
                         &camera->inherit_orientation) ||
                     !editor_json_bool(item, "visible", &camera->visible) ||
+            !editor_json_app_visibility_read(item, &camera->app_hidden) ||
                     camera->dimensions.x <= 0.0f || camera->dimensions.y <= 0.0f)
                 goto done;
             zoom = yyjson_obj_get(item, "zoom");
@@ -2626,6 +2657,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 !editor_json_real(value, "height", &viewport->config.rectangle.height) ||
                 !editor_json_uint(value, "fit", &fit) || fit > SCREEN_FIT_COVER ||
                 !editor_json_bool(value, "enabled", &viewport->enabled) ||
+                !editor_json_app_visibility_read(value, &viewport->app_hidden) ||
                 !yyjson_is_arr(camera_items) ||
                 viewport->config.rectangle.width <= 0.0f ||
                 viewport->config.rectangle.height <= 0.0f) goto done;
@@ -2680,6 +2712,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                         &item->placement.orientation) ||
                     !editor_json_int(item_value, "layer", &item->placement.layer) ||
                     !editor_json_bool(item_value, "visible", &item->placement.visible) ||
+                    !editor_json_app_visibility_read(item_value, &item->app_hidden) ||
                     item->placement.rectangle.width <= 0.0f ||
                     item->placement.rectangle.height <= 0.0f) goto done;
             if(drag_mode != NULL && (!yyjson_is_uint(drag_mode) ||
@@ -2730,7 +2763,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     !editor_json_real(item_value, "x", &item->position.x) ||
                     !editor_json_real(item_value, "y", &item->position.y) ||
                     !editor_json_int(item_value, "layer", &item->layer) ||
-                    !editor_json_bool(item_value, "visible", &item->visible))
+                    !editor_json_bool(item_value, "visible", &item->visible) ||
+                    !editor_json_app_visibility_read(item_value, &item->app_hidden))
                 goto done;
             definition_value = yyjson_obj_get(item_value, "definition");
             if(definition_value != NULL) {

@@ -65,7 +65,7 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
 
     CREATE("Beam Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("None", none_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Beam", delete_label); CREATE("", stiffness_field);
     CREATE("", damping_field); CREATE("", thickness_field);
@@ -148,14 +148,13 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = beam->visible;
-        if(editor_mode_visibility_field("editor.soft_beam.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !beam->app_hidden;
+        if(editor_mode_checkbox_left("editor.soft_beam.visibility",
+                &editor->visibility_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_SOFT_BEAM, object->id,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_SOFT_BEAM, object->id,
                     body->id, beam->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }

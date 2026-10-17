@@ -28,6 +28,7 @@ typedef enum EditorBulkValueKind {
 typedef enum EditorBulkTargetKind {
     EDITOR_BULK_PROPERTY,
     EDITOR_BULK_VISIBILITY,
+    EDITOR_BULK_APP_VISIBILITY,
     EDITOR_BULK_POSITION_X,
     EDITOR_BULK_POSITION_Y,
     EDITOR_BULK_ROTATION,
@@ -45,7 +46,7 @@ typedef struct EditorBulkProperty {
 } EditorBulkProperty;
 
 static const EditorBulkProperty force_properties[] = {
-    {"Visible",EDITOR_BULK_VISIBILITY,EDITOR_BULK_CHECKBOX,0},
+    {"Visible in Editor",EDITOR_BULK_VISIBILITY,EDITOR_BULK_CHECKBOX,0},
     {"World X",EDITOR_BULK_POSITION_X,EDITOR_BULK_FLOAT,0},
     {"World Y",EDITOR_BULK_POSITION_Y,EDITOR_BULK_FLOAT,0},
     {"Rotation (deg)",EDITOR_BULK_ROTATION,EDITOR_BULK_FLOAT,0},
@@ -53,12 +54,10 @@ static const EditorBulkProperty force_properties[] = {
     {"Initial (one tick)",EDITOR_BULK_FORCE_INITIAL,EDITOR_BULK_CHECKBOX,0}
 };
 static const EditorBulkProperty object_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0}
 };
 static const EditorBulkProperty rigid_body_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
     {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
@@ -84,10 +83,9 @@ static const EditorBulkProperty rigid_body_properties[] = {
         EDITOR_PROPERTY_PARTICLE_FILL_COLOR}
 };
 static const EditorBulkProperty visible_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0}
+    {"Visible in Editor", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0}
 };
 static const EditorBulkProperty joint_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"Kind", EDITOR_BULK_PROPERTY, EDITOR_BULK_JOINT_KIND_DROPDOWN,
         EDITOR_PROPERTY_JOINT_KIND},
     {"Visual Size", EDITOR_BULK_PROPERTY, EDITOR_BULK_VISUAL_SIZE_SLIDER,
@@ -100,7 +98,7 @@ static const EditorBulkProperty joint_properties[] = {
         EDITOR_PROPERTY_DAMPING}
 };
 static const EditorBulkProperty anchor_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
+    {"Visible in Editor", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
     {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
@@ -110,7 +108,6 @@ static const EditorBulkProperty anchor_properties[] = {
         EDITOR_PROPERTY_ROTATION_FOLLOWS_BODY}
 };
 static const EditorBulkProperty soft_body_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
     {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0},
@@ -120,7 +117,6 @@ static const EditorBulkProperty soft_body_properties[] = {
         EDITOR_PROPERTY_BEAM_COLOR},
 };
 static const EditorBulkProperty soft_node_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
     {"Mass", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_MASS},
@@ -135,7 +131,6 @@ static const EditorBulkProperty soft_node_properties[] = {
 static const EditorBulkProperty soft_beam_properties[] = {
     {"Friction", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_FRICTION},
     {"Restitution", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT, EDITOR_PROPERTY_RESTITUTION},
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"Stiffness", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
         EDITOR_PROPERTY_STIFFNESS},
     {"Damping", EDITOR_BULK_PROPERTY, EDITOR_BULK_FLOAT,
@@ -157,7 +152,6 @@ static const EditorBulkProperty origin_properties[] = {
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0}
 };
 static const EditorBulkProperty sprite_properties[] = {
-    {"Visible", EDITOR_BULK_VISIBILITY, EDITOR_BULK_CHECKBOX, 0},
     {"X", EDITOR_BULK_POSITION_X, EDITOR_BULK_FLOAT, 0},
     {"Y", EDITOR_BULK_POSITION_Y, EDITOR_BULK_FLOAT, 0},
     {"Rotation (deg)", EDITOR_BULK_ROTATION, EDITOR_BULK_FLOAT, 0}
@@ -251,13 +245,29 @@ static const EditorBulkProperty *editor_bulk_mixed_properties_get(
     return mixed_position_properties;
 }
 
+static size_t editor_bulk_selection_properties_get(EditorProject *project,
+        const EditorViewportState *state, EditorBulkProperty *output) {
+    size_t count = 0, used = 0;
+    const EditorBulkProperty *properties = editor_viewport_selection_homogeneous_check(state) ?
+        editor_bulk_properties_get(state->selected_items[0].kind, &count) :
+        editor_bulk_mixed_properties_get(state, &count);
+    bool app_supported = state->selected_item_count > 0;
+    for(size_t i = 0; i < state->selected_item_count && app_supported; ++i) {
+        EditorCommand command;
+        app_supported = editor_navigation_app_visibility_command_get(project, state->selected_items[i], &command);
+    }
+    if(app_supported) output[used++] = (EditorBulkProperty){"Visible in App",
+        EDITOR_BULK_APP_VISIBILITY, EDITOR_BULK_CHECKBOX, 0};
+    for(size_t i = 0; i < count && used < EDITOR_BULK_PROPERTY_MAX; ++i) output[used++] = properties[i];
+    return used;
+}
+
 float editor_bulk_panel_content_height_get(const EditorBulkPanel *panel,
         EditorProject *project, const EditorViewportState *state) {
     size_t count = 0;
     if(state == NULL || state->selected_item_count < 2) return 0.0f;
-    if(editor_viewport_selection_homogeneous_check(state))
-        (void)editor_bulk_properties_get(state->selected_items[0].kind, &count);
-    else (void)editor_bulk_mixed_properties_get(state, &count);
+    EditorBulkProperty properties[EDITOR_BULK_PROPERTY_MAX];
+    count = editor_bulk_selection_properties_get(project, state, properties);
     EditorCollisionValues values;
     float collision_height = editor_collision_values_get(project, state->selected_items,
         state->selected_item_count, &values) ? editor_collision_controls_height_get(&panel->collision, project, true) : 0;
@@ -663,7 +673,7 @@ static bool editor_bulk_apply(EditorProject *project, EditorViewportState *state
         if(!editor_bulk_bool_parse(text,&boolean)) return false;
         number=boolean?1:0;
     }
-    if(property->target == EDITOR_BULK_VISIBILITY &&
+    if((property->target == EDITOR_BULK_VISIBILITY || property->target == EDITOR_BULK_APP_VISIBILITY) &&
             !editor_bulk_bool_parse(text, &boolean)) return false;
     if((property->target == EDITOR_BULK_FORCE_MAGNITUDE || property->target == EDITOR_BULK_POSITION_X ||
             property->target == EDITOR_BULK_POSITION_Y ||
@@ -673,7 +683,7 @@ static bool editor_bulk_apply(EditorProject *project, EditorViewportState *state
             !editor_bulk_float_parse(text, &number)) return false;
     if(!editor_history_transaction_begin(history)) return false;
     for(size_t i = 0; i < state->selected_item_count; i += 1)
-        if(!editor_history_transaction_object_track(history,
+        if(property->target != EDITOR_BULK_APP_VISIBILITY && !editor_history_transaction_object_track(history,
                 state->selected_items[i].object)) {
             editor_history_transaction_cancel(history);
             return false;
@@ -685,7 +695,10 @@ static bool editor_bulk_apply(EditorProject *project, EditorViewportState *state
         if(property->target == EDITOR_BULK_PROPERTY)
             built = editor_bulk_property_command_get(state->selected_items[i],
                 property, text, &command);
-        else if(property->target == EDITOR_BULK_VISIBILITY)
+        else if(property->target == EDITOR_BULK_APP_VISIBILITY) {
+            built = editor_navigation_app_visibility_command_get(project, state->selected_items[i], &command);
+            command.data.app_visibility.visible = boolean;
+        } else if(property->target == EDITOR_BULK_VISIBILITY)
             built = editor_bulk_visibility_command_get(state->selected_items[i],
                 boolean, &command);
         else built = editor_bulk_transform_command_get(project,
@@ -792,10 +805,9 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
     bool editing = false;
     if(panel == NULL || project == NULL || state == NULL || history == NULL ||
             state->selected_item_count < 2) return false;
-    properties = editor_viewport_selection_homogeneous_check(state) ?
-        editor_bulk_properties_get(state->selected_items[0].kind,
-            &property_count) : editor_bulk_mixed_properties_get(state,
-                &property_count);
+    EditorBulkProperty selection_properties[EDITOR_BULK_PROPERTY_MAX];
+    property_count = editor_bulk_selection_properties_get(project, state, selection_properties);
+    properties = selection_properties;
     editor_collision_controls_selection_set(&panel->collision, state->selected_items, state->selected_item_count);
     EditorCollisionValues collision_values;
     bool collision_supported = editor_collision_values_get(project, state->selected_items,
@@ -832,6 +844,17 @@ bool editor_bulk_panel_draw(EditorBulkPanel *panel, EditorProject *project,
         snprintf(id, sizeof(id), "editor.bulk.%u.%zu", (unsigned)panel->kind, i);
         rohr_ui_label(&panel->labels[i],
             (UIRect){x + 10.0f, y, 112.0f, 26.0f});
+        if(properties[i].target == EDITOR_BULK_APP_VISIBILITY) {
+            panel->assigned[i] = true;
+            for(size_t n = 0; n < state->selected_item_count; ++n) {
+                EditorCommand command;
+                if(!editor_navigation_app_visibility_command_get(project, state->selected_items[n], &command)) {
+                    panel->assigned[i] = false; break;
+                }
+                if(n == 0) panel->booleans[i] = command.data.app_visibility.visible;
+                else if(panel->booleans[i] != command.data.app_visibility.visible) panel->assigned[i] = false;
+            }
+        }
         if(properties[i].value == EDITOR_BULK_CHECKBOX) {
             if(editor_bulk_checkbox_draw(id, control, panel->assigned[i],
                     &panel->booleans[i])) {

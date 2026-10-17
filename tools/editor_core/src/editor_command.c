@@ -562,6 +562,14 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
             project->physics_solver_iterations = command->data.
                 project_physics_settings_set.physics_solver_iterations;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        case EDITOR_COMMAND_APP_VISIBILITY: {
+            bool *hidden = editor_command_app_hidden_get(project,
+                command->data.app_visibility.kind, command->data.app_visibility.object,
+                command->data.app_visibility.parent, command->data.app_visibility.item);
+            if(!hidden) return editor_command_not_found("app visibility target", command->data.app_visibility.item);
+            *hidden = !command->data.app_visibility.visible;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
         case EDITOR_COMMAND_VISIBILITY: {
             EditorObject *object = editor_object_query_get(project,
                 command->data.visibility.object);
@@ -2143,6 +2151,52 @@ property_invalid:
         "unknown editor command"});
 }
 
+bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
+        EditorObjectId object_id, uint32_t parent, uint32_t item) {
+    if(!project) return NULL;
+    if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT || kind == EDITOR_ITEM_VIEWPORT_CAMERA ||
+            kind == EDITOR_ITEM_VIEWPORT_UI) {
+        EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
+            kind == EDITOR_ITEM_LAYOUT_VIEWPORT ? item : object_id);
+        if(!viewport) return NULL;
+        if(kind == EDITOR_ITEM_LAYOUT_VIEWPORT) return &viewport->app_hidden;
+        if(kind == EDITOR_ITEM_VIEWPORT_CAMERA) {
+            for(size_t i = 0; i < viewport->camera_item_count; ++i)
+                if(viewport->camera_items[i].id == item) return &viewport->camera_items[i].app_hidden;
+        } else for(size_t i = 0; i < viewport->ui_item_count; ++i)
+            if(viewport->ui_items[i].id == item) return &viewport->ui_items[i].app_hidden;
+        return NULL;
+    }
+    EditorObject *object = editor_object_query_get(project, object_id);
+    if(!object) return NULL;
+    if(kind == EDITOR_ITEM_OBJECT) return &object->app_hidden;
+#define APP_ITEM(items, count) do { \
+    for(size_t i = 0; i < (count); ++i) \
+        if((items)[i].id == item) return &(items)[i].app_hidden; \
+} while(0)
+    switch(kind) {
+        case EDITOR_ITEM_RIGID_BODY: APP_ITEM(object->rigid_bodies, object->rigid_body_count); break;
+        case EDITOR_ITEM_JOINT: APP_ITEM(object->joint_items, object->joint_count); break;
+        case EDITOR_ITEM_SOFT_BODY: APP_ITEM(object->soft_body_items, object->soft_body_count); break;
+        case EDITOR_ITEM_CAMERA: APP_ITEM(object->cameras, object->camera_count); break;
+        case EDITOR_ITEM_SPRITE: APP_ITEM(object->sprites, object->sprite_count); break;
+        case EDITOR_ITEM_ANIMATED_SPRITE: APP_ITEM(object->animated_sprite_items, object->animated_sprite_count); break;
+        case EDITOR_ITEM_SOFT_NODE:
+        case EDITOR_ITEM_SOFT_BEAM:
+        case EDITOR_ITEM_SOFT_AREA: {
+            EditorSoftBody *body = editor_soft_body_get(object, parent);
+            if(!body) break;
+            if(kind == EDITOR_ITEM_SOFT_NODE) { APP_ITEM(body->nodes, body->node_count); }
+            if(kind == EDITOR_ITEM_SOFT_BEAM) { APP_ITEM(body->beams, body->beam_count); }
+            if(kind == EDITOR_ITEM_SOFT_AREA) { APP_ITEM(body->areas, body->area_count); }
+            break;
+        }
+        default: break;
+    }
+#undef APP_ITEM
+    return NULL;
+}
+
 EditorCommandResult editor_command_execute(EditorProject *project,
         const EditorCommand *command) {
     if(editor_command_executing_callback != NULL)
@@ -2443,6 +2497,21 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
             "expected an editor mutation command");
     domain = arguments[1];
     action = arguments[2];
+    if(strcmp(domain, "app-visibility") == 0) {
+        uint32_t kind;
+        *document_path = arguments[3];
+        if(count == 9 && strcmp(action, "set") == 0 &&
+                editor_command_uint_parse(arguments[4], &kind) && kind <= EDITOR_ITEM_VIEWPORT_UI &&
+                editor_command_uint_parse(arguments[5], &command->data.app_visibility.object) &&
+                editor_command_uint_parse(arguments[6], &command->data.app_visibility.parent) &&
+                editor_command_uint_parse(arguments[7], &command->data.app_visibility.item) &&
+                editor_command_bool_parse(arguments[8], &command->data.app_visibility.visible)) {
+            command->type = EDITOR_COMMAND_APP_VISIBILITY;
+            command->data.app_visibility.kind = (EditorItemKind)kind;
+            return editor_result_value(true);
+        }
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "invalid app visibility command");
+    }
     if(strcmp(domain, "sprite") == 0) {
         uint32_t object, id;
         *document_path = arguments[3];
@@ -3434,6 +3503,14 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
                 "rohr-cli animated-sprite ")) goto capacity_error;
     }
     switch(command->type) {
+        case EDITOR_COMMAND_APP_VISIBILITY:
+            if(!editor_command_text_append(output, output_capacity, &used, "rohr-cli --project ") ||
+                    !editor_command_shell_text_append(output, output_capacity, &used, document_path)) goto capacity_error;
+            snprintf(values, sizeof(values), " --app-visibility %u %u %u %u set %s", (unsigned)command->data.app_visibility.kind,
+                command->data.app_visibility.object, command->data.app_visibility.parent,
+                command->data.app_visibility.item, command->data.app_visibility.visible ? "true" : "false");
+            if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+            return editor_result_value(true);
         case EDITOR_COMMAND_SPRITE_ADD:
             if(!editor_command_text_append(output, output_capacity, &used, "add ") ||
                     !editor_command_shell_text_append(output, output_capacity, &used,

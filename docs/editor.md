@@ -4,6 +4,29 @@ The Rohr editor is a visual authoring tool for engine objects. It stores editabl
 project data as JSON and generates C source that is compiled with the game. Game
 runtime behavior remains developer-owned C code.
 
+## Editor and app visibility
+
+The eye icon and context-menu **Hide/Show** affect only editing convenience.
+They never disable game rendering or simulation. For objects with runtime
+visuals, **Visible in App** is the first property below the name/header, above
+all data fields and accordions. It uses a checkbox, not an eye icon. Compatible
+multiple selections share the same property and show a mixed state when needed.
+
+App visibility controls objects, bodies/particles, joints, soft bodies and their
+nodes/beams/areas, sprites, animations, cameras, viewports, screens, and mounted
+UI. A hidden parent suppresses child rendering without changing the children's
+stored settings. A hidden camera stops its screen output; viewport UI remains
+independent. Physics, collisions, forces, constraints, animation playback, and
+input activation keep their own behavior. Collision hitbox variants, anchors,
+and force markers have no separate runtime visual output; their editor
+visibility remains an editing aid. Input controllers use their explicit
+**Enabled** setting and have no visibility eye.
+
+Project format 9 stores `visible_in_app` independently of the existing editor
+visibility fields. Version 8 projects load with app visibility on while keeping
+all eye states. Saving writes version 9. Both settings survive copying and
+undo/redo; generation and loaded runtime objects use only app visibility.
+
 ## Build and run
 
 From the engine repository:
@@ -374,14 +397,14 @@ category from either list also assigns it to the selection in the same undo step
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 8. Earlier formats must be rewritten; loading
-them returns a schema error without replacing the current project. Beam-derived
+Project data uses format version 9 and migrates version 8 visibility as described
+above. Older formats must be rewritten; loading them returns a schema error without replacing the current project. Beam-derived
 area data is no longer supported.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
 generated C use the same units. Runtime state and templates use version 8;
-old project/state versions are rejected without replacing valid loaded data.
+unsupported project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or
 `{"mode": "explicit", "offset": {"x": 3, "y": -2}}`.

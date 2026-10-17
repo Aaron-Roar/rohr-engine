@@ -1370,6 +1370,33 @@ Goal 5. Its single goal is complete; stop for review and a user-created commit.
   outcome notification. Stop for review without staging, committing, or advancing
   to Unified Forces and Torques Goal 5.
 
+## Milestone: Separate Visibility and Correct Force Editing
+
+User-selected corrections take priority over Unified Forces and Torques Goal 8.
+Separate editing convenience from app rendering, then improve force controls.
+
+1. [x] **Separate editor and app visibility** — Eyes and Hide/Show now affect
+   editing only. Visible in App is a checkbox below names/headers and above
+   fields and accordions, including mixed selections. Format 9 migrates version 8
+   with app visibility on and existing eyes preserved. Rendering follows parent
+   visibility without changing physics or child settings; copying, duplication,
+   history, loaded descriptions and generated catalogs preserve the split.
+   Rebuilt `/tmp/rohr-projects/project-dir` with its entry point unchanged; its
+   scene callback now renders with the camera eye hidden and UI present.
+   All 90 native tests, four ASan/UBSan/leak suites, GUI startup, and Linux/Windows
+   builds pass with no new compiler diagnostics. Seven installed-SDK consumers,
+   all 12 standalone examples, and a generated default project build on both
+   platforms and pass Linux runtime/probe or bounded startup checks outside
+   their source directories. Windows verification is compilation only.
+   Manual application and property-layout review is requested before Goal 2.
+2. [ ] **Improve force editing affordances** — Replace the rotation dot with
+   opposing curved arrows around the force origin, and highlight referenced
+   bodies/particles/soft-body elements when hovering target/reference choices.
+   Preserve selection, reference-aware transforms, cancellation and history.
+
+Stop for review after each goal. Resume the torque editor only after both
+corrections and explicit user instruction.
+
 ## Milestone: Unified Forces and Torques
 
 Support one shared force API and one shared torque API across rigid bodies,

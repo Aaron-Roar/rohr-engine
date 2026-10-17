@@ -31,7 +31,7 @@ bool editor_hitbox_editor_create(EditorHitboxEditor *editor, FontAsset *font) {
     CREATE("Auto Shape", auto_shape_label);
     CREATE("Vertices", vertices_label);
     CREATE("Lines", lines_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Editor Visibility", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Hitbox Variant", delete_label);
 #undef CREATE

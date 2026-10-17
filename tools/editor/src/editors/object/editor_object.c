@@ -29,7 +29,7 @@ bool editor_object_editor_create(EditorObjectEditor *editor, FontAsset *font) {
     CREATE("Add Force", add_force_label);
     CREATE("Add Anchor", add_anchor_label);
     CREATE("Elements", elements_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Object", delete_label);
 #undef CREATE
@@ -194,14 +194,16 @@ bool editor_object_editor_draw(EditorObjectEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = object->visible;
-        if(editor_mode_visibility_field("editor.object.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !object->app_hidden;
+        if(editor_mode_checkbox_left("editor.object.visibility",
+                &editor->visibility_label,
                 (UIRect){context->x + 10.0f, 96.0f,
                     context->width - 20.0f, 28.0f}, &visible))
-            visibility_toggle(context->project, EDITOR_VISIBILITY_OBJECT,
-                object->id, 0, object->visible);
+        {
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_OBJECT, object->id, 0, 0, visible}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     editor_project_object_hierarchy_sync(object);
     y = 134.0f;

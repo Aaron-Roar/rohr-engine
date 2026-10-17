@@ -488,6 +488,8 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
+    if(command && command->type == EDITOR_COMMAND_APP_VISIBILITY)
+        return editor_command_cli_write(command, path, output, capacity);
     if(command && ((command->type==EDITOR_COMMAND_ITEM_ADD && command->data.item_add.kind==EDITOR_ITEM_FORCE) ||
             (command->type==EDITOR_COMMAND_ITEM_REMOVE && command->data.item_remove.kind==EDITOR_ITEM_FORCE) ||
             (command->type==EDITOR_COMMAND_ITEM_RENAME && command->data.item_rename.kind==EDITOR_ITEM_FORCE))) {
@@ -1351,6 +1353,12 @@ EditorResult editor_command_cli_standard_parse(const EditorProject *project,
         if(*end || !id || id > UINT32_MAX) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid object ID");
         *path = arguments[2]; *command = (EditorCommand){.type=EDITOR_COMMAND_OBJECT_DUPLICATE,.data.object_remove.object=(uint32_t)id};
         return editor_result_value(true);
+    }
+    if(count == 10 && strcmp(arguments[1], "--project") == 0 &&
+            strcmp(arguments[3], "--app-visibility") == 0 && strcmp(arguments[8], "set") == 0) {
+        char *legacy[] = {arguments[0], "app-visibility", "set", arguments[2],
+            arguments[4], arguments[5], arguments[6], arguments[7], arguments[9]};
+        return editor_command_cli_parse(9, legacy, path, command);
     }
     bool input_handled = false;
     EditorResult source_result = editor_source_cli_parse(project, count, arguments, path, command, &input_handled);

@@ -79,7 +79,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_SOFT_AREA_ORDER_SET,
     EDITOR_COMMAND_SOFT_AREA_LAYER_SET,
     EDITOR_COMMAND_SOURCE,
-    EDITOR_COMMAND_OBJECT_DUPLICATE
+    EDITOR_COMMAND_OBJECT_DUPLICATE,
+    EDITOR_COMMAND_APP_VISIBILITY
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -104,7 +105,7 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_ANIMATION_FRAME,
     EDITOR_ITEM_SOFT_AREA,
     EDITOR_ITEM_SOFT_HOLE,
-    EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE
+    EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE, EDITOR_ITEM_VIEWPORT_UI
 } EditorItemKind;
 
 typedef struct EditorInputControllerCommand {
@@ -376,6 +377,12 @@ typedef struct EditorCommand {
             uint32_t physics_solver_iterations;
         } project_physics_settings_set;
         struct {
+            EditorItemKind kind;
+            EditorObjectId object;
+            uint32_t parent, item;
+            bool visible;
+        } app_visibility;
+        struct {
             EditorVisibilityKind kind;
             EditorObjectId object;
             uint32_t parent;
@@ -522,5 +529,9 @@ EditorCommandResult editor_source_command_execute(EditorProject *project, const 
 EditorResult editor_source_cli_parse(const EditorProject *project, int count, char **arguments, const char **path, EditorCommand *command, bool *handled);
 EditorResult editor_source_cli_write(const EditorProject *project, const EditorCommand *command, const char *path, char *output, size_t capacity);
 char *editor_source_query_json(const EditorProject *project, const EditorSourceCommand *command);
+
+/* Returns the independently stored app-hidden flag, or NULL for nonvisual items. */
+bool *editor_command_app_hidden_get(EditorProject *project, EditorItemKind kind,
+    EditorObjectId object, uint32_t parent, uint32_t item);
 
 #endif

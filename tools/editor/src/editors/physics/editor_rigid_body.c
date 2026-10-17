@@ -90,7 +90,7 @@ bool editor_rigid_body_editor_create(EditorRigidBodyEditor *editor,
     CREATE("Add Hitbox Variant", add_hitbox_label);
     CREATE("Bind Frames", bind_frames_label);
     CREATE("Delete Rigid Body", delete_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", rotation_field);
     CREATE("", velocity_x_field); CREATE("", velocity_y_field);
@@ -224,13 +224,12 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = body->visible;
-        if(editor_mode_visibility_field("editor.rigid_body.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !body->app_hidden;
+        if(editor_mode_checkbox_left("editor.rigid_body.visibility",
+                &editor->visibility_label,
                 (UIRect){x + 10.0f, 80.0f, width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_RIGID_BODY, object->id, 0,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_RIGID_BODY, object->id, 0,
                     body->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }

@@ -21,7 +21,7 @@ bool editor_animated_sprite_editor_create(EditorAnimatedSpriteEditor *editor,
     CREATE("Starting Frame", starting_label); CREATE("Direction", direction_label);
     CREATE("Left", left_label); CREATE("Right", right_label);
     CREATE("Follow Rotation", follow_label); CREATE("Playing", playing_label);
-    CREATE("Add Frame", add_frame_label); CREATE("Visibility", visibility_label);
+    CREATE("Add Frame", add_frame_label); CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label);
     CREATE("Delete Animation", delete_label); CREATE("", x_field);
@@ -117,7 +117,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     if(!editor_mode_named_text_sync(editor->font, sprite->name,
             &editor->name_values[index], editor->name_cache[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
-    visible = sprite->visible;
+    visible = !sprite->app_hidden;
     bool visible_changed = false;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 74.0f, 28.0f});
@@ -125,9 +125,8 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_values[index],
         (UIRect){context->x + 88.0f, 42.0f, context->width - 96.0f, 28.0f}, NULL);
-    visible_changed = editor_mode_visibility_field(
+    visible_changed = editor_mode_checkbox_left(
         "editor.animated_sprite.visible", &editor->visibility_label,
-        &editor->visible_label, &editor->hidden_label,
         (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     section_y = 118.0f;
@@ -317,13 +316,15 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 direction_result.selected_index == 0 ? DIRECTION_LEFT : DIRECTION_RIGHT}};
         (void)editor_command_execute(context->project, &command);
     }
-    if(follow_changed || visible_changed || playing_changed) {
+    if(visible_changed) {
+        EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+            .data.app_visibility = {EDITOR_ITEM_ANIMATED_SPRITE, object->id, 0, sprite->id, visible}};
+        (void)editor_command_execute(context->project, &command);
+    }
+    if(follow_changed || playing_changed) {
         EditorCommand command = {.type = follow_changed ?
-            EDITOR_COMMAND_ANIMATED_SPRITE_FOLLOW_ROTATION_SET : visible_changed ?
-                EDITOR_COMMAND_ANIMATED_SPRITE_VISIBILITY_SET :
-                EDITOR_COMMAND_ANIMATED_SPRITE_PLAYING_SET,
-            .data.animated_sprite_boolean_set = {object->id, sprite->id,
-                follow_changed ? follow : visible_changed ? visible : playing}};
+            EDITOR_COMMAND_ANIMATED_SPRITE_FOLLOW_ROTATION_SET : EDITOR_COMMAND_ANIMATED_SPRITE_PLAYING_SET,
+            .data.animated_sprite_boolean_set = {object->id, sprite->id, follow_changed ? follow : playing}};
         (void)editor_command_execute(context->project, &command);
     }
     if(frames_open && rohr_ui_button("editor.animated_sprite.add_frame",

@@ -81,7 +81,7 @@ static bool body_read(ImportContext *c, ObjectDescription *root, const EditorObj
     d->static_body = s->static_body; d->gravity_enabled = s->gravity_enabled;
     d->collision_enabled = s->collision_enabled; d->rotation_locked = s->rotation_locked;
     d->radius = s->particle ? s->particle_radius : 0; d->particle_origin = s->particle_origin;
-    d->particle_vertices = s->particle_rigid_vertices; d->visible = s->visible;
+    d->particle_vertices = s->particle_rigid_vertices; d->visible = !s->app_hidden;
     d->center_of_mass_explicit = s->center_of_mass_explicit; d->center_of_mass = s->center_of_mass_offset;
     d->collision_filter = (CollisionFilterConfig){s->collision_category, s->collision_with};
     d->color = graphics_color_hex_create(s->standalone_particle ? s->particle_fill_color : s->surface_color);
@@ -113,7 +113,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
     if(!d) return false;
     d->position = s->position; d->orientation = s->rotation; d->velocity = s->initial_velocity;
     d->acceleration = s->initial_acceleration; d->angular_velocity = s->initial_angular_velocity;
-    d->visible = s->visible; d->layer = layer(c->project, s->graphics_layer);
+    d->visible = !s->app_hidden; d->layer = layer(c->project, s->graphics_layer);
     Position points[SOFT_BODY_MAX_NODES]; Mass masses[SOFT_BODY_MAX_NODES]; Velocity motion_values[SOFT_BODY_MAX_NODES];
     for(size_t i = 0; i < s->node_count; ++i) {
         points[i] = math_vector_rotate(s->nodes[i].position, s->rotation);
@@ -133,7 +133,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->friction = n->friction; v->restitution = n->restitution;
         v->gravity_enabled = n->gravity_enabled; v->collision_enabled = n->collision_enabled;
         v->collision_filter = (CollisionFilterConfig){n->collision_category, n->collision_with};
-        v->visible = n->visible; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);
+        v->visible = !n->app_hidden; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);
         v->color_overridden = true;
         v->layer = n->graphics_layer_inherited ? d->layer : layer(c->project, n->graphics_layer);
     }
@@ -148,7 +148,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->friction = b->friction; v->restitution = b->restitution; v->thickness = b->collision_thickness;
         v->collision_enabled = b->collision_enabled;
         v->collision_filter = (CollisionFilterConfig){b->collision_category, b->collision_with};
-        v->visible = b->visible; v->color_overridden = true;
+        v->visible = !b->app_hidden; v->color_overridden = true;
         v->color = graphics_color_hex_create(b->color_overridden ? b->color : s->beam_color);
         v->layer = b->graphics_layer_inherited ? d->layer : layer(c->project, b->graphics_layer);
     }
@@ -169,7 +169,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
                 target->nodes[j] = node->id;
             }
         }
-        v->visible = a->visible; v->color_overridden = true; v->color = graphics_color_hex_create(a->color);
+        v->visible = !a->app_hidden; v->color_overridden = true; v->color = graphics_color_hex_create(a->color);
         v->layer = a->graphics_layer_inherited ? d->layer : layer(c->project, a->graphics_layer);
     }
     return true;
@@ -241,7 +241,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         d->endpoint_a = a->id; d->endpoint_b = b->id;
         d->joint_type = s->kind == EDITOR_JOINT_REVOLUTE ? JOINT_PIN : s->kind == EDITOR_JOINT_WELD ? JOINT_WELD : JOINT_SPRING;
         d->rest_length = s->rest_length; d->stiffness = s->stiffness; d->damping = s->damping; d->rest_angle = s->rest_angle;
-        d->visible = s->visible; d->layer = layer(c->project, s->graphics_layer);
+        d->visible = !s->app_hidden; d->layer = layer(c->project, s->graphics_layer);
     }
     for(size_t i = 0; i < o->sprite_count; ++i) {
         const EditorSprite *s = &o->sprites[i];
@@ -249,7 +249,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         ObjectDescription *d = add(c, target ? target : root, o, NULL, OBJECT_SPRITE, s->id, s->name);
         if(!d) return false;
         d->target = target ? target->id : 0; d->position = s->position; d->orientation = s->rotation;
-        d->size = s->size; d->follow_orientation = s->follow_body_rotation; d->visible = s->visible;
+        d->size = s->size; d->follow_orientation = s->follow_body_rotation; d->visible = !s->app_hidden;
         d->asset_path = asset_path(c->path, s->path); d->layer = layer(c->project, s->graphics_layer);
         if(!d->asset_path) return false;
     }
@@ -261,7 +261,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         d->target = target ? target->id : 0; d->position = s->editor_position; d->orientation = s->editor_rotation;
         d->scale = s->scale; d->ticks_per_frame = s->ticks_per_frame; d->time_per_frame = s->time_per_frame;
         d->starting_frame = s->starting_frame; d->direction = s->direction; d->playing = s->playing;
-        d->follow_orientation = s->follow_body_rotation; d->visible = s->visible;
+        d->follow_orientation = s->follow_body_rotation; d->visible = !s->app_hidden;
         d->layer = layer(c->project, s->graphics_layer);
         ObjectFrame *frames = calloc(s->frame_count, sizeof(*frames));
         if(s->frame_count && !frames) return false;
@@ -282,7 +282,7 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         if(s->attachment_kind == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE) target = node_find(c, o, s->attachment_soft_body, s->attachment);
         if(s->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) target = find(c, o, NULL, OBJECT_ANCHOR, s->attachment);
         d->target = target ? target->id : 0; d->position = s->position; d->orientation = s->rotation;
-        d->size = s->dimensions; d->zoom = s->zoom; d->visible = s->visible;
+        d->size = s->dimensions; d->zoom = s->zoom; d->visible = !s->app_hidden;
         d->follow_position = target != NULL; d->follow_orientation = s->inherit_orientation;
     }
     return true;
@@ -299,7 +299,7 @@ ObjectDescriptionResult object_description_project_read(const EditorProject *pro
         const EditorObject *o = &project->objects[i];
         ObjectDescription *d = add(&c, root, o, NULL, OBJECT_CONTAINER, o->id, o->name);
         if(!d) goto fail;
-        d->position = o->position; d->visible = o->visible;
+        d->position = o->position; d->visible = !o->app_hidden;
         for(size_t j = 0; j < o->rigid_body_count; ++j) if(!body_read(&c, d, o, &o->rigid_bodies[j])) goto fail;
         for(size_t j = 0; j < o->soft_body_count; ++j) if(!soft_read(&c, d, o, &o->soft_body_items[j])) goto fail;
         if(!attachments_read(&c, d, o) || !sources_import(&c, d, o)) goto fail;

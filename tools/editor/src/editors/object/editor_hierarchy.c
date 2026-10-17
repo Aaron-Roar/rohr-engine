@@ -220,24 +220,12 @@ void editor_hierarchy_editor_draw(EditorHierarchyEditor *editor,
             context->project, hierarchy_item.id);
         size_t i = controller == NULL ? context->project->input_controller_count :
             (size_t)(controller - context->project->input_controllers);
-        char id[64], enabled_id[72];
+        char id[64];
         if(controller == NULL || i >= ROHR_INPUT_CONTROLLER_LIMIT) continue;
         if(!editor_mode_named_text_sync(editor->font, controller->name,
                 &editor->controller_names[i], editor->controller_cache[i],
                 ROHR_INPUT_NAME_MAX)) continue;
         snprintf(id, sizeof(id), "editor.input_controller.%u", controller->id);
-        snprintf(enabled_id, sizeof(enabled_id),
-            "editor.input_controller.%u.enabled", controller->id);
-        if(editor_mode_visibility_button(enabled_id, controller->enabled,
-                context->viewport->project_elements_hidden,
-                (UIRect){context->x + 8.0f, y, 28.0f, 28.0f}).clicked) {
-            EditorCommand command = {.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
-                .data.input_controller = {.controller = controller->id,
-                    .enabled = !controller->enabled}};
-            snprintf(command.data.input_controller.name,
-                sizeof(command.data.input_controller.name), "%s", controller->name);
-            (void)editor_command_execute(context->project, &command);
-        }
         UIButtonStyle style = rohr_ui_button_style_default_get();
         style.idle = (Color){118, 96, 35, 255};
         style.hovered = (Color){145, 119, 45, 255};

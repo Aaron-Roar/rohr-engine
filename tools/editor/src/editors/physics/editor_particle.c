@@ -16,7 +16,7 @@ bool editor_particle_editor_create(EditorParticleEditor *editor,
 #define CREATE(value, member) \
     if(!editor_mode_text_create(font, value, &editor->member)) goto fail
     CREATE("Particle", title);
-    CREATE("Visibility", visibility_label);
+    CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Particle", delete_label);
@@ -195,13 +195,12 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
         return true;
     }
     {
-        bool visible = body->visible;
-        if(editor_mode_visibility_field("editor.particle.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !body->app_hidden;
+        if(editor_mode_checkbox_left("editor.particle.visibility",
+                &editor->visibility_label,
                 (UIRect){x + 10.0f, 80.0f, width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_RIGID_BODY, object->id, 0,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_RIGID_BODY, object->id, 0,
                     body->id, visible}};
             (void)editor_command_execute(context->project, &command);
             return true;

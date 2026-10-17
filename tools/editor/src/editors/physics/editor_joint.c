@@ -70,7 +70,7 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     CREATE("Anchor B", anchor_b_label); CREATE("None", none_label);
     CREATE("Add Anchor", add_anchor_label); CREATE("Damping", damping_label);
     CREATE("Rest Length", rest_length_label); CREATE("Stiffness", stiffness_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Joint", delete_label); CREATE("", damping_field);
     CREATE("", rest_length_field); CREATE("", stiffness_field);
@@ -164,14 +164,13 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = joint->visible;
-        if(editor_mode_visibility_field("editor.joint.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !joint->app_hidden;
+        if(editor_mode_checkbox_left("editor.joint.visibility",
+                &editor->visibility_label,
                 (UIRect){context->x + 10.0f, 76.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_JOINT, object->id, 0,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_JOINT, object->id, 0,
                     joint->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }

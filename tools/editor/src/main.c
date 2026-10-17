@@ -949,6 +949,10 @@ static bool editor_mode_properties_accordion_check(EditorViewportMode mode) {
         mode != EDITOR_VIEWPORT_JOINT &&
         mode != EDITOR_VIEWPORT_SOFT_BODY &&
         mode != EDITOR_VIEWPORT_SOFT_NODE &&
+        mode != EDITOR_VIEWPORT_SOFT_BEAM &&
+        mode != EDITOR_VIEWPORT_SOFT_AREA &&
+        mode != EDITOR_VIEWPORT_SOFT_HOLE &&
+        mode != EDITOR_VIEWPORT_HITBOX &&
         mode != EDITOR_VIEWPORT_SPRITE &&
         mode != EDITOR_VIEWPORT_ANIMATED_SPRITE &&
         mode != EDITOR_VIEWPORT_CAMERA_ENTITY &&

@@ -144,7 +144,7 @@ bool editor_force_editor_draw(EditorForceEditor *e,const EditorModeContext *c) {
         (void)editor_command_execute(c->project,&command);
     }
     int visible=f->visible?0:1;
-    if(choice(e,c,&y,"Visibility",13,2,&visible)) {
+    if(choice(e,c,&y,"Editor Visibility",13,2,&visible)) {
         EditorCommand command={.type=EDITOR_COMMAND_VISIBILITY,.data.visibility={EDITOR_VISIBILITY_FORCE,o->id,0,f->id,visible==0}};
         (void)editor_command_execute(c->project,&command);
     }

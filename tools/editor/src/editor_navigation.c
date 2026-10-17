@@ -785,17 +785,41 @@ bool editor_navigation_multi_selection_delete(EditorProject *project,
     return true;
 }
 
+bool editor_navigation_app_visibility_command_get(EditorProject *project,
+        EditorSelectionRef ref, EditorCommand *command) {
+    EditorItemKind kind;
+    if(!command) return false;
+    switch(ref.kind) {
+        case EDITOR_SELECTION_OBJECT: kind = EDITOR_ITEM_OBJECT; break;
+        case EDITOR_SELECTION_RIGID_BODY: kind = EDITOR_ITEM_RIGID_BODY; break;
+        case EDITOR_SELECTION_PARTICLE: kind = EDITOR_ITEM_RIGID_BODY; break;
+        case EDITOR_SELECTION_JOINT: kind = EDITOR_ITEM_JOINT; break;
+        case EDITOR_SELECTION_SOFT_BODY: kind = EDITOR_ITEM_SOFT_BODY; break;
+        case EDITOR_SELECTION_SOFT_NODE: kind = EDITOR_ITEM_SOFT_NODE; break;
+        case EDITOR_SELECTION_SOFT_BEAM: kind = EDITOR_ITEM_SOFT_BEAM; break;
+        case EDITOR_SELECTION_SOFT_AREA: kind = EDITOR_ITEM_SOFT_AREA; break;
+        case EDITOR_SELECTION_SPRITE: kind = EDITOR_ITEM_SPRITE; break;
+        case EDITOR_SELECTION_ANIMATED_SPRITE: kind = EDITOR_ITEM_ANIMATED_SPRITE; break;
+        case EDITOR_SELECTION_CAMERA: kind = EDITOR_ITEM_CAMERA; break;
+        case EDITOR_SELECTION_UI_SHAPE: kind = EDITOR_ITEM_VIEWPORT_UI; break;
+        case EDITOR_SELECTION_UI_TEXT: kind = EDITOR_ITEM_VIEWPORT_UI; break;
+        case EDITOR_SELECTION_UI_SLIDER: kind = EDITOR_ITEM_VIEWPORT_UI; break;
+        case EDITOR_SELECTION_LAYOUT_VIEWPORT:
+            kind = ref.parent ? EDITOR_ITEM_VIEWPORT_CAMERA : EDITOR_ITEM_LAYOUT_VIEWPORT; break;
+        default: return false;
+    }
+    bool *hidden = editor_command_app_hidden_get(project, kind, ref.object, ref.parent, ref.item);
+    if(!hidden) return false;
+    *command = (EditorCommand){.type = EDITOR_COMMAND_APP_VISIBILITY,
+        .data.app_visibility = {kind, ref.object, ref.parent, ref.item, !*hidden}};
+    return true;
+}
+
 bool editor_navigation_selection_visibility_get(EditorProject *project,
         EditorSelectionRef ref, bool *visible) {
     EditorObject *object;
     if(project == NULL || visible == NULL) return false;
-    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
-        EditorInputController *controller = editor_project_input_controller_get(
-            project, ref.item);
-        if(controller == NULL) return false;
-        *visible = controller->enabled;
-        return true;
-    }
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) return false;
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);
@@ -877,17 +901,7 @@ bool editor_navigation_selection_visibility_set(EditorProject *project,
     EditorCommand command;
     EditorVisibilityKind kind;
     if(project == NULL) return false;
-    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) {
-        EditorInputController *controller = editor_project_input_controller_get(
-            project, ref.item);
-        if(controller == NULL) return false;
-        command = (EditorCommand){.type = EDITOR_COMMAND_INPUT_CONTROLLER_SET,
-            .data.input_controller = {.controller = controller->id,
-                .enabled = visible}};
-        snprintf(command.data.input_controller.name,
-            sizeof(command.data.input_controller.name), "%s", controller->name);
-        return editor_command_execute(project, &command).kind != ERROR_RESULT_ERROR;
-    }
+    if(ref.kind == EDITOR_SELECTION_INPUT_CONTROLLER) return false;
     if(ref.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT && ref.parent != 0) {
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             ref.object);

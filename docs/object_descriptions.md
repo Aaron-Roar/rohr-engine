@@ -147,7 +147,11 @@ Force/torque authoring and viewport redesign are outside this goal.
 
 ## Authored forces and torques
 
-Editor document version 8 includes top-level force and torque items in each
+Editor eyes are excluded from runtime descriptions. Each visual item's
+`visible_in_app` becomes its description visibility; hidden parents also
+suppress child sprite and camera output. Visibility does not change physics.
+
+Editor document version 9 (with version 8 migration) includes top-level force and torque items in each
 object. Loading a document exposes them as `OBJECT_FORCE` and `OBJECT_TORQUE`
 descriptions with `.force` and `.torque` values. `ObjectForceDescription` and
 `ObjectTorqueDescription` use `ObjectSourceMode`: persistent (zero/default) or

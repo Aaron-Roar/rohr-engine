@@ -1,10 +1,5 @@
-clicking deeper dir causes error
-item lists have remove buttom still overlayed
-rigid body with particle flag did not have rotation
-a max amount of vertices/lines that are editable. After i cant access the menu
-for the ones exceeding
-vertices have max distances in global space, should be inf bassically. Remove
-the slider for distance and just make it a number in the menu.
-double click to load sprite
-button to load sprite should be called load sprite
-All the editor fields should support up to 6 decimal points.
+- Moving project directory should update paths as all is self contained in the
+project dir.
+- Removing CMAKE files in project should allow for auto regeneration on build
+- Build settings should expose executable path, engine path, and all the relevent
+paths

@@ -16,7 +16,7 @@ bool editor_sprite_editor_create(EditorSpriteEditor *editor, FontAsset *font) {
     CREATE("Name", name_label); CREATE("Path", path_label);
     CREATE("Rigid Body", body_label); CREATE("X", x_label); CREATE("Y", y_label);
     CREATE("Rotation (deg)", rotation_label); CREATE("Width", width_label);
-    CREATE("Height", height_label); CREATE("Visibility", visibility_label);
+    CREATE("Height", height_label); CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("Follow Rotation", follow_label); CREATE("None", none_label);
     CREATE("Delete Sprite", delete_label); CREATE("", path_field);
@@ -85,7 +85,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     if(!editor_mode_named_text_sync(editor->font, sprite->name,
             &editor->name_values[index], editor->name_cache[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
-    visible = sprite->visible;
+    visible = !sprite->app_hidden;
     rohr_ui_label(&editor->name_label,
         (UIRect){context->x + 8.0f, 42.0f, 70.0f, 28.0f});
     name_result = editor_mode_field("editor.sprite.name",
@@ -103,8 +103,8 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     }
     position = sprite->position; rotation = sprite->rotation;
     width = sprite->size.x; height = sprite->size.y;
-    visible_changed = editor_mode_visibility_field("editor.sprite.visible",
-        &editor->visibility_label, &editor->visible_label, &editor->hidden_label,
+    visible_changed = editor_mode_checkbox_left("editor.sprite.visible",
+        &editor->visibility_label,
         (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     {
@@ -224,8 +224,8 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     if(visible_changed) {
-        EditorCommand command = {.type = EDITOR_COMMAND_SPRITE_VISIBILITY_SET,
-            .data.sprite_visibility_set = {object->id, sprite->id, visible}};
+        EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+            .data.app_visibility = {EDITOR_ITEM_SPRITE, object->id, 0, sprite->id, visible}};
         (void)editor_command_execute(context->project, &command);
     }
     if(follow_changed) {

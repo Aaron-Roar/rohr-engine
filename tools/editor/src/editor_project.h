@@ -32,7 +32,7 @@
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX + EDITOR_SOURCE_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
 /* Version 8 adds authored force/torque definitions with stable references. */
-#define EDITOR_PROJECT_FORMAT_VERSION 8
+#define EDITOR_PROJECT_FORMAT_VERSION 9
 #define EDITOR_NAVIGATION_MODE_MAX 32
 #define EDITOR_NAVIGATION_SELECTION_MAX 29
 
@@ -191,6 +191,8 @@ typedef struct EditorRigidBody {
     EditorHitboxAnimationBinding *hitbox_animation_bindings;
     size_t hitbox_animation_binding_count;
     size_t hitbox_animation_binding_capacity;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorRigidBody;
 
 typedef struct EditorCollisionMask {
@@ -236,6 +238,8 @@ typedef struct EditorJoint {
     float rest_angle;
     float visual_size;
     bool visible;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorJoint;
 
 EditorRigidBody editor_project_rigid_body_default_get(void);
@@ -261,6 +265,8 @@ typedef struct EditorSoftNode {
     bool visible;
     uint32_t color;
     bool color_overridden;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorSoftNode;
 
 typedef struct EditorSoftBeam {
@@ -281,6 +287,8 @@ typedef struct EditorSoftBeam {
     bool visible;
     uint32_t color;
     bool color_overridden;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorSoftBeam;
 
 #define EDITOR_SOFT_BODY_HIERARCHY_MAX \
@@ -321,6 +329,8 @@ typedef struct EditorSoftArea {
     uint32_t hole_count;
     EditorSoftHoleId next_hole_id;
     EditorSoftAreaCache *cache;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorSoftArea;
 
 typedef struct EditorSoftBody {
@@ -348,6 +358,8 @@ typedef struct EditorSoftBody {
     EditorSoftHierarchyItem *hierarchy;
     size_t hierarchy_count;
     size_t hierarchy_capacity;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorSoftBody;
 
 typedef struct EditorSprite {
@@ -361,6 +373,8 @@ typedef struct EditorSprite {
     Scale size;
     bool follow_body_rotation;
     bool visible;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorSprite;
 
 typedef struct EditorAnimationFrame {
@@ -390,6 +404,8 @@ typedef struct EditorAnimatedSprite {
     bool follow_body_rotation;
     bool visible;
     bool playing;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorAnimatedSprite;
 
 typedef enum EditorCameraAttachmentKind {
@@ -412,6 +428,8 @@ typedef struct EditorCamera {
     EditorSoftBodyId attachment_soft_body;
     bool inherit_orientation;
     bool visible;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorCamera;
 
 #define EDITOR_SOURCE_MAX 256
@@ -463,6 +481,8 @@ typedef struct EditorObject {
     EditorHierarchyItem *hierarchy;
     size_t hierarchy_count;
     size_t hierarchy_capacity;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorObject;
 
 typedef struct EditorViewportCameraItem {
@@ -476,6 +496,8 @@ typedef struct EditorViewportCameraItem {
     Position content_offset;
     Scale content_scale;
     Orientation content_rotation;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorViewportCameraItem;
 
 typedef enum EditorViewportUiKind {
@@ -585,6 +607,8 @@ typedef struct EditorViewportUiItem {
         EditorViewportUiText text;
         EditorViewportUiSlider slider;
     } value;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorViewportUiItem;
 
 typedef struct EditorLayoutViewport {
@@ -601,6 +625,8 @@ typedef struct EditorLayoutViewport {
     EditorViewportUiItem *ui_items;
     size_t ui_item_count;
     size_t ui_item_capacity;
+    /** Runtime rendering only; zero initialization means visible in app. */
+    bool app_hidden;
 } EditorLayoutViewport;
 
 typedef struct EditorNavigationState {

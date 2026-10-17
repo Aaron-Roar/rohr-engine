@@ -55,7 +55,7 @@ bool editor_soft_body_editor_create(EditorSoftBodyEditor *editor,
     CREATE("Beam Color", beam_color_label);
     CREATE("Origin", origin_label); CREATE("Auto Shape", auto_shape_label);
     CREATE("Add Node", add_node_label); CREATE("Add Beam", add_beam_label);
-    CREATE("Visibility", visibility_label); CREATE("[X]", visible_label);
+    CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
     CREATE("Delete Soft Body", delete_label); CREATE("", x_field);
     CREATE("", y_field); CREATE("", rotation_field);
@@ -233,14 +233,13 @@ bool editor_soft_body_editor_draw(EditorSoftBodyEditor *editor,
         (void)editor_command_execute(context->project, &command);
     }
     {
-        bool visible = body->visible;
-        if(editor_mode_visibility_field("editor.soft_body.visibility",
-                &editor->visibility_label, &editor->visible_label,
-                &editor->hidden_label,
+        bool visible = !body->app_hidden;
+        if(editor_mode_checkbox_left("editor.soft_body.visibility",
+                &editor->visibility_label,
                 (UIRect){context->x + 10.0f, 80.0f,
                     context->width - 20.0f, 28.0f}, &visible)) {
-            EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-                .data.visibility = {EDITOR_VISIBILITY_SOFT_BODY, object->id,
+            EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+                .data.app_visibility = {EDITOR_ITEM_SOFT_BODY, object->id,
                     0, body->id, visible}};
             (void)editor_command_execute(context->project, &command);
         }

@@ -1352,6 +1352,14 @@ static bool editor_history_inverse_get(EditorProject *project,
                 }
             return false;
         }
+        case EDITOR_COMMAND_APP_VISIBILITY: {
+            bool *hidden = editor_command_app_hidden_get(project,
+                command->data.app_visibility.kind, command->data.app_visibility.object,
+                command->data.app_visibility.parent, command->data.app_visibility.item);
+            if(!hidden) return false;
+            inverse->data.app_visibility.visible = !*hidden;
+            return true;
+        }
         case EDITOR_COMMAND_VISIBILITY: {
             inverse->data.visibility.visible = !command->data.visibility.visible;
             return true;

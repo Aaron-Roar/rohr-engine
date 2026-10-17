@@ -16,7 +16,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
     CREATE("Zoom", zoom_label);
     CREATE("Follow Orientation", inherit_label);
-    CREATE("Visibility", visibility_label);
+    CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
     CREATE("", x_field); CREATE("", y_field); CREATE("", angle_field);
@@ -95,7 +95,7 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
             camera->name, &editor->name_values[index], editor->name_cache[index],
             EDITOR_OBJECT_NAME_MAX)) return false;
     snprintf(name, sizeof(name), "%s", camera->name);
-    visible = camera->visible;
+    visible = !camera->app_hidden;
     rohr_ui_label(&editor->name_label, (UIRect){context->x + 8, 42, 82, 28});
     name_result = editor_mode_field("editor.camera.name",
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
@@ -103,8 +103,8 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         (UIRect){context->x + 94, 42, context->width - 104, 28}, NULL);
     position = camera->position; angle = camera->rotation;
     width = camera->dimensions.x; height = camera->dimensions.y; zoom = camera->zoom;
-    visible_changed = editor_mode_visibility_field("editor.camera.visible",
-        &editor->visibility_label, &editor->visible_label, &editor->hidden_label,
+    visible_changed = editor_mode_checkbox_left("editor.camera.visible",
+        &editor->visibility_label,
         (UIRect){context->x + 10.0f, 80.0f,
             context->width - 20.0f, 28.0f}, &visible);
     y = 118.0f;
@@ -223,8 +223,8 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         .data.camera_attachment_set = {object->id, camera->id, kinds[choice],
             target_ids[choice], parent_ids[choice], inherit}};
         (void)editor_command_execute(context->project, &command); }
-    if(visible_changed) { EditorCommand command = {.type = EDITOR_COMMAND_VISIBILITY,
-        .data.visibility = {EDITOR_VISIBILITY_CAMERA, object->id, 0,
+    if(visible_changed) { EditorCommand command = {.type = EDITOR_COMMAND_APP_VISIBILITY,
+        .data.app_visibility = {EDITOR_ITEM_CAMERA, object->id, 0,
             camera->id, visible}}; (void)editor_command_execute(context->project,
         &command); }
     return name_result.active || x_result.active || y_result.active ||

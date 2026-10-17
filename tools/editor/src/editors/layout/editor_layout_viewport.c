@@ -35,7 +35,7 @@ bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
     CREATE("Add Screen", add_label); CREATE("Delete Viewport", delete_label);
     CREATE("Remove", remove_label); CREATE("Layer", layer_label);
     CREATE("Direct value", direct_layer_label);
-    CREATE("Visibility", visible_label);
+    CREATE("Visible in App", visible_label);
     CREATE("Draggable", draggable_label); CREATE("Drag Axis", drag_axis_label);
     CREATE("Horizontal", drag_x_label); CREATE("Vertical", drag_y_label);
     CREATE("Horizontal + Vertical", drag_xy_label);
@@ -206,12 +206,12 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         (UIFieldBinding){.kind = UI_FIELD_STRING, .string = name,
             .string_capacity = sizeof(name)}, &editor->name_field,
         (UIRect){context->x + 94.0f, 42.0f, context->width - 104.0f, 28.0f}, NULL);
-    bool enabled = viewport->enabled;
-    if(editor_mode_visibility_field("editor.layout.visibility",
-            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+    bool enabled = !viewport->app_hidden;
+    if(editor_mode_checkbox_left("editor.layout.visibility",
+            &editor->visible_label,
             (UIRect){context->x + 10.0f, 80.0f,
                 context->width - 20.0f, 28.0f}, &enabled))
-        viewport->enabled = enabled;
+        viewport->app_hidden = !enabled;
     y = 118.0f;
     if(rohr_ui_button("editor.layout.add_shape", &editor->add_shape_label,
             (UIRect){context->x + 8.0f, y, context->width - 16.0f,
@@ -429,6 +429,12 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         if(item->id != context->viewport->selected_viewport_camera_item ||
                 context->viewport->mode == EDITOR_VIEWPORT_LAYOUT) continue;
         y += 8.0f;
+        visible = !item->app_hidden;
+        if(editor_mode_checkbox_left("editor.layout.camera.visible",
+                &editor->visible_label, (UIRect){context->x + 10.0f, y,
+                    context->width - 20.0f, 28.0f}, &visible))
+            item->app_hidden = !visible;
+        y += 38.0f;
         item_x = layout_number(&editor->x_label, &editor->x_field,
             "editor.layout.camera.x", context->x, y, context->width,
             &item->placement.rectangle.x); y += 38.0f;
@@ -445,13 +451,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         item_layer = layout_number(&editor->layer_label, &editor->layer_field,
             "editor.layout.camera.layer", context->x, y, context->width, &layer);
         if(item_layer.changed) item->placement.layer = (int)layer;
-        y += 38.0f;
-        visible = item->placement.visible;
-        if(editor_mode_visibility_field("editor.layout.camera.visible",
-                &editor->visible_label, &editor->visible_icon,
-                &editor->hidden_icon, (UIRect){context->x + 10.0f, y,
-                    context->width - 20.0f, 28.0f}, &visible))
-            item->placement.visible = visible;
         y += 38.0f;
         if(rohr_ui_button("editor.layout.camera.remove", &editor->remove_label,
                 (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
@@ -488,6 +487,12 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
                 (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f}, NULL);
             y += 38.0f;
         }
+        visible = !item->app_hidden;
+        if(editor_mode_checkbox_left("editor.layout.ui.visible",
+                &editor->visible_label, (UIRect){context->x + 10.0f, y,
+                    context->width - 20.0f, 28.0f}, &visible))
+            item->app_hidden = !visible;
+        y += 38.0f;
         item_x = layout_number(&editor->x_label, &editor->x_field,
             "editor.layout.ui.x", context->x, y, context->width,
             &item->position.x); y += 38.0f;
@@ -507,13 +512,6 @@ bool editor_layout_viewport_editor_draw(EditorLayoutViewportEditor *editor,
         item_layer = layout_number(&editor->layer_label, &editor->layer_field,
             "editor.layout.ui.layer", context->x, y, context->width, &layer);
         if(item_layer.changed) item->layer = (int)layer;
-        y += 38.0f;
-        visible = item->visible;
-        if(editor_mode_visibility_field("editor.layout.ui.visible",
-                &editor->visible_label, &editor->visible_icon,
-                &editor->hidden_icon, (UIRect){context->x + 10.0f, y,
-                    context->width - 20.0f, 28.0f}, &visible))
-            item->visible = visible;
         y += 38.0f;
         if(rohr_ui_button("editor.layout.ui.remove", &editor->remove_label,
                 (UIRect){context->x + 8.0f, y, context->width - 16.0f, 30.0f},
@@ -581,12 +579,12 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         (UIRect){context->x + 94.0f, y,
             context->width - 104.0f, 28.0f});
     y += 38.0f;
-    bool visible = item->placement.visible;
-    if(editor_mode_visibility_field("editor.layout.camera.visibility",
-            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+    bool visible = !item->app_hidden;
+    if(editor_mode_checkbox_left("editor.layout.camera.visibility",
+            &editor->visible_label,
             (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &visible))
-        item->placement.visible = visible;
+        item->app_hidden = !visible;
     y += 38.0f;
     for(size_t object_index = 0; object_index < context->project->object_count;
             object_index += 1) {
@@ -770,7 +768,7 @@ static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
 
 static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         const EditorModeContext *context, EditorViewportUiItem *item, float *y) {
-    bool visible = item->visible;
+    bool visible = !item->app_hidden;
     UIFieldResult x_result = {0}, y_result = {0}, rotation_result = {0};
     UIFieldResult thickness = {0}, spacing = {0}, radius = {0};
     bool layer_active = false;
@@ -781,11 +779,11 @@ static bool layout_ui_common_draw(EditorLayoutViewportEditor *editor,
         (UIRect){context->x + 94.0f, *y,
             context->width - 104.0f, 28.0f});
     *y += 38.0f;
-    if(editor_mode_visibility_field("editor.layout.ui.visibility",
-            &editor->visible_label, &editor->visible_icon, &editor->hidden_icon,
+    if(editor_mode_checkbox_left("editor.layout.ui.visibility",
+            &editor->visible_label,
             (UIRect){context->x + 10.0f, *y,
                 context->width - 20.0f, 28.0f}, &visible))
-        item->visible = visible;
+        item->app_hidden = !visible;
     *y += 38.0f;
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(

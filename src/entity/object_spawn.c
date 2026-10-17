@@ -21,6 +21,12 @@ typedef struct SpawnContext {
     size_t count;
     ObjectSpawnOptions options;
 } SpawnContext;
+static bool object_description_visible_check(const ObjectDescription *description) {
+    for(const ObjectDescription *item = description; item; item = item->parent)
+        if(!item->visible) return false;
+    return true;
+}
+
 static CameraId instance_cameras[MAX_ENTITIES];
 static JointAnchorId instance_anchors[MAX_ENTITIES];
 static Entity instance_anchor_owners[MAX_ENTITIES];
@@ -212,7 +218,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         Sprite sprite = graphics_sprite_create(loaded.result.value, d->scale);
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
-        sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = d->visible;
+        sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
         EngineResult result = graphics_sprite_add(entity, sprite);
         (void)graphics_texture_release(&loaded.result.value);
         if(!error_check(result)) result = graphics_layer_sprite_set(entity, d->layer);
@@ -234,7 +240,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         sprite.player.frame_index = d->starting_frame;
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
-        sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = d->visible;
+        sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
         sprite.direction = d->direction;
         for(size_t i = 0; i < d->frame_count; ++i) {
             sprite.frames[i].scale = d->frames[i].scale;
@@ -386,7 +392,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
                 .dimensions = {d->size.x, d->size.y}, .zoom = d->zoom});
             if(error_check(camera)) return error_result_error(camera.result.error);
             EntityIndex index; entity_index_get(e, &index); instance_cameras[index] = camera.result.value;
-            if(!d->visible) APPLY(graphics_camera_disable_set(camera.result.value));
+            if(!object_description_visible_check(d)) APPLY(graphics_camera_disable_set(camera.result.value));
             if(target) APPLY(graphics_camera_attachment_set(camera.result.value, target, d->position,
                 d->orientation, d->follow_position, d->follow_orientation));
         }
