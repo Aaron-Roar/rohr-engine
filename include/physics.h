@@ -476,7 +476,9 @@ typedef struct Joint {
 
 /** Derived lists of directly owned soft-body elements; connections may cross owners. */
 typedef struct SoftBody {
-    /** Transform entity used as the body's translation and rotation origin. */
+    /** Usable origin follows the equal-weight node centroid and incremental
+     * best-fit node rotation, retaining its offset from that private frame.
+     * Explicit origin transforms move nodes; tracking only observes them. */
     Entity origin;
     Entity nodes[SOFT_BODY_MAX_NODES];
     Entity beams[SOFT_BODY_MAX_BEAMS];

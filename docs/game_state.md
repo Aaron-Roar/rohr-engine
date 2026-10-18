@@ -501,6 +501,9 @@ membership, finite numeric fields, and references must be valid.
 
 `soft_body` stores ordered `nodes`, `beams`, and `areas` name arrays. Its origin
 is the owning entity; the ordinary transform records its saved origin pose.
+Private centroid/rotation tracking samples are reconstructed from restored node
+positions and membership. Loading retains the saved usable origin and its
+offset from that frame without transforming nodes or adding serialized fields.
 `soft_body_node` stores positive `radius`, `draw_color`, and
 `draw_color_overridden`; ordinary components preserve world position, mass,
 motion, constraints and collision settings. `soft_body_beam` stores `node_a`, `node_b`, `rest_length`, `stiffness`, `damping`, `collision_thickness`,

@@ -109,7 +109,7 @@ EngineResult physics_soft_body_angular_velocity_set(EntityIndex body, AngularVel
             nodes.masses, nodes.values, nodes.count, degrees, next))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     /* All velocity slots already exist. Commit cannot allocate or fail partway.
-     * Keep each node's static/dynamic/held state and the authored body frame. */
+     * Keep each node's static/dynamic/held state and the current body frame. */
     for(uint32_t i = 0; i < nodes.count; i += 1)
         velocities[nodes.indices[i]] = next[i];
     return error_result_value(true);

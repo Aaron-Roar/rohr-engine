@@ -110,7 +110,7 @@ entities; world references do not require an entity.
 | --- | --- |
 | World | Absolute world coordinates. `{0, 0}` is world origin. |
 | COM | World-axis offset from the explicitly referenced entity's current COM. |
-| Origin | Local offset following the referenced entity's origin transform; rigid-body offsets follow rotation. |
+| Origin | Local offset following the referenced rigid or soft body's current origin and rotation. |
 | Beam | `x` is along distance; `y` is perpendicular distance to the beam's left. Anchor and fraction establish the base point. |
 
 Beam anchors map to fractions 0, 0.5, and 1. The stored fraction adds to the
@@ -118,11 +118,26 @@ anchor fraction; distance and fraction are additive, not mutually exclusive.
 Fractions follow current length; distances retain their physical length.
 Start/end follow stored endpoint order. External application points are allowed
 without clamping. A sideways offset remains a fixed distance during stretching.
-Soft-body origin/orientation remains an authoring transform, not an inferred
-physical pose; do not infer orientation-following from a deforming soft body.
+Soft-body origins follow a private tracking frame: its position is the equal-weight
+average of directly owned nodes, and its incremental clockwise angle is the
+best-fit rotation between successive centered node positions. The usable origin
+retains its position and angle offsets from that frame, so origin-relative force
+locations and body-relative directions follow node motion. This frame is not a
+selectable entity and does not replace mass-weighted COM or physical inertia.
+
+One node or collapsed/uncorrelated geometry follows translation while retaining
+the previous angle; an empty body retains its pose. Adding, deleting, or
+transferring nodes recalibrates tracking without moving the usable origin. Beam
+connections alone never change frame membership. Explicit whole-body transforms
+move nodes once and recalibrate the samples. Tracking observes node motion and
+never changes nodes, velocities, or masses. It refreshes before source evaluation
+and after integration and constraint corrections. Save/load and independent
+spawns reconstruct the private samples without new serialized fields. Rotation
+uses the shortest observed incremental turn; motion exceeding half a turn
+between samples cannot be distinguished from a turn in the opposite direction.
 
 World orientation zero points up. Other orientation references supply a rigid
-body's orientation, a beam's start-to-end direction, or the direction from one
+or soft body's orientation, a beam's start-to-end direction, or the direction from one
 resolved location to another. The orientation offset is clockwise degrees from
 that base, following the existing [angle convention](angle_convention_contract.md).
 Ordinary vector-to-angle construction uses existing math helpers; no separate
@@ -282,7 +297,8 @@ A force referenced to its target's COM retains its COM-relative offset when
 computing the moment, avoiding rounding through a world-space float COM.
 COM references retain their existing ability to resolve zero-mass members when
 total mass is positive; receiving a nonzero whole-body load requires every mass
-to be positive. The authored origin/orientation is not a physical rigid pose.
+to be positive. The tracked origin/orientation is a reference frame, not a rigid
+constraint on the deforming nodes.
 
 Beams remain two-node axial springs, with no added bending model. For every
 resolved application point, use the following equivalent endpoint loads. Fraction, anchor, and distance offsets only locate the point; coincident

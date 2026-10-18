@@ -54,6 +54,28 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Soft-Body Force Following and Generated-App Regression
+
+Restore soft-body force references during simulation, then investigate the
+reported animation creation/deletion and black-screen regression separately.
+
+1. [x] **Implement and verify soft-body origin tracking** — The equal-weight
+   average of directly owned nodes and incremental best-fit rotation now drive
+   the usable origin while preserving its offsets. Explicit transforms,
+   ownership changes, degenerate geometry, persistence, and force references
+   retain their contracts. Verified 92 native tests, six ASan/UBSan/leak checks,
+   Linux/Windows builds, and installed-SDK generated-app and soft-body example
+   builds on both platforms. The supplied project's `force_2` follows translation
+   and rotation, renders, and stays independent across two spawned instances
+   through 120 simulation steps. Linux applications launch headlessly from
+   outside their source directories; Windows runtime execution remains unverified.
+2. [ ] **Diagnose and separately plan the animation creation/deletion and
+   black-screen correction** — Reproduce the invalid-entity failure and the
+   screen showing only UI in the supplied project, then agree on a focused fix.
+
+Each goal requires explicit instruction. Stop after Goal 1 for review and a
+user-created commit; the animation and black-screen correction is not part of it.
+
 The user-selected **Correct Soft-Body Angular Velocity** milestone is complete.
 
 Make angular-velocity control update node motion around COM, preserving

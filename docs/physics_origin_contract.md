@@ -39,6 +39,12 @@ properties does not imply preserving interactions with the external world.
 
 Soft-body origin edits preserve their existing group-transform behavior and
 current node offsets during the edit; this does not freeze later deformation.
+During simulation, a private frame follows the equal-weight average of directly
+owned node positions and estimates incremental rotation from their movement.
+The usable origin keeps its offset from that frame. Tracking does not move nodes
+or change mass-weighted COM, and topology edits recalibrate without snapping the
+origin. See the [force contract](force_torque_contract.md) for degenerate geometry,
+sampling, and persistence behavior.
 Particles retain their existing restriction against simulated angular motion.
 Future body-local force points must use the same transform contract; this
 milestone does not add force-emitter authoring or a force-at-point API.

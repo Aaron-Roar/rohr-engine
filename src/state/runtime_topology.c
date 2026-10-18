@@ -5,6 +5,7 @@
 #include "entity/entity_internal.h"
 #include "entity/object_internal.h"
 #include "physics/soft_body/soft_body_area.h"
+#include "physics/soft_body/soft_body_frame.h"
 #include "physics/physics_internal.h"
 #include <float.h>
 #include <math.h>
@@ -186,6 +187,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         REQUIRE(order_read(yyjson_obj_get(body, "nodes"), value->nodes, value->node_count, SOFT_BODY_MAX_NODES) &&
             order_read(yyjson_obj_get(body, "beams"), value->beams, value->beam_count, SOFT_BODY_MAX_BEAMS) &&
             order_read(yyjson_obj_get(body, "areas"), value->areas, value->area_count, SOFT_BODY_MAX_AREAS));
+        physics_soft_body_frame_reset(index);
     }
     if(pass == 1 && object != NULL) {
         for(size_t n = 0; n < yyjson_arr_size(object); ++n) {

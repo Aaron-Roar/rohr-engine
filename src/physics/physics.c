@@ -4,6 +4,7 @@
 
 #include "physics.h"
 #include "physics/soft_body/soft_body_area.h"
+#include "physics/soft_body/soft_body_frame.h"
 #include "physics/physics_internal.h"
 
 MEMORY_DEFINE_OBJECT_POOL(PositionPool, Position)
@@ -155,11 +156,14 @@ EngineResult physics_tables_ensure_capacity(size_t capacity) {
     if(new_capacity > soft_body_nodes_pool.capacity && SoftBodyNodePool_expand(&soft_body_nodes_pool, new_capacity - soft_body_nodes_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_beams_pool.capacity && SoftBodyBeamPool_expand(&soft_body_beams_pool, new_capacity - soft_body_beams_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
     if(new_capacity > soft_body_area_states_pool.capacity && SoftBodyAreaStatePool_expand(&soft_body_area_states_pool, new_capacity - soft_body_area_states_pool.capacity).kind == ERROR_RESULT_ERROR) { return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED); }
+    if(error_check(physics_soft_body_frame_reserve(new_capacity)))
+        return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
     physics_tables_capacity = new_capacity;
     return error_result_value(true);
 }
 
 void physics_tables_destroy(void) {
+    physics_soft_body_frame_destroy();
     physics_tables_capacity = 0;
     physics_mass_properties_destroy();
     physics_interaction_state_destroy();
@@ -221,6 +225,7 @@ void physics_entity_clear(Entity entity, EntityIndex index) {
         (void)AngularVelocityPool_release_at(&angular_velocity_maximums_pool, index);
     }
     physics_soft_body_entity_clear(entity, index);
+    physics_soft_body_frame_clear(index);
     physics_joint_entity_clear(entity, index);
     /* Entity indices are reusable. Release ordinary component entries as well
      * as resource-owning topology so the next occupant cannot inherit state. */

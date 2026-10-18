@@ -402,6 +402,12 @@ origin editor moves the body while preserving authored local offsets. Vertices,
 attached anchors, particle centers, and following visuals move with the new
 origin; soft-body nodes retain their local offsets as well.
 
+In the running application, a soft body's origin follows the average position
+and estimated rotation of its owned nodes. Origin-relative force arrows and
+body-relative directions follow this moving frame, including their authored
+offsets. The private tracking frame adds no editor handle or saved fields;
+adding or removing nodes preserves the usable origin's position and angle.
+
 ## Hitboxes and rigid bodies
 
 A new rigid body starts with a square hitbox. In the hitbox editor, vertices

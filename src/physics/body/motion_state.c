@@ -7,6 +7,7 @@
 #include "console.h"
 #include "physics/soft_body/soft_body_motion.h"
 #include "physics/physics_internal.h"
+#include "physics/soft_body/soft_body_frame.h"
 #include "physics/physics_operation.h"
 
 #include <math.h>
@@ -139,6 +140,8 @@ EngineResult physics_position_set(Entity entity, Position position) {
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
     (void)PositionPool_store_at(&positions_pool, index, position);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        physics_soft_body_frame_reset(index);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Position: {x: %f, y: %f}\n",
         entity, position.x, position.y);
     return error_result_value(true);
@@ -167,6 +170,8 @@ EngineResult physics_orientation_set(Entity entity, Orientation orientation) {
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
     (void)OrientationPool_store_at(&orientations_pool, index, orientation);
+    if(entity_index_components_check(index, ROHR_SOFT_BODY))
+        physics_soft_body_frame_reset(index);
     console_debug_write(LOG_ENGINE, "Set Entity: %d Orientation: %f\n",
         entity, orientation);
     return error_result_value(true);

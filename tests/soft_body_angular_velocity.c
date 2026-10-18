@@ -115,23 +115,27 @@ static void simulation_check(void) {
     OK(rohr_physics_angular_velocity_radians_set(body, 1));
     near(velocity_get(a).y, 10, 1e-5);
     near(velocity_get(b).y, -10, 1e-5);
-    /* Stale scalar state from an older save must not spin the container. */
+    /* Stale scalar state must not spin the container independently of nodes. */
     EntityIndex index; assert(entity_index_get(body, &index));
     OK(AngularVelocityPool_store_at(&angular_velocities_pool, index, 720));
     OK(rohr_physics_angular_acceleration_set(body, 100));
     rohr_physics_substeps_set(1);
     assert((rohr_physics_pipeline_update(.1)).header.status != ROHR_REPORT_FAILED);
-    near(orientations[index], 23, 1e-6);
     PositionResult pa = rohr_physics_position_get(a), pb = rohr_physics_position_get(b);
     OK(pa); OK(pb);
     assert(pa.result.value.y > 0 && pb.result.value.y < 0);
     double dx = pb.result.value.x - pa.result.value.x;
     double dy = pb.result.value.y - pa.result.value.y;
+    near(orientations[index], 23 + atan2(-dy, dx) * 180 / 3.14159265358979323846, 1e-5);
     assert(hypot(dx, dy) > 20);
     near(rate_get(body), rohr_math_radians_to_degrees(1.0f / 1.01f), 1e-3);
     assert((rohr_physics_pipeline_update(.1)).header.status != ROHR_REPORT_FAILED);
     assert(velocity_get(a).x > 0 && velocity_get(b).x < 0);
-    near(orientations[index], 23, 1e-6);
+    PositionResult next_a = rohr_physics_position_get(a), next_b = rohr_physics_position_get(b);
+    OK(next_a); OK(next_b);
+    dx = next_b.result.value.x - next_a.result.value.x;
+    dy = next_b.result.value.y - next_a.result.value.y;
+    near(orientations[index], 23 + atan2(-dy, dx) * 180 / 3.14159265358979323846, 1e-5);
     OK(rohr_physics_orientation_set(body, 113));
     PositionResult rotated = rohr_physics_position_get(a); OK(rotated);
     assert(fabsf(rotated.result.value.x - pa.result.value.x) > 1);

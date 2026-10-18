@@ -5,6 +5,7 @@
 #include "physics.h"
 #include "entity/entity_internal.h"
 #include "soft_body_area.h"
+#include "soft_body_frame.h"
 
 #include "physics/physics_internal.h"
 #include "math2d.h"
@@ -120,6 +121,7 @@ EngineResult physics_soft_body_membership_validate(EntityIndex index, Entity own
 void physics_soft_body_membership_update(Entity entity, EntityIndex index, Entity owner) {
     EntityIndex next = 0, prior;
     if(!entity_index_get(owner, &next) || !soft_bodies_pool.used[next]) owner = ENTITY_INVALID;
+    Entity old_node_owner = soft_body_nodes_pool.used[index] ? soft_body_nodes[index].soft_body : ENTITY_INVALID;
     /* Fixed lists index immediate ownership; they never own deletion. */
 #define UPDATE(pool, field, list, count) do { \
     if(pool.used[index] && field != owner) { \
@@ -133,6 +135,11 @@ void physics_soft_body_membership_update(Entity entity, EntityIndex index, Entit
     UPDATE(soft_body_beams_pool, soft_body_beams[index].soft_body, beams, beam_count);
     UPDATE(soft_body_area_states_pool, soft_body_area_states[index].value.soft_body, areas, area_count);
 #undef UPDATE
+    if(soft_body_nodes_pool.used[index] && old_node_owner != owner) {
+        if(entity_index_get(old_node_owner, &prior) && soft_bodies_pool.used[prior])
+            physics_soft_body_frame_reset(prior);
+        if(owner != ENTITY_INVALID) physics_soft_body_frame_reset(next);
+    }
 }
 
 void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
@@ -158,11 +165,13 @@ void physics_soft_body_entity_clear(Entity entity, EntityIndex index) {
         physics_soft_body_areas_node_clear(entity, owner);
         if(entity_index_get(owner, &body_index) &&
                 body_index < soft_bodies_pool.capacity &&
-                soft_bodies_pool.used[body_index])
+                soft_bodies_pool.used[body_index]) {
             physics_soft_body_entity_list_remove(
                 soft_bodies[body_index].nodes,
                 &soft_bodies[body_index].node_count,
                 entity);
+            physics_soft_body_frame_reset(body_index);
+        }
         (void)SoftBodyNodePool_release_at(&soft_body_nodes_pool, index);
     }
     if(index < soft_body_beams_pool.capacity &&

@@ -4,6 +4,7 @@
 #include "physics.h"
 #include "physics/constraints/constraint_solver.h"
 #include "physics/physics_step_internal.h"
+#include "physics/soft_body/soft_body_frame.h"
 #include <SDL3/SDL_timer.h>
 #include <math.h>
 
@@ -27,6 +28,7 @@ void physics_pipeline_gravity_apply(void) {
 Report physics_pipeline_forces_apply(void) {
     uint64_t started = SDL_GetPerformanceCounter();
     Report report = physics_report_create(ROHR_PHYSICS_LOADS_REPORT_ID);
+    physics_soft_body_frames_update(&report);
     physics_joint_spring_forces_apply(&report);
     physics_soft_body_beams_apply(&report);
     physics_report_finish(&report, started);
@@ -41,7 +43,9 @@ Report physics_pipeline_integrate(double dt) {
             ERROR_ENGINE_STATE_INVALID, ROHR_REPORT_UPDATE_ABORTED, 0, 0,
             "integration duration must be finite and nonnegative");
     } else {
+        physics_soft_body_frames_update(&report);
         EngineResult result = physics_rigid_integrate(dt, &report);
+        physics_soft_body_frames_update(&report);
         if(result.kind == ERROR_RESULT_ERROR && !report.has_fatal)
             physics_report_issue_add(&report, ROHR_PHYSICS_INTEGRATION, ROHR_REPORT_SEVERITY_FATAL,
                 result.result.error, ROHR_REPORT_UPDATE_ABORTED, 0, 0, NULL);
@@ -86,6 +90,7 @@ Report physics_pipeline_constraints_solve(uint32_t iterations) {
             physics_pipeline_joint_constraints_solve,
             physics_pipeline_contact_constraints_finalize,
             &report);
+        physics_soft_body_frames_update(&report);
     } else report.header.status = ROHR_REPORT_NOT_RUN;
     physics_report_finish(&report, started);
     return report;

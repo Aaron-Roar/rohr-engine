@@ -2456,6 +2456,13 @@ EntityResult rohr_physics_soft_body_add(SoftBodyDescription description);
 
 Creates an empty soft body and its origin transform.
 
+During physics updates, the origin follows the equal-weight average position
+and incremental best-fit rotation of directly owned nodes, preserving its
+offset from that private frame. Node membership changes preserve the origin;
+explicit body transforms still move the nodes. This tracking frame is separate
+from mass-weighted COM. See [the force contract](force_torque_contract.md) for
+degenerate geometry and sampling behavior.
+
 The returned owner entity is also the body's origin and may be passed to
 
 rohr_physics_position_set and rohr_physics_orientation_set. Changing that
