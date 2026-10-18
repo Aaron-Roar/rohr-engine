@@ -111,7 +111,7 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
     if(animated_sprites_pool.used[index]) {
         AnimatedSprite *s=&animated_sprites[index]; yyjson_mut_val *v=yyjson_mut_obj(doc), *frames=yyjson_mut_arr(doc);
         AnimationInfoResult info=graphics_animation_info_get(s->player.animation);
-        WRITE(v && frames && s->frame_count<=MAX_ANIMATIONS_FRAMES && s->frame_count>0 &&
+        WRITE(v && frames && s->frame_count<=MAX_ANIMATIONS_FRAMES &&
             sprite_write(doc,v,s->scale,s->body_offset,s->orientation_offset,s->direction,s->follow_entity_rotation,s->visible));
         WRITE(yyjson_mut_obj_add_uint(doc,v,"id",error_check(info) ? 0 : info.result.value.id) &&
             yyjson_mut_obj_add_uint(doc,v,"frame_index",s->player.frame_index) &&
@@ -160,8 +160,9 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
     yyjson_val *frames=yyjson_obj_get(v,"frames");
     uint64_t id,index,elapsed; double time_elapsed;
     if(!sprite_read(v,&sprite.scale,&sprite.body_offset,&sprite.orientation_offset,&sprite.direction,&sprite.follow_entity_rotation,&sprite.visible) ||
-            !yyjson_is_arr(frames) || !yyjson_arr_size(frames) || yyjson_arr_size(frames)>MAX_ANIMATIONS_FRAMES ||
-            !integer(v,"id",&id) || id>UINT32_MAX || !integer(v,"frame_index",&index) || index>=yyjson_arr_size(frames) ||
+            !yyjson_is_arr(frames) || yyjson_arr_size(frames)>MAX_ANIMATIONS_FRAMES ||
+            !integer(v,"id",&id) || id>UINT32_MAX || !integer(v,"frame_index",&index) ||
+            index>SIZE_MAX || (yyjson_arr_size(frames) && index>=yyjson_arr_size(frames)) ||
             !integer(v,"ticks_per_frame",&descriptor.ticks_per_frame) || !number(v,"time_per_frame",&descriptor.time_per_frame) ||
             descriptor.time_per_frame<0 || !integer(v,"elapsed_ticks",&elapsed) || !number(v,"elapsed_time",&time_elapsed))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
@@ -177,9 +178,12 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         frame->id=(AnimationFrameId)id; descriptor.frame_ids[i]=frame->id; descriptor.frame_files[i]=yyjson_get_str(path);
     }
-    AnimationAssetResult loaded=graphics_animation_load(descriptor);
+    AnimationAssetResult loaded=sprite.frame_count ? graphics_animation_load(descriptor) :
+        ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
     if(error_check(loaded)) return error_result_error(loaded.result.error);
     sprite.player=graphics_animation_player_create(loaded.result.value);
+    sprite.player.ticks_per_frame=descriptor.ticks_per_frame;
+    sprite.player.time_per_frame=descriptor.time_per_frame;
     sprite.player.frame_index=(size_t)index;
     sprite.player.last_update_tick=engine_tick_get()-elapsed;
     sprite.player.last_update_time=engine_time_get()-time_elapsed;

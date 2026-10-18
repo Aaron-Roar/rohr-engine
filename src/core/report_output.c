@@ -58,6 +58,7 @@ static const char *severity_name(uint32_t value) {
         case ROHR_REPORT_SEVERITY_NONE: return "ROHR_REPORT_SEVERITY_NONE";
         case ROHR_REPORT_SEVERITY_WARNING: return "ROHR_REPORT_SEVERITY_WARNING";
         case ROHR_REPORT_SEVERITY_FATAL: return "ROHR_REPORT_SEVERITY_FATAL";
+        case ROHR_REPORT_SEVERITY_INFORMATION: return "ROHR_REPORT_SEVERITY_INFORMATION";
         default: return NULL;
     }
 }

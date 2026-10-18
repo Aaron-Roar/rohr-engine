@@ -69,12 +69,47 @@ reported animation creation/deletion and black-screen regression separately.
    and rotation, renders, and stays independent across two spawned instances
    through 120 simulation steps. Linux applications launch headlessly from
    outside their source directories; Windows runtime execution remains unverified.
-2. [ ] **Diagnose and separately plan the animation creation/deletion and
-   black-screen correction** — Reproduce the invalid-entity failure and the
-   screen showing only UI in the supplied project, then agree on a focused fix.
+2. [x] **Diagnose and separately plan the animation creation/deletion and
+   black-screen correction** — Investigated the corrected project path,
+   `/tmp/rohr-projects/test-project`, using isolated copies. An empty animation
+   reproduces error 21 (`invalid entity`): ordinary generation skips its creation
+   but still emits its viewport layer assignment. Catalog spawning separately
+   rejects the same empty animation with error 43 (`invalid game state`). An
+   animation containing the project's 11 imported image frames starts through
+   both paths. The saved viewport has no camera screen items, so the scene
+   callback never runs; adding a screen in a diagnostic control restores it.
+   Regeneration retains the missing screen. Animation deletion preserves both
+   empty and populated viewport layouts; no deletion-induced screen loss was
+   reproduced. The original project was left unchanged. These are Linux
+   installed-SDK diagnostic checks; no production C changes, sanitizer run, or
+   Windows verification were needed for this investigation.
 
-Each goal requires explicit instruction. Stop after Goal 1 for review and a
-user-created commit; the animation and black-screen correction is not part of it.
+Both investigation milestone goals are complete. The user confirmed the
+black-screen issue is resolved and excluded camera/viewport repair from further
+work.
+
+### Valid Empty Animations
+
+Allow empty animations to remain valid authored and runtime objects, with their
+skipped playback/drawing state captured in entity info and system reports.
+
+1. [x] **Support empty animations across creation, generation, inspection,
+   reporting, and persistence** — Empty animated-sprite components now retain
+   their identity, settings, and ownership without loading frame assets.
+   Playback/drawing are skipped; entity info exposes `ANIMATION_EMPTY` and
+   animation reports record INFORMATION diagnostics with skipped counts while
+   remaining COMPLETE. Ordinary generation, catalog spawning, attached/free
+   animations, frame removal, save/load, independent instances, and populated
+   siblings are covered. Verified 93 native tests, eight ASan/UBSan/leak checks,
+   Linux/Windows builds without compiler warnings, and installed-SDK generated
+   applications and the joints example on both platforms. Linux probes verify
+   both constructor paths after CLI last-frame removal, viewport setup, entity
+   info, reports, and independent instances; applications launch from `/tmp`.
+   Refreshed and launched `/tmp/rohr-projects/test-project`, preserving authored
+   state and `main.c`. Windows runtime execution remains unverified. No camera
+   or viewport configuration repair was performed.
+
+Stop after this goal for review and a user-created commit.
 
 The user-selected **Correct Soft-Body Angular Velocity** milestone is complete.
 

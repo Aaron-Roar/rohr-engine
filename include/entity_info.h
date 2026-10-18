@@ -121,7 +121,9 @@ typedef enum EntityInfoIssueReason {
     ROHR_ENTITY_INFO_REFERENCE_DATA_MISSING,
     ROHR_ENTITY_INFO_VALUE_INVALID,
     ROHR_ENTITY_INFO_GEOMETRY_UNRESOLVABLE,
-    ROHR_ENTITY_INFO_CALCULATION_FAILED
+    ROHR_ENTITY_INFO_CALCULATION_FAILED,
+    /** Valid animation with no frames; playback and drawing are skipped. */
+    ROHR_ENTITY_INFO_ANIMATION_EMPTY
 } EntityInfoIssueReason;
 
 typedef enum EntityInfoObjectKind {

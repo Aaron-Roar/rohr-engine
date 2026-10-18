@@ -117,6 +117,12 @@ geometry, duplicates, and explicitly chosen Auto Shape types are preserved.
 
 ## Animation frame alignment
 
+Animations may have no frames. They remain valid when saved, generated, or
+spawned; the application skips their drawing and playback. Runtime entity info
+and animation-update reports identify the empty state as informational. Removing
+the last frame does not require deleting the animation or prevent the app from
+starting.
+
 An animation's Origin X/Y controls place its shared origin. Each frame has
 Offset X/Y, Rotation, and Scale X/Y controls. Moving the animation preserves
 the offsets; rotating a frame turns it about its own center. Animation scale

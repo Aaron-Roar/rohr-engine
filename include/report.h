@@ -104,7 +104,9 @@ typedef enum ReportStatus {
 typedef enum ReportSeverity {
     ROHR_REPORT_SEVERITY_NONE = 0,
     ROHR_REPORT_SEVERITY_WARNING,
-    ROHR_REPORT_SEVERITY_FATAL
+    ROHR_REPORT_SEVERITY_FATAL,
+    /** Non-error evidence, such as an intentionally skipped empty animation. */
+    ROHR_REPORT_SEVERITY_INFORMATION
 } ReportSeverity;
 
 typedef enum ReportAggregation {
@@ -272,7 +274,8 @@ EngineResult report_entry_add(Report *report, ReportEntry entry);
 EngineResult report_statistic_add(Report *report, ReportStatistic statistic);
 /** Copy optional text (NULL clears it), with visible truncation in the value. */
 EngineResult report_diagnostic_detail_set(ReportDiagnostic *diagnostic, const char *detail);
-/** Append/aggregate an issue. NONE and zero occurrences are invalid. */
+/** Append/aggregate an issue. Severity NONE and zero occurrences are invalid.
+ * ERROR_NONE is accepted only for INFORMATION diagnostics. */
 EngineResult report_diagnostic_add(Report *report, ReportDiagnostic diagnostic);
 /**
  * Combine a child and its descendants, adding the child's header as one entry

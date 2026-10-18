@@ -258,7 +258,8 @@ typedef enum EntityInfoIssueReason {
     ROHR_ENTITY_INFO_REFERENCE_DATA_MISSING,
     ROHR_ENTITY_INFO_VALUE_INVALID,
     ROHR_ENTITY_INFO_GEOMETRY_UNRESOLVABLE,
-    ROHR_ENTITY_INFO_CALCULATION_FAILED
+    ROHR_ENTITY_INFO_CALCULATION_FAILED,
+    ROHR_ENTITY_INFO_ANIMATION_EMPTY
 } EntityInfoIssueReason;
 
 typedef enum EntityInfoObjectKind {
@@ -317,7 +318,10 @@ zero IDs. `index` is the original collection index when `has_index` is true.
 Messages are NUL-terminated; `detail_truncated` exposes text truncation. Copied
 issues own their text and remain usable after snapshot release.
 
-Absent requested components are informational. Missing references, missing
+Absent requested components and valid empty animations are informational.
+Empty animations remain available in `GRAPHICS_ANIMATIONS` with zero frames;
+their `ANIMATION_EMPTY` issue explains that playback and drawing are skipped.
+Missing references, missing
 required reference data, invalid numeric/configuration values, unresolvable
 geometry, and failed calculations are warnings. Capture all independent issues;
 do not fabricate downstream calculation failures after a prerequisite failed.

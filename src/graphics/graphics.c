@@ -5313,6 +5313,19 @@ Report graphics_sprite_frames_update(Tick current_tick, Time current_time) {
             skipped++;
             continue;
         }
+        if(animated_sprites[i].frame_count == 0) {
+            EntityResult entity = entity_from_index_get(i);
+            ReportDiagnostic diagnostic = {.report_id = report.header.id,
+                .internal_stage = ROHR_GRAPHICS_ANIMATION,
+                .severity = ROHR_REPORT_SEVERITY_INFORMATION, .code = ERROR_NONE,
+                .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED,
+                .source = {ROHR_REPORT_OBJECT_ENTITY, entity.result.value}, .occurrence_count = 1};
+            (void)report_diagnostic_detail_set(&diagnostic,
+                "Animation has no frames; playback and drawing are skipped");
+            (void)report_diagnostic_add(&report, diagnostic);
+            skipped++;
+            continue;
+        }
         graphics_animated_sprite_update(&animated_sprites[i], current_tick, current_time);
         processed++;
     }

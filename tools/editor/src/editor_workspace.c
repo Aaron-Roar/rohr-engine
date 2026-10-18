@@ -1133,8 +1133,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             const EditorRigidBody *body = editor_workspace_body_get(object,
                 sprite->rigid_body);
             char target[EDITOR_OBJECT_NAME_MAX + 24];
-            if(sprite->frame_count == 0 ||
-                    sprite->frame_count > MAX_ANIMATIONS_FRAMES) continue;
+            if(sprite->frame_count > MAX_ANIMATIONS_FRAMES) continue;
             if(body == NULL) {
                 snprintf(target, sizeof(target), "animation_%s", sprite->name);
                 fprintf(source,
@@ -1156,10 +1155,12 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 sprite->id, sprite->frame_count,
                 (unsigned long long)sprite->ticks_per_frame,
                 sprite->time_per_frame);
+            if(sprite->frame_count == 0) fputs("0", source);
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1)
                 fprintf(source, "%sUINT32_C(%u)", frame == 0 ? "" : ", ",
                     sprite->frames[frame].id);
             fprintf(source, "}, .frame_files = {");
+            if(sprite->frame_count == 0) fputs("NULL", source);
             for(size_t frame = 0; frame < sprite->frame_count; frame += 1) {
                 const EditorAnimationFrame *asset = &sprite->frames[frame];
                 fprintf(source, "%s", frame == 0 ? "" : ", ");
@@ -1167,13 +1168,16 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             }
             fprintf(source,
                 "}};\n"
-                "      AnimationAssetResult loaded = rohr_graphics_animation_load(descriptor);\n"
+                "      AnimationAssetResult loaded = {.kind = ERROR_RESULT_VALUE};\n"
+                "      if(descriptor.amount_of_descriptors > 0) loaded = rohr_graphics_animation_load(descriptor);\n"
                 "      AnimatedSprite animated;\n"
                 "      if(rohr_error_check(loaded)) { result = rohr_error_result_error("
                 "loaded.result.error); goto fail; }\n");
             fprintf(source,
                 "      animated = rohr_graphics_animated_sprite_create(loaded.result.value, "
                 "(Scale){%#.9gf, %#.9gf});\n"
+                "      animated.player.ticks_per_frame = descriptor.ticks_per_frame;\n"
+                "      animated.player.time_per_frame = descriptor.time_per_frame;\n"
                 "      animated.player.frame_index = %u;\n"
                 "      animated.body_offset = (Position){%#.9gf, %#.9gf};\n"
                 "      animated.orientation_offset = %#.9gf;\n"

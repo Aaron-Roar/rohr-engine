@@ -71,7 +71,8 @@ static void issue_add(Snapshot *s, EntityInfoFlags section, EntityInfoField fiel
     }
     EntityInfoIssue *issue = &s->issues[s->issue_count++];
     *issue = (EntityInfoIssue){.section = section, .field = field, .reason = reason,
-        .kind = reason == ROHR_ENTITY_INFO_COMPONENT_ABSENT ?
+        .kind = (reason == ROHR_ENTITY_INFO_COMPONENT_ABSENT ||
+            reason == ROHR_ENTITY_INFO_ANIMATION_EMPTY) ?
             ROHR_ENTITY_INFO_INFORMATION : ROHR_ENTITY_INFO_WARNING,
         .reference = reference, .has_index = has_index, .index = index};
     size_t length = strlen(detail);
@@ -558,6 +559,10 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
             count ? &animated_sprites[index] : NULL, count, FLAG(GRAPHICS_ANIMATION_COUNT));
         if(count && (v->available & flag)) {
             const AnimatedSprite *a = v->animations;
+            if(a->frame_count == 0 && a->player.frame_count == 0)
+                issue_add(s, flag, ROHR_ENTITY_INFO_FIELD_VALUE, ROHR_ENTITY_INFO_ANIMATION_EMPTY,
+                    object(ROHR_ENTITY_INFO_OBJECT_ENTITY, entity, 0), true, 0,
+                    "Animation has no frames; playback and drawing are skipped");
             if(a->frame_count > MAX_ANIMATIONS_FRAMES ||
                     a->player.frame_count != a->frame_count || !isfinite(a->scale.x) ||
                     !isfinite(a->scale.y) || !vector_check(a->body_offset) ||

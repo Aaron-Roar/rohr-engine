@@ -229,7 +229,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         return result;
     }
     if(d->kind == OBJECT_ANIMATION) {
-        if(!d->frames || !d->frame_count || d->frame_count > MAX_ANIMATIONS_FRAMES)
+        if((d->frame_count && !d->frames) || d->frame_count > MAX_ANIMATIONS_FRAMES)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         AnimationDescriptor descriptor = {.id = (AnimationId)d->id,
             .amount_of_descriptors = d->frame_count, .ticks_per_frame = d->playing ? d->ticks_per_frame : 0,
@@ -238,9 +238,12 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
             descriptor.frame_ids[i] = d->frames[i].id;
             descriptor.frame_files[i] = d->frames[i].path;
         }
-        AnimationAssetResult loaded = graphics_animation_load(descriptor);
+        AnimationAssetResult loaded = d->frame_count ? graphics_animation_load(descriptor) :
+            ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
         if(error_check(loaded)) return error_result_error(loaded.result.error);
         AnimatedSprite sprite = graphics_animated_sprite_create(loaded.result.value, d->scale);
+        sprite.player.ticks_per_frame = descriptor.ticks_per_frame;
+        sprite.player.time_per_frame = descriptor.time_per_frame;
         sprite.player.frame_index = d->starting_frame;
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;

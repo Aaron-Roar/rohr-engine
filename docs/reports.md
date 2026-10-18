@@ -300,6 +300,10 @@ destination. `report_valid_check()` checks populated fields, enum ranges, finite
 nonnegative elapsed times, duplicate keys, and reserved-fatal consistency. Unused
 array slots do not matter. Prefer helpers over editing counts or collected slots.
 `NONE` severity denotes empty/default values; it is invalid as a collected issue.
+`INFORMATION` records valid states that explain skipped work without reporting an
+error. It may use `ERROR_NONE`; warning and fatal diagnostics still require an
+error code. Informational diagnostics retain the same copying, aggregation,
+overflow, output, and stored-retrieval behavior and do not fail their report.
 
 ## Add entries and statistics
 
@@ -746,12 +750,17 @@ belong to the later UI goal.
 - `PROCESSED_COUNT` counts successful callbacks for cameras, successful commands
   for commands, successful visible screen/UI items for viewports, captured frames
   for recording, presented frames for presentation, and visited valid animated
-  sprites for animation. A viewport background is included in time/diagnostics,
+  sprites with frames for animation. A viewport background is included in time/diagnostics,
   but is not a separate item count. Camera motion is included in time.
 - `SKIPPED_COUNT` counts failed/aborted work in the corresponding units. Commands
   additionally count rejected submissions; one rejected request may otherwise
   have produced multiple commands. Minimized zero-area recording frames are
   skipped without a warning. Intentionally hidden/paused content is not counted.
+  The animation sweep also counts valid empty animations as skipped, with one
+  `INFORMATION` diagnostic per entity stating that playback and drawing are
+  skipped. The report remains COMPLETE; no frame assets or drawing commands are
+  created. This evidence belongs to the independently invoked animation sweep,
+  not the graphics frame report.
 - Commands record `QUEUED_COMMAND_COUNT` for successfully accepted commands.
   Discarded commands remain in this count and also contribute to skipped work.
 - Presentation records `FRAME_LIMIT_WAIT_NS` for measured deliberate frame-limit

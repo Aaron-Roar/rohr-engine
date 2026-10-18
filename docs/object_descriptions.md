@@ -79,6 +79,13 @@ Additional attached visuals of the same kind receive their own owned entity and
 transform lock, so they do not replace an earlier visual. Those names resolve to
 their individual entities. Body hitbox bindings use its primary animation.
 
+Empty animations are valid objects. They retain an animated-sprite component,
+placement, settings, ownership, and scoped identity, but load no frame assets.
+Drawing and playback skip them. This also reserves the primary animation slot
+for an attached empty animation, so a populated sibling keeps its own entity.
+Entity info identifies the empty state, and the animation-update report records
+an informational skip. Adding frames later resumes ordinary playback.
+
 Every live entity can own members through `entity_owner_set(member, owner)`
 (or `rohr_entity_owner_set`). Ownership storage is initialized internally and may
 allocate; no group identifier is required. The owner has `ROHR_OBJECT` and a

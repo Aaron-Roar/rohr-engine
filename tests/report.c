@@ -357,6 +357,32 @@ static void invalid_matrix(void) {
     }
 }
 
+static void informational_diagnostics(void) {
+    Report child = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
+    ReportDiagnostic diagnostic = issue(10, ROHR_REPORT_SEVERITY_INFORMATION);
+    diagnostic.code = ERROR_NONE;
+    OK(rohr_report_diagnostic_detail_set(&diagnostic, "Valid work was skipped"));
+    OK(rohr_report_diagnostic_add(&child, diagnostic));
+    OK(report_diagnostic_add(&child, diagnostic));
+    assert(child.header.status == ROHR_REPORT_COMPLETE && !child.has_fatal);
+    assert(child.diagnostic_count == 1 && child.diagnostics[0].occurrence_count == 2);
+    diagnostic.severity = ROHR_REPORT_SEVERITY_WARNING;
+    BAD(report_diagnostic_add(&child, diagnostic));
+    Report parent = make_report(ROHR_PHYSICS_REPORT_ID);
+    OK(rohr_report_merge(&parent, &child));
+    assert(parent.header.status == ROHR_REPORT_COMPLETE && parent.diagnostic_count == 1);
+    assert(parent.diagnostics[0].severity == ROHR_REPORT_SEVERITY_INFORMATION);
+    for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; ++i) {
+        diagnostic = issue(100 + i, ROHR_REPORT_SEVERITY_INFORMATION);
+        diagnostic.code = ERROR_NONE;
+        OK(report_diagnostic_add(&parent, diagnostic));
+    }
+    assert(parent.dropped_diagnostic_occurrences == 1 && !parent.has_fatal);
+    OK(report_diagnostic_add(&parent, issue(1000, ROHR_REPORT_SEVERITY_FATAL)));
+    assert(parent.has_fatal && parent.first_fatal.source.id == 1000);
+    assert(rohr_report_valid_check(&parent));
+}
+
 static void copy_and_merge_measurement(void) {
     Report child = make_report(ROHR_PHYSICS_JOINTS_REPORT_ID);
     for(size_t i = 0; i < ROHR_REPORT_DIAGNOSTIC_CAPACITY; i += 1)
@@ -383,6 +409,7 @@ int main(void) {
     mirrored_fatal();
     overflow_and_saturation();
     malformed_and_parity();
+    informational_diagnostics();
     copy_and_merge_measurement();
     return 0;
 }

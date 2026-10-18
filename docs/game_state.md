@@ -466,6 +466,11 @@ are saved separately. `object_camera` stores dimensions, zoom, position,
 orientation, enable/pause flags, and an optional named attachment. Camera
 callbacks and viewport mounts remain application-owned.
 
+An `animation_state` with an empty `frames` array is valid and restores an empty
+animated-sprite component without loading an animation asset. Its transform,
+visibility, timing, frame index, and layer are preserved; playback and drawing
+are skipped until frames exist. This uses the existing version 8 format.
+
 Engine snapshots carry `"runtime_snapshot": true`. Loading them restores live
 state without adding to the retained authored-template documents. This permits
 repeated save/delete/load cycles without accumulating template definitions.
