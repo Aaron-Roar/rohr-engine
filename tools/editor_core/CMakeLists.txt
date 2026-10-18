@@ -3,6 +3,7 @@
 
 add_library(rohr_editor_core STATIC
     src/editor_object_catalog.c
+    src/editor_scene_session.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
     src/editor_force_geometry.c
     src/editor_mass_properties.c
@@ -33,6 +34,25 @@ if(ROHR_ENABLE_SANITIZERS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(scene_child_test tests/scene_child.c)
+    add_executable(editor_scene_session_test tests/editor_scene_session.c)
+    foreach(scene_target scene_child_test editor_scene_session_test)
+        target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+        target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
+        if(NOT MSVC)
+            target_compile_options(${scene_target} PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+        else()
+            target_compile_options(${scene_target} PRIVATE /UNDEBUG)
+        endif()
+        if(ROHR_ENABLE_SANITIZERS)
+            target_compile_options(${scene_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+            target_link_options(${scene_target} PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+        endif()
+        set_target_properties(${scene_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    endforeach()
+    add_test(NAME editor_scene_session COMMAND editor_scene_session_test $<TARGET_FILE:scene_child_test>)
+    set_tests_properties(editor_scene_session PROPERTIES TIMEOUT 60
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_executable(editor_sources_test tests/editor_sources.c ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
     target_include_directories(editor_sources_test PRIVATE ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_sources_test PRIVATE rohr_editor_core)

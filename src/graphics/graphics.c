@@ -3,6 +3,9 @@
  */
 
 #include "graphics.h"
+#include "input.h"
+#include "input/input_internal.h"
+#include "scene/scene_runtime.h"
 #include "camera_state.h"
 #include "object_drawing.h"
 #include "marker_geometry.h"
@@ -29,6 +32,21 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+
+static bool graphics_scene_hosted;
+static SceneCapture graphics_scene_capture;
+static SceneCaptureReady graphics_scene_capture_ready;
+static void *graphics_scene_context;
+void graphics_scene_configure(bool hosted, SceneCapture capture, SceneCaptureReady ready, void *context) {
+    graphics_scene_hosted = hosted;
+    graphics_scene_capture = capture;
+    graphics_scene_capture_ready = ready;
+    graphics_scene_context = context;
+}
+static bool graphics_pointer_down_check(void) {
+    return input_host_mode_check() ? input_mouse_button_down_check(INPUT_MOUSE_BUTTON_LEFT) :
+        (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0;
+}
 
 static SDL_Renderer *sdl_renderer = NULL;
 static SDL_Window *sdl_window = NULL;
@@ -2848,6 +2866,8 @@ Scale graphics_render_output_size_get(void) {
 
 bool graphics_logical_size_set(int width, int height) {
     if(sdl_renderer == NULL || width <= 0 || height <= 0) return false;
+    if(graphics_scene_hosted && (width > 4096 || height > 4096))
+        return SDL_SetError("Hosted logical size exceeds 4096 by 4096");
     if(!SDL_SetRenderLogicalPresentation(sdl_renderer, width, height,
             SDL_LOGICAL_PRESENTATION_LETTERBOX)) return false;
     graphics_logical_width = width;
@@ -2903,7 +2923,18 @@ EngineResult graphics_window_presentation_set(
         return error_result_error(ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED);
     if(config.logical_width <= 0 || config.logical_height <= 0)
         return error_result_error(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED);
-    result = graphics_window_presentation_apply(sdl_window, config);
+    GraphicsWindowPresentationConfig applied = config;
+    /* A hosted scene must never switch the editor's desktop into fullscreen. */
+    if(graphics_scene_hosted) {
+        if(config.logical_width > 4096 || config.logical_height > 4096 ||
+                config.window_width > 4096 || config.window_height > 4096)
+            return error_result_error_detail(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED,
+                "Hosted window/logical dimensions exceed 4096 by 4096");
+        if(config.mode < GRAPHICS_WINDOW_MODE_WINDOWED || config.mode > GRAPHICS_WINDOW_MODE_FULLSCREEN)
+            return error_result_error(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED);
+        applied.mode = GRAPHICS_WINDOW_MODE_WINDOWED;
+    }
+    result = graphics_window_presentation_apply(sdl_window, applied);
     if(error_check(result)) return result;
     if(!graphics_logical_size_set(config.logical_width, config.logical_height))
         return error_result_error_detail(
@@ -2914,6 +2945,7 @@ EngineResult graphics_window_presentation_set(
 }
 
 Position graphics_mouse_screen_position_get(void) {
+    if(input_host_mode_check()) return input_mouse_position_get();
     float window_x;
     float window_y;
 
@@ -2943,7 +2975,7 @@ EngineResult graphics_start(void) {
             "Game Test",
             WINDOW_WIDTH,
             WINDOW_HEIGHT,
-            SDL_WINDOW_RESIZABLE,
+            SDL_WINDOW_RESIZABLE | (graphics_scene_hosted ? SDL_WINDOW_HIDDEN : 0),
             &sdl_window,
             &sdl_renderer
         )) {
@@ -3637,10 +3669,10 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
                 item->clip_rectangle.height)) hovered = false;
     if(hovered_result != NULL) *hovered_result = hovered;
     if(pressed_result != NULL) *pressed_result = hovered &&
-        (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0;
-    fill = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
+        graphics_pointer_down_check();
+    fill = hovered ? ((graphics_pointer_down_check()) ?
         shape->click_fill_color : shape->hover_fill_color) : shape->fill_color;
-    border = hovered ? (((SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0) ?
+    border = hovered ? ((graphics_pointer_down_check()) ?
         shape->click_border_color : shape->hover_border_color) :
         shape->border_color;
     for(size_t i = 0; i < shape->shape.amount_of_vertices; i += 1)
@@ -3765,7 +3797,7 @@ static void graphics_viewports_draw(void) {
     bool has_viewport = false;
     bool has_enabled_viewport = false;
     Position pointer = graphics_mouse_screen_position_get();
-    bool mouse_down = (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK) != 0;
+    bool mouse_down = graphics_pointer_down_check();
     bool mouse_pressed = mouse_down && !graphics_ui_drag_mouse_down;
     ViewportItemId drag_candidate = VIEWPORT_ITEM_INVALID;
     if(!mouse_down) {
@@ -4332,8 +4364,36 @@ Report graphics_show(void) {
         child = graphics_pipeline_recording_update();
         (void)report_merge(&report, &child);
         /* Recording does not invalidate the composed image. */
-        child = graphics_pipeline_present();
-        (void)report_merge(&report, &child);
+        bool capture_failed = false;
+        if(graphics_scene_capture && (!graphics_scene_capture_ready || graphics_scene_capture_ready(graphics_scene_context))) {
+            SDL_FRect logical;
+            SDL_Surface *surface = NULL;
+            if(graphics_logical_width <= 4096 && graphics_logical_height <= 4096 &&
+                    SDL_GetRenderLogicalPresentationRect(sdl_renderer, &logical) &&
+                    logical.w > 0 && logical.h > 0 && logical.w <= 4096 && logical.h <= 4096) {
+                SDL_Rect rect = {(int)roundf(logical.x), (int)roundf(logical.y),
+                    (int)roundf(logical.w), (int)roundf(logical.h)};
+                surface = SDL_RenderReadPixels(sdl_renderer, &rect);
+                if(surface && (surface->w != graphics_logical_width || surface->h != graphics_logical_height)) {
+                    SDL_Surface *scaled = SDL_ScaleSurface(surface, graphics_logical_width,
+                        graphics_logical_height, SDL_SCALEMODE_LINEAR);
+                    SDL_DestroySurface(surface); surface = scaled;
+                }
+            } else SDL_SetError("Invalid hosted frame dimensions");
+            EngineResult captured = surface ? graphics_scene_capture(graphics_scene_context, surface) :
+                error_result_error_detail(ERROR_ENGINE_GRAPHICS_STATE_FAILED, SDL_GetError());
+            SDL_DestroySurface(surface);
+            if(error_check(captured)) {
+                capture_failed = true;
+                graphics_report_issue(&report, ROHR_GRAPHICS_PRESENTATION,
+                    captured.result.error, true, (ReportObjectRef){0}, (ReportObjectRef){0},
+                    error_result_message_get(captured.kind, captured.result.error));
+            }
+        }
+        if(!capture_failed) {
+            child = graphics_pipeline_present();
+            (void)report_merge(&report, &child);
+        }
     }
     graphics_frame_active = false;
     report.header.total_ms = (double)(SDL_GetTicksNS() - start) / 1000000.0;

@@ -16,6 +16,8 @@
 static const char *report_id_name(uint32_t value) {
     switch(value) {
         case ROHR_REPORT_NONE_ID: return "ROHR_REPORT_NONE_ID";
+        case ROHR_SCENE_REPORT_ID: return "ROHR_SCENE_REPORT_ID";
+        case ROHR_SCENE_SESSION_REPORT_ID: return "ROHR_SCENE_SESSION_REPORT_ID";
         case ROHR_REPORT_ID: return "ROHR_REPORT_ID";
         case ROHR_PHYSICS_REPORT_ID: return "ROHR_PHYSICS_REPORT_ID";
         case ROHR_PHYSICS_SUBSTEP_REPORT_ID: return "ROHR_PHYSICS_SUBSTEP_REPORT_ID";

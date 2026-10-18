@@ -454,6 +454,8 @@ static void builtin_names(void) {
         {ROHR_AUDIO_MUSIC_REPORT_ID, "ROHR_AUDIO_MUSIC_REPORT_ID"},
         {ROHR_AUDIO_OUTPUT_REPORT_ID, "ROHR_AUDIO_OUTPUT_REPORT_ID"},
         {ROHR_ENGINE_LIFECYCLE_REPORT_ID, "ROHR_ENGINE_LIFECYCLE_REPORT_ID"},
+        {ROHR_SCENE_REPORT_ID, "ROHR_SCENE_REPORT_ID"},
+        {ROHR_SCENE_SESSION_REPORT_ID, "ROHR_SCENE_SESSION_REPORT_ID"},
         {ROHR_REPORT_ID, "ROHR_REPORT_ID"},
     };
     static const struct { ReportMetricId id; const char *name; ReportAggregation rule; } metrics[] = {

@@ -21,6 +21,8 @@ omit `ROHR_`. Entries aggregate by ID, rather than recording execution order.
 
 | Entry points | Report owner and children | Execution and collection boundary |
 | --- | --- | --- |
+| `scene_run(argc, argv, callbacks)` | SCENE_REPORT → executed engine, gameplay, physics, audio, animation, and graphics reports | Requires no active engine. Owns the scene process loop and cleanup; total time includes paused time and shutdown. Partial initialization and update failures are retained after teardown. |
+| Editor-core `editor_scene_session_update(session)` | SCENE_SESSION_REPORT; no children | Bounded nonblocking host poll; collects new startup/process/protocol/log evidence once. Idle is NOT_RUN. Measures the host call, not child simulation. |
 | `engine_update()` | ENGINE_REPORT → ENGINE_LIFECYCLE_REPORT | Requires engine startup. Advances ticks then cleans lifetimes even while paused or with zero ticks. COMPLETE for empty work; FAILED before startup. Parent measures both operations. |
 | `engine_lifecycle_update()` | ENGINE_LIFECYCLE_REPORT | Independent sweep using current time/ticks. Individual resolution/deletion failures warn; startup failure is fatal. |
 | `physics_update(ticks)`, `physics_dt_update(dt)`, `system_physics_update(dt)`, `physics_pipeline_update(dt)` | PHYSICS_REPORT → PHYSICS_SUBSTEP_REPORT and descendants | Requires engine startup. First three include animated-hitbox preparation when executing; raw pipeline does not. Zero ticks and finite nonpositive high-level duration are NOT_RUN. Lower-level zero duration executes; negative/nonfinite lower-level duration fails. |
@@ -992,3 +994,13 @@ results, low-level time advancement on its existing API, and input reporting
 deferred by user choice. Existing physics, graphics, audio and UI report owners
 remain independent. The [coverage inventory](#system-coverage-inventory) records
 their boundaries. [Stored reports](#stored-reports) describes latest-report retrieval and composition.
+
+## Scene execution and hosting reports
+
+See [scene hosting](scene_projects.md#editor-core-host) for callback ownership,
+transport capacities, request/acknowledgement timing, and failure recovery.
+`ROHR_SCENE_REPORT` and `ROHR_SCENE_SESSION_REPORT` select the latest published
+copies and are included in `ROHR_REPORT`. They do not provide report history.
+Logs are a separate bounded text stream; a truncation warning counts discarded
+bytes. A session reports its first failure once, preserves that text in its error
+getter, and requires the previous child to be reaped before another launch.

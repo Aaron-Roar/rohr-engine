@@ -4,6 +4,7 @@
 
 #include "editor_workspace.h"
 #include "editor_starter_main.h"
+#include "editor_scene_source.h"
 #include "editor_log.h"
 #include "editor_object_catalog.h"
 #include "editor_soft_area.h"
@@ -2621,7 +2622,7 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
             ".gitignore") && editor_workspace_file_write(path, "build/\nlogs/\n");
 }
 
-/* Entry points are developer-owned; only recreate an absent scene source.
+/* Entry points are developer-owned; migrate only the exact previous scaffold.
  * CMake migration requires the exact preceding scaffold, not a marker match. */
 static bool editor_workspace_scene_write(const EditorWorkspace *workspace) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -2631,10 +2632,19 @@ static bool editor_workspace_scene_write(const EditorWorkspace *workspace) {
             "src/scene.c")) return false;
     if(SDL_GetPathInfo(path, &info)) {
         if(info.type != SDL_PATHTYPE_FILE) return false;
+        char *existing_scene = SDL_LoadFile(path, NULL);
+        if(!existing_scene) return false;
+        bool exact_previous = strcmp(existing_scene, editor_workspace_main_source) == 0;
+        bool customized = strcmp(existing_scene, editor_scene_source) != 0 && !exact_previous;
+        SDL_free(existing_scene);
+        if(exact_previous && !editor_workspace_file_write(path, editor_scene_source)) return false;
+        if(customized) console_write(LOG_ENGINE,
+            "Preserved customized %s. For editor hosting, call rohr_scene_run(argc, argv, "
+            "SceneCallbacks) with initialize/update/shutdown callbacks; see docs/scene_projects.md.\n", path);
     } else {
         FILE *scene = fopen(path, "wx");
         if(scene == NULL) return false;
-        bool written = fputs(editor_workspace_main_source, scene) != EOF;
+        bool written = fputs(editor_scene_source, scene) != EOF;
         bool closed = fclose(scene) == 0;
         if(!written || !closed) return false;
     }

@@ -32,6 +32,19 @@ See the [angle convention and format migration contract](angle_convention_contra
 
 ## Engine
 
+### `rohr_scene_run`
+
+```c
+Report rohr_scene_run(int argc, char **argv, SceneCallbacks callbacks);
+```
+
+Runs a standalone or editor-hosted scene in its own process. The runner owns
+engine and graphics startup/teardown. Required initialization and shutdown
+callbacks borrow a caller context; an optional gameplay callback returns a
+report before physics while playing. Shutdown also handles partial initialization.
+The returned report owns diagnostics after cleanup. See [scene entry points,
+hosting limits, and lifecycle](scene_projects.md#scene-runner-and-lifecycle).
+
 ### `rohr_engine_start`
 
 ```c

@@ -81,6 +81,8 @@ static const ReportFlags selectors[ROHR_REPORT_ID + 1] = {
     [ROHR_AUDIO_MUSIC_REPORT_ID] = ROHR_AUDIO_MUSIC_REPORT,
     [ROHR_AUDIO_OUTPUT_REPORT_ID] = ROHR_AUDIO_OUTPUT_REPORT,
     [ROHR_ENGINE_LIFECYCLE_REPORT_ID] = ROHR_ENGINE_LIFECYCLE_REPORT,
+    [ROHR_SCENE_REPORT_ID] = ROHR_SCENE_REPORT,
+    [ROHR_SCENE_SESSION_REPORT_ID] = ROHR_SCENE_SESSION_REPORT,
     [ROHR_REPORT_ID] = ROHR_REPORT
 };
 
@@ -109,7 +111,7 @@ static size_t roots(const Report *r, ReportId id) {
 static void initial(void) {
     const ReportFlags bad[]={0, ROHR_INPUT_REPORT, UINT64_C(1) << 63,
         UINT64_MAX, ROHR_PHYSICS_REPORT | ROHR_INPUT_REPORT,
-        ROHR_REPORT | (UINT64_C(1) << 23), ROHR_REPORT | ROHR_INPUT_REPORT};
+        ROHR_REPORT | (UINT64_C(1) << 25), ROHR_REPORT | ROHR_INPUT_REPORT};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
         ReportResult r=report_get(bad[i]);
         assert(error_check(r) && r.result.error==ERROR_ENGINE_REPORT_INVALID);

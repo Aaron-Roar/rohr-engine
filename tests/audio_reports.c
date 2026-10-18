@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "rohr.h"
+#include "../src/scene/scene_runtime.h"
 #define AUDIO_TEST_PATH "rohr_audio_reports_test.wav"
 #define AUDIO_TEST_MUSIC_PATH "rohr_audio_reports_test.ogg"
 #include "audio_fixture.h"
@@ -422,6 +423,18 @@ static void concurrent_test(void) {
     SDL_Delay(30); /* Playback must advance without another update. */
     Report continued = audio_update();
     assert(metric(&continued, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) > 0);
+    OK(audio_scene_pause_set(true));
+    (void)audio_update(); /* Drain evidence completed before device suspension. */
+    OK(audio_sound_stop(fresh.result.value));
+    (void)audio_update(); /* Publish while suspended: callback must not execute. */
+    SDL_Delay(30);
+    Report paused = audio_update();
+    assert(metric(&paused, ROHR_AUDIO_OUTPUT_REPORT_ID, ROHR_REPORT_AUDIO_FRAMES_COUNT) == 0);
+    assert(audio_sound_playing_check(fresh.result.value));
+    OK(audio_scene_pause_set(false));
+    deadline = SDL_GetTicks() + 2000;
+    while(audio_sound_playing_check(fresh.result.value) && SDL_GetTicks() < deadline) SDL_Delay(1);
+    assert(!audio_sound_playing_check(fresh.result.value));
     (void)audio_stop(); (void)audio_update();
 }
 int main(void) {

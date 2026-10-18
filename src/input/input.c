@@ -321,7 +321,22 @@ static void input_text_append(const char *source) {
     if(copy_length < source_length) input_snapshot.text.committed_truncated = true;
 }
 
+static bool input_hosted;
+static bool input_host_relative;
+static SDL_Rect input_host_text_area;
+static int input_host_text_cursor;
+void input_host_mode_set(bool hosted) {
+    input_hosted = hosted; input_host_relative = false;
+    input_host_text_area = (SDL_Rect){0}; input_host_text_cursor = 0;
+}
+bool input_host_mode_check(void) { return input_hosted; }
+SDL_Rect input_host_text_area_get(int *cursor) {
+    if(cursor) *cursor = input_host_text_cursor;
+    return input_host_text_area;
+}
+
 void input_start(void) {
+    input_host_mode_set(false);
     memset(&input_snapshot, 0, sizeof(input_snapshot));
     memset(input_controllers, 0, sizeof(input_controllers));
     memset(input_controller_generations, 0, sizeof(input_controller_generations));
@@ -331,6 +346,7 @@ void input_start(void) {
 }
 
 void input_stop(void) {
+    input_host_mode_set(false);
     SDL_Window *window = SDL_GetKeyboardFocus();
     if(window != NULL && SDL_TextInputActive(window)) (void)SDL_StopTextInput(window);
     input_start();
@@ -391,6 +407,7 @@ static SDL_Window *input_mouse_window_get(void) {
 }
 
 EngineResult input_mouse_relative_mode_set(bool enabled) {
+    if(input_hosted) { input_host_relative = enabled; return error_result_value(true); }
     SDL_Window *window = input_mouse_window_get();
     if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
     if(!SDL_SetWindowRelativeMouseMode(window, enabled))
@@ -400,6 +417,7 @@ EngineResult input_mouse_relative_mode_set(bool enabled) {
 }
 
 bool input_mouse_relative_mode_check(void) {
+    if(input_hosted) return input_host_relative;
     SDL_Window *window = input_mouse_window_get();
     return window != NULL && SDL_GetWindowRelativeMouseMode(window);
 }
@@ -412,6 +430,7 @@ static SDL_Window *input_keyboard_window_get(void) {
 }
 
 EngineResult input_text_start(void) {
+    if(input_hosted) { input_snapshot.text.active = true; return error_result_value(true); }
     SDL_Window *window = input_keyboard_window_get();
     if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
     if(!SDL_StartTextInput(window)) return error_result_error_detail(
@@ -422,8 +441,8 @@ EngineResult input_text_start(void) {
 
 EngineResult input_text_stop(void) {
     SDL_Window *window = input_keyboard_window_get();
-    if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
-    if(!SDL_StopTextInput(window)) return error_result_error_detail(
+    if(!input_hosted && window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
+    if(!input_hosted && !SDL_StopTextInput(window)) return error_result_error_detail(
         ERROR_ENGINE_INPUT_OPERATION_FAILED, SDL_GetError());
     input_snapshot.text.active = false;
     input_snapshot.text.composition[0] = '\0';
@@ -434,6 +453,11 @@ EngineResult input_text_stop(void) {
 }
 
 EngineResult input_text_area_set(SDL_Rect area, int cursor) {
+    if(input_hosted) {
+        if(area.w < 0 || area.h < 0) return error_result_error(ERROR_ENGINE_INPUT_OPERATION_FAILED);
+        input_host_text_area = area; input_host_text_cursor = cursor;
+        return error_result_value(true);
+    }
     SDL_Window *window = input_keyboard_window_get();
     if(window == NULL) return error_result_error(ERROR_ENGINE_INPUT_WINDOW_NOT_FOUND);
     if(!SDL_SetTextInputArea(window, &area, cursor))

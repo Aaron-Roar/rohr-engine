@@ -11,4 +11,8 @@ void input_start(void);
 void input_stop(void);
 void input_event_add(const SDL_Event *event);
 
+void input_host_mode_set(bool hosted);
+bool input_host_mode_check(void);
+SDL_Rect input_host_text_area_get(int *cursor);
+
 #endif

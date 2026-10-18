@@ -5,6 +5,7 @@
 #ifndef ROHR_H
 #define ROHR_H
 
+#include "scene.h"
 #include "audio.h"
 #include "console.h"
 #include "engine.h"

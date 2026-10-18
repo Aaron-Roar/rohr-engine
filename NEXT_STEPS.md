@@ -74,9 +74,22 @@ user selected this milestone before the remaining roadmap priorities. See
    outside their source directories; Windows runtime execution is unverified.
    Regression checks cover source restoration/preservation, bindings, independent
    instances, force-driven spring motion, viewport setup, and failure cleanup.
-2. [ ] **Isolated simulation hosting** — Run the scene in a separate process;
-   provide scene lifecycle callbacks, bounded frame/input transport, pause and
-   resume, audio/timing handling, diagnostics, and process cleanup.
+2. [x] **Isolated simulation hosting** — Added the SDK scene runner with
+   initialization/gameplay/cleanup callbacks and an editor-core process session.
+   Versioned, authenticated loopback transport carries bounded logical RGBA
+   frames, input, and controls. Hidden rendering includes camera/screen/UI
+   composition; pause freezes updates and audio, resume preserves timing, and
+   focus loss releases input while simulation continues. Sessions retain bounded
+   logs/reports, enforce startup/stop timeouts, and reap children before restart.
+   Exact previous scene scaffolds migrate to callbacks; customized source is
+   preserved. Verified 95 native tests, nine final affected native checks, seven
+   ASan/UBSan/leak checks, installed-SDK hosted runs on Linux (also sanitized),
+   and Linux/Windows engine and generated dual-target builds without compiler
+   warnings. Independent center_of_mass/joints examples build on both platforms
+   and launch on Linux outside their source directories. The final 1080p software
+   renderer transport check measured 39.7 fps, 314 MiB/s, and 3.5 ms maximum host
+   poll time, with backpressure exercised. Windows runtime and real editor
+   focus/IME/visual verification remain for native review and tab integration.
 3. [ ] **Build and Run menus** — Build Application, Build Scene, Build Project,
    Generate App C, and Compile App; Run Application and Simulate Scene use the
    latest successful build without implicitly compiling. Scene/project builds
@@ -87,7 +100,7 @@ user selected this milestone before the remaining roadmap priorities. See
    composition, lifecycle, and platform behavior.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Goal 1 does not implement simulation hosting or editor menus/tabs.
+commit. Goals 1 and 2 are complete; editor menus and viewport tabs remain unstarted.
 
 ### Soft-Body Force Following and Generated-App Regression
 

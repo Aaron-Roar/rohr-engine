@@ -177,6 +177,9 @@ set(ROHR_SDL3_IMAGE_TARGET SDL3_image::SDL3_image-static)
 set(ROHR_SDL3_TTF_TARGET SDL3_ttf::SDL3_ttf-static)
 
 set(ROHR_ENGINE_SOURCES
+    src/scene/scene.c
+    src/scene/scene_transport.c
+    src/scene/scene_input.c
     src/audio/audio.c
     src/core/console.c
     src/core/engine.c
@@ -291,6 +294,9 @@ target_link_libraries(rohr_engine
         ${ROHR_SDL3_IMAGE_TARGET}
         ${ROHR_SDL3_TTF_TARGET}
 )
+if(WIN32)
+    target_link_libraries(rohr_engine PUBLIC ws2_32 bcrypt)
+endif()
 foreach(runtime_library_directory IN LISTS ROHR_SDK_RUNTIME_LIBRARY_DIRS)
     target_link_options(rohr_engine INTERFACE
         "$<INSTALL_INTERFACE:-Wl,-rpath,${runtime_library_directory}>")
@@ -508,6 +514,20 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME input_actions COMMAND input_actions_test)
 
     add_executable(cameras_test tests/cameras.c)
+    add_executable(scene_runner_test tests/scene_runner.c)
+    target_link_libraries(scene_runner_test PRIVATE rohr_engine)
+    if(NOT MSVC)
+        target_compile_options(scene_runner_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    else()
+        target_compile_options(scene_runner_test PRIVATE /UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(scene_runner_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(scene_runner_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    set_target_properties(scene_runner_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME scene_runner COMMAND scene_runner_test)
+    set_tests_properties(scene_runner PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     target_link_libraries(cameras_test PRIVATE rohr_engine)
     set_target_properties(cameras_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME cameras COMMAND cameras_test)

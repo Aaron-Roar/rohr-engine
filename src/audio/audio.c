@@ -4,6 +4,7 @@
 
 #include "audio.h"
 #include "audio/audio_internal.h"
+#include "scene/scene_runtime.h"
 #include "core/report_internal.h"
 #include "graphics/asset_path.h"
 
@@ -72,6 +73,7 @@ typedef struct AudioMusic {
 } AudioMusic;
 
 static SDL_AudioStream *audio_stream = NULL;
+static bool audio_scene_paused;
 static AudioSound audio_sounds[ROHR_AUDIO_SOUND_LIMIT];
 static AudioSoundResource audio_sound_resources[ROHR_AUDIO_SOUND_LIMIT];
 static uint16_t audio_sound_generations[ROHR_AUDIO_SOUND_LIMIT];
@@ -800,7 +802,7 @@ static EngineResult audio_start_impl(void) {
         return error_result_error_detail(ERROR_ENGINE_AUDIO_INIT_FAILED,
             SDL_GetError());
     }
-    if(!SDL_ResumeAudioStreamDevice(audio_stream)) {
+    if(!audio_scene_paused && !SDL_ResumeAudioStreamDevice(audio_stream)) {
         char detail[256];
         SDL_snprintf(detail, sizeof(detail), "%s", SDL_GetError());
         SDL_DestroyAudioStream(audio_stream);
@@ -1669,6 +1671,19 @@ bool audio_music_playing_check(Music music) {
 bool audio_music_paused_check(Music music) {
     if(!audio_gate_lock()) { return false; }
     bool result = audio_music_paused_check_impl(music);
+    audio_gate_unlock();
+    return result;
+}
+
+/* Host suspension preserves queued samples, players, explicit per-track pause,
+ * and playback rates. The application gate serializes stream lifetime. */
+EngineResult audio_scene_pause_set(bool paused) {
+    if(!audio_gate_lock()) return error_result_error(ERROR_ENGINE_AUDIO_OPERATION_FAILED);
+    bool success = audio_stream == NULL || (paused ? SDL_PauseAudioStreamDevice(audio_stream) :
+        SDL_ResumeAudioStreamDevice(audio_stream));
+    if(success) audio_scene_paused = paused;
+    EngineResult result = success ? error_result_value(true) :
+        error_result_error_detail(ERROR_ENGINE_AUDIO_OPERATION_FAILED, SDL_GetError());
     audio_gate_unlock();
     return result;
 }

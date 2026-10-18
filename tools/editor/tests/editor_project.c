@@ -5,6 +5,7 @@
 #include "editor_project.h"
 #include "editor_viewport.h"
 #include "editor_workspace.h"
+#include "legacy_scene_fixture.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -216,7 +217,7 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     char *edited = NULL, *loaded = NULL;
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source) goto done;
-    if(!strstr(scene_source, "project_objects_create_all(&objects)") ||
+    if(!strstr(scene_source, "project_objects_create_all(&scene->objects)") ||
             !strstr(main_source, "entity_object_add(objects.tug)")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(src/generated/project_scene.cmake)\n");
     if(!include) goto done;
@@ -244,6 +245,11 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     if(!SDL_RemovePath(scene_path) || !editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(scene_path, NULL);
     if(!loaded || strcmp(loaded, scene_source)) goto done;
+    SDL_free(loaded); loaded = NULL;
+    if(!file_replace(scene_path, legacy_scene_fixture) ||
+            !editor_workspace_c_generate(workspace, project)) goto done;
+    loaded = SDL_LoadFile(scene_path, NULL);
+    if(!loaded || strcmp(loaded, scene_source)) goto done;
     valid = true;
 done:
     if(cmake_source && !file_replace(cmake_path, cmake_source)) valid = false;
@@ -260,10 +266,8 @@ static bool tick_main_migration_check(const EditorWorkspace *workspace,
         "        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto fail;\n";
     static const char previous[] =
         "        if(rohr_physics_update(rohr_system_tick_update()).header.status == ROHR_REPORT_FAILED) goto fail;\n";
-    char scene_path[2048];
-    snprintf(scene_path, sizeof(scene_path), "%s/src/scene.c", workspace->directory);
     char *saved_main = SDL_LoadFile(path, NULL);
-    char *original = SDL_LoadFile(scene_path, NULL);
+    char *original = SDL_strdup(legacy_scene_fixture);
     char *old = NULL, *loaded = NULL;
     bool valid = false;
     if(original == NULL || saved_main == NULL) goto done;
