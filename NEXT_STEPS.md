@@ -54,6 +54,41 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Scene Simulation Tabs and Explicit Starter Code
+
+Run an isolated scene executable inside an editor viewport tab, and make the
+new-project application main demonstrate explicit dot-catalog creation. The
+user selected this milestone before the remaining roadmap priorities. See
+[project entry points and ownership](docs/scene_projects.md).
+
+1. [x] **Project scaffolding and starter tutorial** — Added preserved `scene.c`
+   and an independent scene executable, explicit starter dot-catalog creation
+   with handle-based joint wiring, whole-object `tug` spawning, generated instance
+   binding/settings helpers, and exact scaffold migration. Whole-scene creation
+   uses the same catalog path; visuals draw once per instance. Customized entry
+   points/build files and existing authored scenes remain intact. Verified all
+   93 native tests, four focused ASan/UBSan/leak tests and the installed-SDK
+   generated-runtime sanitizer probe, Linux/Windows engine and dual-target
+   project builds, and independent center_of_mass/joints example builds on both
+   platforms without compiler warnings. Linux targets/examples launch from
+   outside their source directories; Windows runtime execution is unverified.
+   Regression checks cover source restoration/preservation, bindings, independent
+   instances, force-driven spring motion, viewport setup, and failure cleanup.
+2. [ ] **Isolated simulation hosting** — Run the scene in a separate process;
+   provide scene lifecycle callbacks, bounded frame/input transport, pause and
+   resume, audio/timing handling, diagnostics, and process cleanup.
+3. [ ] **Build and Run menus** — Build Application, Build Scene, Build Project,
+   Generate App C, and Compile App; Run Application and Simulate Scene use the
+   latest successful build without implicitly compiling. Scene/project builds
+   stop simulation first.
+4. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
+   tabs; open simulation stopped; Run/Pause and Stop controls; Editor selection
+   stops simulation; restart from the scene executable; verify focused input,
+   composition, lifecycle, and platform behavior.
+
+Complete and verify one goal at a time, then stop for review and a user-created
+commit. Goal 1 does not implement simulation hosting or editor menus/tabs.
+
 ### Soft-Body Force Following and Generated-App Regression
 
 Restore soft-body force references during simulation, then investigate the

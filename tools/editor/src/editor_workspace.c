@@ -3,6 +3,7 @@
  */
 
 #include "editor_workspace.h"
+#include "editor_starter_main.h"
 #include "editor_log.h"
 #include "editor_object_catalog.h"
 #include "editor_soft_area.h"
@@ -201,6 +202,48 @@ static void editor_workspace_hitbox_rectangle_set(EditorProject *project,
         snprintf(hitbox->line_names[i], sizeof(hitbox->line_names[i]),
             "line_%u", i + 1);
     }
+}
+
+static bool editor_workspace_tug_init(EditorProject *project) {
+    EditorObject *object = editor_project_object_add(project, (Position){0});
+    if(object == NULL) return false;
+    snprintf(object->name, sizeof(object->name), "Tug");
+    EditorAnchorId anchors[2];
+    for(size_t i = 0; i < 2; ++i) {
+        EditorRigidBody *body = editor_project_rigid_body_add(project, object);
+        if(body == NULL) return false;
+        snprintf(body->name, sizeof(body->name), "box_%zu", i + 1);
+        body->position = (Position){i == 0 ? -70.0f : 70.0f, 260.0f};
+        body->mass_value = 2.0f;
+        body->gravity_enabled = false;
+        body->surface_color = i == 0 ? UINT32_C(0x589bd5ff) : UINT32_C(0xd57a58ff);
+        editor_workspace_hitbox_rectangle_set(project, &body->hitboxes[0], 40, 40);
+        EditorAnchor *anchor = editor_project_anchor_add(project, object,
+            (Position){0}, body->id);
+        if(anchor == NULL) return false;
+        snprintf(anchor->name, sizeof(anchor->name), "box_%zu_anchor", i + 1);
+        anchors[i] = anchor->id;
+        EditorForce *force = editor_project_force_add(project, object);
+        if(force == NULL) return false;
+        snprintf(force->name, sizeof(force->name), "pull_%zu", i + 1);
+        ObjectSourceReference target = {.kind = OBJECT_SOURCE_BODY, .id = body->id};
+        force->description = (ObjectForceDescription){
+            .target = target,
+            .location = {.kind = ROHR_FORCE_ORIGIN_POSITION, .reference = target},
+            .orientation = {.kind = ROHR_FORCE_WORLD_ORIENTATION,
+                .offset = i == 0 ? -90.0f : 90.0f},
+            .magnitude = 100.0f
+        };
+    }
+    EditorJoint *spring = editor_project_joint_add(project, object, EDITOR_JOINT_SPRING);
+    if(spring == NULL) return false;
+    snprintf(spring->name, sizeof(spring->name), "tug_spring");
+    spring->anchor_a = anchors[0];
+    spring->anchor_b = anchors[1];
+    spring->rest_length = 140.0f;
+    spring->stiffness = 10.0f;
+    spring->damping = 2.0f;
+    return true;
 }
 
 static bool editor_workspace_starter_project_init(EditorProject *project) {
@@ -443,6 +486,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
             "assets/tutorial_frame_1.png", (Scale){0.16f, 0.16f}) ||
             !editor_project_animation_frame_add(project, animation, "frame_2",
                 "assets/tutorial_frame_2.png", (Scale){0.16f, 0.16f})) return false;
+    if(!editor_workspace_tug_init(project)) return false;
     editor_project_selection_clear(project);
     return true;
 }
@@ -682,15 +726,15 @@ static void catalog_binding_write(FILE *f, const char *field, const char *name,
             "      object->%s = handle.result.value; }\n", !strcmp(resource,"camera") ? "Camera" : "JointAnchor", resource, field);
     } else fprintf(f, "      object->%s = member.result.value; }\n", field);
 }
-static void catalog_constructor_write(FILE *f, const EditorObject *o, const char *variable) {
-    fprintf(f, "EngineResult %s_create(%s *object, Position position) {\n"
-        "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *object = (%s){0};\n"
-        "    EntityResult added = rohr_entity_object_description_add(rohr_object_get(objects.%s),\n"
-        "        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});\n"
-        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
-        "    object->source_instance = added.result.value;\n"
-        "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);
+static void catalog_instance_binding_write(FILE *f, const EditorObject *o,
+        const char *variable) {
+    fprintf(f, "EngineResult %s_instance_bind(%s *output, Entity instance) {\n"
+        "    if(output == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
+        "    if(!rohr_entity_alive_check(instance)) return rohr_error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);\n"
+        "    %s bound = {.source_instance = instance};\n"
+        "    %s *object = &bound;\n"
+        "    EngineResult result = rohr_error_result_value(true);\n",
+        variable, o->name, o->name, o->name);
     char field[160], scope[160];
     for(size_t i=0;i<o->rigid_body_count;++i)
         catalog_binding_write(f,o->rigid_bodies[i].name,o->rigid_bodies[i].name,NULL,"object->source_instance");
@@ -741,6 +785,20 @@ static void catalog_constructor_write(FILE *f, const EditorObject *o, const char
         snprintf(field,sizeof(field),"torque_%s",o->torque_items[i].name);
         catalog_binding_write(f,field,o->torque_items[i].name,NULL,"object->source_instance");
     }
+    fprintf(f, "    (void)object;\n    if(rohr_error_check(result)) goto fail;\n    *output = bound;\n    return result;\nfail:\n    return result;\n}\n\n");
+}
+
+static void catalog_constructor_write(FILE *f, const EditorObject *o, const char *variable) {
+    fprintf(f, "EngineResult %s_create(%s *object, Position position) {\n"
+        "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
+        "    *object = (%s){0};\n"
+        "    EntityResult added = rohr_entity_object_description_add(rohr_object_get(objects.%s),\n"
+        "        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});\n"
+        "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
+        "    object->source_instance = added.result.value;\n"
+        "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);
+    fprintf(f, "    result = %s_instance_bind(object, added.result.value);\n"
+        "    if(rohr_error_check(result)) goto fail;\n", variable);
     fprintf(f,"    return result;\nfail:\n    %s_destroy(object);\n    return result;\n}\n\n"
         "void %s_draw(const %s *object) {\n    if(object) (void)rohr_entity_object_draw(object->source_instance);\n}\n\n"
         "void %s_destroy(%s *object) {\n    if(!object) return;\n"
@@ -916,8 +974,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         }
         fprintf(header, "\n");
         fprintf(header, "typedef struct %s {\n", object->name);
+        fprintf(header, "    Entity source_instance;\n");
         if(object->force_count || object->torque_count) {
-            fprintf(header, "    Entity source_instance;\n");
             for(size_t s=0;s<object->force_count;++s)
                 if(object->force_items[s].description.mode==OBJECT_SOURCE_PERSISTENT)
                     fprintf(header,"    Entity force_%s;\n",object->force_items[s].name);
@@ -970,6 +1028,11 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             "void %s_destroy(%s *object);\n\n",
             object->name, function_name, object->name, function_name, object->name,
             function_name, object->name);
+        fprintf(header, "/* Bind a complete owned instance; failure leaves output unchanged.\n"
+            " * On success, %s_destroy owns its destruction. Do not bind twice. */\n"
+            "EngineResult %s_instance_bind(%s *output, Entity instance);\n\n",
+            function_name, function_name, object->name);
+        catalog_instance_binding_write(source, object, function_name);
         if(object->force_count || object->torque_count) {
             catalog_constructor_write(source,object,function_name);
             continue;
@@ -1574,7 +1637,10 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             "    return result;\n"
             "}\n\n"
             "void %s_draw(const %s *object) {\n"
-            "    if(object == NULL) return;\n",
+            "    if(object == NULL) return;\n"
+            "    if(object->source_instance != ENTITY_INVALID) {\n"
+            "        (void)rohr_entity_object_draw(object->source_instance);\n"
+            "        return;\n    }\n",
             function_name, function_name, object->name);
         for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
             const EditorRigidBody *body = &object->rigid_bodies[body_index];
@@ -1600,11 +1666,37 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
                 body->name, UINT32_C(0x00000000), body->beam_color, body->node_color);
         }
+        /* Catalog instances draw their own visuals above. Ordinary generated
+         * instances draw only their own components, avoiding a second global pass. */
+        for(size_t i = 0; i < object->sprite_count; ++i) {
+            const EditorSprite *sprite = &object->sprites[i];
+            const EditorRigidBody *body = editor_workspace_body_get(object, sprite->rigid_body);
+            bool already_drawn = false;
+            for(size_t prior = 0; body != NULL && prior < i; ++prior)
+                already_drawn |= object->sprites[prior].rigid_body == body->id;
+            if(already_drawn) continue;
+            fprintf(source, "    (void)rohr_graphics_sprite_draw(object->%s%s);\n",
+                body ? "" : "sprite_", body ? body->name : sprite->name);
+        }
+        for(size_t i = 0; i < object->animated_sprite_count; ++i) {
+            const EditorAnimatedSprite *animation = &object->animated_sprite_items[i];
+            const EditorRigidBody *body = editor_workspace_body_get(object, animation->rigid_body);
+            bool already_drawn = false;
+            for(size_t prior = 0; body != NULL && prior < i; ++prior)
+                already_drawn |= object->animated_sprite_items[prior].rigid_body == body->id;
+            if(already_drawn) continue;
+            fprintf(source, "    (void)rohr_graphics_animated_sprite_draw(object->%s%s);\n",
+                body ? "" : "animation_", body ? body->name : animation->name);
+        }
         fprintf(source,
             "}\n\n"
             "void %s_destroy(%s *object) {\n"
-            "    if(object == NULL) return;\n",
-            function_name, object->name);
+            "    if(object == NULL) return;\n"
+            "    if(object->source_instance != ENTITY_INVALID) {\n"
+            "        if(rohr_entity_alive_check(object->source_instance))\n"
+            "            (void)rohr_entity_delete(object->source_instance);\n"
+            "        *object = (%s){0};\n        return;\n    }\n",
+            function_name, object->name, object->name);
         for(size_t joint_index = 0; joint_index < object->joint_count; joint_index += 1) {
             const EditorJoint *joint = &object->joint_items[joint_index];
             fprintf(source,
@@ -1815,14 +1907,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "EngineResult project_objects_create_all(ProjectObjects *objects);\n"
         "void project_objects_draw_all(const ProjectObjects *objects);\n"
         "void project_objects_destroy_all(ProjectObjects *objects);\n\n");
-    fprintf(source,
-        "EngineResult project_objects_create_all(ProjectObjects *objects) {\n"
-        "    EngineResult result;\n"
-        "    if(objects == NULL) return rohr_error_result_error("
-            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
-        "    *objects = (ProjectObjects){0};\n"
-        "    result = project_controllers_create(&objects->controllers);\n"
-        "    if(rohr_error_check(result)) goto fail;\n");
+    fprintf(header, "EngineResult project_settings_apply(void);\n\n");
+    fprintf(source, "EngineResult project_settings_apply(void) {\n    EngineResult result;\n");
     fprintf(source,
         "    result = rohr_engine_time_per_tick_set(%.17g);\n"
         "    if(rohr_error_check(result)) goto fail;\n"
@@ -1842,20 +1928,34 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             project->physics_dt_per_tick);
     else
         fprintf(source, "    rohr_physics_engine_time_per_tick_use();\n");
+    fprintf(source, "    return rohr_error_result_value(true);\nfail:\n    return result;\n}\n\n");
+    fprintf(source,
+        "EngineResult project_objects_create_all(ProjectObjects *instances) {\n"
+        "    EngineResult result;\n"
+        "    if(instances == NULL) return rohr_error_result_error("
+            "ERROR_MEMORY_POOL_NULL_POINTER);\n"
+        "    *instances = (ProjectObjects){0};\n"
+        "    result = project_controllers_create(&instances->controllers);\n"
+        "    if(rohr_error_check(result)) goto fail;\n");
+    fprintf(source, "    result = project_settings_apply();\n"
+        "    if(rohr_error_check(result)) goto fail;\n");
     for(size_t object_index = 0; object_index < project->object_count; object_index += 1) {
         const EditorObject *object = &project->objects[object_index];
         char variable[EDITOR_OBJECT_NAME_MAX];
         editor_project_property_name_format(variable, sizeof(variable), object->name);
         fprintf(source,
-            "    result = %s_create(&objects->%s, (Position){%#.9gf, %#.9gf});\n"
-            "    if(rohr_error_check(result)) goto fail;\n",
-            variable, variable, object->position.x, object->position.y);
+            "    { EntityResult added = entity_object_add(objects.%s);\n"
+            "      if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }\n"
+            "      instances->%s.source_instance = added.result.value;\n"
+            "      result = %s_instance_bind(&instances->%s, added.result.value);\n"
+            "      if(rohr_error_check(result)) goto fail; }\n",
+            variable, variable, variable, variable);
     }
     fprintf(source,
-        "    objects->created = true;\n"
+        "    instances->created = true;\n"
         "    return rohr_error_result_value(true);\n"
         "fail:\n"
-        "    project_objects_destroy_all(objects);\n"
+        "    project_objects_destroy_all(instances);\n"
         "    return result;\n"
         "}\n\n"
         "void project_objects_draw_all(const ProjectObjects *objects) {\n"
@@ -1867,8 +1967,6 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         fprintf(source, "    %s_draw(&objects->%s);\n", variable, variable);
     }
     fprintf(source,
-        "    rohr_graphics_sprites_draw();\n"
-        "    rohr_graphics_animated_sprites_draw();\n"
         "}\n\n"
         "void project_objects_destroy_all(ProjectObjects *objects) {\n"
         "    if(objects == NULL) return;\n");
@@ -2437,7 +2535,7 @@ static const char editor_workspace_main_source[] =
     "}\n";
 
 static bool editor_workspace_main_write(const EditorWorkspace *workspace,
-    const EditorProject *project) {
+    const EditorProject *project, bool tutorial) {
     char path[EDITOR_WORKSPACE_PATH_MAX * 2];
     FILE *file;
 
@@ -2446,7 +2544,7 @@ static bool editor_workspace_main_write(const EditorWorkspace *workspace,
                 "src/main.c")) return false;
     file = fopen(path, "wb");
     if(file == NULL) return false;
-    bool written = fputs(editor_workspace_main_source, file) != EOF;
+    bool written = fputs(tutorial ? editor_starter_main_source : editor_workspace_main_source, file) != EOF;
     bool closed = fclose(file) == 0;
     return written && closed;
 }
@@ -2468,13 +2566,11 @@ static bool editor_workspace_tick_main_check(const char *contents) {
         strcmp(contents + prefix + old_length, start + strlen(new_tick)) == 0;
 }
 
-static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
-    char path[EDITOR_WORKSPACE_PATH_MAX * 2];
-    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+static bool editor_workspace_cmake_format(const EditorWorkspace *workspace,
+        char *cmake, size_t capacity) {
     int cmake_length;
-    static const char *gitignore = "build/\nlogs/\n";
 
-    cmake_length = snprintf(cmake, sizeof(cmake),
+    cmake_length = snprintf(cmake, capacity,
         "cmake_minimum_required(VERSION 3.20)\n"
         "project(%s LANGUAGES C)\n\n"
         "set(CMAKE_C_STANDARD 11)\n"
@@ -2507,11 +2603,84 @@ static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
         workspace->config.name,
         workspace->config.asset_directory,
         workspace->config.asset_directory);
-    return cmake_length >= 0 && (size_t)cmake_length < sizeof(cmake) &&
-        editor_workspace_path_join(path, sizeof(path), workspace->directory,
+    return cmake_length >= 0 && (size_t)cmake_length < capacity;
+}
+
+static const char scene_cmake_include[] =
+    "\ninclude(src/generated/project_scene.cmake)\n";
+
+static bool editor_workspace_scaffold_write(const EditorWorkspace *workspace) {
+    char path[EDITOR_WORKSPACE_PATH_MAX * 2];
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    if(!editor_workspace_cmake_format(workspace, cmake, sizeof(cmake)) ||
+            strlen(cmake) + strlen(scene_cmake_include) >= sizeof(cmake)) return false;
+    strcat(cmake, scene_cmake_include);
+    return editor_workspace_path_join(path, sizeof(path), workspace->directory,
             "CMakeLists.txt") && editor_workspace_file_write(path, cmake) &&
         editor_workspace_path_join(path, sizeof(path), workspace->directory,
-            ".gitignore") && editor_workspace_file_write(path, gitignore);
+            ".gitignore") && editor_workspace_file_write(path, "build/\nlogs/\n");
+}
+
+/* Entry points are developer-owned; only recreate an absent scene source.
+ * CMake migration requires the exact preceding scaffold, not a marker match. */
+static bool editor_workspace_scene_write(const EditorWorkspace *workspace) {
+    char path[EDITOR_WORKSPACE_PATH_MAX * 2];
+    char cmake[EDITOR_WORKSPACE_PATH_MAX * 4];
+    SDL_PathInfo info;
+    if(!editor_workspace_path_join(path, sizeof(path), workspace->directory,
+            "src/scene.c")) return false;
+    if(SDL_GetPathInfo(path, &info)) {
+        if(info.type != SDL_PATHTYPE_FILE) return false;
+    } else {
+        FILE *scene = fopen(path, "wx");
+        if(scene == NULL) return false;
+        bool written = fputs(editor_workspace_main_source, scene) != EOF;
+        bool closed = fclose(scene) == 0;
+        if(!written || !closed) return false;
+    }
+    int count = snprintf(cmake, sizeof(cmake),
+        "# Generated by Rohr Engine. Regenerated with the authored scene.\n"
+        "add_executable(${PROJECT_NAME}_scene src/scene.c ${ROHR_GENERATED_SOURCES})\n"
+        "target_include_directories(${PROJECT_NAME}_scene PRIVATE src/generated)\n"
+        "target_link_libraries(${PROJECT_NAME}_scene PRIVATE ${ROHR_ENGINE_TARGET})\n"
+        "add_custom_target(${PROJECT_NAME}_scene_assets ALL\n"
+        "    COMMAND ${CMAKE_COMMAND} -E copy_directory\n"
+        "        \"${CMAKE_SOURCE_DIR}/%s\"\n"
+        "        \"$<TARGET_FILE_DIR:${PROJECT_NAME}_scene>/%s\"\n"
+        "    VERBATIM)\n"
+        "# Serialize staging when both executables share an output directory.\n"
+        "if(TARGET ${PROJECT_NAME}_assets)\n"
+        "    add_dependencies(${PROJECT_NAME}_scene_assets ${PROJECT_NAME}_assets)\n"
+        "endif()\n"
+        "add_dependencies(${PROJECT_NAME}_scene ${PROJECT_NAME}_scene_assets)\n",
+        workspace->config.asset_directory, workspace->config.asset_directory);
+    if(count < 0 || (size_t)count >= sizeof(cmake) ||
+            !editor_workspace_path_join(path, sizeof(path), workspace->directory,
+                "src/generated/project_scene.cmake") ||
+            !editor_workspace_file_write(path, cmake) ||
+            !editor_workspace_path_join(path, sizeof(path), workspace->directory,
+                "CMakeLists.txt")) return false;
+    char *existing = SDL_LoadFile(path, NULL);
+    if(existing == NULL) {
+        editor_log_error("Scene build integration",
+            "No readable %s; include src/generated/project_scene.cmake from your build "
+            "after defining ROHR_GENERATED_SOURCES and ROHR_ENGINE_TARGET.", path);
+        return true; /* Code generation also supports externally managed builds. */
+    }
+    bool success = editor_workspace_cmake_format(workspace, cmake, sizeof(cmake));
+    if(success && strcmp(existing, cmake) == 0) {
+        if(strlen(cmake) + strlen(scene_cmake_include) >= sizeof(cmake)) success = false;
+        else {
+            strcat(cmake, scene_cmake_include);
+            success = editor_workspace_file_write(path, cmake);
+        }
+    } else if(success && strstr(existing, "include(src/generated/project_scene.cmake)") == NULL) {
+        editor_log_error("Scene build integration",
+            "Preserved customized %s. To add the scene target, include(src/generated/project_scene.cmake) "
+            "after defining ROHR_GENERATED_SOURCES and ROHR_ENGINE_TARGET.", path);
+    }
+    SDL_free(existing);
+    return success;
 }
 
 static bool editor_workspace_config_template_copy(const EditorWorkspace *workspace) {
@@ -2583,13 +2752,9 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
             "src/main.c")) return false;
     contents = SDL_LoadFile(path, NULL);
     if(contents == NULL) return false;
-    legacy = editor_workspace_tick_main_check(contents) ||
-        (strstr(contents, "Generated by Rohr Engine") != NULL &&
-        strstr(contents, "ViewportId viewports[MAX_VIEWPORTS]") != NULL &&
-        strstr(contents, "static void render_scene") != NULL &&
-        strstr(contents, "project_viewports_create") == NULL);
+    legacy = editor_workspace_tick_main_check(contents);
     SDL_free(contents);
-    return !legacy || editor_workspace_main_write(workspace, project);
+    return !legacy || editor_workspace_main_write(workspace, project, false);
 }
 
 bool editor_workspace_c_generate(const EditorWorkspace *workspace,
@@ -2602,7 +2767,8 @@ bool editor_workspace_c_generate(const EditorWorkspace *workspace,
         editor_soft_areas_generation_validate(project).kind != ERROR_RESULT_ERROR &&
         editor_workspace_generated_objects_write(workspace, project) &&
         editor_workspace_generated_viewports_write(workspace, project) &&
-        editor_workspace_legacy_main_upgrade(workspace, project);
+        editor_workspace_legacy_main_upgrade(workspace, project) &&
+        editor_workspace_scene_write(workspace);
 }
 
 EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *project,
@@ -2646,8 +2812,10 @@ EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *
     if(!editor_workspace_generated_viewports_write(&created, project))
         return editor_result_error(EDITOR_ERROR_FILE_IO,
             "Could not write initial generated viewport C under: %s", directory);
-    if(!editor_workspace_main_write(&created, project)) return editor_result_error(
+    if(!editor_workspace_main_write(&created, project, true)) return editor_result_error(
         EDITOR_ERROR_FILE_IO, "Could not write initial main.c under: %s", directory);
+    if(!editor_workspace_scene_write(&created)) return editor_result_error(
+        EDITOR_ERROR_FILE_IO, "Could not write scene build scaffold under: %s", directory);
     *workspace = created;
     return editor_result_value(true);
 }

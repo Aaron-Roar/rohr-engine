@@ -11,6 +11,7 @@
 
 
 typedef struct MassDemo {
+    Entity source_instance;
     Entity automatic_body;
     Entity explicit_body;
     JointAnchorId anchor_automatic_tip;
@@ -21,6 +22,10 @@ typedef struct MassDemo {
 EngineResult mass_demo_create(MassDemo *object, Position position);
 void mass_demo_draw(const MassDemo *object);
 void mass_demo_destroy(MassDemo *object);
+
+/* Bind a complete owned instance; failure leaves output unchanged.
+ * On success, mass_demo_destroy owns its destruction. Do not bind twice. */
+EngineResult mass_demo_instance_bind(MassDemo *output, Entity instance);
 
 typedef struct ProjectControllers {
     bool created;
@@ -38,6 +43,8 @@ typedef struct ProjectObjects {
 EngineResult project_objects_create_all(ProjectObjects *objects);
 void project_objects_draw_all(const ProjectObjects *objects);
 void project_objects_destroy_all(ProjectObjects *objects);
+
+EngineResult project_settings_apply(void);
 
 typedef struct ObjectDescriptionView_5 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };

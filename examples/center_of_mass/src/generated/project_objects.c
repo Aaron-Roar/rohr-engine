@@ -116,6 +116,41 @@ fail:
     return result;
 }
 
+EngineResult mass_demo_instance_bind(MassDemo *output, Entity instance) {
+    if(output == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
+    if(!rohr_entity_alive_check(instance)) return rohr_error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+    MassDemo bound = {.source_instance = instance};
+    MassDemo *object = &bound;
+    EngineResult result = rohr_error_result_value(true);
+    { EntityResult member = rohr_entity_object_member_by_name_get(object->source_instance, "automatic_body");
+      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }
+      object->automatic_body = member.result.value; }
+    { EntityResult member = rohr_entity_object_member_by_name_get(object->source_instance, "explicit_body");
+      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }
+      object->explicit_body = member.result.value; }
+    { EntityResult member = rohr_entity_object_member_by_name_get(object->source_instance, "automatic_tip");
+      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }
+      JointAnchorIdResult handle = rohr_entity_object_anchor_get(member.result.value);
+      if(rohr_error_check(handle)) { result = rohr_error_result_error(handle.result.error); goto fail; }
+      object->anchor_automatic_tip = handle.result.value; }
+    { EntityResult member = rohr_entity_object_member_by_name_get(object->source_instance, "explicit_tip");
+      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }
+      JointAnchorIdResult handle = rohr_entity_object_anchor_get(member.result.value);
+      if(rohr_error_check(handle)) { result = rohr_error_result_error(handle.result.error); goto fail; }
+      object->anchor_explicit_tip = handle.result.value; }
+    { EntityResult member = rohr_entity_object_member_by_name_get(object->source_instance, "main_camera");
+      if(rohr_error_check(member)) { result = rohr_error_result_error(member.result.error); goto fail; }
+      CameraIdResult handle = rohr_entity_object_camera_get(member.result.value);
+      if(rohr_error_check(handle)) { result = rohr_error_result_error(handle.result.error); goto fail; }
+      object->camera_main_camera = handle.result.value; }
+    (void)object;
+    if(rohr_error_check(result)) goto fail;
+    *output = bound;
+    return result;
+fail:
+    return result;
+}
+
 EngineResult mass_demo_create(MassDemo *object, Position position) {
     EngineResult result;
     if(object == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
@@ -150,6 +185,10 @@ fail:
 
 void mass_demo_draw(const MassDemo *object) {
     if(object == NULL) return;
+    if(object->source_instance != ENTITY_INVALID) {
+        (void)rohr_entity_object_draw(object->source_instance);
+        return;
+    }
     (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x477fbfff)));
     (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
     (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0xd29f37ff)));
@@ -158,6 +197,12 @@ void mass_demo_draw(const MassDemo *object) {
 
 void mass_demo_destroy(MassDemo *object) {
     if(object == NULL) return;
+    if(object->source_instance != ENTITY_INVALID) {
+        if(rohr_entity_alive_check(object->source_instance))
+            (void)rohr_entity_delete(object->source_instance);
+        *object = (MassDemo){0};
+        return;
+    }
     if(object->camera_main_camera != CAMERA_INVALID) (void)rohr_camera_destroy(object->camera_main_camera);
     if(object->automatic_body != ENTITY_INVALID) (void)rohr_entity_delete(object->automatic_body);
     if(object->explicit_body != ENTITY_INVALID) (void)rohr_entity_delete(object->explicit_body);
@@ -176,12 +221,8 @@ void project_controllers_destroy(ProjectControllers *controllers) {
     *controllers = (ProjectControllers){0};
 }
 
-EngineResult project_objects_create_all(ProjectObjects *objects) {
+EngineResult project_settings_apply(void) {
     EngineResult result;
-    if(objects == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
-    *objects = (ProjectObjects){0};
-    result = project_controllers_create(&objects->controllers);
-    if(rohr_error_check(result)) goto fail;
     result = rohr_engine_time_per_tick_set(0.0083333337679505348);
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_substeps_set(2);
@@ -192,20 +233,34 @@ EngineResult project_objects_create_all(ProjectObjects *objects) {
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_dt_per_tick_set(0.0083333337679505348);
     if(rohr_error_check(result)) goto fail;
-    result = mass_demo_create(&objects->mass_demo, (Position){0.00000000f, 0.00000000f});
-    if(rohr_error_check(result)) goto fail;
-    objects->created = true;
     return rohr_error_result_value(true);
 fail:
-    project_objects_destroy_all(objects);
+    return result;
+}
+
+EngineResult project_objects_create_all(ProjectObjects *instances) {
+    EngineResult result;
+    if(instances == NULL) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
+    *instances = (ProjectObjects){0};
+    result = project_controllers_create(&instances->controllers);
+    if(rohr_error_check(result)) goto fail;
+    result = project_settings_apply();
+    if(rohr_error_check(result)) goto fail;
+    { EntityResult added = entity_object_add(objects.mass_demo);
+      if(rohr_error_check(added)) { result = rohr_error_result_error(added.result.error); goto fail; }
+      instances->mass_demo.source_instance = added.result.value;
+      result = mass_demo_instance_bind(&instances->mass_demo, added.result.value);
+      if(rohr_error_check(result)) goto fail; }
+    instances->created = true;
+    return rohr_error_result_value(true);
+fail:
+    project_objects_destroy_all(instances);
     return result;
 }
 
 void project_objects_draw_all(const ProjectObjects *objects) {
     if(objects == NULL) return;
     mass_demo_draw(&objects->mass_demo);
-    rohr_graphics_sprites_draw();
-    rohr_graphics_animated_sprites_draw();
 }
 
 void project_objects_destroy_all(ProjectObjects *objects) {

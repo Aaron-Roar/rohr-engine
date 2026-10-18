@@ -58,6 +58,10 @@ There is no mutable generated global and no raw-description creation API.
 
 ## Instances
 
+New projects demonstrate explicit catalog spawning in `main.c` and whole-scene
+creation in a separate `scene.c`. See [project entry points](scene_projects.md)
+for generated instance bindings, build targets, and source ownership.
+
 Each spawn creates new entities. Connections resolve only within that spawn;
 existing entities are never recruited by matching names. Names first try the
 description name, then available `_1`, `_2`, etc. Scoped member lookup uses a

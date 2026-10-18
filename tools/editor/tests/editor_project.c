@@ -17,7 +17,7 @@ static bool position_equal(Position a, Position b) {
 static void workspace_fixture_remove(const char *root) {
     char path[2048];
     static const char *files[] = {
-        "project.rohr.json", "objects/project.rohr.json", "src/main.c",
+        "project.rohr.json", "objects/project.rohr.json", "src/main.c", "src/scene.c", "src/generated/project_scene.cmake",
         "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
         "CMakeLists.txt", ".gitignore", "editor.lua",
@@ -204,6 +204,55 @@ static bool file_property_line_remove_after(const char *path,
     return success;
 }
 
+static bool scene_scaffold_check(const EditorWorkspace *workspace,
+        const EditorProject *project) {
+    char main_path[2048], scene_path[2048], cmake_path[2048];
+    snprintf(main_path, sizeof(main_path), "%s/src/main.c", workspace->directory);
+    snprintf(scene_path, sizeof(scene_path), "%s/src/scene.c", workspace->directory);
+    snprintf(cmake_path, sizeof(cmake_path), "%s/CMakeLists.txt", workspace->directory);
+    char *main_source = SDL_LoadFile(main_path, NULL);
+    char *scene_source = SDL_LoadFile(scene_path, NULL);
+    char *cmake_source = SDL_LoadFile(cmake_path, NULL);
+    char *edited = NULL, *loaded = NULL;
+    bool valid = false;
+    if(!main_source || !scene_source || !cmake_source) goto done;
+    if(!strstr(scene_source, "project_objects_create_all(&objects)") ||
+            !strstr(main_source, "entity_object_add(objects.tug)")) goto done;
+    const char *include = strstr(cmake_source, "\ninclude(src/generated/project_scene.cmake)\n");
+    if(!include) goto done;
+    edited = SDL_malloc(strlen(cmake_source) + 64);
+    if(!edited) goto done;
+    memcpy(edited, cmake_source, (size_t)(include - cmake_source));
+    edited[include - cmake_source] = '\0';
+    /* Exact preceding scaffold upgrades once, preserving entry points. */
+    if(!file_replace(cmake_path, edited) || !editor_workspace_c_generate(workspace, project)) goto done;
+    loaded = SDL_LoadFile(cmake_path, NULL);
+    if(!loaded || strcmp(loaded, cmake_source)) goto done;
+    SDL_free(loaded); loaded = NULL;
+    /* A customized build file is never rewritten. */
+    strcat(edited, "\n# developer build customization\n");
+    if(!file_replace(cmake_path, edited) ||
+            !file_replace(scene_path, "/* developer-owned scene */\n") ||
+            !editor_workspace_c_generate(workspace, project)) goto done;
+    loaded = SDL_LoadFile(cmake_path, NULL);
+    if(!loaded || strcmp(loaded, edited) ||
+            !file_contains(scene_path, "/* developer-owned scene */")) goto done;
+    SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
+    if(!loaded || strcmp(loaded, main_source)) goto done;
+    SDL_free(loaded); loaded = NULL;
+    /* Removing the source restores the default scene, not the tutorial main. */
+    if(!SDL_RemovePath(scene_path) || !editor_workspace_c_generate(workspace, project)) goto done;
+    loaded = SDL_LoadFile(scene_path, NULL);
+    if(!loaded || strcmp(loaded, scene_source)) goto done;
+    valid = true;
+done:
+    if(cmake_source && !file_replace(cmake_path, cmake_source)) valid = false;
+    if(scene_source && !file_replace(scene_path, scene_source)) valid = false;
+    SDL_free(main_source); SDL_free(scene_source); SDL_free(cmake_source);
+    SDL_free(edited); SDL_free(loaded);
+    return valid;
+}
+
 static bool tick_main_migration_check(const EditorWorkspace *workspace,
         const EditorProject *project, const char *path) {
     static const char current[] =
@@ -211,10 +260,13 @@ static bool tick_main_migration_check(const EditorWorkspace *workspace,
         "        if(rohr_physics_update(rohr_engine_tick_delta_get()).header.status == ROHR_REPORT_FAILED) goto fail;\n";
     static const char previous[] =
         "        if(rohr_physics_update(rohr_system_tick_update()).header.status == ROHR_REPORT_FAILED) goto fail;\n";
-    char *original = SDL_LoadFile(path, NULL);
+    char scene_path[2048];
+    snprintf(scene_path, sizeof(scene_path), "%s/src/scene.c", workspace->directory);
+    char *saved_main = SDL_LoadFile(path, NULL);
+    char *original = SDL_LoadFile(scene_path, NULL);
     char *old = NULL, *loaded = NULL;
     bool valid = false;
-    if(original == NULL) return false;
+    if(original == NULL || saved_main == NULL) goto done;
     const char *match = strstr(original, current);
     if(match == NULL) goto done;
     size_t prefix = (size_t)(match - original);
@@ -237,7 +289,8 @@ static bool tick_main_migration_check(const EditorWorkspace *workspace,
     if(loaded == NULL || strcmp(loaded, old) != 0) goto done;
     valid = file_replace(path, original);
 done:
-    SDL_free(loaded); SDL_free(old); SDL_free(original);
+    if(saved_main != NULL && !file_replace(path, saved_main)) valid = false;
+    SDL_free(saved_main); SDL_free(loaded); SDL_free(old); SDL_free(original);
     return valid;
 }
 
@@ -447,7 +500,7 @@ int main(void) {
                     "objects/project.rohr.json") != 0 ||
                 !loaded_workspace.open || strcmp(loaded_workspace.config.name,
                     "RohrEditorWorkspaceTest") != 0 ||
-                loaded_project.object_count != 1 ||
+                loaded_project.object_count != 2 ||
                 fabs(loaded_project.engine_time_per_tick - 1.0 / 120.0) > 0.000001 ||
                 !loaded_project.physics_timestep_override ||
                 fabs(loaded_project.physics_dt_per_tick - 1.0 / 240.0) > 0.000001 ||
@@ -571,10 +624,10 @@ int main(void) {
                 !file_contains(path, "rohr_directory_base_get()") ||
                 file_contains(path, "project_chdir") ||
                 file_contains(path, "SDL_GetBasePath()") ||
-                !file_contains(path, "project_objects_create_all(&objects") ||
+                !file_contains(path, "entity_object_add(objects.starter.box)") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||
-                !file_contains(path, "project_objects_destroy_all(&objects") ||
+                !file_contains(path, "project_objects_destroy_all(&scene") ||
                 !file_contains(path, "rohr_input_frame_begin()") ||
                 !file_contains(path,
                     "rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)")) {
@@ -664,7 +717,8 @@ int main(void) {
             return 1;
         }
         snprintf(path, sizeof(path), "%s/src/main.c", fixture);
-        if(!tick_main_migration_check(&loaded_workspace, &loaded_project, path)) {
+        if(!scene_scaffold_check(&loaded_workspace, &loaded_project) ||
+                !tick_main_migration_check(&loaded_workspace, &loaded_project, path)) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -673,8 +727,8 @@ int main(void) {
                 "static void render_scene(void) {}\n"
                 "int main(void) { ViewportId viewports[MAX_VIEWPORTS] = {0}; }\n") ||
                 !editor_workspace_c_generate(&loaded_workspace, &loaded_project) ||
-                !file_contains(path, "project_viewports_create(&viewports") ||
-                !file_contains(path, "#include \"project_viewports.h\"")) {
+                !file_contains(path, "static void render_scene(void) {}") ||
+                file_contains(path, "#include \"project_viewports.h\"")) {
             workspace_fixture_remove(fixture);
             return 1;
         }
@@ -947,8 +1001,8 @@ int main(void) {
                 !file_contains(path, "void starter_draw") ||
                 !file_contains(path, "EngineResult project_objects_create_all") ||
                 !file_contains(path, "void project_objects_draw_all") ||
-                !file_contains(path, "rohr_graphics_sprites_draw();") ||
-                !file_contains(path, "rohr_graphics_animated_sprites_draw();") ||
+                !file_contains(path, "rohr_graphics_sprite_draw(object->") ||
+                !file_contains(path, "rohr_graphics_animated_sprite_draw(object->") ||
                 !file_contains(path, "void project_objects_destroy_all")) {
             workspace_fixture_remove(fixture);
             return 1;
@@ -986,7 +1040,7 @@ int main(void) {
         EditorResult nested_load = editor_workspace_load(
             &loaded_workspace, &loaded_project, path);
         if(editor_result_check(nested_load) ||
-                !loaded_workspace.open || loaded_project.object_count != 1 ||
+                !loaded_workspace.open || loaded_project.object_count != 2 ||
                 !position_equal(loaded_project.objects[0].rigid_bodies[1].
                     initial_velocity, (Position){11.0f, 12.0f}) ||
                 loaded_project.objects[0].soft_body_count == 0 ||
@@ -1005,7 +1059,7 @@ int main(void) {
         snprintf(path, sizeof(path), "%s/project.rohr.json", fixture);
         if(editor_result_check(editor_workspace_load(
                     &loaded_workspace, &loaded_project, path)) ||
-                !loaded_workspace.open || loaded_project.object_count != 1) {
+                !loaded_workspace.open || loaded_project.object_count != 2) {
             fprintf(stderr, "manifest workspace load failed: %s\n", path);
             workspace_fixture_remove(fixture);
             return 1;
@@ -1624,7 +1678,14 @@ int main(void) {
         workspace_fixture_remove(fixture);
         result = editor_workspace_create(&creation_workspace, &creation_project, fixture);
         snprintf(path, sizeof(path), "%s/editor.lua", fixture);
-        if(editor_result_check(result) || creation_project.object_count != 1 ||
+        if(editor_result_check(result) || creation_project.object_count != 2 ||
+                creation_project.objects[1].rigid_body_count != 2 ||
+                strcmp(creation_project.objects[1].name, "Tug") != 0 ||
+                strcmp(creation_project.objects[1].rigid_bodies[0].name, "box_1") != 0 ||
+                strcmp(creation_project.objects[1].rigid_bodies[1].name, "box_2") != 0 ||
+                creation_project.objects[1].joint_count != 1 ||
+                strcmp(creation_project.objects[1].joint_items[0].name, "tug_spring") != 0 ||
+                creation_project.objects[1].force_count != 2 ||
                 creation_project.objects[0].rigid_body_count != 7 ||
                 creation_project.objects[0].joint_count != 3 ||
                 creation_project.objects[0].anchor_count != 7 ||
@@ -1674,7 +1735,7 @@ int main(void) {
             }
         }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);
-        if(editor_result_check(result) || reloaded_project.object_count != 1 ||
+        if(editor_result_check(result) || reloaded_project.object_count != 2 ||
                 reloaded_project.objects[0].rigid_body_count != 7 ||
                 reloaded_project.objects[0].joint_count != 3 ||
                 reloaded_project.objects[0].anchor_count != 7 ||
@@ -1696,7 +1757,7 @@ int main(void) {
             return 1;
         }
         result = editor_workspace_load(&reloaded_workspace, &reloaded_project, fixture);
-        if(editor_result_check(result) || reloaded_project.object_count != 1 ||
+        if(editor_result_check(result) || reloaded_project.object_count != 2 ||
                 reloaded_project.objects[0].sprite_count != 1 ||
                 reloaded_project.objects[0].sprites[0].rotation != 0.0f ||
                 reloaded_project.objects[0].animated_sprite_count != 2 ||
