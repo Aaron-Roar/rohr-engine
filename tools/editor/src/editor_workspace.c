@@ -1795,18 +1795,16 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         char controller_variable[ROHR_INPUT_NAME_MAX * 2];
         editor_workspace_input_controller_variable(controller_variable,
             sizeof(controller_variable), controller);
-        fprintf(source, "    controller_result = rohr_input_controller_create(");
+        fprintf(source, "    controller_result = rohr_input_controller_create("
+            "(InputControllerDescription){.name = ");
         editor_workspace_c_string_write(source, controller->name);
         fprintf(source,
-            ");\n"
+            ", .enabled = %s});\n"
             "    if(rohr_error_check(controller_result)) { result = "
                 "rohr_error_result_error(controller_result.result.error); "
                 "goto fail; }\n"
-            "    controllers->%s = controller_result.result.value;\n"
-            "    result = rohr_input_controller_enabled_set(controllers->%s, %s);\n"
-            "    if(rohr_error_check(result)) goto fail;\n",
-            controller_variable, controller_variable,
-            controller->enabled ? "true" : "false");
+            "    controllers->%s = controller_result.result.value;\n",
+            controller->enabled ? "true" : "false", controller_variable);
         for(size_t action_index = 0; action_index < controller->action_count;
                 action_index += 1) {
             const EditorInputAction *action = &controller->actions[action_index];
@@ -1814,32 +1812,21 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             editor_workspace_input_action_variable(action_variable,
                 sizeof(action_variable), controller, action);
             fprintf(source,
-                "    action_result = rohr_input_action_create(controllers->%s, ",
-                controller_variable);
+                "    action_result = rohr_input_action_create((InputActionDescription){\n"
+                "        .controller = controllers->%s, .name = ", controller_variable);
             editor_workspace_c_string_write(source, action->name);
-            fprintf(source, ", %s);\n",
+            fprintf(source, ", .type = %s,\n",
                 action->type == INPUT_ACTION_BUTTON ? "INPUT_ACTION_BUTTON" :
                 action->type == INPUT_ACTION_AXIS_1D ? "INPUT_ACTION_AXIS_1D" :
                     "INPUT_ACTION_AXIS_2D");
-            fprintf(source,
-                "    if(rohr_error_check(action_result)) { result = "
-                    "rohr_error_result_error(action_result.result.error); goto fail; }\n"
-                "    controllers->%s = action_result.result.value;\n",
-                action_variable);
             if(action->type == INPUT_ACTION_BUTTON) fprintf(source,
-                "    result = rohr_input_action_button_mode_set(controllers->%s, %s);\n"
-                "    if(rohr_error_check(result)) goto fail;\n"
-                "    result = rohr_input_action_button_initial_state_set("
-                    "controllers->%s, %s);\n"
-                "    if(rohr_error_check(result)) goto fail;\n",
-                action_variable,
+                "        .button_mode = %s, .button_initial_state = %s,\n",
                 action->button_mode == INPUT_BUTTON_PERSISTENT ?
                     "INPUT_BUTTON_PERSISTENT" : "INPUT_BUTTON_MOMENTARY",
-                action_variable,
                 action->button_initial_state ? "true" : "false");
+            fprintf(source, "        .bindings_default = {.count = %zu", action->binding_count);
             if(action->binding_count > 0) {
-                fprintf(source, "    const InputBinding %s_bindings[] = {\n",
-                    action_variable);
+                fprintf(source, ", .values = {\n");
                 for(size_t binding_index = 0;
                         binding_index < action->binding_count;
                         binding_index += 1) {
@@ -1848,19 +1835,13 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     fprintf(source, "%s\n",
                         binding_index + 1 == action->binding_count ? "" : ",");
                 }
-                fprintf(source,
-                    "    };\n"
-                    "    result = rohr_input_action_bindings_default_set("
-                        "controllers->%s, "
-                        "%s_bindings, sizeof(%s_bindings) / "
-                        "sizeof(%s_bindings[0]));\n",
-                    action_variable, action_variable, action_variable,
-                    action_variable);
-            } else fprintf(source,
-                "    result = rohr_input_action_bindings_default_set("
-                    "controllers->%s, "
-                    "NULL, 0);\n", action_variable);
-            fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
+                fprintf(source, "        }");
+            }
+            fprintf(source,
+                "}\n    });\n"
+                "    if(rohr_error_check(action_result)) { result = "
+                    "rohr_error_result_error(action_result.result.error); goto fail; }\n"
+                "    controllers->%s = action_result.result.value;\n", action_variable);
         }
     }
     fprintf(source,

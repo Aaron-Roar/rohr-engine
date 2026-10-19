@@ -110,6 +110,26 @@ typedef struct InputBindingList {
 
 ERROR_DECLARE_RESULT_TYPE(InputBindingListResult, InputBindingList);
 
+/** Complete copied configuration; names must be nonempty and terminated. */
+typedef struct InputControllerDescription {
+    char name[ROHR_INPUT_NAME_MAX];
+    bool enabled;
+} InputControllerDescription;
+ERROR_DECLARE_RESULT_TYPE(InputControllerDescriptionResult, InputControllerDescription);
+
+/** Authored action configuration. Runtime overrides and button state are separate.
+ * All names and bindings are copied; no borrowed pointers or allocation.
+ * Axis actions normalize unused button settings to momentary/false. */
+typedef struct InputActionDescription {
+    InputControllerId controller;
+    char name[ROHR_INPUT_NAME_MAX];
+    InputActionType type;
+    InputButtonMode button_mode;
+    bool button_initial_state;
+    InputBindingList bindings_default;
+} InputActionDescription;
+ERROR_DECLARE_RESULT_TYPE(InputActionDescriptionResult, InputActionDescription);
+
 /** Per-frame committed and in-progress UTF-8 text input. */
 typedef struct InputTextState {
     char committed[ROHR_INPUT_TEXT_CAPACITY];
@@ -157,15 +177,33 @@ InputBinding input_binding_key_create(SDL_Keycode key);
 /** Create a physical-layout key binding directly from an SDL scancode. */
 InputBinding input_binding_scancode_create(SDL_Scancode key);
 
-InputControllerIdResult input_controller_create(const char *name);
+InputControllerIdResult input_controller_create(InputControllerDescription description);
+/** Enabled, with an empty name to fill before creation. */
+InputControllerDescription input_controller_description_default_get(void);
+/** Replace name/enabled atomically without rebuilding child actions.
+ * Renaming and unchanged configuration preserve pending input transitions. */
+EngineResult input_controller_description_set(InputControllerId controller,
+    InputControllerDescription description);
+/** Return an independent copy of current configuration. */
+InputControllerDescriptionResult input_controller_description_get(InputControllerId controller);
 EngineResult input_controller_destroy(InputControllerId controller);
 InputControllerIdResult input_controller_by_name_get(const char *name);
 EngineResult input_controller_enabled_set(InputControllerId controller,
     bool enabled);
 bool input_controller_enabled_check(InputControllerId controller);
 
-InputActionIdResult input_action_create(InputControllerId controller,
-    const char *name, InputActionType type);
+InputActionIdResult input_action_create(InputActionDescription description);
+/** Momentary Button, false initial state, no bindings, invalid owner, empty name. */
+InputActionDescription input_action_description_default_get(void);
+/** Atomic full replacement, including controller reassignment with a stable handle.
+ * Compatible overrides survive; incompatible overrides reject the entire edit.
+ * Name-only/unchanged edits preserve state and transitions. Rebinding preserves
+ * persistent state and resamples physical input without inventing transitions.
+ * Changed type/mode/initial state reinitializes only this action. */
+EngineResult input_action_description_set(InputActionId action,
+    InputActionDescription description);
+/** Copy authored configuration only, excluding runtime overrides and current state. */
+InputActionDescriptionResult input_action_description_get(InputActionId action);
 EngineResult input_action_destroy(InputActionId action);
 InputActionIdResult input_action_by_name_get(InputControllerId controller,
     const char *name);

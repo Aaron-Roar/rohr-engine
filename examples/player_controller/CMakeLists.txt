@@ -25,7 +25,9 @@ else()
     set(ROHR_ENGINE_TARGET Rohr::Engine)
 endif()
 
-file(GLOB ROHR_GENERATED_SOURCES CONFIGURE_DEPENDS src/generated/*.c)
+set(ROHR_GENERATED_SOURCES
+    src/generated/project_objects.c
+    src/generated/project_viewports.c)
 add_executable(player_controller src/main.c ${ROHR_GENERATED_SOURCES})
 set_target_properties(player_controller PROPERTIES OUTPUT_NAME PlayerController)
 if(DEFINED ROHR_EXAMPLE_OUTPUT_DIRECTORY AND

@@ -1,9 +1,9 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–8 of **Consistent Description APIs** are implemented.
+Status: Goals 1–9 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
-configuration, particle, soft-body, anchor, asset-loading, text, sprite, animation-instance, and audio descriptions
-are shipped. Names and missing interfaces described
+configuration, particle, soft-body, anchor, asset-loading, text, sprite,
+animation-instance, audio, and logical input descriptions are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
 
@@ -147,7 +147,7 @@ appear in the header inventory below.
 | Shared assets and text / 6 — shipped | `TextureDescription`, `FontDescription`, `AnimationDescription`, `TextDescription` | Loading/default/inspection for immutable assets; full text create/set/get. Animation uses `frame_count`. | Sharing and borrowed metadata; unique text ownership; atomic replacement; queued payloads retain their exact font revision. |
 | Sprites, frames, players / 7 — shipped | `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` | Description creation/default/full accessors, plus catalog-to-instance helpers. `Sprite` is the stored configuration alias; `AnimatedSprite` and `AnimationPlayer` retain separate runtime state. | Atomic image/catalog replacement; borrowed getters; stable frame IDs preserve compatible progress. Frame index and clocks remain outside descriptions. |
 | Audio / 8 — shipped | `SoundDescription`, `MusicDescription` | Description creation, muted defaults, and `audio_sound_description_set/get`, `audio_music_description_set/get`. | Full replacement is one queued command; unchanged sources preserve progress. Prepared source changes keep handles and install stopped. Getters borrow applied paths; focused controls remain direct. |
-| Logical input / 9 | Positional controller/action creation; `InputBinding`, `InputBindingList` | Add `InputControllerDescription`, `InputActionDescription` creation/full set/get. Include authored action behavior/default bindings; retain focused override-list/state APIs. | Controller-local name uniqueness, ownership, defaults versus overrides, and type/mode transitions remain explicit. No controller child-action rebuild or synthetic presses from unrelated edits. |
+| Logical input / 9 — shipped | `InputControllerDescription`, `InputActionDescription`; copied `InputBindingList` defaults | Creation and full `_description_set/get`, plus default getters. Focused binding/state and text-input operations stay direct. | Stable handles and validated controller moves; compatible overrides survive. Incompatible edits reject atomically. No-op and rename preserve state/events; rebinding preserves persistent state; type/mode/initial changes reinitialize only the edited action. |
 | Cameras and presentation / 10 | `CameraConfig`, `Camera`, `CameraAttachment`, `GraphicsWindowPresentationConfig` | Use `CameraDescription`, `CameraAttachmentDescription`, `GraphicsWindowPresentationDescription` with complete/default accessors. Retain resolved camera queries if needed separately from configuration retrieval. Include callback/context in full configuration while retaining its focused setter. | Unrelated edits preserve attachments and motion. Changing a driven transform/zoom supersedes only the affected motion channel. Timed commands stay direct. Global presentation needs full set/get, not an artificial resource constructor. |
 | Screens, viewports, layers, persistent UI / 11 | `ScreenConfig`, `ViewportConfig`, `ViewportItemConfig`, `ViewportUiShapeConfig`, `ViewportUiTextConfig`, `ViewportUiSliderConfig`; positional layer creation | Rename to corresponding `*Description` types; add missing screen/viewport/layer full accessors using `GraphicsLayerDescription`; standardize existing persistent UI accessors. Mount descriptions include content references alongside placement. | Retain handles, mounted children, global layer identity, clipping/composition, resource references, and unrelated interaction state. Creating a mount must still distinguish existing reusable content from convenience creation of new content. |
 | Final verification / 12 | All migrated families | Reconcile inventory and examples; no independent new configuration family. | Verify the complete installed SDK and generated/example parity, including the external force-toggle example. |
@@ -494,6 +494,45 @@ shutdown also releases cancelled requests. Existing callback decoding and report
 collection semantics remain unchanged. Matching `rohr_` wrappers, the audible
 example, installed-SDK checks, and API references use the new names.
 
+## Shipped Goal 9 behavior
+
+Controller and action creation now take `InputControllerDescription` and
+`InputActionDescription`. Matching direct and `rohr_` full setters/getters and
+default getters are available. Names and default bindings are copied inline;
+getters return independent values with no borrowed storage or hidden allocation.
+Controller names are globally unique; action names are unique within their owner.
+Default getters select an enabled controller and a momentary Button with false
+initial state and no bindings. Fill the required name and action owner before
+creation. Literal omitted fields are zero/false, including controller enabled.
+
+Full setters validate names, owners, types, binding capacity, binding validity,
+and binding-name uniqueness before publishing anything. Actions may move between
+controllers without changing their handle or consuming a spare slot. Destroying
+the former controller leaves a moved action alive; destroying its current owner
+invalidates it. Destination name collisions reject the entire edit.
+
+Descriptions contain authored defaults, never runtime overrides or current
+button state. Compatible overrides survive replacement, including active empty
+lists. A type change incompatible with an active override rejects the entire
+edit. Clear or replace the override explicitly before retrying. Default edits
+hidden by an active override do not change effective input or pending events.
+
+Unchanged descriptions and renames preserve persistent state and pending
+pressed/released events. Binding-name and unused axis-value changes also preserve
+Button events. Changed effective digital bindings or owner resample the affected
+action and clear its pending transitions without synthetic presses/releases;
+persistent state survives, while momentary state follows the current snapshot.
+Changed type, button mode, or initial state reinitializes only that action. A held
+key seeds the new physical baseline so it cannot cause an unintended toggle on
+an unrelated event. Axis actions normalize unused button settings to
+momentary/false. Controller enable changes retain the established focused enable
+behavior; controller renames and unchanged descriptions do not clear child events.
+
+Generated controllers/actions now create their complete authored configuration
+in one call. Examples and installed-SDK tests use the description signatures.
+Focused overrides, binding setters, button-state operations, raw input queries,
+and text-input operations remain direct, with their existing semantics.
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -542,14 +581,13 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1572** classified declaration/macro entries.
+The current inventory contains **1584** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M9: Migration required | Logical input configuration | 9 | 4 |
 | M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 236 |
+| C: Compliant | Existing description interface | — | 252 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
@@ -828,13 +866,15 @@ Source: [graphics.h](../include/graphics.h).
 </details>
 
 <details>
-<summary>input.h: 47 entries</summary>
+<summary>input.h: 53 entries</summary>
 
 Source: [input.h](../include/input.h).
 
-**M9 — Logical input configuration (Goal 9)**
+**C — Existing description interface**
 
-- `input_action_create`, `input_controller_create`.
+- `input_action_create`, `input_action_description_default_get`, `input_action_description_get`.
+- `input_action_description_set`, `input_controller_create`, `input_controller_description_default_get`.
+- `input_controller_description_get`, `input_controller_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -1055,13 +1095,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 774 entries</summary>
+<summary>rohr.h: 780 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M9 — Logical input configuration (Goal 9)**
-
-- `rohr_input_action_create`, `rohr_input_controller_create`.
 
 **M10 — Camera and presentation configuration (Goal 10)**
 
@@ -1103,26 +1139,29 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`.
 - `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`.
 - `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`.
-- `rohr_graphics_texture_load`, `rohr_object_collision_description_get`, `rohr_object_collision_description_set`.
-- `rohr_object_color_description_get`, `rohr_object_color_description_set`, `rohr_object_description_by_name_get`.
-- `rohr_object_force_description_set`, `rohr_object_get`, `rohr_object_material_description_get`.
-- `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`.
-- `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`.
-- `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`.
-- `rohr_physics_force_description_get`, `rohr_physics_force_description_set`, `rohr_physics_joint_add`.
-- `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`.
-- `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`, `rohr_physics_particle_add`.
-- `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`.
-- `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`.
-- `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`.
-- `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`.
-- `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`.
-- `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`.
-- `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`.
-- `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`.
-- `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`.
-- `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`, `rohr_physics_torque_description_get`.
-- `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
+- `rohr_graphics_texture_load`, `rohr_input_action_create`, `rohr_input_action_description_default_get`.
+- `rohr_input_action_description_get`, `rohr_input_action_description_set`, `rohr_input_controller_create`.
+- `rohr_input_controller_description_default_get`, `rohr_input_controller_description_get`, `rohr_input_controller_description_set`.
+- `rohr_object_collision_description_get`, `rohr_object_collision_description_set`, `rohr_object_color_description_get`.
+- `rohr_object_color_description_set`, `rohr_object_description_by_name_get`, `rohr_object_force_description_set`.
+- `rohr_object_get`, `rohr_object_material_description_get`, `rohr_object_material_description_set`.
+- `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`.
+- `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
+- `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`, `rohr_physics_force_description_get`.
+- `rohr_physics_force_description_set`, `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`.
+- `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`.
+- `rohr_physics_joint_description_set`, `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`.
+- `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`.
+- `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`.
+- `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`.
+- `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`.
+- `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`.
+- `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`.
+- `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`.
+- `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`.
+- `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`.
+- `rohr_physics_torque_add`, `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
+- `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 

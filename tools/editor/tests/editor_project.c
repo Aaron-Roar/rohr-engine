@@ -670,19 +670,19 @@ int main(void) {
                 !file_contains(path, "rohr_physics_solver_iterations_set(16)") ||
                 !file_contains(path, "project_controllers_create") ||
                 !file_contains(path,
-                    "rohr_input_controller_create(\"gameplay\")") ||
+                    "rohr_input_controller_create((InputControllerDescription){.name = \"gameplay\"") ||
                 !file_contains(path,
-                    "rohr_input_controller_enabled_set(controllers->controller_gameplay_") ||
+                    ".enabled = false") ||
                 !file_contains(path,
-                    "rohr_input_action_create(controllers->controller_gameplay_") ||
+                    "rohr_input_action_create((InputActionDescription){") ||
                 !file_contains(path,
-                    "rohr_input_action_button_mode_set(controllers->action_gameplay_click_") ||
+                    ".controller = controllers->controller_gameplay_") ||
                 !file_contains(path, "INPUT_BUTTON_PERSISTENT") ||
                 !file_contains(path,
-                    "rohr_input_action_button_initial_state_set(") ||
+                    ".button_initial_state = true") ||
                 !file_contains(path, "controllers->created = true") ||
                 !file_contains(path,
-                    "rohr_input_action_bindings_default_set") ||
+                    ".bindings_default = {.count =") ||
                 !file_contains(path, ".name = \"move_up\"") ||
                 !file_contains(path, ".name = \"primary_click\"") ||
                 !file_contains(path, "INPUT_BINDING_MOUSE_MOTION") ||

@@ -92,22 +92,28 @@ gameplay-facing action queries. Gamepad discovery and lifetime management are
 not implemented yet.
 
 ```c
-InputControllerIdResult controller_result =
-    rohr_input_controller_create("gameplay");
+InputControllerIdResult controller_result = rohr_input_controller_create(
+    (InputControllerDescription){.name = "gameplay", .enabled = true});
+if(rohr_error_check(controller_result)) { /* Handle the error. */ return; }
 InputActionIdResult jump_result = rohr_input_action_create(
-    controller_result.result.value, "jump", INPUT_ACTION_BUTTON);
-InputBinding defaults[] = {
-    {.name = "keyboard", .source = INPUT_BINDING_KEY,
-        .input.key = SDL_SCANCODE_SPACE},
-    {.name = "pointer", .source = INPUT_BINDING_MOUSE_BUTTON,
-        .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT},
-};
-rohr_input_action_bindings_default_set(
-    jump_result.result.value, defaults, 2);
+    (InputActionDescription){
+        .controller = controller_result.result.value,
+        .name = "jump",
+        .type = INPUT_ACTION_BUTTON,
+        .bindings_default = {.count = 2, .values = {
+            {.name = "keyboard", .source = INPUT_BINDING_KEY,
+                .input.key = SDL_SCANCODE_SPACE},
+            {.name = "pointer", .source = INPUT_BINDING_MOUSE_BUTTON,
+                .input.mouse_button = INPUT_MOUSE_BUTTON_LEFT},
+        }},
+    });
+if(rohr_error_check(jump_result)) { /* Handle the error. */ return; }
 ```
 
 Controllers own their actions. Destroying a controller invalidates all of its
-action handles. Bindings are copied into engine storage, and returned binding
+current action handles. Moving an action with a full description changes its
+owner without changing its handle; destroying the old owner leaves it alive.
+Names and bindings are copied into engine storage, and returned binding
 lists are copies, so callers retain no borrowed allocation. Limits are declared
 in `input.h` as
 `ROHR_INPUT_CONTROLLER_LIMIT`, `ROHR_INPUT_ACTION_LIMIT`, and
@@ -123,15 +129,57 @@ while another remains active does not toggle it again.
 `rohr_input_action_button_state_set()` changes the runtime state explicitly, and
 `rohr_input_action_button_state_reset()` restores the authored initial state.
 Those operations report logical pressed or released transitions when the
-controller is enabled. Configuration changes and controller enable changes
-clear pending transitions instead of inventing new ones.
+controller is enabled. Focused configuration setters and controller enable
+changes clear pending transitions instead of inventing new ones. Full descriptions
+preserve events when the effective configuration is unchanged, as described below.
+
+## Creation and full configuration
+
+Creation, `_description_set`, and `_description_get` share the same copied
+configuration types. Controller descriptions contain name/enabled; action
+descriptions contain controller, name, type, button mode/initial state, and
+`bindings_default`. Names use fixed arrays, so initialize with string literals or
+copy a bounded string. All descriptions returned by getters are independent
+copies. Focused setters and temporary state changes remain direct.
+
+Default getters select an enabled controller and a momentary Button with false
+initial state and no bindings. Supply a name and valid owner. Omitted literal
+fields stay zero/false: `{.name = "gameplay"}` creates a disabled controller.
+Full setters replace configuration rather than patching omitted fields.
+
+```c
+InputActionDescriptionResult current = rohr_input_action_description_get(jump);
+if(!rohr_error_check(current)) {
+    current.result.value.controller = other_controller;
+    EngineResult result = rohr_input_action_description_set(jump, current.result.value);
+    /* Check result; jump retains its handle on success. */
+    (void)result;
+}
+```
+
+Names must be nonempty and terminated, and unique globally for controllers or
+within the destination controller for actions. Invalid owners, types, names,
+bindings, counts, or incompatible overrides reject the entire configuration.
+No extra controller/action slot is needed for a full edit or move.
+
+An unchanged description or rename preserves button state and pending events.
+Changing effective bindings or owner preserves persistent toggle state, resamples
+physical input, and clears only that action's pending transitions. Momentary
+state follows the current snapshot. Changed type, mode, or initial state
+reinitializes only that action without generating presses/releases. Axis actions
+normalize unused button settings to momentary/false. Controller enable changes
+retain focused enable behavior; unchanged controller descriptions and renames
+preserve their children's pending events.
 
 ## Defaults and runtime rebinding
 
 Editor-authored and generated bindings are action defaults. Runtime user
 rebinding uses the separate override APIs. An active override fully replaces
 the default list, including when the override list is empty. Clearing the
-override restores the defaults.
+override restores the defaults. Full descriptions retain compatible overrides,
+including active empty lists, and getters expose authored defaults separately. A
+type change incompatible with an existing override fails without changing any
+configuration or state. Clear or replace that override explicitly before retrying.
 
 Rohr deliberately does not write runtime overrides into project JSON. A game
 that persists player preferences owns that save file and reapplies its copied

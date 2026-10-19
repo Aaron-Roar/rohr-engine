@@ -203,8 +203,8 @@ InputBinding rohr_input_binding_key_create(SDL_Keycode key) {
 InputBinding rohr_input_binding_scancode_create(SDL_Scancode key) {
     return input_binding_scancode_create(key);
 }
-InputControllerIdResult rohr_input_controller_create(const char *name) {
-    return input_controller_create(name);
+InputControllerIdResult rohr_input_controller_create(InputControllerDescription description) {
+    return input_controller_create(description);
 }
 EngineResult rohr_input_controller_destroy(InputControllerId controller) {
     return input_controller_destroy(controller);
@@ -219,9 +219,8 @@ EngineResult rohr_input_controller_enabled_set(InputControllerId controller,
 bool rohr_input_controller_enabled_check(InputControllerId controller) {
     return input_controller_enabled_check(controller);
 }
-InputActionIdResult rohr_input_action_create(InputControllerId controller,
-        const char *name, InputActionType type) {
-    return input_action_create(controller, name, type);
+InputActionIdResult rohr_input_action_create(InputActionDescription description) {
+    return input_action_create(description);
 }
 EngineResult rohr_input_action_destroy(InputActionId action) {
     return input_action_destroy(action);
@@ -1165,3 +1164,11 @@ SoundDescriptionResult rohr_audio_sound_description_get(Sound sound) { return au
 
 EngineResult rohr_audio_music_description_set(Music music, MusicDescription description) { return audio_music_description_set(music, description); }
 MusicDescriptionResult rohr_audio_music_description_get(Music music) { return audio_music_description_get(music); }
+
+InputControllerDescription rohr_input_controller_description_default_get(void) { return input_controller_description_default_get(); }
+EngineResult rohr_input_controller_description_set(InputControllerId controller, InputControllerDescription description) { return input_controller_description_set(controller, description); }
+InputControllerDescriptionResult rohr_input_controller_description_get(InputControllerId controller) { return input_controller_description_get(controller); }
+
+InputActionDescription rohr_input_action_description_default_get(void) { return input_action_description_default_get(); }
+EngineResult rohr_input_action_description_set(InputActionId action, InputActionDescription description) { return input_action_description_set(action, description); }
+InputActionDescriptionResult rohr_input_action_description_get(InputActionId action) { return input_action_description_get(action); }

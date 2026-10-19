@@ -245,20 +245,27 @@ InputBinding input_binding_scancode_create(SDL_Scancode key) {
         .scale = {1.0f, 1.0f}};
 }
 
-static EngineResult input_bindings_set(InputAction *action,
-        InputBinding *destination, size_t *destination_count,
+static EngineResult input_bindings_validate(InputActionType type,
         const InputBinding *bindings, size_t count) {
-    if(action == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
     if(count > ROHR_INPUT_BINDING_LIMIT || (count > 0 && bindings == NULL))
         return error_result_error(ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     for(size_t i = 0; i < count; i += 1) {
-        if(!input_binding_valid_check(action->type, &bindings[i]))
+        if(!input_binding_valid_check(type, &bindings[i]))
             return error_result_error(ERROR_ENGINE_INPUT_BINDING_INVALID);
         if(bindings[i].name[0] == '\0') continue;
         for(size_t previous = 0; previous < i; previous += 1)
             if(strcmp(bindings[previous].name, bindings[i].name) == 0)
                 return error_result_error(ERROR_ENGINE_DUPLICATE_INPUT_NAME);
     }
+    return error_result_value(true);
+}
+
+static EngineResult input_bindings_set(InputAction *action,
+        InputBinding *destination, size_t *destination_count,
+        const InputBinding *bindings, size_t count) {
+    if(action == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    EngineResult result = input_bindings_validate(action->type, bindings, count);
+    if(error_check(result)) return result;
     if(count > 0) memcpy(destination, bindings, count * sizeof(*bindings));
     if(count < ROHR_INPUT_BINDING_LIMIT)
         memset(destination + count, 0,
@@ -468,32 +475,71 @@ EngineResult input_text_area_set(SDL_Rect area, int cursor) {
 
 InputTextState input_text_state_get(void) { return input_snapshot.text; }
 
-InputControllerIdResult input_controller_create(const char *name) {
-    size_t slot;
-    if(name == NULL || name[0] == '\0') return ERROR_RESULT_MAKE_ERROR(
-        InputControllerIdResult, ERROR_ENGINE_INVALID_INPUT_NAME);
-    if(strlen(name) >= ROHR_INPUT_NAME_MAX) return ERROR_RESULT_MAKE_ERROR(
-        InputControllerIdResult, ERROR_ENGINE_INPUT_NAME_TOO_LONG);
+InputControllerDescription input_controller_description_default_get(void) {
+    return (InputControllerDescription){.enabled = true};
+}
+
+static EngineResult input_description_name_validate(
+        const char name[ROHR_INPUT_NAME_MAX]) {
+    if(name[0] == '\0') return error_result_error(ERROR_ENGINE_INVALID_INPUT_NAME);
+    if(memchr(name, '\0', ROHR_INPUT_NAME_MAX) == NULL)
+        return error_result_error(ERROR_ENGINE_INPUT_NAME_TOO_LONG);
+    return error_result_value(true);
+}
+
+static EngineResult input_controller_description_validate(InputControllerId self,
+        InputControllerDescription description) {
+    EngineResult result = input_description_name_validate(description.name);
+    if(error_check(result)) return result;
     for(size_t i = 0; i < ROHR_INPUT_CONTROLLER_LIMIT; i += 1)
-        if(input_controllers[i].used && strcmp(input_controllers[i].name, name) == 0)
-            return ERROR_RESULT_MAKE_ERROR(InputControllerIdResult,
-                ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+        if(input_controllers[i].used && input_controllers[i].id != self &&
+                strcmp(input_controllers[i].name, description.name) == 0)
+            return error_result_error(ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+    return error_result_value(true);
+}
+
+InputControllerIdResult input_controller_create(
+        InputControllerDescription description) {
+    EngineResult result = input_controller_description_validate(
+        INPUT_CONTROLLER_INVALID, description);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(
+        InputControllerIdResult, result.result.error);
+    size_t slot;
     for(slot = 0; slot < ROHR_INPUT_CONTROLLER_LIMIT; slot += 1)
         if(!input_controllers[slot].used) break;
     if(slot == ROHR_INPUT_CONTROLLER_LIMIT) return ERROR_RESULT_MAKE_ERROR(
         InputControllerIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     input_controller_generations[slot] += 1;
-    if(input_controller_generations[slot] == 0)
-        input_controller_generations[slot] = 1;
+    if(input_controller_generations[slot] == 0) input_controller_generations[slot] = 1;
     input_controllers[slot] = (InputController){
         .id = input_id_create(input_controller_generations[slot], slot),
-        .enabled = true,
-        .used = true,
-    };
+        .enabled = description.enabled, .used = true};
     snprintf(input_controllers[slot].name, sizeof(input_controllers[slot].name),
-        "%s", name);
+        "%s", description.name);
     return ERROR_RESULT_MAKE_VALUE(InputControllerIdResult,
         input_controllers[slot].id);
+}
+
+EngineResult input_controller_description_set(InputControllerId controller,
+        InputControllerDescription description) {
+    InputController *value = input_controller_get(controller);
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    EngineResult result = input_controller_description_validate(controller, description);
+    if(error_check(result)) return result;
+    snprintf(value->name, sizeof(value->name), "%s", description.name);
+    if(value->enabled != description.enabled)
+        return input_controller_enabled_set(controller, description.enabled);
+    return error_result_value(true);
+}
+
+InputControllerDescriptionResult input_controller_description_get(
+        InputControllerId controller) {
+    InputController *value = input_controller_get(controller);
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(
+        InputControllerDescriptionResult, ERROR_ENGINE_INPUT_NOT_FOUND);
+    InputControllerDescription description = {.enabled = value->enabled};
+    memcpy(description.name, value->name, sizeof(description.name));
+    return ERROR_RESULT_MAKE_VALUE(InputControllerDescriptionResult, description);
 }
 
 EngineResult input_controller_destroy(InputControllerId controller) {
@@ -536,40 +582,129 @@ bool input_controller_enabled_check(InputControllerId controller) {
     return value != NULL && value->enabled;
 }
 
-InputActionIdResult input_action_create(InputControllerId controller,
-        const char *name, InputActionType type) {
-    size_t slot;
-    if(input_controller_get(controller) == NULL) return ERROR_RESULT_MAKE_ERROR(
-        InputActionIdResult, ERROR_ENGINE_INPUT_NOT_FOUND);
-    if(name == NULL || name[0] == '\0') return ERROR_RESULT_MAKE_ERROR(
-        InputActionIdResult, ERROR_ENGINE_INVALID_INPUT_NAME);
-    if(strlen(name) >= ROHR_INPUT_NAME_MAX) return ERROR_RESULT_MAKE_ERROR(
-        InputActionIdResult, ERROR_ENGINE_INPUT_NAME_TOO_LONG);
-    if(type < INPUT_ACTION_BUTTON || type > INPUT_ACTION_AXIS_2D)
-        return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
-            ERROR_ENGINE_INPUT_TYPE_MISMATCH);
+InputActionDescription input_action_description_default_get(void) {
+    return (InputActionDescription){.type = INPUT_ACTION_BUTTON,
+        .button_mode = INPUT_BUTTON_MOMENTARY};
+}
+
+/* Only digital source identity/modifiers affect a Button's physical state.
+ * Renaming bindings or editing their unused axis values does not clear events. */
+static bool input_button_bindings_equal_check(const InputAction *a,
+        const InputAction *b) {
+    size_t a_count = 0, b_count = 0;
+    const InputBinding *a_bindings = input_action_bindings_get(a, &a_count);
+    const InputBinding *b_bindings = input_action_bindings_get(b, &b_count);
+    if(a_count != b_count) return false;
+    for(size_t i = 0; i < a_count; i += 1) {
+        const InputBinding *left = &a_bindings[i], *right = &b_bindings[i];
+        if(left->source != right->source || left->modifiers != right->modifiers)
+            return false;
+        if(left->source == INPUT_BINDING_KEY && left->input.key != right->input.key)
+            return false;
+        if(left->source == INPUT_BINDING_MOUSE_BUTTON &&
+                left->input.mouse_button != right->input.mouse_button) return false;
+    }
+    return true;
+}
+
+static EngineResult input_action_description_prepare(const InputAction *current,
+        InputActionDescription description, InputAction *next) {
+    if(input_controller_get(description.controller) == NULL)
+        return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    EngineResult result = input_description_name_validate(description.name);
+    if(error_check(result)) return result;
+    if(description.type < INPUT_ACTION_BUTTON ||
+            description.type > INPUT_ACTION_AXIS_2D)
+        return error_result_error(ERROR_ENGINE_INPUT_TYPE_MISMATCH);
+    if(description.type == INPUT_ACTION_BUTTON) {
+        if(description.button_mode < INPUT_BUTTON_MOMENTARY ||
+                description.button_mode > INPUT_BUTTON_PERSISTENT)
+            return error_result_error(ERROR_ENGINE_INPUT_CONFIGURATION_INVALID);
+    } else {
+        description.button_mode = INPUT_BUTTON_MOMENTARY;
+        description.button_initial_state = false;
+    }
     for(size_t i = 0; i < ROHR_INPUT_ACTION_LIMIT; i += 1)
-        if(input_actions[i].used && input_actions[i].controller == controller &&
-                strcmp(input_actions[i].name, name) == 0)
-            return ERROR_RESULT_MAKE_ERROR(InputActionIdResult,
-                ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+        if(input_actions[i].used && &input_actions[i] != current &&
+                input_actions[i].controller == description.controller &&
+                strcmp(input_actions[i].name, description.name) == 0)
+            return error_result_error(ERROR_ENGINE_DUPLICATE_INPUT_NAME);
+    result = input_bindings_validate(description.type,
+        description.bindings_default.values, description.bindings_default.count);
+    if(error_check(result)) return result;
+    if(current != NULL && current->override_active) {
+        result = input_bindings_validate(description.type, current->overrides,
+            current->override_count);
+        if(error_check(result)) return result;
+    }
+    *next = current != NULL ? *current : (InputAction){.used = true};
+    snprintf(next->name, sizeof(next->name), "%s", description.name);
+    next->controller = description.controller;
+    next->type = description.type;
+    next->button_mode = description.button_mode;
+    next->button_initial_state = description.button_initial_state;
+    next->default_count = description.bindings_default.count;
+    memset(next->defaults, 0, sizeof(next->defaults));
+    memcpy(next->defaults, description.bindings_default.values,
+        next->default_count * sizeof(next->defaults[0]));
+    bool reset = current == NULL || current->type != next->type ||
+        current->button_mode != next->button_mode ||
+        current->button_initial_state != next->button_initial_state;
+    bool resample = reset || current->controller != next->controller ||
+        (next->type == INPUT_ACTION_BUTTON &&
+            !input_button_bindings_equal_check(current, next));
+    if(resample) {
+        next->button_physical_down = input_action_button_value_get(next);
+        if(next->type != INPUT_ACTION_BUTTON) next->button_down = false;
+        else if(next->button_mode == INPUT_BUTTON_MOMENTARY)
+            next->button_down = next->button_physical_down;
+        else if(reset) next->button_down = next->button_initial_state;
+        next->button_pressed = false;
+        next->button_released = false;
+    }
+    return error_result_value(true);
+}
+
+InputActionIdResult input_action_create(InputActionDescription description) {
+    InputAction candidate;
+    EngineResult result = input_action_description_prepare(NULL, description,
+        &candidate);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(
+        InputActionIdResult, result.result.error);
+    size_t slot;
     for(slot = 0; slot < ROHR_INPUT_ACTION_LIMIT; slot += 1)
         if(!input_actions[slot].used) break;
     if(slot == ROHR_INPUT_ACTION_LIMIT) return ERROR_RESULT_MAKE_ERROR(
         InputActionIdResult, ERROR_ENGINE_INPUT_CAPACITY_EXCEEDED);
     input_action_generations[slot] += 1;
     if(input_action_generations[slot] == 0) input_action_generations[slot] = 1;
-    input_actions[slot] = (InputAction){
-        .id = input_id_create(input_action_generations[slot], slot),
-        .controller = controller,
-        .type = type,
-        .button_mode = INPUT_BUTTON_MOMENTARY,
-        .used = true,
-    };
-    snprintf(input_actions[slot].name, sizeof(input_actions[slot].name), "%s", name);
-    input_actions[slot].button_down = input_action_button_value_get(
-        &input_actions[slot]);
-    return ERROR_RESULT_MAKE_VALUE(InputActionIdResult, input_actions[slot].id);
+    candidate.id = input_id_create(input_action_generations[slot], slot);
+    input_actions[slot] = candidate;
+    return ERROR_RESULT_MAKE_VALUE(InputActionIdResult, candidate.id);
+}
+
+EngineResult input_action_description_set(InputActionId action,
+        InputActionDescription description) {
+    InputAction *value = input_action_get(action), candidate;
+    if(value == NULL) return error_result_error(ERROR_ENGINE_INPUT_NOT_FOUND);
+    EngineResult result = input_action_description_prepare(value, description, &candidate);
+    if(error_check(result)) return result;
+    *value = candidate;
+    return error_result_value(true);
+}
+
+InputActionDescriptionResult input_action_description_get(InputActionId action) {
+    InputAction *value = input_action_get(action);
+    if(value == NULL) return ERROR_RESULT_MAKE_ERROR(
+        InputActionDescriptionResult, ERROR_ENGINE_INPUT_NOT_FOUND);
+    InputActionDescription description = {.controller = value->controller,
+        .type = value->type, .button_mode = value->button_mode,
+        .button_initial_state = value->button_initial_state,
+        .bindings_default.count = value->default_count};
+    memcpy(description.name, value->name, sizeof(description.name));
+    memcpy(description.bindings_default.values, value->defaults,
+        value->default_count * sizeof(value->defaults[0]));
+    return ERROR_RESULT_MAKE_VALUE(InputActionDescriptionResult, description);
 }
 
 EngineResult input_action_destroy(InputActionId action) {

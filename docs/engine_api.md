@@ -4856,10 +4856,36 @@ InputBinding rohr_input_binding_scancode_create(SDL_Scancode key);
 ### `rohr_input_controller_create`
 
 ```c
-InputControllerIdResult rohr_input_controller_create(const char *name);
+InputControllerIdResult rohr_input_controller_create(InputControllerDescription description);
 ```
 
- Create an enabled, engine-owned logical controller with a unique name.
+ Create an engine-owned logical controller from complete configuration.
+
+### `rohr_input_controller_description_default_get`
+
+```c
+InputControllerDescription rohr_input_controller_description_default_get(void);
+```
+
+ Enabled, with an empty name to fill before creation.
+
+### `rohr_input_controller_description_set`
+
+```c
+EngineResult rohr_input_controller_description_set(InputControllerId controller, InputControllerDescription description);
+```
+
+ Replace name/enabled atomically without rebuilding child actions.
+
+Renaming and unchanged configuration preserve pending input transitions.
+
+### `rohr_input_controller_description_get`
+
+```c
+InputControllerDescriptionResult rohr_input_controller_description_get(InputControllerId controller);
+```
+
+ Return an independent copy of current configuration.
 
 ### `rohr_input_controller_destroy`
 
@@ -4896,10 +4922,42 @@ bool rohr_input_controller_enabled_check(InputControllerId controller);
 ### `rohr_input_action_create`
 
 ```c
-InputActionIdResult rohr_input_action_create(InputControllerId controller, const char *name, InputActionType type);
+InputActionIdResult rohr_input_action_create(InputActionDescription description);
 ```
 
  Create an engine-owned typed action with a controller-local unique name.
+
+### `rohr_input_action_description_default_get`
+
+```c
+InputActionDescription rohr_input_action_description_default_get(void);
+```
+
+ Momentary Button, false initial state, no bindings, invalid owner, empty name.
+
+### `rohr_input_action_description_set`
+
+```c
+EngineResult rohr_input_action_description_set(InputActionId action, InputActionDescription description);
+```
+
+ Atomic full replacement, including controller reassignment with a stable handle.
+
+Compatible overrides survive; incompatible overrides reject the entire edit.
+
+Name-only/unchanged edits preserve state and transitions. Rebinding preserves
+
+persistent state and resamples physical input without inventing transitions.
+
+Changed type/mode/initial state reinitializes only this action.
+
+### `rohr_input_action_description_get`
+
+```c
+InputActionDescriptionResult rohr_input_action_description_get(InputActionId action);
+```
+
+ Copy authored configuration only, excluding runtime overrides and current state.
 
 ### `rohr_input_action_destroy`
 

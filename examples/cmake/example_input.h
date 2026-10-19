@@ -6,11 +6,16 @@
 #define ROHR_EXAMPLE_INPUT_H
 
 #include "rohr.h"
+#include <string.h>
 
 static inline bool example_input_controller_create(const char *name,
         InputControllerId *controller) {
-    InputControllerIdResult result = rohr_input_controller_create(name);
-    if(rohr_error_check(result) || controller == NULL) return false;
+    if(controller == NULL || name == NULL || strlen(name) >= ROHR_INPUT_NAME_MAX)
+        return false;
+    InputControllerDescription description = {.enabled = true};
+    memcpy(description.name, name, strlen(name) + 1);
+    InputControllerIdResult result = rohr_input_controller_create(description);
+    if(rohr_error_check(result)) return false;
     *controller = result.result.value;
     return true;
 }
@@ -18,16 +23,18 @@ static inline bool example_input_controller_create(const char *name,
 static inline bool example_input_action_create(InputControllerId controller,
         const char *name, InputActionType type, const InputBinding *bindings,
         size_t binding_count, InputActionId *action) {
-    InputActionIdResult result = rohr_input_action_create(controller, name, type);
-    EngineResult binding_result;
-    if(rohr_error_check(result) || action == NULL) return false;
+    if(action == NULL || name == NULL || strlen(name) >= ROHR_INPUT_NAME_MAX ||
+            binding_count > ROHR_INPUT_BINDING_LIMIT ||
+            (binding_count > 0 && bindings == NULL)) return false;
+    InputActionDescription description = {.controller = controller, .type = type,
+        .bindings_default.count = binding_count};
+    memcpy(description.name, name, strlen(name) + 1);
+    if(binding_count > 0) memcpy(description.bindings_default.values, bindings,
+        binding_count * sizeof(*bindings));
+    InputActionIdResult result = rohr_input_action_create(description);
+    if(rohr_error_check(result)) return false;
     *action = result.result.value;
-    binding_result = rohr_input_action_bindings_default_set(*action, bindings,
-        binding_count);
-    if(!rohr_error_check(binding_result)) return true;
-    (void)rohr_input_action_destroy(*action);
-    *action = INPUT_ACTION_INVALID;
-    return false;
+    return true;
 }
 
 static inline InputBinding example_input_key_binding(SDL_Scancode key,

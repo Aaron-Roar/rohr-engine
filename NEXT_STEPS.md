@@ -191,10 +191,28 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    toggling pass. Standard builds and strict changed-module/SDK checks have no
    compiler warnings. Reconciled 1,572 installed-header entries and 11 remaining
    Config/Descriptor names. Native Windows execution and real audio-device review
-   remain unverified. Stop for review before Goal 9.
-9. [ ] **Complete logical input descriptions** — Add controller/action creation
-   and full set/get, preserving names, ownership, defaults/overrides, and
-   unrelated logical state. Keep focused binding/state and text-input calls direct.
+   remain unverified.
+9. [x] **Complete logical input descriptions** — Added copied controller/action
+   creation, full set/get, and default descriptions. Full edits validate names,
+   owners, types, bindings, and retained runtime overrides before replacing state.
+   Actions move between controllers with stable handles, even at capacity;
+   destination collisions and incompatible overrides reject the entire edit.
+   Unchanged descriptions and renames preserve pending events and toggle state.
+   Rebinding/ownership changes preserve persistent state and resample only the
+   edited action; type/mode/initial-state changes reinitialize it without synthetic
+   transitions. Axis descriptions normalize unused button fields. Focused binding,
+   state, and text-input APIs remain direct. Migrated generated creation and
+   examples; regenerated the player-controller module and made its CMake source
+   list exclude the separately generated scene entry point. Verified all 100
+   native tests, final focused tests, two ASan/UBSan/leak checks, and full Linux
+   and Windows cross-builds. Nine affected independent SDK examples build on both
+   platforms and launch from outside their sources on Linux; the SDK input
+   consumer passes on Linux and compiles for Windows. The external custom main
+   is preserved, with scene hosting and two-second force toggling verified.
+   Standard builds and strict input-module/consumer checks have no warnings;
+   strict Pong builds expose the existing unused generated tag-query helper.
+   Reconciled 1,584 installed-header entries and documentation links. Native
+   Windows execution remains unverified. Stop for review before Goal 10.
 10. [ ] **Standardize cameras and presentation configuration** — Unify camera,
     attachment, and window presentation descriptions. Preserve unrelated
     attachments/motion and keep timed commands and focused callbacks direct.
