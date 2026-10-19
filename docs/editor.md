@@ -170,14 +170,23 @@ my-game/
     ├── main.c
     └── generated/
         ├── project_objects.c
-        └── project_objects.h
+        ├── project_objects.h
+        ├── project_viewports.c
+        ├── project_viewports.h
+        ├── project_scene.c
+        ├── project_scene.cmake
+        └── scene/
+            ├── project_objects.c
+            ├── project_objects.h
+            ├── project_viewports.c
+            └── project_viewports.h
 ```
 
 `project.rohr.json` at the root is the workspace manifest. The JSON under
 `objects/` is editor-owned scene data. Files under `src/generated/` are
 replaceable generated output. `src/main.c` is created with a new project but is
-not overwritten by **Generate App C**. The preserved `src/scene.c` entry point
-spawns the complete authored scene; see [project entry points](scene_projects.md).
+not overwritten by **Generate App C**. The disposable `src/generated/project_scene.c` entry point
+spawns a generated simulation selection; see [project entry points](scene_projects.md).
 
 Saving and generating are separate operations:
 
@@ -186,7 +195,7 @@ Saving and generating are separate operations:
 - **Build > Build Application**, **Build Scene**, and **Build Project** generate and build the chosen target(s).
 - **Build > Compile App** configures and compiles the application without generation.
 - **Run > Run Application** launches the existing application executable without compiling.
-- **Run > Simulate Scene** prepares the existing scene executable, stopped. Viewport tabs and playback controls follow in milestone goal 4.
+- **Run > Simulate Scene** prepares the existing scene executable, stopped. Viewport tabs and playback controls follow in milestone goal 6; selection settings and regeneration on requests follow in goal 5.
 - **File > Close** closes the project and asks about unsaved changes.
 - **File > Exit** safely exits and asks about unsaved changes.
 

@@ -28,6 +28,14 @@ if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
         --object car --property visibility true --help)
     set_tests_properties(editor_cli_help_prevents_execution PROPERTIES
         PASS_REGULAR_EXPRESSION "Selected depth: object")
+    if(TARGET editor_scene_generation_test)
+        add_test(NAME editor_cli_scene_selection COMMAND ${CMAKE_COMMAND}
+            -DCLI=$<TARGET_FILE:rohr_editor_cli>
+            -DMOCK=$<TARGET_FILE:editor_cli_mock_build>
+            -DFIXTURE_TOOL=$<TARGET_FILE:editor_scene_generation_test>
+            "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/scene selection project"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/scene_selection.cmake)
+    endif()
     add_test(NAME editor_cli_config_override
         COMMAND ${CMAKE_COMMAND}
             -DCLI=$<TARGET_FILE:rohr_editor_cli>

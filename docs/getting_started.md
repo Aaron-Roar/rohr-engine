@@ -120,7 +120,10 @@ game executable is ready. A failure notification can be clicked for details.
 
 Choose **Run > Run Application** to launch the last built application without
 compiling again. **Simulate Scene** prepares the built scene; the viewport tabs
-and playback controls are the next milestone goal.
+and playback controls follow after the scene-selection settings. CLI users can
+run `rohr-cli --project . simulate-scene` to regenerate, build, and launch a scene
+now; add `--object <name>` and `--viewport <name>` before the operation to select
+its content.
 
 Alternatively, open another terminal and enter your project directory. Replace the example
 path with the directory you selected when creating the project:

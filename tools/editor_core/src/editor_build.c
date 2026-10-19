@@ -141,7 +141,7 @@ EditorResult editor_build_compile_arguments_get(const EditorConfigCommand *comma
     if((SDL_strcasecmp(program, "cmake") && SDL_strcasecmp(program, "cmake.exe")) ||
             command->count < 3 || strcmp(arguments[1], "--build"))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
-            "The GUI compile command must contain {target} to select Application, Scene, or Project");
+            "A targeted compile command must contain {target} to select Application, Scene, or Project");
     for(size_t i = 2; i < command->count; ++i)
         if(!strcmp(arguments[i], "-t") || !strcmp(arguments[i], "--target") || !strncmp(arguments[i], "--target=", 9) || !strcmp(arguments[i], "--"))
             return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Use {target} in the configured compile target");

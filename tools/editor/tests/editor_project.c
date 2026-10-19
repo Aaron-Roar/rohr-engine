@@ -6,6 +6,7 @@
 #include "editor_viewport.h"
 #include "editor_workspace.h"
 #include "legacy_scene_fixture.h"
+#include "editor_scene_source.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -19,13 +20,16 @@ static void workspace_fixture_remove(const char *root) {
     char path[2048];
     static const char *files[] = {
         "project.rohr.json", "objects/project.rohr.json", "src/main.c", "src/scene.c", "src/generated/project_scene.cmake",
+        "src/generated/project_scene.c",
+        "src/generated/scene/project_objects.c", "src/generated/scene/project_objects.h",
+        "src/generated/scene/project_viewports.c", "src/generated/scene/project_viewports.h",
         "src/generated/project_objects.c", "src/generated/project_objects.h",
         "src/generated/project_viewports.c", "src/generated/project_viewports.h",
         "CMakeLists.txt", ".gitignore", "editor.lua",
         "assets/tutorial_frame_1.png", "assets/tutorial_frame_2.png"
     };
     static const char *directories[] = {
-        "src/generated", "src", "assets", "objects"
+        "src/generated/scene", "src/generated", "src", "assets", "objects"
     };
 
     for(size_t i = 0; i < sizeof(files) / sizeof(files[0]); i += 1) {
@@ -207,56 +211,53 @@ static bool file_property_line_remove_after(const char *path,
 
 static bool scene_scaffold_check(const EditorWorkspace *workspace,
         const EditorProject *project) {
-    char main_path[2048], scene_path[2048], cmake_path[2048];
+    char main_path[2048], scene_path[2048], legacy_path[2048], cmake_path[2048];
     snprintf(main_path, sizeof(main_path), "%s/src/main.c", workspace->directory);
-    snprintf(scene_path, sizeof(scene_path), "%s/src/scene.c", workspace->directory);
+    snprintf(scene_path, sizeof(scene_path), "%s/src/generated/project_scene.c", workspace->directory);
+    snprintf(legacy_path, sizeof(legacy_path), "%s/src/scene.c", workspace->directory);
     snprintf(cmake_path, sizeof(cmake_path), "%s/CMakeLists.txt", workspace->directory);
     char *main_source = SDL_LoadFile(main_path, NULL);
     char *scene_source = SDL_LoadFile(scene_path, NULL);
     char *cmake_source = SDL_LoadFile(cmake_path, NULL);
     char *edited = NULL, *loaded = NULL;
     bool valid = false;
-    if(!main_source || !scene_source || !cmake_source) goto done;
-    if(!strstr(scene_source, "project_objects_create_all(&scene->objects)") ||
+    if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
+    if(!strstr(scene_source, "scene/project_viewports.h") ||
             !strstr(main_source, "entity_object_add(objects.tug)")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(src/generated/project_scene.cmake)\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
     if(!edited) goto done;
-    memcpy(edited, cmake_source, (size_t)(include - cmake_source));
-    edited[include - cmake_source] = '\0';
-    /* Exact preceding scaffold upgrades once, preserving entry points. */
+    memcpy(edited, cmake_source, (size_t)(include - cmake_source)); edited[include - cmake_source] = 0;
     if(!file_replace(cmake_path, edited) || !editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(cmake_path, NULL);
     if(!loaded || strcmp(loaded, cmake_source)) goto done;
     SDL_free(loaded); loaded = NULL;
-    /* A customized build file is never rewritten. */
+    /* Custom legacy source and build files remain untouched; generated source does not. */
     strcat(edited, "\n# developer build customization\n");
-    if(!file_replace(cmake_path, edited) ||
-            !file_replace(scene_path, "/* developer-owned scene */\n") ||
+    if(!file_replace(cmake_path, edited) || !file_replace(legacy_path, "/* developer-owned scene */\n") ||
+            !file_replace(scene_path, "/* overwritten generated scene */\n") ||
             !editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(cmake_path, NULL);
-    if(!loaded || strcmp(loaded, edited) ||
-            !file_contains(scene_path, "/* developer-owned scene */")) goto done;
+    if(!loaded || strcmp(loaded, edited) || !file_contains(legacy_path, "/* developer-owned scene */")) goto done;
+    SDL_free(loaded); loaded = SDL_LoadFile(scene_path, NULL);
+    if(!loaded || strcmp(loaded, scene_source)) goto done;
     SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
     if(!loaded || strcmp(loaded, main_source)) goto done;
     SDL_free(loaded); loaded = NULL;
-    /* Removing the source restores the default scene, not the tutorial main. */
     if(!SDL_RemovePath(scene_path) || !editor_workspace_c_generate(workspace, project)) goto done;
     loaded = SDL_LoadFile(scene_path, NULL);
     if(!loaded || strcmp(loaded, scene_source)) goto done;
-    SDL_free(loaded); loaded = NULL;
-    if(!file_replace(scene_path, legacy_scene_fixture) ||
-            !editor_workspace_c_generate(workspace, project)) goto done;
-    loaded = SDL_LoadFile(scene_path, NULL);
-    if(!loaded || strcmp(loaded, scene_source)) goto done;
+    /* Both exact prior scene templates are removed; near matches are preserved. */
+    const char *old[] = {legacy_scene_fixture, editor_scene_source_legacy};
+    for(size_t i = 0; i < sizeof(old) / sizeof(old[0]); ++i)
+        if(!file_replace(legacy_path, old[i]) || !editor_workspace_c_generate(workspace, project) ||
+                SDL_GetPathInfo(legacy_path, NULL)) goto done;
     valid = true;
 done:
     if(cmake_source && !file_replace(cmake_path, cmake_source)) valid = false;
-    if(scene_source && !file_replace(scene_path, scene_source)) valid = false;
     SDL_free(main_source); SDL_free(scene_source); SDL_free(cmake_source);
-    SDL_free(edited); SDL_free(loaded);
-    return valid;
+    SDL_free(edited); SDL_free(loaded); return valid;
 }
 
 static bool tick_main_migration_check(const EditorWorkspace *workspace,

@@ -39,7 +39,8 @@ if(ROHR_BUILD_TESTS)
     add_executable(scene_child_test tests/scene_child.c)
     add_executable(editor_scene_session_test tests/editor_scene_session.c)
     add_executable(editor_build_test tests/editor_build.c)
-    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test)
+    add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
+    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -53,6 +54,10 @@ if(ROHR_BUILD_TESTS)
         endif()
         set_target_properties(${scene_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     endforeach()
+    add_test(NAME editor_scene_generation COMMAND ${CMAKE_COMMAND}
+        -DTEST_EXECUTABLE=$<TARGET_FILE:editor_scene_generation_test>
+        "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/scene generation project"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/scene_generation.cmake)
     add_test(NAME editor_scene_session COMMAND editor_scene_session_test $<TARGET_FILE:scene_child_test>)
     set_tests_properties(editor_scene_session PROPERTIES TIMEOUT 60
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")

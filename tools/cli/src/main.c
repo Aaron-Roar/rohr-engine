@@ -13,6 +13,7 @@
 #include "editor_config.h"
 #include "editor_build.h"
 #include <signal.h>
+#include <errno.h>
 #include "editor_document.h"
 #include "editor_workspace.h"
 
@@ -239,6 +240,9 @@ static void cli_usage_print(void) {
         "  Project: rohr-cli [--project <project-directory>] "
             "<operation>\n"
         "  Project operations: create, validate, generate-c, compile, build\n"
+        "  Scene operations: build-scene, simulate-scene\n"
+        "  Scene selectors: --object <name> or --object-id <id>; --viewport <name> or --viewport-id <id>\n"
+        "  Scene defaults: all objects and the first viewport\n"
         "  Example: rohr-cli --object car --body chassis --property mass 5\n"
         "  Example: rohr-cli --body chassis --property position 10 20\n"
         "  Example: rohr-cli --project ./game validate\n"
@@ -322,8 +326,27 @@ static void cli_build_output(void *context, const char *bytes, size_t count) {
     (void)fwrite(bytes, 1, count, stdout);
     (void)fflush(stdout);
 }
+static int cli_process_run(const char *directory, const char *const *arguments) {
+    EditorBuildProcess *process = editor_build_process_create();
+    int exit_code = 1;
+    if(!process) return cli_error(editor_result_error(EDITOR_ERROR_CAPACITY, "Could not allocate build process"));
+    cli_build_interrupted = 0;
+    void (*previous_int)(int) = signal(SIGINT, cli_build_interrupt);
+    void (*previous_term)(int) = signal(SIGTERM, cli_build_interrupt);
+    EditorResult result = editor_build_process_start(process, directory, arguments);
+    bool finished = false;
+    while(!editor_result_check(result) && !finished) {
+        if(cli_build_interrupted) editor_build_process_interrupt(process);
+        result = editor_build_process_poll(process, cli_build_output, NULL, &finished, &exit_code);
+        if(!finished) SDL_Delay(1);
+    }
+    editor_build_process_destroy(process);
+    (void)signal(SIGINT, previous_int); (void)signal(SIGTERM, previous_term);
+    if(editor_result_check(result)) return cli_error(result);
+    return cli_build_interrupted ? 128 + cli_build_interrupted : exit_code;
+}
 static int cli_project_cmake_run(const EditorWorkspace *workspace,
-        const EditorConfig *config, bool configure) {
+        const EditorConfig *config, bool configure, bool scene_only) {
     char root[EDITOR_WORKSPACE_PATH_MAX * 2];
     char build[EDITOR_WORKSPACE_PATH_MAX * 2];
     char rohr_option[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -336,8 +359,6 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     const char *const *process_arguments;
     const EditorConfigCommand *configured_command;
     char sdk[EDITOR_WORKSPACE_PATH_MAX * 2] = {0};
-    EditorBuildProcess *process;
-    int exit_code = 1;
     int count;
     if(workspace == NULL || !cli_absolute_path_get(root, sizeof(root),
             workspace->directory))
@@ -352,14 +373,15 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
         EDITOR_CONFIG_FRONTEND_CLI, configure ? EDITOR_CONFIG_OPERATION_CONFIGURE :
         EDITOR_CONFIG_OPERATION_COMPILE);
     if(configured_command != NULL && configured_command->count == 0) return 0;
-    if(configured_command != NULL) {
+    if(configured_command != NULL || (!configure && scene_only)) {
         EditorResult result;
         (void)cli_sdk_root_get(sdk, sizeof(sdk));
         char target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
-        result = editor_build_target_name_get(workspace, EDITOR_BUILD_PROJECT, target, sizeof(target));
+        result = editor_build_target_name_get(workspace, scene_only ? EDITOR_BUILD_SCENE : EDITOR_BUILD_PROJECT, target, sizeof(target));
         if(editor_result_check(result)) return cli_error(result);
-        result = editor_config_command_target_expand(configured_command, root, build, sdk,
-            target, configured_arguments, configured_output);
+        result = !configure && scene_only ?
+            editor_build_compile_arguments_get(configured_command, root, build, sdk, target, configured_arguments, configured_output) :
+            editor_config_command_target_expand(configured_command, root, build, sdk, target, configured_arguments, configured_output);
         if(editor_result_check(result)) return cli_error(result);
         process_arguments = configured_output;
     } else {
@@ -368,28 +390,13 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
             EDITOR_ERROR_FILE_IO, "Could not locate the Rohr SDK or source tree"));
         process_arguments = configure ? configure_arguments : compile_arguments;
     }
-    process = editor_build_process_create();
-    if(!process) return cli_error(editor_result_error(EDITOR_ERROR_CAPACITY, "Could not allocate build process"));
-    cli_build_interrupted = 0;
-    void (*previous_int)(int) = signal(SIGINT, cli_build_interrupt);
-    void (*previous_term)(int) = signal(SIGTERM, cli_build_interrupt);
-    EditorResult result = editor_build_process_start(process, root, process_arguments);
-    bool finished = false;
-    while(!editor_result_check(result) && !finished) {
-        if(cli_build_interrupted) editor_build_process_interrupt(process);
-        result = editor_build_process_poll(process, cli_build_output, NULL, &finished, &exit_code);
-        if(!finished) SDL_Delay(1);
-    }
-    editor_build_process_destroy(process);
-    (void)signal(SIGINT, previous_int); (void)signal(SIGTERM, previous_term);
-    if(editor_result_check(result)) return cli_error(result);
-    return cli_build_interrupted ? 128 + cli_build_interrupted : exit_code;
+    return cli_process_run(root, process_arguments);
 }
 
 static int cli_project_compile(const EditorWorkspace *workspace,
         const EditorConfig *config) {
-    int result = cli_project_cmake_run(workspace, config, true);
-    return result == 0 ? cli_project_cmake_run(workspace, config, false) : result;
+    int result = cli_project_cmake_run(workspace, config, true, false);
+    return result == 0 ? cli_project_cmake_run(workspace, config, false, false) : result;
 }
 
 static EditorResult cli_project_config_load(EditorConfig *config,
@@ -457,6 +464,84 @@ static int cli_workspace_action_command(int count, char **arguments) {
     result = cli_project_config_load(&config, &workspace);
     if(editor_result_check(result)) return cli_error(result);
     return cli_project_compile(&workspace, &config);
+}
+
+static EditorResult cli_scene_id_parse(const char *value, uint32_t *id) {
+    if(!value || !*value) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Expected a positive selector ID");
+    for(const char *c = value; *c; ++c)
+        if(*c < '0' || *c > '9') return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid selector ID: %s", value);
+    errno = 0; char *end; unsigned long parsed = strtoul(value, &end, 10);
+    if(errno || *end || !parsed || parsed > UINT32_MAX)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid selector ID: %s", value);
+    *id = (uint32_t)parsed; return editor_result_value(true);
+}
+static EditorResult cli_scene_name_resolve(const EditorProject *project, const char *name,
+        bool viewport, uint32_t *id) {
+    char formatted[EDITOR_OBJECT_NAME_MAX];
+    editor_project_object_name_format(formatted, sizeof(formatted), name);
+    size_t matches = 0, count = viewport ? project->layout_viewport_count : project->object_count;
+    for(size_t i = 0; i < count; ++i) {
+        const char *stored = viewport ? project->layout_viewports[i].name : project->objects[i].name;
+        if(strcmp(stored, name) && strcmp(stored, formatted)) continue;
+        *id = viewport ? project->layout_viewports[i].id : project->objects[i].id; ++matches;
+    }
+    if(matches != 1) return editor_result_error(matches ? EDITOR_ERROR_INVALID_ARGUMENT : EDITOR_ERROR_NOT_FOUND,
+        "%s '%s' is %s; use --%s-id for an explicit ID", viewport ? "Viewport" : "Object", name,
+        matches ? "ambiguous" : "unknown", viewport ? "viewport" : "object");
+    return editor_result_value(true);
+}
+static int cli_scene_action_command(int count, char **arguments) {
+    const char *directory = ".", *object_name = NULL, *viewport_name = NULL;
+    bool project_set = false, object_set = false, viewport_set = false;
+    EditorObjectId object_id = 0;
+    EditorSceneSelection selection = {0};
+    EditorResult result = editor_result_value(true);
+    for(int i = 1; i < count - 1; ++i) {
+        const char *flag = arguments[i];
+        if(i + 1 >= count - 1) return cli_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "%s requires a value", flag));
+        const char *value = arguments[++i];
+        if(!strcmp(flag, "--project") && !project_set) { directory = value; project_set = true; }
+        else if((!strcmp(flag, "--object") || !strcmp(flag, "--object-id")) && !object_set) {
+            object_set = true;
+            if(!strcmp(flag, "--object")) object_name = value;
+            else result = cli_scene_id_parse(value, &object_id);
+        } else if((!strcmp(flag, "--viewport") || !strcmp(flag, "--viewport-id")) && !viewport_set) {
+            viewport_set = true;
+            if(!strcmp(flag, "--viewport")) viewport_name = value;
+            else result = cli_scene_id_parse(value, &selection.viewport);
+        } else return cli_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Unknown or repeated scene selector: %s", flag));
+        if(editor_result_check(result)) return cli_error(result);
+    }
+    EditorWorkspace workspace = {0};
+    static EditorProject project;
+    editor_project_init(&project);
+    int code = 1;
+    result = editor_workspace_load(&workspace, &project, directory);
+    if(editor_result_check(result)) goto done;
+    if(object_name) { result = cli_scene_name_resolve(&project, object_name, false, &object_id); if(editor_result_check(result)) goto done; }
+    if(viewport_name) { result = cli_scene_name_resolve(&project, viewport_name, true, &selection.viewport); if(editor_result_check(result)) goto done; }
+    if(object_set) { selection.objects_selected = true; selection.objects = &object_id; selection.object_count = 1; }
+    result = editor_workspace_scene_generate(&workspace, &project, &selection);
+    if(editor_result_check(result)) goto done;
+    EditorConfig config;
+    result = cli_project_config_load(&config, &workspace);
+    if(editor_result_check(result)) goto done;
+    const EditorConfigCommand *compile = editor_config_command_get(&config, EDITOR_CONFIG_FRONTEND_CLI, EDITOR_CONFIG_OPERATION_COMPILE);
+    if(compile && !compile->count) {
+        result = editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Scene requests require compilation; the CLI compile command is disabled"); goto done;
+    }
+    code = cli_project_cmake_run(&workspace, &config, true, true);
+    if(!code) code = cli_project_cmake_run(&workspace, &config, false, true);
+    if(!code && !strcmp(arguments[count - 1], "simulate-scene")) {
+        char executable[EDITOR_WORKSPACE_PATH_MAX * 2];
+        result = editor_build_executable_get(&workspace, EDITOR_BUILD_SCENE, executable, sizeof(executable));
+        if(editor_result_check(result)) goto done;
+        const char *run[] = {executable, NULL};
+        code = cli_process_run(workspace.directory, run);
+    }
+done:
+    editor_project_destroy(&project);
+    return editor_result_check(result) ? cli_error(result) : code;
 }
 
 static bool cli_workspace_arguments_check(int count, char **arguments) {
@@ -531,6 +616,9 @@ int main(int count, char **arguments) {
         cli_help_print(count, arguments);
         return 0;
     }
+    if(count >= 2 && (!strcmp(arguments[count - 1], "build-scene") ||
+            !strcmp(arguments[count - 1], "simulate-scene")))
+        return cli_scene_action_command(count, arguments);
     if(cli_workspace_action_check(count, arguments))
         return cli_workspace_action_command(count, arguments);
     if(cli_workspace_arguments_check(count, arguments))

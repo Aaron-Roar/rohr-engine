@@ -1,15 +1,17 @@
 # Application and scene entry points
 
-New projects have two developer-owned entry points:
+Projects separate developer-owned application code from disposable simulation output:
 
 - `src/main.c` demonstrates creating starter bodies through `objects.starter.*`,
   spawning a whole soft body, and explicitly connecting separately spawned joints.
   Attached visuals and anchors are created with their bodies. It also spawns
   `objects.tug` as a complete instance: `box_1`, `box_2`, `tug_spring`, and two
   opposing persistent forces.
-- `src/scene.c` creates the entire current authored scene through
-  `project_objects_create_all`, then creates the authored viewports and runs the
-  scene runner's engine, physics, audio, animation, and presentation loop.
+- `src/generated/project_scene.c` creates the selected objects and one authored
+  viewport, then runs the scene runner's engine, physics, audio, animation, and
+  presentation loop. Every generation overwrites it. Its private generated object
+  and viewport modules live in `src/generated/scene/`; the application catalog
+  remains complete and independent.
 
 The application target is `${PROJECT_NAME}`; the independent scene target is
 `${PROJECT_NAME}_scene`. The `${PROJECT_NAME}_project` aggregate builds both,
@@ -27,8 +29,46 @@ cmake --build build --target MyGame_project
 The scene executable opens an ordinary window when run directly. It also supports
 isolated hosting through the SDK scene runner and editor-core session API described
 below. The Build and Run menus are available. Viewport tabs and playback controls
-remain goal 4; **Simulate Scene** currently resolves and prepares the built scene
-in a stopped state, reporting its executable path without launching it.
+remain goal 6; **Simulate Scene** currently resolves and prepares the built scene
+in a stopped state, reporting its executable path without launching it. Goal 5
+adds editor selection settings and regeneration on simulation requests. The CLI
+workflow below already regenerates and builds each request.
+
+## CLI simulation selection
+
+```sh
+rohr-cli --project ./game build-scene
+rohr-cli --project ./game --object tug --viewport simulation_viewport simulate-scene
+rohr-cli --project ./game --object-id 2 --viewport-id 1 build-scene
+```
+
+Both scene operations regenerate disposable sources, configure, and compile only
+`${PROJECT_NAME}_scene`. `simulate-scene` then launches the standalone scene and
+waits for it to exit. Interrupts reach the owned build or simulation process tree.
+Generation/build failures stop the request without launching older output; a
+disabled compile command is an error for these operations.
+
+Without an object selector all objects are included. One `--object` or
+`--object-id` includes only that object. Without a viewport selector the first
+viewport in stored project order is used; `--viewport` or `--viewport-id` selects
+exactly one. Names follow the existing object naming convention, with exact
+viewport names also accepted. Unknown, ambiguous, repeated, or invalid selectors
+fail before generation. CLI requests neither save selections nor alter authored
+project data, application `main.c`, or the complete application catalog.
+
+A selected viewport retains its authored placement, clipping, screens, UI, and
+visibility. A screen whose camera is absent contributes no drawing, leaving the
+underlying viewport composition visible; other screens and UI continue normally.
+No object is automatically included and no replacement camera is created. A
+project with no viewport has no viewport visuals. The generation API also allows
+an explicit empty object list for the forthcoming editor controls.
+
+`editor_workspace_scene_generate` takes a borrowed `EditorSceneSelection`.
+Zero initialization means all objects/first viewport; `objects_selected=true`
+uses the supplied stable-ID list, including an empty list. A nonzero viewport ID
+selects that viewport. Selection validation precedes file writes. The generator
+uses a temporary filtered view of authored data and the existing catalog/viewport
+generators; it does not modify the project or change physics pipeline behavior.
 
 ## Build and Run menus
 
@@ -73,7 +113,9 @@ Custom GUI compile commands must include `{target}`, for example
 `{"cmake", "--build", "{build}", "--target", "{target}"}`. A plain CMake build
 command without an explicit target automatically receives the selected target.
 Other commands and fixed target overrides are rejected instead of ignoring the
-menu selection. When the CLI evaluates shared or CLI commands, `{target}` names the project aggregate.
+menu selection. The same target requirement applies to CLI scene compilation.
+`{target}` names the scene target for scene operations and the project aggregate
+for the existing CLI build/compile operations.
 Empty command arrays remain valid disabled stages; disabled compilation reports
 SKIPPED rather than claiming a new executable was built.
 
@@ -88,16 +130,19 @@ versa).
 
 `src/generated/` remains editor-owned. Generating C refreshes descriptions,
 settings, binding helpers, viewport composition, and `project_scene.cmake`.
-Customized `main.c` and `scene.c` are preserved. An exact copy of the preceding
-whole-scene loop in `scene.c` is upgraded to lifecycle callbacks. A missing
-`scene.c` is recreated from the callback template, including for existing projects. Deleting the
-file intentionally restores that default on the next generation.
+The simulation entry point and its private modules are always overwritten.
+Missing generated files are recreated. Exact legacy `src/scene.c` scaffolds are
+removed; customized legacy files remain untouched but are unused by the scene
+target, with generation output explaining the change. Application `main.c`
+remains developer-owned after creation.
 
 New tutorial content is added only when creating a new project. Existing scenes
 are not given a `Tug` object automatically. The tutorial main is an editable
 example, not a synchronized inventory: after renaming or removing its referenced
 objects, update its explicit calls. The generic scene entry point continues to
-follow all authored objects when C is regenerated.
+follow the requested simulation selection when C is regenerated. Ordinary
+Generate App C/build generation resets simulation output to all objects and the
+first viewport until the editor settings are implemented in goal 5.
 
 An exact match of the preceding generated CMake scaffold receives this line:
 
@@ -108,8 +153,10 @@ include(src/generated/project_scene.cmake)
 Customized CMake files are preserved. Generation logs the integration step when
 that include is absent. Define `ROHR_ENGINE_TARGET` and `ROHR_GENERATED_SOURCES`
 before including the module, as in the default scaffold. Projects with an
-external build system can compile `src/scene.c` with the generated C modules
-and link the engine themselves. Only an exact recognized old tick-loop template
+external build system can compile `src/generated/project_scene.c` together with
+`src/generated/scene/project_objects.c` and `project_viewports.c`, include the
+private scene directory, and link the engine. The generated CMake module excludes
+`project_scene.c` from application sources collected by older wildcard scaffolds. Only an exact recognized old tick-loop template
 is automatically migrated in `main.c`; marker comments alone are insufficient.
 
 ## Generated bindings and lifetime
@@ -137,8 +184,8 @@ sprite pass.
 
 ## Verification
 
-`editor_project_test` covers scaffold creation, source preservation, missing
-scene regeneration, exact CMake migration, customized-build preservation, and
+`editor_project_test` covers scaffold creation, source preservation, regeneration
+of missing scene output, exact legacy removal, customized-build preservation, and
 starter persistence. `tools/editor_core/tests/generated_scene` is an independent
 installed-SDK check that compiles the actual new tutorial main and generated
 modules. Create a fresh project first, then configure it with
@@ -163,10 +210,10 @@ engine. `SceneCallbacks` borrows a context pointer for the duration of the call:
 
 With no hosting arguments the scene uses a visible window. The host supplies
 private arguments for a loopback port and random session token; entry points must
-pass their original `argc` and `argv` to the runner. Customized old entry points
-are never silently rewritten. Move their creation/destruction into callbacks and
-replace their loop with `rohr_scene_run`; generation logs this guidance. Build
-again after migration. A scene without the runner times out during hosted startup.
+pass their original `argc` and `argv` to the runner. Generated simulations already
+use this runner. A custom application can also use it by moving its creation and
+destruction into callbacks and replacing its loop with `rohr_scene_run`. A custom
+executable without the runner times out during hosted startup.
 
 Hosted scenes own a hidden SDL window and renderer. Authored fullscreen modes do
 not change the desktop. Capture happens after camera, screen, and UI composition
@@ -252,3 +299,10 @@ The host test accepts a generated scene executable plus any extra argument to
 run a smaller launch/frame/pause/resume/stop check against an installed-SDK
 project. These checks do not substitute for the real editor focus/IME and visual
 review planned with the viewport tabs, or for native Windows runtime testing.
+
+`editor_scene_generation_test` and the CLI scene-selection test cover defaults,
+explicit selections, invalid requests, application independence, and unchanged
+authored data. `tools/editor_core/tests/generated_scene_selection` compiles the
+actual generated entry point against the installed SDK and verifies object,
+viewport, screen, and UI counts, rendering/physics updates, and complete teardown.
+Its probe accepts expected object, viewport, screen, and UI counts as four arguments.

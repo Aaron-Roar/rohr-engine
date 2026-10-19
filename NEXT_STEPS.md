@@ -93,7 +93,7 @@ user selected this milestone before the remaining roadmap priorities. See
 3. [x] **Build and Run menus** — Added Build Application, Build Scene, Build
    Project, Generate App C, and Compile App. Run Application resolves and launches
    existing output; Simulate Scene prepares the existing scene executable,
-   stopped, for goal 4. Neither run action generates or compiles. Generated CMake
+   stopped, for the later viewport-tab goal. Neither run action generates or compiles. Generated CMake
    records actual target/output paths and provides a project aggregate target.
    Scene/project builds wait for simulation shutdown before generation/building.
    Shown/hidden builds share process-tree ownership and cancellation; project
@@ -107,13 +107,36 @@ user selected this milestone before the remaining roadmap priorities. See
    warning checks found only the existing starter-template overlength-string
    warning; normal builds report no compiler warnings. Windows runtime and real
    editor interaction review remain unverified.
-4. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
+4. [x] **Generated simulation entry point and CLI selection** — Added disposable
+   `src/generated/project_scene.c` and private simulation modules. Generate
+   selected objects and one viewport; absent cameras contribute no drawing.
+   CLI `build-scene` and `simulate-scene` regenerate and compile each request,
+   accept object/viewport names or IDs, and default to all objects/first viewport.
+   Complete application catalogs and customized legacy sources remain intact;
+   exact former scene scaffolds are removed. Verified 98 native tests, six final
+   affected checks, three ASan/UBSan/leak checks and an installed-SDK sanitizer
+   probe, Linux/Windows engine and generated-project builds, independent SDK
+   examples on both platforms, and Linux startup outside source directories.
+   Runtime probes cover selection, multiple screens/UI, absent cameras, empty
+   object lists, no viewport, hosting, regeneration, failed-build launch prevention,
+   and interrupt cleanup. Normal builds have no compiler warnings; strict checks
+   retain only the existing starter-template overlength-string warning. Windows
+   runtime and real application visual review remain unverified.
+5. [ ] **Editor scene settings and regeneration on simulation requests** — Add
+   Build > Scene Settings with an object checklist, All/None, and one viewport
+   selector. Save simulation-only selections with undo/redo; new objects default
+   included. Simulate Scene regenerates/builds current selections before preparing
+   the scene stopped. Build Scene/Project use the same settings. Failed builds
+   must not launch old output; Run Application remains run-only.
+6. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
    tabs; open simulation stopped; Run/Pause and Stop controls; Editor selection
-   stops simulation; restart from the scene executable; verify focused input,
+   stops simulation; fresh starts regenerate/build while pause/resume preserves
+   the running instance; verify focused input,
    composition, lifecycle, and platform behavior.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Goals 1–3 are complete; viewport tabs and simulation controls remain unstarted.
+commit. Goals 1–4 are complete. The revised generated-scene workflow precedes editor
+selection settings and viewport tabs.
 
 ### Soft-Body Force Following and Generated-App Regression
 

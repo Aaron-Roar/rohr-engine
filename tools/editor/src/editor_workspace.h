@@ -39,6 +39,17 @@ typedef struct EditorWorkspaceCommand {
     char directory[EDITOR_WORKSPACE_PATH_MAX];
 } EditorWorkspaceCommand;
 
+/* Borrowed selection for one generation. Zero initialization includes all
+ * objects and the first viewport. objects_selected with count zero includes none. */
+typedef struct EditorSceneSelection {
+    const EditorObjectId *objects;
+    size_t object_count;
+    bool objects_selected;
+    EditorLayoutViewportId viewport;
+} EditorSceneSelection;
+EditorResult editor_workspace_scene_generate(const EditorWorkspace *workspace,
+    const EditorProject *project, const EditorSceneSelection *selection);
+
 EditorWorkspaceConfig editor_workspace_config_default_get(void);
 EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *project,
     const char *directory);
