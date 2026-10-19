@@ -54,6 +54,27 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Browser-Style Viewport Tabs
+
+Refine viewport tabs into compact, closable, reorderable controls managed through
+View. This user-selected refinement follows the completed scene simulation milestone.
+
+1. [x] **Viewport tab controls** — Both tabs appear when a project opens, with
+   Editor selected, in a 15-pixel strip with close buttons and active styling.
+   Tab close buttons and View toggles share visibility; horizontal dragging
+   reorders tabs without changing their active identity. Closing both leaves an
+   empty-viewport hint. Layout lasts only for the editor session, including
+   project transitions. Hiding simulation stops its child and preparation;
+   tab gestures remain isolated from viewport input, while scene-originated
+   releases still reach the child over the strip. Verified four focused native
+   tests and the same four ASan/UBSan/leak checks, Linux editor/test builds and
+   Windows cross-builds without compiler warnings. Independent installed-SDK
+   center_of_mass/joints examples build on Linux and Windows and launch on Linux
+   outside their source directories. Native Windows execution and real desktop
+   review of compact labels, close targets, and dragging remain unverified.
+
+Complete. Stop for review and a user-created commit before pursuing another goal.
+
 ### Scene Simulation Tabs and Explicit Starter Code
 
 Run an isolated scene executable inside an editor viewport tab, and make the

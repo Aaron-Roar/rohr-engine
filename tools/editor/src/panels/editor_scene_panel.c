@@ -140,13 +140,19 @@ static bool text_create(const FontAsset *font, const char *value, TextAsset *tex
 bool editor_scene_panel_create(EditorScenePanel *p, const FontAsset *font,
         EditorTerminalPanel *terminal, EditorNotificationPanel *notifications) {
     if(!p || !font || !terminal || !notifications) return false;
-    *p = (EditorScenePanel){.terminal = terminal, .notifications = notifications, .cleared = true};
+    *p = (EditorScenePanel){.terminal = terminal, .notifications = notifications, .cleared = true,
+        .tab_visible = {true, true},
+        .tab_order = {EDITOR_SCENE_TAB_EDITOR, EDITOR_SCENE_TAB_SIMULATION},
+        .active_tab = EDITOR_SCENE_TAB_EDITOR, .pressed_tab = EDITOR_SCENE_TAB_NONE,
+        .hovered_tab = EDITOR_SCENE_TAB_NONE, .drop_before = EDITOR_SCENE_TAB_NONE};
     return text_create(font, "Editor", &p->editor_label) &&
         text_create(font, "Scene Simulation", &p->scene_label) &&
         text_create(font, "Run", &p->run_label) && text_create(font, "Pause", &p->pause_label) &&
         text_create(font, "Resume", &p->resume_label) && text_create(font, "Stop", &p->stop_label) &&
         text_create(font, "Please wait", &p->waiting_label) &&
-        text_create(font, "Esc releases input", &p->release_label);
+        text_create(font, "Esc releases input", &p->release_label) &&
+        text_create(font, "x", &p->close_label) &&
+        text_create(font, "Open a tab from View", &p->empty_label);
 }
 void editor_scene_panel_focus_set(EditorScenePanel *p, bool focused) {
     if(!p || p->focused == focused) return;
@@ -209,7 +215,7 @@ static SDL_FRect image_rectangle_get(const EditorSceneFrame *frame, SDL_FRect vi
 bool editor_scene_panel_event_add(EditorScenePanel *p, const SDL_Event *event,
         SDL_FRect viewport, bool blocked) {
     if(!p || !event) return false;
-    if(blocked || !p->selected || event->type == SDL_EVENT_WINDOW_FOCUS_LOST ||
+    if(blocked || p->active_tab != EDITOR_SCENE_TAB_SIMULATION || event->type == SDL_EVENT_WINDOW_FOCUS_LOST ||
             event->type == SDL_EVENT_WINDOW_MINIMIZED) {
         editor_scene_panel_focus_set(p, false); p->focus_on_running = false; return false;
     }
@@ -286,21 +292,175 @@ void editor_scene_panel_input_mode_apply(EditorScenePanel *p, SDL_FRect viewport
         window_integer(fmaxf(0, b.x-a.x)), window_integer(fmaxf(0, b.y-a.y))},
         window_integer(cursor.x-origin.x));
 }
+#define EDITOR_SCENE_TAB_EDITOR_WIDTH 100.0f
+#define EDITOR_SCENE_TAB_SIMULATION_WIDTH 160.0f
+#define EDITOR_SCENE_TAB_DRAG_THRESHOLD 4.0f
+#define EDITOR_SCENE_TAB_CLOSE_WIDTH 14.0f
+#define EDITOR_SCENE_TAB_TEXT_HEIGHT 11.0f
+static bool tab_valid_check(EditorSceneTab tab) {
+    return tab >= EDITOR_SCENE_TAB_EDITOR && tab < EDITOR_SCENE_TAB_COUNT;
+}
+static SDL_FRect tab_bounds_get(const EditorScenePanel *p, EditorSceneTab tab, SDL_FRect viewport) {
+    float total = (p->tab_visible[EDITOR_SCENE_TAB_EDITOR] ? EDITOR_SCENE_TAB_EDITOR_WIDTH : 0) +
+        (p->tab_visible[EDITOR_SCENE_TAB_SIMULATION] ? EDITOR_SCENE_TAB_SIMULATION_WIDTH : 0);
+    float scale = total > 0 ? SDL_min(1.0f, fmaxf(0, viewport.w) / total) : 1.0f;
+    float x = viewport.x;
+    for(int i = 0; i < EDITOR_SCENE_TAB_COUNT; ++i) {
+        EditorSceneTab current = p->tab_order[i];
+        if(!p->tab_visible[current]) continue;
+        float width = (current == EDITOR_SCENE_TAB_EDITOR ? EDITOR_SCENE_TAB_EDITOR_WIDTH : EDITOR_SCENE_TAB_SIMULATION_WIDTH) * scale;
+        if(current == tab) return (SDL_FRect){x, viewport.y - EDITOR_SCENE_TAB_HEIGHT,
+            width, EDITOR_SCENE_TAB_HEIGHT};
+        x += width;
+    }
+    return (SDL_FRect){0};
+}
+static SDL_FRect tab_close_bounds_get(SDL_FRect tab) {
+    float width = SDL_min(tab.w, EDITOR_SCENE_TAB_CLOSE_WIDTH);
+    return (SDL_FRect){tab.x + tab.w - width, tab.y, width, tab.h};
+}
+static bool tab_point_check(Position point, SDL_FRect bounds) {
+    return point.x >= bounds.x && point.y >= bounds.y &&
+        point.x < bounds.x + bounds.w && point.y < bounds.y + bounds.h;
+}
+static void tab_gesture_clear(EditorScenePanel *p) {
+    p->pressed_tab = p->drop_before = EDITOR_SCENE_TAB_NONE;
+    p->close_pressed = p->tab_dragging = false;
+}
+void editor_scene_panel_project_reset(EditorScenePanel *p) {
+    if(!p) return;
+    tab_gesture_clear(p);
+    p->hovered_tab = EDITOR_SCENE_TAB_NONE;
+    p->active_tab = p->tab_visible[EDITOR_SCENE_TAB_EDITOR] ? EDITOR_SCENE_TAB_EDITOR :
+        p->tab_visible[EDITOR_SCENE_TAB_SIMULATION] ? EDITOR_SCENE_TAB_SIMULATION : EDITOR_SCENE_TAB_NONE;
+}
+EditorSceneAction editor_scene_panel_tab_visible_set(EditorScenePanel *p, EditorSceneTab tab, bool visible) {
+    if(!p || !tab_valid_check(tab) || p->tab_visible[tab] == visible) return EDITOR_SCENE_ACTION_NONE;
+    p->tab_visible[tab] = visible;
+    tab_gesture_clear(p);
+    p->hovered_tab = EDITOR_SCENE_TAB_NONE; p->close_hovered = false;
+    if(visible) p->active_tab = tab;
+    else if(p->active_tab == tab) {
+        p->active_tab = EDITOR_SCENE_TAB_NONE;
+        for(int i = 0; i < EDITOR_SCENE_TAB_COUNT; ++i)
+            if(p->tab_visible[p->tab_order[i]]) { p->active_tab = p->tab_order[i]; break; }
+    }
+    return (!visible && tab == EDITOR_SCENE_TAB_SIMULATION) ||
+        (visible && tab == EDITOR_SCENE_TAB_EDITOR) ? EDITOR_SCENE_ACTION_STOP : EDITOR_SCENE_ACTION_NONE;
+}
+bool editor_scene_panel_tabs_event_add(EditorScenePanel *p, const SDL_Event *event,
+        SDL_FRect viewport, bool blocked, EditorSceneAction *action) {
+    if(action) *action = EDITOR_SCENE_ACTION_NONE;
+    if(!p || !event) return false;
+    if(blocked || event->type == SDL_EVENT_WINDOW_FOCUS_LOST || event->type == SDL_EVENT_WINDOW_MINIMIZED) {
+        tab_gesture_clear(p); p->hovered_tab = EDITOR_SCENE_TAB_NONE; return false;
+    }
+    if(event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE &&
+            p->pressed_tab != EDITOR_SCENE_TAB_NONE) { tab_gesture_clear(p); return true; }
+    Position point;
+    if(event->type == SDL_EVENT_MOUSE_MOTION) point = (Position){event->motion.x, event->motion.y};
+    else if(event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP)
+        point = (Position){event->button.x, event->button.y};
+    else return false;
+    /* A scene-originated gesture must receive its release even over the tabs. */
+    if(p->captured_buttons && p->pressed_tab == EDITOR_SCENE_TAB_NONE) return false;
+    point = graphics_window_to_screen_get(point);
+    p->hovered_tab = EDITOR_SCENE_TAB_NONE; p->close_hovered = false;
+    for(int i = 0; i < EDITOR_SCENE_TAB_COUNT; ++i) {
+        SDL_FRect bounds = tab_bounds_get(p, (EditorSceneTab)i, viewport);
+        if(tab_point_check(point, bounds)) {
+            p->hovered_tab = (EditorSceneTab)i;
+            p->close_hovered = tab_point_check(point, tab_close_bounds_get(bounds));
+        }
+    }
+    bool in_strip = tab_point_check(point, (SDL_FRect){viewport.x,
+        viewport.y - EDITOR_SCENE_TAB_HEIGHT, viewport.w, EDITOR_SCENE_TAB_HEIGHT});
+    if(in_strip && event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+        editor_scene_panel_focus_set(p, false); p->focus_on_running = false;
+    }
+    if(event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT &&
+            p->hovered_tab != EDITOR_SCENE_TAB_NONE) {
+        p->pressed_tab = p->hovered_tab; p->tab_press = point;
+        p->close_pressed = p->close_hovered; p->tab_dragging = false;
+        editor_scene_panel_focus_set(p, false);
+        return true;
+    }
+    /* Releases from editor-originated gestures must also reach their owner. */
+    if(p->pressed_tab == EDITOR_SCENE_TAB_NONE)
+        return in_strip && event->type != SDL_EVENT_MOUSE_BUTTON_UP;
+    if(event->type == SDL_EVENT_MOUSE_MOTION && !p->close_pressed) {
+        if(fabsf(point.x - p->tab_press.x) >= EDITOR_SCENE_TAB_DRAG_THRESHOLD)
+            p->tab_dragging = true;
+        p->drop_before = EDITOR_SCENE_TAB_NONE;
+        for(int i = 0; i < EDITOR_SCENE_TAB_COUNT; ++i) {
+            EditorSceneTab tab = p->tab_order[i];
+            if(tab == p->pressed_tab || !p->tab_visible[tab]) continue;
+            SDL_FRect bounds = tab_bounds_get(p, tab, viewport);
+            if(point.x < bounds.x + bounds.w * 0.5f) { p->drop_before = tab; break; }
+        }
+    }
+    if(event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT) {
+        EditorSceneTab pressed = p->pressed_tab;
+        if(p->tab_dragging) {
+            EditorSceneTab other = pressed == EDITOR_SCENE_TAB_EDITOR ?
+                EDITOR_SCENE_TAB_SIMULATION : EDITOR_SCENE_TAB_EDITOR;
+            if(p->tab_visible[other]) {
+                p->tab_order[0] = p->drop_before == other ? pressed : other;
+                p->tab_order[1] = p->tab_order[0] == pressed ? other : pressed;
+            }
+        } else if(p->hovered_tab == pressed) {
+            if(p->close_pressed && p->close_hovered) {
+                EditorSceneAction result = editor_scene_panel_tab_visible_set(p, pressed, false);
+                if(action) *action = result;
+            } else if(!p->close_pressed && !p->close_hovered) {
+                p->active_tab = pressed;
+                if(action && pressed == EDITOR_SCENE_TAB_EDITOR) *action = EDITOR_SCENE_ACTION_EDITOR;
+            }
+        }
+        tab_gesture_clear(p);
+    }
+    return true;
+}
+static void tab_text_draw(const TextAsset *text, SDL_FRect bounds, float height) {
+    if(text->size.x <= 0 || text->size.y <= 0 || bounds.w <= 0 || bounds.h <= 0) return;
+    float scale = SDL_min(height / text->size.y, bounds.w / text->size.x);
+    if(scale <= 0) return;
+    (void)rohr_graphics_text_scaled_draw(text, (Position){bounds.x + (bounds.w - text->size.x * scale) * 0.5f,
+        bounds.y + (bounds.h - text->size.y * scale) * 0.5f}, (Scale){scale, scale});
+}
 EditorSceneAction editor_scene_panel_draw(EditorScenePanel *p, SDL_FRect viewport, bool building) {
     EditorSceneAction action = EDITOR_SCENE_ACTION_NONE;
     rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
     rohr_ui_surface((UIRect){viewport.x, viewport.y - EDITOR_SCENE_TAB_HEIGHT, viewport.w, EDITOR_SCENE_TAB_HEIGHT},
         (Color){26, 31, 40, 255});
-    UIButtonStyle selected = {.idle={62,75,94,255}, .hovered={72,85,104,255}, .pressed={42,55,74,255}};
-    if(rohr_ui_button("scene.tab.editor", &p->editor_label,
-            (UIRect){viewport.x, viewport.y-EDITOR_SCENE_TAB_HEIGHT, 100, EDITOR_SCENE_TAB_HEIGHT},
-            p->selected ? NULL : &selected).clicked) {
-        p->selected = false; action = EDITOR_SCENE_ACTION_EDITOR;
+    for(int i = 0; i < EDITOR_SCENE_TAB_COUNT; ++i) {
+        EditorSceneTab tab = p->tab_order[i];
+        if(!p->tab_visible[tab]) continue;
+        SDL_FRect bounds = tab_bounds_get(p, tab, viewport), close = tab_close_bounds_get(bounds);
+        Color color = p->active_tab == tab ? (Color){62,75,94,255} : (Color){38,45,57,255};
+        if(p->hovered_tab == tab) { color.red += 8; color.green += 8; color.blue += 8; }
+        rohr_ui_surface((UIRect){bounds.x, bounds.y + 1, fmaxf(0, bounds.w - 1), bounds.h - 1}, color);
+        tab_text_draw(tab == EDITOR_SCENE_TAB_EDITOR ? &p->editor_label : &p->scene_label,
+            (SDL_FRect){bounds.x + 4, bounds.y, fmaxf(0, bounds.w - close.w - 8), bounds.h}, EDITOR_SCENE_TAB_TEXT_HEIGHT);
+        bool hovered = p->hovered_tab == tab && p->close_hovered;
+        Color close_color = hovered ? (Color){220,48,58,190} : (Color){180,35,43,105};
+        if(p->pressed_tab == tab && p->close_pressed && hovered) close_color = (Color){130,20,27,220};
+        rohr_ui_surface((UIRect){close.x + 1, close.y + 1, fmaxf(0, close.w - 2), close.h - 2}, close_color);
+        tab_text_draw(&p->close_label, close, EDITOR_SCENE_TAB_TEXT_HEIGHT);
     }
-    if(p->available && rohr_ui_button("scene.tab.simulation", &p->scene_label,
-            (UIRect){viewport.x+100, viewport.y-EDITOR_SCENE_TAB_HEIGHT, 200, EDITOR_SCENE_TAB_HEIGHT},
-            p->selected ? &selected : NULL).clicked) p->selected = true;
-    if(!p->selected) return action;
+    if(p->tab_dragging) {
+        SDL_FRect last = tab_bounds_get(p, p->tab_order[1], viewport);
+        if(last.w == 0) last = tab_bounds_get(p, p->tab_order[0], viewport);
+        float x = p->drop_before == EDITOR_SCENE_TAB_NONE ? last.x + last.w - 2 :
+            tab_bounds_get(p, p->drop_before, viewport).x;
+        rohr_ui_surface((UIRect){x, viewport.y - EDITOR_SCENE_TAB_HEIGHT, 2, EDITOR_SCENE_TAB_HEIGHT},
+            (Color){150,185,225,255});
+    }
+    if(p->active_tab == EDITOR_SCENE_TAB_NONE) {
+        rohr_ui_surface((UIRect){viewport.x, viewport.y, viewport.w, viewport.h}, (Color){15,18,24,255});
+        rohr_ui_label(&p->empty_label, (UIRect){viewport.x, viewport.y, viewport.w, viewport.h});
+    }
+    if(p->active_tab != EDITOR_SCENE_TAB_SIMULATION) return action;
     rohr_ui_surface((UIRect){viewport.x, viewport.y, viewport.w, viewport.h}, (Color){15,18,24,255});
     EditorSceneFrame frame = editor_scene_session_frame_get(p->session);
     if(!p->cleared && frame.pixels && !p->image_failed) {
@@ -343,5 +503,6 @@ void editor_scene_panel_destroy(EditorScenePanel *p) {
     rohr_graphics_text_destroy(&p->resume_label); rohr_graphics_text_destroy(&p->stop_label);
     rohr_graphics_text_destroy(&p->waiting_label);
     rohr_graphics_text_destroy(&p->release_label);
+    rohr_graphics_text_destroy(&p->close_label); rohr_graphics_text_destroy(&p->empty_label);
     *p = (EditorScenePanel){0};
 }

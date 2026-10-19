@@ -34,13 +34,25 @@ workflow below builds and launches a standalone window.
 
 ## Editor simulation tab
 
-The **Editor** and **Scene Simulation** tabs sit above the viewport. **Run** in
+Both **Editor** and **Scene Simulation** tabs appear above the viewport when a
+project opens, initially with Editor active. Drag the compact tab headers to
+reorder them. Each tab's **x** and its checked **View** menu entry control the
+same visibility state. Re-enabling a tab selects it. Closing the active tab
+selects the remaining visible tab; closing both shows an empty-viewport hint.
+Visibility and order survive project transitions within a session, but reset
+when the editor restarts. Opening a project prefers Editor when it is visible;
+the strip is hidden without a project.
+
+**Run** in
 the simulation tab regenerates and builds the current in-memory scene before
 launching it in an isolated child process. **Pause** freezes that instance;
 **Resume** continues it without rebuilding. **Stop**, or selecting **Editor**,
 stops the child, releases its input, and clears the image. The simulation tab
-remains available until the project closes. Stop and Editor also cancel a pending
-simulation build; they do not cancel an unrelated application build.
+can be hidden through its close button or View entry, which also stops the child
+and clears its image. Reopening a hidden simulation tab leaves it stopped.
+**Run > Simulate Scene** reveals and selects the tab. Stop, Editor selection, and
+hiding the simulation tab also cancel a pending simulation build; they do not
+cancel an unrelated application build.
 
 The properties column remains editable during simulation. Changes take effect
 on the next fresh Run. Scene/project builds stop the current simulation before

@@ -8,11 +8,11 @@
 #include <string.h>
 
 float editor_viewport_width=800, editor_window_width=1000, editor_window_height=720,
-    editor_viewport_bottom=600, editor_viewport_top=64;
+    editor_viewport_bottom=600, editor_viewport_top=49;
 static EditorScenePanel panel;
 static EditorNotificationPanel notifications;
 static EditorTerminalPanel terminal;
-static const SDL_FRect viewport = {0,64,800,536};
+static const SDL_FRect viewport = {0,49,800,551};
 /* The bundled dummy backend supports keyboard focus without a desktop. */
 extern bool SDL_SetKeyboardFocus(SDL_Window *window);
 static void poll_scene(void) {
@@ -32,7 +32,22 @@ static EditorSceneAction frame(Position point, MouseButtonState button) {
     rohr_ui_update(); assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
     return action;
 }
+static EditorSceneAction tab_event(Uint32 type, Position point, bool blocked) {
+    SDL_FPoint window = graphics_scene_window_point_get((SDL_FPoint){point.x, point.y});
+    SDL_Event event = {.type = type};
+    if(type == SDL_EVENT_MOUSE_MOTION) { event.motion.x = window.x; event.motion.y = window.y; }
+    else { event.button.button = SDL_BUTTON_LEFT; event.button.x = window.x; event.button.y = window.y; }
+    EditorSceneAction action;
+    (void)editor_scene_panel_tabs_event_add(&panel, &event, viewport, blocked, &action);
+    return action;
+}
 static EditorSceneAction click(Position point) {
+    if(point.y < viewport.y) {
+        (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, point, false);
+        EditorSceneAction action = tab_event(SDL_EVENT_MOUSE_BUTTON_UP, point, false);
+        (void)frame(point, MOUSE_BUTTON_STATE_UP);
+        return action;
+    }
     EditorSceneAction first = frame(point, MOUSE_BUTTON_STATE_PRESSED);
     EditorSceneAction second = frame(point, MOUSE_BUTTON_STATE_RELEASED);
     (void)frame(point, MOUSE_BUTTON_STATE_UP);
@@ -53,12 +68,55 @@ int main(int argc, char **argv) {
     FontAsset font=rohr_graphics_font_default_get();
     assert(editor_notification_panel_create(&notifications,&font,&font));
     assert(editor_scene_panel_create(&panel,&font,&terminal,&notifications));
-    assert(!panel.available && !panel.selected);
-    assert(click((Position){200,45}) == EDITOR_SCENE_ACTION_NONE && !panel.selected);
-    panel.available=true;
-    assert(click((Position){200,45}) == EDITOR_SCENE_ACTION_NONE && panel.selected);
-    assert(click((Position){60,80}) == EDITOR_SCENE_ACTION_RUN);
-    assert(click((Position){170,80}) == EDITOR_SCENE_ACTION_STOP);
+    assert(EDITOR_SCENE_TAB_HEIGHT == 15 && EDITOR_SCENE_CONTROLS_HEIGHT == 36);
+    assert(panel.tab_visible[0] && panel.tab_visible[1] && panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
+    assert(panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);
+    assert(click((Position){200,41}) == EDITOR_SCENE_ACTION_NONE && panel.active_tab == EDITOR_SCENE_TAB_SIMULATION);
+    /* Close never selects its tab; View uses the same visibility state. */
+    assert(click((Position){93,41}) == EDITOR_SCENE_ACTION_NONE);
+    assert(!panel.tab_visible[0] && panel.active_tab == EDITOR_SCENE_TAB_SIMULATION);
+    assert(click((Position){153,41}) == EDITOR_SCENE_ACTION_STOP);
+    assert(!panel.tab_visible[1] && panel.active_tab == EDITOR_SCENE_TAB_NONE);
+    assert(click((Position){50,41}) == EDITOR_SCENE_ACTION_NONE && panel.active_tab == EDITOR_SCENE_TAB_NONE);
+    assert(editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_EDITOR, true) == EDITOR_SCENE_ACTION_STOP);
+    assert(panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
+    assert(editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, true) == EDITOR_SCENE_ACTION_NONE);
+    /* A sub-threshold move still selects; dragging does not change the active identity. */
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, (Position){50,41}, false);
+    (void)tab_event(SDL_EVENT_MOUSE_MOTION, (Position){52,41}, false);
+    assert(!panel.tab_dragging);
+    assert(tab_event(SDL_EVENT_MOUSE_BUTTON_UP, (Position){52,41}, false) == EDITOR_SCENE_ACTION_EDITOR);
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, (Position){50,41}, false);
+    (void)tab_event(SDL_EVENT_MOUSE_MOTION, (Position){240,120}, false);
+    assert(panel.tab_dragging && panel.drop_before == EDITOR_SCENE_TAB_NONE);
+    (void)frame((Position){240,120}, MOUSE_BUTTON_STATE_UP);
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_UP, (Position){240,120}, false);
+    assert(panel.tab_order[0] == EDITOR_SCENE_TAB_SIMULATION && panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, (Position){200,41}, false);
+    (void)tab_event(SDL_EVENT_MOUSE_MOTION, (Position){20,41}, false);
+    assert(panel.drop_before == EDITOR_SCENE_TAB_SIMULATION);
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_UP, (Position){20,41}, false);
+    assert(panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);
+    /* Close dragging, overlays, focus loss, and Escape must not reorder or select. */
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, (Position){93,41}, false);
+    (void)tab_event(SDL_EVENT_MOUSE_MOTION, (Position){240,41}, false);
+    assert(!panel.tab_dragging);
+    (void)tab_event(SDL_EVENT_MOUSE_BUTTON_UP, (Position){240,41}, false);
+    assert(panel.tab_visible[0] && panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);
+    for(int cancellation = 0; cancellation < 3; ++cancellation) {
+        (void)tab_event(SDL_EVENT_MOUSE_BUTTON_DOWN, (Position){50,41}, false);
+        (void)tab_event(SDL_EVENT_MOUSE_MOTION, (Position){240,41}, false);
+        SDL_Event cancel = {.type = cancellation == 1 ? SDL_EVENT_WINDOW_FOCUS_LOST : SDL_EVENT_KEY_DOWN};
+        cancel.key.scancode = SDL_SCANCODE_ESCAPE;
+        EditorSceneAction ignored;
+        (void)editor_scene_panel_tabs_event_add(&panel, &cancel, viewport, cancellation == 0, &ignored);
+        assert(panel.pressed_tab == EDITOR_SCENE_TAB_NONE && !panel.tab_dragging);
+        (void)tab_event(SDL_EVENT_MOUSE_BUTTON_UP, (Position){240,41}, false);
+        assert(panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);
+    }
+    assert(click((Position){200,41}) == EDITOR_SCENE_ACTION_NONE && panel.active_tab == EDITOR_SCENE_TAB_SIMULATION);
+    assert(click((Position){60,65}) == EDITOR_SCENE_ACTION_RUN);
+    assert(click((Position){170,65}) == EDITOR_SCENE_ACTION_STOP);
     Report warning=warning_report();
     editor_scene_panel_report(&panel,&warning);
     uint64_t id=panel.groups[0].notification;
@@ -116,24 +174,69 @@ int main(int argc, char **argv) {
     SDL_FPoint window=graphics_scene_window_point_get((SDL_FPoint){400,350});
     event.button.x=window.x; event.button.y=window.y;
     assert(editor_scene_panel_event_add(&panel,&event,viewport,false));
-    event.type=SDL_EVENT_MOUSE_BUTTON_UP; event.button.x=-20; event.button.y=-20;
+    event.type=SDL_EVENT_MOUSE_BUTTON_UP;
+    SDL_FPoint strip = graphics_scene_window_point_get((SDL_FPoint){50,41});
+    event.button.x=strip.x; event.button.y=strip.y;
+    EditorSceneAction tab_action;
+    assert(!editor_scene_panel_tabs_event_add(&panel,&event,viewport,false,&tab_action));
     assert(editor_scene_panel_event_add(&panel,&event,viewport,false));
     assert(!panel.captured_buttons);
-    event.type=SDL_EVENT_MOUSE_BUTTON_DOWN;
+    /* Tab gestures are consumed while the child runs, including motion/release over its image. */
+    assert(panel.focused);
+    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN; event.button.x = strip.x; event.button.y = strip.y;
+    assert(editor_scene_panel_tabs_event_add(&panel,&event,viewport,false,&tab_action));
+    assert(!panel.focused && panel.active_tab == EDITOR_SCENE_TAB_SIMULATION);
+    event.type = SDL_EVENT_MOUSE_MOTION; event.motion.x = window.x; event.motion.y = window.y;
+    assert(editor_scene_panel_tabs_event_add(&panel,&event,viewport,false,&tab_action));
+    event.type = SDL_EVENT_MOUSE_BUTTON_UP; event.button.button = SDL_BUTTON_LEFT;
+    event.button.x = window.x; event.button.y = window.y;
+    assert(editor_scene_panel_tabs_event_add(&panel,&event,viewport,false,&tab_action));
+    assert(tab_action == EDITOR_SCENE_ACTION_NONE && panel.active_tab == EDITOR_SCENE_TAB_SIMULATION);
+    assert(!rohr_input_mouse_button_pressed_check(INPUT_MOUSE_BUTTON_LEFT));
+    /* Restore tab order after the isolated drag for subsequent control checks. */
+    panel.tab_order[0] = EDITOR_SCENE_TAB_EDITOR; panel.tab_order[1] = EDITOR_SCENE_TAB_SIMULATION;
+    event.type=SDL_EVENT_MOUSE_BUTTON_DOWN; event.button.x=-20; event.button.y=-20;
     assert(!editor_scene_panel_event_add(&panel,&event,viewport,false) && !panel.focused);
     event.button.x=window.x; event.button.y=window.y;
     assert(editor_scene_panel_event_add(&panel,&event,viewport,false) && panel.focused);
     assert(!editor_scene_panel_event_add(&panel,&event,viewport,true) && !panel.focused);
-    assert(click((Position){60,80})==EDITOR_SCENE_ACTION_NONE);
+    assert(click((Position){60,65})==EDITOR_SCENE_ACTION_NONE);
     wait_state(EDITOR_SCENE_PAUSED);
     uint64_t sequence=panel.sequence;
-    (void)click((Position){60,80}); wait_state(EDITOR_SCENE_RUNNING);
+    (void)click((Position){60,65}); wait_state(EDITOR_SCENE_RUNNING);
     assert(panel.focused && !panel.cleared);
-    assert(click((Position){50,45})==EDITOR_SCENE_ACTION_EDITOR && !panel.selected);
+    assert(click((Position){50,41})==EDITOR_SCENE_ACTION_EDITOR && panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
     editor_scene_panel_stop(&panel);
-    assert(!panel.image && panel.cleared && !panel.focused && panel.available);
+    assert(!panel.image && panel.cleared && !panel.focused && panel.tab_visible[EDITOR_SCENE_TAB_SIMULATION]);
     wait_state(EDITOR_SCENE_STOPPED);
     assert(sequence>0);
+    /* Hiding the simulation from View or x stops the child, including while paused. */
+    for(int paused = 0; paused < 2; ++paused) {
+        (void)editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, false);
+        (void)editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, true);
+        assert(editor_scene_session_state_get(session) == EDITOR_SCENE_STOPPED && panel.cleared);
+        editor_scene_panel_run_begin(&panel);
+        assert(!rohr_error_check(editor_scene_session_launch(session,argv[1])));
+        wait_state(EDITOR_SCENE_RUNNING);
+        if(paused) { (void)click((Position){60,65}); wait_state(EDITOR_SCENE_PAUSED); }
+        EditorSceneAction action = paused ? click((Position){253,41}) :
+            editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, false);
+        assert(action == EDITOR_SCENE_ACTION_STOP && panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
+        editor_scene_panel_stop(&panel);
+        assert(panel.cleared && !panel.focused && !panel.focus_on_running);
+        wait_state(EDITOR_SCENE_STOPPED);
+    }
+    /* Project transitions preserve the layout, but prefer Editor on opening. */
+    panel.tab_order[0] = EDITOR_SCENE_TAB_SIMULATION; panel.tab_order[1] = EDITOR_SCENE_TAB_EDITOR;
+    (void)editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, true);
+    editor_scene_panel_project_reset(&panel);
+    assert(panel.active_tab == EDITOR_SCENE_TAB_EDITOR && panel.tab_order[0] == EDITOR_SCENE_TAB_SIMULATION);
+    (void)editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_EDITOR, false);
+    editor_scene_panel_project_reset(&panel);
+    assert(panel.active_tab == EDITOR_SCENE_TAB_SIMULATION && !panel.tab_visible[0]);
+    (void)editor_scene_panel_tab_visible_set(&panel, EDITOR_SCENE_TAB_SIMULATION, false);
+    editor_scene_panel_project_reset(&panel);
+    assert(panel.active_tab == EDITOR_SCENE_TAB_NONE);
     editor_scene_session_destroy(session); editor_scene_panel_attach(&panel,NULL);
     /* Queued image draws retain resources through owner destruction and resize. */
     GraphicsSceneImage *image=graphics_scene_image_create(); assert(image);
@@ -146,6 +249,10 @@ int main(int argc, char **argv) {
     assert(!rohr_error_check(graphics_scene_image_draw(image,(SDL_FRect){0,0,20,20})));
     graphics_scene_image_destroy(image);
     assert(rohr_graphics_show().header.status != ROHR_REPORT_FAILED);
+    editor_scene_panel_destroy(&panel);
+    assert(editor_scene_panel_create(&panel,&font,&terminal,&notifications));
+    assert(panel.tab_visible[0] && panel.tab_visible[1] && panel.tab_order[0] == EDITOR_SCENE_TAB_EDITOR);
+    assert(panel.active_tab == EDITOR_SCENE_TAB_EDITOR);
     editor_scene_panel_destroy(&panel); editor_notification_panel_destroy(&notifications);
     rohr_graphics_stop(); rohr_engine_stop(); return 0;
 }

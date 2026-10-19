@@ -437,7 +437,8 @@ static void editor_build_runtime_cancel(EditorBuildRuntime *runtime) {
     editor_scene_panel_stop(&runtime->panel);
     editor_scene_session_destroy(runtime->scene); runtime->scene = NULL;
     editor_scene_panel_attach(&runtime->panel, NULL);
-    runtime->panel.available = runtime->panel.selected = runtime->launch_scene = false;
+    editor_scene_panel_project_reset(&runtime->panel);
+    runtime->launch_scene = false;
     editor_build_process_destroy(runtime->application); runtime->application = NULL;
     runtime->prepared_scene[0] = 0;
 }
@@ -556,7 +557,8 @@ static void editor_run_request(EditorBuildRuntime *runtime, const EditorWorkspac
         editor_build_notification_start_failure(notifications, operation, "Wait for the active build to finish before running."); return;
     }
     if(scene) {
-        runtime->panel.available = runtime->panel.selected = true;
+        (void)editor_scene_panel_tab_visible_set(&runtime->panel, EDITOR_SCENE_TAB_SIMULATION, true);
+        runtime->panel.active_tab = EDITOR_SCENE_TAB_SIMULATION;
         editor_build_request(runtime, EDITOR_BUILD_ACTION_SIMULATE, notifications);
         return;
     }
@@ -2265,6 +2267,7 @@ int main(int argc, char **argv) {
     TextAsset cancel_label = {0};
     TextAsset reset_view_label = {0};
     TextAsset grid_label = {0};
+    TextAsset editor_tab_label = {0}, simulation_tab_label = {0};
     TextAsset terminal_label = {0};
     TextAsset terminal_menu_label = {0};
     TextAsset terminal_visible_label = {0};
@@ -2476,6 +2479,8 @@ int main(int argc, char **argv) {
             !editor_text_create(&font, "Cancel", &cancel_label) ||
             !editor_text_create(&font, "Reset View", &reset_view_label) ||
             !editor_text_create(&font, "Toggle Grid", &grid_label) ||
+            !editor_text_create(&font, "[x] Editor", &editor_tab_label) ||
+            !editor_text_create(&font, "[x] Scene Simulation", &simulation_tab_label) ||
             !editor_text_create(&font, "Terminal", &terminal_label) ||
             !editor_text_create(&font, "Terminal", &terminal_menu_label) ||
             !editor_text_create(&font, "[ ] Visible", &terminal_visible_label) ||
@@ -2580,6 +2585,12 @@ int main(int argc, char **argv) {
                     (event_point.x >= 14 && event_point.x <= 204 && event_point.y >=
                         EDITOR_ACTION_BAR_TOP - 40.0f * notification_panel.store.toast_count);
             }
+            EditorSceneAction tab_action;
+            bool tab_consumed = editor_scene_panel_tabs_event_add(&build_runtime.panel, &event,
+                editor_scene_bounds_get(), scene_blocked, &tab_action);
+            if(tab_action == EDITOR_SCENE_ACTION_EDITOR || tab_action == EDITOR_SCENE_ACTION_STOP)
+                editor_scene_stop_request(&build_runtime);
+            if(tab_consumed) continue;
             if(editor_scene_panel_event_add(&build_runtime.panel, &event, editor_scene_bounds_get(), scene_blocked)) continue;
             input_event_add(&event);
             EditorHistoryShortcutResult shortcut = build_settings_panel.open ||
@@ -2788,7 +2799,7 @@ int main(int argc, char **argv) {
                 }
             }
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            bool pointer_in_viewport = !build_runtime.panel.selected && pointer.x >= 0.0f &&
+            bool pointer_in_viewport = (build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) && pointer.x >= 0.0f &&
                 pointer.x < EDITOR_VIEWPORT_WIDTH && pointer.y >= EDITOR_VIEWPORT_TOP &&
                 pointer.y < EDITOR_VIEWPORT_BOTTOM;
             bool up = rohr_input_key_pressed_check(SDL_SCANCODE_UP);
@@ -3716,7 +3727,7 @@ int main(int argc, char **argv) {
             }
         }
         rohr_graphics_screen_clip_clear();
-        if(build_runtime.panel.selected) {
+        if(build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR) {
             bool transform_active = editor_viewport_transform_active_check(&viewport_state);
             editor_viewport_transform_cancel(&viewport_state);
             viewport_state.marquee_active = viewport_state.camera_panning = false;
@@ -3727,7 +3738,7 @@ int main(int argc, char **argv) {
             0.0f, EDITOR_VIEWPORT_TOP, EDITOR_VIEWPORT_WIDTH,
             EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP);
         editor_viewport_asset_root_set(workspace.open ? workspace.directory : NULL);
-        if(!build_runtime.panel.selected) editor_viewport_draw(&project, &viewport_state,
+        if(build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) editor_viewport_draw(&project, &viewport_state,
             visual_settings_panel.state.grid_visible);
         rohr_graphics_screen_clip_clear();
         if(workspace.open) {
@@ -3755,7 +3766,7 @@ int main(int argc, char **argv) {
                 &color_picker_hex_field, &color_picker_opacity_field,
                 &opacity_label, &field_editing);
         }
-        if(!build_runtime.panel.selected) editor_coordinate_toggle_draw(&coordinate_toggle, &project,
+        if(build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) editor_coordinate_toggle_draw(&coordinate_toggle, &project,
             &viewport_state, EDITOR_VIEWPORT_TOP);
         {
             bool context_visible = true;
@@ -3822,7 +3833,7 @@ int main(int argc, char **argv) {
                 &new_label, &open_label, &save_label, &close_label, &exit_label
             };
             const TextAsset *view_options[] = {
-                &reset_view_label, &grid_label, &terminal_label
+                &reset_view_label, &grid_label, &terminal_label, &editor_tab_label, &simulation_tab_label
             };
             const TextAsset *terminal_options[] = {
                 &terminal_visible_label, &terminal_editor_operations_label,
@@ -3848,7 +3859,7 @@ int main(int argc, char **argv) {
             const TextAsset *run_texts[] = {&run_label, &run_application_label, &simulate_scene_label};
             const TextAsset *edit_texts[] = {&edit_label, &undo_label, &redo_label};
             const TextAsset *view_texts[] = {
-                &view_label, &reset_view_label, &grid_label, &terminal_label
+                &view_label, &reset_view_label, &grid_label, &terminal_label, &editor_tab_label, &simulation_tab_label
             };
             const TextAsset *terminal_texts[] = {
                 &terminal_menu_label, &terminal_visible_label,
@@ -3876,6 +3887,10 @@ int main(int argc, char **argv) {
 
             (void)rohr_graphics_text_value_set(&terminal_label,
                 terminal_panel.visible ? "[x] Terminal" : "[ ] Terminal");
+            (void)rohr_graphics_text_value_set(&editor_tab_label,
+                build_runtime.panel.tab_visible[EDITOR_SCENE_TAB_EDITOR] ? "[x] Editor" : "[ ] Editor");
+            (void)rohr_graphics_text_value_set(&simulation_tab_label,
+                build_runtime.panel.tab_visible[EDITOR_SCENE_TAB_SIMULATION] ? "[x] Scene Simulation" : "[ ] Scene Simulation");
             (void)rohr_graphics_text_value_set(&grid_label,
                 visual_settings_panel.state.grid_visible ?
                     "[x] Grid" : "[ ] Grid");
@@ -4046,6 +4061,14 @@ int main(int argc, char **argv) {
                     }
                 } else if(view_menu.changed && view_menu.selected_index == 2)
                     editor_terminal_panel_visible_toggle(&terminal_panel);
+                else if(view_menu.changed && workspace.open &&
+                        (view_menu.selected_index == 3 || view_menu.selected_index == 4)) {
+                    EditorSceneTab tab = view_menu.selected_index == 3 ?
+                        EDITOR_SCENE_TAB_EDITOR : EDITOR_SCENE_TAB_SIMULATION;
+                    EditorSceneAction action = editor_scene_panel_tab_visible_set(&build_runtime.panel,
+                        tab, !build_runtime.panel.tab_visible[tab]);
+                    if(action == EDITOR_SCENE_ACTION_STOP) editor_scene_stop_request(&build_runtime);
+                }
             }
             {
                 UIDropdownResult terminal_menu = rohr_ui_menu(
@@ -4481,7 +4504,7 @@ int main(int argc, char **argv) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if(workspace.open && !build_runtime.panel.selected && pointer.x >= 0.0f &&
+            if(workspace.open && (build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) && pointer.x >= 0.0f &&
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
                     pointer.y >= EDITOR_VIEWPORT_TOP &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
@@ -4514,7 +4537,7 @@ int main(int argc, char **argv) {
             }
             editor_auto_shape_picker_frame_end(&auto_shape_editor, pointer,
                 pointer_state.button_states[MOUSE_BUTTON_LEFT], false);
-            bool ui_consumed = build_runtime.panel.selected || !workspace.open || file_browser.active ||
+            bool ui_consumed = (build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR) || !workspace.open || file_browser.active ||
                 close_action != EDITOR_CLOSE_NONE ||
                 context_menu_modal ||
                 editor_viewport_context_menu_open_check(&viewport_context_menu) ||
@@ -4529,7 +4552,7 @@ int main(int argc, char **argv) {
             bool transform_before =
                 editor_viewport_transform_active_check(&viewport_state);
             bool pan_modifier = editor_control_modifier_check();
-            if(build_runtime.panel.selected) {
+            if(build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR) {
                 viewport_consumed = true;
             } else if(viewport_state.marquee_active) {
                 viewport_consumed = true;
@@ -4564,7 +4587,7 @@ int main(int argc, char **argv) {
                         viewport_wheel_y, ui_consumed);
                 viewport_state.selection_modifier = false;
             }
-            if(!build_runtime.panel.selected && selection_modifier_active &&
+            if((build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) && selection_modifier_active &&
                     (pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                             MOUSE_BUTTON_STATE_PRESSED ||
                         pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
@@ -4740,6 +4763,8 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&opacity_label);
     rohr_graphics_text_destroy(&preferences_label);
     rohr_graphics_text_destroy(&grid_label);
+    rohr_graphics_text_destroy(&editor_tab_label);
+    rohr_graphics_text_destroy(&simulation_tab_label);
     rohr_graphics_text_destroy(&terminal_label);
     rohr_graphics_text_destroy(&terminal_menu_label);
     rohr_graphics_text_destroy(&terminal_visible_label);
@@ -4843,6 +4868,8 @@ fail:
     rohr_graphics_text_destroy(&opacity_label);
     rohr_graphics_text_destroy(&preferences_label);
     rohr_graphics_text_destroy(&grid_label);
+    rohr_graphics_text_destroy(&editor_tab_label);
+    rohr_graphics_text_destroy(&simulation_tab_label);
     rohr_graphics_text_destroy(&terminal_label);
     rohr_graphics_text_destroy(&terminal_menu_label);
     rohr_graphics_text_destroy(&terminal_visible_label);

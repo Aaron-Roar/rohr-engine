@@ -197,6 +197,18 @@ Saving and generating are separate operations:
 - **Run > Run Application** launches the existing application executable without compiling.
 - **Build > Scene Settings** selects included objects and an optional viewport. All/None affects current objects; new objects default included. Choices are saved with undo/redo, independently of visibility. Deleting the selected viewport leaves None selected.
 - **Run > Simulate Scene** regenerates and builds the current selection, including unsaved changes, then opens the Scene Simulation tab stopped. Run rebuilds before starting; Pause/Resume preserves the instance. Stop or selecting Editor clears the image and stops simulation. Properties stay editable for the next Run. Runtime output reaches the terminal; structured diagnostics appear in grouped notifications. Failure or cancellation cannot launch old output. See [simulation controls and focus](scene_projects.md#editor-simulation-tab).
+
+Both viewport tabs are visible when a project first opens, with **Editor** active.
+Drag their headers horizontally to reorder them. The compact tab strip highlights
+the active tab; its top-right **x** hides that tab and unchecks its entry under
+**View > Editor** or **View > Scene Simulation**. Enabling an entry shows and
+selects the tab. Closing the active tab selects the remaining tab; closing both
+leaves an empty viewport with a reminder to reopen a tab from View. Hiding the
+simulation tab also stops it and cancels simulation preparation. Reopening it
+leaves it stopped; **Run > Simulate Scene** reveals and selects it automatically.
+Visibility and order last for the editor session, including project transitions,
+and reset on restart. Tabs are hidden while no project is open.
+
 - **File > Close** closes the project and asks about unsaved changes.
 - **File > Exit** safely exits and asks about unsaved changes.
 
