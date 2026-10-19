@@ -137,7 +137,7 @@ static void reports_and_boundaries(void) {
 static void retained_assets(void) {
     FILE *f=fopen(texture_path,"wb"); assert(f);
     assert(fwrite(test_png,1,sizeof(test_png),f)==sizeof(test_png)); assert(fclose(f)==0);
-    TextureAssetResult loaded=rohr_graphics_texture_load((TextureDescriptor){texture_path,{4,4}}); OK(loaded);
+    TextureAssetResult loaded=rohr_graphics_texture_load((TextureDescription){texture_path,{4,4}}); OK(loaded);
     TextureAsset texture=loaded.result.value;
     EntityResult entity=rohr_entity_add(); OK(entity);
 #ifdef ROHR_TEST_GRAPHICS_WRAP
@@ -223,7 +223,7 @@ static void retained_assets(void) {
     OK(entity_info_release(&before.result.value)); OK(entity_info_release(&broken.result.value));
     OK(entity_info_release(&repaired.result.value));
     FontAsset font=rohr_graphics_font_default_get();
-    TextAssetResult text=rohr_graphics_text_create(&font,"queued text",white); OK(text);
+    TextAssetResult text=rohr_graphics_text_create((TextDescription){.font = font, .value = "queued text", .color = white}); OK(text);
     rohr_graphics_screen_texture_draw(texture,(Position){4,4},(Scale){4,4},0);
     assert(rohr_graphics_text_draw(&text.result.value,(Position){8,8}));
     OK(rohr_graphics_texture_release(&texture));
@@ -266,7 +266,7 @@ static void failures(void) {
     r=graphics_pipeline_commands_execute(); complete(r);
     assert(strstr(retained.diagnostics[0].detail,"injected draw failure"));
     FontAsset font=graphics_font_default_get();
-    TextAssetResult text=graphics_text_create(&font,"discard me",white); OK(text);
+    TextAssetResult text=graphics_text_create((TextDescription){.font = font, .value = "discard me", .color = white}); OK(text);
     assert(graphics_text_draw(&text.result.value,(Position){0}));
     OK(graphics_text_destroy(&text.result.value));
     fail_target=true;

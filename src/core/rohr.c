@@ -694,7 +694,7 @@ void rohr_graphics_joints_draw(Color color) { graphics_joints_draw(color); }
 bool rohr_graphics_soft_body_draw(Entity soft_body, Color surface, Color beam, Color node) { return graphics_soft_body_draw(soft_body, surface, beam, node); }
 EngineResult rohr_graphics_soft_body_node_color_set(Entity soft_body, Entity node, Color color) { return graphics_soft_body_node_color_set(soft_body, node, color); }
 EngineResult rohr_graphics_soft_body_beam_color_set(Entity soft_body, Entity node_a, Entity node_b, Color color) { return graphics_soft_body_beam_color_set(soft_body, node_a, node_b, color); }
-TextureAssetResult rohr_graphics_texture_load(TextureDescriptor text_desc) { return graphics_texture_load(text_desc); }
+TextureAssetResult rohr_graphics_texture_load(TextureDescription text_desc) { return graphics_texture_load(text_desc); }
 EngineResult rohr_graphics_texture_retain(TextureAsset asset) { return graphics_texture_retain(asset); }
 EngineResult rohr_graphics_texture_release(TextureAsset *asset) { return graphics_texture_release(asset); }
 bool rohr_graphics_texture_valid_check(TextureAsset asset) { return graphics_texture_valid_check(asset); }
@@ -704,12 +704,12 @@ void rohr_graphics_screen_texture_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation) {
     graphics_screen_texture_draw(texture, center, size, orientation);
 }
-FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor) { return graphics_font_load(descriptor); }
+FontAssetResult rohr_graphics_font_load(FontDescription descriptor) { return graphics_font_load(descriptor); }
 FontAsset rohr_graphics_font_default_get(void) { return graphics_font_default_get(); }
 EngineResult rohr_graphics_font_retain(FontAsset font) { return graphics_font_retain(font); }
 EngineResult rohr_graphics_font_release(FontAsset *font) { return graphics_font_release(font); }
 bool rohr_graphics_font_valid_check(FontAsset font) { return graphics_font_valid_check(font); }
-TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color) { return graphics_text_create(font, value, color); }
+TextAssetResult rohr_graphics_text_create(TextDescription description) { return graphics_text_create(description); }
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value) { return graphics_text_value_set(text, value); }
 bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width) { return graphics_text_wrap_width_set(text, wrap_width); }
 EngineResult rohr_graphics_text_destroy(TextAsset *text) { return graphics_text_destroy(text); }
@@ -720,7 +720,7 @@ bool rohr_graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation) {
     return graphics_screen_text_scaled_rotated_draw(text, center, scale, orientation);
 }
-AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc) { return graphics_animation_load(anim_desc); }
+AnimationAssetResult rohr_graphics_animation_load(AnimationDescription anim_desc) { return graphics_animation_load(anim_desc); }
 EngineResult rohr_graphics_animation_retain(AnimationAsset asset) { return graphics_animation_retain(asset); }
 EngineResult rohr_graphics_animation_release(AnimationAsset *asset) { return graphics_animation_release(asset); }
 bool rohr_graphics_animation_valid_check(AnimationAsset asset) { return graphics_animation_valid_check(asset); }
@@ -1121,3 +1121,13 @@ SoftBodyAreaDescriptionResult rohr_physics_soft_body_area_description_get(Entity
 EngineResult rohr_physics_joint_anchor_description_set(JointAnchorId anchor, JointAnchorDescription description) { return physics_joint_anchor_description_set(anchor, description); }
 
 JointAnchorDescriptionResult rohr_physics_joint_anchor_description_get(JointAnchorId anchor) { return physics_joint_anchor_description_get(anchor); }
+
+TextureDescription rohr_graphics_texture_description_default_get(void) { return graphics_texture_description_default_get(); }
+TextureDescriptionResult rohr_graphics_texture_description_get(TextureAsset asset) { return graphics_texture_description_get(asset); }
+FontDescription rohr_graphics_font_description_default_get(void) { return graphics_font_description_default_get(); }
+FontDescriptionResult rohr_graphics_font_description_get(FontAsset asset) { return graphics_font_description_get(asset); }
+AnimationDescription rohr_graphics_animation_description_default_get(void) { return graphics_animation_description_default_get(); }
+AnimationDescriptionResult rohr_graphics_animation_description_get(AnimationAsset asset) { return graphics_animation_description_get(asset); }
+TextDescription rohr_graphics_text_description_default_get(void) { return graphics_text_description_default_get(); }
+TextDescriptionResult rohr_graphics_text_description_get(TextAsset asset) { return graphics_text_description_get(asset); }
+EngineResult rohr_graphics_text_description_set(TextAsset *text, TextDescription description) { return graphics_text_description_set(text, description); }

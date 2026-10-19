@@ -3,7 +3,7 @@
  */
 
 #include "elderfly_descriptors.h"
-AnimationDescriptor elderfly_fly = (AnimationDescriptor) {
+AnimationDescription elderfly_fly = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/flying/f1.png",
     "assets/flies-around-ball/elder-fly/flying/f2.png",
@@ -18,12 +18,12 @@ AnimationDescriptor elderfly_fly = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/flying/f11.png",
     "assets/flies-around-ball/elder-fly/flying/f12.png",
   },
-  .amount_of_descriptors = 12,
+  .frame_count = 12,
   .ticks_per_frame = 0,
   .time_per_frame = 0.05,
 };
 
-AnimationDescriptor elderfly_death = (AnimationDescriptor) {
+AnimationDescription elderfly_death = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/death/d1.png",
     "assets/flies-around-ball/elder-fly/death/d2.png",
@@ -36,12 +36,12 @@ AnimationDescriptor elderfly_death = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/death/d9.png",
     "assets/flies-around-ball/elder-fly/death/d10.png",
   },
-  .amount_of_descriptors = 10,
+  .frame_count = 10,
   .ticks_per_frame = 0,
   .time_per_frame = 0.08,
 };
 
-AnimationDescriptor elderfly_attack = (AnimationDescriptor) {
+AnimationDescription elderfly_attack = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/attack/a1.png",
     "assets/flies-around-ball/elder-fly/attack/a2.png",
@@ -53,12 +53,12 @@ AnimationDescriptor elderfly_attack = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/attack/a8.png",
     "assets/flies-around-ball/elder-fly/attack/a9.png",
   },
-  .amount_of_descriptors = 9,
+  .frame_count = 9,
   .ticks_per_frame = 0,
   .time_per_frame = 0.05,
 };
 
-AnimationDescriptor elderfly_jump = (AnimationDescriptor) {
+AnimationDescription elderfly_jump = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/jump/j1.png",
     "assets/flies-around-ball/elder-fly/jump/j2.png",
@@ -70,12 +70,12 @@ AnimationDescriptor elderfly_jump = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/jump/j8.png",
     "assets/flies-around-ball/elder-fly/jump/j9.png",
   },
-  .amount_of_descriptors = 9,
+  .frame_count = 9,
   .ticks_per_frame = 0,
   .time_per_frame = 0.05,
 };
 
-AnimationDescriptor elderfly_land = (AnimationDescriptor) {
+AnimationDescription elderfly_land = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/land/l1.png",
     "assets/flies-around-ball/elder-fly/land/l2.png",
@@ -83,12 +83,12 @@ AnimationDescriptor elderfly_land = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/land/l4.png",
     "assets/flies-around-ball/elder-fly/land/l5.png",
   },
-  .amount_of_descriptors = 5,
+  .frame_count = 5,
   .ticks_per_frame = 0,
   .time_per_frame = 0.05,
 };
 
-AnimationDescriptor elderfly_take_damage = (AnimationDescriptor) {
+AnimationDescription elderfly_take_damage = {
   .frame_files = {
     "assets/flies-around-ball/elder-fly/take-damage/td1.png",
     "assets/flies-around-ball/elder-fly/take-damage/td2.png",
@@ -100,7 +100,7 @@ AnimationDescriptor elderfly_take_damage = (AnimationDescriptor) {
     "assets/flies-around-ball/elder-fly/take-damage/td8.png",
     "assets/flies-around-ball/elder-fly/take-damage/td9.png",
   },
-  .amount_of_descriptors = 9,
+  .frame_count = 9,
   .ticks_per_frame = 0,
   .time_per_frame = 0.05,
 };

@@ -47,7 +47,10 @@ bool editor_mode_text_create_color(const FontAsset *font, const char *value,
         editor_mode_text_error_set("invalid editor text creation arguments");
         return false;
     }
-    result = rohr_graphics_text_create(font, value, color);
+    result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = value,
+            .color = color});
     if(rohr_error_check(result)) {
         snprintf(message, sizeof(message), "error %d: %s",
             (int)result.result.error, rohr_error_message_get(result));

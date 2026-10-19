@@ -133,7 +133,10 @@ void editor_scene_panel_output(void *context, const char *bytes, size_t count) {
     if(used) { output[used] = 0; (void)editor_terminal_panel_output_write(p->terminal, output); }
 }
 static bool text_create(const FontAsset *font, const char *value, TextAsset *text) {
-    TextAssetResult result = rohr_graphics_text_create(font, value, (Color){235, 240, 248, 255});
+    TextAssetResult result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = value,
+            .color = (Color){235, 240, 248, 255}});
     if(rohr_error_check(result)) return false;
     *text = result.result.value; return true;
 }

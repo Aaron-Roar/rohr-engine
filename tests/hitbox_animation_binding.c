@@ -25,7 +25,7 @@ int main(void) {
             sizeof(test_png))) return 1;
     if(rohr_error_check(rohr_engine_start())) goto fail_without_engine;
     if(rohr_error_check(rohr_graphics_start())) goto fail;
-    animation_result = rohr_graphics_animation_load((AnimationDescriptor){
+    animation_result = rohr_graphics_animation_load((AnimationDescription){
         .id = 41,
         .frame_files = {
             "hitbox_animation_binding.png",
@@ -33,7 +33,7 @@ int main(void) {
             "hitbox_animation_binding.png",
         },
         .frame_ids = {101, 102, 103},
-        .amount_of_descriptors = 3,
+        .frame_count = 3,
     });
     if(rohr_error_check(animation_result)) goto fail;
     animation = animation_result.result.value;

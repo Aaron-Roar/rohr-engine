@@ -16,7 +16,9 @@
 
 static bool editor_terminal_text_create(FontAsset *font, TextAsset *text) {
     TextAssetResult result = rohr_graphics_text_create(
-        font, "", (Color){230, 234, 242, 255});
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = "",
+            .color = (Color){230, 234, 242, 255}});
     if(rohr_error_check(result)) return false;
     *text = result.result.value;
     return true;
@@ -46,7 +48,10 @@ bool editor_terminal_panel_create(EditorTerminalPanel *panel, FontAsset *font) {
     if(panel == NULL || font == NULL) return false;
     memset(panel, 0, sizeof(*panel));
     panel->height = (EDITOR_ACTION_BAR_TOP - EDITOR_MENU_HEIGHT) * 0.125f;
-    glyph = rohr_graphics_text_create(font, "M", (Color){255, 255, 255, 255});
+    glyph = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = "M",
+            .color = (Color){255, 255, 255, 255}});
     if(rohr_error_check(glyph) || glyph.result.value.size.x <= 0.0f)
         return false;
     panel->cell_width = glyph.result.value.size.x;

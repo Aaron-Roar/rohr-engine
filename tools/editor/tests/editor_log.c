@@ -66,7 +66,10 @@ int main(void) {
     TextAsset texts[MAX_TEXT_ASSETS] = {0}, failed = {0};
     size_t count = 0;
     while(count < MAX_TEXT_ASSETS) {
-        TextAssetResult result = rohr_graphics_text_create(&font, "", (Color){255,255,255,255});
+        TextAssetResult result = rohr_graphics_text_create(
+            (TextDescription){.font = font,
+                .value = "",
+                .color = (Color){255,255,255,255}});
         if(rohr_error_check(result)) break;
         texts[count++] = result.result.value;
     }

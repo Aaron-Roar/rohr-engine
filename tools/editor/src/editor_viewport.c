@@ -379,7 +379,7 @@ static TextureAsset *editor_preview_texture_get(const char *path) {
     if(entry == NULL || entry->failed) return NULL;
     if(entry->texture.handle == TEXTURE_HANDLE_INVALID) {
         TextureAssetResult loaded = rohr_graphics_texture_load(
-            (TextureDescriptor){entry->path, entry->source_size});
+            (TextureDescription){entry->path, entry->source_size});
         if(rohr_error_check(loaded)) return NULL;
         entry->texture = loaded.result.value;
     }
@@ -2941,7 +2941,7 @@ static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
             registered->path);
     else snprintf(resolved, sizeof(resolved), "%s", registered->path);
     snprintf(preview->path, sizeof(preview->path), "%s", resolved);
-    loaded = rohr_graphics_font_load((FontDescriptor){.file = preview->path,
+    loaded = rohr_graphics_font_load((FontDescription){.file = preview->path,
         .point_size = 12.0f});
     if(rohr_error_check(loaded)) {
         preview->failed = true;
@@ -2985,8 +2985,10 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
             editor_viewport_ui_text_fonts[slot] != font_id) {
         TextAssetResult created;
         rohr_graphics_text_destroy(&editor_viewport_ui_text_assets[slot]);
-        created = rohr_graphics_text_create(font, value,
-            rohr_graphics_color_hex_create(color));
+        created = rohr_graphics_text_create(
+            (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+                .value = value,
+                .color = rohr_graphics_color_hex_create(color)});
         if(rohr_error_check(created)) return;
         editor_viewport_ui_text_assets[slot] = created.result.value;
         editor_viewport_ui_text_ids[slot] = item->id;

@@ -65,7 +65,7 @@ static void reports_and_persistence(void) {
     assert(current.animations[0].player.time_per_frame == .25);
     assert(rohr_graphics_layer_animation_get(entity).result.value == 12);
     OK(rohr_entity_info_release(&current));
-    TextureAssetResult texture = rohr_graphics_texture_load((TextureDescriptor){"empty_animation_frame.png",{2,2}}); OK(texture);
+    TextureAssetResult texture = rohr_graphics_texture_load((TextureDescription){"empty_animation_frame.png",{2,2}}); OK(texture);
     AnimationFrame frame = rohr_graphics_animation_frame_create(texture.result.value);
     OK(rohr_graphics_animated_sprite_frame_add(entity, frame));
     OK(rohr_graphics_texture_release(&texture.result.value));

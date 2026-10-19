@@ -136,10 +136,25 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    string, duplicate-initializer, and enum-switch warnings, with editor warnings
    compared against the committed baseline. Reconciled 1,518 installed-header
    entries and 16 remaining Config/Descriptor names. Native Windows execution and
-   real desktop review remain unverified. Stop for review before Goal 6.
-6. [ ] **Standardize asset loading and text configuration** — Standardize
-   immutable texture/font/animation descriptions and inspection; add complete
-   text create/set/get. Preserve sharing, borrowed metadata, and payload lifetime.
+   real desktop review remain unverified.
+6. [x] **Standardize asset loading and text configuration** — Renamed texture,
+   font, and animation loading descriptions; added defaults and borrowed immutable
+   inspection without retaining. Animation uses `frame_count` and accepts empty
+   catalogs. Added atomic text create/full set/get, omitted-font selection of the
+   engine font, and wrapping for built-in/custom fonts. Text changes preserve
+   handles, UI dependencies, and queued revisions with their original fonts;
+   unchanged configurations avoid payload replacement. Migrated callers, examples,
+   generated C, and documentation. Verified all 100 native tests and nine
+   ASan/UBSan/leak checks, including failed allocation rollback, borrowed inputs,
+   wrapping edge cases, sharing, and queued font replacement. Linux and Windows
+   cross-builds, nine independent installed-SDK examples and consumers, regenerated
+   soft-body/default-project builds and Linux launches pass. The external custom
+   main is unchanged; scene hosting and two-second force toggling pass. Standard
+   builds and strict audits of changed asset modules and SDK examples have no
+   compiler warnings; migrated animation fixtures no longer use nonconstant
+   static compound initializers. Reconciled 1,536 installed-header entries and
+   13 remaining Config/Descriptor names. Native Windows execution and real desktop
+   review remain unverified. Stop for review before Goal 7.
 7. [ ] **Complete sprite and animation-instance descriptions** — Separate
    configurable sprite/frame/player values from playback state. Preserve
    compatible progress, empty animations, frame IDs, and reference ownership.

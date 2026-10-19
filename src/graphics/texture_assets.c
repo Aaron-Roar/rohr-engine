@@ -98,7 +98,7 @@ GraphicsTextureAssetStats graphics_texture_assets_stats_get(void) {
     return stats;
 }
 
-TextureAssetResult graphics_texture_load(TextureDescriptor descriptor) {
+TextureAssetResult graphics_texture_load(TextureDescription descriptor) {
     TextureAsset asset = {.size = descriptor.size};
     GraphicsTextureResource *resource;
     SDL_Surface *surface;
@@ -224,4 +224,16 @@ SDL_Texture *graphics_texture_native_get(TextureHandle handle) {
     GraphicsTextureResource *resource =
         graphics_texture_resource_get(handle, true);
     return resource == NULL ? NULL : resource->texture;
+}
+
+TextureDescription graphics_texture_description_default_get(void) {
+    return (TextureDescription){0};
+}
+
+TextureDescriptionResult graphics_texture_description_get(TextureAsset asset) {
+    GraphicsTextureResource *resource = graphics_texture_resource_get(asset.handle, false);
+    if(resource == NULL)
+        return ERROR_RESULT_MAKE_ERROR(TextureDescriptionResult, ERROR_ENGINE_TEXTURE_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(TextureDescriptionResult,
+        ((TextureDescription){.file = resource->path, .size = asset.size}));
 }

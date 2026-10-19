@@ -91,24 +91,24 @@ int main(void) {
         return fail("zero or null font release contract failed", true, true);
 
     if(!rohr_error_check(rohr_graphics_font_load(
-                (FontDescriptor){.file = NULL, .point_size = 12.0f})) ||
+                (FontDescription){.file = NULL, .point_size = 12.0f})) ||
             !rohr_error_check(rohr_graphics_font_load(
-                (FontDescriptor){.file = ROHR_TEST_FONT_PATH,
+                (FontDescription){.file = ROHR_TEST_FONT_PATH,
                     .point_size = 0.0f})) ||
             !rohr_error_check(rohr_graphics_font_load(
-                (FontDescriptor){.file = ROHR_TEST_FONT_PATH,
+                (FontDescription){.file = ROHR_TEST_FONT_PATH,
                     .point_size = NAN})) ||
             !rohr_error_check(rohr_graphics_font_load(
-                (FontDescriptor){.file = "missing_font_asset.ttf",
+                (FontDescription){.file = "missing_font_asset.ttf",
                     .point_size = 12.0f})) ||
             !stats_check(1, 0, 1, "load failures"))
         return fail("font load failure changed registry ownership", true, true);
 
-    first = graphics_font_load((FontDescriptor){
+    first = graphics_font_load((FontDescription){
         .file = ROHR_TEST_FONT_PATH, .point_size = 12.0f});
-    shared = rohr_graphics_font_load((FontDescriptor){
+    shared = rohr_graphics_font_load((FontDescription){
         .file = ROHR_TEST_FONT_ALIAS_PATH, .point_size = 12.0f});
-    different_size = rohr_graphics_font_load((FontDescriptor){
+    different_size = rohr_graphics_font_load((FontDescription){
         .file = ROHR_TEST_FONT_PATH, .point_size = 24.0f});
     if(rohr_error_check(first) || rohr_error_check(shared) ||
             rohr_error_check(different_size) ||
@@ -117,18 +117,33 @@ int main(void) {
             !stats_check(3, 3, 1, "path and size identity"))
         return fail("font cache identity contract failed", true, true);
 
+    {
+        FontDescriptionResult description = rohr_graphics_font_description_get(first.result.value);
+        FontDescriptionResult built_in = graphics_font_description_get(default_alias);
+        if(rohr_error_check(description) || description.result.value.file == NULL ||
+                description.result.value.point_size != 12 || rohr_error_check(built_in) ||
+                built_in.result.value.file != NULL || built_in.result.value.point_size != 0)
+            return fail("font inspection failed", true, true);
+        FontAssetResult reloaded = graphics_font_load(description.result.value);
+        FontAssetResult builtin_load = rohr_graphics_font_load(rohr_graphics_font_description_default_get());
+        if(rohr_error_check(reloaded) || reloaded.result.value.handle != first.result.value.handle ||
+                rohr_error_check(builtin_load) || builtin_load.result.value.handle != default_alias.handle ||
+                !result_ok(graphics_font_release(&reloaded.result.value)) ||
+                !result_ok(graphics_font_release(&builtin_load.result.value)) ||
+                !stats_check(3, 3, 1, "inspection does not retain") ||
+                !rohr_error_check(graphics_font_description_get((FontAsset){0})))
+            return fail("font description changed identity or ownership", true, true);
+    }
     retained = first.result.value;
     stale = first.result.value;
     if(!result_ok(graphics_font_retain(retained)) ||
             !stats_check(3, 4, 1, "custom retain"))
         return fail("custom font retain failed", true, true);
-    failed_text = rohr_graphics_text_create(&first.result.value, NULL,
-        (Color){255, 255, 255, 255});
+    failed_text = rohr_graphics_text_create((TextDescription){.font = first.result.value, .value = NULL, .color = (Color){255, 255, 255, 255}});
     if(!rohr_error_check(failed_text) ||
             !stats_check(3, 4, 1, "text creation failure"))
         return fail("failed text creation changed font ownership", true, true);
-    text = rohr_graphics_text_create(&first.result.value, "font owner",
-        (Color){255, 255, 255, 255});
+    text = rohr_graphics_text_create((TextDescription){.font = first.result.value, .value = "font owner", .color = (Color){255, 255, 255, 255}});
     if(rohr_error_check(text) || text.result.value.size.x <= 0.0f ||
             text.result.value.size.y <= 0.0f ||
             !stats_check(3, 5, 1, "text dependency"))
@@ -155,8 +170,7 @@ int main(void) {
         return fail("stale font handle contract failed", true, true);
     expired_handle = stale.handle;
 
-    text = rohr_graphics_text_create(&default_alias, "built in",
-        (Color){255, 255, 255, 255});
+    text = rohr_graphics_text_create((TextDescription){.font = default_alias, .value = "built in", .color = (Color){255, 255, 255, 255}});
     if(rohr_error_check(text) || !stats_check(1, 0, 1,
             "built-in text dependency"))
         return fail("built-in text changed owner counts", true, true);
@@ -164,7 +178,7 @@ int main(void) {
     if(!stats_check(1, 0, 1, "built-in text release"))
         return fail("built-in text cleanup changed its pin", true, true);
 
-    first = rohr_graphics_font_load((FontDescriptor){
+    first = rohr_graphics_font_load((FontDescription){
         .file = ROHR_TEST_FONT_PATH, .point_size = 12.0f});
     if(rohr_error_check(first) || first.result.value.handle == expired_handle ||
             !stats_check(2, 1, 1, "generation reload"))
@@ -182,7 +196,7 @@ int main(void) {
         return fail("graphics restart failed", false, true);
     graphics_started = true;
     default_font = rohr_graphics_font_default_get();
-    first = rohr_graphics_font_load((FontDescriptor){
+    first = rohr_graphics_font_load((FontDescription){
         .file = ROHR_TEST_FONT_PATH, .point_size = 12.0f});
     if(default_font.handle == old_default.handle || rohr_error_check(first) ||
             first.result.value.handle == shutdown_stale.handle ||

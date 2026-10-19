@@ -1005,7 +1005,7 @@ int main(void) {
                 !file_contains(path,
                     "rohr_physics_hitbox_animation_binding_set") ||
                 !file_contains(path,
-                    "AnimationDescriptor descriptor = {.id = UINT32_C(") ||
+                    "AnimationDescription descriptor = {.id = UINT32_C(") ||
                 !file_contains(path, ".frame_ids = {UINT32_C(") ||
                 !file_contains(path, "animated.frames[0].offset = (Position){13.0000000f, -9.00000000f}") ||
                 !file_contains(path, "animated.frames[0].rotation = 450.000000f") ||

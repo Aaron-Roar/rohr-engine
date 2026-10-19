@@ -55,7 +55,7 @@ static bool fixture_start(FieldFixture *f, const char *value, bool multiline) {
         .string_capacity=sizeof(f->value)};
     f->bounds = (UIRect){100,100,300,80};
     f->multiline = multiline;
-    TextAssetResult made = rohr_graphics_text_create(&test_font, value, (Color){255,255,255,255});
+    TextAssetResult made = rohr_graphics_text_create((TextDescription){.font = test_font, .value = value, .color = (Color){255,255,255,255}});
     CHECK(!rohr_error_check(made));
     f->text = made.result.value;
     rohr_ui_field_focus_clear();
@@ -403,7 +403,7 @@ int main(void) {
     test_window = window_count > 0 ? windows[0] : NULL;
     SDL_free(windows);
     if(test_window == NULL || !SDL_SetKeyboardFocus(test_window)) return 1;
-    FontAssetResult font = rohr_graphics_font_load((FontDescriptor){ROHR_TEST_FONT_PATH, 18});
+    FontAssetResult font = rohr_graphics_font_load((FontDescription){ROHR_TEST_FONT_PATH, 18});
     if(rohr_error_check(font)) { rohr_graphics_stop(); rohr_engine_stop(); return 1; }
     test_font = font.result.value;
     bool passed=editing_check() && clicks_check() && rejection_check() &&

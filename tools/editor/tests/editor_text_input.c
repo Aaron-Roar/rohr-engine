@@ -171,10 +171,13 @@ int main(void) {
     window = count > 0 ? windows[0] : NULL;
     SDL_free(windows);
     if(window == NULL || !SDL_SetKeyboardFocus(window)) return 1;
-    FontAssetResult loaded = rohr_graphics_font_load((FontDescriptor){ROHR_TEST_FONT_PATH, 18});
+    FontAssetResult loaded = rohr_graphics_font_load((FontDescription){ROHR_TEST_FONT_PATH, 18});
     if(rohr_error_check(loaded)) return 1;
     font = loaded.result.value;
-    TextAssetResult text = rohr_graphics_text_create(&font, "", (Color){255, 255, 255, 255});
+    TextAssetResult text = rohr_graphics_text_create(
+        (TextDescription){.font = font,
+            .value = "",
+            .color = (Color){255, 255, 255, 255}});
     if(rohr_error_check(text)) return 1;
     display = text.result.value;
     bool passed = terminal_transfer_check() && project_name_check();

@@ -913,7 +913,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "      result = rohr_physics_position_set(target, position);\n"
         "      if(rohr_error_check(result)) goto fail; }\n"
         "    *output = target;\n"
-        "    loaded = rohr_graphics_texture_load((TextureDescriptor){path, size});\n"
+        "    loaded = rohr_graphics_texture_load((TextureDescription){path, size});\n"
         "    if(rohr_error_check(loaded)) {\n"
         "        result = rohr_error_result_error(loaded.result.error);\n"
         "        goto fail;\n"
@@ -1214,8 +1214,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     sprite->editor_position.y);
             } else snprintf(target, sizeof(target), "%s", body->name);
             fprintf(source,
-                "    { AnimationDescriptor descriptor = {.id = UINT32_C(%u), "
-                ".amount_of_descriptors = %zu, "
+                "    { AnimationDescription descriptor = {.id = UINT32_C(%u), "
+                ".frame_count = %zu, "
                 ".ticks_per_frame = UINT64_C(%llu), .time_per_frame = %.17g, "
                 ".frame_ids = {",
                 sprite->id, sprite->frame_count,
@@ -1235,7 +1235,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             fprintf(source,
                 "}};\n"
                 "      AnimationAssetResult loaded = {.kind = ERROR_RESULT_VALUE};\n"
-                "      if(descriptor.amount_of_descriptors > 0) loaded = rohr_graphics_animation_load(descriptor);\n"
+                "      if(descriptor.frame_count > 0) loaded = rohr_graphics_animation_load(descriptor);\n"
                 "      AnimatedSprite animated;\n"
                 "      if(rohr_error_check(loaded)) { result = rohr_error_result_error("
                 "loaded.result.error); goto fail; }\n");
@@ -2168,7 +2168,7 @@ static bool editor_workspace_generated_viewports_write(
         "rohr_graphics_font_default_get();\n");
     for(size_t i = 0; i < project->ui_font_count; i += 1) {
         fprintf(source, "    { FontAssetResult loaded = rohr_graphics_font_load("
-            "(FontDescriptor){.file=");
+            "(FontDescription){.file=");
         editor_workspace_c_string_write(source, project->ui_fonts[i].path);
         fprintf(source, ", .point_size=12.0f});\n"
             "      if(rohr_error_check(loaded)) { result = "
@@ -2262,9 +2262,9 @@ static bool editor_workspace_generated_viewports_write(
             bool has_text = text != NULL && text->text[0] != '\0';
             if(has_text) {
                 fprintf(source, "      { TextAssetResult text = "
-                    "rohr_graphics_text_create(&resources->fonts[%zu], ", font_index);
+                    "rohr_graphics_text_create((TextDescription){.font = resources->fonts[%zu], .value = ", font_index);
                 editor_workspace_c_string_write(source, text->text);
-                fprintf(source, ", rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
+                fprintf(source, ", .color = rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
                     "        if(rohr_error_check(text)) { result = "
                         "rohr_error_result_error(text.result.error); goto fail; }\n"
                     "        resources->texts[resources->text_count++] = "

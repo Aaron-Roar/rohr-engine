@@ -60,7 +60,7 @@ int main(void) {
     }
     {
         const char *missing_path = "/missing/custom-font-test.ttf";
-        FontAssetResult missing = rohr_graphics_font_load((FontDescriptor){
+        FontAssetResult missing = rohr_graphics_font_load((FontDescription){
             .file = missing_path, .point_size = 12.0f});
         if(!rohr_error_check(missing) ||
                 strstr(rohr_error_message_get(missing), missing_path) == NULL) {
@@ -344,8 +344,7 @@ int main(void) {
     target_entity_result = rohr_entity_add();
     viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
     default_font = rohr_graphics_font_default_get();
-    default_text = rohr_graphics_text_create(&default_font, "Built-In 123!",
-        (Color){255, 255, 255, 255});
+    default_text = rohr_graphics_text_create((TextDescription){.font = default_font, .value = "Built-In 123!", .color = (Color){255, 255, 255, 255}});
     ui_shape.text = (ViewportUiTextConfig){.text =
         rohr_error_check(default_text) ? (TextAsset){0} : default_text.result.value,
         .scale = {2.0f, 2.0f}};

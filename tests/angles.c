@@ -189,7 +189,7 @@ static bool graphics_check(void) {
     graphics_camera_detach();
 
     CHECK(SDL_SaveFile("angles_asset.png",test_png,sizeof(test_png)));
-    TextureAssetResult texture=graphics_texture_load((TextureDescriptor){"angles_asset.png",{20,10}});
+    TextureAssetResult texture=graphics_texture_load((TextureDescription){"angles_asset.png",{20,10}});
     OK(texture);
     OK(graphics_sprite_add(e,graphics_sprite_create(texture.result.value,(Scale){1,1})));
     OK(graphics_sprite_orientation_offset_radians_set(e,PI_F));
@@ -197,8 +197,8 @@ static bool graphics_check(void) {
     CHECK(near(graphics_sprite_orientation_offset_radians_get(e).result.value,PI_F));
     OK(rohr_graphics_sprite_orientation_offset_radians_set(e,PI_F/2));
     CHECK(near(rohr_graphics_sprite_orientation_offset_radians_get(e).result.value,PI_F/2));
-    AnimationAssetResult animation=graphics_animation_load((AnimationDescriptor){
-        .id=1,.amount_of_descriptors=1,.frame_files={"angles_asset.png"}});
+    AnimationAssetResult animation=graphics_animation_load((AnimationDescription){
+        .id=1,.frame_count=1,.frame_files={"angles_asset.png"}});
     OK(animation);
     OK(graphics_animated_sprite_add(e,graphics_animated_sprite_create(animation.result.value,(Scale){1,1})));
     OK(graphics_animated_sprite_orientation_offset_radians_set(e,PI_F));
@@ -207,7 +207,7 @@ static bool graphics_check(void) {
     OK(rohr_graphics_animated_sprite_orientation_offset_radians_set(e,-PI_F/2));
     CHECK(near(rohr_graphics_animated_sprite_orientation_offset_radians_get(e).result.value,-PI_F/2));
     FontAsset font=graphics_font_default_get();
-    TextAssetResult text=graphics_text_create(&font,"angle",(Color){255,255,255,255}); OK(text);
+    TextAssetResult text=graphics_text_create((TextDescription){.font = font, .value = "angle", .color = (Color){255,255,255,255}}); OK(text);
     CHECK(graphics_screen_quad_radians_draw((Position){50,50},20,10,PI_F/4,(Color){255,0,0,255}));
     CHECK(rohr_graphics_screen_quad_radians_draw((Position){100,50},20,10,PI_F/4,(Color){255,0,0,255}));
     CHECK(graphics_screen_text_scaled_rotated_radians_draw(&text.result.value,(Position){50,100},(Scale){1,1},PI_F/4));

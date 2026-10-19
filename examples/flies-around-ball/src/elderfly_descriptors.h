@@ -5,10 +5,10 @@
 #ifndef ELDERFLY_H
 #define ELDERFLY_H
 #include "graphics.h"
-extern AnimationDescriptor elderfly_fly;
-extern AnimationDescriptor elderfly_death;
-extern AnimationDescriptor elderfly_attack;
-extern AnimationDescriptor elderfly_jump;
-extern AnimationDescriptor elderfly_land;
-extern AnimationDescriptor elderfly_take_damage;
+extern AnimationDescription elderfly_fly;
+extern AnimationDescription elderfly_death;
+extern AnimationDescription elderfly_attack;
+extern AnimationDescription elderfly_jump;
+extern AnimationDescription elderfly_land;
+extern AnimationDescription elderfly_take_damage;
 #endif

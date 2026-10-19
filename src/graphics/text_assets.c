@@ -6,6 +6,7 @@
 
 #include "graphics/font_assets.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +17,7 @@ struct GraphicsTextPayload {
     TTF_Text *text;
     SDL_Texture *texture;
     TextHandle owner;
+    FontAsset font;
     size_t references;
     bool built_in;
 };
@@ -67,6 +69,7 @@ static void graphics_text_payload_release(GraphicsTextPayload *payload) {
     if(payload->references != 0) return;
     if(payload->text != NULL) TTF_DestroyText(payload->text);
     if(payload->texture != NULL) SDL_DestroyTexture(payload->texture);
+    (void)graphics_font_release(&payload->font);
     free(payload);
     text_payload_count -= 1;
 }
@@ -74,10 +77,10 @@ static void graphics_text_payload_release(GraphicsTextPayload *payload) {
 static void graphics_text_resource_destroy(GraphicsTextResource *resource) {
     FontAsset font;
     if(resource == NULL || !resource->used) return;
-    graphics_text_payload_release(resource->payload);
-    SDL_free(resource->value);
     font = resource->font;
-    (void)graphics_font_release(&font);
+    if(resource->payload != NULL) graphics_text_payload_release(resource->payload);
+    else (void)graphics_font_release(&font);
+    SDL_free(resource->value);
     *resource = (GraphicsTextResource){0};
 }
 
@@ -88,35 +91,108 @@ static void graphics_text_resource_destroy_if_unused(
         graphics_text_resource_destroy(resource);
 }
 
+/* Layout and rendering use the same ASCII rows. Decode UTF-8 once so unsupported
+ * codepoints occupy one fallback glyph, rather than one cell per UTF-8 byte. */
+static char *graphics_builtin_text_normalize(const char *value) {
+    size_t length = strlen(value);
+    if(length > (SIZE_MAX - 1) / 4) return NULL;
+    char *normalized = SDL_malloc(length * 4 + 1);
+    if(normalized == NULL) return NULL;
+    char *output = normalized;
+    while(*value != '\0') {
+        Uint32 codepoint = SDL_StepUTF8(&value, NULL);
+        if(codepoint == '\r') {
+            if(*value == '\n') value += 1;
+            *output++ = '\n';
+        } else if(codepoint == '\t') {
+            for(int i = 0; i < 4; i += 1) *output++ = ' ';
+        } else {
+            *output++ = codepoint == '\n' || (codepoint >= 32 && codepoint <= 126)
+                ? (char)codepoint : '?';
+        }
+    }
+    *output = '\0';
+    return normalized;
+}
+
+static char *graphics_builtin_text_line_end(char *line, size_t columns,
+        char **next) {
+    char *end = line;
+    char *space = NULL;
+    while(*end != '\0' && *end != '\n' && (size_t)(end - line) < columns) {
+        if(*end == ' ') space = end;
+        end += 1;
+    }
+    if(*end == '\0') *next = NULL;
+    else if(*end == '\n') *next = end + 1;
+    else if(*end == ' ') {
+        *next = end;
+        while(**next == ' ') *next += 1;
+    } else if(space != NULL && space > line) {
+        end = space;
+        *next = space + 1;
+        while(**next == ' ') *next += 1;
+    } else *next = end;
+    if(*next != NULL && *next > end && *end != '\n') {
+        if(**next == '\0') *next = NULL;
+        else if(**next == '\n') *next += 1;
+    }
+    return end;
+}
+
 static SDL_Texture *graphics_builtin_text_texture_create(const char *value,
-        Color color, Scale *size) {
-    SDL_Texture *texture;
-    SDL_Texture *previous;
-    size_t length;
-    if(value == NULL || size == NULL || text_renderer == NULL) return NULL;
-    length = strlen(value);
-    *size = (Scale){(float)(length * SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE),
-        length > 0 ? (float)SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE : 0.0f};
-    if(length == 0) return NULL;
+        Color color, int wrap_width, Scale *size) {
+    const size_t cell = SDL_DEBUG_TEXT_FONT_CHARACTER_SIZE;
+    size_t columns = wrap_width > 0 ? (size_t)wrap_width / cell : INT_MAX / cell;
+    size_t width = 0, rows = 0;
+    char *normalized = graphics_builtin_text_normalize(value);
+    SDL_Texture *texture = NULL;
+    SDL_Texture *previous = SDL_GetRenderTarget(text_renderer);
+    Uint8 red, green, blue, alpha;
+    bool rendered = true;
+    if(normalized == NULL) return NULL;
+    if(columns == 0) columns = 1;
+    for(char *line = normalized; line != NULL;) {
+        char *next;
+        char *end = graphics_builtin_text_line_end(line, columns, &next);
+        if((size_t)(end - line) > width) width = (size_t)(end - line);
+        rows += 1;
+        if(rows > INT_MAX / cell || width > INT_MAX / cell) goto done;
+        line = next;
+    }
+    *size = (Scale){(float)(width * cell), (float)(rows * cell)};
+    /* Blank lines have height but need a nonzero texture allocation. */
     texture = SDL_CreateTexture(text_renderer, SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET, (int)size->x, (int)size->y);
-    if(texture == NULL) return NULL;
-    (void)SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    previous = SDL_GetRenderTarget(text_renderer);
-    if(!SDL_SetRenderTarget(text_renderer, texture)) {
+        SDL_TEXTUREACCESS_TARGET, width == 0 ? 1 : (int)(width * cell), (int)(rows * cell));
+    if(texture == NULL) goto done;
+    SDL_GetRenderDrawColor(text_renderer, &red, &green, &blue, &alpha);
+    if(!SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND) ||
+            !SDL_SetRenderTarget(text_renderer, texture)) {
         SDL_DestroyTexture(texture);
-        return NULL;
+        texture = NULL;
+        goto done;
     }
-    (void)SDL_SetRenderDrawColor(text_renderer, 0, 0, 0, 0);
-    (void)SDL_RenderClear(text_renderer);
-    (void)SDL_SetRenderDrawColor(text_renderer, color.red, color.green,
-        color.blue, color.alpha);
-    if(!SDL_RenderDebugText(text_renderer, 0.0f, 0.0f, value)) {
-        (void)SDL_SetRenderTarget(text_renderer, previous);
+    rendered = SDL_SetRenderDrawColor(text_renderer, 0, 0, 0, 0) &&
+        SDL_RenderClear(text_renderer) &&
+        SDL_SetRenderDrawColor(text_renderer, color.red, color.green, color.blue, color.alpha);
+    size_t row = 0;
+    for(char *line = normalized; rendered && line != NULL; row += 1) {
+        char *next;
+        char *end = graphics_builtin_text_line_end(line, columns, &next);
+        char saved = *end;
+        *end = '\0';
+        rendered = SDL_RenderDebugText(text_renderer, 0, (float)(row * cell), line);
+        *end = saved;
+        line = next;
+    }
+    if(!SDL_SetRenderTarget(text_renderer, previous)) rendered = false;
+    if(!SDL_SetRenderDrawColor(text_renderer, red, green, blue, alpha)) rendered = false;
+    if(!rendered) {
         SDL_DestroyTexture(texture);
-        return NULL;
+        texture = NULL;
     }
-    (void)SDL_SetRenderTarget(text_renderer, previous);
+done:
+    SDL_free(normalized);
     return texture;
 }
 
@@ -139,7 +215,7 @@ static bool graphics_text_payload_create(FontAsset font, bool built_in,
     payload->built_in = built_in;
     if(built_in) {
         payload->texture = graphics_builtin_text_texture_create(value, color,
-            size);
+            wrap_width, size);
         if(payload->texture == NULL) {
             free(payload);
             return false;
@@ -175,6 +251,13 @@ static bool graphics_text_payload_create(FontAsset font, bool built_in,
         }
         *size = (Scale){(float)width, (float)height};
     }
+    if(error_check(graphics_font_retain(font))) {
+        if(payload->text != NULL) TTF_DestroyText(payload->text);
+        SDL_DestroyTexture(payload->texture);
+        free(payload);
+        return false;
+    }
+    payload->font = font;
     text_payload_count += 1;
     *output = payload;
     return true;
@@ -221,8 +304,11 @@ GraphicsTextAssetStats graphics_text_assets_stats_get(void) {
     return stats;
 }
 
-TextAssetResult graphics_text_create(const FontAsset *font, const char *value,
-        Color color) {
+TextAssetResult graphics_text_create(TextDescription description) {
+    FontAsset font = description.font.handle == FONT_HANDLE_INVALID ?
+        graphics_font_default_get() : description.font;
+    const char *value = description.value;
+    Color color = description.color;
     GraphicsTextPayload *payload = NULL;
     char *owned_value;
     Scale size = {0};
@@ -232,7 +318,7 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value,
     if(!text_assets_initialized || text_renderer == NULL || text_engine == NULL)
         return ERROR_RESULT_MAKE_ERROR(
             TextAssetResult, ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED);
-    if(font == NULL || value == NULL || !graphics_font_valid_check(*font)) {
+    if(value == NULL || description.wrap_width < 0 || !graphics_font_valid_check(font)) {
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
         return ERROR_RESULT_MAKE_ERROR(
             TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
@@ -242,17 +328,17 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value,
     if(slot == MAX_TEXT_ASSETS)
         return ERROR_RESULT_MAKE_ERROR(
             TextAssetResult, ERROR_ENGINE_TEXT_CAPACITY_EXCEEDED);
-    built_in = graphics_font_builtin_check(*font);
+    built_in = graphics_font_builtin_check(font);
     owned_value = SDL_strdup(value);
     if(owned_value == NULL || !graphics_text_payload_create(
-            *font, built_in, value, color, 0,
+            font, built_in, value, color, description.wrap_width,
             &payload, &size)) {
         SDL_free(owned_value);
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, SDL_GetError());
         return ERROR_RESULT_MAKE_ERROR(
             TextAssetResult, ERROR_ENGINE_TEXT_CREATE_FAILED);
     }
-    if(error_check(graphics_font_retain(*font))) {
+    if(payload == NULL && error_check(graphics_font_retain(font))) {
         graphics_text_payload_release(payload);
         SDL_free(owned_value);
         error_detail_set(ERROR_ENGINE_TEXT_CREATE_FAILED, NULL);
@@ -264,7 +350,8 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value,
     text_resources[slot] = (GraphicsTextResource){
         .payload = payload,
         .value = owned_value,
-        .font = *font,
+        .font = font,
+        .wrap_width = description.wrap_width,
         .color = color,
         .asset = {.handle = graphics_text_handle_create(slot), .size = size},
         .built_in = built_in,
@@ -275,34 +362,76 @@ TextAssetResult graphics_text_create(const FontAsset *font, const char *value,
     return ERROR_RESULT_MAKE_VALUE(TextAssetResult, text_resources[slot].asset);
 }
 
-bool graphics_text_value_set(TextAsset *text, const char *value) {
-    GraphicsTextResource *resource;
-    GraphicsTextPayload *payload = NULL;
-    GraphicsTextPayload *previous;
-    char *owned_value;
-    char *previous_value;
-    Scale size = {0};
+TextDescription graphics_text_description_default_get(void) {
+    return (TextDescription){.value = "", .color = {255, 255, 255, 255}};
+}
 
-    if(text == NULL || value == NULL) return false;
-    resource = graphics_text_resource_get(text->handle, true);
-    if(resource == NULL) return false;
-    owned_value = SDL_strdup(value);
-    if(owned_value == NULL || !graphics_text_payload_create(resource->font,
-            resource->built_in, value, resource->color,
-            resource->wrap_width, &payload, &size)) {
-        SDL_free(owned_value);
-        return false;
+TextDescriptionResult graphics_text_description_get(TextAsset text) {
+    GraphicsTextResource *resource = graphics_text_resource_get(text.handle, true);
+    if(resource == NULL)
+        return ERROR_RESULT_MAKE_ERROR(TextDescriptionResult, ERROR_ENGINE_TEXT_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(TextDescriptionResult, ((TextDescription){
+        .font = resource->font, .value = resource->value,
+        .color = resource->color, .wrap_width = resource->wrap_width}));
+}
+
+EngineResult graphics_text_description_set(TextAsset *text, TextDescription description) {
+    if(text == NULL) return error_result_error(ERROR_ENGINE_TEXT_NOT_FOUND);
+    GraphicsTextResource *resource = graphics_text_resource_get(text->handle, true);
+    if(resource == NULL) return error_result_error(ERROR_ENGINE_TEXT_NOT_FOUND);
+    FontAsset font = description.font.handle == FONT_HANDLE_INVALID ?
+        graphics_font_default_get() : description.font;
+    if(description.value == NULL || description.wrap_width < 0 ||
+            !graphics_font_valid_check(font))
+        return error_result_error(ERROR_ENGINE_TEXT_CREATE_FAILED);
+    if(font.handle == resource->font.handle &&
+            description.wrap_width == resource->wrap_width &&
+            description.color.red == resource->color.red &&
+            description.color.green == resource->color.green &&
+            description.color.blue == resource->color.blue &&
+            description.color.alpha == resource->color.alpha &&
+            strcmp(description.value, resource->value) == 0) {
+        text->size = resource->asset.size;
+        return error_result_value(true);
     }
+    GraphicsTextPayload *payload = NULL;
+    Scale size = {0};
+    bool built_in = graphics_font_builtin_check(font);
+    /* The caller may pass a borrowed string from this very instance. */
+    char *owned_value = SDL_strdup(description.value);
+    if(owned_value == NULL || !graphics_text_payload_create(font, built_in,
+            owned_value, description.color, description.wrap_width, &payload, &size)) {
+        SDL_free(owned_value);
+        return error_result_error(ERROR_ENGINE_TEXT_CREATE_FAILED);
+    }
+    if(payload == NULL && error_check(graphics_font_retain(font))) {
+        SDL_free(owned_value);
+        return error_result_error(ERROR_ENGINE_TEXT_CREATE_FAILED);
+    }
+    GraphicsTextPayload *previous = resource->payload;
+    FontAsset previous_font = resource->font;
+    char *previous_value = resource->value;
     if(payload != NULL) payload->owner = resource->asset.handle;
-    previous = resource->payload;
-    previous_value = resource->value;
     resource->payload = payload;
     resource->value = owned_value;
+    resource->font = font;
+    resource->built_in = built_in;
+    resource->color = description.color;
+    resource->wrap_width = description.wrap_width;
     resource->asset.size = size;
     text->size = size;
-    graphics_text_payload_release(previous);
+    if(previous != NULL) graphics_text_payload_release(previous);
+    else (void)graphics_font_release(&previous_font);
     SDL_free(previous_value);
-    return true;
+    return error_result_value(true);
+}
+
+bool graphics_text_value_set(TextAsset *text, const char *value) {
+    if(text == NULL) return false;
+    TextDescriptionResult current = graphics_text_description_get(*text);
+    if(error_check(current)) return false;
+    current.result.value.value = value;
+    return !error_check(graphics_text_description_set(text, current.result.value));
 }
 
 EngineResult graphics_text_destroy(TextAsset *text) {
@@ -393,25 +522,11 @@ TTF_Text *graphics_text_native_get(TextAsset asset) {
 }
 
 bool graphics_text_wrap_width_set(TextAsset *asset, int wrap_width) {
-    GraphicsTextResource *resource;
-    GraphicsTextPayload *payload = NULL;
-    GraphicsTextPayload *previous;
-    Scale size = {0};
-
-    if(asset == NULL || wrap_width < 0) return false;
-    resource = graphics_text_resource_get(asset->handle, true);
-    if(resource == NULL) return false;
-    if(resource->built_in || resource->wrap_width == wrap_width) return true;
-    if(!graphics_text_payload_create(resource->font, false, resource->value,
-            resource->color, wrap_width, &payload, &size)) return false;
-    if(payload != NULL) payload->owner = resource->asset.handle;
-    previous = resource->payload;
-    resource->payload = payload;
-    resource->wrap_width = wrap_width;
-    resource->asset.size = size;
-    asset->size = size;
-    graphics_text_payload_release(previous);
-    return true;
+    if(asset == NULL) return false;
+    TextDescriptionResult current = graphics_text_description_get(*asset);
+    if(error_check(current)) return false;
+    current.result.value.wrap_width = wrap_width;
+    return !error_check(graphics_text_description_set(asset, current.result.value));
 }
 
 TTF_Text *graphics_text_payload_native_get(GraphicsTextPayload *payload) {

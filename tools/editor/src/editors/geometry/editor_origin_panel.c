@@ -15,7 +15,10 @@ static bool editor_origin_panel_text_create(FontAsset *font, const char *value,
     TextAssetResult result;
 
     if(font == NULL || value == NULL || output == NULL) return false;
-    result = rohr_graphics_text_create(font, value, (Color){230, 234, 242, 255});
+    result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = value,
+            .color = (Color){230, 234, 242, 255}});
     if(rohr_error_check(result)) {
         editor_log_error("editor_origin_panel", "error %d: %s\n", (int)result.result.error,
             rohr_error_message_get(result));

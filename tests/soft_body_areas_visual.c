@@ -244,7 +244,7 @@ bool soft_body_areas_visual_run(void) {
     FontAsset font = rohr_graphics_font_default_get();
     const char *labels[] = {"Hourglass", "Layered areas", "Moving window", "Space: pause/resume    L: switch layers    Esc: exit"};
     for(unsigned i = 0; i < 4; i += 1) {
-        TextAssetResult text = rohr_graphics_text_create(&font,labels[i],(Color){255,255,255,255});
+        TextAssetResult text = rohr_graphics_text_create((TextDescription){.font = font, .value = labels[i], .color = (Color){255,255,255,255}});
         if(rohr_error_check(text)) goto done;
         visual.labels[i] = text.result.value;
     }

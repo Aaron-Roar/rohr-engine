@@ -59,7 +59,7 @@ typedef struct StateLoadedEntity {
 typedef struct StateAnimation {
     char name[STATE_ASSET_NAME_MAX];
     char frame_paths[MAX_ANIMATIONS_FRAMES][STATE_ASSET_PATH_MAX];
-    AnimationDescriptor descriptor;
+    AnimationDescription descriptor;
     AnimationAsset asset;
 } StateAnimation;
 
@@ -199,7 +199,7 @@ static EngineResult state_animation_definition_load(yyjson_val *definition) {
     animation->descriptor.id = id == NULL ?
         (AnimationId)state_animation_count + 1 :
         (AnimationId)yyjson_get_uint(id);
-    animation->descriptor.amount_of_descriptors = (uint8_t)frame_count;
+    animation->descriptor.frame_count = (uint8_t)frame_count;
     animation->descriptor.ticks_per_frame = yyjson_get_uint(ticks);
     animation->descriptor.time_per_frame = time_per_frame;
     yyjson_arr_foreach(frames, frame_index, frame_count, frame) {
@@ -1196,7 +1196,7 @@ static EngineResult state_sprite_frames_read(yyjson_val *values, AnimatedSprite 
         if(file != NULL) {
             if(!yyjson_is_str(file)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
             TextureAssetResult loaded = graphics_texture_load(
-                (TextureDescriptor){.file = yyjson_get_str(file)});
+                (TextureDescription){.file = yyjson_get_str(file)});
             if(loaded.kind == ERROR_RESULT_ERROR) return error_result_error(loaded.result.error);
             textures[(*texture_count)++] = loaded.result.value;
             frame.texture = loaded.result.value;
@@ -1668,7 +1668,7 @@ static EngineResult state_components_load(
                 || time_per_frame < 0.0
                 || start_frame < 0
                 || (yyjson_obj_get(value, "frames") == NULL &&
-                    start_frame >= animation->descriptor.amount_of_descriptors)) {
+                    start_frame >= animation->descriptor.frame_count)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         scale = (Scale){scale_value.x, scale_value.y};

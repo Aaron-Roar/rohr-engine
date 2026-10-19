@@ -106,7 +106,10 @@ static bool editor_file_browser_text_create(FontAsset *font, const char *text,
     TextAsset *asset) {
     TextAssetResult result;
     if(font == NULL || text == NULL || asset == NULL) return false;
-    result = rohr_graphics_text_create(font, text, (Color){230, 234, 242, 255});
+    result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = text,
+            .color = (Color){230, 234, 242, 255}});
     if(rohr_error_check(result)) return false;
     *asset = result.result.value;
     return true;

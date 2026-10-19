@@ -208,8 +208,10 @@ static const EditorBulkProperty mixed_transform_properties[] = {
 
 static bool editor_bulk_text_create(FontAsset *font, const char *value,
         TextAsset *text) {
-    TextAssetResult result = rohr_graphics_text_create(font, value,
-        (Color){230, 234, 242, 255});
+    TextAssetResult result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = value,
+            .color = (Color){230, 234, 242, 255}});
     if(rohr_error_check(result)) return false;
     *text = result.result.value;
     return true;

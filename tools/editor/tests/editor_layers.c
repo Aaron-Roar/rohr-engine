@@ -273,7 +273,7 @@ static bool animation_direction_check(void) {
         CHECK(saved);
     }
     /* Check the app's draw path using the same asymmetric assets. */
-    AnimationDescriptor descriptor = {.amount_of_descriptors = 2,
+    AnimationDescription descriptor = {.frame_count = 2,
         .frame_files = {paths[0], paths[1]}};
     AnimationAssetResult asset = rohr_graphics_animation_load(descriptor);
     CHECK(!rohr_error_check(asset));
@@ -455,7 +455,7 @@ static bool frame_flips_check(void) {
     }
     CHECK(SDL_SavePNG(surface, path));
     SDL_DestroySurface(surface);
-    TextureAssetResult image = rohr_graphics_texture_load((TextureDescriptor){.file = path});
+    TextureAssetResult image = rohr_graphics_texture_load((TextureDescription){.file = path});
     CHECK(!rohr_error_check(image));
     AnimatedSprite runtime = rohr_graphics_animated_sprite_create((AnimationAsset){0}, (Scale){1,1});
     AnimationFrame frame = rohr_graphics_animation_frame_create(image.result.value);

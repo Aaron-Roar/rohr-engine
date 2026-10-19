@@ -3426,16 +3426,36 @@ EngineResult rohr_graphics_soft_body_beam_color_set( Entity soft_body, Entity no
 ### `rohr_graphics_texture_load`
 
 ```c
-TextureAssetResult rohr_graphics_texture_load(TextureDescriptor text_desc);
+TextureAssetResult rohr_graphics_texture_load(TextureDescription text_desc);
 ```
 
 Loads or shares a texture and returns one caller-owned reference.
 
 | Parameter | Description |
 | --- | --- |
-| `text_desc` | Texture descriptor containing load settings. |
+| `text_desc` | Texture description containing load settings. |
 
 **Returns:** TextureAssetResult containing the asset, or an error.
+
+### `rohr_graphics_texture_description_default_get`
+
+```c
+TextureDescription rohr_graphics_texture_description_default_get(void);
+```
+
+ Zero defaults; a file is required to load.
+
+### `rohr_graphics_texture_description_get`
+
+```c
+TextureDescriptionResult rohr_graphics_texture_description_get(TextureAsset asset);
+```
+
+ Inspect without retaining. Paths remain borrowed until this resource
+
+loses its final owning reference or graphics shuts down.
+
+Logical size comes from the supplied asset value.
 
 ### `rohr_graphics_texture_retain`
 
@@ -3490,10 +3510,30 @@ void rohr_graphics_screen_texture_radians_draw(TextureAsset texture, Position ce
 ### `rohr_graphics_font_load`
 
 ```c
-FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
+FontAssetResult rohr_graphics_font_load(FontDescription descriptor);
 ```
 
  @brief Loads or shares a font and returns one owning reference.
+
+### `rohr_graphics_font_description_default_get`
+
+```c
+FontDescription rohr_graphics_font_description_default_get(void);
+```
+
+ Zero defaults select the engine-pinned built-in font.
+
+### `rohr_graphics_font_description_get`
+
+```c
+FontDescriptionResult rohr_graphics_font_description_get(FontAsset asset);
+```
+
+ Inspect without retaining. Paths remain borrowed until this resource
+
+loses its final owning reference or graphics shuts down.
+
+Built-in inspection returns file NULL and point_size zero.
 
 ### `rohr_graphics_font_default_get`
 
@@ -3530,10 +3570,38 @@ bool rohr_graphics_font_valid_check(FontAsset font);
 ### `rohr_graphics_text_create`
 
 ```c
-TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color);
+TextAssetResult rohr_graphics_text_create(TextDescription description);
 ```
 
  @brief Creates reusable caller-owned text.
+
+### `rohr_graphics_text_description_default_get`
+
+```c
+TextDescription rohr_graphics_text_description_default_get(void);
+```
+
+ Built-in font, empty string, opaque white, and no wrapping.
+
+### `rohr_graphics_text_description_set`
+
+```c
+EngineResult rohr_graphics_text_description_set(TextAsset *text, TextDescription description);
+```
+
+ Atomic full replacement; updates dimensions without changing the handle.
+
+Failure preserves configuration, dependencies, and queued payloads.
+
+### `rohr_graphics_text_description_get`
+
+```c
+TextDescriptionResult rohr_graphics_text_description_get(TextAsset text);
+```
+
+ Borrowed font and string; no retain. Valid until successful changed
+
+configuration, public text destruction, or graphics shutdown.
 
 ### `rohr_graphics_text_wrap_width_set`
 
@@ -3578,7 +3646,7 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
 ### `rohr_graphics_animation_load`
 
 ```c
-AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
+AnimationAssetResult rohr_graphics_animation_load(AnimationDescription anim_desc);
 ```
 
 Loads or shares an immutable animation resource.
@@ -3592,6 +3660,26 @@ Frame transforms are copied into each instance and edited after creation.
 | `anim_desc` | Animation descriptor containing load settings. |
 
 **Returns:** AnimationAssetResult containing the asset, or an error.
+
+### `rohr_graphics_animation_description_default_get`
+
+```c
+AnimationDescription rohr_graphics_animation_description_default_get(void);
+```
+
+ Zero defaults create an empty catalog; zero IDs normalize on load.
+
+### `rohr_graphics_animation_description_get`
+
+```c
+AnimationDescriptionResult rohr_graphics_animation_description_get(AnimationAsset asset);
+```
+
+ Inspect without retaining. Paths remain borrowed until this resource
+
+loses its final owning reference or graphics shuts down.
+
+Frame arrays are copied; paths are borrowed from retained frame textures.
 
 ### `rohr_graphics_texture_size_get`
 

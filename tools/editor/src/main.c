@@ -127,7 +127,7 @@ static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspa
         if(font->path[0] == '/' || (strlen(font->path) > 2 && font->path[1] == ':'))
             snprintf(path, sizeof(path), "%s", font->path);
         else snprintf(path, sizeof(path), "%s/%s", workspace->directory, font->path);
-        loaded = rohr_graphics_font_load((FontDescriptor){.file = path,
+        loaded = rohr_graphics_font_load((FontDescription){.file = path,
             .point_size = 12.0f});
         if(rohr_error_check(loaded)) {
             for(size_t viewport_index = 0;
@@ -2414,7 +2414,7 @@ int main(int argc, char **argv) {
     }
     {
         startup_stage = "editor font loading";
-        FontAssetResult result = rohr_graphics_font_load((FontDescriptor){
+        FontAssetResult result = rohr_graphics_font_load((FontDescription){
             .file = "assets/jetbrains_mono_bold_italic.ttf",
             .point_size = 12.0f
         });
@@ -2429,7 +2429,7 @@ int main(int argc, char **argv) {
     }
     {
         startup_stage = "notification font loading";
-        FontAssetResult result = rohr_graphics_font_load((FontDescriptor){
+        FontAssetResult result = rohr_graphics_font_load((FontDescription){
             .file = "assets/jetbrains_mono_bold_italic.ttf",
             .point_size = 9.0f
         });
@@ -4384,7 +4384,7 @@ int main(int argc, char **argv) {
                     const char *font_path = editor_project_relative_path_get(
                         workspace.directory, browser_result.path);
                     FontAssetResult loaded_font = rohr_graphics_font_load(
-                        (FontDescriptor){.file = browser_result.path,
+                        (FontDescription){.file = browser_result.path,
                             .point_size = 12.0f});
                     EditorUiFont *added_font = NULL;
                     opened = !rohr_error_check(loaded_font);

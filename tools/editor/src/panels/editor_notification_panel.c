@@ -30,8 +30,10 @@ static const UIButtonStyle notification_dismiss_style = {
 
 static bool editor_notification_text_create(const FontAsset *font,
         const char *value, TextAsset *text) {
-    TextAssetResult result = rohr_graphics_text_create(font, value,
-        (Color){238, 241, 247, 255});
+    TextAssetResult result = rohr_graphics_text_create(
+        (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
+            .value = value,
+            .color = (Color){238, 241, 247, 255}});
     if(rohr_error_check(result)) return false;
     *text = result.result.value;
     return true;

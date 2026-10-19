@@ -217,7 +217,7 @@ static EngineResult body_apply(Entity entity, const ObjectDescription *d, bool n
 }
 static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, bool attached) {
     if(d->kind == OBJECT_SPRITE) {
-        TextureAssetResult loaded = graphics_texture_load((TextureDescriptor){d->asset_path, d->size});
+        TextureAssetResult loaded = graphics_texture_load((TextureDescription){d->asset_path, d->size});
         if(error_check(loaded)) return error_result_error(loaded.result.error);
         Sprite sprite = graphics_sprite_create(loaded.result.value, d->scale);
         sprite.body_offset = attached ? d->position : (Position){0};
@@ -231,8 +231,8 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
     if(d->kind == OBJECT_ANIMATION) {
         if((d->frame_count && !d->frames) || d->frame_count > MAX_ANIMATIONS_FRAMES)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        AnimationDescriptor descriptor = {.id = (AnimationId)d->id,
-            .amount_of_descriptors = d->frame_count, .ticks_per_frame = d->playing ? d->ticks_per_frame : 0,
+        AnimationDescription descriptor = {.id = (AnimationId)d->id,
+            .frame_count = d->frame_count, .ticks_per_frame = d->playing ? d->ticks_per_frame : 0,
             .time_per_frame = d->playing ? d->time_per_frame : 0};
         for(size_t i = 0; i < d->frame_count; ++i) {
             descriptor.frame_ids[i] = d->frames[i].id;

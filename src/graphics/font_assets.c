@@ -110,7 +110,7 @@ GraphicsFontAssetStats graphics_font_assets_stats_get(void) {
     return stats;
 }
 
-FontAssetResult graphics_font_load(FontDescriptor descriptor) {
+FontAssetResult graphics_font_load(FontDescription descriptor) {
     GraphicsFontResource *resource;
     char detail[256];
     char *path;
@@ -120,6 +120,8 @@ FontAssetResult graphics_font_load(FontDescriptor descriptor) {
     if(!font_assets_initialized || !font_assets_started)
         return ERROR_RESULT_MAKE_ERROR(
             FontAssetResult, ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED);
+    if(descriptor.file == NULL && descriptor.point_size == 0.0f)
+        return ERROR_RESULT_MAKE_VALUE(FontAssetResult, graphics_font_default_get());
     if(!isfinite(descriptor.point_size) || descriptor.point_size <= 0.0f) {
         error_detail_set(ERROR_ENGINE_FONT_LOAD_FAILED,
             "font point size must be finite and positive");
@@ -227,4 +229,16 @@ TTF_Font *graphics_font_native_get(FontAsset asset) {
     GraphicsFontResource *resource =
         graphics_font_resource_get(asset.handle);
     return resource == NULL || resource->pinned ? NULL : resource->font;
+}
+
+FontDescription graphics_font_description_default_get(void) {
+    return (FontDescription){0};
+}
+
+FontDescriptionResult graphics_font_description_get(FontAsset asset) {
+    GraphicsFontResource *resource = graphics_font_resource_get(asset.handle);
+    if(resource == NULL)
+        return ERROR_RESULT_MAKE_ERROR(FontDescriptionResult, ERROR_ENGINE_FONT_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(FontDescriptionResult,
+        ((FontDescription){.file = resource->path, .point_size = resource->point_size}));
 }

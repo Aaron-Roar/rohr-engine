@@ -169,7 +169,7 @@ int main(void) {
         slider_value = value_slider.initial_value;
     }
     {
-        FontAssetResult font_result = rohr_graphics_font_load((FontDescriptor){
+        FontAssetResult font_result = rohr_graphics_font_load((FontDescription){
             .file = font_definition.file,
             .point_size = font_definition.point_size,
         });
@@ -180,10 +180,9 @@ int main(void) {
         font = font_result.result.value;
 
         TextAssetResult title_result = rohr_graphics_text_create(
-            &font,
-            title_definition.text,
-            title_definition.color
-        );
+            (TextDescription){.font = font,
+                .value = title_definition.text,
+                .color = title_definition.color});
         if(rohr_error_check(title_result)) {
             PRINT_ENGINE_ERROR(title_result);
             goto fail;
@@ -191,10 +190,9 @@ int main(void) {
         title = title_result.result.value;
 
         TextAssetResult play_result = rohr_graphics_text_create(
-            &font,
-            play_definition.text,
-            play_definition.color
-        );
+            (TextDescription){.font = font,
+                .value = play_definition.text,
+                .color = play_definition.color});
         if(rohr_error_check(play_result)) {
             PRINT_ENGINE_ERROR(play_result);
             goto fail;
@@ -202,10 +200,9 @@ int main(void) {
         play_label = play_result.result.value;
 
         TextAssetResult settings_result = rohr_graphics_text_create(
-            &font,
-            settings_button.label,
-            settings_button.text_color
-        );
+            (TextDescription){.font = font,
+                .value = settings_button.label,
+                .color = settings_button.text_color});
         if(rohr_error_check(settings_result)) {
             PRINT_ENGINE_ERROR(settings_result);
             goto fail;
@@ -213,10 +210,9 @@ int main(void) {
         settings_label = settings_result.result.value;
 
         TextAssetResult quit_result = rohr_graphics_text_create(
-            &font,
-            "Quit",
-            (Color){240, 244, 250, 255}
-        );
+            (TextDescription){.font = font,
+                .value = "Quit",
+                .color = (Color){240, 244, 250, 255}});
         if(rohr_error_check(quit_result)) {
             PRINT_ENGINE_ERROR(quit_result);
             goto fail;
@@ -224,10 +220,9 @@ int main(void) {
         quit_label = quit_result.result.value;
 
         TextAssetResult description_result = rohr_graphics_text_create(
-            &font,
-            description_definition.text,
-            description_definition.color
-        );
+            (TextDescription){.font = font,
+                .value = description_definition.text,
+                .color = description_definition.color});
         if(rohr_error_check(description_result)) {
             PRINT_ENGINE_ERROR(description_result);
             goto fail;
@@ -235,24 +230,27 @@ int main(void) {
         description = description_result.result.value;
 
         TextAssetResult slider_label_result = rohr_graphics_text_create(
-            &font, value_slider.label, value_slider.text_color
-        );
+            (TextDescription){.font = font,
+                .value = value_slider.label,
+                .color = value_slider.text_color});
         if(rohr_error_check(slider_label_result)) {
             PRINT_ENGINE_ERROR(slider_label_result);
             goto fail;
         }
         slider_label = slider_label_result.result.value;
         TextAssetResult minus_result = rohr_graphics_text_create(
-            &font, "-", value_slider.text_color
-        );
+            (TextDescription){.font = font,
+                .value = "-",
+                .color = value_slider.text_color});
         if(rohr_error_check(minus_result)) {
             PRINT_ENGINE_ERROR(minus_result);
             goto fail;
         }
         slider_minus = minus_result.result.value;
         TextAssetResult plus_result = rohr_graphics_text_create(
-            &font, "+", value_slider.text_color
-        );
+            (TextDescription){.font = font,
+                .value = "+",
+                .color = value_slider.text_color});
         if(rohr_error_check(plus_result)) {
             PRINT_ENGINE_ERROR(plus_result);
             goto fail;
@@ -261,8 +259,9 @@ int main(void) {
         char value_text[UI_LABEL_MAX];
         snprintf(value_text, sizeof(value_text), value_slider.value_format, slider_value);
         TextAssetResult value_result = rohr_graphics_text_create(
-            &font, value_text, value_slider.text_color
-        );
+            (TextDescription){.font = font,
+                .value = value_text,
+                .color = value_slider.text_color});
         if(rohr_error_check(value_result)) {
             PRINT_ENGINE_ERROR(value_result);
             goto fail;
@@ -301,8 +300,9 @@ int main(void) {
             snprintf(value_text, sizeof(value_text), value_slider.value_format, slider_value);
             rohr_graphics_text_destroy(&slider_value_label);
             TextAssetResult value_result = rohr_graphics_text_create(
-                &font, value_text, value_slider.text_color
-            );
+                (TextDescription){.font = font,
+                    .value = value_text,
+                    .color = value_slider.text_color});
             if(rohr_error_check(value_result)) {
                 PRINT_ENGINE_ERROR(value_result);
                 goto fail;

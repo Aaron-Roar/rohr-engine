@@ -56,12 +56,12 @@ static int fail(const char *message, bool graphics_started,
     return 1;
 }
 
-static AnimationDescriptor descriptor_get(void) {
-    return (AnimationDescriptor){
+static AnimationDescription descriptor_get(void) {
+    return (AnimationDescription){
         .id = 41,
         .frame_files = {"animation_assets_first.png", "animation_assets_second.png"},
         .frame_ids = {101, 102},
-        .amount_of_descriptors = 2,
+        .frame_count = 2,
         .ticks_per_frame = 2,
         .time_per_frame = 0.5,
     };
@@ -128,7 +128,7 @@ static bool frame_values_check(AnimationAsset catalog) {
                 current.texture.handle != preserved.texture.handle) return false;
     }
     TextureAssetResult image = rohr_graphics_texture_load(
-        (TextureDescriptor){second_path, {999,999}});
+        (TextureDescription){second_path, {999,999}});
     if(rohr_error_check(image)) return false;
     AnimationFrame replacement = rohr_graphics_animation_frame_create(image.result.value);
     if(replacement.scale.x != 1 || replacement.texture.size.x != 1 ||
@@ -143,8 +143,8 @@ static bool frame_values_check(AnimationAsset catalog) {
 }
 
 int main(void) {
-    AnimationDescriptor descriptor = descriptor_get();
-    AnimationDescriptor normalized = descriptor_get();
+    AnimationDescription descriptor = descriptor_get();
+    AnimationDescription normalized = descriptor_get();
     AnimationAssetResult first;
     AnimationAssetResult second;
     AnimationAsset retained;
@@ -189,6 +189,22 @@ int main(void) {
             !graphics_animation_valid_check(first.result.value) ||
             !stats_check(1, 2, 2, 2, 2, 0, "shared load"))
         return fail("identical animations were not shared", true, true);
+    {
+        AnimationDescriptionResult description = rohr_graphics_animation_description_get(first.result.value);
+        if(rohr_error_check(description) || description.result.value.frame_count != 2 ||
+                description.result.value.id != descriptor.id ||
+                description.result.value.frame_ids[0] != descriptor.frame_ids[0] ||
+                description.result.value.ticks_per_frame != descriptor.ticks_per_frame ||
+                description.result.value.time_per_frame != descriptor.time_per_frame ||
+                description.result.value.frame_files[0] == NULL)
+            return fail("animation inspection failed", true, true);
+        AnimationAssetResult reloaded = graphics_animation_load(description.result.value);
+        if(rohr_error_check(reloaded) || reloaded.result.value.handle != first.result.value.handle ||
+                !result_ok(graphics_animation_release(&reloaded.result.value)) ||
+                !stats_check(1, 2, 2, 2, 2, 0, "description inspection") ||
+                !rohr_error_check(graphics_animation_description_get((AnimationAsset){0})))
+            return fail("animation description changed identity or ownership", true, true);
+    }
     info = graphics_animation_info_get(first.result.value);
     frame = graphics_animation_frame_get(first.result.value, 1);
     if(rohr_error_check(info) || rohr_error_check(frame) ||
@@ -281,7 +297,7 @@ int main(void) {
 
     {
         AnimationAssetResult original = rohr_graphics_animation_load(descriptor);
-        AnimationDescriptor replacement_descriptor = descriptor;
+        AnimationDescription replacement_descriptor = descriptor;
         AnimationAssetResult replacement;
         AnimationAsset original_stale;
         AnimationAsset replacement_stale;
@@ -330,10 +346,14 @@ int main(void) {
             true, true);
 
     {
-        AnimationDescriptor invalid = descriptor;
-        invalid.amount_of_descriptors = 0;
-        if(!rohr_error_check(rohr_graphics_animation_load(invalid)))
-            return fail("empty animation definition was accepted", true, true);
+        AnimationDescription invalid = descriptor;
+        invalid.frame_count = 0;
+        AnimationAssetResult empty = rohr_graphics_animation_load(invalid);
+        if(rohr_error_check(empty) ||
+                rohr_graphics_animation_info_get(empty.result.value).result.value.frame_count != 0 ||
+                !rohr_error_check(rohr_graphics_animation_frame_get(empty.result.value, 0)) ||
+                !result_ok(rohr_graphics_animation_release(&empty.result.value)))
+            return fail("empty animation catalog contract failed", true, true);
         invalid = descriptor;
         invalid.time_per_frame = -0.25;
         if(!rohr_error_check(rohr_graphics_animation_load(invalid)))
@@ -349,8 +369,8 @@ int main(void) {
 
     {
         TextureAssetResult probe = rohr_graphics_texture_load(
-            (TextureDescriptor){first_path, {10.0f, 20.0f}});
-        AnimationDescriptor failing = descriptor;
+            (TextureDescription){first_path, {10.0f, 20.0f}});
+        AnimationDescription failing = descriptor;
         AnimationAssetResult failed;
         if(rohr_error_check(probe) ||
                 !stats_check(0, 0, 0, 1, 1, 0,
@@ -464,7 +484,7 @@ int main(void) {
         return fail("aligned animation persistence failed", true, true);
     Entity saved_entity = rohr_entity_by_name_get("aligned_body").result.value;
     TextureAssetResult replacement_image = rohr_graphics_texture_load(
-        (TextureDescriptor){.file = second_path});
+        (TextureDescription){.file = second_path});
     AnimationFrame saved_frame = rohr_graphics_animated_sprite_frame_get(saved_entity, 0).result.value;
     saved_frame.texture = replacement_image.result.value;
     if(rohr_error_check(replacement_image) ||
@@ -497,7 +517,7 @@ int main(void) {
                 loaded.result.value.scale.x != -32 || loaded.result.value.scale.y != 0)
             return fail("aligned metadata did not survive reload", true, true);
         TextureAssetResult expected_image = rohr_graphics_texture_load(
-            (TextureDescriptor){.file = pass == 0 ? second_path : first_path});
+            (TextureDescription){.file = pass == 0 ? second_path : first_path});
         if(rohr_error_check(expected_image) ||
                 animated_sprites[index.result.value].frame_count != (pass == 0 ? 2u : 1u) ||
                 loaded.result.value.texture.handle != expected_image.result.value.handle ||

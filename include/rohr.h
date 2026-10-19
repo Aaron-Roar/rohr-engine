@@ -1896,10 +1896,16 @@ EngineResult rohr_graphics_soft_body_beam_color_set(
     Entity soft_body, Entity node_a, Entity node_b, Color color);
 /**
  * @brief Loads or shares a texture and returns one caller-owned reference.
- * @param text_desc Texture descriptor containing load settings.
+ * @param text_desc Texture description containing load settings.
  * @return TextureAssetResult containing the asset, or an error.
  */
-TextureAssetResult rohr_graphics_texture_load(TextureDescriptor text_desc);
+TextureAssetResult rohr_graphics_texture_load(TextureDescription text_desc);
+/** Zero defaults; a file is required to load. */
+TextureDescription rohr_graphics_texture_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Logical size comes from the supplied asset value. */
+TextureDescriptionResult rohr_graphics_texture_description_get(TextureAsset asset);
 
 /** @brief Adds one owning reference to a loaded texture asset. */
 EngineResult rohr_graphics_texture_retain(TextureAsset asset);
@@ -1926,7 +1932,13 @@ void rohr_graphics_screen_texture_radians_draw(TextureAsset texture, Position ce
     Scale size, Orientation orientation);
 
 /** @brief Loads or shares a font and returns one owning reference. */
-FontAssetResult rohr_graphics_font_load(FontDescriptor descriptor);
+FontAssetResult rohr_graphics_font_load(FontDescription descriptor);
+/** Zero defaults select the engine-pinned built-in font. */
+FontDescription rohr_graphics_font_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Built-in inspection returns file NULL and point_size zero. */
+FontDescriptionResult rohr_graphics_font_description_get(FontAsset asset);
 
 /** @brief Returns the engine-pinned built-in font for this graphics lifetime. */
 FontAsset rohr_graphics_font_default_get(void);
@@ -1941,7 +1953,15 @@ EngineResult rohr_graphics_font_release(FontAsset *font);
 bool rohr_graphics_font_valid_check(FontAsset font);
 
 /** @brief Creates reusable caller-owned text. */
-TextAssetResult rohr_graphics_text_create(const FontAsset *font, const char *value, Color color);
+TextAssetResult rohr_graphics_text_create(TextDescription description);
+/** Built-in font, empty string, opaque white, and no wrapping. */
+TextDescription rohr_graphics_text_description_default_get(void);
+/** Atomic full replacement; updates dimensions without changing the handle.
+ * Failure preserves configuration, dependencies, and queued payloads. */
+EngineResult rohr_graphics_text_description_set(TextAsset *text, TextDescription description);
+/** Borrowed font and string; no retain. Valid until successful changed
+ * configuration, public text destruction, or graphics shutdown. */
+TextDescriptionResult rohr_graphics_text_description_get(TextAsset text);
 bool rohr_graphics_text_value_set(TextAsset *text, const char *value);
 /** @brief Sets text wrapping width; zero disables wrapping. */
 bool rohr_graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
@@ -1969,7 +1989,13 @@ bool rohr_graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text
  * @param anim_desc Animation descriptor containing load settings.
  * @return AnimationAssetResult containing the asset, or an error.
  */
-AnimationAssetResult rohr_graphics_animation_load(AnimationDescriptor anim_desc);
+AnimationAssetResult rohr_graphics_animation_load(AnimationDescription anim_desc);
+/** Zero defaults create an empty catalog; zero IDs normalize on load. */
+AnimationDescription rohr_graphics_animation_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Frame arrays are copied; paths are borrowed from retained frame textures. */
+AnimationDescriptionResult rohr_graphics_animation_description_get(AnimationAsset asset);
 
 /** Native pixel dimensions, independent of TextureAsset.size. */
 TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset);

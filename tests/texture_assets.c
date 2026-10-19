@@ -77,9 +77,9 @@ int main(void) {
         return fail("zero or null texture release contract failed", true, true);
 
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {10.0f, 20.0f}});
+        (TextureDescription){texture_path, {10.0f, 20.0f}});
     second = rohr_graphics_texture_load(
-        (TextureDescriptor){"./texture_assets_fixture.png", {30.0f, 40.0f}});
+        (TextureDescription){"./texture_assets_fixture.png", {30.0f, 40.0f}});
     if(rohr_error_check(first) || rohr_error_check(second) ||
             first.result.value.handle != second.result.value.handle ||
             first.result.value.size.x != 10.0f ||
@@ -90,6 +90,18 @@ int main(void) {
             !stats_check(1, 2, 0, "shared load"))
         return fail("resolved-path sharing or logical sizes failed", true, true);
 
+    {
+        TextureDescriptionResult description = rohr_graphics_texture_description_get(first.result.value);
+        if(rohr_error_check(description) || description.result.value.file == NULL ||
+                description.result.value.size.x != first.result.value.size.x ||
+                description.result.value.size.y != first.result.value.size.y)
+            return fail("texture description failed", true, true);
+        TextureAssetResult reloaded = graphics_texture_load(description.result.value);
+        if(rohr_error_check(reloaded) || reloaded.result.value.handle != first.result.value.handle ||
+                !result_ok(graphics_texture_release(&reloaded.result.value)) ||
+                !rohr_error_check(graphics_texture_description_get((TextureAsset){0})))
+            return fail("texture description changed identity", true, true);
+    }
     retained = first.result.value;
     if(!result_ok(graphics_texture_retain(retained)) ||
             !stats_check(1, 3, 0, "direct retain"))
@@ -118,7 +130,7 @@ int main(void) {
             !stats_check(1, 0, 1, "entity deletion with queued draw"))
         return fail("entity deletion did not release its texture", true, true);
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {2.0f, 2.0f}});
+        (TextureDescription){texture_path, {2.0f, 2.0f}});
     if(rohr_error_check(first) || first.result.value.handle == stale.handle ||
             !stats_check(2, 1, 1, "reload while queued") ||
             !result_ok(rohr_graphics_texture_release(&first.result.value)) ||
@@ -136,9 +148,9 @@ int main(void) {
     expired_handle = stale.handle;
 
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {5.0f, 5.0f}});
+        (TextureDescription){texture_path, {5.0f, 5.0f}});
     second = rohr_graphics_texture_load(
-        (TextureDescriptor){second_texture_path, {6.0f, 6.0f}});
+        (TextureDescription){second_texture_path, {6.0f, 6.0f}});
     entity = rohr_entity_add();
     if(rohr_error_check(first) || rohr_error_check(second) ||
             rohr_error_check(entity) ||
@@ -170,7 +182,7 @@ int main(void) {
         return fail("replacement texture survived component removal", true, true);
 
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {1.0f, 1.0f}});
+        (TextureDescription){texture_path, {1.0f, 1.0f}});
     if(rohr_error_check(first) ||
             !stats_check(1, 1, 0, "failed component setup") ||
             !rohr_error_check(rohr_graphics_sprite_add(ENTITY_INVALID,
@@ -181,16 +193,16 @@ int main(void) {
             !stats_check(0, 0, 0, "failed component cleanup"))
         return fail("failed sprite addition changed ownership", true, true);
 
-    first = rohr_graphics_texture_load((TextureDescriptor){
+    first = rohr_graphics_texture_load((TextureDescription){
         "texture_assets_missing.png", {1.0f, 1.0f}});
     if(!rohr_error_check(first) ||
             !rohr_error_check(rohr_graphics_texture_load(
-                (TextureDescriptor){NULL, {1.0f, 1.0f}})) ||
+                (TextureDescription){NULL, {1.0f, 1.0f}})) ||
             !stats_check(0, 0, 0, "failed loads"))
         return fail("failed texture load changed ownership", true, true);
 
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {1.0f, 1.0f}});
+        (TextureDescription){texture_path, {1.0f, 1.0f}});
     if(rohr_error_check(first) ||
             !stats_check(1, 1, 0, "shutdown load"))
         return fail("shutdown texture load failed", true, true);
@@ -209,7 +221,7 @@ int main(void) {
         return fail("graphics restart failed", false, true);
     graphics_started = true;
     first = rohr_graphics_texture_load(
-        (TextureDescriptor){texture_path, {1.0f, 1.0f}});
+        (TextureDescription){texture_path, {1.0f, 1.0f}});
     if(rohr_error_check(first) || first.result.value.handle == stale.handle ||
             !stats_check(1, 1, 0, "graphics restart") ||
             !result_ok(rohr_graphics_texture_release(&first.result.value)) ||

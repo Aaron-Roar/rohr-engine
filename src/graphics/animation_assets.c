@@ -104,13 +104,13 @@ GraphicsAnimationAssetStats graphics_animation_assets_stats_get(void) {
     return stats;
 }
 
-AnimationAssetResult graphics_animation_load(AnimationDescriptor descriptor) {
+AnimationAssetResult graphics_animation_load(AnimationDescription descriptor) {
     AnimationFrame frames[MAX_ANIMATIONS_FRAMES] = {0};
     AnimationId id;
-    size_t frame_count = descriptor.amount_of_descriptors;
+    size_t frame_count = descriptor.frame_count;
     size_t slot;
 
-    if(!animation_assets_initialized || frame_count == 0 ||
+    if(!animation_assets_initialized ||
             frame_count > MAX_ANIMATIONS_FRAMES ||
             !isfinite(descriptor.time_per_frame) ||
             descriptor.time_per_frame < 0.0)
@@ -129,7 +129,7 @@ AnimationAssetResult graphics_animation_load(AnimationDescriptor descriptor) {
                     AnimationAssetResult, ERROR_ENGINE_ANIMATION_LOAD_FAILED);
             }
         }
-        texture = graphics_texture_load((TextureDescriptor){.file = descriptor.frame_files[i]});
+        texture = graphics_texture_load((TextureDescription){.file = descriptor.frame_files[i]});
         if(texture.kind == ERROR_RESULT_ERROR) {
             graphics_animation_frames_release(frames, i);
             return ERROR_RESULT_MAKE_ERROR(
@@ -232,4 +232,28 @@ AnimationFrameResult graphics_animation_frame_get(AnimationAsset asset,
             AnimationFrameResult, ERROR_ENGINE_INDEX_OUT_OF_RANGE);
     return ERROR_RESULT_MAKE_VALUE(
         AnimationFrameResult, resource->frames[frame_index]);
+}
+
+AnimationDescription graphics_animation_description_default_get(void) {
+    return (AnimationDescription){0};
+}
+
+AnimationDescriptionResult graphics_animation_description_get(AnimationAsset asset) {
+    GraphicsAnimationResource *resource = graphics_animation_resource_get(asset.handle);
+    if(resource == NULL)
+        return ERROR_RESULT_MAKE_ERROR(AnimationDescriptionResult, ERROR_ENGINE_ANIMATION_NOT_FOUND);
+    AnimationDescription description = {
+        .id = resource->info.id,
+        .frame_count = resource->info.frame_count,
+        .ticks_per_frame = resource->info.ticks_per_frame,
+        .time_per_frame = resource->info.time_per_frame,
+    };
+    for(size_t i = 0; i < description.frame_count; i += 1) {
+        TextureDescriptionResult texture = graphics_texture_description_get(resource->frames[i].texture);
+        if(error_check(texture))
+            return ERROR_RESULT_MAKE_ERROR(AnimationDescriptionResult, texture.result.error);
+        description.frame_files[i] = texture.result.value.file;
+        description.frame_ids[i] = resource->frames[i].id;
+    }
+    return ERROR_RESULT_MAKE_VALUE(AnimationDescriptionResult, description);
 }

@@ -267,7 +267,7 @@ static void resources(void) {
     FILE *file = fopen(path, "wb"); assert(file);
     assert(fwrite(test_png, 1, sizeof(test_png), file) == sizeof(test_png));
     assert(fclose(file) == 0);
-    TextureAssetResult loaded = graphics_texture_load((TextureDescriptor){path, {1,1}}); OK(loaded);
+    TextureAssetResult loaded = graphics_texture_load((TextureDescription){path, {1,1}}); OK(loaded);
     TextureAsset texture = loaded.result.value;
     Entity e = make_entity();
     Sprite sprite = graphics_sprite_create(texture, (Scale){2,3});

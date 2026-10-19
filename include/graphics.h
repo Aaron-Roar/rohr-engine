@@ -291,15 +291,16 @@ ERROR_DECLARE_RESULT_TYPE(GraphicsUiSliderValueResult, float);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerIdResult, GraphicsLayerId);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerValueResult, int);
 
-/** Descriptor for loading a texture from disk. */
+/** Description for loading a texture from disk. */
 typedef struct {
   /** Path to the texture file. */
   const char *file;
-  /** Source texture size metadata. */
+  /** Per-use logical drawing size; independent of native pixel dimensions. */
   Scale size;
-} TextureDescriptor;
+} TextureDescription;
+ERROR_DECLARE_RESULT_TYPE(TextureDescriptionResult, TextureDescription);
 
-/** Descriptor for loading a shared image catalog with default timing. */
+/** Description for loading a shared image catalog with default timing. */
 typedef struct {
   /** Stable project identity. Zero selects the compatibility default of one. */
   AnimationId id;
@@ -308,13 +309,14 @@ typedef struct {
   /** Stable frame IDs. Zero entries default to their one-based frame index. */
   AnimationFrameId frame_ids[MAX_ANIMATIONS_FRAMES];
 
-  /** Number of valid descriptors. */
-  uint8_t amount_of_descriptors;
+  /** Number of ordered frames; zero creates a valid empty catalog. */
+  uint8_t frame_count;
   /** Frame duration measured in engine ticks. */
   Tick ticks_per_frame;
   /** Frame duration measured in engine time. */
   Time time_per_frame;
-} AnimationDescriptor;
+} AnimationDescription;
+ERROR_DECLARE_RESULT_TYPE(AnimationDescriptionResult, AnimationDescription);
 
 /** Generation-checked handle for an engine-owned texture resource. */
 typedef uint32_t TextureHandle;
@@ -334,13 +336,14 @@ typedef struct {
 ERROR_DECLARE_RESULT_TYPE(TextureAssetResult, TextureAsset);
 ERROR_DECLARE_RESULT_TYPE(TextureSizeResult, Scale);
 
-/** Descriptor for loading a scalable font from disk. */
-typedef struct FontDescriptor {
+/** Load a custom font, or select the built-in font with a zero description. */
+typedef struct FontDescription {
     /** Path to a font file supported by SDL3_ttf. */
     const char *file;
     /** Font point size. */
     float point_size;
-} FontDescriptor;
+} FontDescription;
+ERROR_DECLARE_RESULT_TYPE(FontDescriptionResult, FontDescription);
 
 /** Generation-checked handle for an engine-owned font resource. */
 typedef uint32_t FontHandle;
@@ -358,6 +361,19 @@ typedef struct FontAsset {
 
 /** Result type for functions that return a FontAsset. */
 ERROR_DECLARE_RESULT_TYPE(FontAssetResult, FontAsset);
+
+/** Complete text configuration. Font handle zero selects the built-in font.
+ * Value must be non-null (empty is valid) and is copied on create/set.
+ * Omitted color is transparent zero; wrap_width zero disables wrapping.
+ * Built-in text uses fixed ASCII glyphs, word wrapping and hard breaks for long
+ * words; widths smaller than one glyph still display one glyph per line. */
+typedef struct TextDescription {
+    FontAsset font;
+    const char *value;
+    Color color;
+    int wrap_width;
+} TextDescription;
+ERROR_DECLARE_RESULT_TYPE(TextDescriptionResult, TextDescription);
 
 /** Generation-checked handle for an engine-owned animation resource. */
 typedef uint32_t AnimationHandle;
@@ -593,7 +609,13 @@ void graphics_hit_box_colored_draw(Entity entity, Fill fill_type, Color color);
 void graphics_hit_boxes_draw(void);
 
 /** Load or share a texture and return one caller-owned reference. */
-TextureAssetResult graphics_texture_load(TextureDescriptor text_desc);
+TextureAssetResult graphics_texture_load(TextureDescription text_desc);
+/** Zero defaults; a file is required to load. */
+TextureDescription graphics_texture_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Logical size comes from the supplied asset value. */
+TextureDescriptionResult graphics_texture_description_get(TextureAsset asset);
 /** Add one owning reference to a loaded texture asset. */
 EngineResult graphics_texture_retain(TextureAsset asset);
 /**
@@ -616,7 +638,13 @@ void graphics_screen_texture_radians_draw(TextureAsset texture, Position center,
     Scale size, Orientation orientation);
 
 /** Load or share a font and return one owning reference. */
-FontAssetResult graphics_font_load(FontDescriptor descriptor);
+FontAssetResult graphics_font_load(FontDescription descriptor);
+/** Zero defaults select the engine-pinned built-in font. */
+FontDescription graphics_font_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Built-in inspection returns file NULL and point_size zero. */
+FontDescriptionResult graphics_font_description_get(FontAsset asset);
 
 /** Return the engine-pinned built-in font for this graphics lifetime. */
 FontAsset graphics_font_default_get(void);
@@ -629,7 +657,15 @@ EngineResult graphics_font_release(FontAsset *asset);
 bool graphics_font_valid_check(FontAsset asset);
 
 /** Create reusable text. An empty string produces an empty text asset. */
-TextAssetResult graphics_text_create(const FontAsset *font, const char *value, Color color);
+TextAssetResult graphics_text_create(TextDescription description);
+/** Built-in font, empty string, opaque white, and no wrapping. */
+TextDescription graphics_text_description_default_get(void);
+/** Atomic full replacement; updates dimensions without changing the handle.
+ * Failure preserves configuration, dependencies, and queued payloads. */
+EngineResult graphics_text_description_set(TextAsset *text, TextDescription description);
+/** Borrowed font and string; no retain. Valid until successful changed
+ * configuration, public text destruction, or graphics shutdown. */
+TextDescriptionResult graphics_text_description_get(TextAsset text);
 bool graphics_text_value_set(TextAsset *text, const char *value);
 /** Set text wrapping width in logical pixels; zero disables wrapping. */
 bool graphics_text_wrap_width_set(TextAsset *text, int wrap_width);
@@ -649,7 +685,13 @@ bool graphics_screen_text_scaled_rotated_radians_draw(const TextAsset *text,
     Position center, Scale scale, Orientation orientation);
 
 /** Load or share an immutable animation and return one owning reference. */
-AnimationAssetResult graphics_animation_load(AnimationDescriptor anim_desc);
+AnimationAssetResult graphics_animation_load(AnimationDescription anim_desc);
+/** Zero defaults create an empty catalog; zero IDs normalize on load. */
+AnimationDescription graphics_animation_description_default_get(void);
+/** Inspect without retaining. Paths remain borrowed until this resource
+ * loses its final owning reference or graphics shuts down.
+ * Frame arrays are copied; paths are borrowed from retained frame textures. */
+AnimationDescriptionResult graphics_animation_description_get(AnimationAsset asset);
 
 /** Native pixel dimensions, independent of TextureAsset.size. */
 TextureSizeResult graphics_texture_size_get(TextureAsset asset);

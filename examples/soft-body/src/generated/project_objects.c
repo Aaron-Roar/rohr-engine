@@ -69,7 +69,7 @@ static inline EngineResult generated_sprite_create(Entity *output, Entity target
       result = rohr_physics_position_set(target, position);
       if(rohr_error_check(result)) goto fail; }
     *output = target;
-    loaded = rohr_graphics_texture_load((TextureDescriptor){path, size});
+    loaded = rohr_graphics_texture_load((TextureDescription){path, size});
     if(rohr_error_check(loaded)) {
         result = rohr_error_result_error(loaded.result.error);
         goto fail;

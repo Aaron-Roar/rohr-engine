@@ -57,7 +57,7 @@ static TextureAssetResult texture_read(yyjson_val *v) {
     if(!yyjson_is_str(path) || yyjson_get_len(path)!=strlen(yyjson_get_str(path)) ||
             !vector_read(v,"size",&size.x,&size.y))
         return ERROR_RESULT_MAKE_ERROR(TextureAssetResult,ERROR_ENGINE_STATE_INVALID);
-    return graphics_texture_load((TextureDescriptor){yyjson_get_str(path),size});
+    return graphics_texture_load((TextureDescription){yyjson_get_str(path),size});
 }
 static bool sprite_write(yyjson_mut_doc *doc,yyjson_mut_val *v,Scale scale,Position offset,
         Orientation angle,Direction direction,bool follow,bool visible) {
@@ -156,7 +156,7 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
 #undef WRITE
 }
 static EngineResult animation_read(Entity entity,yyjson_val *v) {
-    AnimatedSprite sprite={0}; AnimationDescriptor descriptor={0};
+    AnimatedSprite sprite={0}; AnimationDescription descriptor={0};
     yyjson_val *frames=yyjson_obj_get(v,"frames");
     uint64_t id,index,elapsed; double time_elapsed;
     if(!sprite_read(v,&sprite.scale,&sprite.body_offset,&sprite.orientation_offset,&sprite.direction,&sprite.follow_entity_rotation,&sprite.visible) ||
@@ -166,8 +166,8 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
             !integer(v,"ticks_per_frame",&descriptor.ticks_per_frame) || !number(v,"time_per_frame",&descriptor.time_per_frame) ||
             descriptor.time_per_frame<0 || !integer(v,"elapsed_ticks",&elapsed) || !number(v,"elapsed_time",&time_elapsed))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    descriptor.id=(AnimationId)id; descriptor.amount_of_descriptors=(uint8_t)yyjson_arr_size(frames);
-    sprite.frame_count=descriptor.amount_of_descriptors;
+    descriptor.id=(AnimationId)id; descriptor.frame_count=(uint8_t)yyjson_arr_size(frames);
+    sprite.frame_count=descriptor.frame_count;
     for(size_t i=0;i<sprite.frame_count;++i) {
         yyjson_val *f=yyjson_arr_get(frames,i),*path=yyjson_obj_get(f,"path");
         AnimationFrame *frame=&sprite.frames[i];
