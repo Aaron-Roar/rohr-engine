@@ -1009,7 +1009,7 @@ int main(void) {
                 !file_contains(path, ".frame_ids = {UINT32_C(") ||
                 !file_contains(path, "animated.frames[0].offset = (Position){13.0000000f, -9.00000000f}") ||
                 !file_contains(path, "animated.frames[0].rotation = 450.000000f") ||
-                !file_contains(path, "animated.player.frame_index = ") ||
+                !file_contains(path, "rohr_graphics_animated_sprite_frame_index_set(object->") ||
                 !file_contains(path, "assets/fly frame.png") ||
                 !file_contains(path, "animated.follow_entity_rotation = false") ||
                 !file_contains(path, "animated.body_offset = (Position){6.00000000f, 7.00000000f}") ||

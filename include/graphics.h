@@ -404,12 +404,12 @@ typedef struct {
     Scale scale;
     Position offset;
     Orientation rotation;
-} AnimationFrame;
+} AnimationFrameDescription;
 
 /** Result type for functions that return an AnimationAsset. */
 ERROR_DECLARE_RESULT_TYPE(AnimationAssetResult, AnimationAsset);
 ERROR_DECLARE_RESULT_TYPE(AnimationInfoResult, AnimationInfo);
-ERROR_DECLARE_RESULT_TYPE(AnimationFrameResult, AnimationFrame);
+ERROR_DECLARE_RESULT_TYPE(AnimationFrameDescriptionResult, AnimationFrameDescription);
 
 /**
  * Mutable playback state owned independently by each consumer. Creating a
@@ -421,15 +421,29 @@ typedef struct AnimationPlayer {
     size_t frame_count;
     Tick last_update_tick;
     Time last_update_time;
+    /** Last supplied update clocks; used when resetting a standalone player. */
+    Tick observed_tick;
+    Time observed_time;
     Tick ticks_per_frame;
     Time time_per_frame;
 } AnimationPlayer;
+
+/** Player configuration only; index and clocks remain runtime state.
+ * Zero timing disables that advancement clock. Both clocks retain their existing
+ * either-threshold stepping behavior. The animation handle is borrowed. */
+typedef struct AnimationPlayerDescription {
+    AnimationAsset animation;
+    Tick ticks_per_frame;
+    Time time_per_frame;
+} AnimationPlayerDescription;
+ERROR_DECLARE_RESULT_TYPE(AnimationPlayerDescriptionResult, AnimationPlayerDescription);
+ERROR_DECLARE_RESULT_TYPE(AnimationPlayerResult, AnimationPlayer);
 
 /** Horizontal facing direction for sprite drawing. */
 typedef enum {DIRECTION_LEFT, DIRECTION_RIGHT} Direction;
 
 /** Runtime static sprite state attached to an entity. */
-typedef struct Sprite {
+typedef struct SpriteDescription {
     TextureAsset texture;
     Direction direction;
     Scale scale;
@@ -437,7 +451,10 @@ typedef struct Sprite {
     Orientation orientation_offset;
     bool follow_entity_rotation;
     bool visible;
-} Sprite;
+} SpriteDescription;
+/** Stored static sprite configuration; has no separate playback state. */
+typedef SpriteDescription Sprite;
+ERROR_DECLARE_RESULT_TYPE(SpriteDescriptionResult, SpriteDescription);
 
 MEMORY_DECLARE_OBJECT_POOL(SpritePool, Sprite);
 extern SpritePool sprites_pool;
@@ -448,7 +465,7 @@ typedef struct {
     /** Per-sprite playback state for a shared animation asset. */
     AnimationPlayer player;
     /** Instance frame values; value construction borrows images, ECS insertion retains them. */
-    AnimationFrame frames[MAX_ANIMATIONS_FRAMES];
+    AnimationFrameDescription frames[MAX_ANIMATIONS_FRAMES];
     size_t frame_count;
     /** Current draw direction. */
     Direction direction;
@@ -463,6 +480,24 @@ typedef struct {
     /** Whether bulk sprite drawing includes this sprite. */
     bool visible;
 } AnimatedSprite;
+
+/** Complete instance configuration. Frames are copied and authoritative;
+ * zero frame_count means empty even when a catalog is supplied. The catalog
+ * supplies identity/provenance, not implicit replacement frames or timing.
+ * Zero frame IDs normalize to their one-based index. Angles are degrees. */
+typedef struct AnimatedSpriteDescription {
+    AnimationPlayerDescription player;
+    AnimationFrameDescription frames[MAX_ANIMATIONS_FRAMES];
+    size_t frame_count;
+    Direction direction;
+    Scale scale;
+    Position body_offset;
+    Orientation orientation_offset;
+    bool follow_entity_rotation;
+    bool visible;
+} AnimatedSpriteDescription;
+ERROR_DECLARE_RESULT_TYPE(AnimatedSpriteDescriptionResult, AnimatedSpriteDescription);
+ERROR_DECLARE_RESULT_TYPE(AnimatedSpriteResult, AnimatedSprite);
 
 /** Result type for sprite orientation offsets. */
 ERROR_DECLARE_RESULT_TYPE(SpriteOrientationResult, Orientation);
@@ -693,21 +728,60 @@ AnimationDescription graphics_animation_description_default_get(void);
  * Frame arrays are copied; paths are borrowed from retained frame textures. */
 AnimationDescriptionResult graphics_animation_description_get(AnimationAsset asset);
 
+
+/** Scale one, facing right, visible, and following entity rotation. */
+SpriteDescription graphics_sprite_description_default_get(void);
+/** Replace all configuration atomically; the component must already exist. */
+EngineResult graphics_sprite_description_set(Entity entity, SpriteDescription description);
+/** Copied configuration with borrowed texture; no retain. */
+SpriteDescriptionResult graphics_sprite_description_get(Entity entity);
+/** Scale one with zero ID, offset, and rotation. */
+AnimationFrameDescription graphics_animation_frame_description_default_get(void);
+/** No catalog and zero timing. */
+AnimationPlayerDescription graphics_animation_player_description_default_get(void);
+/** Borrowed catalog and its timing; zero handle selects empty defaults. */
+AnimationPlayerDescriptionResult graphics_animation_player_description_from_animation_get(AnimationAsset animation);
+/** Preserves clocks for the same catalog; a changed catalog resets to frame zero
+ * at the last observed update clocks. No resource retain or release. */
+EngineResult graphics_animation_player_description_set(AnimationPlayer *player, AnimationPlayerDescription description);
+/** Configuration only; the caller keeps the borrowed catalog alive. */
+AnimationPlayerDescriptionResult graphics_animation_player_description_get(const AnimationPlayer *player);
+/** Empty frames, scale one, facing right, visible, following entity rotation. */
+AnimatedSpriteDescription graphics_animated_sprite_description_default_get(void);
+/** Copies catalog frames and timing into independent instance configuration.
+ * Images and catalog are borrowed until catalog release or graphics shutdown. */
+AnimatedSpriteDescriptionResult graphics_animated_sprite_description_from_animation_get(AnimationAsset animation);
+/** Copied value configuration. Images/catalog remain borrowed from the value's owners. */
+AnimatedSpriteDescription graphics_animated_sprite_value_description_get(AnimatedSprite sprite);
+/** For standalone unowned values only; validates atomically without retaining.
+ * Preserve current frame by ID and clocks. Removed current ID or changed catalog
+ * resets to frame zero at the last observed update clocks. */
+EngineResult graphics_animated_sprite_value_description_set(AnimatedSprite *sprite, AnimatedSpriteDescription description);
+/** Atomic component replacement, acquiring new references before releasing old.
+ * Same preservation rules as value replacement; resets use engine clocks. */
+EngineResult graphics_animated_sprite_description_set(Entity entity, AnimatedSpriteDescription description);
+/** Copied frames and borrowed handles; valid until replacement/removal/deletion
+ * or graphics shutdown. The getter never retains. */
+AnimatedSpriteDescriptionResult graphics_animated_sprite_description_get(Entity entity);
+
 /** Native pixel dimensions, independent of TextureAsset.size. */
 TextureSizeResult graphics_texture_size_get(TextureAsset asset);
-/** Borrowed image value with native size, scale {1,1}, zero offset/rotation/id. */
-AnimationFrame graphics_animation_frame_create(TextureAsset texture);
+/** Non-owning value builder; copies fields and resolves native texture size.
+ * It does not validate or retain; add/set validates before publication. */
+AnimationFrameDescription graphics_animation_frame_create(AnimationFrameDescription description);
 /** Non-owning builders: copy values; keep image owners alive until component add.
  * Use only on unattached values, never directly on an installed component.
- * ID zero assigns an unused ID on add and preserves the current ID on set. */
-EngineResult graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame);
-EngineResult graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite, size_t index, AnimationFrame frame);
+ * ID zero assigns an unused ID on add and preserves the current ID on set.
+ * Replacing the current ID resets playback to the first frame. */
+EngineResult graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrameDescription frame);
+EngineResult graphics_animated_sprite_value_frame_description_set(AnimatedSprite *sprite, size_t index, AnimationFrameDescription frame);
 /** Get a copied instance frame with a borrowed image. Do not release its texture. */
-AnimationFrameResult graphics_animated_sprite_frame_get(Entity entity, size_t index);
-/** Instance mutation retains images, preserves playback, and rolls back on error.
+AnimationFrameDescriptionResult graphics_animated_sprite_frame_description_get(Entity entity, size_t index);
+/** Instance mutation retains images and rolls back on error. Playback is
+ * preserved unless the current frame ID changes, which resets to frame zero.
  * Signed scale flips content; zero collapses the image. All transforms must be finite. */
-EngineResult graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame);
-EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame);
+EngineResult graphics_animated_sprite_frame_description_set(Entity entity, size_t index, AnimationFrameDescription frame);
+EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrameDescription frame);
 EngineResult graphics_animated_sprite_frame_scale_set(Entity entity, size_t index, Scale scale);
 EngineResult graphics_animated_sprite_frame_offset_set(Entity entity, size_t index, Position offset);
 EngineResult graphics_animated_sprite_frame_rotation_set(Entity entity, size_t index, Orientation rotation);
@@ -725,33 +799,33 @@ bool graphics_animation_valid_check(AnimationAsset asset);
 /** Return immutable metadata stored for an animation asset. */
 AnimationInfoResult graphics_animation_info_get(AnimationAsset asset);
 /** Return a reusable catalog frame with scale one and a borrowed texture. */
-AnimationFrameResult graphics_animation_frame_get(AnimationAsset asset,
+AnimationFrameDescriptionResult graphics_animation_frame_description_get(AnimationAsset asset,
     size_t frame_index);
 
 /** Create independent mutable playback state for a shared animation. */
-AnimationPlayer graphics_animation_player_create(AnimationAsset asset);
+AnimationPlayerResult graphics_animation_player_create(AnimationPlayerDescription description);
 /** Advance one player's frame state. */
 void graphics_animation_player_update(AnimationPlayer *player,
     Tick current_tick, Time current_time);
 
-/** Create sprite runtime state from an animation asset. */
-AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale);
+/** Validate and create non-owning sprite runtime state from a description. */
+AnimatedSpriteResult graphics_animated_sprite_create(AnimatedSpriteDescription description);
 
 /** Advance one animated sprite's frame state. */
 void graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick,
     Time current_time);
 
 /** Attach an animated sprite to an entity. */
-EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite);
+EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description);
 EngineResult graphics_animated_sprite_frame_index_set(Entity entity,
     size_t frame_index);
 AnimationFrameIndexResult graphics_animated_sprite_frame_index_get(Entity entity);
 
-/** Create static sprite runtime state from a texture asset. */
-Sprite graphics_sprite_create(TextureAsset asset, Scale scale);
+/** Copy static sprite configuration into a non-owning value; add/set validates. */
+Sprite graphics_sprite_create(SpriteDescription description);
 
 /** Attach a static sprite to an entity. */
-EngineResult graphics_sprite_add(Entity entity, Sprite sprite);
+EngineResult graphics_sprite_add(Entity entity, SpriteDescription description);
 
 /** Set the local position offset of an attached static sprite. */
 EngineResult graphics_sprite_body_offset_set(Entity entity, Position offset);

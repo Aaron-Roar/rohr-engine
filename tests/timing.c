@@ -17,12 +17,10 @@ int main(void) {
     }
     rohr_engine_clock_reset();
     transient = rohr_entity_add();
-    static_sprite = rohr_graphics_sprite_create((TextureAsset){0},
-        (Scale){2.0f, 3.0f});
+    static_sprite = (SpriteDescription){.texture = (TextureAsset){0}, .scale = (Scale){2.0f, 3.0f}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true};
     if(rohr_error_check(transient) || static_sprite.scale.x != 2.0f ||
             !static_sprite.follow_entity_rotation ||
-            rohr_error_check(rohr_graphics_sprite_add(
-                transient.result.value, static_sprite)) ||
+            rohr_error_check(rohr_graphics_sprite_add(transient.result.value, static_sprite)) ||
             !rohr_entity_components_check(transient.result.value, ROHR_SPRITE)) {
         rohr_engine_stop();
         return 1;

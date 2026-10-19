@@ -219,7 +219,7 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
     if(d->kind == OBJECT_SPRITE) {
         TextureAssetResult loaded = graphics_texture_load((TextureDescription){d->asset_path, d->size});
         if(error_check(loaded)) return error_result_error(loaded.result.error);
-        Sprite sprite = graphics_sprite_create(loaded.result.value, d->scale);
+        SpriteDescription sprite = (SpriteDescription){.texture = loaded.result.value, .scale = d->scale, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true};
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
         sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
@@ -241,10 +241,15 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
         AnimationAssetResult loaded = d->frame_count ? graphics_animation_load(descriptor) :
             ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
         if(error_check(loaded)) return error_result_error(loaded.result.error);
-        AnimatedSprite sprite = graphics_animated_sprite_create(loaded.result.value, d->scale);
+        AnimatedSpriteDescriptionResult prepared = graphics_animated_sprite_description_from_animation_get(loaded.result.value);
+        if(error_check(prepared)) {
+            (void)graphics_animation_release(&loaded.result.value);
+            return error_result_error(prepared.result.error);
+        }
+        AnimatedSpriteDescription sprite = prepared.result.value;
+        sprite.scale = d->scale;
         sprite.player.ticks_per_frame = descriptor.ticks_per_frame;
         sprite.player.time_per_frame = descriptor.time_per_frame;
-        sprite.player.frame_index = d->starting_frame;
         sprite.body_offset = attached ? d->position : (Position){0};
         sprite.orientation_offset = attached ? d->orientation : 0;
         sprite.follow_entity_rotation = attached ? d->follow_orientation : true; sprite.visible = object_description_visible_check(d);
@@ -255,6 +260,8 @@ static EngineResult visuals_apply(Entity entity, const ObjectDescription *d, boo
             sprite.frames[i].rotation = d->frames[i].rotation;
         }
         EngineResult result = graphics_animated_sprite_add(entity, sprite);
+        if(!error_check(result) && sprite.frame_count > 0)
+            result = graphics_animated_sprite_frame_index_set(entity, d->starting_frame);
         (void)graphics_animation_release(&loaded.result.value);
         if(!error_check(result)) result = graphics_layer_animation_set(entity, d->layer);
         return result;

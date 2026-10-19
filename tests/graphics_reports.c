@@ -141,7 +141,7 @@ static void retained_assets(void) {
     TextureAsset texture=loaded.result.value;
     EntityResult entity=rohr_entity_add(); OK(entity);
 #ifdef ROHR_TEST_GRAPHICS_WRAP
-    OK(graphics_sprite_add(entity.result.value,graphics_sprite_create(texture,(Scale){1,1})));
+    OK(graphics_sprite_add(entity.result.value, (SpriteDescription){.texture = texture, .scale = (Scale){1,1}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true}));
     EntityInfoResult drawable=entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_SPRITE); OK(drawable);
     EntityInfoIssueCountResult drawable_issues=entity_info_issues_count_get(&drawable.result.value,
         ROHR_ENTITY_INFO_GRAPHICS_SPRITE); OK(drawable_issues); assert(drawable_issues.result.value==0);
@@ -170,10 +170,10 @@ static void retained_assets(void) {
 #endif
     AnimatedSprite sprite={.scale={1,1},.visible=true};
     sprite.player.ticks_per_frame=1;
-    AnimationFrame frame=rohr_graphics_animation_frame_create(texture);
+    AnimationFrameDescription frame=rohr_graphics_animation_frame_create((AnimationFrameDescription){.texture = texture, .scale = {1, 1}});
     OK(rohr_graphics_animated_sprite_value_frame_add(&sprite,frame));
     OK(rohr_graphics_animated_sprite_value_frame_add(&sprite,frame));
-    OK(rohr_graphics_animated_sprite_add(entity.result.value,sprite));
+    OK(rohr_graphics_animated_sprite_add(entity.result.value, rohr_graphics_animated_sprite_value_description_get(sprite)));
     complete(rohr_graphics_show());
     assert(rohr_graphics_animated_sprite_frame_index_get(entity.result.value).result.value==0);
     Report animation=rohr_graphics_sprite_frames_update(1,0);
@@ -182,7 +182,7 @@ static void retained_assets(void) {
     assert(metric(&animation,ROHR_GRAPHICS_ANIMATIONS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==1);
     assert(rohr_graphics_animated_sprite_frame_index_get(entity.result.value).result.value==1);
     EntityResult healthy=rohr_entity_add(); OK(healthy);
-    OK(graphics_animated_sprite_add(healthy.result.value,sprite));
+    OK(graphics_animated_sprite_add(healthy.result.value, graphics_animated_sprite_value_description_get(sprite)));
     EntityIndexResult index=rohr_entity_index_get(entity.result.value); OK(index);
     EntityInfoResult before=entity_info_get(entity.result.value,ROHR_ENTITY_INFO_GRAPHICS_ANIMATIONS); OK(before);
     /* The pipeline rejects mismatched player metadata without repairing it. */

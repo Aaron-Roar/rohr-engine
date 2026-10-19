@@ -1,8 +1,8 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–6 of **Consistent Description APIs** are implemented.
+Status: Goals 1–7 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
-configuration, particle, soft-body, anchor, asset-loading, and text descriptions
+configuration, particle, soft-body, anchor, asset-loading, text, sprite, and animation-instance descriptions
 are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
@@ -145,7 +145,7 @@ appear in the header inventory below.
 | Particles / 4 — shipped | `ParticleDescription` | Standalone creation and full `physics_particle_description_set/get`, with the existing default getter. | Current configurable state and explicit owner replacement; atomic circle/polygon synchronization; static configuration retained; hybrid bodies and soft nodes use their own APIs. |
 | Soft bodies and anchors / 5 — shipped | `SoftBodyDescription`, `SoftBodyNodeDescription`, `SoftBodyBeamDescription`, `SoftBodyAreaDescription`, `JointAnchorDescription`, `SoftBodyBeamCollisionDescription` | Full set/get for all five families, including current motion, materials, collision, and existing visuals; use `SoftBodyBeamCollisionDescription` for the full collision group. Reuse `CollisionFilterDescription` for node/beam full filters. | Keep world/local creation variants explicit. Container edits do not reconstruct children; owner changes preserve connections. Beam getters preserve resolved rest values; automatic measurement happens only when requested. Beam collision defaults off and never derives settings from endpoints. Anchor replacement updates references transactionally without implicit reownership of joints. |
 | Shared assets and text / 6 — shipped | `TextureDescription`, `FontDescription`, `AnimationDescription`, `TextDescription` | Loading/default/inspection for immutable assets; full text create/set/get. Animation uses `frame_count`. | Sharing and borrowed metadata; unique text ownership; atomic replacement; queued payloads retain their exact font revision. |
-| Sprites, frames, players / 7 | `Sprite`, `AnimatedSprite`, `AnimationFrame`, `AnimationPlayer` mix configuration with runtime values | Add `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` creation/full set/get; retain runtime state/result types where needed. Catalog frame retrieval uses the common frame description without exposing a catalog setter. | Keep frame IDs, empty animations, instance transforms, texture/catalog reference ownership, and independent playback. Ordinary visual edits preserve progress. |
+| Sprites, frames, players / 7 — shipped | `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` | Description creation/default/full accessors, plus catalog-to-instance helpers. `Sprite` is the stored configuration alias; `AnimatedSprite` and `AnimationPlayer` retain separate runtime state. | Atomic image/catalog replacement; borrowed getters; stable frame IDs preserve compatible progress. Frame index and clocks remain outside descriptions. |
 | Audio / 8 | `SoundConfig`, `MusicConfig` | Rename to `SoundDescription`, `MusicDescription`; standardize defaults and add `audio_sound_description_set/get`, `audio_music_description_set/get`. | Volume/pan/loop/rate edits preserve progress; failed source replacement preserves playback and references; successful source replacement is stopped. Callback/reporting architecture is unchanged. |
 | Logical input / 9 | Positional controller/action creation; `InputBinding`, `InputBindingList` | Add `InputControllerDescription`, `InputActionDescription` creation/full set/get. Include authored action behavior/default bindings; retain focused override-list/state APIs. | Controller-local name uniqueness, ownership, defaults versus overrides, and type/mode transitions remain explicit. No controller child-action rebuild or synthetic presses from unrelated edits. |
 | Cameras and presentation / 10 | `CameraConfig`, `Camera`, `CameraAttachment`, `GraphicsWindowPresentationConfig` | Use `CameraDescription`, `CameraAttachmentDescription`, `GraphicsWindowPresentationDescription` with complete/default accessors. Retain resolved camera queries if needed separately from configuration retrieval. Include callback/context in full configuration while retaining its focused setter. | Unrelated edits preserve attachments and motion. Changing a driven transform/zoom supersedes only the affected motion channel. Timed commands stay direct. Global presentation needs full set/get, not an artificial resource constructor. |
@@ -383,6 +383,76 @@ text owner has been destroyed. Teardown remains UI, then text, then fonts.
 All new functions have matching `rohr_` wrappers. Callers and generated code use
 the new types/signatures; custom application entry points remain user-owned.
 
+## Shipped Goal 7 behavior
+
+Static and animated component addition takes `SpriteDescription` and
+`AnimatedSpriteDescription`. Their `_description_set` requires an existing
+component; `_add` can create or replace one. Full replacements validate before
+retaining dependencies and acquire every new reference before releasing old
+ones. Failure preserves the component, playback, and ownership. Names, entity
+owners, transforms, layer bindings, and other components are untouched.
+`Sprite` remains an alias for stored static configuration, since it has no
+separate playback state.
+
+`graphics_animated_sprite_description_from_animation_get` copies catalog frames
+and timing into a description with scale one, facing right, visibility on, and
+rotation following on. Its frames and configuration are independent copies;
+images and catalog handles are borrowed. Zero handles yield empty defaults and
+stale nonzero handles fail. The full description's frame list is authoritative:
+zero frames means empty even with a nonzero catalog. The catalog preserves
+identity for bindings and inspection; it never implicitly restores frames.
+
+```c
+AnimatedSpriteDescriptionResult prepared =
+    rohr_graphics_animated_sprite_description_from_animation_get(animation);
+if(!rohr_error_check(prepared)) {
+    prepared.result.value.scale = (Scale){2, 2};
+    if(prepared.result.value.frame_count > 0)
+        prepared.result.value.frames[0].rotation = 45;
+    EngineResult added = rohr_graphics_animated_sprite_add(entity, prepared.result.value);
+    /* Handle added before continuing. */
+}
+```
+
+`AnimationFrameDescription` replaces `AnimationFrame`. Catalog and entity frame
+inspection use `_frame_description_get`; full frame mutation uses
+`_frame_description_set`. Focused scale, offset, rotation, and frame-index APIs
+remain direct. Frames draw using native texture dimensions, signed scale, and
+clockwise degrees; zero scale collapses content. Full list replacement normalizes
+zero IDs to one-based indices and rejects duplicates. Focused frame addition
+assigns an unused ID; focused frame replacement with ID zero preserves that
+slot's current ID. Changing the current ID is equivalent to removing that frame.
+
+Appearance edits, image replacement, and timing changes preserve the current
+stable frame ID and elapsed tick/time clocks. Reordering moves the current index
+to the matching ID. Removing that ID or changing catalog handles resets to frame
+zero and fresh clocks. Entity resets use current engine clocks; standalone
+players/values use their last observed update clocks. A duration that is already
+exceeded advances on the next update. The existing either-tick-or-time threshold
+behavior is unchanged. A zero timing value disables its clock; two zero values
+stop automatic stepping without implicitly clearing progress.
+
+`AnimationPlayerDescription` contains only catalog and tick/time durations.
+Standalone players derive frame count from their immutable catalog. Instance
+players derive it from their explicit frame list. Indices, last-advance clocks,
+and observed update clocks remain in runtime state. `graphics_animation_player_create`
+and `graphics_animated_sprite_create` return typed results and create validated,
+non-owning values. Their owners must keep assets alive; adding an instance to an
+entity acquires its own references. Value description setters are only for
+standalone values, never installed components. Static sprite/frame builders
+simply copy descriptions (frames resolve native image size); add/set performs
+validation. Default getters supply useful scale/visibility/direction values;
+omitted literal fields stay zero/false. Creating a value does not retain assets.
+
+Description getters copy configuration but do not retain images or catalogs.
+Keep the original owner alive and unchanged until finished using borrowed
+handles, or explicitly retain independent references. Catalog inspection remains
+immutable. Authored starting-frame selection happens after creation through the
+focused index setter. Runtime loading restores saved indices/elapsed clocks
+explicitly after applying configuration, preserving existing save formats.
+All changed APIs have matching `rohr_` wrappers; old positional signatures and
+old frame type/accessor names are removed.
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -431,16 +501,15 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1536** classified declaration/macro entries.
+The current inventory contains **1564** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M7: Migration required | Sprite, frame, and player configuration | 7 | 24 |
 | M8: Migration required | Audio configuration | 8 | 8 |
 | M9: Migration required | Logical input configuration | 9 | 4 |
 | M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 168 |
+| C: Compliant | Existing description interface | — | 220 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
@@ -604,16 +673,9 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 240 entries</summary>
+<summary>graphics.h: 254 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
-
-**M7 — Sprite, frame, and player configuration (Goal 7)**
-
-- `graphics_animated_sprite_add`, `graphics_animated_sprite_create`, `graphics_animated_sprite_frame_add`.
-- `graphics_animated_sprite_frame_get`, `graphics_animated_sprite_frame_set`, `graphics_animated_sprite_value_frame_add`.
-- `graphics_animated_sprite_value_frame_set`, `graphics_animation_frame_create`, `graphics_animation_frame_get`.
-- `graphics_animation_player_create`, `graphics_sprite_add`, `graphics_sprite_create`.
 
 **M10 — Camera and presentation configuration (Goal 10)**
 
@@ -636,11 +698,19 @@ Source: [graphics.h](../include/graphics.h).
 
 **C — Existing description interface**
 
-- `graphics_animation_description_default_get`, `graphics_animation_description_get`, `graphics_animation_load`.
+- `graphics_animated_sprite_add`, `graphics_animated_sprite_create`, `graphics_animated_sprite_description_default_get`.
+- `graphics_animated_sprite_description_from_animation_get`, `graphics_animated_sprite_description_get`, `graphics_animated_sprite_description_set`.
+- `graphics_animated_sprite_frame_add`, `graphics_animated_sprite_frame_description_get`, `graphics_animated_sprite_frame_description_set`.
+- `graphics_animated_sprite_value_description_get`, `graphics_animated_sprite_value_description_set`, `graphics_animated_sprite_value_frame_add`.
+- `graphics_animated_sprite_value_frame_description_set`, `graphics_animation_description_default_get`, `graphics_animation_description_get`.
+- `graphics_animation_frame_create`, `graphics_animation_frame_description_default_get`, `graphics_animation_frame_description_get`.
+- `graphics_animation_load`, `graphics_animation_player_create`, `graphics_animation_player_description_default_get`.
+- `graphics_animation_player_description_from_animation_get`, `graphics_animation_player_description_get`, `graphics_animation_player_description_set`.
 - `graphics_font_description_default_get`, `graphics_font_description_get`, `graphics_font_load`.
-- `graphics_text_create`, `graphics_text_description_default_get`, `graphics_text_description_get`.
-- `graphics_text_description_set`, `graphics_texture_description_default_get`, `graphics_texture_description_get`.
-- `graphics_texture_load`.
+- `graphics_sprite_add`, `graphics_sprite_create`, `graphics_sprite_description_default_get`.
+- `graphics_sprite_description_get`, `graphics_sprite_description_set`, `graphics_text_create`.
+- `graphics_text_description_default_get`, `graphics_text_description_get`, `graphics_text_description_set`.
+- `graphics_texture_description_default_get`, `graphics_texture_description_get`, `graphics_texture_load`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -944,16 +1014,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 756 entries</summary>
+<summary>rohr.h: 770 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M7 — Sprite, frame, and player configuration (Goal 7)**
-
-- `rohr_graphics_animated_sprite_add`, `rohr_graphics_animated_sprite_create`, `rohr_graphics_animated_sprite_frame_add`.
-- `rohr_graphics_animated_sprite_frame_get`, `rohr_graphics_animated_sprite_frame_set`, `rohr_graphics_animated_sprite_value_frame_add`.
-- `rohr_graphics_animated_sprite_value_frame_set`, `rohr_graphics_animation_frame_create`, `rohr_graphics_animation_frame_get`.
-- `rohr_graphics_animation_player_create`, `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`.
 
 **M8 — Audio configuration (Goal 8)**
 
@@ -988,31 +1051,40 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_entity_description_add`, `rohr_entity_description_get`, `rohr_entity_description_set`.
 - `rohr_entity_lifetime_description_get`, `rohr_entity_lifetime_description_set`, `rohr_entity_object_add`.
 - `rohr_entity_object_add_with_options`, `rohr_entity_object_by_name_add`, `rohr_entity_object_by_name_add_with_options`.
-- `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`, `rohr_graphics_animation_description_default_get`.
-- `rohr_graphics_animation_description_get`, `rohr_graphics_animation_load`, `rohr_graphics_font_description_default_get`.
-- `rohr_graphics_font_description_get`, `rohr_graphics_font_load`, `rohr_graphics_text_create`.
-- `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`.
-- `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`.
-- `rohr_object_collision_description_get`, `rohr_object_collision_description_set`, `rohr_object_color_description_get`.
-- `rohr_object_color_description_set`, `rohr_object_description_by_name_get`, `rohr_object_force_description_set`.
-- `rohr_object_get`, `rohr_object_material_description_get`, `rohr_object_material_description_set`.
-- `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`.
-- `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
-- `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`, `rohr_physics_force_description_get`.
-- `rohr_physics_force_description_set`, `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`.
-- `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`.
-- `rohr_physics_joint_description_set`, `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`.
-- `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`.
-- `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`.
-- `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`.
-- `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`.
-- `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`.
-- `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`.
-- `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`.
-- `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`.
-- `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`.
-- `rohr_physics_torque_add`, `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
-- `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
+- `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`, `rohr_graphics_animated_sprite_add`.
+- `rohr_graphics_animated_sprite_create`, `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`.
+- `rohr_graphics_animated_sprite_description_get`, `rohr_graphics_animated_sprite_description_set`, `rohr_graphics_animated_sprite_frame_add`.
+- `rohr_graphics_animated_sprite_frame_description_get`, `rohr_graphics_animated_sprite_frame_description_set`, `rohr_graphics_animated_sprite_value_description_get`.
+- `rohr_graphics_animated_sprite_value_description_set`, `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`.
+- `rohr_graphics_animation_description_default_get`, `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`.
+- `rohr_graphics_animation_frame_description_default_get`, `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_load`.
+- `rohr_graphics_animation_player_create`, `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`.
+- `rohr_graphics_animation_player_description_get`, `rohr_graphics_animation_player_description_set`, `rohr_graphics_font_description_default_get`.
+- `rohr_graphics_font_description_get`, `rohr_graphics_font_load`, `rohr_graphics_sprite_add`.
+- `rohr_graphics_sprite_create`, `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`.
+- `rohr_graphics_sprite_description_set`, `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`.
+- `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`.
+- `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`, `rohr_object_collision_description_get`.
+- `rohr_object_collision_description_set`, `rohr_object_color_description_get`, `rohr_object_color_description_set`.
+- `rohr_object_description_by_name_get`, `rohr_object_force_description_set`, `rohr_object_get`.
+- `rohr_object_material_description_get`, `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`.
+- `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
+- `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
+- `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
+- `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`.
+- `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
+- `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`.
+- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
+- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`.
+- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`.
+- `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`.
+- `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`.
+- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`.
+- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
+- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`.
+- `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
+- `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`.
+- `rohr_physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 

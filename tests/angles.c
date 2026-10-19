@@ -191,7 +191,7 @@ static bool graphics_check(void) {
     CHECK(SDL_SaveFile("angles_asset.png",test_png,sizeof(test_png)));
     TextureAssetResult texture=graphics_texture_load((TextureDescription){"angles_asset.png",{20,10}});
     OK(texture);
-    OK(graphics_sprite_add(e,graphics_sprite_create(texture.result.value,(Scale){1,1})));
+    OK(graphics_sprite_add(e, (SpriteDescription){.texture = texture.result.value, .scale = (Scale){1,1}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true}));
     OK(graphics_sprite_orientation_offset_radians_set(e,PI_F));
     CHECK(near(rohr_graphics_sprite_orientation_offset_get(e).result.value,180));
     CHECK(near(graphics_sprite_orientation_offset_radians_get(e).result.value,PI_F));
@@ -200,7 +200,7 @@ static bool graphics_check(void) {
     AnimationAssetResult animation=graphics_animation_load((AnimationDescription){
         .id=1,.frame_count=1,.frame_files={"angles_asset.png"}});
     OK(animation);
-    OK(graphics_animated_sprite_add(e,graphics_animated_sprite_create(animation.result.value,(Scale){1,1})));
+    OK(graphics_animated_sprite_add(e, graphics_animated_sprite_description_from_animation_get(animation.result.value).result.value));
     OK(graphics_animated_sprite_orientation_offset_radians_set(e,PI_F));
     CHECK(near(rohr_graphics_animated_sprite_orientation_offset_get(e).result.value,180));
     CHECK(near(graphics_animated_sprite_orientation_offset_radians_get(e).result.value,PI_F));

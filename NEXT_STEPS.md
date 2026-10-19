@@ -154,10 +154,26 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    compiler warnings; migrated animation fixtures no longer use nonconstant
    static compound initializers. Reconciled 1,536 installed-header entries and
    13 remaining Config/Descriptor names. Native Windows execution and real desktop
-   review remain unverified. Stop for review before Goal 7.
-7. [ ] **Complete sprite and animation-instance descriptions** — Separate
-   configurable sprite/frame/player values from playback state. Preserve
-   compatible progress, empty animations, frame IDs, and reference ownership.
+   review remain unverified.
+7. [x] **Complete sprite and animation-instance descriptions** — Added sprite,
+   frame, animated-instance, and player descriptions with defaults and complete
+   configuration accessors. Catalog helpers copy frames/timing into descriptions;
+   explicit frame lists remain authoritative, including empty lists. Compatible
+   edits preserve current frame IDs and elapsed clocks; reordering follows IDs,
+   while removed current IDs or changed catalogs reset playback. Resource
+   replacement is atomic, getters borrow handles, and focused setters remain
+   direct. Migrated spawning, saved playback restoration, generated C, examples,
+   and documentation. Verified all 100 native tests and nine ASan/UBSan/leak
+   checks, including retention rollback, independent frames, empty lists, and
+   stable hitbox bindings. Full Linux/Windows cross-builds, nine independent
+   installed-SDK examples and consumers, regenerated soft-body/default projects,
+   and Linux launches pass. The external custom main is unchanged; generated
+   animations, scene hosting, and two-second force toggling pass. Standard builds
+   and SDK examples have no compiler warnings; strict module audits identify
+   only existing viewport backend-expression and indentation warnings.
+   Reconciled 1,564 installed-header entries and 13 remaining Config/Descriptor
+   names. Native Windows execution and real desktop review remain unverified.
+   Stop for review before Goal 8.
 8. [ ] **Complete audio description APIs** — Standardize sound/music descriptions
    and full/default accessors. Preserve progress for ordinary edits; prepare
    changed sources atomically and leave successful replacements stopped.

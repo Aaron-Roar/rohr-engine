@@ -60,7 +60,7 @@ static inline EngineResult generated_sprite_create(Entity *output, Entity target
     Orientation rotation, bool visible) {
     EntityResult added = {.kind = ERROR_RESULT_VALUE};
     TextureAssetResult loaded = {0};
-    Sprite sprite;
+    SpriteDescription sprite;
     EngineResult result;
     bool owned = target == ENTITY_INVALID;
     if(owned) { added = rohr_entity_add();
@@ -74,7 +74,8 @@ static inline EngineResult generated_sprite_create(Entity *output, Entity target
         result = rohr_error_result_error(loaded.result.error);
         goto fail;
     }
-    sprite = rohr_graphics_sprite_create(loaded.result.value, (Scale){1.0f, 1.0f});
+    sprite = rohr_graphics_sprite_description_default_get();
+    sprite.texture = loaded.result.value;
     sprite.body_offset = owned ? (Position){0} : position;
     sprite.orientation_offset = rotation;
     sprite.follow_entity_rotation = follow_rotation;

@@ -285,13 +285,13 @@ static bool animation_direction_check(void) {
     camera.result.value.dimensions = (Vec2D){1280,720};
     OK(rohr_camera_set(rohr_camera_active_get(), camera.result.value));
     for(int left = 0; left < 2; left += 1) {
-        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
-            (Scale){1,1});
+        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get(asset.result.value).result.value).result.value;
+        sprite.scale = (Scale){1,1};
         for(size_t f = 0; f < sprite.frame_count; f += 1) sprite.frames[f].scale = (Scale){10,8};
         sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         EntityResult entity = rohr_entity_add();
         CHECK(!rohr_error_check(entity));
-        OK(rohr_graphics_animated_sprite_add(entity.result.value, sprite));
+        OK(rohr_graphics_animated_sprite_add(entity.result.value, rohr_graphics_animated_sprite_value_description_get(sprite)));
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
         rohr_graphics_background_draw((Color){0,0,0,255});
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
@@ -306,8 +306,8 @@ static bool animation_direction_check(void) {
     CHECK(!rohr_error_check(asset));
     for(size_t scale_index = 0; scale_index < 3; scale_index += 1)
     for(int left = 0; left < 2; left += 1) {
-        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(asset.result.value,
-            scales[scale_index]);
+        AnimatedSprite sprite = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get(asset.result.value).result.value).result.value;
+        sprite.scale = scales[scale_index];
         sprite.frames[0].offset = (Position){30,20};
         sprite.frames[0].rotation = 45;
         sprite.orientation_offset = 90;
@@ -315,7 +315,7 @@ static bool animation_direction_check(void) {
         sprite.direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         EntityResult entity = rohr_entity_add();
         CHECK(!rohr_error_check(entity));
-        OK(rohr_graphics_animated_sprite_add(entity.result.value, sprite));
+        OK(rohr_graphics_animated_sprite_add(entity.result.value, rohr_graphics_animated_sprite_value_description_get(sprite)));
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_BACKGROUND);
         rohr_graphics_background_draw((Color){0,0,0,255});
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_ANIMATION);
@@ -457,13 +457,14 @@ static bool frame_flips_check(void) {
     SDL_DestroySurface(surface);
     TextureAssetResult image = rohr_graphics_texture_load((TextureDescription){.file = path});
     CHECK(!rohr_error_check(image));
-    AnimatedSprite runtime = rohr_graphics_animated_sprite_create((AnimationAsset){0}, (Scale){1,1});
-    AnimationFrame frame = rohr_graphics_animation_frame_create(image.result.value);
+    AnimatedSprite runtime = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get((AnimationAsset){0}).result.value).result.value;
+    runtime.scale = (Scale){1,1};
+    AnimationFrameDescription frame = rohr_graphics_animation_frame_create((AnimationFrameDescription){.texture = image.result.value, .scale = {1, 1}});
     frame.offset = (Position){30,20};
     frame.rotation = 90;
     OK(rohr_graphics_animated_sprite_value_frame_add(&runtime, frame));
     Entity entity = rohr_entity_add().result.value;
-    OK(rohr_graphics_animated_sprite_add(entity, runtime));
+    OK(rohr_graphics_animated_sprite_add(entity, rohr_graphics_animated_sprite_value_description_get(runtime)));
     OK(rohr_graphics_texture_release(&image.result.value));
     EditorProject project;
     EditorViewportState state = {0};

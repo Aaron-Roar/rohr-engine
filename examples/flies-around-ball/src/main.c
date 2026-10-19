@@ -24,7 +24,7 @@ static ForceDescription force_vector_description(Entity target, Force vector) {
 const Color background_color = {255,255,255,255};
 const int amount_of_entities = 20;
 AnimationAsset animation = {0};
-AnimatedSprite sprite = {0};
+AnimatedSpriteDescription sprite = {0};
 const Mass ball_mass = 5000.0f;
 const float ball_control_acceleration = 240.0f;
 const Torque ball_control_torque = 2000000.0f;
@@ -118,7 +118,10 @@ int main(void) {
         goto fail;
     }
     animation = animation_result.result.value;
-    sprite = rohr_graphics_animated_sprite_create(animation, (Scale){3,3});
+    AnimatedSpriteDescriptionResult prepared = rohr_graphics_animated_sprite_description_from_animation_get(animation);
+    if(rohr_error_check(prepared)) { PRINT_ENGINE_ERROR(prepared); goto fail; }
+    sprite = prepared.result.value;
+    sprite.scale = (Scale){3,3};
     for(size_t frame = 0; frame < sprite.frame_count; frame += 1) {
         Scale pixels = rohr_graphics_texture_size_get(sprite.frames[frame].texture).result.value;
         sprite.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};
@@ -169,7 +172,8 @@ int main(void) {
             PRINT_ENGINE_ERROR(parent_result);
             goto fail;
         }
-        sprite = rohr_graphics_animated_sprite_create(animation, (Scale){size/10, size/10});
+        sprite = prepared.result.value;
+        sprite.scale = (Scale){size/10, size/10};
         for(size_t frame = 0; frame < sprite.frame_count; frame += 1) {
             Scale pixels = rohr_graphics_texture_size_get(sprite.frames[frame].texture).result.value;
             sprite.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};

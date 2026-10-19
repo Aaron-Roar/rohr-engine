@@ -120,7 +120,7 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
             yyjson_mut_obj_add_uint(doc,v,"elapsed_ticks",engine_tick_get()-s->player.last_update_tick) &&
             yyjson_mut_obj_add_real(doc,v,"elapsed_time",engine_time_get()-s->player.last_update_time));
         for(size_t i=0;i<s->frame_count;++i) {
-            const AnimationFrame *frame=&s->frames[i]; yyjson_mut_val *f=yyjson_mut_obj(doc);
+            const AnimationFrameDescription *frame=&s->frames[i]; yyjson_mut_val *f=yyjson_mut_obj(doc);
             WRITE(f && texture_write(doc,f,frame->texture) && yyjson_mut_obj_add_uint(doc,f,"id",frame->id) &&
                 vector_write(doc,f,"scale",frame->scale.x,frame->scale.y) && vector_write(doc,f,"offset",frame->offset.x,frame->offset.y) &&
                 yyjson_mut_obj_add_real(doc,f,"rotation",frame->rotation) && yyjson_mut_arr_add_val(frames,f));
@@ -170,7 +170,7 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
     sprite.frame_count=descriptor.frame_count;
     for(size_t i=0;i<sprite.frame_count;++i) {
         yyjson_val *f=yyjson_arr_get(frames,i),*path=yyjson_obj_get(f,"path");
-        AnimationFrame *frame=&sprite.frames[i];
+        AnimationFrameDescription *frame=&sprite.frames[i];
         if(!yyjson_is_str(path) || strlen(yyjson_get_str(path))!=yyjson_get_len(path) ||
                 !integer(f,"id",&id) || id>UINT32_MAX || !vector_read(f,"size",&frame->texture.size.x,&frame->texture.size.y) ||
                 !vector_read(f,"scale",&frame->scale.x,&frame->scale.y) ||
@@ -181,7 +181,7 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
     AnimationAssetResult loaded=sprite.frame_count ? graphics_animation_load(descriptor) :
         ERROR_RESULT_MAKE_VALUE(AnimationAssetResult, ((AnimationAsset){0}));
     if(error_check(loaded)) return error_result_error(loaded.result.error);
-    sprite.player=graphics_animation_player_create(loaded.result.value);
+    sprite.player=graphics_animation_player_create(graphics_animation_player_description_from_animation_get(loaded.result.value).result.value).result.value;
     sprite.player.ticks_per_frame=descriptor.ticks_per_frame;
     sprite.player.time_per_frame=descriptor.time_per_frame;
     sprite.player.frame_index=(size_t)index;
@@ -189,11 +189,20 @@ static EngineResult animation_read(Entity entity,yyjson_val *v) {
     sprite.player.last_update_time=engine_time_get()-time_elapsed;
     EngineResult result=error_result_value(true);
     for(size_t i=0;i<sprite.frame_count;++i) {
-        AnimationFrameResult frame=graphics_animation_frame_get(loaded.result.value,i);
+        AnimationFrameDescriptionResult frame=graphics_animation_frame_description_get(loaded.result.value,i);
         if(error_check(frame)) { result=error_result_error(frame.result.error); break; }
         sprite.frames[i].texture.handle=frame.result.value.texture.handle;
     }
-    if(!error_check(result)) result=graphics_animated_sprite_add(entity,sprite);
+    if(!error_check(result)) result=graphics_animated_sprite_add(entity, graphics_animated_sprite_value_description_get(sprite));
+    if(!error_check(result)) {
+        EntityIndex entity_index;
+        if(entity_index_get(entity, &entity_index)) {
+            /* Saved playback is restored explicitly, outside full configuration. */
+            animated_sprites[entity_index].player.frame_index = sprite.frame_count ? (size_t)index : 0;
+            animated_sprites[entity_index].player.last_update_tick = sprite.player.last_update_tick;
+            animated_sprites[entity_index].player.last_update_time = sprite.player.last_update_time;
+        }
+    }
     (void)graphics_animation_release(&loaded.result.value);
     return result;
 }
@@ -217,7 +226,7 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
         TextureAssetResult loaded=texture_read(v);
         if(error_check(loaded)) return error_result_error(loaded.result.error);
         s.texture=loaded.result.value;
-        EngineResult result=graphics_sprite_add(entity,s);
+        EngineResult result=graphics_sprite_add(entity, s);
         (void)graphics_texture_release(&loaded.result.value);
         if(error_check(result)) return result;
     }

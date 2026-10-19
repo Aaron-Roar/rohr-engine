@@ -35,7 +35,7 @@ static bool animation_frame_id_check(EntityIndex index, AnimationId animation_id
     if(info.kind == ERROR_RESULT_ERROR || info.result.value.id != animation_id)
         return false;
     for(size_t i = 0; i < sprite->frame_count; i += 1) {
-        AnimationFrameResult frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[i]);
+        AnimationFrameDescriptionResult frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[i]);
         if(frame.kind == ERROR_RESULT_VALUE && frame.result.value.id == frame_id)
             return true;
     }
@@ -128,7 +128,7 @@ EngineResult physics_hitbox_animation_binding_at_set(Entity entity,
     EntityIndex index;
     AnimatedSprite *sprite;
     AnimationInfoResult info;
-    AnimationFrameResult frame;
+    AnimationFrameDescriptionResult frame;
     HitboxVariantList *variants;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
@@ -143,7 +143,7 @@ EngineResult physics_hitbox_animation_binding_at_set(Entity entity,
             frame_index >= sprite->frame_count ||
             variants == NULL || hitbox_index >= variants->count)
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
-    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[frame_index]);
+    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[frame_index]);
     if(frame.kind == ERROR_RESULT_ERROR)
         return error_result_error(frame.result.error);
     return physics_hitbox_animation_binding_set(entity, info.result.value.id,
@@ -156,7 +156,7 @@ EngineResult physics_hitbox_animation_binding_at_remove(Entity entity,
     EntityIndex index;
     AnimatedSprite *sprite;
     AnimationInfoResult info;
-    AnimationFrameResult frame;
+    AnimationFrameDescriptionResult frame;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     if(index >= animated_sprites_pool.capacity ||
@@ -167,7 +167,7 @@ EngineResult physics_hitbox_animation_binding_at_remove(Entity entity,
     if(info.kind == ERROR_RESULT_ERROR ||
             frame_index >= sprite->frame_count)
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
-    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[frame_index]);
+    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[frame_index]);
     if(frame.kind == ERROR_RESULT_ERROR)
         return error_result_error(frame.result.error);
     return physics_hitbox_animation_binding_remove(entity, info.result.value.id,
@@ -181,7 +181,7 @@ HitboxIndexResult physics_hitbox_animation_binding_at_get(Entity entity,
     HitboxVariantList *variants;
     HitboxIdResult id;
     AnimationInfoResult info;
-    AnimationFrameResult frame;
+    AnimationFrameDescriptionResult frame;
     EngineResult result = physics_live_index_get(entity, &index);
     if(result.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(HitboxIndexResult, result.result.error);
@@ -195,7 +195,7 @@ HitboxIndexResult physics_hitbox_animation_binding_at_get(Entity entity,
             frame_index >= sprite->frame_count)
         return ERROR_RESULT_MAKE_ERROR(HitboxIndexResult,
             ERROR_ENGINE_INDEX_OUT_OF_RANGE);
-    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[frame_index]);
+    frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[frame_index]);
     if(frame.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(HitboxIndexResult, frame.result.error);
     id = physics_hitbox_animation_binding_get(entity, info.result.value.id,
@@ -240,7 +240,7 @@ void physics_hitbox_animation_bindings_report_update(Report *report) {
         HitboxAnimationBindingList *list;
         AnimatedSprite *sprite;
         AnimationInfoResult info;
-        AnimationFrameResult frame;
+        AnimationFrameDescriptionResult frame;
         AnimationFrameId frame_id;
         EntityResult entity;
         if(!entity_index_alive_check(index) ||
@@ -255,7 +255,7 @@ void physics_hitbox_animation_bindings_report_update(Report *report) {
         if(info.kind == ERROR_RESULT_ERROR ||
                 sprite->player.frame_index >= sprite->frame_count)
             continue;
-        frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[sprite->player.frame_index]);
+        frame = ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[sprite->player.frame_index]);
         if(frame.kind == ERROR_RESULT_ERROR) continue;
         frame_id = frame.result.value.id;
         entity = entity_from_index_get(index);

@@ -109,9 +109,7 @@ int main(void) {
     stale = first.result.value;
     entity = rohr_entity_add();
     if(rohr_error_check(entity) ||
-            !result_ok(rohr_graphics_sprite_add(entity.result.value,
-                rohr_graphics_sprite_create(second.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+            !result_ok(rohr_graphics_sprite_add(entity.result.value, (SpriteDescription){.texture = second.result.value, .scale = (Scale){1.0f, 1.0f}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true})) ||
             !stats_check(1, 4, 0, "sprite addition"))
         return fail("sprite creation failed", true, true);
     if(!result_ok(rohr_graphics_texture_release(&first.result.value)) ||
@@ -159,15 +157,11 @@ int main(void) {
         return fail("texture generation or replacement setup failed", true, true);
     stale = first.result.value;
     replacement = second.result.value;
-    if(!result_ok(rohr_graphics_sprite_add(entity.result.value,
-                rohr_graphics_sprite_create(first.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+    if(!result_ok(rohr_graphics_sprite_add(entity.result.value, (SpriteDescription){.texture = first.result.value, .scale = (Scale){1.0f, 1.0f}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true})) ||
             !result_ok(rohr_graphics_texture_release(&first.result.value)) ||
             !stats_check(2, 2, 0, "first component ownership"))
         return fail("first component ownership failed", true, true);
-    if(!result_ok(rohr_graphics_sprite_add(entity.result.value,
-                rohr_graphics_sprite_create(second.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+    if(!result_ok(rohr_graphics_sprite_add(entity.result.value, (SpriteDescription){.texture = second.result.value, .scale = (Scale){1.0f, 1.0f}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true})) ||
             rohr_graphics_texture_valid_check(stale) ||
             !stats_check(1, 2, 0, "component replacement") ||
             !result_ok(rohr_graphics_texture_release(&second.result.value)) ||
@@ -185,9 +179,7 @@ int main(void) {
         (TextureDescription){texture_path, {1.0f, 1.0f}});
     if(rohr_error_check(first) ||
             !stats_check(1, 1, 0, "failed component setup") ||
-            !rohr_error_check(rohr_graphics_sprite_add(ENTITY_INVALID,
-                rohr_graphics_sprite_create(first.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+            !rohr_error_check(rohr_graphics_sprite_add(ENTITY_INVALID, (SpriteDescription){.texture = first.result.value, .scale = (Scale){1.0f, 1.0f}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true})) ||
             !stats_check(1, 1, 0, "failed component addition") ||
             !result_ok(rohr_graphics_texture_release(&first.result.value)) ||
             !stats_check(0, 0, 0, "failed component cleanup"))

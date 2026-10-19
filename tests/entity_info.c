@@ -270,12 +270,12 @@ static void resources(void) {
     TextureAssetResult loaded = graphics_texture_load((TextureDescription){path, {1,1}}); OK(loaded);
     TextureAsset texture = loaded.result.value;
     Entity e = make_entity();
-    Sprite sprite = graphics_sprite_create(texture, (Scale){2,3});
+    Sprite sprite = (SpriteDescription){.texture = texture, .scale = (Scale){2,3}, .direction = DIRECTION_RIGHT, .follow_entity_rotation = true, .visible = true};
     sprite.visible = false;
     OK(graphics_sprite_add(e, sprite));
     AnimatedSprite animation = {.scale = {4,5}, .visible = true};
-    OK(graphics_animated_sprite_value_frame_add(&animation, graphics_animation_frame_create(texture)));
-    OK(graphics_animated_sprite_add(e, animation));
+    OK(graphics_animated_sprite_value_frame_add(&animation, graphics_animation_frame_create((AnimationFrameDescription){.texture = texture, .scale = {1, 1}})));
+    OK(graphics_animated_sprite_add(e, graphics_animated_sprite_value_description_get(animation)));
     EntityInfo info = capture(e, F(GRAPHICS_SPRITE) | F(GRAPHICS_ANIMATIONS));
     assert(info.sprite_visible == false && info.sprite_scale.x == 2);
     assert(info.animations[0].scale.y == 5);

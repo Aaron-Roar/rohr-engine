@@ -3689,18 +3689,144 @@ TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset);
 
  Native pixel dimensions, independent of TextureAsset.size.
 
+### `rohr_graphics_sprite_description_default_get`
+
+```c
+SpriteDescription rohr_graphics_sprite_description_default_get(void);
+```
+
+ Scale one, facing right, visible, and following entity rotation.
+
+### `rohr_graphics_sprite_description_set`
+
+```c
+EngineResult rohr_graphics_sprite_description_set(Entity entity, SpriteDescription description);
+```
+
+ Replace all configuration atomically; the component must already exist.
+
+### `rohr_graphics_sprite_description_get`
+
+```c
+SpriteDescriptionResult rohr_graphics_sprite_description_get(Entity entity);
+```
+
+ Copied configuration with borrowed texture; no retain.
+
+### `rohr_graphics_animation_frame_description_default_get`
+
+```c
+AnimationFrameDescription rohr_graphics_animation_frame_description_default_get(void);
+```
+
+ Scale one with zero ID, offset, and rotation.
+
+### `rohr_graphics_animation_player_description_default_get`
+
+```c
+AnimationPlayerDescription rohr_graphics_animation_player_description_default_get(void);
+```
+
+ No catalog and zero timing.
+
+### `rohr_graphics_animation_player_description_from_animation_get`
+
+```c
+AnimationPlayerDescriptionResult rohr_graphics_animation_player_description_from_animation_get(AnimationAsset animation);
+```
+
+ Borrowed catalog and its timing; zero handle selects empty defaults.
+
+### `rohr_graphics_animation_player_description_set`
+
+```c
+EngineResult rohr_graphics_animation_player_description_set(AnimationPlayer *player, AnimationPlayerDescription description);
+```
+
+ Preserves clocks for the same catalog; a changed catalog resets to frame zero
+
+at the last observed update clocks. No resource retain or release.
+
+### `rohr_graphics_animation_player_description_get`
+
+```c
+AnimationPlayerDescriptionResult rohr_graphics_animation_player_description_get(const AnimationPlayer *player);
+```
+
+ Configuration only; the caller keeps the borrowed catalog alive.
+
+### `rohr_graphics_animated_sprite_description_default_get`
+
+```c
+AnimatedSpriteDescription rohr_graphics_animated_sprite_description_default_get(void);
+```
+
+ Empty frames, scale one, facing right, visible, following entity rotation.
+
+### `rohr_graphics_animated_sprite_description_from_animation_get`
+
+```c
+AnimatedSpriteDescriptionResult rohr_graphics_animated_sprite_description_from_animation_get(AnimationAsset animation);
+```
+
+ Copies catalog frames and timing into independent instance configuration.
+
+Images and catalog are borrowed until catalog release or graphics shutdown.
+
+### `rohr_graphics_animated_sprite_value_description_get`
+
+```c
+AnimatedSpriteDescription rohr_graphics_animated_sprite_value_description_get(AnimatedSprite sprite);
+```
+
+ Copied value configuration. Images/catalog remain borrowed from the value's owners.
+
+### `rohr_graphics_animated_sprite_value_description_set`
+
+```c
+EngineResult rohr_graphics_animated_sprite_value_description_set(AnimatedSprite *sprite, AnimatedSpriteDescription description);
+```
+
+ For standalone unowned values only; validates atomically without retaining.
+
+Preserve current frame by ID and clocks. Removed current ID or changed catalog
+
+resets to frame zero at the last observed update clocks.
+
+### `rohr_graphics_animated_sprite_description_set`
+
+```c
+EngineResult rohr_graphics_animated_sprite_description_set(Entity entity, AnimatedSpriteDescription description);
+```
+
+ Atomic component replacement, acquiring new references before releasing old.
+
+Same preservation rules as value replacement; resets use engine clocks.
+
+### `rohr_graphics_animated_sprite_description_get`
+
+```c
+AnimatedSpriteDescriptionResult rohr_graphics_animated_sprite_description_get(Entity entity);
+```
+
+ Copied frames and borrowed handles; valid until replacement/removal/deletion
+
+or graphics shutdown. The getter never retains.
+
 ### `rohr_graphics_animation_frame_create`
 
 ```c
-AnimationFrame rohr_graphics_animation_frame_create(TextureAsset texture);
+AnimationFrameDescription rohr_graphics_animation_frame_create(AnimationFrameDescription description);
 ```
 
- Borrowed image value with native size, scale {1,1}, zero offset/rotation/id.
+ Non-owning value builder; copies fields and resolves native texture size.
+
+It does not validate or retain; add/set validates before publication.
 
 ### `rohr_graphics_animated_sprite_value_frame_add`
 
 ```c
-EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame);
+EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrameDescription frame);
 ```
 
  Non-owning builders: copy values; keep image owners alive until component add.
@@ -3709,21 +3835,25 @@ Use only on unattached values, never directly on an installed component.
 
 ID zero assigns an unused ID on add and preserves the current ID on set.
 
-### `rohr_graphics_animated_sprite_frame_get`
+Replacing the current ID resets playback to the first frame.
+
+### `rohr_graphics_animated_sprite_frame_description_get`
 
 ```c
-AnimationFrameResult rohr_graphics_animated_sprite_frame_get(Entity entity, size_t index);
+AnimationFrameDescriptionResult rohr_graphics_animated_sprite_frame_description_get(Entity entity, size_t index);
 ```
 
  Get a copied instance frame with a borrowed image. Do not release its texture.
 
-### `rohr_graphics_animated_sprite_frame_set`
+### `rohr_graphics_animated_sprite_frame_description_set`
 
 ```c
-EngineResult rohr_graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame);
+EngineResult rohr_graphics_animated_sprite_frame_description_set(Entity entity, size_t index, AnimationFrameDescription frame);
 ```
 
- Instance mutation retains images, preserves playback, and rolls back on error.
+ Instance mutation retains images and rolls back on error. Playback is
+
+preserved unless the current frame ID changes, which resets to frame zero.
 
 Signed scale flips content; zero collapses the image. All transforms must be finite.
 
@@ -3763,10 +3893,10 @@ AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset);
 
  @brief Returns immutable metadata for a loaded animation.
 
-### `rohr_graphics_animation_frame_get`
+### `rohr_graphics_animation_frame_description_get`
 
 ```c
-AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index);
+AnimationFrameDescriptionResult rohr_graphics_animation_frame_description_get(AnimationAsset asset, size_t frame_index);
 ```
 
  @brief Returns a reusable catalog frame with scale one and a borrowed texture.
@@ -3774,7 +3904,7 @@ AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, siz
 ### `rohr_graphics_animation_player_create`
 
 ```c
-AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset);
+AnimationPlayerResult rohr_graphics_animation_player_create(AnimationPlayerDescription description);
 ```
 
 Creates independent mutable playback state for an animation.
@@ -3792,17 +3922,16 @@ void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current
 ### `rohr_graphics_animated_sprite_create`
 
 ```c
-AnimatedSprite rohr_graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale);
+AnimatedSpriteResult rohr_graphics_animated_sprite_create(AnimatedSpriteDescription description);
 ```
 
-Creates an animated sprite from an animation asset.
+Validates a description and creates a non-owning runtime value.
 
 | Parameter | Description |
 | --- | --- |
-| `asset_ptr` | Animation asset to use. |
-| `scale` | Sprite scale. |
+| `description` | Complete configuration; frames are explicit. |
 
-**Returns:** Animated sprite value.
+**Returns:** AnimatedSpriteResult; the caller keeps all borrowed resources alive.
 
 ### `rohr_graphics_animated_sprite_update`
 
@@ -3815,7 +3944,7 @@ void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_t
 ### `rohr_graphics_animated_sprite_add`
 
 ```c
-EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite);
+EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description);
 ```
 
 Adds an animated sprite to an entity.
@@ -3823,7 +3952,7 @@ Adds an animated sprite to an entity.
 | Parameter | Description |
 | --- | --- |
 | `entity` | Entity to modify. |
-| `sprite` | Animated sprite component value. |
+| `description` | Complete configuration; compatible playback is preserved. |
 
 **Returns:** EngineResult describing success or failure.
 

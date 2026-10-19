@@ -47,9 +47,9 @@ int main(void) {
     second_id = rohr_physics_hitbox_id_at_get(entity, 1);
     if(rohr_error_check(first_id) || rohr_error_check(second_id)) goto fail;
 
-    sprite = rohr_graphics_animated_sprite_create(animation,
-        (Scale){1.0f, 1.0f});
-    if(rohr_error_check(rohr_graphics_animated_sprite_add(entity, sprite)) ||
+    sprite = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get(animation).result.value).result.value;
+    sprite.scale = (Scale){1.0f, 1.0f};
+    if(rohr_error_check(rohr_graphics_animated_sprite_add(entity, rohr_graphics_animated_sprite_value_description_get(sprite))) ||
             rohr_error_check(rohr_physics_hitbox_animation_binding_set(
                 entity, 41, 101, second_id.result.value)) ||
             rohr_error_check(rohr_physics_hitbox_animation_binding_set(
@@ -94,6 +94,18 @@ int main(void) {
     if(rohr_error_check(active) || active.result.value != 1) goto fail;
     if(rohr_error_check(rohr_graphics_animated_sprite_frame_index_set(entity, 2)))
         goto fail;
+    rohr_physics_hitbox_animation_bindings_update();
+    active = rohr_physics_hitbox_active_index_get(entity);
+    if(rohr_error_check(active) || active.result.value != 0) goto fail;
+
+    /* Reordering configuration keeps the same stable frame and hitbox binding. */
+    AnimatedSpriteDescriptionResult current = rohr_graphics_animated_sprite_description_get(entity);
+    if(rohr_error_check(current)) goto fail;
+    AnimationFrameDescription swap = current.result.value.frames[0];
+    current.result.value.frames[0] = current.result.value.frames[2];
+    current.result.value.frames[2] = swap;
+    if(rohr_error_check(rohr_graphics_animated_sprite_description_set(entity, current.result.value)) ||
+            rohr_graphics_animated_sprite_frame_index_get(entity).result.value != 0) goto fail;
     rohr_physics_hitbox_animation_bindings_update();
     active = rohr_physics_hitbox_active_index_get(entity);
     if(rohr_error_check(active) || active.result.value != 0) goto fail;

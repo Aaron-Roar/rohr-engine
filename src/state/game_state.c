@@ -1192,7 +1192,7 @@ static EngineResult state_sprite_frames_read(yyjson_val *values, AnimatedSprite 
                 (id != NULL && (!yyjson_is_uint(id) || yyjson_get_uint(id) > UINT32_MAX)) ||
                 yyjson_obj_get(record, "size") != NULL)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        AnimationFrame frame = f < source.frame_count ? source.frames[f] : (AnimationFrame){0};
+        AnimationFrameDescription frame = f < source.frame_count ? source.frames[f] : (AnimationFrameDescription){0};
         if(file != NULL) {
             if(!yyjson_is_str(file)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
             TextureAssetResult loaded = graphics_texture_load(
@@ -1672,7 +1672,8 @@ static EngineResult state_components_load(
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
         scale = (Scale){scale_value.x, scale_value.y};
-        sprite = graphics_animated_sprite_create(animation->asset, scale);
+        sprite = graphics_animated_sprite_create(graphics_animated_sprite_description_from_animation_get(animation->asset).result.value).result.value;
+        sprite.scale = scale;
         sprite.player.time_per_frame = time_per_frame;
         sprite.player.ticks_per_frame = ticks_per_frame;
         sprite.player.frame_index = (size_t)start_frame;
@@ -1686,7 +1687,9 @@ static EngineResult state_components_load(
         result = state_sprite_frames_read(yyjson_obj_get(value, "frames"), &sprite,
             frame_textures, &frame_texture_count);
         if(result.kind != ERROR_RESULT_ERROR)
-            result = graphics_animated_sprite_add(entity, sprite);
+            result = graphics_animated_sprite_add(entity, graphics_animated_sprite_value_description_get(sprite));
+        if(!error_check(result) && sprite.frame_count > 0)
+            result = graphics_animated_sprite_frame_index_set(entity, (size_t)start_frame);
         for(size_t f = 0; f < frame_texture_count; f += 1)
             (void)graphics_texture_release(&frame_textures[f]);
         if(result.kind == ERROR_RESULT_ERROR) return result;

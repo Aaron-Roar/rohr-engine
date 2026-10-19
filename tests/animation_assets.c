@@ -8,6 +8,7 @@
 #include "test_png.h"
 
 #include <stdio.h>
+#include <assert.h>
 #include <math.h>
 #include <string.h>
 
@@ -68,11 +69,12 @@ static AnimationDescription descriptor_get(void) {
 }
 
 static bool frame_values_check(AnimationAsset catalog) {
-    AnimationFrame reusable = rohr_graphics_animation_frame_get(catalog, 0).result.value;
+    AnimationFrameDescription reusable = rohr_graphics_animation_frame_description_get(catalog, 0).result.value;
     reusable.scale = (Scale){-2, 3};
     reusable.offset = (Position){13, -9};
     reusable.rotation = 450;
-    AnimatedSprite value = rohr_graphics_animated_sprite_create((AnimationAsset){0}, (Scale){1,1});
+    AnimatedSprite value = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get((AnimationAsset){0}).result.value).result.value;
+    value.scale = (Scale){1,1};
     if(!result_ok(rohr_graphics_animated_sprite_value_frame_add(&value, reusable))) return false;
     reusable.scale.x = 99;
     reusable.offset.x = 99;
@@ -82,25 +84,25 @@ static bool frame_values_check(AnimationAsset catalog) {
     value.player.last_update_time = 1.5;
     value.player.ticks_per_frame = 3;
     value.player.time_per_frame = 0.25;
-    if(!result_ok(rohr_graphics_animated_sprite_add(a, value)) ||
-            !result_ok(rohr_graphics_animated_sprite_add(b, value))) return false;
+    if(!result_ok(rohr_graphics_animated_sprite_add(a, rohr_graphics_animated_sprite_value_description_get(value))) ||
+            !result_ok(rohr_graphics_animated_sprite_add(b, rohr_graphics_animated_sprite_value_description_get(value)))) return false;
     value.frames[0].rotation = 99;
     if(!result_ok(rohr_graphics_animated_sprite_frame_scale_set(a, 0, (Scale){0,-4})) ||
             !result_ok(rohr_graphics_animated_sprite_frame_offset_set(a, 0, (Position){4,5})) ||
             !result_ok(rohr_graphics_animated_sprite_frame_rotation_radians_set(a, 0, PI_F * 3))) return false;
-    AnimationFrame first = rohr_graphics_animated_sprite_frame_get(a, 0).result.value;
-    AnimationFrame second = rohr_graphics_animated_sprite_frame_get(b, 0).result.value;
+    AnimationFrameDescription first = rohr_graphics_animated_sprite_frame_description_get(a, 0).result.value;
+    AnimationFrameDescription second = rohr_graphics_animated_sprite_frame_description_get(b, 0).result.value;
     if(first.scale.x != 0 || first.scale.y != -4 || first.offset.x != 4 ||
             fabsf(first.rotation - 540) > 0.001f || second.rotation != 450 ||
             second.offset.x != 13 || second.scale.x != -2 ||
-            rohr_graphics_animation_frame_get(catalog, 0).result.value.rotation != 0) return false;
+            rohr_graphics_animation_frame_description_get(catalog, 0).result.value.rotation != 0) return false;
     if(fabsf(rohr_graphics_animated_sprite_frame_rotation_radians_get(a, 0).result.value -
             PI_F * 3) > 0.001f ||
             rohr_graphics_animated_sprite_frame_scale_get(a, 0).result.value.y != -4 ||
             rohr_graphics_animated_sprite_frame_offset_get(a, 0).result.value.y != 5) return false;
     EntityIndex index = rohr_entity_index_get(a).result.value;
     AnimationPlayer before = animated_sprites[index].player;
-    AnimationFrame append = second;
+    AnimationFrameDescription append = second;
     append.id = 0;
     if(!result_ok(rohr_graphics_animated_sprite_frame_add(a, append)) ||
             animated_sprites[index].frame_count != 2 ||
@@ -113,33 +115,180 @@ static bool frame_values_check(AnimationAsset catalog) {
     if(after.frame_index != before.frame_index || after.last_update_tick != before.last_update_tick ||
             after.last_update_time != before.last_update_time || after.ticks_per_frame != before.ticks_per_frame ||
             after.time_per_frame != before.time_per_frame) return false;
-    AnimationFrame preserved = rohr_graphics_animated_sprite_frame_get(a, 0).result.value;
+    AnimationFrameDescription preserved = rohr_graphics_animated_sprite_frame_description_get(a, 0).result.value;
     for(int failure = 0; failure < 6; failure += 1) {
-        AnimationFrame invalid = preserved;
+        AnimationFrameDescription invalid = preserved;
         if(failure == 0) invalid.scale.x = NAN;
         if(failure == 1) invalid.offset.y = INFINITY;
         if(failure == 2) invalid.rotation = INFINITY;
         if(failure == 3) invalid.texture = (TextureAsset){0};
         if(failure == 4) invalid.id = animated_sprites[index].frames[1].id;
-        if(!rohr_error_check(rohr_graphics_animated_sprite_frame_set(a,
+        if(!rohr_error_check(rohr_graphics_animated_sprite_frame_description_set(a,
                 failure == 5 ? MAX_ANIMATIONS_FRAMES : 0, invalid))) return false;
-        AnimationFrame current = rohr_graphics_animated_sprite_frame_get(a, 0).result.value;
+        AnimationFrameDescription current = rohr_graphics_animated_sprite_frame_description_get(a, 0).result.value;
         if(current.scale.x != preserved.scale.x || current.rotation != preserved.rotation ||
                 current.texture.handle != preserved.texture.handle) return false;
     }
     TextureAssetResult image = rohr_graphics_texture_load(
         (TextureDescription){second_path, {999,999}});
     if(rohr_error_check(image)) return false;
-    AnimationFrame replacement = rohr_graphics_animation_frame_create(image.result.value);
+    AnimationFrameDescription replacement = rohr_graphics_animation_frame_create((AnimationFrameDescription){.texture = image.result.value, .scale = {1, 1}});
     if(replacement.scale.x != 1 || replacement.texture.size.x != 1 ||
-            !result_ok(rohr_graphics_animated_sprite_frame_set(a, 0, replacement)) ||
+            !result_ok(rohr_graphics_animated_sprite_frame_description_set(a, 0, replacement)) ||
             !result_ok(rohr_graphics_texture_release(&image.result.value))) return false;
-    if(rohr_graphics_animated_sprite_frame_get(b, 0).result.value.texture.handle !=
+    if(rohr_graphics_animated_sprite_frame_description_get(b, 0).result.value.texture.handle !=
             second.texture.handle) return false;
     /* Replacing an entire component releases its independent image owners. */
-    if(!result_ok(rohr_graphics_animated_sprite_add(a, value)) ||
+    if(!result_ok(rohr_graphics_animated_sprite_add(a, rohr_graphics_animated_sprite_value_description_get(value))) ||
             !result_ok(rohr_entity_delete(a)) || !result_ok(rohr_entity_delete(b))) return false;
     return stats_check(1, 2, 2, 2, 2, 0, "independent frame cleanup");
+}
+
+#ifdef ROHR_TEST_SPRITE_WRAP
+static int fail_texture_retain;
+EngineResult __real_graphics_texture_retain(TextureAsset asset);
+EngineResult __wrap_graphics_texture_retain(TextureAsset asset) {
+    if(fail_texture_retain > 0 && --fail_texture_retain == 0)
+        return rohr_error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    return __real_graphics_texture_retain(asset);
+}
+#endif
+
+static void descriptions_check(AnimationAsset catalog) {
+    GraphicsTextureAssetStats initial = graphics_texture_assets_stats_get();
+    AnimatedSpriteDescriptionResult prepared = rohr_graphics_animated_sprite_description_from_animation_get(catalog);
+    assert(!rohr_error_check(prepared));
+    AnimatedSpriteDescription description = prepared.result.value;
+    assert(description.frame_count == 2 && description.visible && description.scale.x == 1);
+    assert(description.frames[0].id == 101 && description.frames[1].id == 102);
+    assert(graphics_texture_assets_stats_get().owner_references == initial.owner_references);
+    assert(rohr_error_check(graphics_animated_sprite_description_from_animation_get((AnimationAsset){UINT32_MAX})));
+    Entity a = rohr_entity_add().result.value, b = rohr_entity_add().result.value;
+    assert(rohr_error_check(graphics_animated_sprite_description_set(a, description)));
+    assert(!rohr_error_check(rohr_graphics_animated_sprite_add(a, description)));
+    assert(!rohr_error_check(graphics_animated_sprite_add(b, description)));
+    EntityIndex index = rohr_entity_index_get(a).result.value;
+    AnimatedSprite *current = &animated_sprites[index];
+    graphics_animated_sprite_update(current, 2, 0);
+    graphics_animated_sprite_update(current, 3, 0);
+    assert(current->player.frame_index == 1 && current->player.last_update_tick == 2);
+    description = rohr_graphics_animated_sprite_description_get(a).result.value;
+    description.scale = (Scale){-2, 3};
+    description.visible = false;
+    description.orientation_offset = 450;
+    AnimationFrameDescription swap = description.frames[0];
+    description.frames[0] = description.frames[1];
+    description.frames[1] = swap;
+    assert(!rohr_error_check(rohr_graphics_animated_sprite_description_set(a, description)));
+    assert(current->player.frame_index == 0 && current->player.last_update_tick == 2);
+    assert(current->frames[0].id == 102 && !current->visible);
+    assert(graphics_animated_sprite_description_get(b).result.value.frames[0].id == 101);
+    description = graphics_animated_sprite_description_get(a).result.value;
+    description.frames[0].texture = description.frames[1].texture;
+    description.frames[0].rotation = -810;
+    description.player.ticks_per_frame = 1;
+    assert(!rohr_error_check(graphics_animated_sprite_description_set(a, description)));
+    assert(current->player.frame_index == 0 && current->player.last_update_tick == 2);
+    graphics_animated_sprite_update(current, 3, 0);
+    assert(current->player.frame_index == 1);
+    AnimatedSprite before = *current;
+    GraphicsTextureAssetStats before_stats = graphics_texture_assets_stats_get();
+    for(int failure = 0; failure < 5; failure += 1) {
+        AnimatedSpriteDescription invalid = description;
+        if(failure == 0) invalid.scale.x = NAN;
+        if(failure == 1) invalid.frame_count = MAX_ANIMATIONS_FRAMES + 1;
+        if(failure == 2) invalid.frames[1].id = invalid.frames[0].id;
+        if(failure == 3) invalid.frames[1].texture.handle = UINT32_MAX;
+        if(failure == 4) invalid.player.time_per_frame = -1;
+        assert(rohr_error_check(graphics_animated_sprite_description_set(a, invalid)));
+        assert(memcmp(current, &before, sizeof(before)) == 0);
+        assert(graphics_texture_assets_stats_get().owner_references == before_stats.owner_references);
+    }
+#ifdef ROHR_TEST_SPRITE_WRAP
+    fail_texture_retain = 2;
+    assert(rohr_error_check(graphics_animated_sprite_description_set(a, description)));
+    assert(fail_texture_retain == 0 && memcmp(current, &before, sizeof(before)) == 0);
+    assert(graphics_texture_assets_stats_get().owner_references == before_stats.owner_references);
+#endif
+    /* The current ID (101) is removed; reset at current engine clocks. */
+    description.frame_count = 1;
+    assert(!rohr_error_check(graphics_animated_sprite_description_set(a, description)));
+    assert(current->player.frame_index == 0 && current->player.last_update_tick == rohr_engine_tick_get());
+    AnimationDescription source = rohr_graphics_animation_description_get(catalog).result.value;
+    source.id += 1;
+    AnimationAssetResult other = rohr_graphics_animation_load(source);
+    assert(!rohr_error_check(other));
+    graphics_animated_sprite_update(current, 10, 0);
+    description.player.animation = other.result.value;
+    assert(!rohr_error_check(graphics_animated_sprite_description_set(a, description)));
+    assert(current->player.last_update_tick == rohr_engine_tick_get());
+    assert(!rohr_error_check(graphics_animated_sprite_description_set(a,
+        (AnimatedSpriteDescription){.player.animation = catalog})));
+    assert(current->frame_count == 0 && current->player.frame_count == 0);
+    assert(!current->visible && current->scale.x == 0);
+    AnimationPlayer empty_before = current->player;
+    assert(!rohr_error_check(graphics_animated_sprite_description_set(a,
+        graphics_animated_sprite_description_get(a).result.value)));
+    assert(current->player.last_update_tick == empty_before.last_update_tick);
+
+    AnimationPlayerDescription pd = rohr_graphics_animation_player_description_from_animation_get(catalog).result.value;
+    AnimationPlayerResult player_result = rohr_graphics_animation_player_create(pd);
+    assert(!rohr_error_check(player_result));
+    AnimationPlayer player = player_result.result.value;
+    rohr_graphics_animation_player_update(&player, 2, 0);
+    rohr_graphics_animation_player_update(&player, 3, 0);
+    pd = graphics_animation_player_description_get(&player).result.value;
+    pd.ticks_per_frame = 4;
+    assert(!rohr_error_check(rohr_graphics_animation_player_description_set(&player, pd)));
+    assert(player.frame_index == 1 && player.last_update_tick == 2);
+    pd.animation = other.result.value;
+    pd.ticks_per_frame = 2;
+    assert(!rohr_error_check(graphics_animation_player_description_set(&player, pd)));
+    assert(player.frame_index == 0 && player.last_update_tick == 3);
+    graphics_animation_player_update(&player, 4, 0);
+    assert(player.frame_index == 0);
+    graphics_animation_player_update(&player, 5, 0);
+    assert(player.frame_index == 1);
+    pd.time_per_frame = NAN;
+    AnimationPlayer saved = player;
+    assert(rohr_error_check(graphics_animation_player_description_set(&player, pd)));
+    assert(memcmp(&saved, &player, sizeof(player)) == 0);
+    assert(rohr_error_check(graphics_animation_player_create(pd)));
+    assert(rohr_error_check(graphics_animation_player_description_get(NULL)));
+
+    AnimatedSpriteResult value = rohr_graphics_animated_sprite_create(prepared.result.value);
+    assert(!rohr_error_check(value));
+    graphics_animated_sprite_update(&value.result.value, 2, 0);
+    AnimatedSpriteDescription vd = graphics_animated_sprite_value_description_get(value.result.value);
+    vd.frames[1].id = 900;
+    assert(!rohr_error_check(graphics_animated_sprite_value_description_set(&value.result.value, vd)));
+    assert(value.result.value.player.frame_index == 0 && value.result.value.player.last_update_tick == 2);
+    vd.player.animation.handle = UINT32_MAX;
+    assert(rohr_error_check(graphics_animated_sprite_create(vd)));
+
+    SpriteDescription sd = rohr_graphics_sprite_description_default_get();
+    sd.texture = prepared.result.value.frames[0].texture;
+    assert(rohr_error_check(graphics_sprite_description_set(a, sd)));
+    assert(!rohr_error_check(rohr_graphics_sprite_add(a, sd)));
+    SpriteDescriptionResult got = rohr_graphics_sprite_description_get(a);
+    assert(!rohr_error_check(got) && got.result.value.visible);
+    sd = got.result.value;
+    sd.orientation_offset = 720;
+    sd.scale = (Scale){-3, 0};
+    assert(!rohr_error_check(graphics_sprite_description_set(a, sd)));
+    SpriteDescription invalid = sd;
+    invalid.texture.handle = UINT32_MAX;
+    assert(rohr_error_check(graphics_sprite_description_set(a, invalid)));
+    invalid = sd; invalid.scale.x = INFINITY;
+    assert(rohr_error_check(graphics_sprite_description_set(a, invalid)));
+    assert(graphics_sprite_description_get(a).result.value.orientation_offset == 720);
+    assert(!rohr_error_check(graphics_sprite_description_set(a, (SpriteDescription){0})));
+    assert(!graphics_sprite_description_get(a).result.value.visible);
+    assert(!rohr_error_check(rohr_entity_delete(a)) && !rohr_error_check(rohr_entity_delete(b)));
+    assert(rohr_error_check(graphics_sprite_description_get(a)));
+    assert(rohr_error_check(graphics_animated_sprite_description_get(a)));
+    assert(!rohr_error_check(rohr_graphics_animation_release(&other.result.value)));
+    assert(graphics_texture_assets_stats_get().owner_references == initial.owner_references);
 }
 
 int main(void) {
@@ -153,7 +302,7 @@ int main(void) {
     AnimationAsset zero = {0};
     AnimationHandle expired_handle;
     AnimationInfoResult info;
-    AnimationFrameResult frame;
+    AnimationFrameDescriptionResult frame;
     TextureAsset borrowed_texture;
     AnimationPlayer player_a;
     AnimationPlayer player_b;
@@ -206,7 +355,7 @@ int main(void) {
             return fail("animation description changed identity or ownership", true, true);
     }
     info = graphics_animation_info_get(first.result.value);
-    frame = graphics_animation_frame_get(first.result.value, 1);
+    frame = graphics_animation_frame_description_get(first.result.value, 1);
     if(rohr_error_check(info) || rohr_error_check(frame) ||
             info.result.value.id != 41 || info.result.value.frame_count != 2 ||
             info.result.value.ticks_per_frame != 2 ||
@@ -218,11 +367,12 @@ int main(void) {
         return fail("immutable animation metadata was incorrect", true, true);
     borrowed_texture = frame.result.value.texture;
 
+    descriptions_check(first.result.value);
     if(!frame_values_check(first.result.value))
         return fail("independent frame values failed", true, true);
 
-    player_a = rohr_graphics_animation_player_create(first.result.value);
-    player_b = rohr_graphics_animation_player_create(first.result.value);
+    player_a = rohr_graphics_animation_player_create(rohr_graphics_animation_player_description_from_animation_get(first.result.value).result.value).result.value;
+    player_b = rohr_graphics_animation_player_create(rohr_graphics_animation_player_description_from_animation_get(first.result.value).result.value).result.value;
     rohr_graphics_animation_player_update(&player_a, 2, 0.0);
     rohr_graphics_animation_player_update(&player_b, 1, 0.0);
     if(player_a.frame_index != 1 || player_b.frame_index != 0 ||
@@ -246,12 +396,8 @@ int main(void) {
     entity_a = rohr_entity_add();
     entity_b = rohr_entity_add();
     if(rohr_error_check(entity_a) || rohr_error_check(entity_b) ||
-            !result_ok(rohr_graphics_animated_sprite_add(entity_a.result.value,
-                rohr_graphics_animated_sprite_create(first.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
-            !result_ok(rohr_graphics_animated_sprite_add(entity_b.result.value,
-                rohr_graphics_animated_sprite_create(first.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+            !result_ok(rohr_graphics_animated_sprite_add(entity_a.result.value, rohr_graphics_animated_sprite_description_from_animation_get(first.result.value).result.value)) ||
+            !result_ok(rohr_graphics_animated_sprite_add(entity_b.result.value, rohr_graphics_animated_sprite_description_from_animation_get(first.result.value).result.value)) ||
             !stats_check(1, 5, 2, 2, 6, 0, "component addition"))
         return fail("animation component retain failed", true, true);
     if(!result_ok(rohr_graphics_animated_sprite_body_offset_set(
@@ -310,16 +456,12 @@ int main(void) {
             return fail("replacement setup failed", true, true);
         original_stale = original.result.value;
         replacement_stale = replacement.result.value;
-        if(!result_ok(rohr_graphics_animated_sprite_add(entity.result.value,
-                    rohr_graphics_animated_sprite_create(original.result.value,
-                        (Scale){1.0f, 1.0f}))) ||
+        if(!result_ok(rohr_graphics_animated_sprite_add(entity.result.value, rohr_graphics_animated_sprite_description_from_animation_get(original.result.value).result.value)) ||
                 !result_ok(rohr_graphics_animation_release(
                     &original.result.value)) ||
                 !stats_check(2, 2, 4, 2, 6, 0,
                     "first component ownership") ||
-                !result_ok(rohr_graphics_animated_sprite_add(entity.result.value,
-                    rohr_graphics_animated_sprite_create(replacement.result.value,
-                        (Scale){1.0f, 1.0f}))) ||
+                !result_ok(rohr_graphics_animated_sprite_add(entity.result.value, rohr_graphics_animated_sprite_description_from_animation_get(replacement.result.value).result.value)) ||
                 rohr_graphics_animation_valid_check(original_stale) ||
                 !stats_check(1, 2, 2, 2, 4, 0, "component replacement") ||
                 !result_ok(rohr_graphics_animation_release(
@@ -336,9 +478,7 @@ int main(void) {
     first = rohr_graphics_animation_load(descriptor);
     if(rohr_error_check(first) ||
             !stats_check(1, 1, 2, 2, 2, 0, "failed component setup") ||
-            !rohr_error_check(rohr_graphics_animated_sprite_add(ENTITY_INVALID,
-                rohr_graphics_animated_sprite_create(first.result.value,
-                    (Scale){1.0f, 1.0f}))) ||
+            !rohr_error_check(rohr_graphics_animated_sprite_add(ENTITY_INVALID, rohr_graphics_animated_sprite_description_from_animation_get(first.result.value).result.value)) ||
             !stats_check(1, 1, 2, 2, 2, 0, "failed component addition") ||
             !result_ok(rohr_graphics_animation_release(&first.result.value)) ||
             !stats_check(0, 0, 0, 0, 0, 0, "failed component cleanup"))
@@ -351,7 +491,7 @@ int main(void) {
         AnimationAssetResult empty = rohr_graphics_animation_load(invalid);
         if(rohr_error_check(empty) ||
                 rohr_graphics_animation_info_get(empty.result.value).result.value.frame_count != 0 ||
-                !rohr_error_check(rohr_graphics_animation_frame_get(empty.result.value, 0)) ||
+                !rohr_error_check(rohr_graphics_animation_frame_description_get(empty.result.value, 0)) ||
                 !result_ok(rohr_graphics_animation_release(&empty.result.value)))
             return fail("empty animation catalog contract failed", true, true);
         invalid = descriptor;
@@ -392,7 +532,7 @@ int main(void) {
     if(rohr_error_check(first) ||
             !stats_check(1, 1, 2, 2, 2, 0, "borrowed frame setup"))
         return fail("borrowed-frame setup failed", true, true);
-    frame = rohr_graphics_animation_frame_get(first.result.value, 0);
+    frame = rohr_graphics_animation_frame_description_get(first.result.value, 0);
     if(rohr_error_check(frame) ||
             !stats_check(1, 1, 2, 2, 2, 0, "borrowed frame lookup"))
         return fail("borrowed frame lookup changed ownership", true, true);
@@ -416,7 +556,7 @@ int main(void) {
     first = rohr_graphics_animation_load(descriptor);
     if(rohr_error_check(first) || first.result.value.handle == expired_handle)
         return fail("animation generation did not advance", true, true);
-    frame = rohr_graphics_animation_frame_get(first.result.value, 0);
+    frame = rohr_graphics_animation_frame_description_get(first.result.value, 0);
     if(rohr_error_check(frame))
         return fail("queued-frame lookup failed", true, true);
     borrowed_texture = frame.result.value.texture;
@@ -437,7 +577,7 @@ int main(void) {
             !stats_check(1, 1, 2, 2, 2, 0, "shutdown load"))
         return fail("shutdown animation load failed", true, true);
     stale = first.result.value;
-    frame = rohr_graphics_animation_frame_get(first.result.value, 0);
+    frame = rohr_graphics_animation_frame_description_get(first.result.value, 0);
     if(rohr_error_check(frame))
         return fail("shutdown frame lookup failed", true, true);
     borrowed_texture = frame.result.value.texture;
@@ -485,10 +625,10 @@ int main(void) {
     Entity saved_entity = rohr_entity_by_name_get("aligned_body").result.value;
     TextureAssetResult replacement_image = rohr_graphics_texture_load(
         (TextureDescription){.file = second_path});
-    AnimationFrame saved_frame = rohr_graphics_animated_sprite_frame_get(saved_entity, 0).result.value;
+    AnimationFrameDescription saved_frame = rohr_graphics_animated_sprite_frame_description_get(saved_entity, 0).result.value;
     saved_frame.texture = replacement_image.result.value;
     if(rohr_error_check(replacement_image) ||
-            !result_ok(rohr_graphics_animated_sprite_frame_set(saved_entity, 0, saved_frame)))
+            !result_ok(rohr_graphics_animated_sprite_frame_description_set(saved_entity, 0, saved_frame)))
         return fail("persistent frame replacement failed", true, true);
     saved_frame.id = 0;
     if(!result_ok(rohr_graphics_animated_sprite_frame_add(saved_entity, saved_frame)) ||
@@ -511,7 +651,7 @@ int main(void) {
         if(rohr_error_check(entity)) return fail("aligned entity missing", true, true);
         EntityIndexResult index = rohr_entity_index_get(entity.result.value);
         if(rohr_error_check(index)) return fail("aligned entity index missing", true, true);
-        AnimationFrameResult loaded = rohr_graphics_animated_sprite_frame_get(entity.result.value, 0);
+        AnimationFrameDescriptionResult loaded = rohr_graphics_animated_sprite_frame_description_get(entity.result.value, 0);
         if(rohr_error_check(loaded) || loaded.result.value.offset.x != 13 ||
                 loaded.result.value.offset.y != -9 || loaded.result.value.rotation != 450 ||
                 loaded.result.value.scale.x != -32 || loaded.result.value.scale.y != 0)

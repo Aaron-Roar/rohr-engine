@@ -904,7 +904,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "    Orientation rotation, bool visible) {\n"
         "    EntityResult added = {.kind = ERROR_RESULT_VALUE};\n"
         "    TextureAssetResult loaded = {0};\n"
-        "    Sprite sprite;\n"
+        "    SpriteDescription sprite;\n"
         "    EngineResult result;\n"
         "    bool owned = target == ENTITY_INVALID;\n"
         "    if(owned) { added = rohr_entity_add();\n"
@@ -918,7 +918,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
         "        result = rohr_error_result_error(loaded.result.error);\n"
         "        goto fail;\n"
         "    }\n"
-        "    sprite = rohr_graphics_sprite_create(loaded.result.value, (Scale){1.0f, 1.0f});\n"
+        "    sprite = rohr_graphics_sprite_description_default_get();\n"
+        "    sprite.texture = loaded.result.value;\n"
         "    sprite.body_offset = owned ? (Position){0} : position;\n"
         "    sprite.orientation_offset = rotation;\n"
         "    sprite.follow_entity_rotation = follow_rotation;\n"
@@ -1236,21 +1237,22 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "}};\n"
                 "      AnimationAssetResult loaded = {.kind = ERROR_RESULT_VALUE};\n"
                 "      if(descriptor.frame_count > 0) loaded = rohr_graphics_animation_load(descriptor);\n"
-                "      AnimatedSprite animated;\n"
+                "      AnimatedSpriteDescription animated;\n"
                 "      if(rohr_error_check(loaded)) { result = rohr_error_result_error("
                 "loaded.result.error); goto fail; }\n");
             fprintf(source,
-                "      animated = rohr_graphics_animated_sprite_create(loaded.result.value, "
-                "(Scale){%#.9gf, %#.9gf});\n"
+                "      AnimatedSpriteDescriptionResult prepared = rohr_graphics_animated_sprite_description_from_animation_get(loaded.result.value);\n"
+                "      if(rohr_error_check(prepared)) { (void)rohr_graphics_animation_release(&loaded.result.value); result = rohr_error_result_error(prepared.result.error); goto fail; }\n"
+                "      animated = prepared.result.value;\n"
+                "      animated.scale = (Scale){%#.9gf, %#.9gf};\n"
                 "      animated.player.ticks_per_frame = descriptor.ticks_per_frame;\n"
                 "      animated.player.time_per_frame = descriptor.time_per_frame;\n"
-                "      animated.player.frame_index = %u;\n"
                 "      animated.body_offset = (Position){%#.9gf, %#.9gf};\n"
                 "      animated.orientation_offset = %#.9gf;\n"
                 "      animated.direction = %s;\n"
                 "      animated.follow_entity_rotation = %s;\n"
                 "      animated.visible = %s;\n",
-                sprite->scale.x, sprite->scale.y, sprite->starting_frame,
+                sprite->scale.x, sprite->scale.y,
                 body == NULL ? 0.0f : sprite->editor_position.x,
                 body == NULL ? 0.0f : sprite->editor_position.y,
                 sprite->editor_rotation,
@@ -1269,8 +1271,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             }
             fprintf(source,
                 "      result = rohr_graphics_animated_sprite_add(object->%s, animated);\n"
+                "      if(!rohr_error_check(result) && animated.frame_count > 0) result = rohr_graphics_animated_sprite_frame_index_set(object->%s, %u);\n"
                 "      (void)rohr_graphics_animation_release(&loaded.result.value);\n"
-                "      if(rohr_error_check(result)) goto fail; }\n", target);
+                "      if(rohr_error_check(result)) goto fail; }\n", target, target, sprite->starting_frame);
             if(body != NULL) {
                 for(size_t binding_index = 0;
                         binding_index < body->hitbox_animation_binding_count;

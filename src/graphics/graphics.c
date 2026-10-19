@@ -4724,15 +4724,60 @@ bool graphics_screen_text_scaled_rotated_draw(const TextAsset *text,
     return true;
 }
 
-AnimationPlayer graphics_animation_player_create(AnimationAsset asset) {
-    AnimationPlayer player = {.animation = asset};
-    AnimationInfoResult info = graphics_animation_info_get(asset);
-    if(info.kind == ERROR_RESULT_VALUE) {
-        player.frame_count = info.result.value.frame_count;
-        player.ticks_per_frame = info.result.value.ticks_per_frame;
-        player.time_per_frame = info.result.value.time_per_frame;
+AnimationPlayerDescription graphics_animation_player_description_default_get(void) {
+    return (AnimationPlayerDescription){0};
+}
+
+AnimationPlayerDescriptionResult graphics_animation_player_description_from_animation_get(AnimationAsset asset) {
+    AnimationPlayerDescription description = {.animation = asset};
+    if(asset.handle != ANIMATION_HANDLE_INVALID) {
+        AnimationInfoResult info = graphics_animation_info_get(asset);
+        if(error_check(info)) return ERROR_RESULT_MAKE_ERROR(AnimationPlayerDescriptionResult, info.result.error);
+        description.ticks_per_frame = info.result.value.ticks_per_frame;
+        description.time_per_frame = info.result.value.time_per_frame;
     }
-    return player;
+    return ERROR_RESULT_MAKE_VALUE(AnimationPlayerDescriptionResult, description);
+}
+
+AnimationPlayerDescriptionResult graphics_animation_player_description_get(const AnimationPlayer *player) {
+    if(player == NULL) return ERROR_RESULT_MAKE_ERROR(AnimationPlayerDescriptionResult, ERROR_ENGINE_STATE_INVALID);
+    return ERROR_RESULT_MAKE_VALUE(AnimationPlayerDescriptionResult, ((AnimationPlayerDescription){
+        .animation = player->animation, .ticks_per_frame = player->ticks_per_frame,
+        .time_per_frame = player->time_per_frame}));
+}
+
+EngineResult graphics_animation_player_description_set(AnimationPlayer *player, AnimationPlayerDescription description) {
+    if(player == NULL || !isfinite(description.time_per_frame) || description.time_per_frame < 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    size_t frame_count = 0;
+    if(description.animation.handle != ANIMATION_HANDLE_INVALID) {
+        AnimationInfoResult info = graphics_animation_info_get(description.animation);
+        if(error_check(info)) return error_result_error(info.result.error);
+        frame_count = info.result.value.frame_count;
+    }
+    AnimationPlayer next = *player;
+    if(next.animation.handle != description.animation.handle ||
+            (frame_count > 0 && next.frame_index >= frame_count)) {
+        next.frame_index = 0;
+        next.last_update_tick = next.observed_tick;
+        next.last_update_time = next.observed_time;
+    }
+    if(frame_count == 0) next.frame_index = 0;
+    next.animation = description.animation;
+    next.frame_count = frame_count;
+    next.ticks_per_frame = description.ticks_per_frame;
+    next.time_per_frame = description.time_per_frame;
+    *player = next;
+    return error_result_value(true);
+}
+
+AnimationPlayerResult graphics_animation_player_create(AnimationPlayerDescription description) {
+    AnimationPlayer player = {.observed_tick = engine_tick_get(), .observed_time = engine_time_get()};
+    player.last_update_tick = player.observed_tick;
+    player.last_update_time = player.observed_time;
+    EngineResult result = graphics_animation_player_description_set(&player, description);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(AnimationPlayerResult, result.result.error);
+    return ERROR_RESULT_MAKE_VALUE(AnimationPlayerResult, player);
 }
 
 void graphics_animation_player_update(AnimationPlayer *player,
@@ -4741,6 +4786,8 @@ void graphics_animation_player_update(AnimationPlayer *player,
     bool frame_need_update_time;
 
     if(player == NULL) return;
+    player->observed_tick = current_tick;
+    player->observed_time = current_time;
     if(player->frame_count == 0) return;
     if(player->frame_index >= player->frame_count)
         player->frame_index = 0;
@@ -4756,17 +4803,13 @@ void graphics_animation_player_update(AnimationPlayer *player,
     }
 }
 
-AnimatedSprite graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) {
+AnimatedSpriteResult graphics_animated_sprite_create(AnimatedSpriteDescription description) {
     AnimatedSprite sprite = {0};
-    sprite.player = graphics_animation_player_create(asset_ptr);
-    sprite.frame_count = sprite.player.frame_count;
-    for(size_t i = 0; i < sprite.frame_count; i += 1)
-        sprite.frames[i] = graphics_animation_frame_get(asset_ptr, i).result.value;
-    sprite.direction = DIRECTION_RIGHT;
-    sprite.scale = scale;
-    sprite.follow_entity_rotation = true;
-    sprite.visible = true;
-    return sprite;
+    sprite.player.observed_tick = sprite.player.last_update_tick = engine_tick_get();
+    sprite.player.observed_time = sprite.player.last_update_time = engine_time_get();
+    EngineResult result = graphics_animated_sprite_value_description_set(&sprite, description);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteResult, result.result.error);
+    return ERROR_RESULT_MAKE_VALUE(AnimatedSpriteResult, sprite);
 }
 
 void graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick,
@@ -4917,7 +4960,7 @@ static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
             (ReportObjectRef){ROHR_REPORT_OBJECT_ANIMATION, sprite.player.animation.handle}, "Animation frame is unavailable");
         return;
     }
-    AnimationFrame frame = sprite.frames[sprite.player.frame_index];
+    AnimationFrameDescription frame = sprite.frames[sprite.player.frame_index];
     TextureAsset asset = frame.texture;
     asset.size.x *= sprite.scale.x * frame.scale.x;
     asset.size.y *= sprite.scale.y * frame.scale.y;
@@ -4936,18 +4979,48 @@ static void graphics_animated_sprite_value_draw(AnimatedSprite sprite,
     graphics_texture_draw_flipped(asset, pos, ort, flip);
 }
 
-Sprite graphics_sprite_create(TextureAsset asset, Scale scale) {
-    return (Sprite){.texture = asset, .direction = DIRECTION_RIGHT,
-        .scale = scale, .follow_entity_rotation = true, .visible = true};
+SpriteDescription graphics_sprite_description_default_get(void) {
+    return (SpriteDescription){.direction = DIRECTION_RIGHT, .scale = {1, 1},
+        .follow_entity_rotation = true, .visible = true};
 }
 
-EngineResult graphics_sprite_add(Entity entity, Sprite sprite) {
+Sprite graphics_sprite_create(SpriteDescription description) {
+    return description;
+}
+
+static bool graphics_sprite_transform_valid_check(Direction direction, Scale scale,
+        Position offset, Orientation rotation) {
+    return (direction == DIRECTION_LEFT || direction == DIRECTION_RIGHT) &&
+        isfinite(scale.x) && isfinite(scale.y) && isfinite(offset.x) &&
+        isfinite(offset.y) && isfinite(rotation);
+}
+
+SpriteDescriptionResult graphics_sprite_description_get(Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
+        return ERROR_RESULT_MAKE_ERROR(SpriteDescriptionResult, ERROR_ENGINE_INVALID_ENTITY);
+    if(index >= sprites_pool.capacity || !sprites_pool.used[index])
+        return ERROR_RESULT_MAKE_ERROR(SpriteDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(SpriteDescriptionResult, sprite_components[index]);
+}
+
+EngineResult graphics_sprite_description_set(Entity entity, SpriteDescription description) {
+    SpriteDescriptionResult current = graphics_sprite_description_get(entity);
+    if(error_check(current)) return error_result_error(current.result.error);
+    return graphics_sprite_add(entity, description);
+}
+
+EngineResult graphics_sprite_add(Entity entity, SpriteDescription sprite) {
     EntityIndex index;
     EngineResult result;
     bool replacing;
     Sprite previous = {0};
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    if(!graphics_sprite_transform_valid_check(sprite.direction, sprite.scale,
+            sprite.body_offset, sprite.orientation_offset) ||
+            !isfinite(sprite.texture.size.x) || !isfinite(sprite.texture.size.y))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     if(sprite.texture.handle != TEXTURE_HANDLE_INVALID) {
         result = graphics_texture_retain(sprite.texture);
         if(result.kind == ERROR_RESULT_ERROR) return result;
@@ -5072,20 +5145,24 @@ void graphics_sprites_draw(void) {
 }
 
 
-AnimationFrame graphics_animation_frame_create(TextureAsset texture) {
-    TextureSizeResult size = graphics_texture_size_get(texture);
-    if(size.kind == ERROR_RESULT_VALUE) texture.size = size.result.value;
-    return (AnimationFrame){.texture = texture, .scale = {1, 1}};
+AnimationFrameDescription graphics_animation_frame_description_default_get(void) {
+    return (AnimationFrameDescription){.scale = {1, 1}};
 }
 
-static bool graphics_animation_frame_valid_check(AnimationFrame frame) {
+AnimationFrameDescription graphics_animation_frame_create(AnimationFrameDescription description) {
+    TextureSizeResult size = graphics_texture_size_get(description.texture);
+    if(!error_check(size)) description.texture.size = size.result.value;
+    return description;
+}
+
+static bool graphics_animation_frame_valid_check(AnimationFrameDescription frame) {
     return graphics_texture_valid_check(frame.texture) &&
         isfinite(frame.scale.x) && isfinite(frame.scale.y) &&
         isfinite(frame.offset.x) && isfinite(frame.offset.y) && isfinite(frame.rotation);
 }
 
-EngineResult graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite,
-        size_t index, AnimationFrame frame) {
+EngineResult graphics_animated_sprite_value_frame_description_set(AnimatedSprite *sprite,
+        size_t index, AnimationFrameDescription frame) {
     if(sprite == NULL || sprite->frame_count > MAX_ANIMATIONS_FRAMES ||
             index >= sprite->frame_count)
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
@@ -5096,12 +5173,18 @@ EngineResult graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite,
         if(i != index && sprite->frames[i].id == frame.id)
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
     frame.texture.size = graphics_texture_size_get(frame.texture).result.value;
+    bool reset = sprite->player.frame_index == index && sprite->frames[index].id != frame.id;
     sprite->frames[index] = frame;
+    if(reset) {
+        sprite->player.frame_index = 0;
+        sprite->player.last_update_tick = sprite->player.observed_tick;
+        sprite->player.last_update_time = sprite->player.observed_time;
+    }
     return error_result_value(true);
 }
 
 EngineResult graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite,
-        AnimationFrame frame) {
+        AnimationFrameDescription frame) {
     if(sprite == NULL || sprite->frame_count >= MAX_ANIMATIONS_FRAMES)
         return error_result_error(ERROR_ENGINE_INDEX_OUT_OF_RANGE);
     if(!graphics_animation_frame_valid_check(frame))
@@ -5131,31 +5214,34 @@ static AnimatedSprite *graphics_animated_sprite_entity_get(Entity entity) {
     return &animated_sprites[index];
 }
 
-AnimationFrameResult graphics_animated_sprite_frame_get(Entity entity, size_t index) {
+AnimationFrameDescriptionResult graphics_animated_sprite_frame_description_get(Entity entity, size_t index) {
     AnimatedSprite *sprite = graphics_animated_sprite_entity_get(entity);
     if(sprite == NULL)
-        return ERROR_RESULT_MAKE_ERROR(AnimationFrameResult, ERROR_ENGINE_COMPONENT_MISSING);
+        return ERROR_RESULT_MAKE_ERROR(AnimationFrameDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
     if(index >= sprite->frame_count)
-        return ERROR_RESULT_MAKE_ERROR(AnimationFrameResult, ERROR_ENGINE_INDEX_OUT_OF_RANGE);
-    return ERROR_RESULT_MAKE_VALUE(AnimationFrameResult, sprite->frames[index]);
+        return ERROR_RESULT_MAKE_ERROR(AnimationFrameDescriptionResult, ERROR_ENGINE_INDEX_OUT_OF_RANGE);
+    return ERROR_RESULT_MAKE_VALUE(AnimationFrameDescriptionResult, sprite->frames[index]);
 }
 
-EngineResult graphics_animated_sprite_frame_set(Entity entity, size_t index,
-        AnimationFrame frame) {
+EngineResult graphics_animated_sprite_frame_description_set(Entity entity, size_t index,
+        AnimationFrameDescription frame) {
     AnimatedSprite *sprite = graphics_animated_sprite_entity_get(entity);
     if(sprite == NULL) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     AnimatedSprite candidate = *sprite;
-    EngineResult result = graphics_animated_sprite_value_frame_set(&candidate, index, frame);
+    candidate.player.observed_tick = engine_tick_get();
+    candidate.player.observed_time = engine_time_get();
+    EngineResult result = graphics_animated_sprite_value_frame_description_set(&candidate, index, frame);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     result = graphics_texture_retain(candidate.frames[index].texture);
     if(result.kind == ERROR_RESULT_ERROR) return result;
     TextureAsset previous = sprite->frames[index].texture;
     sprite->frames[index] = candidate.frames[index];
+    sprite->player = candidate.player;
     (void)graphics_texture_release(&previous);
     return error_result_value(true);
 }
 
-EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame) {
+EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrameDescription frame) {
     AnimatedSprite *sprite = graphics_animated_sprite_entity_get(entity);
     if(sprite == NULL) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     AnimatedSprite candidate = *sprite;
@@ -5169,13 +5255,13 @@ EngineResult graphics_animated_sprite_frame_add(Entity entity, AnimationFrame fr
 
 EngineResult graphics_animated_sprite_frame_scale_set(Entity entity,
         size_t index, Scale scale) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR) return error_result_error(frame.result.error);
     frame.result.value.scale = scale;
-    return graphics_animated_sprite_frame_set(entity, index, frame.result.value);
+    return graphics_animated_sprite_frame_description_set(entity, index, frame.result.value);
 }
 TextureSizeResult graphics_animated_sprite_frame_scale_get(Entity entity, size_t index) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(TextureSizeResult, frame.result.error);
     return ERROR_RESULT_MAKE_VALUE(TextureSizeResult, frame.result.value.scale);
@@ -5183,13 +5269,13 @@ TextureSizeResult graphics_animated_sprite_frame_scale_get(Entity entity, size_t
 
 EngineResult graphics_animated_sprite_frame_offset_set(Entity entity,
         size_t index, Position offset) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR) return error_result_error(frame.result.error);
     frame.result.value.offset = offset;
-    return graphics_animated_sprite_frame_set(entity, index, frame.result.value);
+    return graphics_animated_sprite_frame_description_set(entity, index, frame.result.value);
 }
 PositionResult graphics_animated_sprite_frame_offset_get(Entity entity, size_t index) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(PositionResult, frame.result.error);
     return ERROR_RESULT_MAKE_VALUE(PositionResult, frame.result.value.offset);
@@ -5197,13 +5283,13 @@ PositionResult graphics_animated_sprite_frame_offset_get(Entity entity, size_t i
 
 EngineResult graphics_animated_sprite_frame_rotation_set(Entity entity,
         size_t index, Orientation rotation) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR) return error_result_error(frame.result.error);
     frame.result.value.rotation = rotation;
-    return graphics_animated_sprite_frame_set(entity, index, frame.result.value);
+    return graphics_animated_sprite_frame_description_set(entity, index, frame.result.value);
 }
 SpriteOrientationResult graphics_animated_sprite_frame_rotation_get(Entity entity, size_t index) {
-    AnimationFrameResult frame = graphics_animated_sprite_frame_get(entity, index);
+    AnimationFrameDescriptionResult frame = graphics_animated_sprite_frame_description_get(entity, index);
     if(frame.kind == ERROR_RESULT_ERROR)
         return ERROR_RESULT_MAKE_ERROR(SpriteOrientationResult, frame.result.error);
     return ERROR_RESULT_MAKE_VALUE(SpriteOrientationResult, frame.result.value.rotation);
@@ -5222,7 +5308,7 @@ SpriteOrientationResult graphics_animated_sprite_frame_rotation_radians_get(
     return result;
 }
 
-EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) {
+static EngineResult graphics_animated_sprite_store(Entity entity, AnimatedSprite sprite) {
     EntityIndex index;
     EngineResult result;
     bool replacing;
@@ -5958,4 +6044,119 @@ EngineResult graphics_camera_attachment_radians_set(
     bool follow_orientation
 ) {
     return graphics_camera_attachment_set(camera, entity, position_offset, math_radians_to_degrees(orientation_offset), follow_position, follow_orientation);
+}
+
+AnimatedSpriteDescription graphics_animated_sprite_description_default_get(void) {
+    return (AnimatedSpriteDescription){.scale = {1, 1}, .direction = DIRECTION_RIGHT,
+        .follow_entity_rotation = true, .visible = true};
+}
+
+AnimatedSpriteDescriptionResult graphics_animated_sprite_description_from_animation_get(AnimationAsset animation) {
+    AnimatedSpriteDescription description = graphics_animated_sprite_description_default_get();
+    AnimationPlayerDescriptionResult player = graphics_animation_player_description_from_animation_get(animation);
+    if(error_check(player)) return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteDescriptionResult, player.result.error);
+    description.player = player.result.value;
+    if(animation.handle != ANIMATION_HANDLE_INVALID) {
+        AnimationInfoResult info = graphics_animation_info_get(animation);
+        if(error_check(info)) return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteDescriptionResult, info.result.error);
+        description.frame_count = info.result.value.frame_count;
+        for(size_t i = 0; i < description.frame_count; i += 1) {
+            AnimationFrameDescriptionResult frame = graphics_animation_frame_description_get(animation, i);
+            if(error_check(frame)) return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteDescriptionResult, frame.result.error);
+            description.frames[i] = frame.result.value;
+        }
+    }
+    return ERROR_RESULT_MAKE_VALUE(AnimatedSpriteDescriptionResult, description);
+}
+
+AnimatedSpriteDescription graphics_animated_sprite_value_description_get(AnimatedSprite sprite) {
+    AnimatedSpriteDescription description = {
+        .player = {.animation = sprite.player.animation,
+            .ticks_per_frame = sprite.player.ticks_per_frame, .time_per_frame = sprite.player.time_per_frame},
+        .frame_count = sprite.frame_count, .direction = sprite.direction, .scale = sprite.scale,
+        .body_offset = sprite.body_offset, .orientation_offset = sprite.orientation_offset,
+        .follow_entity_rotation = sprite.follow_entity_rotation, .visible = sprite.visible};
+    memcpy(description.frames, sprite.frames, sizeof(description.frames));
+    return description;
+}
+
+EngineResult graphics_animated_sprite_value_description_set(AnimatedSprite *sprite, AnimatedSpriteDescription description) {
+    if(sprite == NULL || description.frame_count > MAX_ANIMATIONS_FRAMES ||
+            !graphics_sprite_transform_valid_check(description.direction, description.scale,
+                description.body_offset, description.orientation_offset) ||
+            !isfinite(description.player.time_per_frame) || description.player.time_per_frame < 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(description.player.animation.handle != ANIMATION_HANDLE_INVALID &&
+            !graphics_animation_valid_check(description.player.animation))
+        return error_result_error(ERROR_ENGINE_ANIMATION_NOT_FOUND);
+    for(size_t i = 0; i < description.frame_count; i += 1) {
+        AnimationFrameDescription *frame = &description.frames[i];
+        if(!graphics_animation_frame_valid_check(*frame)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(frame->id == 0) frame->id = (AnimationFrameId)i + 1;
+        for(size_t previous = 0; previous < i; previous += 1)
+            if(description.frames[previous].id == frame->id) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        frame->texture.size = graphics_texture_size_get(frame->texture).result.value;
+    }
+    AnimationPlayer player = sprite->player;
+    bool compatible = player.animation.handle == description.player.animation.handle;
+    bool matched = compatible && sprite->frame_count == 0 && description.frame_count == 0;
+    if(compatible && sprite->frame_count <= MAX_ANIMATIONS_FRAMES &&
+            player.frame_index < sprite->frame_count) {
+        AnimationFrameId current = sprite->frames[player.frame_index].id;
+        for(size_t i = 0; i < description.frame_count; i += 1) {
+            if(description.frames[i].id != current) continue;
+            player.frame_index = i;
+            matched = true;
+            break;
+        }
+    }
+    if(!matched) {
+        player.frame_index = 0;
+        player.last_update_tick = player.observed_tick;
+        player.last_update_time = player.observed_time;
+    }
+    if(description.frame_count == 0) player.frame_index = 0;
+    player.animation = description.player.animation;
+    player.frame_count = description.frame_count;
+    player.ticks_per_frame = description.player.ticks_per_frame;
+    player.time_per_frame = description.player.time_per_frame;
+    AnimatedSprite candidate = {.player = player, .frame_count = description.frame_count,
+        .direction = description.direction, .scale = description.scale, .body_offset = description.body_offset,
+        .orientation_offset = description.orientation_offset,
+        .follow_entity_rotation = description.follow_entity_rotation, .visible = description.visible};
+    memcpy(candidate.frames, description.frames, description.frame_count * sizeof(description.frames[0]));
+    *sprite = candidate;
+    return error_result_value(true);
+}
+
+AnimatedSpriteDescriptionResult graphics_animated_sprite_description_get(Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
+        return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteDescriptionResult, ERROR_ENGINE_INVALID_ENTITY);
+    AnimatedSprite *sprite = graphics_animated_sprite_entity_get(entity);
+    if(sprite == NULL) return ERROR_RESULT_MAKE_ERROR(AnimatedSpriteDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(AnimatedSpriteDescriptionResult, graphics_animated_sprite_value_description_get(*sprite));
+}
+
+EngineResult graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index) || !entity_index_alive_check(index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    AnimatedSprite *current = graphics_animated_sprite_entity_get(entity);
+    AnimatedSprite candidate = current != NULL ? *current : (AnimatedSprite){0};
+    candidate.player.observed_tick = engine_tick_get();
+    candidate.player.observed_time = engine_time_get();
+    if(current == NULL) {
+        candidate.player.last_update_tick = candidate.player.observed_tick;
+        candidate.player.last_update_time = candidate.player.observed_time;
+    }
+    EngineResult result = graphics_animated_sprite_value_description_set(&candidate, description);
+    if(error_check(result)) return result;
+    return graphics_animated_sprite_store(entity, candidate);
+}
+
+EngineResult graphics_animated_sprite_description_set(Entity entity, AnimatedSpriteDescription description) {
+    AnimatedSpriteDescriptionResult current = graphics_animated_sprite_description_get(entity);
+    if(error_check(current)) return error_result_error(current.result.error);
+    return graphics_animated_sprite_add(entity, description);
 }

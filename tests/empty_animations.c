@@ -36,10 +36,11 @@ static uint64_t metric(Report r, ReportMetricId id) {
 static void reports_and_persistence(void) {
     EntityResult added = rohr_entity_add(); OK(added); Entity entity = added.result.value;
     OK(rohr_entity_name_set(entity, "empty_animation"));
-    AnimatedSprite empty = rohr_graphics_animated_sprite_create((AnimationAsset){0}, (Scale){2,3});
+    AnimatedSprite empty = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get((AnimationAsset){0}).result.value).result.value;
+    empty.scale = (Scale){2,3};
     empty.player.ticks_per_frame = 7; empty.player.time_per_frame = .25;
     empty.body_offset = (Position){4,5}; empty.orientation_offset = 33;
-    OK(rohr_graphics_animated_sprite_add(entity, empty));
+    OK(rohr_graphics_animated_sprite_add(entity, rohr_graphics_animated_sprite_value_description_get(empty)));
     OK(rohr_graphics_layer_animation_set(entity, 12));
     EntityInfo snapshot = empty_info(entity);
     Report report = rohr_graphics_sprite_frames_update(100, 20);
@@ -66,13 +67,13 @@ static void reports_and_persistence(void) {
     assert(rohr_graphics_layer_animation_get(entity).result.value == 12);
     OK(rohr_entity_info_release(&current));
     TextureAssetResult texture = rohr_graphics_texture_load((TextureDescription){"empty_animation_frame.png",{2,2}}); OK(texture);
-    AnimationFrame frame = rohr_graphics_animation_frame_create(texture.result.value);
+    AnimationFrameDescription frame = rohr_graphics_animation_frame_create((AnimationFrameDescription){.texture = texture.result.value, .scale = {1, 1}});
     OK(rohr_graphics_animated_sprite_frame_add(entity, frame));
     OK(rohr_graphics_texture_release(&texture.result.value));
     report = rohr_graphics_sprite_frames_update(101, 21);
     assert(!report.diagnostic_count && metric(report, ROHR_REPORT_PROCESSED_COUNT) == 1);
     /* Replacing the component with its last frame removed releases frame assets. */
-    OK(rohr_graphics_animated_sprite_add(entity, empty));
+    OK(rohr_graphics_animated_sprite_add(entity, rohr_graphics_animated_sprite_value_description_get(empty)));
     assert(graphics_texture_assets_stats_get().live_resources == 0);
     current = empty_info(entity); OK(rohr_entity_info_release(&current));
     assert(snapshot.animations[0].frame_count == 0);

@@ -726,12 +726,12 @@ EngineResult rohr_graphics_animation_release(AnimationAsset *asset) { return gra
 bool rohr_graphics_animation_valid_check(AnimationAsset asset) { return graphics_animation_valid_check(asset); }
 AnimationInfoResult rohr_graphics_animation_info_get(AnimationAsset asset) { return graphics_animation_info_get(asset); }
 TextureSizeResult rohr_graphics_texture_size_get(TextureAsset asset) { return graphics_texture_size_get(asset); }
-AnimationFrame rohr_graphics_animation_frame_create(TextureAsset texture) { return graphics_animation_frame_create(texture); }
-EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrame frame) { return graphics_animated_sprite_value_frame_add(sprite, frame); }
-EngineResult rohr_graphics_animated_sprite_value_frame_set(AnimatedSprite *sprite, size_t index, AnimationFrame frame) { return graphics_animated_sprite_value_frame_set(sprite, index, frame); }
-AnimationFrameResult rohr_graphics_animated_sprite_frame_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_get(entity, index); }
-EngineResult rohr_graphics_animated_sprite_frame_set(Entity entity, size_t index, AnimationFrame frame) { return graphics_animated_sprite_frame_set(entity, index, frame); }
-EngineResult rohr_graphics_animated_sprite_frame_add(Entity entity, AnimationFrame frame) { return graphics_animated_sprite_frame_add(entity, frame); }
+AnimationFrameDescription rohr_graphics_animation_frame_create(AnimationFrameDescription description) { return graphics_animation_frame_create(description); }
+EngineResult rohr_graphics_animated_sprite_value_frame_add(AnimatedSprite *sprite, AnimationFrameDescription frame) { return graphics_animated_sprite_value_frame_add(sprite, frame); }
+EngineResult rohr_graphics_animated_sprite_value_frame_description_set(AnimatedSprite *sprite, size_t index, AnimationFrameDescription frame) { return graphics_animated_sprite_value_frame_description_set(sprite, index, frame); }
+AnimationFrameDescriptionResult rohr_graphics_animated_sprite_frame_description_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_description_get(entity, index); }
+EngineResult rohr_graphics_animated_sprite_frame_description_set(Entity entity, size_t index, AnimationFrameDescription frame) { return graphics_animated_sprite_frame_description_set(entity, index, frame); }
+EngineResult rohr_graphics_animated_sprite_frame_add(Entity entity, AnimationFrameDescription frame) { return graphics_animated_sprite_frame_add(entity, frame); }
 EngineResult rohr_graphics_animated_sprite_frame_scale_set(Entity entity, size_t index, Scale scale) { return graphics_animated_sprite_frame_scale_set(entity, index, scale); }
 EngineResult rohr_graphics_animated_sprite_frame_offset_set(Entity entity, size_t index, Position offset) { return graphics_animated_sprite_frame_offset_set(entity, index, offset); }
 EngineResult rohr_graphics_animated_sprite_frame_rotation_set(Entity entity, size_t index, Orientation rotation) { return graphics_animated_sprite_frame_rotation_set(entity, index, rotation); }
@@ -740,14 +740,14 @@ TextureSizeResult rohr_graphics_animated_sprite_frame_scale_get(Entity entity, s
 PositionResult rohr_graphics_animated_sprite_frame_offset_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_offset_get(entity, index); }
 SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_rotation_get(entity, index); }
 SpriteOrientationResult rohr_graphics_animated_sprite_frame_rotation_radians_get(Entity entity, size_t index) { return graphics_animated_sprite_frame_rotation_radians_get(entity, index); }
-AnimationFrameResult rohr_graphics_animation_frame_get(AnimationAsset asset, size_t frame_index) { return graphics_animation_frame_get(asset, frame_index); }
-AnimationPlayer rohr_graphics_animation_player_create(AnimationAsset asset) { return graphics_animation_player_create(asset); }
+AnimationFrameDescriptionResult rohr_graphics_animation_frame_description_get(AnimationAsset asset, size_t frame_index) { return graphics_animation_frame_description_get(asset, frame_index); }
+AnimationPlayerResult rohr_graphics_animation_player_create(AnimationPlayerDescription description) { return graphics_animation_player_create(description); }
 void rohr_graphics_animation_player_update(AnimationPlayer *player, Tick current_tick, Time current_time) { graphics_animation_player_update(player, current_tick, current_time); }
-AnimatedSprite rohr_graphics_animated_sprite_create(AnimationAsset asset_ptr, Scale scale) { return graphics_animated_sprite_create(asset_ptr, scale); }
+AnimatedSpriteResult rohr_graphics_animated_sprite_create(AnimatedSpriteDescription description) { return graphics_animated_sprite_create(description); }
 void rohr_graphics_animated_sprite_update(AnimatedSprite *sprite, Tick current_tick, Time current_time) { graphics_animated_sprite_update(sprite, current_tick, current_time); }
-EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSprite sprite) { return graphics_animated_sprite_add(entity, sprite); }
-Sprite rohr_graphics_sprite_create(TextureAsset asset, Scale scale) { return graphics_sprite_create(asset, scale); }
-EngineResult rohr_graphics_sprite_add(Entity entity, Sprite sprite) { return graphics_sprite_add(entity, sprite); }
+EngineResult rohr_graphics_animated_sprite_add(Entity entity, AnimatedSpriteDescription description) { return graphics_animated_sprite_add(entity, description); }
+Sprite rohr_graphics_sprite_create(SpriteDescription description) { return graphics_sprite_create(description); }
+EngineResult rohr_graphics_sprite_add(Entity entity, SpriteDescription sprite) { return graphics_sprite_add(entity, sprite); }
 EngineResult rohr_graphics_sprite_body_offset_set(Entity entity, Position offset) { return graphics_sprite_body_offset_set(entity, offset); }
 PositionResult rohr_graphics_sprite_body_offset_get(Entity entity) { return graphics_sprite_body_offset_get(entity); }
 EngineResult rohr_graphics_sprite_orientation_offset_set(Entity entity, Orientation offset) { return graphics_sprite_orientation_offset_set(entity, offset); }
@@ -1131,3 +1131,31 @@ AnimationDescriptionResult rohr_graphics_animation_description_get(AnimationAsse
 TextDescription rohr_graphics_text_description_default_get(void) { return graphics_text_description_default_get(); }
 TextDescriptionResult rohr_graphics_text_description_get(TextAsset asset) { return graphics_text_description_get(asset); }
 EngineResult rohr_graphics_text_description_set(TextAsset *text, TextDescription description) { return graphics_text_description_set(text, description); }
+
+SpriteDescription rohr_graphics_sprite_description_default_get(void) { return graphics_sprite_description_default_get(); }
+
+EngineResult rohr_graphics_sprite_description_set(Entity entity, SpriteDescription description) { return graphics_sprite_description_set(entity, description); }
+
+SpriteDescriptionResult rohr_graphics_sprite_description_get(Entity entity) { return graphics_sprite_description_get(entity); }
+
+AnimationFrameDescription rohr_graphics_animation_frame_description_default_get(void) { return graphics_animation_frame_description_default_get(); }
+
+AnimationPlayerDescription rohr_graphics_animation_player_description_default_get(void) { return graphics_animation_player_description_default_get(); }
+
+AnimationPlayerDescriptionResult rohr_graphics_animation_player_description_from_animation_get(AnimationAsset animation) { return graphics_animation_player_description_from_animation_get(animation); }
+
+EngineResult rohr_graphics_animation_player_description_set(AnimationPlayer *player, AnimationPlayerDescription description) { return graphics_animation_player_description_set(player, description); }
+
+AnimationPlayerDescriptionResult rohr_graphics_animation_player_description_get(const AnimationPlayer *player) { return graphics_animation_player_description_get(player); }
+
+AnimatedSpriteDescription rohr_graphics_animated_sprite_description_default_get(void) { return graphics_animated_sprite_description_default_get(); }
+
+AnimatedSpriteDescriptionResult rohr_graphics_animated_sprite_description_from_animation_get(AnimationAsset animation) { return graphics_animated_sprite_description_from_animation_get(animation); }
+
+AnimatedSpriteDescription rohr_graphics_animated_sprite_value_description_get(AnimatedSprite sprite) { return graphics_animated_sprite_value_description_get(sprite); }
+
+EngineResult rohr_graphics_animated_sprite_value_description_set(AnimatedSprite *sprite, AnimatedSpriteDescription description) { return graphics_animated_sprite_value_description_set(sprite, description); }
+
+EngineResult rohr_graphics_animated_sprite_description_set(Entity entity, AnimatedSpriteDescription description) { return graphics_animated_sprite_description_set(entity, description); }
+
+AnimatedSpriteDescriptionResult rohr_graphics_animated_sprite_description_get(Entity entity) { return graphics_animated_sprite_description_get(entity); }

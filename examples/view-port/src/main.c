@@ -12,7 +12,7 @@
 
 const Color background_color = {255,255,255,255};
 AnimationAsset animation_elderfly = {0};
-AnimatedSprite sprite_elderfly = {0};
+AnimatedSpriteDescription sprite_elderfly = {0};
 const float camera_move_speed = 100.0f;
 const float camera_turn_speed = 90.0f;
 
@@ -127,7 +127,10 @@ int main(void) {
         goto fail;
     }
     animation_elderfly = animation_result.result.value;
-    sprite_elderfly = rohr_graphics_animated_sprite_create(animation_elderfly, (Scale){10,10});
+    AnimatedSpriteDescriptionResult prepared = rohr_graphics_animated_sprite_description_from_animation_get(animation_elderfly);
+    if(rohr_error_check(prepared)) { PRINT_ENGINE_ERROR(prepared); goto fail; }
+    sprite_elderfly = prepared.result.value;
+    sprite_elderfly.scale = (Scale){10,10};
     for(size_t frame = 0; frame < sprite_elderfly.frame_count; frame += 1) {
         Scale pixels = rohr_graphics_texture_size_get(sprite_elderfly.frames[frame].texture).result.value;
         sprite_elderfly.frames[frame].scale = (Scale){50.0f / pixels.x, 50.0f / pixels.y};

@@ -13,7 +13,7 @@
 typedef struct GraphicsAnimationResource {
     AnimationAsset asset;
     AnimationInfo info;
-    AnimationFrame frames[MAX_ANIMATIONS_FRAMES];
+    AnimationFrameDescription frames[MAX_ANIMATIONS_FRAMES];
     size_t references;
     bool used;
 } GraphicsAnimationResource;
@@ -42,7 +42,7 @@ static GraphicsAnimationResource *graphics_animation_resource_get(
     return &animation_resources[slot];
 }
 
-static void graphics_animation_frames_release(AnimationFrame *frames,
+static void graphics_animation_frames_release(AnimationFrameDescription *frames,
         size_t frame_count) {
     for(size_t i = 0; i < frame_count; i += 1)
         (void)graphics_texture_release(&frames[i].texture);
@@ -58,7 +58,7 @@ static void graphics_animation_resource_destroy(
 
 static bool graphics_animation_resource_matches(
         const GraphicsAnimationResource *resource, AnimationId id,
-        const AnimationFrame *frames, size_t frame_count,
+        const AnimationFrameDescription *frames, size_t frame_count,
         Tick ticks_per_frame, Time time_per_frame) {
     if(resource == NULL || !resource->used || resource->references == 0 ||
             resource->info.id != id ||
@@ -105,7 +105,7 @@ GraphicsAnimationAssetStats graphics_animation_assets_stats_get(void) {
 }
 
 AnimationAssetResult graphics_animation_load(AnimationDescription descriptor) {
-    AnimationFrame frames[MAX_ANIMATIONS_FRAMES] = {0};
+    AnimationFrameDescription frames[MAX_ANIMATIONS_FRAMES] = {0};
     AnimationId id;
     size_t frame_count = descriptor.frame_count;
     size_t slot;
@@ -220,18 +220,18 @@ AnimationInfoResult graphics_animation_info_get(AnimationAsset asset) {
     return ERROR_RESULT_MAKE_VALUE(AnimationInfoResult, resource->info);
 }
 
-AnimationFrameResult graphics_animation_frame_get(AnimationAsset asset,
+AnimationFrameDescriptionResult graphics_animation_frame_description_get(AnimationAsset asset,
         size_t frame_index) {
     GraphicsAnimationResource *resource =
         graphics_animation_resource_get(asset.handle);
     if(resource == NULL)
         return ERROR_RESULT_MAKE_ERROR(
-            AnimationFrameResult, ERROR_ENGINE_ANIMATION_NOT_FOUND);
+            AnimationFrameDescriptionResult, ERROR_ENGINE_ANIMATION_NOT_FOUND);
     if(frame_index >= resource->info.frame_count)
         return ERROR_RESULT_MAKE_ERROR(
-            AnimationFrameResult, ERROR_ENGINE_INDEX_OUT_OF_RANGE);
+            AnimationFrameDescriptionResult, ERROR_ENGINE_INDEX_OUT_OF_RANGE);
     return ERROR_RESULT_MAKE_VALUE(
-        AnimationFrameResult, resource->frames[frame_index]);
+        AnimationFrameDescriptionResult, resource->frames[frame_index]);
 }
 
 AnimationDescription graphics_animation_description_default_get(void) {
