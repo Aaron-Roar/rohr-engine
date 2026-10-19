@@ -14,31 +14,44 @@ int main(void) {
     OK(rohr_engine_start());
     Entity body=take(rohr_physics_soft_body_add((SoftBodyDescription){0}));
     Entity a=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0,0},
         .mass = 1,
         .radius = 1
     }));
     Entity b=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){10,0},
         .mass = 2,
         .radius = 1
     }));
     Entity c=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = (Position){0,10},
         .mass = 3,
         .radius = 1
     }));
     Entity beam=take(rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body,
         .node_a = a,
         .node_b = b,
         .stiffness = 10,
         .damping = 0.2f
     }));
-    Entity area=take(rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+    Entity area=take(rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
         .owner = body,
         .geometry = (SoftBodyAreaGeometry){
         .outer={.nodes={a,b,c},.node_count=3}}

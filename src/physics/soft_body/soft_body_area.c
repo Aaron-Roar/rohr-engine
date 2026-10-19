@@ -127,7 +127,8 @@ EntityResult physics_soft_body_area_add(SoftBodyAreaDescription description) {
     EntityIndex area_index, owner_index = 0;
     if(owner != ENTITY_INVALID && !entity_index_get(owner, &owner_index))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
-    SoftBodyAreaState state = {.value = {.visible = true}};
+    SoftBodyAreaState state = {.value = {.visible = description.visible,
+        .draw_color = description.draw_color, .draw_color_overridden = description.draw_color_overridden}};
     if(owner != ENTITY_INVALID && soft_bodies_pool.used[owner_index] &&
             soft_bodies[owner_index].area_count >= SOFT_BODY_MAX_AREAS)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
@@ -149,6 +150,52 @@ EntityResult physics_soft_body_area_add(SoftBodyAreaDescription description) {
         return ERROR_RESULT_MAKE_ERROR(EntityResult, owned.result.error);
     }
     return created;
+}
+
+SoftBodyAreaDescription physics_soft_body_area_description_default_get(void) {
+    return (SoftBodyAreaDescription){.visible = true};
+}
+
+SoftBodyAreaDescriptionResult physics_soft_body_area_description_get(Entity entity) {
+    SoftBodyAreaResult value = physics_soft_body_area_get(entity);
+    if(error_check(value)) return ERROR_RESULT_MAKE_ERROR(SoftBodyAreaDescriptionResult, value.result.error);
+    return ERROR_RESULT_MAKE_VALUE(SoftBodyAreaDescriptionResult, ((SoftBodyAreaDescription){
+        .owner = entity_owner_get(entity).result.value, .geometry = value.result.value.geometry,
+        .draw_color = value.result.value.draw_color, .draw_color_overridden = value.result.value.draw_color_overridden,
+        .visible = value.result.value.visible}));
+}
+
+static bool area_geometry_equal(const SoftBodyAreaGeometry *a, const SoftBodyAreaGeometry *b) {
+    if(a->hole_count != b->hole_count || a->hole_count > SOFT_BODY_MAX_AREA_HOLES) return false;
+    for(uint32_t l = 0; l <= a->hole_count; ++l) {
+        const SoftBodyAreaLoop *first = area_loop_get(a, l), *second = area_loop_get(b, l);
+        if(first->node_count != second->node_count || first->node_count > SOFT_BODY_MAX_NODES) return false;
+        for(uint32_t i = 0; i < first->node_count; ++i)
+            if(first->nodes[i] != second->nodes[i]) return false;
+    }
+    return true;
+}
+
+EngineResult physics_soft_body_area_description_set(Entity entity, SoftBodyAreaDescription description) {
+    EntityIndex index;
+    EngineResult result = physics_soft_body_area_index_get(entity, &index);
+    if(error_check(result)) return result;
+    SoftBodyAreaState next = soft_body_area_states[index];
+    bool changed = !area_geometry_equal(&description.geometry, &next.value.geometry);
+    if(changed) {
+        next.cache = NULL;
+        result = physics_soft_body_area_prepare(ENTITY_INVALID, &description.geometry, &next, false);
+        if(error_check(result)) return result;
+    }
+    result = entity_owner_set(entity, description.owner);
+    if(error_check(result)) { if(changed) area_cache_destroy(next.cache); return result; }
+    next.value.soft_body = soft_body_area_states[index].value.soft_body;
+    next.value.draw_color = description.draw_color;
+    next.value.draw_color_overridden = description.draw_color_overridden;
+    next.value.visible = description.visible;
+    if(changed) area_cache_destroy(soft_body_area_states[index].cache);
+    soft_body_area_states[index] = next;
+    return error_result_value(true);
 }
 
 EngineResult physics_soft_body_area_restore(Entity entity, SoftBodyArea value) {

@@ -576,16 +576,18 @@ EntityResult rohr_physics_soft_body_node_local_add(SoftBodyNodeDescription descr
 SoftBodyNodeResult rohr_physics_soft_body_node_get(Entity node) { return physics_soft_body_node_get(node); }
 PositionResult rohr_physics_soft_body_node_local_position_get(Entity node) { return physics_soft_body_node_local_position_get(node); }
 EngineResult rohr_physics_soft_body_node_local_position_set(Entity node, Position local_position) { return physics_soft_body_node_local_position_set(node, local_position); }
-EngineResult rohr_physics_soft_body_node_collision_filter_set(Entity node, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_node_collision_filter_set(node, category, collides_with); }
+EngineResult rohr_physics_soft_body_node_collision_filter_description_set(Entity entity, CollisionFilterDescription description) { return physics_soft_body_node_collision_filter_description_set(entity, description); }
+CollisionFilterDescriptionResult rohr_physics_soft_body_node_collision_filter_description_get(Entity entity) { return physics_soft_body_node_collision_filter_description_get(entity); }
 EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse) { return physics_soft_body_node_impulse_apply(node, impulse); }
 SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description) { return physics_soft_body_node_to_anchor_pin_add(description); }
 EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description) { return physics_soft_body_beam_add(description); }
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam) { return physics_soft_body_beam_get(beam); }
-EngineResult rohr_physics_soft_body_beam_collision_config_set(Entity beam, SoftBodyBeamCollisionConfig config) { return physics_soft_body_beam_collision_config_set(beam, config); }
+EngineResult rohr_physics_soft_body_beam_collision_description_set(Entity beam, SoftBodyBeamCollisionDescription config) { return physics_soft_body_beam_collision_description_set(beam, config); }
 EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam) { return physics_soft_body_beam_collision_enable(beam); }
 EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam) { return physics_soft_body_beam_collision_disable(beam); }
 EngineResult rohr_physics_soft_body_beam_collision_thickness_set(Entity beam, float thickness) { return physics_soft_body_beam_collision_thickness_set(beam, thickness); }
-EngineResult rohr_physics_soft_body_beam_collision_filter_set(Entity beam, RohrCollisionCategoryMask category, RohrCollisionCategoryMask collides_with) { return physics_soft_body_beam_collision_filter_set(beam, category, collides_with); }
+EngineResult rohr_physics_soft_body_beam_collision_filter_description_set(Entity entity, CollisionFilterDescription description) { return physics_soft_body_beam_collision_filter_description_set(entity, description); }
+CollisionFilterDescriptionResult rohr_physics_soft_body_beam_collision_filter_description_get(Entity entity) { return physics_soft_body_beam_collision_filter_description_get(entity); }
 EntityResult rohr_physics_soft_body_area_add(SoftBodyAreaDescription description) { return physics_soft_body_area_add(description); }
 SoftBodyAreaResult rohr_physics_soft_body_area_get(Entity area) { return physics_soft_body_area_get(area); }
 EngineResult rohr_physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry) { return physics_soft_body_area_geometry_set(area, geometry); }
@@ -1087,3 +1089,35 @@ EntityInfoIssueReadResult rohr_entity_info_issues_get(
     EntityInfoIssue *destination, size_t capacity) {
     return entity_info_issues_get(info, flags, destination, capacity);
 }
+
+SoftBodyDescription rohr_physics_soft_body_description_default_get(void) { return physics_soft_body_description_default_get(); }
+
+EngineResult rohr_physics_soft_body_description_set(Entity entity, SoftBodyDescription description) { return physics_soft_body_description_set(entity, description); }
+
+SoftBodyDescriptionResult rohr_physics_soft_body_description_get(Entity entity) { return physics_soft_body_description_get(entity); }
+
+SoftBodyNodeDescription rohr_physics_soft_body_node_description_default_get(void) { return physics_soft_body_node_description_default_get(); }
+
+EngineResult rohr_physics_soft_body_node_description_set(Entity entity, SoftBodyNodeDescription description) { return physics_soft_body_node_description_set(entity, description); }
+
+SoftBodyNodeDescriptionResult rohr_physics_soft_body_node_description_get(Entity entity) { return physics_soft_body_node_description_get(entity); }
+
+SoftBodyBeamDescription rohr_physics_soft_body_beam_description_default_get(void) { return physics_soft_body_beam_description_default_get(); }
+
+EngineResult rohr_physics_soft_body_beam_description_set(Entity entity, SoftBodyBeamDescription description) { return physics_soft_body_beam_description_set(entity, description); }
+
+SoftBodyBeamDescriptionResult rohr_physics_soft_body_beam_description_get(Entity entity) { return physics_soft_body_beam_description_get(entity); }
+
+SoftBodyBeamCollisionDescription rohr_physics_soft_body_beam_collision_description_default_get(void) { return physics_soft_body_beam_collision_description_default_get(); }
+
+SoftBodyBeamCollisionDescriptionResult rohr_physics_soft_body_beam_collision_description_get(Entity entity) { return physics_soft_body_beam_collision_description_get(entity); }
+
+SoftBodyAreaDescription rohr_physics_soft_body_area_description_default_get(void) { return physics_soft_body_area_description_default_get(); }
+
+EngineResult rohr_physics_soft_body_area_description_set(Entity entity, SoftBodyAreaDescription description) { return physics_soft_body_area_description_set(entity, description); }
+
+SoftBodyAreaDescriptionResult rohr_physics_soft_body_area_description_get(Entity entity) { return physics_soft_body_area_description_get(entity); }
+
+EngineResult rohr_physics_joint_anchor_description_set(JointAnchorId anchor, JointAnchorDescription description) { return physics_joint_anchor_description_set(anchor, description); }
+
+JointAnchorDescriptionResult rohr_physics_joint_anchor_description_get(JointAnchorId anchor) { return physics_joint_anchor_description_get(anchor); }

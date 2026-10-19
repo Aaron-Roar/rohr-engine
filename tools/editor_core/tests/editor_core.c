@@ -1125,13 +1125,13 @@ static int property_commands_test(void) {
     PROPERTY_SET(EDITOR_ITEM_SOFT_BEAM, soft_body->id, beam->id, 0,
         EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS, EDITOR_PROPERTY_VALUE_FLOAT,
         number, 100.0f);
-    if(fabsf(beam->collision_thickness - 8.0f) > 0.001f) return 1;
+    if(fabsf(beam->collision_thickness - 100.0f) > 0.001f) return 1;
     PROPERTY_SET(EDITOR_ITEM_SOFT_NODE, soft_body->id, second_node->id, 0,
         EDITOR_PROPERTY_NODE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT, number, 1.0f);
-    if(fabsf(beam->collision_thickness - 2.0f) > 0.001f) return 1;
+    if(fabsf(beam->collision_thickness - 100.0f) > 0.001f) return 1;
     PROPERTY_SET(EDITOR_ITEM_SOFT_NODE, soft_body->id, second_node->id, 0,
         EDITOR_PROPERTY_NODE_RADIUS, EDITOR_PROPERTY_VALUE_FLOAT, number, 4.0f);
-    if(fabsf(beam->collision_thickness - 2.0f) > 0.001f) return 1;
+    if(fabsf(beam->collision_thickness - 100.0f) > 0.001f) return 1;
     PROPERTY_SET(EDITOR_ITEM_SOFT_BEAM, soft_body->id, beam->id, 0,
         EDITOR_PROPERTY_COLLISION, EDITOR_PROPERTY_VALUE_BOOL, boolean, false);
 #undef PROPERTY_SET
@@ -1145,7 +1145,7 @@ static int property_commands_test(void) {
             !hitbox->vertices[0].position_locked || joint->kind != EDITOR_JOINT_WELD ||
             joint->stiffness != 12.0f || anchor->position_follows_body ||
             beam->collision_enabled ||
-            fabsf(beam->collision_thickness - 2.0f) > 0.001f ||
+            fabsf(beam->collision_thickness - 100.0f) > 0.001f ||
             node->friction != 0.75f || node->radius != 9.0f ||
             beam->damping != 0.25f) return 1;
     if(editor_result_check(editor_command_cli_parse(9, node_arguments,
@@ -1236,8 +1236,7 @@ static int relationship_commands_test(void) {
     beam->collision_thickness = 8.0f;
     RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 1,
         node_c->id);
-    if(beam->collision_enabled || beam->collision_thickness !=
-            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) return 1;
+    if(!beam->collision_enabled || beam->collision_thickness != 8.0f) return 1;
     RELATIONSHIP_SET(EDITOR_RELATIONSHIP_SOFT_BEAM_NODE, soft_body->id, beam->id, 1,
         node_b->id);
 #undef RELATIONSHIP_SET
@@ -1295,7 +1294,7 @@ static int collision_filter_commands_test(void) {
             &project, soft_body, node->id, other_node->id);
     if(object == NULL || body == NULL || soft_body == NULL || node == NULL ||
             other_node == NULL || beam == NULL) return 1;
-    if(!beam->collision_enabled || beam->collision_thickness != 8.0f ||
+    if(beam->collision_enabled || beam->collision_thickness != ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN ||
             beam->collision_category != UINT64_C(1) ||
             beam->collision_with != UINT64_C(1)) return 1;
     other_node->collision_enabled = false;
@@ -1303,7 +1302,7 @@ static int collision_filter_commands_test(void) {
         &project, soft_body, node->id, other_node->id);
     other_node->collision_enabled = true;
     if(disabled_beam == NULL || disabled_beam->collision_enabled ||
-            disabled_beam->collision_thickness != 8.0f ||
+            disabled_beam->collision_thickness != ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN ||
             disabled_beam->collision_category != UINT64_C(1) ||
             disabled_beam->collision_with != UINT64_C(1)) return 1;
     command = (EditorCommand){.type = EDITOR_COMMAND_COLLISION_MASK_ADD};

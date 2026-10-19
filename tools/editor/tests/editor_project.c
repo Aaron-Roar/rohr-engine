@@ -990,10 +990,10 @@ int main(void) {
                 !file_contains(path, "rohr_physics_friction_set") ||
                 !file_contains(path, "rohr_physics_restitution_set") ||
                 !file_contains(path,
-                    "rohr_physics_soft_body_node_collision_filter_set") ||
+                    "rohr_physics_soft_body_node_collision_filter_description_set") ||
                 !file_contains(path, "rohr_physics_soft_body_beam_add") ||
                 !file_contains(path,
-                    "rohr_physics_soft_body_beam_collision_config_set") ||
+                    "rohr_physics_soft_body_beam_collision_description_set") ||
                 !file_contains(path,
                     ".enabled = false, .thickness = 4.00000000f") ||
                 /* Node-loop areas are generated for the starter soft body. */

@@ -1389,7 +1389,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 Acceleration acceleration = node->initial_motion_inherited ?
                     body->initial_acceleration : node->initial_acceleration;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){"
+                    "    { EntityResult created = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.restitution = 0.25f, .collision_enabled = true, .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}, "
                     ".owner = object->%s, .position = {position.x + %#.9gf, "
                     "position.y + %#.9gf}, .mass = %#.9gf, .radius = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
@@ -1419,8 +1419,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    if(rohr_error_check(result)) goto fail;\n",
                     node->name, node->friction, node->name, node->restitution);
                 fprintf(source,
-                    "    result = rohr_physics_soft_body_node_collision_filter_set("
-                    "object->%s, UINT64_C(%llu), UINT64_C(%llu));\n"
+                    "    result = rohr_physics_soft_body_node_collision_filter_description_set("
+                    "object->%s, (CollisionFilterDescription){.category = UINT64_C(%llu), .collides_with = UINT64_C(%llu)});\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
                     node->name,
                     (unsigned long long)(node->collision_enabled ?
@@ -1436,7 +1436,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     body, beam->node_b);
                 if(node_a == NULL || node_b == NULL) continue;
                 fprintf(source,
-                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){"
+                    "    { EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){.restitution = 0.25f, .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE, .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}}, "
                     ".owner = object->%s, .node_a = object->%s, "
                     ".node_b = object->%s, .stiffness = %#.9gf, .damping = %#.9gf});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error("
@@ -1451,8 +1451,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     "    if(rohr_error_check(result)) goto fail;\n",
                     beam->name, beam->friction, beam->name, beam->restitution);
                 fprintf(source,
-                    "    result = rohr_physics_soft_body_beam_collision_config_set("
-                    "object->%s, (SoftBodyBeamCollisionConfig){"
+                    "    result = rohr_physics_soft_body_beam_collision_description_set("
+                    "object->%s, (SoftBodyBeamCollisionDescription){"
                     ".enabled = %s, .thickness = %#.9gf, .filter = {"
                     ".category = UINT64_C(%llu), .collides_with = UINT64_C(%llu)}});\n"
                     "    if(rohr_error_check(result)) goto fail;\n",
@@ -1489,7 +1489,7 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                     }
                 }
                 fprintf(source,
-                    "      EntityResult created = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.owner = object->%s, .geometry = geometry});\n"
+                    "      EntityResult created = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true, .owner = object->%s, .geometry = geometry});\n"
                     "      if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }\n"
                     "      object->%s_areas[%zu] = created.result.value; }\n"
                     "    result = rohr_graphics_soft_body_area_color_set(object->%s_areas[%zu], "

@@ -37,6 +37,9 @@ int main(void) {
     if(rohr_error_check(soft_body)) goto fail;
     for(size_t i = 0; i < 4; i += 1) {
         nodes[i] = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .restitution = 0.25f, .collision_enabled = true,
+            .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = soft_body.result.value,
             .position = shuffled.vertices[i],
             .mass = 1.0f,

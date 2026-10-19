@@ -162,37 +162,6 @@ static EditorSoftBeam *editor_command_soft_beam_get(EditorSoftBody *body,
     return NULL;
 }
 
-static bool editor_command_soft_beam_collision_maximum_get(
-        EditorSoftBody *body, const EditorSoftBeam *beam, float *maximum) {
-    EditorSoftNode *a;
-    EditorSoftNode *b;
-    if(body == NULL || beam == NULL || maximum == NULL) return false;
-    a = editor_command_soft_node_get(body, beam->node_a);
-    b = editor_command_soft_node_get(body, beam->node_b);
-    if(a == NULL || b == NULL) return false;
-    *maximum = 2.0f * fminf(a->radius, b->radius);
-    return isfinite(*maximum) && *maximum > 0.0f;
-}
-
-static void editor_command_soft_beam_collision_constrain(
-        EditorSoftBody *body, EditorSoftBeam *beam) {
-    float maximum;
-
-    if(!editor_command_soft_beam_collision_maximum_get(body, beam, &maximum) ||
-            maximum < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) {
-        beam->collision_enabled = false;
-        beam->collision_thickness =
-            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
-        return;
-    }
-    if(beam->collision_thickness <
-            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN)
-        beam->collision_thickness =
-            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
-    if(beam->collision_thickness > maximum)
-        beam->collision_thickness = maximum;
-}
-
 static EditorAnimatedSprite *editor_command_animated_sprite_get(EditorObject *object,
         EditorAnimatedSpriteId id) {
     return editor_project_animated_sprite_get(object, id);
@@ -1382,12 +1351,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number > 0.0f) {
                     node->radius = set->value.number;
-                    for(size_t i = 0; i < body->beam_count; i += 1) {
-                        EditorSoftBeam *beam = &body->beams[i];
-                        if(beam->node_a != node->id && beam->node_b != node->id)
-                            continue;
-                        editor_command_soft_beam_collision_constrain(body, beam);
-                    }
                 }
                 else if(set->property == EDITOR_PROPERTY_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
@@ -1414,11 +1377,6 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftBeam *beam = editor_command_soft_beam_get(body, set->item);
                 if(beam == NULL) return editor_command_not_found("soft beam", set->item);
-                float maximum = 0.0f;
-                bool collision_valid =
-                    editor_command_soft_beam_collision_maximum_get(
-                        body, beam, &maximum) &&
-                    maximum >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
                 if(set->property == EDITOR_PROPERTY_STIFFNESS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) beam->stiffness = set->value.number;
@@ -1435,19 +1393,15 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                         set->value.number <= 1.0f) beam->restitution = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_COLLISION &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
-                    if(set->value.boolean && !collision_valid) goto property_invalid;
-                    if(set->value.boolean)
-                        beam->collision_thickness = fminf(maximum,
-                            fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
-                                beam->collision_thickness));
+                    if(set->value.boolean && (!isfinite(beam->collision_thickness) ||
+                            beam->collision_thickness < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN)) goto property_invalid;
                     beam->collision_enabled = set->value.boolean;
                 }
                 else if(set->property == EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
-                        set->value.number > 0.0f && collision_valid) {
-                    beam->collision_thickness = fminf(maximum,
-                        fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
-                            set->value.number));
+                        isfinite(set->value.number) &&
+                        set->value.number >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) {
+                    beam->collision_thickness = set->value.number;
                 }
                 else if(set->property == EDITOR_PROPERTY_COLOR &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_UINT) {
@@ -1494,7 +1448,6 @@ property_invalid:
                     return editor_command_not_found("soft node", set->target);
                 if(set->endpoint == 0) beam->node_a = set->target;
                 else beam->node_b = set->target;
-                editor_command_soft_beam_collision_constrain(body, beam);
             } else if(set->kind == EDITOR_RELATIONSHIP_ENTITY_PARENT) {
                 EditorRigidBody *body = editor_project_rigid_body_get(object,
                     set->item);

@@ -2902,8 +2902,6 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
 EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftBody *body,
         EditorSoftNodeId node_a, EditorSoftNodeId node_b) {
     EditorSoftBeam *beam;
-    const EditorSoftNode *a = NULL;
-    const EditorSoftNode *b = NULL;
     bool found_a = node_a == 0;
     bool found_b = node_b == 0;
 
@@ -2913,11 +2911,9 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
     for(size_t i = 0; i < body->node_count; i += 1) {
         if(body->nodes[i].id == node_a) {
             found_a = true;
-            a = &body->nodes[i];
         }
         if(body->nodes[i].id == node_b) {
             found_b = true;
-            b = &body->nodes[i];
         }
     }
     if(!found_a || !found_b) return NULL;
@@ -2931,20 +2927,10 @@ EditorSoftBeam *editor_project_soft_beam_add(EditorProject *project, EditorSoftB
         .restitution = 0.25f,
         .stiffness = 1.0f,
         .damping = 0.0f,
-        .collision_enabled = a != NULL && b != NULL &&
-            a->collision_enabled && b->collision_enabled &&
-            2.0f * fminf(a->radius, b->radius) >=
-                ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
-        .collision_thickness = a != NULL && b != NULL ?
-            fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
-                2.0f * fminf(a->radius, b->radius)) :
-            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
-        .collision_category = a != NULL && b != NULL ?
-            a->collision_category | b->collision_category :
-            ROHR_COLLISION_CATEGORY_NONE,
-        .collision_with = a != NULL && b != NULL ?
-            a->collision_with | b->collision_with :
-            ROHR_COLLISION_CATEGORY_NONE,
+        .collision_enabled = false,
+        .collision_thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+        .collision_category = ROHR_COLLISION_CATEGORY_DEFAULT,
+        .collision_with = ROHR_COLLISION_CATEGORY_DEFAULT,
         .color = UINT32_C(0xebf0f5ff),
         .visible = true
     };

@@ -57,15 +57,36 @@ int main(void) {
 
     SoftBodyDescription soft_description = {.position = {2, 3}};
     EntityResult soft = rohr_physics_soft_body_add(soft_description); OK(soft);
-    SoftBodyNodeDescription node_description = {.owner = soft.result.value,
+    SoftBodyNodeDescription node_description = {
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+        .owner = soft.result.value,
         .position = {1, 0}, .mass = 1, .radius = 1};
     EntityResult local = rohr_physics_soft_body_node_local_add(node_description); OK(local);
     EntityResult world = physics_soft_body_node_add(node_description); OK(world);
     assert(rohr_physics_position_get(local.result.value).result.value.x == 3);
     assert(rohr_physics_position_get(world.result.value).result.value.x == 1);
     EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft.result.value, .node_a = local.result.value, .node_b = world.result.value}); OK(beam);
-    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.owner = soft.result.value}); OK(area);
+    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true, .owner = soft.result.value}); OK(area);
+    SoftBodyDescriptionResult soft_config = rohr_physics_soft_body_description_get(soft.result.value); OK(soft_config);
+    OK(rohr_physics_soft_body_description_set(soft.result.value, soft_config.result.value));
+    SoftBodyNodeDescriptionResult node_config = rohr_physics_soft_body_node_description_get(local.result.value); OK(node_config);
+    node_config.result.value.radius = 2;
+    OK(rohr_physics_soft_body_node_description_set(local.result.value, node_config.result.value));
+    SoftBodyBeamDescriptionResult beam_config = rohr_physics_soft_body_beam_description_get(beam.result.value); OK(beam_config);
+    assert(!beam_config.result.value.collision.enabled && beam_config.result.value.rest_length_explicit);
+    beam_config.result.value.collision = rohr_physics_soft_body_beam_collision_description_default_get();
+    beam_config.result.value.collision.enabled = true;
+    OK(rohr_physics_soft_body_beam_description_set(beam.result.value, beam_config.result.value));
+    SoftBodyAreaDescriptionResult area_config = rohr_physics_soft_body_area_description_get(area.result.value); OK(area_config);
+    area_config.result.value.visible = false;
+    OK(rohr_physics_soft_body_area_description_set(area.result.value, area_config.result.value));
     ParticleDescription particle_description = rohr_physics_particle_description_default_get();
     particle_description.owner = soft.result.value;
     EntityResult particle = rohr_physics_particle_add(particle_description); OK(particle);
@@ -86,6 +107,10 @@ int main(void) {
         .anchor_b = particle_anchor.result.value, .type = JOINT_PIN};
     EntityResult joint = rohr_physics_joint_add(joint_description); OK(joint);
     OK(physics_joint_add(joint_description));
+    JointAnchorDescriptionResult anchor_config = rohr_physics_joint_anchor_description_get(local_anchor.result.value); OK(anchor_config);
+    anchor_config.result.value.entity = world.result.value;
+    OK(rohr_physics_joint_anchor_description_set(local_anchor.result.value, anchor_config.result.value));
+    assert(rohr_physics_joint_description_get(joint.result.value).result.value.anchor_a == local_anchor.result.value);
     JointAnchorDescription anchor_description = {.entity = particle.result.value, .local_offset = {1, 0}};
     JointAnchorIdResult anchor = rohr_physics_joint_anchor_add(anchor_description); OK(anchor);
     OK(physics_joint_anchor_add(anchor_description));

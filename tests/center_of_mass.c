@@ -248,6 +248,9 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
         EntityResult soft=rohr_physics_soft_body_add((SoftBodyDescription){0});
         OK(soft);
         EntityResult na=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .restitution = 0.25f, .collision_enabled = true,
+            .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = soft.result.value,
             .position = (Position){kind==4 ? 0 : 5,1},
             .mass = 1,
@@ -257,6 +260,9 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
         OK(rohr_physics_static_set(na.result.value));
         if(kind==4) {
             EntityResult nb=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+                .restitution = 0.25f, .collision_enabled = true,
+                .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
                 .owner = soft.result.value,
                 .position = (Position){10,1},
                 .mass = 1,
@@ -265,6 +271,10 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
             OK(nb);
             OK(rohr_physics_static_set(nb.result.value));
             EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+                .restitution = 0.25f,
+                .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+                    .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                        .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
                 .owner = soft.result.value,
                 .node_a = na.result.value,
                 .node_b = nb.result.value,

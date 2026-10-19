@@ -138,6 +138,36 @@ JointAnchorIdResult physics_joint_anchor_add(JointAnchorDescription description)
     return ERROR_RESULT_MAKE_ERROR(JointAnchorIdResult, ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
 }
 
+JointAnchorDescriptionResult physics_joint_anchor_description_get(JointAnchorId anchor) {
+    uint32_t slot;
+    if(!physics_joint_anchor_slot_get(anchor, &slot))
+        return ERROR_RESULT_MAKE_ERROR(JointAnchorDescriptionResult, ERROR_ENGINE_ENTITY_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(JointAnchorDescriptionResult, ((JointAnchorDescription){
+        .entity = joint_anchors[slot].entity, .local_offset = joint_anchors[slot].local_offset}));
+}
+
+EngineResult physics_joint_anchor_description_set(JointAnchorId anchor, JointAnchorDescription description) {
+    uint32_t slot;
+    if(!physics_joint_anchor_slot_get(anchor, &slot)) return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(description.entity, &index);
+    if(error_check(result)) return result;
+    if(!physics_world_position_check(description.local_offset)) return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    if(description.entity != joint_anchors[slot].entity) {
+        uint32_t count = 0;
+        for(uint32_t i = 0; i < MAX_JOINT_ANCHORS; ++i)
+            if(joint_anchor_used[i] && joint_anchors[i].entity == description.entity) ++count;
+        if(count >= MAX_JOINT_ANCHORS_PER_ENTITY) return error_result_error(ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
+    }
+    joint_anchors[slot] = (JointAnchor){.entity = description.entity, .local_offset = description.local_offset};
+    for(EntityIndex i = 0; i < joints_pool.capacity; ++i) {
+        if(!joints_pool.used[i]) continue;
+        if(joints[i].anchor_a == anchor) joints[i].a = description.entity;
+        if(joints[i].anchor_b == anchor) joints[i].b = description.entity;
+    }
+    return error_result_value(true);
+}
+
 JointAnchorListResult physics_joint_anchors_get(Entity entity) {
     EntityIndex entity_index;
     JointAnchorList list = {0};

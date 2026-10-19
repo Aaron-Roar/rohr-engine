@@ -117,11 +117,26 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    existing gravity-initializer and long starter-string warnings. Reconciled
    1,482 current header entries and updated configuration/physics references.
    Native Windows execution and real desktop visual review remain unverified.
-   Stop for review before Goal 5.
-5. [ ] **Complete soft-body and anchor description APIs** — Complete full
-   configuration for containers, nodes, beams, areas, and anchors. Include
-   explicit/measured beam rest values and collision/material groups; preserve
-   connections, local/world conventions, and child topology.
+5. [x] **Complete soft-body and anchor description APIs** — Added atomic full
+   set/get and useful defaults for containers, nodes, beams, areas, and anchors,
+   including current node motion/material/filter and existing visual settings.
+   Container transforms preserve child topology and tracking; nodes retain static
+   settings and focused edits preserve unrelated state. Beam collision now starts
+   off, with explicit width/filter settings independent of endpoints, including
+   editor commands and persistence. Rest lengths support explicit or measured
+   values without resetting them during get-modify-set. Anchor reassignment keeps
+   handles, joint owners/rest values, and current authored save references.
+   Migrated collision/filter descriptions, callers, generated C, and docs. Verified
+   all 100 native tests and 11 ASan/UBSan/leak checks, including allocation rollback,
+   ownership transfers, frame tracking, focused setters, and save/load. Linux and
+   Windows cross-builds, independent installed-SDK examples/consumer, regenerated
+   soft-body builds and Linux launch, external scene hosting, and two-second force
+   toggling pass; the external custom main is preserved. Standard builds have no
+   compiler warnings; strict audits identify existing gravity-initializer, starter
+   string, duplicate-initializer, and enum-switch warnings, with editor warnings
+   compared against the committed baseline. Reconciled 1,518 installed-header
+   entries and 16 remaining Config/Descriptor names. Native Windows execution and
+   real desktop review remain unverified. Stop for review before Goal 6.
 6. [ ] **Standardize asset loading and text configuration** — Standardize
    immutable texture/font/animation descriptions and inspection; add complete
    text create/set/get. Preserve sharing, borrowed metadata, and payload lifetime.

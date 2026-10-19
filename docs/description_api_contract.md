@@ -1,8 +1,8 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–4 of **Consistent Description APIs** are implemented.
+Status: Goals 1–5 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
-configuration and standalone-particle descriptions are shipped. Names and missing interfaces described
+configuration, standalone-particle, soft-body, and anchor descriptions are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
 
@@ -87,9 +87,7 @@ only where explicitly specified; invalid replacements preserve the old state.
 
 These are future migration requirements, not claims that every current full
 setter already meets them. For example, the current camera value setter clears
-attachments and active motion; Goal 10 must remove unrelated resets. Existing
-soft-body creation descriptions lack matching full configuration interfaces;
-Goal 5 completes that family.
+attachments and active motion; Goal 10 must remove unrelated resets.
 
 ## Compatibility and verification
 
@@ -144,7 +142,7 @@ appear in the header inventory below.
 | Authored objects / 2 — shipped | `ObjectDescription`, `ObjectSpawnDescription`, `ObjectMaterialDescription`, `ObjectCollisionDescription`, `ObjectColorDescription` | `object_*_description_set/get`, `object_spawn_description_default_get`, and existing dot catalogs. Force/torque descriptions remain compliant. | Immutable getters; setters require editable copies and affect future spawns. Color includes explicit override state. No live hierarchy replacement setter. |
 | Physics configuration / 3 — shipped | `TransformLockDescription`, `AxisLockDescription`, `CollisionFilterDescription`; solver lock storage remains separate | Full lock set/get, explicit removal, and collision-filter full/default accessors. Nested filter types use the common description. | Degrees only in descriptions; explicit conversions for radians. Lock edits preserve current motion, ownership, and parenting; capture-current-transform stays direct. Missing locks return component-missing. |
 | Particles / 4 — shipped | `ParticleDescription` | Standalone creation and full `physics_particle_description_set/get`, with the existing default getter. | Current configurable state and explicit owner replacement; atomic circle/polygon synchronization; static configuration retained; hybrid bodies and soft nodes use their own APIs. |
-| Soft bodies and anchors / 5 | `SoftBodyDescription`, `SoftBodyNodeDescription`, `SoftBodyBeamDescription`, `SoftBodyAreaDescription`, `JointAnchorDescription`, `SoftBodyBeamCollisionConfig` | Complete existing description families with full set/get. Extend beam configuration to its stored rest/material/collision properties; use `SoftBodyBeamCollisionDescription` for the full collision group. Reuse `CollisionFilterDescription` for node/beam full filters. | Keep world/local creation variants explicit. Container edits do not reconstruct children; owner changes preserve connections. Beam getters preserve resolved rest values; automatic measurement happens only when requested. Anchor replacement updates references transactionally without implicit reownership of joints. |
+| Soft bodies and anchors / 5 — shipped | `SoftBodyDescription`, `SoftBodyNodeDescription`, `SoftBodyBeamDescription`, `SoftBodyAreaDescription`, `JointAnchorDescription`, `SoftBodyBeamCollisionDescription` | Full set/get for all five families, including current motion, materials, collision, and existing visuals; use `SoftBodyBeamCollisionDescription` for the full collision group. Reuse `CollisionFilterDescription` for node/beam full filters. | Keep world/local creation variants explicit. Container edits do not reconstruct children; owner changes preserve connections. Beam getters preserve resolved rest values; automatic measurement happens only when requested. Beam collision defaults off and never derives settings from endpoints. Anchor replacement updates references transactionally without implicit reownership of joints. |
 | Shared assets and text / 6 | `TextureDescriptor`, `FontDescriptor`, `AnimationDescriptor`; positional text creation | Rename loading types to `TextureDescription`, `FontDescription`, `AnimationDescription`; add missing description/metadata retrieval for immutable inputs. Add `TextDescription` create/full set/get for font/value/color/wrapping. | No shared-resource mutation. Retain unique text ownership, queued payload revisions, immutable animation IDs/timing, and explicit borrowed metadata lifetime. |
 | Sprites, frames, players / 7 | `Sprite`, `AnimatedSprite`, `AnimationFrame`, `AnimationPlayer` mix configuration with runtime values | Add `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` creation/full set/get; retain runtime state/result types where needed. Catalog frame retrieval uses the common frame description without exposing a catalog setter. | Keep frame IDs, empty animations, instance transforms, texture/catalog reference ownership, and independent playback. Ordinary visual edits preserve progress. |
 | Audio / 8 | `SoundConfig`, `MusicConfig` | Rename to `SoundDescription`, `MusicDescription`; standardize defaults and add `audio_sound_description_set/get`, `audio_music_description_set/get`. | Volume/pan/loop/rate edits preserve progress; failed source replacement preserves playback and references; successful source replacement is stopped. Callback/reporting architecture is unchanged. |
@@ -239,7 +237,7 @@ results, pools, particle configuration, authored objects, beams, and inspection.
 `physics_collision_filter_description_default_get` supplies defaults. A live entity with no filter returns DEFAULT/ALL without adding a
 component. An explicitly zero filter remains valid and permits no collisions.
 Focused category/allowed-mask setters retain their names and preserve the other
-field. Soft-node/beam specialized full accessors remain assigned to Goal 5.
+field. Soft-node/beam specialized filter descriptions are shipped in Goal 5.
 
 All new APIs have equivalent `rohr_` wrappers. Removed positional lock/filter
 names and old filter types have no compatibility aliases.
@@ -293,6 +291,48 @@ existing translation-only solver behavior and automatic COM at the local origin.
 All new APIs have matching `rohr_` wrappers. Creation/default/focused function
 names and the existing `ParticleDescription` fields remain source compatible.
 
+## Shipped Goal 5 behavior
+
+Containers, nodes, beams, areas, and anchors now expose copied full descriptions
+and atomic typed set/get, with matching direct and `rohr_` interfaces. Existing
+runtime-state getters remain distinct. Default getters supply standard values for
+containers, nodes, beams, beam collision, and areas. Omitted literal fields are
+zero/false; zero node mass/radius is invalid at creation. Node full accessors use world positions;
+local creation and focused local-position calls retain their explicit convention.
+Container orientation is clockwise degrees. Transform edits move existing nodes
+and rotate their motion, preserving child topology, rest values, and handles.
+Unchanged descriptions do not rebase the observed soft-body frame.
+
+Nodes include motion, material/filter, static/gravity/collision flags, and color
+overrides. Static settings survive later dynamic transitions and saves. Creation requires
+positive node mass; full replacement also accepts zero mass established through
+focused setters, preserving the existing kinematic behavior. Their
+circle radius remains independent of the editable polygon, matching focused node
+radius behavior. Area descriptions copy geometry and include color overrides and
+visibility. Unchanged geometry reuses its cache, including temporarily deformed
+areas; sibling order remains a focused operation. Ownership transfers preserve
+connections and update immediate membership lists transactionally.
+
+**Beam collision defaults off**, per the clarified user requirement. There is no
+`collision_explicit` flag and no endpoint-derived initialization. Width, filter,
+and enabled state are supplied directly; endpoint and node edits leave them alone.
+Enabled collision requires the fixed engine minimum width, with no endpoint-radius
+cap. Disabled collision permits width zero. Default getters provide the fixed
+minimum width and standard filter, still disabled. Existing authored settings and
+collision-test scenes explicitly opt in. `SoftBodyBeamCollisionDescription` and
+`*_collision_description_set/get/default_get` replace the former config interface;
+node/beam full filters now use `CollisionFilterDescription` and matching description
+set/get. Focused enable/disable/thickness operations remain direct. Beam rest length
+uses the existing joint convention: measure once unless explicit; getters return
+resolved values marked explicit, including zero for disconnected measurement.
+
+Anchor replacement preserves the handle and updates every referencing joint to
+the new live entity with a new local offset. It checks capacity and coordinates
+before mutation; joint owners/rest values are preserved. Authored anchor metadata
+and persistence resolve the current attachment instead of a stale initial target.
+Full replacement failures preserve ownership, geometry, references, and live state.
+Existing save fields cover these configurations; no file-version change is needed.
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -341,18 +381,17 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1482** classified declaration/macro entries.
+The current inventory contains **1518** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M5: Migration required | Soft-body and anchor configuration | 5 | 18 |
 | M6: Migration required | Asset loading and text configuration | 6 | 8 |
 | M7: Migration required | Sprite, frame, and player configuration | 7 | 24 |
 | M8: Migration required | Audio configuration | 8 | 8 |
 | M9: Migration required | Logical input configuration | 9 | 4 |
 | M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 88 |
+| C: Compliant | Existing description interface | — | 142 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
@@ -735,23 +774,26 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 213 entries</summary>
+<summary>physics.h: 231 entries</summary>
 
 Source: [physics.h](../include/physics.h).
-
-**M5 — Soft-body and anchor configuration (Goal 5)**
-
-- `physics_joint_anchor_add`, `physics_soft_body_add`, `physics_soft_body_area_add`.
-- `physics_soft_body_beam_add`, `physics_soft_body_beam_collision_config_set`, `physics_soft_body_beam_collision_filter_set`.
-- `physics_soft_body_node_add`, `physics_soft_body_node_collision_filter_set`, `physics_soft_body_node_local_add`.
 
 **C — Existing description interface**
 
 - `physics_axis_lock_description_get`, `physics_axis_lock_description_set`, `physics_collision_filter_description_default_get`.
 - `physics_collision_filter_description_get`, `physics_collision_filter_description_set`, `physics_force_add`.
 - `physics_force_description_get`, `physics_force_description_set`, `physics_joint_add`.
+- `physics_joint_anchor_add`, `physics_joint_anchor_description_get`, `physics_joint_anchor_description_set`.
 - `physics_joint_description_get`, `physics_joint_description_set`, `physics_particle_add`.
 - `physics_particle_description_default_get`, `physics_particle_description_get`, `physics_particle_description_set`.
+- `physics_soft_body_add`, `physics_soft_body_area_add`, `physics_soft_body_area_description_default_get`.
+- `physics_soft_body_area_description_get`, `physics_soft_body_area_description_set`, `physics_soft_body_beam_add`.
+- `physics_soft_body_beam_collision_description_default_get`, `physics_soft_body_beam_collision_description_get`, `physics_soft_body_beam_collision_description_set`.
+- `physics_soft_body_beam_collision_filter_description_get`, `physics_soft_body_beam_collision_filter_description_set`, `physics_soft_body_beam_description_default_get`.
+- `physics_soft_body_beam_description_get`, `physics_soft_body_beam_description_set`, `physics_soft_body_description_default_get`.
+- `physics_soft_body_description_get`, `physics_soft_body_description_set`, `physics_soft_body_node_add`.
+- `physics_soft_body_node_collision_filter_description_get`, `physics_soft_body_node_collision_filter_description_set`, `physics_soft_body_node_description_default_get`.
+- `physics_soft_body_node_description_get`, `physics_soft_body_node_description_set`, `physics_soft_body_node_local_add`.
 - `physics_soft_body_node_to_anchor_pin_add`, `physics_torque_add`, `physics_torque_description_get`.
 - `physics_torque_description_set`, `physics_transform_lock_description_get`, `physics_transform_lock_description_set`.
 
@@ -850,15 +892,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 729 entries</summary>
+<summary>rohr.h: 747 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M5 — Soft-body and anchor configuration (Goal 5)**
-
-- `rohr_physics_joint_anchor_add`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
-- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_config_set`, `rohr_physics_soft_body_beam_collision_filter_set`.
-- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_set`, `rohr_physics_soft_body_node_local_add`.
 
 **M6 — Asset loading and text configuration (Goal 6)**
 
@@ -912,9 +948,18 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
 - `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
 - `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
-- `rohr_physics_joint_add`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
+- `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`.
+- `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
 - `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`.
-- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
+- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
+- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`.
+- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`.
+- `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`.
+- `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`.
+- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`.
+- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
+- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`.
+- `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
 - `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`.
 - `rohr_physics_transform_lock_description_set`.
 

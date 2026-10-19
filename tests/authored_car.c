@@ -43,7 +43,11 @@ static void contact_case(unsigned kind,bool two) {
             particle.position=p;particle.radius=0.6f;particle.static_body=true;take(rohr_physics_particle_add(particle));
         } else if(kind==3) {
             Entity soft=take(rohr_physics_soft_body_add((SoftBodyDescription){0}));
-            Entity node=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.owner=soft,.position=p,.radius=0.6f,.mass=1}));
+            Entity node=take(rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+                .restitution = 0.25f, .collision_enabled = true,
+                .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                    .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+                .owner=soft,.position=p,.radius=0.6f,.mass=1}));
             OK(rohr_physics_static_set(node));
         } else box(p,(Vec2D){3,1},true,kind==2?car.source_instance:ENTITY_NONE);
     }

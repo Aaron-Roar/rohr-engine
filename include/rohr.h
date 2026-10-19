@@ -1443,6 +1443,40 @@ EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription 
  * Get-modify-set preserves the resting pose even after the bodies have moved. */
 JointDescriptionResult rohr_physics_joint_description_get(Entity entity);
 
+/** Full replacements are atomic; ownership never follows connections. */
+SoftBodyDescription rohr_physics_soft_body_description_default_get(void);
+/** Atomically replace soft body configuration. */
+EngineResult rohr_physics_soft_body_description_set(Entity entity, SoftBodyDescription description);
+/** Return current soft body configuration. */
+SoftBodyDescriptionResult rohr_physics_soft_body_description_get(Entity entity);
+/** Full node descriptions use world positions; local creation remains explicit. */
+SoftBodyNodeDescription rohr_physics_soft_body_node_description_default_get(void);
+/** Atomically replace soft body node configuration. */
+EngineResult rohr_physics_soft_body_node_description_set(Entity entity, SoftBodyNodeDescription description);
+/** Return current soft body node configuration. */
+SoftBodyNodeDescriptionResult rohr_physics_soft_body_node_description_get(Entity entity);
+/** Return defaults for soft body beam configuration. */
+SoftBodyBeamDescription rohr_physics_soft_body_beam_description_default_get(void);
+/** Atomically replace soft body beam configuration. */
+EngineResult rohr_physics_soft_body_beam_description_set(Entity entity, SoftBodyBeamDescription description);
+/** Resolved rest length is returned with rest_length_explicit true. */
+SoftBodyBeamDescriptionResult rohr_physics_soft_body_beam_description_get(Entity entity);
+/** Return defaults for soft body beam collision configuration. */
+SoftBodyBeamCollisionDescription rohr_physics_soft_body_beam_collision_description_default_get(void);
+/** Return current soft body beam collision configuration. */
+SoftBodyBeamCollisionDescriptionResult rohr_physics_soft_body_beam_collision_description_get(Entity entity);
+/** Return defaults for soft body area configuration. */
+SoftBodyAreaDescription rohr_physics_soft_body_area_description_default_get(void);
+/** Atomically replace soft body area configuration. */
+EngineResult rohr_physics_soft_body_area_description_set(Entity entity, SoftBodyAreaDescription description);
+/** Return current soft body area configuration. */
+SoftBodyAreaDescriptionResult rohr_physics_soft_body_area_description_get(Entity entity);
+/** Reattach the same anchor handle and all its joint references atomically.
+ * Keep joint owners and rest values; offsets are local to the new entity. */
+EngineResult rohr_physics_joint_anchor_description_set(JointAnchorId anchor, JointAnchorDescription description);
+/** Return current joint anchor configuration. */
+JointAnchorDescriptionResult rohr_physics_joint_anchor_description_get(JointAnchorId anchor);
+
 /**
  * @brief Creates an anchor owned by an entity.
  * @param description Attached entity and offset from its stable local origin.
@@ -1499,8 +1533,8 @@ SoftBodyResult rohr_physics_soft_body_get(Entity soft_body);
  * @brief Creates a lightweight point-mass node.
  * @param description Copied owner, world position, positive mass and radius.
  * An invalid owner means independent lifetime; any live owner is accepted.
- * Omitted or zero mass/radius is invalid. Other initialization defaults match
- * existing nodes: zero motion, default node collision filter and material.
+ * Omitted or zero mass/radius is invalid. Omitted flags/material/filter are zero;
+ * use the default description getter for standard node collision and material.
  * @return EntityResult containing the node entity.
  */
 EntityResult rohr_physics_soft_body_node_add(SoftBodyNodeDescription description);
@@ -1518,15 +1552,12 @@ EngineResult rohr_physics_soft_body_node_local_position_set(
 /**
  * @brief Sets node-versus-rigid collision filtering.
  * @param node Node entity.
- * @param category Categories represented by the node.
- * @param collides_with Rigid collider categories accepted by the node.
+ * @param description Categories represented and accepted by the node.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_physics_soft_body_node_collision_filter_set(
-    Entity node,
-    RohrCollisionCategoryMask category,
-    RohrCollisionCategoryMask collides_with
-);
+EngineResult rohr_physics_soft_body_node_collision_filter_description_set(Entity node, CollisionFilterDescription description);
+/** Return current soft body node collision filter configuration. */
+CollisionFilterDescriptionResult rohr_physics_soft_body_node_collision_filter_description_get(Entity node);
 
 /**
  * @brief Applies an immediate impulse to one soft-body node.
@@ -1545,14 +1576,12 @@ EngineResult rohr_physics_soft_body_node_impulse_apply(Entity node, Vec2D impuls
 SoftBodyNodeAnchorPinResult rohr_physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description);
 /**
  * @brief Creates an elastic beam between two nodes.
- * Initial collision settings are copied from the endpoints: collision is
- * enabled only when both nodes can collide, filters are combined, and
- * thickness uses the smaller endpoint diameter. They do not remain inherited.
- * Beams start with independent friction 0 and restitution 0.25.
- * @param description Copied owner, node endpoints, stiffness and damping.
+ * Collision defaults off; thickness and filters are explicit and never derived
+ * from endpoints. Use the default getter for fixed material/filter/width defaults.
+ * @param description Copied owner, endpoints, spring, material, collision and color.
  * Endpoints may have different owners or be ENTITY_INVALID. Rest length is
- * derived from complete endpoints. Stiffness and damping are finite and
- * nonnegative; explicit zero remains zero. Any live owner is accepted.
+ * measured once from complete endpoints unless rest_length_explicit is true;
+ * disconnected measurement resolves to zero. Any live owner is accepted.
  * @return EntityResult containing the beam entity.
  */
 EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description);
@@ -1560,32 +1589,33 @@ EntityResult rohr_physics_soft_body_beam_add(SoftBodyBeamDescription description
 SoftBodyBeamResult rohr_physics_soft_body_beam_get(Entity beam);
 /**
  * Atomically replaces a beam's independent collision configuration.
- * Thickness is clamped to the engine minimum and current endpoint maximum.
+ * Thickness is stored unchanged. Enabled collision requires the engine minimum;
+ * disabled collision permits zero. Node edits do not change these settings.
  */
-EngineResult rohr_physics_soft_body_beam_collision_config_set(
-    Entity beam, SoftBodyBeamCollisionConfig config);
-/** Enables thick-segment collision when the endpoint thickness limits allow it. */
+EngineResult rohr_physics_soft_body_beam_collision_description_set(
+    Entity beam, SoftBodyBeamCollisionDescription config);
+/** Enables thick-segment collision when the stored width meets the engine minimum. */
 EngineResult rohr_physics_soft_body_beam_collision_enable(Entity beam);
 /** Disables thick-segment collision for a beam without discarding its thickness. */
 EngineResult rohr_physics_soft_body_beam_collision_disable(Entity beam);
-/** Sets and resolves an explicit beam collision thickness. */
+/** Sets an explicit beam collision thickness without endpoint-based clamping. */
 EngineResult rohr_physics_soft_body_beam_collision_thickness_set(
     Entity beam, float thickness);
 /** Sets the collision filters owned independently by a beam. */
-EngineResult rohr_physics_soft_body_beam_collision_filter_set(
-    Entity beam,
-    RohrCollisionCategoryMask category,
-    RohrCollisionCategoryMask collides_with
-);
+EngineResult rohr_physics_soft_body_beam_collision_filter_description_set(Entity beam, CollisionFilterDescription description);
+/** Return current soft body beam collision filter configuration. */
+CollisionFilterDescriptionResult rohr_physics_soft_body_beam_collision_filter_description_get(Entity beam);
 /**
  * @brief Creates an area from an outer loop minus its owned hole loops.
- * Copies geometry. Each loop has 3..64 distinct live nodes from soft_body and
- * closes implicitly. Self-crossing loops are accepted when they enclose space.
+ * Copies geometry. Complete loops contain 3..64 distinct live nodes and close
+ * implicitly. Nodes may have other owners. Self-crossing loops are accepted
+ * when they enclose space; incomplete loops remain stored without a fill.
  * Every enclosed outer region is filled once, minus all enclosed hole regions,
  * independent of traversal direction. Holes may extend beyond the outer loop.
  * More than 16 holes returns ERROR_ENGINE_MAX_AREA_HOLES_EXCEEDED.
  * Invalid creation creates nothing. Areas add no mass or collision.
- * New areas are visible, inherit the draw surface color and append to list order.
+ * Descriptions supply visibility and optional color; the default getter gives
+ * visible, inherited color. New areas append to the owner list order.
  * Node motion updates the fill, including collapse and crossings. Delete with
  * rohr_entity_delete. Deleting its owner deletes the area; deleting a referenced
  * node clears that slot and leaves the area alive. Nodes may have other owners.

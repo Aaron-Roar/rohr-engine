@@ -18,12 +18,18 @@ static void impact(float x, float edge_bounce, float target_bounce,
     float offset = scene_x; scene_x += 100;
     EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
     EntityResult a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){offset - 10, 0},
         .mass = 1,
         .radius = 1
     });
     EntityResult b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){offset + 10, 0},
         .mass = 1,
@@ -34,6 +40,10 @@ static void impact(float x, float edge_bounce, float target_bounce,
     OK(rohr_physics_restitution_set(a.result.value, node_contact ? .1f : 0));
     OK(rohr_physics_restitution_set(b.result.value, 0));
     EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.enabled = true, .thickness = 2,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft.result.value,
         .node_a = a.result.value,
         .node_b = b.result.value,
@@ -78,12 +88,18 @@ int main(void) {
     OK(rohr_engine_start());
     EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
     EntityResult a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){-10, 0},
         .mass = 1,
         .radius = 1
     });
     EntityResult b = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = soft.result.value,
         .position = (Position){10, 0},
         .mass = 1,
@@ -93,6 +109,10 @@ int main(void) {
     OK(rohr_physics_restitution_set(a.result.value, 1));
     OK(rohr_physics_friction_set(b.result.value, 2));
     EntityResult created = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.enabled = true, .thickness = 2,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = soft.result.value,
         .node_a = a.result.value,
         .node_b = b.result.value,

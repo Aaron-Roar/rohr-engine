@@ -539,3 +539,9 @@ one-tick sources retain their lifetime behavior. Global physics configuration
 remains caller-owned. Saves do not mutate simulation and replace the destination
 only after successful serialization to a temporary sibling file. Authored
 template saving continues to retain the original loaded document.
+
+Soft-body full descriptions use the existing saved node, beam, area, and anchor
+fields. Beam collision remains off unless explicitly enabled; stored thickness is
+independent of endpoint radii and survives node edits and reloads. Disabled beams
+may store zero width. Reattached anchors serialize their current entity while
+preserving the anchor handle relationships and joint rest values.

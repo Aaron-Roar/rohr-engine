@@ -139,13 +139,12 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
         BEAM_NUMBER(collision_thickness); BEAM_NUMBER(friction); BEAM_NUMBER(restitution);
 #undef BEAM_NUMBER
         REQUIRE(value.rest_length >= 0 && value.stiffness >= 0 && value.damping >= 0 &&
-            value.collision_thickness >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN &&
+            value.collision_thickness >= 0 &&
             value.friction >= 0 && value.restitution >= 0 && value.restitution <= 1 &&
             boolean(beam, "collision_enabled", &value.collision_enabled) &&
             uint64(beam, "category", &value.category) && uint64(beam, "collides_with", &value.collides_with) &&
             color_read(beam, &value.draw_color, &value.draw_color_overridden));
-        REQUIRE(!value.collision_enabled || !value.node_a || !value.node_b || value.collision_thickness <=
-            2.0f * fminf(soft_body_nodes[a].radius, soft_body_nodes[b].radius));
+        REQUIRE(!value.collision_enabled || value.collision_thickness >= ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN);
         STORE(SoftBodyBeamPool_store_at(&soft_body_beams_pool, index, value));
         entity_mask[index] |= ROHR_SOFT_BODY_BEAM;
         Entity owner = entity_owner_get(entity).result.value;

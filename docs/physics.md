@@ -350,20 +350,19 @@ constraint placement, argument order determines the moved side where a
 constraint must align two anchors.
 
 Soft bodies own particle nodes, beams, and optional visual node-loop areas.
-Each beam has independent lifetime ownership and owns thick-segment collision
-independently of visual areas. On creation, collision is enabled only when
-both endpoint nodes enable collision, the node category and collide-with masks
-are combined, and thickness starts at the smaller endpoint diameter. These are
-creation defaults, not live inheritance: later node filter changes do not alter
-the beam, and node growth does not grow or re-enable it.
+Each beam has independent lifetime ownership and optional thick-segment collision,
+separate from visual areas. **New beams have collision off.** Thickness and filters
+are explicit; creation, endpoint edits, and node-radius changes never derive,
+clamp, enable, or disable beam collision settings from the nodes. Editor-created
+beams follow the same opt-in rule. Existing saved settings remain explicit.
 
-Thickness is bounded by
-`ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN` and the current smaller endpoint
-diameter. Shrinking a node caps an oversized beam; if the endpoint maximum falls
-below the minimum, collision is disabled while the stored thickness remains at
-the engine minimum. The complete collision config setter validates before
-committing, and the individual enabled, thickness, and filter setters remain
-available for focused changes.
+`SoftBodyBeamCollisionDescription` groups enabled state, width, and filter.
+Enabled collision requires width at least
+`ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN`; disabled collision permits zero.
+Setters reject invalid values without changing the beam. The collision default
+getter supplies a fixed minimum width and node-category filter, with collision
+off. Callers can enable it explicitly or supply a complete enabled description.
+Focused enable/disable/thickness setters remain available.
 
 The collision primitive is a centroid-to-centroid rectangle. For each target,
 the solver removes the portion inside an endpoint node only when that node's
@@ -461,10 +460,35 @@ owner and applies its origin position and rotation exactly once.
 Descriptions do not change ownership or connections until creation succeeds.
 Failure rolls back the new entity and its resources. Explicit zero values remain
 zero: zero node mass/radius is invalid; zero beam stiffness/damping is valid.
-Nodes retain zero initial motion and their existing material/collision defaults;
-complete beams derive rest length and initial collision settings from their
-endpoints. Incomplete beams and areas remain supported. Both descriptions and
-created entities can be changed independently after creation.
+Use `physics_soft_body_node_description_default_get()` for standard node material
+and collision settings. Omitted fields in a literal become zero/false. Nodes
+expose current velocity, acceleration, mass, material, filter, static/gravity/collision
+flags, and color override through the same description used for creation. Static
+nodes retain their configured motion and mass. Creation requires positive mass;
+full replacement also accepts a current zero mass configured through focused
+setters, retaining the existing kinematic behavior. Node circle-radius edits preserve
+the independently editable polygon and never change attached beam settings.
+Complete beams measure rest length once unless `rest_length_explicit` is true;
+getters return the resolved length marked explicit. Disconnected endpoints measure
+zero. Collision settings are always explicit. Incomplete beams and areas remain
+supported. Area descriptions include geometry, color override, and visibility;
+use the default getter for a visible area.
+
+All five families have typed `_description_get` and atomic `_description_set`
+APIs with matching `rohr_` wrappers. Full setters replace configuration, not patches;
+use get-modify-set or focused setters to retain other fields. World positions are
+canonical for node full accessors; local-node creation and local-position setters
+remain explicit. Container transform descriptions use clockwise degrees and move
+existing nodes without rebuilding children. Unchanged descriptions preserve
+tracking and solver state. Areas retain sibling order; reordering stays a focused
+operation. Allocation, invalid input, stale handles, or ownership failures leave
+the previous state intact.
+
+Anchor descriptions can reattach an existing handle to another live entity.
+All referencing joints follow that handle atomically, keeping ownership and rest
+values. The supplied offset is local to the new entity. Anchor capacity is checked
+before commit. Authored anchor lookup and save/load resolve the current attachment.
+
 
 ### Runtime visual areas
 

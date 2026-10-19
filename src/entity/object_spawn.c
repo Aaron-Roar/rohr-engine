@@ -31,7 +31,6 @@ static bool object_description_visible_check(const ObjectDescription *descriptio
 
 static CameraId instance_cameras[MAX_ENTITIES];
 static JointAnchorId instance_anchors[MAX_ENTITIES];
-static Entity instance_anchor_owners[MAX_ENTITIES];
 static ObjectAppearance instance_appearance[MAX_ENTITIES];
 static bool instance_appearance_used[MAX_ENTITIES];
 
@@ -104,7 +103,9 @@ JointAnchorIdResult entity_object_anchor_get(Entity entity) {
 }
 Entity object_instance_anchor_owner_get(Entity entity) {
     EntityIndex index;
-    return entity_index_get(entity, &index) ? instance_anchor_owners[index] : ENTITY_INVALID;
+    if(!entity_index_get(entity, &index)) return ENTITY_INVALID;
+    JointAnchorDescriptionResult description = physics_joint_anchor_description_get(instance_anchors[index]);
+    return error_check(description) ? ENTITY_INVALID : description.result.value.entity;
 }
 EngineResult object_instance_anchor_restore(Entity entity, Entity owner, JointAnchorId anchor) {
     EntityIndex index;
@@ -118,7 +119,7 @@ EngineResult object_instance_anchor_restore(Entity entity, Entity owner, JointAn
     if(!found) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     for(size_t n = 0; n < MAX_ENTITIES; ++n)
         if(instance_anchors[n] == anchor) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    instance_anchors[index] = anchor; instance_anchor_owners[index] = owner;
+    instance_anchors[index] = anchor;
     return error_result_value(true);
 }
 
@@ -136,7 +137,6 @@ void object_instance_resources_clear(EntityIndex index) {
     instance_cameras[index] = 0;
     if(instance_anchors[index]) (void)physics_joint_anchor_remove(instance_anchors[index]);
     instance_anchors[index] = 0;
-    instance_anchor_owners[index] = ENTITY_INVALID;
     instance_appearance_used[index] = false; instance_appearance[index] = (ObjectAppearance){0};
 }
 CameraIdResult entity_object_camera_get(Entity entity) {
@@ -294,18 +294,18 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     else if(geometry_enabled && d->kind == OBJECT_SOFT_BODY) created = physics_soft_body_add(
         (SoftBodyDescription){.owner = parent, .position = position, .orientation = orientation});
     else if(geometry_enabled && d->kind == OBJECT_NODE) created = physics_soft_body_node_add((SoftBodyNodeDescription){
-        .owner = parent,
-        .position = position,
-        .mass = physics ? d->mass : 1,
-        .radius = d->radius
-    });
+        .owner = parent, .position = position, .mass = physics ? d->mass : 1, .radius = d->radius,
+        .velocity = d->velocity, .acceleration = d->acceleration, .friction = d->friction,
+        .restitution = d->restitution, .collision_filter = d->collision_filter,
+        .static_body = !physics || d->static_body, .gravity_enabled = physics && d->gravity_enabled,
+        .collision_enabled = physics && d->collision_enabled,
+        .draw_color = d->color, .draw_color_overridden = d->color_overridden});
     else if(geometry_enabled && d->kind == OBJECT_BEAM) created = physics_soft_body_beam_add((SoftBodyBeamDescription){
-        .owner = parent,
-        .node_a = target_get(c, d->endpoint_a),
-        .node_b = target_get(c, d->endpoint_b),
-        .stiffness = physics ? d->stiffness : 0,
-        .damping = physics ? d->damping : 0
-    });
+        .owner = parent, .node_a = target_get(c, d->endpoint_a), .node_b = target_get(c, d->endpoint_b),
+        .stiffness = physics ? d->stiffness : 0, .damping = physics ? d->damping : 0,
+        .rest_length = d->rest_length, .rest_length_explicit = true, .friction = d->friction, .restitution = d->restitution,
+        .collision = {.enabled = physics && d->collision_enabled, .thickness = d->thickness, .filter = d->collision_filter},
+        .draw_color = d->color, .draw_color_overridden = d->color_overridden});
     else if(geometry_enabled && d->kind == OBJECT_AREA) {
         SoftBodyAreaGeometry geometry = {0};
         if(d->area) {
@@ -319,7 +319,8 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
                 for(uint32_t j = 0; j < loop->node_count; ++j) loop->nodes[j] = target_get(c, source->nodes[j]);
             }
         }
-        created = physics_soft_body_area_add((SoftBodyAreaDescription){.owner = parent, .geometry = geometry});
+        created = physics_soft_body_area_add((SoftBodyAreaDescription){.owner = parent, .geometry = geometry,
+            .visible = d->visible, .draw_color = d->color, .draw_color_overridden = d->color_overridden});
     } else created = entity_add();
     if(error_check(created)) return error_result_error(created.result.error);
     entry->entity = created.result.value;
@@ -350,26 +351,6 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         else { APPLY(physics_static_set(e)); APPLY(entity_components_delete(e, ROHR_COLLISION | ROHR_GRAVITY)); }
     }
     if(physics && d->kind == OBJECT_NODE) APPLY(body_apply(e, d, true));
-    if(geometry_enabled && d->kind == OBJECT_NODE) {
-        EntityIndex index; entity_index_get(e, &index);
-        soft_body_nodes[index].draw_color = d->color; soft_body_nodes[index].draw_color_overridden = d->color_overridden;
-        if(!physics) { APPLY(physics_static_set(e)); APPLY(entity_components_delete(e, ROHR_COLLISION | ROHR_GRAVITY)); }
-    }
-    if(geometry_enabled && d->kind == OBJECT_BEAM) {
-        if(!isfinite(d->rest_length) || d->rest_length < 0 || !isfinite(d->thickness) ||
-                d->thickness < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN)
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        EntityIndex index; entity_index_get(e, &index);
-        soft_body_beams[index].rest_length = d->rest_length;
-        APPLY(physics_soft_body_beam_collision_config_set(e, (SoftBodyBeamCollisionConfig){
-            .enabled = physics && d->collision_enabled, .thickness = d->thickness, .filter = d->collision_filter}));
-        soft_body_beams[index].draw_color = d->color; soft_body_beams[index].draw_color_overridden = d->color_overridden;
-        APPLY(physics_friction_set(e, d->friction)); APPLY(physics_restitution_set(e, d->restitution));
-    }
-    if(geometry_enabled && d->kind == OBJECT_AREA) {
-        APPLY(graphics_soft_body_area_visibility_set(e, d->visible));
-        if(d->color_overridden) APPLY(graphics_soft_body_area_color_set(e, d->color));
-    }
     if(physics && d->kind == OBJECT_ANCHOR) {
         JointAnchorIdResult anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = target ? target : e, .local_offset = target ? d->position : (Position){0}});
         if(error_check(anchor)) return error_result_error(anchor.result.error);

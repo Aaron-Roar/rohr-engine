@@ -45,6 +45,9 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
     memcpy(scene->reference, layered ? layers : kind == 2 ? window : square, scene->count * sizeof(Position));
     for(unsigned i = 0; i < scene->count; i += 1) {
         EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .restitution = 0.25f, .collision_enabled = true,
+            .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = scene->body,
             .position = scene->reference[i],
             .mass = 1,
@@ -60,13 +63,13 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
         geometry.hole_count=1;
         geometry.holes[0]=(SoftBodyAreaLoop){.nodes={scene->nodes[4],scene->nodes[5],scene->nodes[6],scene->nodes[7]},.node_count=4};
     }
-    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+    EntityResult area = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
         .owner = scene->body,
         .geometry = geometry
     }); OK(area);
     scene->area = area.result.value;
     if(layered) {
-        EntityResult overlay = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+        EntityResult overlay = rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
             .owner = scene->body,
             .geometry = (SoftBodyAreaGeometry){.outer = (SoftBodyAreaLoop){.nodes={scene->nodes[6],scene->nodes[7],scene->nodes[8]},.node_count=3}}
         });
@@ -75,7 +78,7 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
         OK(rohr_graphics_layer_entity_set(scene->overlay,3));
     } else {
         if(kind == 2) {
-            EntityResult behind=rohr_physics_soft_body_area_add((SoftBodyAreaDescription){
+            EntityResult behind=rohr_physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
                 .owner = scene->body,
                 .geometry = (SoftBodyAreaGeometry){.outer=loop}
             }); OK(behind);
@@ -86,6 +89,10 @@ static bool area_scene_create(AreaScene *scene, unsigned kind) {
         for(unsigned i = 0; i < scene->count; i += 1) {
             unsigned next=(i/4)*4+(i+1)%4;
             EntityResult edge = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+                .restitution = 0.25f,
+                .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+                    .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                        .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
                 .owner = scene->body,
                 .node_a = scene->nodes[i],
                 .node_b = scene->nodes[next],

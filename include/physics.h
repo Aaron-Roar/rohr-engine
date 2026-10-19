@@ -522,11 +522,12 @@ typedef struct SoftBodyNode {
 } SoftBodyNode;
 
 /** Complete collision configuration stored by a soft-body beam. */
-typedef struct SoftBodyBeamCollisionConfig {
+typedef struct SoftBodyBeamCollisionDescription {
     bool enabled;
     float thickness;
     CollisionFilterDescription filter;
-} SoftBodyBeamCollisionConfig;
+} SoftBodyBeamCollisionDescription;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyBeamCollisionDescriptionResult, SoftBodyBeamCollisionDescription);
 
 /** Elastic connection between two soft-body nodes. */
 typedef struct SoftBodyBeam {
@@ -561,13 +562,15 @@ typedef struct SoftBodyAreaGeometry {
     uint32_t hole_count;
 } SoftBodyAreaGeometry;
 
-/** Creation descriptions are copied by value. An invalid owner means independent
+/** Creation/replacement descriptions are copied by value. An invalid owner means independent
  * lifetime; any live owner is accepted. Connections never imply ownership. */
 typedef struct SoftBodyDescription {
     Entity owner;
     Position position;
+    /** Clockwise degrees. Explicit changes transform existing nodes. */
     Orientation orientation;
 } SoftBodyDescription;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyDescriptionResult, SoftBodyDescription);
 
 typedef struct SoftBodyNodeDescription {
     Entity owner;
@@ -575,7 +578,18 @@ typedef struct SoftBodyNodeDescription {
     Position position;
     Mass mass;
     float radius;
+    Velocity velocity;
+    Acceleration acceleration;
+    Friction friction;
+    Restitution restitution;
+    CollisionFilterDescription collision_filter;
+    bool static_body;
+    bool gravity_enabled;
+    bool collision_enabled;
+    Color draw_color;
+    bool draw_color_overridden;
 } SoftBodyNodeDescription;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyNodeDescriptionResult, SoftBodyNodeDescription);
 
 typedef struct SoftBodyBeamDescription {
     Entity owner;
@@ -583,12 +597,26 @@ typedef struct SoftBodyBeamDescription {
     Entity node_b;
     float stiffness;
     float damping;
+    /** Measured once from connected endpoints unless explicitly supplied. */
+    float rest_length;
+    bool rest_length_explicit;
+    Friction friction;
+    Restitution restitution;
+    /** Collision defaults off; settings never derive from endpoint nodes. */
+    SoftBodyBeamCollisionDescription collision;
+    Color draw_color;
+    bool draw_color_overridden;
 } SoftBodyBeamDescription;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyBeamDescriptionResult, SoftBodyBeamDescription);
 
 typedef struct SoftBodyAreaDescription {
     Entity owner;
     SoftBodyAreaGeometry geometry;
+    Color draw_color;
+    bool draw_color_overridden;
+    bool visible;
 } SoftBodyAreaDescription;
+ERROR_DECLARE_RESULT_TYPE(SoftBodyAreaDescriptionResult, SoftBodyAreaDescription);
 
 /** Complete joint configuration. Endpoints borrow body-owned anchor resources.
  * Invalid anchors disconnect an endpoint; ownership is independent of connections.
@@ -613,6 +641,7 @@ typedef struct JointAnchorDescription {
     Entity entity;
     Vec2D local_offset;
 } JointAnchorDescription;
+ERROR_DECLARE_RESULT_TYPE(JointAnchorDescriptionResult, JointAnchorDescription);
 
 /** Owner applies to the new joint; the new anchor remains attached to node. */
 typedef struct SoftBodyNodeAnchorPinDescription {
@@ -1045,6 +1074,40 @@ EngineResult physics_joint_description_set(Entity entity, JointDescription descr
 /** Return current owner and resolved rest values with both explicit flags true. */
 JointDescriptionResult physics_joint_description_get(Entity entity);
 
+/** Full replacements are atomic; ownership never follows connections. */
+SoftBodyDescription physics_soft_body_description_default_get(void);
+/** Atomically replace soft body configuration. */
+EngineResult physics_soft_body_description_set(Entity entity, SoftBodyDescription description);
+/** Return current soft body configuration. */
+SoftBodyDescriptionResult physics_soft_body_description_get(Entity entity);
+/** Full node descriptions use world positions; local creation remains explicit. */
+SoftBodyNodeDescription physics_soft_body_node_description_default_get(void);
+/** Atomically replace soft body node configuration. */
+EngineResult physics_soft_body_node_description_set(Entity entity, SoftBodyNodeDescription description);
+/** Return current soft body node configuration. */
+SoftBodyNodeDescriptionResult physics_soft_body_node_description_get(Entity entity);
+/** Return defaults for soft body beam configuration. */
+SoftBodyBeamDescription physics_soft_body_beam_description_default_get(void);
+/** Atomically replace soft body beam configuration. */
+EngineResult physics_soft_body_beam_description_set(Entity entity, SoftBodyBeamDescription description);
+/** Resolved rest length is returned with rest_length_explicit true. */
+SoftBodyBeamDescriptionResult physics_soft_body_beam_description_get(Entity entity);
+/** Return defaults for soft body beam collision configuration. */
+SoftBodyBeamCollisionDescription physics_soft_body_beam_collision_description_default_get(void);
+/** Return current soft body beam collision configuration. */
+SoftBodyBeamCollisionDescriptionResult physics_soft_body_beam_collision_description_get(Entity entity);
+/** Return defaults for soft body area configuration. */
+SoftBodyAreaDescription physics_soft_body_area_description_default_get(void);
+/** Atomically replace soft body area configuration. */
+EngineResult physics_soft_body_area_description_set(Entity entity, SoftBodyAreaDescription description);
+/** Return current soft body area configuration. */
+SoftBodyAreaDescriptionResult physics_soft_body_area_description_get(Entity entity);
+/** Reattach the same anchor handle and all its joint references atomically.
+ * Keep joint owners and rest values; offsets are local to the new entity. */
+EngineResult physics_joint_anchor_description_set(JointAnchorId anchor, JointAnchorDescription description);
+/** Return current joint anchor configuration. */
+JointAnchorDescriptionResult physics_joint_anchor_description_get(JointAnchorId anchor);
+
 JointAnchorIdResult physics_joint_anchor_add(JointAnchorDescription description);
 JointAnchorListResult physics_joint_anchors_get(Entity entity);
 JointAnchorPositionResult physics_joint_anchor_local_position_get(JointAnchorId anchor);
@@ -1060,28 +1123,29 @@ SoftBodyNodeResult physics_soft_body_node_get(Entity node);
 PositionResult physics_soft_body_node_local_position_get(Entity node);
 EngineResult physics_soft_body_node_local_position_set(
     Entity node, Position local_position);
-EngineResult physics_soft_body_node_collision_filter_set(
-    Entity node,
-    RohrCollisionCategoryMask category,
-    RohrCollisionCategoryMask collides_with
-);
+/** Atomically replace soft body node collision filter configuration. */
+EngineResult physics_soft_body_node_collision_filter_description_set(
+    Entity node, CollisionFilterDescription description);
+/** Return current soft body node collision filter configuration. */
+CollisionFilterDescriptionResult physics_soft_body_node_collision_filter_description_get(Entity node);
 EngineResult physics_soft_body_node_impulse_apply(Entity node, Vec2D impulse);
 SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_add(SoftBodyNodeAnchorPinDescription description);
 EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description);
 SoftBodyBeamResult physics_soft_body_beam_get(Entity beam);
 /** Replace endpoints; ENTITY_INVALID leaves that endpoint disconnected. */
 EngineResult physics_soft_body_beam_endpoints_set(Entity beam, Entity node_a, Entity node_b);
-EngineResult physics_soft_body_beam_collision_config_set(
-    Entity beam, SoftBodyBeamCollisionConfig config);
+/** Atomically replace soft body beam collision configuration. */
+EngineResult physics_soft_body_beam_collision_description_set(
+    Entity beam, SoftBodyBeamCollisionDescription config);
 EngineResult physics_soft_body_beam_collision_enable(Entity beam);
 EngineResult physics_soft_body_beam_collision_disable(Entity beam);
 EngineResult physics_soft_body_beam_collision_thickness_set(
     Entity beam, float thickness);
-EngineResult physics_soft_body_beam_collision_filter_set(
-    Entity beam,
-    RohrCollisionCategoryMask category,
-    RohrCollisionCategoryMask collides_with
-);
+/** Atomically replace soft body beam collision filter configuration. */
+EngineResult physics_soft_body_beam_collision_filter_description_set(
+    Entity beam, CollisionFilterDescription description);
+/** Return current soft body beam collision filter configuration. */
+CollisionFilterDescriptionResult physics_soft_body_beam_collision_filter_description_get(Entity beam);
 EntityResult physics_soft_body_area_add(SoftBodyAreaDescription description);
 SoftBodyAreaResult physics_soft_body_area_get(Entity area);
 EngineResult physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaGeometry geometry);

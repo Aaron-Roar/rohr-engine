@@ -127,6 +127,9 @@ static void api_tests(void) {
     Entity nodes[4];
     for(int i=0;i<4;i++) {
         EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+            .restitution = 0.25f, .collision_enabled = true,
+            .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = points[i],
             .mass = 1,

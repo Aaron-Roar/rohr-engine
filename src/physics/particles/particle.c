@@ -24,12 +24,6 @@ ParticleDescription physics_particle_description_default_get(void) {
 
 /* A geometry replacement preserves variant IDs, inactive variants, and bindings.
  * Allocate a missing first variant before publishing any geometry or ownership. */
-typedef struct ParticleShapeChange {
-    Shape shape;
-    HitboxVariant *allocated;
-    bool replace;
-} ParticleShapeChange;
-
 static bool particle_standalone_check(EntityIndex index) {
     return entity_index_components_check(index, ROHR_PARTICLE) &&
         particle_geometries_pool.used[index] && particle_geometries_pool.objects[index].standalone &&
@@ -56,7 +50,7 @@ static bool particle_description_check(ParticleDescription description) {
         isfinite(description.restitution) && description.restitution >= 0 && description.restitution <= 1;
 }
 
-static EngineResult particle_shape_prepare(EntityIndex index, Position origin, float radius,
+EngineResult physics_particle_shape_prepare(EntityIndex index, Position origin, float radius,
         uint32_t vertices, ParticleShapeChange *change) {
     *change = (ParticleShapeChange){0};
     HitboxVariantList *variants = &hitbox_variants_pool.objects[index];
@@ -83,11 +77,11 @@ static EngineResult particle_shape_prepare(EntityIndex index, Position origin, f
     return error_result_value(true);
 }
 
-static void particle_shape_commit(EntityIndex index, Position origin, float radius,
-        ParticleShapeChange *change) {
+void physics_particle_shape_commit(EntityIndex index, Position origin, float radius,
+        ParticleShapeChange *change, bool standalone) {
     (void)ParticleGeometryPool_store_at(&particle_geometries_pool, index, (ParticleGeometry){
         .local_origin = origin, .radius = radius, .origin_explicit = true,
-        .radius_explicit = true, .standalone = true});
+        .radius_explicit = true, .standalone = standalone});
     entity_mask[index] |= ROHR_PARTICLE;
     if(!change->replace) return;
     HitboxVariantList *variants = &hitbox_variants_pool.objects[index];
@@ -119,12 +113,12 @@ static EngineResult particle_description_apply(Entity entity, EntityIndex index,
     if(!particle_description_check(description)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     ParticleShapeChange change;
     uint32_t vertices = description.rigid_vertices ? description.rigid_vertices : ROHR_PARTICLE_RIGID_VERTICES_DEFAULT;
-    EngineResult result = particle_shape_prepare(index, description.local_origin, description.radius, vertices, &change);
+    EngineResult result = physics_particle_shape_prepare(index, description.local_origin, description.radius, vertices, &change);
     if(error_check(result)) return result;
     result = entity_owner_set(entity, description.owner);
     if(error_check(result)) { free(change.allocated); return result; }
     /* No fallible operations remain after ownership has committed. */
-    particle_shape_commit(index, description.local_origin, description.radius, &change);
+    physics_particle_shape_commit(index, description.local_origin, description.radius, &change, true);
     (void)PositionPool_store_at(&positions_pool, index, description.position);
     (void)VelocityPool_store_at(&velocities_pool, index, description.velocity);
     (void)AccelerationPool_store_at(&accelerations_pool, index, description.acceleration);
@@ -197,9 +191,9 @@ ParticleDescriptionResult physics_particle_description_get(Entity entity) {
 
 static EngineResult particle_geometry_set(EntityIndex index, Position origin, float radius) {
     ParticleShapeChange change;
-    EngineResult result = particle_shape_prepare(index, origin, radius, particle_vertices_get(index), &change);
+    EngineResult result = physics_particle_shape_prepare(index, origin, radius, particle_vertices_get(index), &change);
     if(error_check(result)) return result;
-    particle_shape_commit(index, origin, radius, &change);
+    physics_particle_shape_commit(index, origin, radius, &change, true);
     return error_result_value(true);
 }
 
@@ -285,26 +279,7 @@ EngineResult physics_particle_radius_set(Entity entity, float radius) {
             &particle_geometries_pool, index, geometry).kind == ERROR_RESULT_ERROR)
         return error_result_error(ERROR_ENGINE_TABLE_EXPANSION_FAILED);
     entity_mask[index] |= ROHR_PARTICLE;
-    if(index < soft_body_nodes_pool.capacity && soft_body_nodes_pool.used[index]) {
-        soft_body_nodes[index].radius = radius;
-        for(EntityIndex beam = 0; beam < soft_body_beams_pool.capacity; beam += 1) {
-            EntityIndex other;
-            float maximum;
-            if(!soft_body_beams_pool.used[beam] ||
-                    (soft_body_beams[beam].node_a != entity &&
-                        soft_body_beams[beam].node_b != entity)) continue;
-            if(!entity_index_get(soft_body_beams[beam].node_a == entity ?
-                    soft_body_beams[beam].node_b : soft_body_beams[beam].node_a,
-                    &other) || !soft_body_nodes_pool.used[other]) continue;
-            maximum = 2.0f * fminf(radius, soft_body_nodes[other].radius);
-            if(maximum < ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) {
-                soft_body_beams[beam].collision_enabled = false;
-                soft_body_beams[beam].collision_thickness =
-                    ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
-            } else if(soft_body_beams[beam].collision_thickness > maximum)
-                soft_body_beams[beam].collision_thickness = maximum;
-        }
-    }
+    if(soft_body_nodes_pool.used[index]) soft_body_nodes[index].radius = radius;
     return error_result_value(true);
 }
 

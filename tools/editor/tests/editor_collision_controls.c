@@ -95,12 +95,12 @@ int main(void) {
     assert(history.undo_count == rejected_undo && project.collision_mask_count == masks_before + 1);
     /* One invalid beam rejects the entire enable operation, including earlier targets. */
     soft = &project.objects[0].soft_body_items[0];
-    soft->beams[0].node_a = 0;
+    soft->beams[0].collision_thickness = 0;
     size_t undo_before = history.undo_count;
     assert(editor_result_check(editor_collision_edit(&project,&history,refs,4,-1,NULL,true,false)));
     assert(history.undo_count == undo_before);
     assert(editor_collision_values_get(&project,refs,4,&values) && !values.enabled_any);
-    soft = &project.objects[0].soft_body_items[0]; soft->beams[0].node_a = soft->nodes[0].id;
+    soft = &project.objects[0].soft_body_items[0]; soft->beams[0].collision_thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN;
     EditorSelectionRef incompatible[] = {refs[0],{EDITOR_SELECTION_SOFT_BODY,refs[0].object,0,0,soft->id}};
     assert(!editor_collision_values_get(&project,incompatible,2,&values));
     assert(editor_result_check(editor_collision_edit(&project,&history,incompatible,2,-1,NULL,true,false)));

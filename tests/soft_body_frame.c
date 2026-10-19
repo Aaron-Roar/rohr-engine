@@ -24,7 +24,11 @@ static Entity body(Position p, float a) {
     EntityResult r=rohr_physics_soft_body_add((SoftBodyDescription){.position=p,.orientation=a}); OK(r); return r.result.value;
 }
 static Entity node(Entity b, Position p, float m) {
-    EntityResult r=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.owner=b,.position=p,.mass=m,.radius=.1f}); OK(r);
+    EntityResult r=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
+        .owner=b,.position=p,.mass=m,.radius=.1f}); OK(r);
     OK(rohr_physics_collision_filter_description_set(r.result.value,((CollisionFilterDescription){0}))); return r.result.value;
 }
 static void tracked(void) {
@@ -85,7 +89,12 @@ static void topology_check(void) {
     OK(rohr_entity_owner_set(added,b)); tracked(); point(position(a),(Position){3,4}); point(position(b),(Position){100,200});
     OK(rohr_physics_position_set(added,((Position){105,102}))); tracked(); point(position(b),(Position){105,202}); near(angle(b),72);
     /* An external beam connection does not add its endpoint to a body's frame. */
-    EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){.owner=a,.node_a=nodes[0],.node_b=added}); OK(beam);
+    EntityResult beam=rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
+        .owner=a,.node_a=nodes[0],.node_b=added}); OK(beam);
     OK(rohr_physics_position_set(added,((Position){110,102}))); tracked(); point(position(a),(Position){3,4});
     OK(rohr_entity_delete(beam.result.value));
     OK(rohr_entity_delete(nodes[1])); tracked(); point(position(a),(Position){3,4});

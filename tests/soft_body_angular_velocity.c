@@ -22,6 +22,9 @@ static Entity body_create(void) {
 }
 static Entity node_create(Entity body, Position point, float mass_value) {
     EntityResult result = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .restitution = 0.25f, .collision_enabled = true,
+        .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+            .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
         .owner = body,
         .position = point,
         .mass = mass_value,
@@ -106,6 +109,10 @@ static void simulation_check(void) {
     Entity a = node_create(body, (Position){-10,0}, 1);
     Entity b = node_create(body, (Position){10,0}, 1);
     EntityResult beam = rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body,
         .node_a = a,
         .node_b = b,

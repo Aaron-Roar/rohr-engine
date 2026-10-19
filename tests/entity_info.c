@@ -207,6 +207,9 @@ static void geometry_and_sources(void) {
     Position points[] = {{0,0}, {4,0}, {0,4}};
     for(size_t i = 0; i < 3; ++i) {
         EntityResult node = physics_soft_body_node_add((SoftBodyNodeDescription){
+            .restitution = 0.25f, .collision_enabled = true,
+            .collision_filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE},
             .owner = body.result.value,
             .position = points[i],
             .mass = 1,
@@ -215,6 +218,10 @@ static void geometry_and_sources(void) {
         OK(node); nodes[i] = node.result.value;
     }
     EntityResult beam = physics_soft_body_beam_add((SoftBodyBeamDescription){
+        .restitution = 0.25f,
+        .collision = {.thickness = ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN,
+            .filter = {.category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
+                .collides_with = ROHR_COLLISION_CATEGORY_ALL & ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE}},
         .owner = body.result.value,
         .node_a = nodes[0],
         .node_b = nodes[1],
@@ -223,7 +230,7 @@ static void geometry_and_sources(void) {
     }); OK(beam);
     SoftBodyAreaGeometry geometry = {.outer = {.node_count = 3}};
     memcpy(geometry.outer.nodes, nodes, sizeof(nodes));
-    EntityResult area = physics_soft_body_area_add((SoftBodyAreaDescription){
+    EntityResult area = physics_soft_body_area_add((SoftBodyAreaDescription){.visible = true,
         .owner = body.result.value,
         .geometry = geometry
     }); OK(area);

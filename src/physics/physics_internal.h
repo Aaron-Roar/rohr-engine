@@ -7,6 +7,18 @@
 
 #include "physics.h"
 
+typedef struct ParticleShapeChange {
+    Shape shape;
+    HitboxVariant *allocated;
+    bool replace;
+} ParticleShapeChange;
+
+/* Prepare may allocate; free change.allocated on rollback. Commit cannot fail. */
+EngineResult physics_particle_shape_prepare(EntityIndex index, Position origin, float radius,
+    uint32_t vertices, ParticleShapeChange *change);
+void physics_particle_shape_commit(EntityIndex index, Position origin, float radius,
+    ParticleShapeChange *change, bool standalone);
+
 void physics_tables_destroy(void);
 EngineResult physics_mass_properties_reserve(size_t capacity);
 void physics_mass_properties_destroy(void);

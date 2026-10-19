@@ -1528,29 +1528,6 @@ static bool editor_json_soft_body_read(yyjson_val *value, EditorSoftBody *body,
         if(!isfinite(beam->collision_thickness) ||
                 beam->collision_thickness <
                     ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) return false;
-        {
-            const EditorSoftNode *a = NULL;
-            const EditorSoftNode *b = NULL;
-            for(size_t node_index = 0; node_index < body->node_count;
-                    node_index += 1) {
-                if(body->nodes[node_index].id == beam->node_a)
-                    a = &body->nodes[node_index];
-                if(body->nodes[node_index].id == beam->node_b)
-                    b = &body->nodes[node_index];
-            }
-            if(a != NULL && b != NULL) {
-                float maximum = 2.0f * fminf(a->radius, b->radius);
-                if((beam->collision_enabled && maximum <
-                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) ||
-                        (maximum <
-                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN &&
-                            beam->collision_thickness !=
-                                ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN) ||
-                        (maximum >=
-                            ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN &&
-                            beam->collision_thickness > maximum)) return false;
-            }
-        }
         if(yyjson_obj_get(item, "graphics_layer_inherited") != NULL &&
                 (!editor_json_bool(item, "graphics_layer_inherited",
                     &beam->graphics_layer_inherited) ||
