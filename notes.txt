@@ -1,5 +1,9 @@
 - Moving project directory should update paths as all is self contained in the
 project dir.
 - Removing CMAKE files in project should allow for auto regeneration on build
-- Build settings should expose executable path, engine path, and all the relevent
-paths
+- Build settings should expose executable path, engine path, and all the relevent paths
+- Building project after already built fails instead of just building with cache
+- Force selection too large. Keep selecting it instead of bodies etc. Currved
+  arrows should have the buffer room but not the arrow or shaft or behind arrow.
+  Those can require direct click on app or editor visual when present
+- Torque also slightly too large, but close to good size.

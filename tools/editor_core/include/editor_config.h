@@ -64,6 +64,10 @@ EditorResult editor_config_command_expand(const EditorConfigCommand *command,
     const char *project, const char *build, const char *sdk,
     char arguments[EDITOR_CONFIG_ARGUMENT_MAX][EDITOR_CONFIG_ARGUMENT_LENGTH_MAX],
     const char *output[EDITOR_CONFIG_ARGUMENT_MAX + 1]);
+EditorResult editor_config_command_target_expand(const EditorConfigCommand *command,
+    const char *project, const char *build, const char *sdk, const char *target,
+    char arguments[EDITOR_CONFIG_ARGUMENT_MAX][EDITOR_CONFIG_ARGUMENT_LENGTH_MAX],
+    const char *output[EDITOR_CONFIG_ARGUMENT_MAX + 1]);
 EditorResult editor_config_command_expression_parse(const char *expression,
     EditorConfigCommand *command);
 EditorResult editor_config_command_expression_parse_detailed(

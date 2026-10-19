@@ -164,7 +164,7 @@ See [Architecture](docs/architecture.md) for ownership and module boundaries.
 
 The editor authors objects containing rigid bodies, hitboxes, particle circles,
 anchors, joints, soft bodies, sprites, and animations. Saving writes editor JSON;
-**Build > Generate C** writes only `src/generated/`. Developer-owned gameplay
+**Build > Generate App C** writes only `src/generated/`. Developer-owned gameplay
 code remains in `src/main.c`.
 
 The GUI and CLI share the same editor document operations. Typical installed-SDK

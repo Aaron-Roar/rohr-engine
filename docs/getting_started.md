@@ -106,15 +106,23 @@ Open **Build** and click **Build Project**.
 
 **Build Project** performs both required steps:
 
-1. **Generate C** converts the editor objects into C source code.
-2. **Compile** turns the C source into a runnable game program.
+1. Generate the object and viewport C modules.
+2. Configure and compile both the application and scene executables.
+
+Use **Build Application** or **Build Scene** to compile only one entry point.
+**Generate App C** performs generation alone; **Compile App** builds the existing
+application source without regenerating it.
 
 Watch the editor terminal and notifications. A success notification means the
 game executable is ready. A failure notification can be clicked for details.
 
 ## 7. Run the game
 
-Open another terminal and enter your project directory. Replace the example
+Choose **Run > Run Application** to launch the last built application without
+compiling again. **Simulate Scene** prepares the built scene; the viewport tabs
+and playback controls are the next milestone goal.
+
+Alternatively, open another terminal and enter your project directory. Replace the example
 path with the directory you selected when creating the project:
 
 ```sh
@@ -169,7 +177,7 @@ The important distinction is:
 
 - Edit game objects visually in `rohr-gui`.
 - Write custom game behavior in `src/main.c`.
-- Do not hand-edit `src/generated/`; **Generate C** replaces those files.
+- Do not hand-edit `src/generated/`; **Generate App C** replaces those files.
 - Do not edit files inside `build/`; the compiler creates them.
 
 ## 9. Build again later

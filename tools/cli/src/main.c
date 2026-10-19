@@ -11,6 +11,8 @@
 
 #include "editor_command.h"
 #include "editor_config.h"
+#include "editor_build.h"
+#include <signal.h>
 #include "editor_document.h"
 #include "editor_workspace.h"
 
@@ -313,6 +315,13 @@ static bool cli_rohr_cmake_option_get(char *output, size_t capacity) {
     return count >= 0 && (size_t)count < capacity;
 }
 
+static volatile sig_atomic_t cli_build_interrupted;
+static void cli_build_interrupt(int signal_number) { cli_build_interrupted = signal_number; }
+static void cli_build_output(void *context, const char *bytes, size_t count) {
+    (void)context;
+    (void)fwrite(bytes, 1, count, stdout);
+    (void)fflush(stdout);
+}
 static int cli_project_cmake_run(const EditorWorkspace *workspace,
         const EditorConfig *config, bool configure) {
     char root[EDITOR_WORKSPACE_PATH_MAX * 2];
@@ -327,7 +336,7 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     const char *const *process_arguments;
     const EditorConfigCommand *configured_command;
     char sdk[EDITOR_WORKSPACE_PATH_MAX * 2] = {0};
-    SDL_Process *process;
+    EditorBuildProcess *process;
     int exit_code = 1;
     int count;
     if(workspace == NULL || !cli_absolute_path_get(root, sizeof(root),
@@ -346,8 +355,11 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     if(configured_command != NULL) {
         EditorResult result;
         (void)cli_sdk_root_get(sdk, sizeof(sdk));
-        result = editor_config_command_expand(configured_command, root, build, sdk,
-            configured_arguments, configured_output);
+        char target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
+        result = editor_build_target_name_get(workspace, EDITOR_BUILD_PROJECT, target, sizeof(target));
+        if(editor_result_check(result)) return cli_error(result);
+        result = editor_config_command_target_expand(configured_command, root, build, sdk,
+            target, configured_arguments, configured_output);
         if(editor_result_check(result)) return cli_error(result);
         process_arguments = configured_output;
     } else {
@@ -356,16 +368,22 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
             EDITOR_ERROR_FILE_IO, "Could not locate the Rohr SDK or source tree"));
         process_arguments = configure ? configure_arguments : compile_arguments;
     }
-    process = SDL_CreateProcess(process_arguments, false);
-    if(process == NULL) return cli_error(editor_result_error(
-        EDITOR_ERROR_FILE_IO, "Could not start CMake: %s", SDL_GetError()));
-    if(!SDL_WaitProcess(process, true, &exit_code)) {
-        SDL_DestroyProcess(process);
-        return cli_error(editor_result_error(EDITOR_ERROR_FILE_IO,
-            "Could not wait for CMake: %s", SDL_GetError()));
+    process = editor_build_process_create();
+    if(!process) return cli_error(editor_result_error(EDITOR_ERROR_CAPACITY, "Could not allocate build process"));
+    cli_build_interrupted = 0;
+    void (*previous_int)(int) = signal(SIGINT, cli_build_interrupt);
+    void (*previous_term)(int) = signal(SIGTERM, cli_build_interrupt);
+    EditorResult result = editor_build_process_start(process, root, process_arguments);
+    bool finished = false;
+    while(!editor_result_check(result) && !finished) {
+        if(cli_build_interrupted) editor_build_process_interrupt(process);
+        result = editor_build_process_poll(process, cli_build_output, NULL, &finished, &exit_code);
+        if(!finished) SDL_Delay(1);
     }
-    SDL_DestroyProcess(process);
-    return exit_code;
+    editor_build_process_destroy(process);
+    (void)signal(SIGINT, previous_int); (void)signal(SIGTERM, previous_term);
+    if(editor_result_check(result)) return cli_error(result);
+    return cli_build_interrupted ? 128 + cli_build_interrupted : exit_code;
 }
 
 static int cli_project_compile(const EditorWorkspace *workspace,

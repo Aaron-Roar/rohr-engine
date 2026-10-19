@@ -2662,7 +2662,16 @@ static bool editor_workspace_scene_write(const EditorWorkspace *workspace) {
         "if(TARGET ${PROJECT_NAME}_assets)\n"
         "    add_dependencies(${PROJECT_NAME}_scene_assets ${PROJECT_NAME}_assets)\n"
         "endif()\n"
-        "add_dependencies(${PROJECT_NAME}_scene ${PROJECT_NAME}_scene_assets)\n",
+        "add_dependencies(${PROJECT_NAME}_scene ${PROJECT_NAME}_scene_assets)\n"
+        "add_custom_target(${PROJECT_NAME}_project DEPENDS ${PROJECT_NAME} ${PROJECT_NAME}_scene)\n"
+        "# Record actual targets and output paths, including multi-config builds.\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_application.txt\" \"${PROJECT_NAME}\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_scene.txt\" \"${PROJECT_NAME}_scene\")\n"
+        "file(WRITE \"${CMAKE_BINARY_DIR}/rohr_target_project.txt\" \"${PROJECT_NAME}_project\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_application_$<CONFIG>.path\"\n"
+        "    CONTENT \"$<TARGET_FILE:${PROJECT_NAME}>\")\n"
+        "file(GENERATE OUTPUT \"${CMAKE_BINARY_DIR}/rohr_scene_$<CONFIG>.path\"\n"
+        "    CONTENT \"$<TARGET_FILE:${PROJECT_NAME}_scene>\")\n",
         workspace->config.asset_directory, workspace->config.asset_directory);
     if(count < 0 || (size_t)count >= sizeof(cmake) ||
             !editor_workspace_path_join(path, sizeof(path), workspace->directory,

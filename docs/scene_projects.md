@@ -12,7 +12,8 @@ New projects have two developer-owned entry points:
   scene runner's engine, physics, audio, animation, and presentation loop.
 
 The application target is `${PROJECT_NAME}`; the independent scene target is
-`${PROJECT_NAME}_scene`. A default build builds both. Each target stages assets
+`${PROJECT_NAME}_scene`. The `${PROJECT_NAME}_project` aggregate builds both,
+as does a default build. Each target stages assets
 beside its executable and sets its working directory there before loading them.
 They work with both a source-tree engine and the installed SDK. For example:
 
@@ -20,12 +21,68 @@ They work with both a source-tree engine and the installed SDK. For example:
 cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/rohr-sdk
 cmake --build build --target MyGame
 cmake --build build --target MyGame_scene
+cmake --build build --target MyGame_project
 ```
 
 The scene executable opens an ordinary window when run directly. It also supports
 isolated hosting through the SDK scene runner and editor-core session API described
-below. Editor Build/Run menus and viewport tabs remain goals 3 and 4; this hosting
-foundation does not add editor controls yet.
+below. The Build and Run menus are available. Viewport tabs and playback controls
+remain goal 4; **Simulate Scene** currently resolves and prepares the built scene
+in a stopped state, reporting its executable path without launching it.
+
+## Build and Run menus
+
+| Action | Generates C | Build target |
+| --- | --- | --- |
+| Build Application | Yes | Application only |
+| Build Scene | Yes | Scene only |
+| Build Project | Yes | Application and scene |
+| Generate App C | Yes | None |
+| Compile App | No | Application only |
+
+Build actions configure before compiling. **Run Application** starts the existing
+application; **Simulate Scene** prepares the existing scene for playback. Neither
+run action generates, configures, or compiles. Missing executables produce a
+notification directing you to build first. Changes become available after an
+explicit successful build and a new run request. A failed build never triggers
+an implicit repair or rebuild.
+
+Generated CMake writes target names and per-configuration executable paths under
+`build/`. Run resolves the actual output path, including custom output names and
+multi-configuration directories, choosing the newest existing executable.
+Projects configured before this metadata existed fall back to the conventional
+build directories. A failed linker that removes its old executable makes that
+output unavailable; the editor does not retain separate binary snapshots.
+
+Scene/project builds request scene shutdown and wait for the child to exit before
+generation or configuration. Application/project builds and Compile App also stop
+the editor-owned application before replacing it. Only one build and one
+application run can be active. Opening, closing, or exiting a project cancels its
+build and stops owned children, including when opening a replacement project
+fails. Asset imports do not cancel builds.
+
+Shown and hidden build output use the same argument-array process runner.
+**Terminal > Show build operations** controls display only. Ctrl+C in the focused
+terminal cancels an active build; a console interrupt is forwarded before the
+editor or CLI exits. POSIX builds own a process group, with a two-second interrupt
+grace period before forced termination. Windows builds own a kill-on-close job;
+a GUI process without a console terminates the job directly. Child processes are
+reaped before their owner is destroyed.
+
+Custom GUI compile commands must include `{target}`, for example
+`{"cmake", "--build", "{build}", "--target", "{target}"}`. A plain CMake build
+command without an explicit target automatically receives the selected target.
+Other commands and fixed target overrides are rejected instead of ignoring the
+menu selection. When the CLI evaluates shared or CLI commands, `{target}` names the project aggregate.
+Empty command arrays remain valid disabled stages; disabled compilation reports
+SKIPPED rather than claiming a new executable was built.
+
+`editor_build_test` covers argument boundaries, target selection, configuration
+failure, disabled stages, output lookup, scene shutdown ordering, and cancellation
+of descendants that ignore interrupts. The CLI override test checks shared target
+expansion. Installed-SDK verification builds the targets independently and checks
+that a broken application entry point does not block the scene target (and vice
+versa).
 
 ## Source ownership and regeneration
 

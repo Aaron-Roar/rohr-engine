@@ -14,27 +14,17 @@ void editor_build_notification_codegen_success(EditorNotificationPanel *system,
     char detail[512];
     if(system == NULL || project == NULL) return;
     snprintf(detail, sizeof(detail),
-        "Generated 2 C files:\n"
+        "Updated generated project files:\n"
         "- src/generated/project_objects.h\n"
-        "- src/generated/project_objects.c\n\n"
+        "- src/generated/project_objects.c\n"
+        "- src/generated/project_viewports.h\n"
+        "- src/generated/project_viewports.c\n"
+        "- src/generated/project_scene.cmake\n\n"
         "Generated %zu object%s.%s",
         project->object_count, project->object_count == 1 ? "" : "s",
         tree_shown ? " The generated object tree is shown in the terminal." :
             " Terminal tree output is disabled.");
-    editor_notification_panel_push(system, "Generate C - SUCCESS", detail);
-}
-
-void editor_build_notification_compile_success(EditorNotificationPanel *system,
-        const char *project_directory, bool terminal_output_shown) {
-    char detail[EDITOR_WORKSPACE_PATH_MAX + 256];
-    if(system == NULL || project_directory == NULL) return;
-    snprintf(detail, sizeof(detail),
-        "Project configuration and compilation completed successfully.\n\n"
-        "Project: %s\n%s", project_directory,
-        terminal_output_shown ?
-            "The executed commands and complete build output are shown in the terminal." :
-            "Build-operation terminal output is disabled.");
-    editor_notification_panel_push(system, "Compile project - SUCCESS", detail);
+    editor_notification_panel_push(system, "Generate App C - SUCCESS", detail);
 }
 
 void editor_build_notification_process_failure(EditorNotificationPanel *system,
@@ -45,7 +35,7 @@ void editor_build_notification_process_failure(EditorNotificationPanel *system,
         stage, exit_code, terminal_output_shown ?
             "\n\nSee the terminal output for the complete build report." : "");
     editor_log_error("build", "%s", detail);
-    editor_notification_panel_push(system, "Build project - FAIL", detail);
+    editor_notification_panel_push(system, "Process - FAIL", detail);
 }
 
 void editor_build_notification_start_failure(EditorNotificationPanel *system,

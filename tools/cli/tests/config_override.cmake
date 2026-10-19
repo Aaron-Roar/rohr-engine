@@ -33,12 +33,15 @@ file(WRITE "${TEST_ROOT}/editor.lua"
                 \"{project}\", \"{build}\"
             },
             compile = {
-                \"${mock_lua}\", \"${log_lua}\", \"cli-compile\", \"{build}\"
+                \"${mock_lua}\", \"${log_lua}\", \"cli-compile\", \"{build}\", \"{target}\"
             },
         },
     },
 }
 ")
+
+file(MAKE_DIRECTORY "${TEST_ROOT}/build")
+file(WRITE "${TEST_ROOT}/build/rohr_target_project.txt" "Override_project")
 
 execute_process(
     COMMAND "${CLI}" --project "${TEST_ROOT}" compile
@@ -52,7 +55,7 @@ endif()
 
 file(READ "${log_path}" log_contents)
 set(expected
-    "cli-configure|${project_lua}|${project_lua}/build\ncli-compile|${project_lua}/build\n")
+    "cli-configure|${project_lua}|${project_lua}/build\ncli-compile|${project_lua}/build|Override_project\n")
 if(NOT log_contents STREQUAL expected)
     message(FATAL_ERROR
         "CLI override arguments differ.\nExpected:\n${expected}Actual:\n${log_contents}")

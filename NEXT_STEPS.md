@@ -90,17 +90,30 @@ user selected this milestone before the remaining roadmap priorities. See
    renderer transport check measured 39.7 fps, 314 MiB/s, and 3.5 ms maximum host
    poll time, with backpressure exercised. Windows runtime and real editor
    focus/IME/visual verification remain for native review and tab integration.
-3. [ ] **Build and Run menus** — Build Application, Build Scene, Build Project,
-   Generate App C, and Compile App; Run Application and Simulate Scene use the
-   latest successful build without implicitly compiling. Scene/project builds
-   stop simulation first.
+3. [x] **Build and Run menus** — Added Build Application, Build Scene, Build
+   Project, Generate App C, and Compile App. Run Application resolves and launches
+   existing output; Simulate Scene prepares the existing scene executable,
+   stopped, for goal 4. Neither run action generates or compiles. Generated CMake
+   records actual target/output paths and provides a project aggregate target.
+   Scene/project builds wait for simulation shutdown before generation/building.
+   Shown/hidden builds share process-tree ownership and cancellation; project
+   transitions and console interrupts clean up owned children. Custom commands
+   support `{target}` and disabled compilation reports SKIPPED. Verified all 96
+   native tests, five final affected native checks, four ASan/UBSan/leak checks,
+   normal/sanitized editor startup, Linux/Windows builds, installed-SDK dual-target
+   builds, target isolation/failure recovery, read-only run resolution, and CLI
+   interrupt forwarding. Independent center_of_mass/joints examples build on
+   both platforms and launch outside their source directories on Linux. Strict
+   warning checks found only the existing starter-template overlength-string
+   warning; normal builds report no compiler warnings. Windows runtime and real
+   editor interaction review remain unverified.
 4. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
    tabs; open simulation stopped; Run/Pause and Stop controls; Editor selection
    stops simulation; restart from the scene executable; verify focused input,
    composition, lifecycle, and platform behavior.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Goals 1 and 2 are complete; editor menus and viewport tabs remain unstarted.
+commit. Goals 1–3 are complete; viewport tabs and simulation controls remain unstarted.
 
 ### Soft-Body Force Following and Generated-App Regression
 

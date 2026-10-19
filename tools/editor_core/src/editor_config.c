@@ -225,9 +225,10 @@ const EditorConfigCommand *editor_config_command_get(const EditorConfig *config,
 }
 
 static EditorResult editor_config_argument_expand(char *output, size_t capacity,
-        const char *input, const char *project, const char *build, const char *sdk) {
+        const char *input, const char *project, const char *build, const char *sdk,
+        const char *target) {
     const struct { const char *key; const char *value; } replacements[] = {
-        {"{project}", project}, {"{build}", build}, {"{sdk}", sdk}};
+        {"{project}", project}, {"{build}", build}, {"{sdk}", sdk}, {"{target}", target}};
     size_t used = 0;
     while(*input != '\0') {
         bool replaced = false;
@@ -260,13 +261,22 @@ EditorResult editor_config_command_expand(const EditorConfigCommand *command,
         const char *project, const char *build, const char *sdk,
         char arguments[EDITOR_CONFIG_ARGUMENT_MAX][EDITOR_CONFIG_ARGUMENT_LENGTH_MAX],
         const char *output[EDITOR_CONFIG_ARGUMENT_MAX + 1]) {
+    return editor_config_command_target_expand(command, project, build, sdk, NULL,
+        arguments, output);
+}
+
+EditorResult editor_config_command_target_expand(const EditorConfigCommand *command,
+        const char *project, const char *build, const char *sdk, const char *target,
+        char arguments[EDITOR_CONFIG_ARGUMENT_MAX][EDITOR_CONFIG_ARGUMENT_LENGTH_MAX],
+        const char *output[EDITOR_CONFIG_ARGUMENT_MAX + 1]) {
     EditorResult result;
-    if(command == NULL || !command->set || arguments == NULL || output == NULL)
+    if(command == NULL || !command->set || command->count > EDITOR_CONFIG_ARGUMENT_MAX ||
+            arguments == NULL || output == NULL)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
             "Could not expand an unset editor command");
     for(size_t i = 0; i < command->count; i += 1) {
         result = editor_config_argument_expand(arguments[i], sizeof(arguments[i]),
-            command->arguments[i], project, build, sdk);
+            command->arguments[i], project, build, sdk, target);
         if(editor_result_check(result)) return result;
         output[i] = arguments[i];
     }
@@ -551,7 +561,7 @@ EditorResult editor_config_command_expression_parse_detailed(
         const char *cursor = command->arguments[i];
         while(*cursor != '\0') {
             if(*cursor == '{') {
-                const char *known[] = {"{project}", "{build}", "{sdk}"};
+                const char *known[] = {"{project}", "{build}", "{sdk}", "{target}"};
                 bool matched = false;
                 for(size_t j = 0; j < sizeof(known) / sizeof(known[0]); j += 1) {
                     size_t length = strlen(known[j]);

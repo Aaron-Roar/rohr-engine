@@ -4,6 +4,8 @@
 add_library(rohr_editor_core STATIC
     src/editor_object_catalog.c
     src/editor_scene_session.c
+    src/editor_build.c
+    src/editor_build_process.c
     ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_workspace.c
     src/editor_force_geometry.c
     src/editor_mass_properties.c
@@ -36,7 +38,8 @@ endif()
 if(ROHR_BUILD_TESTS)
     add_executable(scene_child_test tests/scene_child.c)
     add_executable(editor_scene_session_test tests/editor_scene_session.c)
-    foreach(scene_target scene_child_test editor_scene_session_test)
+    add_executable(editor_build_test tests/editor_build.c)
+    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -52,6 +55,10 @@ if(ROHR_BUILD_TESTS)
     endforeach()
     add_test(NAME editor_scene_session COMMAND editor_scene_session_test $<TARGET_FILE:scene_child_test>)
     set_tests_properties(editor_scene_session PROPERTIES TIMEOUT 60
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    add_test(NAME editor_build COMMAND editor_build_test $<TARGET_FILE:editor_build_test>
+        $<TARGET_FILE:scene_child_test> "${CMAKE_CURRENT_BINARY_DIR}/build test project")
+    set_tests_properties(editor_build PROPERTIES TIMEOUT 40
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_executable(editor_sources_test tests/editor_sources.c ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
     target_include_directories(editor_sources_test PRIVATE ${PROJECT_SOURCE_DIR}/src)

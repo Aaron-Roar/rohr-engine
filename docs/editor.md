@@ -176,12 +176,17 @@ my-game/
 `project.rohr.json` at the root is the workspace manifest. The JSON under
 `objects/` is editor-owned scene data. Files under `src/generated/` are
 replaceable generated output. `src/main.c` is created with a new project but is
-not overwritten by **Generate C**.
+not overwritten by **Generate App C**. The preserved `src/scene.c` entry point
+spawns the complete authored scene; see [project entry points](scene_projects.md).
 
 Saving and generating are separate operations:
 
 - **File > Save** writes the workspace manifest and editor JSON.
-- **Build > Generate C** replaces only the generated object source and header.
+- **Build > Generate App C** refreshes the generated object, viewport, and scene-build modules.
+- **Build > Build Application**, **Build Scene**, and **Build Project** generate and build the chosen target(s).
+- **Build > Compile App** configures and compiles the application without generation.
+- **Run > Run Application** launches the existing application executable without compiling.
+- **Run > Simulate Scene** prepares the existing scene executable, stopped. Viewport tabs and playback controls follow in milestone goal 4.
 - **File > Close** closes the project and asks about unsaved changes.
 - **File > Exit** safely exits and asks about unsaved changes.
 
@@ -260,7 +265,9 @@ file instead. The initial flat state stores `logical_width`, `logical_height`,
 state values.
 
 `{project}` and `{build}` expand to absolute paths. `{sdk}` expands to the SDK
-root when the CLI runs from an installed SDK. Missing fields inherit the next
+root when the CLI runs from an installed SDK. `{target}` expands to the selected
+GUI target or the CLI project aggregate. Custom GUI compile commands must use
+`{target}`; plain `cmake --build {build}` commands receive it automatically. Missing fields inherit the next
 configuration layer. Malformed fields stop the build with the Lua filename and
 an error message.
 
@@ -270,7 +277,7 @@ files and never rewrites them. The GUI consumes its own layered overrides.
 
 The GUI's **Settings > Build** menu shows the effective configure and compile
 commands as Lua arrays. Applying an edited field validates that it is a
-sequential array of strings using only `{project}`, `{build}`, and `{sdk}`
+sequential array of strings using `{project}`, `{build}`, `{sdk}`, and `{target}`
 placeholders. GUI-owned overrides are written atomically to
 `.rohr/gui-overrides.lua`; `editor.lua` remains untouched. Each field can be
 reset independently to its inherited value. The command fields show three
@@ -283,8 +290,8 @@ An Apply failure creates a bottom-left notification reading
 `Build configuration (GUI) - FAIL`. Clicking it opens a detailed report with
 the editor parser error followed by Lua's raw error; invalid configuration is
 never written. A successful Apply saves the overrides and immediately starts
-the configured configure-and-compile sequence, so a separate test-command
-action is unnecessary.
+the configured **Compile App** sequence. It does not regenerate C or compile
+the scene. See [build target and cancellation behavior](scene_projects.md#build-and-run-menus).
 
 The **Settings > Visuals** menu controls window mode, logical aspect ratio, and
 resolution. Windowed is the default; borderless fullscreen and display-mode
