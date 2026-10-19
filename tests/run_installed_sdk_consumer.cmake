@@ -75,3 +75,22 @@ if(NOT build_result EQUAL 0)
     message(FATAL_ERROR
         "Installed SDK consumer build failed:\n${build_output}${build_error}")
 endif()
+
+if(ROHR_RUN_CONSUMER_TESTS)
+    if(NOT ROHR_CTEST_COMMAND)
+        message(FATAL_ERROR "ROHR_CTEST_COMMAND is required to execute SDK consumers")
+    endif()
+    execute_process(
+        COMMAND "${ROHR_CTEST_COMMAND}" --test-dir "${ROHR_CONSUMER_BINARY_DIR}"
+            --build-config Release --output-on-failure --no-tests=error
+        RESULT_VARIABLE test_result
+        OUTPUT_VARIABLE test_output
+        ERROR_VARIABLE test_error)
+    if(NOT test_result EQUAL 0)
+        message(FATAL_ERROR
+            "Installed SDK consumer execution failed:\n${test_output}${test_error}")
+    endif()
+    message(STATUS "Installed SDK consumers compiled and executed successfully")
+else()
+    message(STATUS "Installed SDK consumers compiled; target execution not requested")
+endif()

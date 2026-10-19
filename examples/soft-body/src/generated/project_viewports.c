@@ -2,15 +2,6 @@
 
 #include "project_viewports.h"
 
-static void render_scene(CameraId camera, void *context) {
-    ProjectObjects *objects = context;
-    (void)camera;
-    rohr_graphics_layer_active_set(-100);
-    rohr_graphics_background_draw((Color){18, 22, 30, 255});
-    rohr_graphics_layer_active_set(0);
-    project_objects_draw_all(objects);
-}
-
 EngineResult project_viewports_create(ProjectViewports *resources, ProjectObjects *objects) {
     EngineResult result = rohr_error_result_value(true);
     if(resources == NULL || objects == NULL) return rohr_error_result_error(ERROR_ENGINE_COMPONENT_MISSING);

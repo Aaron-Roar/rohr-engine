@@ -1,12 +1,12 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–11 of **Consistent Description APIs** are implemented.
+Status: **Consistent Description APIs is complete (Goals 1–12).**
 Entity metadata, lifetime, authored configuration, spawning, and physics
 configuration, particle, soft-body, anchor, asset-loading, text, sprite,
 animation-instance, audio, logical input, camera, attachment, window presentation,
 screen, viewport, layer, and persistent UI descriptions are shipped. The symbol
-inventory records the headers as they exist at this goal boundary. Goal 12 remains
-for final integration and migration verification.
+inventory records the headers at the completed milestone boundary. The permanent
+audit and installed-SDK checks keep future changes reviewable.
 
 ## Scope and naming
 
@@ -42,9 +42,6 @@ Direct module functions, `rohr_` wrappers, and facade macro aliases must agree.
 Existing facade differences such as `rohr_camera_*` versus `graphics_camera_*`
 must be accounted for explicitly. This milestone does not require inventing a
 wrapper for every internal declaration exposed by an installed header.
-
-Before each remaining goal, ask the user for any material clarifications and
-resolve them before implementation. Do not advance goals automatically.
 
 ## Configuration, state, and ownership
 
@@ -87,9 +84,6 @@ only where explicitly specified; invalid replacements preserve the old state.
   create a description whose angle fields silently change units between calls;
   radians conveniences convert at the boundary into canonical descriptions.
 
-Remaining migration requirements apply to the unfinished families. Goal 10
-replaced the camera setter that previously cleared attachments and active motion.
-
 ## Compatibility and verification
 
 Each implementation goal migrates its direct API, wrappers/aliases, caller code,
@@ -128,16 +122,16 @@ Existing requirements remain authoritative for their domains:
 [testing](agent_instructions/testing.md), and
 [angle conventions](angle_convention_contract.md).
 
-## Migration families and intended interfaces
+## Implemented configuration families
 
-The following names are planned except where explicitly marked shipped. For a
+The following families use the implemented description interfaces. For a
 listed description, “full set/get” means the appropriate existing family prefix
 plus `_description_set/get`, with matching typed results and default getter when
 needed. Retain the existing family prefix in both direct and facade APIs; this
 is not a wholesale namespace rename. Exact current symbols, including aliases,
 appear in the header inventory below.
 
-| Family / owning goal | Current configuration types | Planned interface and gaps | Preservation requirements |
+| Family / owning goal | Current configuration types | Implemented interface | Preservation requirements |
 | --- | --- | --- | --- |
 | Entity metadata and lifetime / 2 — shipped | `EntityDescription`, `EntityLifetimeDescription`; `LifeTime` remains storage | `entity_description_add/set/get` and `entity_lifetime_description_set/get`; retain bare `entity_add()` and focused name/owner/removal APIs. | Copied bounded names; atomic ownership/name replacement; explicit deadline enable flags; no implicit ownership from connections. |
 | Authored objects / 2 — shipped | `ObjectDescription`, `ObjectSpawnDescription`, `ObjectMaterialDescription`, `ObjectCollisionDescription`, `ObjectColorDescription` | `object_*_description_set/get`, `object_spawn_description_default_get`, and existing dot catalogs. Force/torque descriptions remain compliant. | Immutable getters; setters require editable copies and affect future spawns. Color includes explicit override state. No live hierarchy replacement setter. |
@@ -150,7 +144,7 @@ appear in the header inventory below.
 | Logical input / 9 — shipped | `InputControllerDescription`, `InputActionDescription`; copied `InputBindingList` defaults | Creation and full `_description_set/get`, plus default getters. Focused binding/state and text-input operations stay direct. | Stable handles and validated controller moves; compatible overrides survive. Incompatible edits reject atomically. No-op and rename preserve state/events; rebinding preserves persistent state; type/mode/initial changes reinitialize only the edited action. |
 | Cameras and presentation / 10 — shipped | `CameraDescription`, `CameraAttachmentDescription`, `WindowPresentationDescription`; resolved `Camera` query retained | Creation and full/default accessors, including callback/context and enable/pause flags. Attachments have separate full accessors. | World edits update offsets and preserve attachment; timed movement interpolates offsets while following the target. Only explicit detach breaks the reference. Unrelated motion survives. Presentation validates before applying and attempts backend rollback on failure. |
 | Screens, viewports, layers, persistent UI / 11 — shipped | `ScreenDescription`, `ViewportDescription`, `ViewportItemDescription`, `ViewportUiShapeDescription`, `ViewportUiTextDescription`, `ViewportUiSliderDescription`, `LayerDescription` | Creation and default/full accessors; item descriptions include screen/UI references and named-layer bindings. | Retain handles, children, clipping/composition, resource dependencies, and compatible interaction state. Content replacement acquires before release. Automatically created UI survives until its last mount is removed. |
-| Final verification / 12 | All migrated families | Reconcile inventory and examples; no independent new configuration family. | Verify the complete installed SDK and generated/example parity, including the external force-toggle example. |
+| Final verification / 12 — complete | All migrated families | Permanent header inventory audit and native installed-SDK execution; no new configuration family. | Verified generated/example parity and preserved the external explicit main and two-second force toggling. |
 
 Bare entity/group allocation and simple key/scancode binding builders remain direct. Likewise, the soft-node pin
 helper already takes `SoftBodyNodeAnchorPinDescription`; it creates a combination
@@ -1596,11 +1590,48 @@ internals are support machinery, not additional configuration APIs.
 - `graphics.h`: `SpritePool`, `AnimatedSpritePool`.
 - `physics.h`: `PositionPool`, `ParticleGeometryPool`, `VelocityPool`, `AccelerationPool`, `MassPool`, `ForcePool`, `ShapePool`, `HitboxVariantListPool`, `HitboxAnimationBindingListPool`, `CollisionFilterDescriptionPool`, `OrientationPool`, `AngularVelocityPool`, `AngularAccelerationPool`, `TorquePool`, `FrictionPool`, `RestitutionPool`, `AngleLockPool`, `AxisLockPool`, `TransformLockPool`, `JointPool`, `SoftBodyPool`, `SoftBodyNodePool`, `SoftBodyBeamPool`.
 
+## Final milestone verification
+
+The integrated verification covers the following:
+
+| Check | Result |
+| --- | --- |
+| Public inventory | 20 installed headers, 1,602 classified entries, three exempt Config names; no remaining migration classifications |
+| Permanent audit | CTest integration and thirteen validation cases; independent prototype extraction and exact symbol/category counts |
+| Native suite | All 105 tests pass, including the installed-SDK driver executing twelve consumers |
+| Sanitizers | Nineteen migration regressions plus two refreshed soft-body example regressions pass with ASan, UBSan, and leak detection |
+| Platforms | Linux and Windows cross-builds and installed-SDK consumer builds pass; native consumers execute on Linux |
+| Standalone examples | Twelve independent SDK examples build on both platforms and launch on Linux |
+| Generated projects | Center-of-mass, player-controller, and soft-body outputs match regeneration; their custom mains are preserved; both-platform builds and Linux launches pass |
+| Fresh starter and parity fixtures | A newly created starter and generated COM/area fixtures build on both platforms and execute on Linux |
+| External project | Custom main unchanged; hosted scene and application launch pass; both forces toggle at 2, 4, 6, and 8 seconds |
+
+The soft-body example had stale generated instance-binding/settings helpers and
+marker metadata. Its generated modules now match the authored project, including
+app-visible joint markers and current marker colors/categories. Editor-hidden
+flags remain separate. Physics values, authored JSON, and the developer-owned
+main are unchanged. The refreshed output passes authored/runtime parity and
+control regressions.
+
+Standard builds report no new warnings. Strict example builds retain Pong's
+existing unused generated helper warning. Native Windows execution and real
+desktop visual/interaction review remain unverified; cross-compilation and dummy
+SDL execution do not claim those results. The inventory checker validates names
+and classifications, not ABI compatibility or semantic test coverage of every
+public function.
+
 ## Keeping this inventory current
 
-When a migration goal completes, update its current symbols/types, mark its
-family compliant, record intentional exemptions, and update header counts.
-Preserve the planned-versus-shipped distinction for unfinished goals. Check
-new declarations, facade macros, and direct aliases against the same boundary;
-argument count alone is not a classification rule. Goal 12 repeats the complete
-header comparison and removes obsolete migration references.
+When an API changes, update its symbols/types, classification, intentional
+exemptions, and header/category counts. Check declarations, facade macros, and
+direct aliases against the same boundary; argument count alone is not a
+classification rule. Run `perl scripts/verify_api_inventory.pl` or the
+`api_inventory` CTest check. The separate `api_inventory_validation` test proves
+that representative inventory regressions fail with useful diagnostics.
+
+The audit recursively covers the installed `include/` headers, counts callable
+macros and facade aliases, cross-checks prototype extraction, and verifies exact
+per-header/classification/global totals and documented Config/Descriptor types.
+It checks local file links but does not validate anchor fragments or C signatures.
+Compilation and native execution of the installed-SDK consumers provide the
+complementary interface and runtime checks. See the [workflow](README.md#api-inventory-check).

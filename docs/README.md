@@ -52,6 +52,33 @@ cmake --build build/cmake/linux --target generate_public_api
 Generated HTML is not committed. The Markdown API references are committed and
 are generated from the Doxygen comments in the public headers under `include/`.
 
+## API inventory check
+
+The description API inventory covers every callable declaration and facade alias
+in the installed first-party headers, including declarations without Doxygen
+comments. From the repository root, run its permanent audit:
+
+```sh
+perl scripts/verify_api_inventory.pl
+```
+
+From another working directory, use the script's full path. An optional argument
+selects another repository root. With Perl available,
+`ROHR_BUILD_TESTS` registers `api_inventory` and `api_inventory_validation` in
+CTest. The validation test exercises missing/stale entries, duplicates, counts,
+configuration exemptions, aliases, and newly added headers. If Perl is unavailable,
+CMake explicitly reports that these documentation tests are disabled. No new
+runtime or SDK dependency is introduced.
+
+```sh
+ctest --test-dir build -R '^api_inventory' --output-on-failure
+```
+
+The audit compares names and classifications, not C signatures or ABI compatibility.
+Update the inventory deliberately when an API is added, removed, or reclassified;
+the audit never edits it automatically. SDK compilation/execution verifies the
+compiled interfaces separately.
+
 ## Useful Pages
 
 - [Your first Rohr project](getting_started.md)

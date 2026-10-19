@@ -524,6 +524,10 @@ EngineResult car_create(Car *object, Position position);
 void car_draw(const Car *object);
 void car_destroy(Car *object);
 
+/* Bind a complete owned instance; failure leaves output unchanged.
+ * On success, car_destroy owns its destruction. Do not bind twice. */
+EngineResult car_instance_bind(Car *output, Entity instance);
+
 typedef struct ProjectControllers {
     bool created;
 } ProjectControllers;
@@ -540,6 +544,8 @@ typedef struct ProjectObjects {
 EngineResult project_objects_create_all(ProjectObjects *objects);
 void project_objects_draw_all(const ProjectObjects *objects);
 void project_objects_destroy_all(ProjectObjects *objects);
+
+EngineResult project_settings_apply(void);
 
 typedef struct ObjectDescriptionView_454 {
     union { ObjectDescription _description; struct { ROHR_OBJECT_DESCRIPTION_FIELDS; }; };

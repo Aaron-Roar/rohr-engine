@@ -456,12 +456,30 @@ if(ROHR_BUILD_SDK_CONSUMER_TESTS)
             "-DROHR_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
             "-DROHR_GENERATOR_TOOLSET=${CMAKE_GENERATOR_TOOLSET}"
             "-DROHR_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
+            "-DROHR_RUN_CONSUMER_TESTS=$<NOT:$<BOOL:${CMAKE_CROSSCOMPILING}>>"
+            "-DROHR_CTEST_COMMAND=${CMAKE_CTEST_COMMAND}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_installed_sdk_consumer.cmake")
     set_tests_properties(installed_sdk_consumer_${ROHR_SDK_TEST_PLATFORM}
         PROPERTIES LABELS "sdk;${ROHR_SDK_TEST_PLATFORM}")
 endif()
 
 if(ROHR_BUILD_TESTS)
+    # Reuse the documentation toolchain; engine/SDK builds do not require Perl.
+    find_package(Perl QUIET)
+    if(PERL_FOUND)
+        add_test(NAME api_inventory
+            COMMAND ${PERL_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/scripts/verify_api_inventory.pl
+                ${CMAKE_CURRENT_SOURCE_DIR})
+        add_test(NAME api_inventory_validation
+            COMMAND ${PERL_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/api_inventory.pl)
+        set_tests_properties(api_inventory api_inventory_validation
+            PROPERTIES LABELS "api;documentation")
+    else()
+        message(STATUS "API inventory tests disabled: existing documentation tool Perl was not found")
+    endif()
+
     add_executable(audio_test tests/audio.c)
     target_include_directories(audio_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(audio_test PRIVATE rohr_engine)

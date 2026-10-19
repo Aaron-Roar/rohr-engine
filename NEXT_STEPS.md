@@ -267,18 +267,33 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
     on both platforms, and a rebuilt viewport example with Linux execution.
     Native Windows execution and real editor/application visual review remain
     unverified. Stop for review before Goal 12.
-12. [ ] **Finish migration and verify coverage** — Reconcile all headers and
-    documentation, regenerate/build affected examples and starter projects,
-    and verify installed SDKs. Preserve the external example's explicit main
-    and two-second force toggle.
+12. [x] **Finish migration and verify coverage** — Added a permanent Perl
+    inventory audit using the existing documentation toolchain, CTest integration,
+    and thirteen validation cases for missing/stale/duplicate symbols, header and
+    category counts, configuration exemptions, aliases, and new headers. Native
+    installed-SDK verification now executes all twelve consumers in isolated
+    working directories; cross-builds remain compile-only. Reconciled all twenty
+    installed headers and 1,602 classified entries, removed obsolete pending
+    migration text, and verified generated API references and documentation C
+    examples. Refreshed stale soft-body generated bindings/settings helpers and
+    marker metadata to match authored app visibility; physics values, authored
+    JSON, and custom mains are unchanged. All 105 native tests, nineteen migration
+    sanitizer tests plus two refreshed soft-body sanitizer regressions, Linux and
+    Windows builds, twelve standalone SDK examples, and native SDK consumers pass.
+    Center-of-mass/player-controller/soft-body regeneration, a fresh starter, and
+    generated COM/area parity fixtures build on both platforms and run on Linux.
+    External scene hosting, application launch, and two-second force toggling pass
+    without changing its explicit main. Standard builds introduce no warnings;
+    strict example builds retain Pong's existing unused generated helper warning.
+    Native Windows execution and real desktop visual review remain unverified.
 
-Every code goal migrates its callers and performs its own native, sanitizer,
-Linux/Windows build, and affected generated-project/SDK checks. Goal 12 integrates
-those results rather than postponing required verification. Complete one goal
-at a time and stop for review and a user-created commit; pursue each subsequent
-goal only on explicit user instruction. Before implementing each remaining goal,
-ask for and resolve any material clarifications with the user. Full description
-setters replace configuration: omitted fields become zero/false, not patches.
+Milestone complete. Stop for review and a user-created commit before pursuing
+another milestone.
+
+Each code goal migrated its callers and completed its relevant platform, SDK,
+generated-project, and sanitizer checks; Goal 12 integrated the final results.
+Full description setters replace configuration: omitted fields become zero/false,
+not patches.
 
 ### Consistent Joint Description APIs
 

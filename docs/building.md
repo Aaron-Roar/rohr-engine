@@ -224,6 +224,18 @@ The tests' deterministic registry counters verify logical ownership transitions,
 while the sanitizers independently detect native memory leaks, invalid memory
 access, and undefined behavior.
 
+The public-header inventory is checked automatically when the existing Perl
+documentation tool is available. Run just its audit and validation cases with
+`ctest --test-dir build -R '^api_inventory' --output-on-failure`.
+See the [inventory workflow](README.md#api-inventory-check) for direct use.
+
+Installed-SDK consumer builds also register their twelve executables with CTest
+on native platforms. Configure `tests/installed_sdk_consumer` against an installed
+SDK, build it, then run `ctest --test-dir <consumer-build> --output-on-failure`.
+Tests use isolated build-tree working directories and SDL dummy drivers. The
+engine's `ROHR_BUILD_SDK_CONSUMER_TESTS` workflow now builds and executes these
+checks for native targets; cross-builds compile them without claiming execution.
+
 The engine is built once and installed into `build/example-sdk/`. Each example
 is then configured independently through its own `CMakeLists.txt` and resolves
 `Rohr::Engine` from that staged SDK. This validates the standalone consumer

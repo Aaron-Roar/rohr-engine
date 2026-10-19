@@ -4,6 +4,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(rohr_installed_sdk_consumer LANGUAGES C)
+include(CTest)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -106,4 +107,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     target_compile_definitions(rohr_viewport_descriptions PRIVATE ROHR_TEST_VIEWPORT_WRAP)
     target_link_options(rohr_viewport_descriptions PRIVATE
         -Wl,--wrap=SDL_CreateTexture -Wl,--wrap=SDL_GetMouseState)
+endif()
+
+if(BUILD_TESTING AND NOT CMAKE_CROSSCOMPILING)
+    foreach(consumer
+            rohr_installed_sdk_consumer rohr_object_descriptions
+            rohr_system_reports rohr_entity_info rohr_entity_info_adversarial
+            rohr_forces rohr_runtime_persistence rohr_asset_descriptions
+            rohr_audio_descriptions rohr_input_descriptions
+            rohr_camera_descriptions rohr_viewport_descriptions)
+        # Each consumer owns its temporary fixtures and runs outside the source tree.
+        set(runtime_directory "${CMAKE_CURRENT_BINARY_DIR}/test_work/${consumer}")
+        file(MAKE_DIRECTORY "${runtime_directory}")
+        add_test(NAME ${consumer} COMMAND ${consumer})
+        set_tests_properties(${consumer} PROPERTIES
+            WORKING_DIRECTORY "${runtime_directory}"
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy"
+            TIMEOUT 30)
+    endforeach()
 endif()
