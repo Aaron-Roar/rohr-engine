@@ -11,6 +11,30 @@
     fprintf(stderr, "%s: %s\n", #call, error_result_message_get(checked.kind, checked.result.error)); assert(false); } } while(0)
 #define EVENT(value, kind) do { SDL_zero(value); (value).type = (kind); } while(0)
 static double poll_peak;
+static char delivered[300000];
+static size_t delivered_count;
+static uint64_t warnings, fatals, omitted, host_failures;
+static void output_sink(void *context, const char *bytes, size_t count) {
+    (void)context; assert(delivered_count + count < sizeof(delivered));
+    memcpy(delivered + delivered_count, bytes, count); delivered_count += count;
+    delivered[delivered_count] = 0;
+}
+static void report_sink(void *context, const Report *report) {
+    (void)context;
+    assert(report_valid_check(report));
+    for(size_t i = 0; i < report->diagnostic_count; ++i) {
+        const ReportDiagnostic *d = &report->diagnostics[i];
+        if(!strcmp(d->detail, "fixture repeated warning")) {
+            assert(d->report_id == ROHR_REPORT_CUSTOM_ID_BEGIN && d->internal_stage == 42);
+            assert(d->source.kind == ROHR_REPORT_OBJECT_ENTITY && d->source.id >= 123);
+            warnings += d->occurrence_count;
+        }
+        if(!strcmp(d->detail, "fixture final diagnostic")) fatals += d->occurrence_count;
+        if(d->report_id == ROHR_SCENE_SESSION_REPORT_ID && d->severity == ROHR_REPORT_SEVERITY_FATAL)
+            host_failures += d->occurrence_count;
+        if(strstr(d->detail, "occurrences omitted")) omitted += d->occurrence_count;
+    }
+}
 static Report poll_session(EditorSceneSession *session, bool expect_failure) {
     Report report = editor_scene_session_update(session);
     assert(report_valid_check(&report));
@@ -46,6 +70,19 @@ static void wait_log(EditorSceneSession *session, const char *text) {
 }
 static void mode_set(const char *mode) { assert(SDL_SetEnvironmentVariable(SDL_GetEnvironment(), "ROHR_SCENE_TEST_MODE", mode, true)); }
 static void protocol_checks(void) {
+    unsigned char diagnostic_bytes[SCENE_DIAGNOSTIC_BYTES];
+    ReportDiagnostic original = {.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN, .internal_stage = 71,
+        .severity = ROHR_REPORT_SEVERITY_WARNING, .code = ERROR_ENGINE_STATE_INVALID,
+        .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED, .occurrence_count = UINT64_MAX,
+        .source = {ROHR_REPORT_OBJECT_ENTITY, UINT64_MAX}, .has_substep = true,
+        .first_substep = 3, .last_substep = 9, .detail_truncated = true};
+    strcpy(original.detail, "owned UTF-8: \xc3\xa9");
+    scene_diagnostic_encode(&original, diagnostic_bytes);
+    ReportDiagnostic copy;
+    assert(scene_diagnostic_decode(diagnostic_bytes, &copy));
+    assert(copy.source.id == UINT64_MAX && copy.occurrence_count == UINT64_MAX &&
+        copy.first_substep == 3 && copy.last_substep == 9 && copy.detail_truncated && !strcmp(copy.detail, original.detail));
+    scene_u32_write(diagnostic_bytes + 8, UINT32_MAX); assert(!scene_diagnostic_decode(diagnostic_bytes, &copy));
     unsigned char data[SCENE_INPUT_BYTES]; SDL_Event decoded;
     SDL_Event input; EVENT(input, SDL_EVENT_TEXT_EDITING); input.edit.text = "compose"; input.edit.start = -1; input.edit.length = -1;
     assert(scene_input_encode(&input, data) && scene_input_decode(data, &decoded));
@@ -109,6 +146,37 @@ int main(int argc, char **argv) {
     assert(!editor_scene_session_active_check(session));
     if(argc > 2) { editor_scene_session_destroy(session); return 0; }
     assert(strstr(editor_scene_session_log_get(session), "SHUTDOWN"));
+    editor_scene_session_output_set(session, output_sink, NULL);
+    editor_scene_session_report_output_set(session, report_sink, NULL);
+    mode_set("logs"); OK(editor_scene_session_launch(session, argv[1])); wait_state(session, EDITOR_SCENE_RUNNING);
+    editor_scene_session_stop(session); wait_state(session, EDITOR_SCENE_STOPPED);
+    assert(delivered_count > 16384 && strstr(delivered, "INITIALIZED") && strstr(delivered, "SHUTDOWN"));
+    size_t lines = 0; const char *at = delivered;
+    while((at = strstr(at, "bounded log overflow fixture"))) { ++lines; ++at; }
+    assert(lines == 8192);
+    const char *diagnostic_modes[] = {"diagnostics", "diagnostic_overflow"};
+    for(size_t i = 0; i < SDL_arraysize(diagnostic_modes); ++i) {
+        delivered_count = 0; warnings = fatals = omitted = 0;
+        mode_set(diagnostic_modes[i]); OK(editor_scene_session_launch(session, argv[1]));
+        deadline = SDL_GetTicks() + 10000;
+        while(editor_scene_session_active_check(session) && SDL_GetTicks() < deadline) {
+            poll_session(session, true);
+            if(i == 1 && editor_scene_session_state_get(session) == EDITOR_SCENE_RUNNING) {
+                OK(editor_scene_session_focus_set(session, true));
+                SDL_Event motion = {.type = SDL_EVENT_MOUSE_MOTION};
+                motion.motion.x = 100; motion.motion.y = 100;
+                /* Controls still in flight must not reset the final diagnostic drain. */
+                for(unsigned j = 0; j < 16; ++j) OK(editor_scene_session_input_add(session, &motion));
+            }
+            SDL_Delay(1);
+        }
+        assert(!editor_scene_session_active_check(session));
+        assert(fatals == 1 && warnings > 0 && strstr(delivered, "SHUTDOWN"));
+        if(i == 0) assert(warnings == 12 && omitted == 0);
+        else assert(warnings + omitted == (ROHR_REPORT_DIAGNOSTIC_CAPACITY + 20) * 12);
+    }
+    editor_scene_session_output_set(session, NULL, NULL);
+    editor_scene_session_report_output_set(session, NULL, NULL);
     const char *failures[] = {"init_fail", "update_fail", "bad_token", "bad_version", "oversize", "exit"};
     for(size_t i = 0; i < SDL_arraysize(failures); ++i) {
         mode_set(failures[i]); OK(editor_scene_session_launch(session, argv[1]));
@@ -123,6 +191,11 @@ int main(int argc, char **argv) {
         assert(editor_scene_session_state_get(session) == EDITOR_SCENE_FAILED);
         assert(editor_scene_session_update(session).header.status == ROHR_REPORT_NOT_RUN);
         assert(copy.has_fatal && report_valid_check(&copy));
+        if(i == 0) assert(copy.first_fatal.report_id == ROHR_SCENE_REPORT_ID &&
+            strstr(copy.first_fatal.detail, "fixture initialization failure"));
+        if(i == 1) assert(copy.first_fatal.report_id == ROHR_REPORT_CUSTOM_ID_BEGIN &&
+            !strcmp(copy.first_fatal.detail, "fixture gameplay failure"));
+        if(i < 2) assert(!strcmp(editor_scene_session_error_get(session), copy.first_fatal.detail));
         if(i < 2) assert(strstr(editor_scene_session_log_get(session), "SHUTDOWN"));
     }
     mode_set("logs"); OK(editor_scene_session_launch(session, argv[1])); wait_state(session, EDITOR_SCENE_RUNNING);
@@ -166,7 +239,18 @@ int main(int argc, char **argv) {
     while(editor_scene_session_active_check(session) && SDL_GetTicks() < deadline) { poll_session(session, true); SDL_Delay(1); }
     assert(!editor_scene_session_active_check(session));
     /* Destroy an active child, including graceful callback cleanup and reap. */
+    delivered_count = 0;
+    editor_scene_session_output_set(session, output_sink, NULL);
+    editor_scene_session_report_output_set(session, report_sink, NULL);
     OK(editor_scene_session_launch(session, argv[1])); wait_state(session, EDITOR_SCENE_RUNNING);
     editor_scene_session_destroy(session);
+    const char *shutdown = strstr(delivered, "SHUTDOWN");
+    assert(shutdown && !strstr(shutdown + 1, "SHUTDOWN"));
+    session = editor_scene_session_create(); assert(session);
+    editor_scene_session_report_output_set(session, report_sink, NULL);
+    host_failures = 0; mode_set("hang");
+    OK(editor_scene_session_launch(session, argv[1]));
+    editor_scene_session_destroy(session);
+    assert(host_failures == 1);
     return 0;
 }

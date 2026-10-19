@@ -7,8 +7,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "report.h"
 
-#define SCENE_PROTOCOL_VERSION 1u
+#define SCENE_PROTOCOL_VERSION 2u
+#define SCENE_DIAGNOSTIC_BYTES (80u + ROHR_REPORT_DETAIL_CAPACITY)
 #define SCENE_TOKEN_BYTES 16u
 #define SCENE_TOKEN_TEXT_SIZE 33u
 #define SCENE_FRAME_SIDE_MAX 4096u
@@ -23,7 +25,7 @@
 typedef enum SceneMessage {
     SCENE_HELLO = 1, SCENE_READY, SCENE_FRAME, SCENE_STATE,
     SCENE_PAUSE, SCENE_RESUME, SCENE_STOP, SCENE_INPUT, SCENE_FOCUS,
-    SCENE_FAILURE
+    SCENE_FAILURE, SCENE_DIAGNOSTIC, SCENE_EXIT, SCENE_EXIT_ACK
 } SceneMessage;
 /* Opaque native socket stored without pulling platform headers into callers. */
 typedef uintptr_t SceneSocket;
@@ -70,4 +72,6 @@ void scene_double_write(void *out, double value);
 double scene_double_read(const void *in);
 bool scene_input_encode(const SDL_Event *event, unsigned char data[SCENE_INPUT_BYTES]);
 bool scene_input_decode(const unsigned char data[SCENE_INPUT_BYTES], SDL_Event *event);
+void scene_diagnostic_encode(const ReportDiagnostic *diagnostic, unsigned char data[SCENE_DIAGNOSTIC_BYTES]);
+bool scene_diagnostic_decode(const unsigned char data[SCENE_DIAGNOSTIC_BYTES], ReportDiagnostic *diagnostic);
 #endif

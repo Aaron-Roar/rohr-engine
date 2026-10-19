@@ -28,10 +28,43 @@ cmake --build build --target MyGame_project
 
 The scene executable opens an ordinary window when run directly. It also supports
 isolated hosting through the SDK scene runner and editor-core session API described
-below. The Build and Run menus are available. Viewport tabs and playback controls
-remain goal 6; **Simulate Scene** regenerates and builds the current editor
-selection, then prepares it stopped, reporting its executable path without
-launching it. The CLI workflow below builds and launches a standalone window.
+below. **Run > Simulate Scene** regenerates and builds the current editor
+selection, then opens the **Scene Simulation** viewport tab stopped. The CLI
+workflow below builds and launches a standalone window.
+
+## Editor simulation tab
+
+The **Editor** and **Scene Simulation** tabs sit above the viewport. **Run** in
+the simulation tab regenerates and builds the current in-memory scene before
+launching it in an isolated child process. **Pause** freezes that instance;
+**Resume** continues it without rebuilding. **Stop**, or selecting **Editor**,
+stops the child, releases its input, and clears the image. The simulation tab
+remains available until the project closes. Stop and Editor also cancel a pending
+simulation build; they do not cancel an unrelated application build.
+
+The properties column remains editable during simulation. Changes take effect
+on the next fresh Run. Scene/project builds stop the current simulation before
+replacing its executable. Failed, cancelled, or disabled builds never launch
+previous output automatically.
+
+The child supplies its fully composed logical frame, fitted inside the viewport
+without stretching. Launch, Resume, and clicking the image focus scene input.
+Clicking another editor control, opening a modal, losing window focus, or pressing
+**Escape** releases it while simulation continues. Escape provides an exit from
+relative mouse capture. Keyboard shortcuts, pointer input, text, and IME
+composition reach the scene only while focused; pointer releases remain captured
+outside the image after a press inside. The editor owns native relative mouse and
+text-input mode and maps the child's IME rectangle into window coordinates.
+
+Combined stdout/stderr streams into the terminal, including cleanup output,
+independently of the build-output preference. Partial UTF-8 codepoints survive
+pipe-read boundaries; invalid bytes display as `?`. Plain log text does not create
+warning/error notifications. Structured report diagnostics create notifications
+with report/stage IDs, severity, code, recovery, source/target IDs, substeps,
+details, truncation, and occurrence counts. Identical issues within one run update
+the retained entry without restarting its toast. Grouping holds 100 identities,
+reports omitted occurrences, and retains the first fatal when full. Counts
+saturate explicitly. The notification log and terminal scrollback remain bounded.
 
 ## Editor scene settings
 
@@ -52,8 +85,8 @@ Simulate Scene uses current in-memory changes without requiring a save. It stops
 an existing simulation before generation and compilation, and prepares output
 only after successful compilation. Failure, cancellation, disabled compilation,
 and project transitions cannot prepare an older executable. Build diagnostics
-use the existing terminal and notifications. Goal 6 will also route running
-simulation output and report warnings/errors to those destinations.
+use the existing terminal and notifications, as do simulation output and
+structured report diagnostics.
 
 ## CLI simulation selection
 
@@ -280,7 +313,7 @@ UTF-8 committed text, and IME composition events through `input_add`. Text packe
 hold at most 255 bytes plus the terminator; oversize/unsupported events are
 rejected explicitly. Native IME candidate-list events are not transported.
 The host input-mode getter exposes text activation/area/cursor and relative-mouse
-requests for the later viewport integration. The visible editor must own native
+requests used by the simulation panel. The visible editor owns native
 text input, IME placement, cursor capture, and focus routing.
 
 The private protocol uses versioned, length-checked, little-endian packets over a
@@ -291,8 +324,22 @@ one send packet and one receive packet, each capped at a 4096² RGBA frame plus
 headers. The host additionally retains one displayed frame. Input/control queues
 hold 256 packets; overflow fails and stops the session instead of dropping a
 release event. A poll reads at most 8 MiB/64 packets, writes at most 8 MiB, and
-reads at most 64 KiB of child logs. Logs retain the latest 16 KiB, with dropped-byte
-counts and warning diagnostics. The child also has bounded control polling.
+reads at most 64 KiB of child logs. Logs retain the latest 16 KiB, with discarded-tail
+byte counts. Without an output sink, discarded bytes also produce warnings.
+`output_set` installs a borrowed byte sink receiving every read once, so tail
+rotation does not imply lost delivery. `report_output_set` observes each update's
+borrowed report, including updates during destruction. Keep sink contexts alive
+through destruction. Both sinks run synchronously on the calling thread.
+
+Protocol version 2 adds structured diagnostic packets and an acknowledged orderly
+exit. The child drains in-flight controls until the host confirms receipt of the
+final marker, preventing a socket reset from discarding unread diagnostics.
+The child keeps a bounded pending report, sends first-fatal evidence ahead
+of ordinary diagnostics, reports overflow, and drains pending evidence during
+cleanup. It streams each executed child report once, rather than replaying its
+cumulative aggregate. The host drains socket/log tails before reaping an exited
+child. Forced destruction has a final bounded drain and reports any omitted
+tail. The child also has bounded control polling.
 
 The session's latest error and bounded stdout/stderr tail remain available after
 failure. `editor_scene_session_update` returns a `ROHR_SCENE_SESSION_REPORT_ID`
@@ -313,14 +360,18 @@ ownership after teardown. `editor_scene_session_test` launches `scene_child_test
 and checks transport, two composed screens and layered UI, forwarded interaction,
 text/relative input requests, focus release, pause timing, startup failure,
 malformed/version/token/length rejection, bounded logs, queue overflow, timeouts,
-restarts, and graceful/forced cleanup. It measures 1080p throughput and host poll
+restarts, exact incremental log delivery, live/repeated diagnostics, fatal
+preservation under overflow, and graceful/forced cleanup. It measures 1080p throughput and host poll
 cost with a software renderer and exercises backpressure. `audio_reports_test`
 also verifies suspension of callback output and command execution until resume.
 
 The host test accepts a generated scene executable plus any extra argument to
 run a smaller launch/frame/pause/resume/stop check against an installed-SDK
-project. These checks do not substitute for the real editor focus/IME and visual
-review planned with the viewport tabs, or for native Windows runtime testing.
+project. `editor_scene_panel_test` covers tab/control actions, isolated focused
+input, outside-image releases, modal focus loss, pause/resume, image clearing,
+grouped notifications, UTF-8 boundaries, and queued image-resource lifetime.
+These checks do not substitute for real editor focus/IME and visual review or
+native Windows runtime testing.
 
 `editor_scene_generation_test` and the CLI scene-selection test cover defaults,
 explicit selections, invalid requests, application independence, and unchanged

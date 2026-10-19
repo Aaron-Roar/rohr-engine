@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+float editor_viewport_top = EDITOR_MENU_HEIGHT;
+
 /* Screen-space half-width shared by body and individual edge picking. */
 #define EDITOR_RIGID_BODY_LINE_PICK_RADIUS 6.0f
 /* Reserve room for the existing kind order within each authored layer. */
@@ -394,8 +396,8 @@ static Scale editor_animation_frame_size_get(const EditorAnimationFrame *frame) 
 static void editor_view_transform_set(const EditorProject *project,
     const EditorViewportState *state, const EditorObject *object) {
     Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-        EDITOR_MENU_HEIGHT +
-            (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+        EDITOR_VIEWPORT_TOP +
+            (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
 
     editor_view_origin = center;
     editor_view_scale = project != NULL && project->viewport_camera_zoom > 0.0f ?
@@ -442,7 +444,7 @@ static Position editor_view_screen_to_world(Position screen) {
 
 static void editor_viewport_grid_draw(void) {
     Position top_left = editor_view_screen_to_world(
-        (Position){0.0f, EDITOR_MENU_HEIGHT});
+        (Position){0.0f, EDITOR_VIEWPORT_TOP});
     Position bottom_right = editor_view_screen_to_world(
         (Position){EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM});
     float spacing = 50.0f;
@@ -462,8 +464,8 @@ static void editor_viewport_grid_draw(void) {
             x <= bottom_right.x; x += spacing) {
         Position screen = editor_view_world_to_screen((Position){x, 0.0f});
         bool origin = fabsf(x) < spacing * 0.001f;
-        (void)rohr_graphics_screen_rect_draw(screen.x, EDITOR_MENU_HEIGHT,
-            origin ? 2.0f : 1.0f, EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT,
+        (void)rohr_graphics_screen_rect_draw(screen.x, EDITOR_VIEWPORT_TOP,
+            origin ? 2.0f : 1.0f, EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP,
             origin ? axis : line);
     }
     for(float y = ceilf(bottom_right.y / spacing) * spacing;
@@ -659,7 +661,7 @@ static void editor_hitbox_filled_draw(const EditorObject *object,
         maximum_y = fmaxf(maximum_y, points[i].y);
     }
 
-    int first_row = (int)floorf(fmaxf(minimum_y, EDITOR_MENU_HEIGHT));
+    int first_row = (int)floorf(fmaxf(minimum_y, EDITOR_VIEWPORT_TOP));
     int last_row = (int)ceilf(fminf(maximum_y, EDITOR_WINDOW_HEIGHT - 1.0f));
     for(int row = first_row; row <= last_row; row += 1) {
         float scan_y = (float)row + 0.5f;
@@ -718,7 +720,7 @@ static void editor_circle_draw(Position center, float radius, Color color) {
 static void editor_circle_filled_draw(Position center, float radius, Color color) {
     Position screen = editor_view_world_to_screen(center);
     float screen_radius = radius * editor_view_scale;
-    int first_row = (int)floorf(fmaxf(screen.y - screen_radius, EDITOR_MENU_HEIGHT));
+    int first_row = (int)floorf(fmaxf(screen.y - screen_radius, EDITOR_VIEWPORT_TOP));
     int last_row = (int)ceilf(fminf(screen.y + screen_radius,
         EDITOR_WINDOW_HEIGHT - 1.0f));
 
@@ -1845,8 +1847,8 @@ bool editor_viewport_marquee_finish(EditorViewportState *state,
         EditorLayoutViewport *layout = editor_project_layout_viewport_get(project,
             state->selected_layout_viewport);
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-            EDITOR_MENU_HEIGHT +
-                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+            EDITOR_VIEWPORT_TOP +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
         Position origin = {center.x + project->viewport_camera_offset.x,
             center.y + project->viewport_camera_offset.y};
         first = (Position){(state->marquee_start.x - origin.x) /
@@ -4059,8 +4061,8 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
         EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project,
             state->selected_layout_viewport);
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-            EDITOR_MENU_HEIGHT +
-                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+            EDITOR_VIEWPORT_TOP +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
         Position origin = {center.x + project->viewport_camera_offset.x,
             center.y + project->viewport_camera_offset.y};
         Position local;
@@ -4243,8 +4245,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             state->mode == EDITOR_VIEWPORT_UI_VERTEX_EDITOR ||
             state->mode == EDITOR_VIEWPORT_UI_LINE_EDITOR) {
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-            EDITOR_MENU_HEIGHT +
-                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+            EDITOR_VIEWPORT_TOP +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
         if(wheel_y != 0.0f) {
             float old_zoom = project->viewport_camera_zoom;
             float zoom = fminf(8.0f, fmaxf(0.1f,
@@ -4684,8 +4686,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
         float zoom = fminf(8.0f, fmaxf(0.1f,
             project->viewport_camera_zoom * factor));
         Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-            EDITOR_MENU_HEIGHT +
-                (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+            EDITOR_VIEWPORT_TOP +
+                (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
         Vec2D offset;
         desired_origin = (Position){pointer.x - world.x * zoom,
             pointer.y + world.y * zoom};
@@ -7155,8 +7157,8 @@ static void editor_viewport_content_draw(const EditorProject *project,
             if(viewport == NULL || !viewport->enabled) continue;
             float zoom = project->viewport_camera_zoom;
             Position center = {EDITOR_VIEWPORT_WIDTH * 0.5f,
-                EDITOR_MENU_HEIGHT +
-                    (EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT) * 0.5f};
+                EDITOR_VIEWPORT_TOP +
+                    (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * 0.5f};
             Position origin = {center.x + project->viewport_camera_offset.x,
                 center.y + project->viewport_camera_offset.y};
             ViewportRectangle rectangle = viewport->config.rectangle;

@@ -103,6 +103,23 @@ void editor_notification_panel_push(EditorNotificationPanel *panel,
     panel->toast_texts[index] = toast_text;
 }
 
+bool editor_notification_panel_update(EditorNotificationPanel *panel,
+        uint64_t id, const char *summary, const char *detail) {
+    if(!panel || !summary || !detail) return false;
+    EditorNotificationRecord *entry = editor_notification_store_id_get(&panel->store, id);
+    if(!entry) return false;
+    size_t index = (size_t)(entry - panel->store.entries);
+    SDL_strlcpy(entry->summary, summary, sizeof(entry->summary));
+    SDL_strlcpy(entry->detail, detail, sizeof(entry->detail));
+    (void)rohr_graphics_text_value_set(&panel->summary_texts[index], entry->summary);
+    (void)rohr_graphics_text_value_set(&panel->toast_texts[index], entry->summary);
+    if(panel->selected_id == id) {
+        (void)rohr_graphics_text_value_set(&panel->report_title, entry->summary);
+        (void)rohr_graphics_text_value_set(&panel->detail_text, entry->detail);
+    }
+    return true;
+}
+
 void editor_notification_panel_toast_draw(EditorNotificationPanel *panel,
         float screen_height) {
     UIRect log_bounds = {EDITOR_NOTIFICATION_LEFT,

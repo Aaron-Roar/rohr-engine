@@ -6,6 +6,7 @@
 #include "input.h"
 #include "input/input_internal.h"
 #include "scene/scene_runtime.h"
+#include "scene_image.h"
 #include "camera_state.h"
 #include "object_drawing.h"
 #include "marker_geometry.h"
@@ -217,6 +218,7 @@ typedef struct GraphicsCommand {
         } text;
         struct {
             SDL_Texture *unmanaged_texture;
+            GraphicsSceneImage *scene_image;
             TextureHandle asset;
             SDL_FRect destination;
             SDL_FPoint center;
@@ -4036,6 +4038,8 @@ static void graphics_commands_discard(void) {
                     command->data.texture.asset != TEXTURE_HANDLE_INVALID)
                 graphics_texture_command_reference_remove(
                     command->data.texture.asset);
+            if(command->type == GRAPHICS_COMMAND_TEXTURE && command->data.texture.scene_image)
+                graphics_scene_image_destroy(command->data.texture.scene_image);
         }
         layer->count = 0;
     }
@@ -4826,6 +4830,43 @@ void graphics_texture_draw(TextureAsset texture_asset, Position pos, Orientation
     graphics_texture_draw_flipped(texture_asset, pos, ort, SDL_FLIP_NONE);
 }
 
+struct GraphicsSceneImage { SDL_Texture *texture; int width, height; size_t references; };
+GraphicsSceneImage *graphics_scene_image_create(void) {
+    GraphicsSceneImage *image=calloc(1,sizeof(*image));
+    if(image) image->references=1;
+    return image;
+}
+SDL_FPoint graphics_scene_window_point_get(SDL_FPoint screen) {
+    SDL_FPoint window = {0};
+    if(sdl_renderer) (void)SDL_RenderCoordinatesToWindow(sdl_renderer, screen.x, screen.y, &window.x, &window.y);
+    return window;
+}
+void graphics_scene_image_destroy(GraphicsSceneImage *image) {
+    if(image && --image->references==0) { SDL_DestroyTexture(image->texture); free(image); }
+}
+EngineResult graphics_scene_image_update(GraphicsSceneImage *image, const void *rgba, int width, int height, int pitch) {
+    if(!sdl_renderer || !image || !rgba || width<=0 || height<=0 || width>4096 || height>4096 ||
+            pitch<width*4 || image->references!=1)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(image->width!=width || image->height!=height) {
+        SDL_Texture *texture=SDL_CreateTexture(sdl_renderer,SDL_PIXELFORMAT_RGBA32,SDL_TEXTUREACCESS_STREAMING,width,height);
+        if(!texture) return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED);
+        if(!SDL_UpdateTexture(texture,NULL,rgba,pitch)) { SDL_DestroyTexture(texture); return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED); }
+        SDL_DestroyTexture(image->texture); image->texture=texture; image->width=width; image->height=height;
+    } else if(!SDL_UpdateTexture(image->texture,NULL,rgba,pitch)) return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED);
+    return error_result_value(true);
+}
+EngineResult graphics_scene_image_draw(GraphicsSceneImage *image, SDL_FRect destination) {
+    if(!image || !image->texture || !isfinite(destination.x) || !isfinite(destination.y) ||
+            !isfinite(destination.w) || !isfinite(destination.h) || destination.w<=0 || destination.h<=0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    GraphicsCommand *command=graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
+    if(!command) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    ++image->references;
+    command->data.texture.scene_image=image; command->data.texture.unmanaged_texture=image->texture;
+    command->data.texture.destination=destination;
+    return error_result_value(true);
+}
 void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,
         Scale size, Orientation orientation) {
     graphics_screen_texture_direction_draw(texture_asset, center, size,

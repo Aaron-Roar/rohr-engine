@@ -176,8 +176,35 @@ static bool length_check(SceneMessage kind, size_t size) {
         case SCENE_INPUT: return size == SCENE_INPUT_BYTES;
         case SCENE_FOCUS: return size == 4;
         case SCENE_FAILURE: return size > 0 && size <= 256;
+        case SCENE_DIAGNOSTIC: return size == SCENE_DIAGNOSTIC_BYTES;
+        case SCENE_EXIT: case SCENE_EXIT_ACK: return size == 0;
         default: return false;
     }
+}
+void scene_diagnostic_encode(const ReportDiagnostic *d, unsigned char data[SCENE_DIAGNOSTIC_BYTES]) {
+    memset(data, 0, SCENE_DIAGNOSTIC_BYTES);
+    scene_u32_write(data, d->report_id); scene_u32_write(data+4, d->internal_stage);
+    scene_u32_write(data+8, d->severity); scene_u32_write(data+12, d->code);
+    scene_u32_write(data+16, d->recovery); scene_u32_write(data+20, d->source.kind);
+    scene_u64_write(data+24, d->source.id); scene_u32_write(data+32, d->target.kind);
+    scene_u64_write(data+40, d->target.id); scene_u64_write(data+48, d->occurrence_count);
+    scene_u32_write(data+56, d->has_substep); scene_u32_write(data+60, d->first_substep);
+    scene_u32_write(data+64, d->last_substep); scene_u32_write(data+68, d->detail_truncated);
+    scene_u64_write(data+72, d->group_version); memcpy(data+80, d->detail, sizeof(d->detail));
+}
+bool scene_diagnostic_decode(const unsigned char data[SCENE_DIAGNOSTIC_BYTES], ReportDiagnostic *d) {
+    if(!data || !d || !memchr(data+80, 0, ROHR_REPORT_DETAIL_CAPACITY) ||
+            scene_u32_read(data+56)>1 || scene_u32_read(data+68)>1) return false;
+    *d = (ReportDiagnostic){.report_id=scene_u32_read(data), .internal_stage=scene_u32_read(data+4),
+        .severity=scene_u32_read(data+8), .code=scene_u32_read(data+12), .recovery=scene_u32_read(data+16),
+        .source={scene_u32_read(data+20),scene_u64_read(data+24)},
+        .target={scene_u32_read(data+32),scene_u64_read(data+40)}, .occurrence_count=scene_u64_read(data+48),
+        .has_substep=scene_u32_read(data+56), .first_substep=scene_u32_read(data+60),
+        .last_substep=scene_u32_read(data+64), .detail_truncated=scene_u32_read(data+68),
+        .group_version=scene_u64_read(data+72)};
+    memcpy(d->detail,data+80,sizeof(d->detail));
+    Report check=report_create(); check.header.id=ROHR_SCENE_REPORT_ID;
+    return !error_check(report_diagnostic_add(&check,*d));
 }
 bool scene_wire_busy_check(const SceneWire *wire) { return wire->tx_used < wire->tx_size; }
 bool scene_wire_send_parts(SceneWire *wire, SceneMessage kind, const void *prefix,

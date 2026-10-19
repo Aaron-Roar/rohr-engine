@@ -138,17 +138,30 @@ user selected this milestone before the remaining roadmap priorities. See
    have no compiler warnings; strict checks add none over the existing switch and
    starter-template warnings. Windows runtime and real editor interaction review
    remain unverified.
-6. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
-   tabs; open simulation stopped; Run/Pause and Stop controls; Editor selection
-   stops simulation; fresh starts regenerate/build while pause/resume preserves
-   the running instance; verify focused input,
-   composition, lifecycle, and platform behavior. Stream simulation stdout/stderr
-   and report issues to the editor terminal; capture warnings/errors in editor
-   notifications. No viewport is valid and runs without visuals or a special warning.
+6. [x] **Viewport tabs and simulation controls** — Added Editor and Scene
+   Simulation tabs with fresh-build Run, instance-preserving Pause/Resume, and
+   Stop. Simulate Scene opens stopped; Stop and Editor clear the image, release
+   input, and cancel only simulation-owned builds. Property editing remains
+   enabled for the next Run. Composed frames fit the viewport; focused keyboard,
+   captured pointer releases, relative input, and IME placement stay isolated.
+   Escape releases input. Incremental UTF-8 logs reach the terminal; bounded
+   diagnostic groups update occurrence counts without repeated toasts. Protocol
+   version 2 preserves diagnostic identity and first-fatal evidence, reports
+   overflow, and acknowledges final delivery before closing, including with
+   controls in flight. No viewport remains valid without special warnings.
+   Verified all 100 native tests, eight ASan/UBSan/leak checks, final affected
+   checks on both native and sanitizer builds, and installed-SDK hosted runs
+   with and without a viewport, including a sanitized generated scene. Engine,
+   editor, generated projects, and independent center_of_mass/joints examples
+   build on Linux and Windows; Linux examples launch outside their source
+   directories. Normal builds have no compiler warnings; strict checks retain
+   only existing graphics warnings. The final 1080p software transport check
+   measured 37.9 fps, 299 MiB/s, and 3.8 ms peak host poll time. Native Windows
+   execution and real desktop focus/IME/visual review remain unverified.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Goals 1–5 are complete. Viewport tabs, playback controls, and simulation
-terminal/notification output are next, only on explicit user instruction.
+commit. All six goals are complete. Stop for review; pursue another milestone
+only on explicit user instruction.
 
 ### Soft-Body Force Following and Generated-App Regression
 

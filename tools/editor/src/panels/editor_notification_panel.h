@@ -33,6 +33,9 @@ bool editor_notification_panel_create(EditorNotificationPanel *panel,
     const FontAsset *font, const FontAsset *toast_font);
 void editor_notification_panel_push(EditorNotificationPanel *panel,
     const char *summary, const char *detail);
+/* Update a retained entry without restarting its toast or opening a report. */
+bool editor_notification_panel_update(EditorNotificationPanel *panel,
+    uint64_t id, const char *summary, const char *detail);
 void editor_notification_panel_toast_draw(EditorNotificationPanel *panel,
     float screen_height);
 void editor_notification_panel_log_draw(EditorNotificationPanel *panel,

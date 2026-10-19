@@ -7,6 +7,14 @@
 #include <SDL3/SDL.h>
 
 typedef struct EditorSceneSession EditorSceneSession;
+typedef void (*EditorSceneOutput)(void *context, const char *bytes, size_t count);
+typedef void (*EditorSceneReportOutput)(void *context, const Report *report);
+/* Borrowed sink; receives each chunk once during update, including shutdown.
+ * Keep context alive until after session destruction. */
+void editor_scene_session_output_set(EditorSceneSession *session, EditorSceneOutput output, void *context);
+/* Optional observer, including updates performed by destroy. Borrowed report. */
+void editor_scene_session_report_output_set(EditorSceneSession *session,
+    EditorSceneReportOutput output, void *context);
 typedef enum EditorSceneState {
     EDITOR_SCENE_STOPPED, EDITOR_SCENE_STARTING, EDITOR_SCENE_RUNNING,
     EDITOR_SCENE_PAUSED, EDITOR_SCENE_STOPPING, EDITOR_SCENE_FAILED
@@ -43,7 +51,8 @@ EditorSceneFrame editor_scene_session_frame_get(const EditorSceneSession *sessio
 EditorSceneInputMode editor_scene_session_input_mode_get(const EditorSceneSession *session);
 const char *editor_scene_session_error_get(const EditorSceneSession *session);
 /* Last 16 KiB of combined stdout/stderr, borrowed until next update/launch.
- * Lost bytes are counted and reported; logs can contain arbitrary UTF-8 fragments. */
+ * Tail-discarded bytes are counted, and reported only without an output sink.
+ * Logs can contain arbitrary UTF-8 fragments. */
 const char *editor_scene_session_log_get(const EditorSceneSession *session);
 uint64_t editor_scene_session_log_dropped_get(const EditorSceneSession *session);
 /* Map an editor point through the centered, aspect-preserving scene rectangle.

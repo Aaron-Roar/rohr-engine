@@ -32,6 +32,11 @@ struct EditorSceneSession {
     EditorSceneFrame frame;
     size_t pixels_capacity;
     EditorSceneInputMode input_mode;
+    EditorSceneOutput output;
+    void *output_context;
+    EditorSceneReportOutput report_output;
+    void *report_context;
+    bool remote_fatal, exit_received, exit_ack_sent;
 };
 static EngineResult invalid(const char *detail) {
     return error_result_error_detail(ERROR_ENGINE_STATE_INVALID, detail);
@@ -72,12 +77,14 @@ static bool log_collect(EditorSceneSession *session) {
             return status == SDL_IO_STATUS_EOF || status == SDL_IO_STATUS_ERROR;
         }
         budget -= count;
+        if(session->output) session->output(session->output_context, (const char *)buffer, count);
         size_t drop = session->log_used + count > SCENE_LOG_CAPACITY ?
             session->log_used + count - SCENE_LOG_CAPACITY : 0;
         if(drop) {
             memmove(session->log, session->log + drop, session->log_used - drop);
             session->log_used -= drop;
-            session->log_dropped += drop; session->log_pending += drop;
+            session->log_dropped += drop;
+            if(!session->output) session->log_pending += drop;
         }
         memcpy(session->log + session->log_used, buffer, count);
         session->log_used += count; session->log[session->log_used] = 0;
@@ -92,6 +99,7 @@ EngineResult editor_scene_session_launch(EditorSceneSession *session, const char
     session->control_count = session->control_start = 0;
     session->focused = session->stopping = session->failed = session->failure_pending = false;
     session->stop_sent = session->killed = false;
+    session->remote_fatal = session->exit_received = session->exit_ack_sent = false;
     session->log_used = 0; session->log[0] = session->error[0] = 0;
     session->log_dropped = session->log_pending = 0;
     uint16_t port;
@@ -150,7 +158,7 @@ void editor_scene_session_stop(EditorSceneSession *session) {
     session->deadline = SDL_GetTicks() + SCENE_STOP_TIMEOUT_MS;
     session->state = EDITOR_SCENE_STOPPING;
 }
-static bool packet_apply(EditorSceneSession *session) {
+static bool packet_apply(EditorSceneSession *session, Report *report) {
     SceneWire *wire = &session->wire;
     if(!wire->authenticated) {
         if(wire->kind != SCENE_HELLO || memcmp(wire->rx, session->token, SCENE_TOKEN_TEXT_SIZE - 1)) return false;
@@ -160,6 +168,40 @@ static bool packet_apply(EditorSceneSession *session) {
         return true;
     }
     switch(wire->kind) {
+        case SCENE_DIAGNOSTIC: {
+            ReportDiagnostic diagnostic;
+            if(!scene_diagnostic_decode(wire->rx, &diagnostic)) return false;
+            (void)report_diagnostic_add(report, diagnostic);
+            if(diagnostic.severity == ROHR_REPORT_SEVERITY_FATAL && !session->remote_fatal) {
+                session->remote_fatal = true;
+                if(!session->failed) {
+                    session->failed = true;
+                    SDL_strlcpy(session->error, diagnostic.detail, sizeof(session->error));
+                }
+                /* Evidence is already in this update; do not synthesize a
+                 * duplicate fatal if cleanup later disconnects or times out. */
+                if(!session->stopping) {
+                    session->stopping = true;
+                    session->deadline = SDL_GetTicks() + SCENE_STOP_TIMEOUT_MS;
+                    session->control_count = 0;
+                }
+                /* The runner is already cleaning up. Writing another control
+                 * can reset a closed peer before its diagnostic tail is read. */
+                session->stop_sent = true;
+                session->state = EDITOR_SCENE_FAILED;
+            }
+            return true;
+        }
+        case SCENE_EXIT:
+            session->exit_received = true;
+            if(!session->stopping) {
+                session->stopping = true;
+                session->deadline = SDL_GetTicks() + SCENE_STOP_TIMEOUT_MS;
+            }
+            session->stop_sent = true;
+            session->state = session->remote_fatal ? EDITOR_SCENE_FAILED : EDITOR_SCENE_STOPPING;
+            session->failed |= session->remote_fatal;
+            return true;
         case SCENE_FRAME: {
             uint32_t width = scene_u32_read(wire->rx), height = scene_u32_read(wire->rx + 4);
             if(!width || !height || width > SCENE_FRAME_SIDE_MAX || height > SCENE_FRAME_SIDE_MAX ||
@@ -201,6 +243,12 @@ static void controls_flush(EditorSceneSession *session, size_t *budget) {
     SceneWire *wire = &session->wire;
     if(!scene_wire_flush(wire, budget)) return;
     if(!wire->authenticated) return;
+    if(session->exit_received) {
+        if(!scene_wire_busy_check(wire) && !session->exit_ack_sent)
+            session->exit_ack_sent = scene_wire_send(wire, SCENE_EXIT_ACK, NULL, 0);
+        (void)scene_wire_flush(wire, budget);
+        return;
+    }
     for(unsigned i = 0; i < SCENE_CONTROL_CAPACITY && *budget && !scene_wire_busy_check(wire); ++i) {
         if(session->stopping) {
             if(!session->stop_sent) session->stop_sent = scene_wire_send(wire, SCENE_STOP, NULL, 0);
@@ -239,7 +287,7 @@ Report editor_scene_session_update(EditorSceneSession *session) {
             for(unsigned i = 0; i < 64 && budget; ++i) {
                 int received = scene_wire_receive(&session->wire, &budget);
                 if(received <= 0) break;
-                if(!packet_apply(session)) { session_fail(session, "Invalid scene handshake or message"); break; }
+                if(!packet_apply(session, &report)) { session_fail(session, "Invalid scene handshake or message"); break; }
             }
             budget = SCENE_PUMP_BYTES;
             controls_flush(session, &budget);
@@ -247,7 +295,7 @@ Report editor_scene_session_update(EditorSceneSession *session) {
         if((session->wire.failed || session->wire.closed) && !session->stopping)
             session_fail(session, session->wire.failed ? session->wire.error : "Scene process disconnected");
         if(session->state == EDITOR_SCENE_STARTING && SDL_GetTicks() >= session->deadline)
-            session_fail(session, "Scene startup timed out; rebuild scene.c with rohr_scene_run callbacks");
+            session_fail(session, "Scene startup timed out; regenerate and rebuild the simulation executable");
         if(session->stopping && !session->killed && SDL_GetTicks() >= session->deadline) {
             if(SDL_KillProcess(session->process, true)) {
                 session->killed = true;
@@ -255,8 +303,9 @@ Report editor_scene_session_update(EditorSceneSession *session) {
             } else session_fail(session, SDL_GetError());
         }
         int exit_code;
-        if(SDL_WaitProcess(session->process, false, &exit_code) && logs_finished) {
-            if(!session->stopping || (exit_code != 0 && !session->killed)) {
+        if(SDL_WaitProcess(session->process, false, &exit_code) && logs_finished &&
+                (session->wire.socket == SCENE_SOCKET_INVALID || session->wire.closed || session->wire.failed)) {
+            if(!session->stopping || (exit_code != 0 && !session->killed && !session->remote_fatal)) {
                 char detail[128]; SDL_snprintf(detail, sizeof(detail), "Scene exited with code %d", exit_code);
                 session_fail(session, detail);
             }
@@ -274,6 +323,7 @@ Report editor_scene_session_update(EditorSceneSession *session) {
     }
 done:
     report.header.total_ms = (double)(SDL_GetTicksNS() - started) / 1e6;
+    if(session && session->report_output) session->report_output(session->report_context, &report);
     report_publish_internal(&report); return report;
 }
 void editor_scene_session_destroy(EditorSceneSession *session) {
@@ -287,7 +337,18 @@ void editor_scene_session_destroy(EditorSceneSession *session) {
     if(session->process) {
         (void)SDL_KillProcess(session->process, true);
         (void)SDL_WaitProcess(session->process, true, NULL);
-        SDL_DestroyProcess(session->process);
+        session->killed = true;
+        session_fail(session, "Scene did not stop within two seconds and was terminated");
+        /* The producer is gone. Drain its bounded pipe/socket tail and publish
+         * the forced-stop report before releasing the process and observers. */
+        for(unsigned i = 0; i < 16 && session->process; ++i)
+            (void)editor_scene_session_update(session);
+        if(session->process) {
+            Report report = report_create(); report.header.id = ROHR_SCENE_SESSION_REPORT_ID;
+            diagnostic_add(&report, false, "Scene final drain limit reached; remaining output omitted", 1);
+            if(session->report_output) session->report_output(session->report_context, &report);
+            SDL_DestroyProcess(session->process);
+        }
     }
     connection_close(session); SDL_free((void *)session->frame.pixels); SDL_free(session);
 }
@@ -298,6 +359,12 @@ EditorSceneInputMode editor_scene_session_input_mode_get(const EditorSceneSessio
 const char *editor_scene_session_error_get(const EditorSceneSession *session) { return session ? session->error : "Scene session is null"; }
 const char *editor_scene_session_log_get(const EditorSceneSession *session) { return session ? session->log : ""; }
 uint64_t editor_scene_session_log_dropped_get(const EditorSceneSession *session) { return session ? session->log_dropped : 0; }
+void editor_scene_session_output_set(EditorSceneSession *session, EditorSceneOutput output, void *context) {
+    if(session) { session->output=output; session->output_context=context; }
+}
+void editor_scene_session_report_output_set(EditorSceneSession *session, EditorSceneReportOutput output, void *context) {
+    if(session) { session->report_output=output; session->report_context=context; }
+}
 bool editor_scene_session_pointer_map(const EditorSceneFrame *frame, SDL_FRect viewport, SDL_FPoint point, SDL_FPoint *logical) {
     if(!frame || !logical || frame->width <= 0 || frame->height <= 0 || viewport.w <= 0 || viewport.h <= 0 ||
             !isfinite(viewport.x) || !isfinite(viewport.y) || !isfinite(viewport.w) || !isfinite(viewport.h) ||

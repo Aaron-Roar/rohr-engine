@@ -74,6 +74,25 @@ static Report update(void *context, Tick ticks, Time time) {
     assert(fabs(position.result.value.x - expected) < .01);
     Report report = report_create(); report.header = (ReportHeader){ROHR_REPORT_CUSTOM_ID_BEGIN, ROHR_REPORT_COMPLETE, 0};
     ++updates;
+    if(!strcmp(mode, "diagnostics") || !strcmp(mode, "diagnostic_overflow")) {
+        unsigned count = !strcmp(mode, "diagnostics") ? 1 : ROHR_REPORT_DIAGNOSTIC_CAPACITY + 20;
+        for(unsigned i = 0; i < count; ++i) {
+            ReportDiagnostic diagnostic = {.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN,
+                .internal_stage = 42, .code = ERROR_ENGINE_STATE_INVALID,
+                .severity = ROHR_REPORT_SEVERITY_WARNING, .recovery = ROHR_REPORT_CONTRIBUTION_SKIPPED,
+                .source = {ROHR_REPORT_OBJECT_ENTITY, i + 123}, .occurrence_count = 2};
+            OK(report_diagnostic_detail_set(&diagnostic, "fixture repeated warning"));
+            OK(report_diagnostic_add(&report, diagnostic));
+        }
+        if(updates == 6) {
+            ReportDiagnostic fatal = {.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN,
+                .internal_stage = 43, .code = ERROR_ENGINE_STATE_INVALID,
+                .severity = ROHR_REPORT_SEVERITY_FATAL, .recovery = ROHR_REPORT_UPDATE_ABORTED,
+                .occurrence_count = 1};
+            OK(report_diagnostic_detail_set(&fatal, "fixture final diagnostic"));
+            OK(report_diagnostic_add(&report, fatal));
+        }
+    }
     if(!strcmp(mode, "update_fail")) {
         ReportDiagnostic diagnostic = {.report_id = ROHR_REPORT_CUSTOM_ID_BEGIN, .code = ERROR_ENGINE_STATE_INVALID,
             .severity = ROHR_REPORT_SEVERITY_FATAL, .recovery = ROHR_REPORT_UPDATE_ABORTED, .occurrence_count = 1};

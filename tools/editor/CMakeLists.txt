@@ -13,6 +13,7 @@ add_executable(rohr_editor_gui
     src/panels/editor_generation_report.c
     src/panels/editor_notification_panel.c
     src/panels/editor_physics_settings_panel.c
+    src/panels/editor_scene_panel.c
     src/panels/editor_scene_settings_panel.c
     src/panels/editor_input_settings_panel.c
     src/panels/editor_notification_store.c
@@ -74,6 +75,21 @@ install(TARGETS rohr_editor_gui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_BINDIR}/assets)
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_scene_panel_test tests/editor_scene_panel.c
+        src/panels/editor_scene_panel.c src/panels/editor_notification_panel.c
+        src/panels/editor_notification_store.c src/panels/editor_terminal_panel.c)
+    target_include_directories(editor_scene_panel_test PRIVATE src ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_scene_panel_test PRIVATE rohr_editor_core rohr_terminal)
+    set_target_properties(editor_scene_panel_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(editor_scene_panel_test PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_scene_panel_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(editor_scene_panel_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME editor_scene_panel COMMAND editor_scene_panel_test $<TARGET_FILE:scene_child_test>)
+    set_tests_properties(editor_scene_panel PROPERTIES TIMEOUT 30 ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_executable(editor_scene_settings_test tests/editor_scene_settings.c
         src/editor_history.c src/editors/editor_mode_controls.c src/panels/editor_scene_settings_panel.c)
     target_include_directories(editor_scene_settings_test PRIVATE src ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/lib)

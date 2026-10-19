@@ -1001,6 +1001,12 @@ See [scene hosting](scene_projects.md#editor-core-host) for callback ownership,
 transport capacities, request/acknowledgement timing, and failure recovery.
 `ROHR_SCENE_REPORT` and `ROHR_SCENE_SESSION_REPORT` select the latest published
 copies and are included in `ROHR_REPORT`. They do not provide report history.
-Logs are a separate bounded text stream; a truncation warning counts discarded
-bytes. A session reports its first failure once, preserves that text in its error
-getter, and requires the previous child to be reaped before another launch.
+Logs are a separate bounded text stream. Without a byte sink, a truncation
+warning counts discarded bytes; with a sink, each read is delivered once and
+rotation of the retained tail is not lost delivery. Structured child diagnostics
+stream independently, preserving their report/stage and object identities,
+severity, details, counts, and first-fatal evidence. Each session update owns only
+newly observed evidence, including cleanup; it does not replay the child's
+cumulative report. A borrowed report observer can receive updates during session
+destruction. The session preserves its first failure text and requires the
+previous child to be reaped before another launch.

@@ -24,15 +24,57 @@ static bool scene_result(Report *report, EngineResult result) {
     if(!error_check(result)) return true;
     scene_issue(report, result.result.error, error_result_message_get(result.kind, result.result.error)); return false;
 }
-static bool scene_child(Report *report, Report child) {
-    (void)report_merge(report, &child);
-    return child.header.status != ROHR_REPORT_FAILED;
-}
 typedef struct SceneRun {
     SceneWire wire;
     uint64_t sequence;
-    bool paused, focused, stop, state_dirty;
+    bool paused, focused, stop, state_dirty, fatal_sent;
+    Report pending;
 } SceneRun;
+static bool diagnostic_same_check(const ReportDiagnostic *a, const ReportDiagnostic *b) {
+    return a->report_id==b->report_id && a->internal_stage==b->internal_stage &&
+        a->severity==b->severity && a->code==b->code && a->recovery==b->recovery &&
+        a->source.kind==b->source.kind && a->source.id==b->source.id &&
+        a->target.kind==b->target.kind && a->target.id==b->target.id &&
+        a->group_version==b->group_version && !strcmp(a->detail,b->detail);
+}
+static bool scene_child(SceneRun *run, Report *report, Report child) {
+    bool fatal_in_list=false;
+    for(size_t i=0;i<child.diagnostic_count;++i) {
+        report_diagnostic_collect_internal(&run->pending,child.diagnostics[i]);
+        fatal_in_list |= child.has_fatal && diagnostic_same_check(&child.first_fatal,&child.diagnostics[i]);
+    }
+    if(child.has_fatal && !fatal_in_list) report_diagnostic_collect_internal(&run->pending,child.first_fatal);
+    uint64_t dropped=child.dropped_diagnostic_occurrences;
+    run->pending.dropped_diagnostic_occurrences = UINT64_MAX-run->pending.dropped_diagnostic_occurrences<dropped ?
+        UINT64_MAX : run->pending.dropped_diagnostic_occurrences+dropped;
+    (void)report_merge(report, &child);
+    return child.header.status != ROHR_REPORT_FAILED;
+}
+/* One bounded diagnostic packet at a time; fatal evidence precedes ordinary issues. */
+static bool scene_diagnostics_flush(SceneRun *run, size_t *budget) {
+    if(!scene_wire_flush(&run->wire,budget)) return false;
+    for(unsigned n=0;n<64 && *budget && !scene_wire_busy_check(&run->wire);++n) {
+        Report *p=&run->pending;
+        ReportDiagnostic value={0}; size_t index=SIZE_MAX;
+        if(p->has_fatal && !run->fatal_sent) {
+            value=p->first_fatal; run->fatal_sent=true;
+            for(size_t i=0;i<p->diagnostic_count;++i)
+                if(diagnostic_same_check(&value,&p->diagnostics[i])) { index=i; value=p->diagnostics[i]; break; }
+        } else if(p->diagnostic_count) { index=p->diagnostic_count-1; value=p->diagnostics[index]; }
+        else if(p->dropped_diagnostic_occurrences) {
+            value=(ReportDiagnostic){.report_id=ROHR_SCENE_REPORT_ID,.code=ERROR_ENGINE_STATE_INVALID,
+                .severity=ROHR_REPORT_SEVERITY_WARNING,.recovery=ROHR_REPORT_CONTRIBUTION_SKIPPED,
+                .occurrence_count=p->dropped_diagnostic_occurrences};
+            SDL_strlcpy(value.detail,"Scene diagnostic capacity exceeded; occurrences omitted",sizeof(value.detail));
+            p->dropped_diagnostic_occurrences=0;
+        } else break;
+        unsigned char data[SCENE_DIAGNOSTIC_BYTES]; scene_diagnostic_encode(&value,data);
+        if(!scene_wire_send(&run->wire,SCENE_DIAGNOSTIC,data,sizeof(data))) return false;
+        if(index!=SIZE_MAX) { p->diagnostics[index]=p->diagnostics[--p->diagnostic_count]; }
+        if(!scene_wire_flush(&run->wire,budget)) return false;
+    }
+    return true;
+}
 static bool scene_capture_ready(void *context) {
     SceneRun *run = context;
     return !scene_wire_busy_check(&run->wire) && !run->state_dirty;
@@ -141,6 +183,7 @@ Report scene_run(int argc, char **argv, SceneCallbacks callbacks) {
     uint64_t started = SDL_GetTicksNS();
     Report report = report_create(); report.header = (ReportHeader){ROHR_SCENE_REPORT_ID, ROHR_REPORT_COMPLETE, 0};
     SceneRun run = {.wire = {.socket = SCENE_SOCKET_INVALID}, .state_dirty = true};
+    run.pending = report_create(); run.pending.header.id = ROHR_SCENE_REPORT_ID;
     bool hosted = argc == 4 && argv && argv[1] && argv[2] && argv[3] && strcmp(argv[1], "--rohr-scene-host") == 0;
     bool transport = false, engine = false, initialized = false;
     if(!callbacks.initialize || !callbacks.shutdown || (argc != 1 && !hosted)) {
@@ -176,17 +219,17 @@ Report scene_run(int argc, char **argv, SceneCallbacks callbacks) {
         if(hosted && !scene_commands(&run, &report)) break;
         if(run.stop || (!hosted && input_key_pressed_check(SDL_SCANCODE_ESCAPE))) break;
         if(!run.paused) {
-            if(!scene_child(&report, engine_update())) break;
-            if(callbacks.update && !scene_child(&report, callbacks.update(callbacks.context,
+            if(!scene_child(&run, &report, engine_update())) break;
+            if(callbacks.update && !scene_child(&run, &report, callbacks.update(callbacks.context,
                     engine_tick_delta_get(), engine_time_get()))) break;
-            if(!scene_child(&report, physics_update(engine_tick_delta_get())) ||
-                    !scene_child(&report, audio_update()) ||
-                    !scene_child(&report, graphics_sprite_frames_update(engine_tick_get(), engine_time_get()))) break;
-            if(!scene_child(&report, graphics_show())) break;
+            if(!scene_child(&run, &report, physics_update(engine_tick_delta_get())) ||
+                    !scene_child(&run, &report, audio_update()) ||
+                    !scene_child(&run, &report, graphics_sprite_frames_update(engine_tick_get(), engine_time_get()))) break;
+            if(!scene_child(&run, &report, graphics_show())) break;
         }
         if(hosted) {
             size_t budget = SCENE_PUMP_BYTES;
-            if(!scene_wire_flush(&run.wire, &budget)) {
+            if(!scene_diagnostics_flush(&run, &budget)) {
                 scene_issue(&report, ERROR_ENGINE_STATE_INVALID, run.wire.error); break;
             }
             /* State follows every completed frame, and explicit controls while
@@ -203,16 +246,38 @@ Report scene_run(int argc, char **argv, SceneCallbacks callbacks) {
 done:
     if(initialized) callbacks.shutdown(callbacks.context);
     if(engine) {
-        (void)scene_child(&report, audio_stop());
+        (void)scene_child(&run, &report, audio_stop());
         graphics_stop(); engine_stop();
         (void)audio_scene_pause_set(false);
         graphics_scene_configure(false, NULL, NULL, NULL);
     }
-    if(hosted && report.header.status == ROHR_REPORT_FAILED && !scene_wire_busy_check(&run.wire) &&
-            run.wire.socket != SCENE_SOCKET_INVALID) {
-        const char *detail = report.has_fatal ? report.first_fatal.detail : "Scene execution failed";
-        (void)scene_wire_send(&run.wire, SCENE_FAILURE, detail, SDL_min(strlen(detail) + 1, 256));
-        size_t budget = SCENE_PUMP_BYTES; (void)scene_wire_flush(&run.wire, &budget);
+    if(hosted && run.wire.authenticated && !run.wire.failed && !run.wire.closed) {
+        if(report.has_fatal && report.first_fatal.report_id==ROHR_SCENE_REPORT_ID && !run.pending.has_fatal)
+            report_diagnostic_collect_internal(&run.pending,report.first_fatal);
+        bool exit_sent=false, exit_acknowledged=false;
+        uint64_t deadline=SDL_GetTicks()+SCENE_STOP_TIMEOUT_MS;
+        while(SDL_GetTicks()<deadline) {
+            size_t budget=SCENE_PUMP_BYTES;
+            /* Drain controls already in flight. Wait for receipt of the final
+             * marker before closing: closing with unread controls can reset TCP
+             * and discard diagnostic bytes the host has not yet consumed. */
+            for(unsigned i=0;i<64 && budget;++i) {
+                int received=scene_wire_receive(&run.wire,&budget);
+                if(received<=0) break;
+                if(run.wire.kind==SCENE_EXIT_ACK) exit_acknowledged=true;
+            }
+            budget=SCENE_PUMP_BYTES;
+            if(!scene_diagnostics_flush(&run,&budget)) break;
+            if(!scene_wire_busy_check(&run.wire) && !run.pending.diagnostic_count &&
+                    !run.pending.dropped_diagnostic_occurrences) {
+                if(exit_sent && exit_acknowledged) break;
+                if(!exit_sent) {
+                    if(!scene_wire_send(&run.wire,SCENE_EXIT,NULL,0)) break;
+                    exit_sent=true;
+                }
+            }
+            SDL_Delay(1);
+        }
     }
     scene_wire_destroy(&run.wire);
     if(transport) scene_transport_stop();

@@ -14,6 +14,8 @@
 #include "editor_project.h"
 #include "editor_workspace.h"
 #include "editor_build.h"
+#include "input/input_internal.h"
+#include "panels/editor_scene_panel.h"
 #include <signal.h>
 #include "browser/editor_file_browser.h"
 #include "editor_history.h"
@@ -410,6 +412,8 @@ typedef struct EditorBuildRuntime {
     int pending; /* menu index + 1; zero means no queued build */
     bool output_shown;
     bool prepare_scene;
+    bool launch_scene;
+    EditorScenePanel panel;
     char prepared_scene[EDITOR_WORKSPACE_PATH_MAX * 2];
 } EditorBuildRuntime;
 static volatile sig_atomic_t editor_interrupt_requested;
@@ -430,7 +434,10 @@ static void editor_build_runtime_cancel(EditorBuildRuntime *runtime) {
     runtime->pending = 0;
     runtime->prepare_scene = false;
     editor_build_cancel(runtime->build);
+    editor_scene_panel_stop(&runtime->panel);
     editor_scene_session_destroy(runtime->scene); runtime->scene = NULL;
+    editor_scene_panel_attach(&runtime->panel, NULL);
+    runtime->panel.available = runtime->panel.selected = runtime->launch_scene = false;
     editor_build_process_destroy(runtime->application); runtime->application = NULL;
     runtime->prepared_scene[0] = 0;
 }
@@ -443,8 +450,9 @@ static void editor_build_request(EditorBuildRuntime *runtime, int index,
     }
     runtime->pending = index + 1;
     runtime->prepare_scene = false;
+    runtime->launch_scene = false;
     if(index == EDITOR_BUILD_ACTION_SCENE || index == EDITOR_BUILD_ACTION_PROJECT || index == EDITOR_BUILD_ACTION_SIMULATE) {
-        editor_scene_session_stop(runtime->scene);
+        editor_scene_panel_stop(&runtime->panel);
         runtime->prepared_scene[0] = 0;
     }
     if(index == EDITOR_BUILD_ACTION_APPLICATION || index == EDITOR_BUILD_ACTION_PROJECT || index == EDITOR_BUILD_ACTION_COMPILE)
@@ -455,10 +463,8 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
         EditorTerminalPanel *terminal, EditorNotificationPanel *notifications,
         bool show_output, bool show_tree) {
     if(runtime->scene) {
-        Report report = editor_scene_session_update(runtime->scene);
-        if(report.header.status == ROHR_REPORT_FAILED)
-            editor_build_notification_start_failure(notifications, "Simulate Scene",
-                editor_scene_session_error_get(runtime->scene));
+        (void)editor_scene_session_update(runtime->scene);
+        editor_scene_panel_update(&runtime->panel);
     }
     if(editor_build_process_active_check(runtime->application)) {
         bool finished; int code;
@@ -490,10 +496,20 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
                 result = editor_build_scene_prepared_get(runtime->build,
                     runtime->prepared_scene, sizeof(runtime->prepared_scene));
                 if(editor_result_check(result)) editor_error_notification_failure(notifications, "Simulate Scene", result);
-                else editor_notification_panel_push(notifications, "Scene ready", runtime->prepared_scene);
+                else if(runtime->launch_scene) {
+                    if(!runtime->scene) runtime->scene = editor_scene_session_create();
+                    editor_scene_panel_attach(&runtime->panel, runtime->scene);
+                    editor_scene_panel_run_begin(&runtime->panel);
+                    EngineResult launched = editor_scene_session_launch(runtime->scene, runtime->prepared_scene);
+                    if(rohr_error_check(launched)) {
+                        editor_scene_panel_stop(&runtime->panel);
+                        if(runtime->scene) (void)editor_scene_session_update(runtime->scene);
+                        else editor_build_notification_start_failure(notifications, "Run Scene", rohr_error_message_get(launched));
+                    }
+                } else editor_notification_panel_push(notifications, "Scene ready", runtime->prepared_scene);
             }
         }
-        if(editor_result_check(result) || finished) runtime->prepare_scene = false;
+        if(editor_result_check(result) || finished) runtime->prepare_scene = runtime->launch_scene = false;
     }
     if(!runtime->pending || !workspace->open) return;
     int index = runtime->pending - 1;
@@ -540,6 +556,7 @@ static void editor_run_request(EditorBuildRuntime *runtime, const EditorWorkspac
         editor_build_notification_start_failure(notifications, operation, "Wait for the active build to finish before running."); return;
     }
     if(scene) {
+        runtime->panel.available = runtime->panel.selected = true;
         editor_build_request(runtime, EDITOR_BUILD_ACTION_SIMULATE, notifications);
         return;
     }
@@ -554,6 +571,20 @@ static void editor_run_request(EditorBuildRuntime *runtime, const EditorWorkspac
     const char *arguments[] = {executable, NULL};
     result = editor_build_process_start(runtime->application, workspace->directory, arguments);
     if(editor_result_check(result)) editor_error_notification_failure(notifications, operation, result);
+}
+
+static void editor_scene_stop_request(EditorBuildRuntime *runtime) {
+    if(runtime->pending == EDITOR_BUILD_ACTION_SIMULATE + 1 || runtime->prepare_scene) {
+        runtime->pending = 0;
+        editor_build_cancel(runtime->build);
+    }
+    runtime->prepare_scene = runtime->launch_scene = false;
+    runtime->prepared_scene[0] = 0;
+    editor_scene_panel_stop(&runtime->panel);
+}
+static SDL_FRect editor_scene_bounds_get(void) {
+    return (SDL_FRect){0, EDITOR_VIEWPORT_TOP, EDITOR_VIEWPORT_WIDTH,
+        fmaxf(0, EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP)};
 }
 
 static void editor_operation_command_write(const EditorCommand *editor_command,
@@ -2302,6 +2333,7 @@ int main(int argc, char **argv) {
     char startup_directory[EDITOR_FILE_BROWSER_PATH_MAX] = {0};
     bool running = !startup_check;
     bool field_editing = false;
+    bool scene_menu_open = false;
     bool panel_resizing = false;
     bool terminal_resizing = false;
     bool terminal_editor_operations = true;
@@ -2487,7 +2519,8 @@ int main(int argc, char **argv) {
             !editor_input_settings_panel_create(&input_settings_panel, &font) ||
             !editor_notification_panel_create(&notification_panel, &font,
                 &notification_font) ||
-            !editor_terminal_panel_create(&terminal_panel, &font)) goto fail;
+            !editor_terminal_panel_create(&terminal_panel, &font) ||
+            !editor_scene_panel_create(&build_runtime.panel, &font, &terminal_panel, &notification_panel)) goto fail;
     for(size_t i = 0; i < EDITOR_MODE_ACCORDION_COUNT; i += 1) {
         EditorViewportMode mode = (EditorViewportMode)i;
         if(!editor_mode_properties_accordion_check(mode)) continue;
@@ -2528,9 +2561,27 @@ int main(int argc, char **argv) {
         bool pointer_selection_handled = false;
         EDITOR_VIEWPORT_BOTTOM = editor_terminal_panel_viewport_bottom_get(
             &terminal_panel);
+        EDITOR_VIEWPORT_TOP = EDITOR_MENU_HEIGHT + (workspace.open ? EDITOR_SCENE_TAB_HEIGHT : 0);
         viewport_wheel_y = 0.0f;
         rohr_input_frame_begin();
-        while((event = rohr_engine_event_poll()).type != 0) {
+        while(SDL_PollEvent(&event)) {
+            bool scene_blocked = !workspace.open || file_browser.active || scene_menu_open ||
+                editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
+                build_settings_panel.open || visual_settings_panel.open || color_picker.open ||
+                physics_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
+                notification_panel.log_open || input_settings_panel.key_capture_active ||
+                close_action != EDITOR_CLOSE_NONE;
+            /* Notifications and the resize grips are editor-owned overlays. */
+            Position event_point = {0};
+            if(event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+                event_point = graphics_window_to_screen_get((Position){event.button.x, event.button.y});
+                scene_blocked |= fabsf(event_point.x - EDITOR_VIEWPORT_WIDTH) <= EDITOR_DIVIDER_GRAB_WIDTH ||
+                    fabsf(event_point.y - EDITOR_VIEWPORT_BOTTOM) <= 6.0f ||
+                    (event_point.x >= 14 && event_point.x <= 204 && event_point.y >=
+                        EDITOR_ACTION_BAR_TOP - 40.0f * notification_panel.store.toast_count);
+            }
+            if(editor_scene_panel_event_add(&build_runtime.panel, &event, editor_scene_bounds_get(), scene_blocked)) continue;
+            input_event_add(&event);
             EditorHistoryShortcutResult shortcut = build_settings_panel.open ||
                 visual_settings_panel.open || physics_settings_panel.open ||
                 input_settings_panel.key_capture_active ?
@@ -2557,7 +2608,7 @@ int main(int argc, char **argv) {
                     (event.key.mod & SDL_KMOD_CTRL) &&
                     (build_runtime.pending || editor_build_active_check(build_runtime.build))) {
                 build_runtime.pending = 0;
-                build_runtime.prepare_scene = false;
+                build_runtime.prepare_scene = build_runtime.launch_scene = false;
                 build_runtime.prepared_scene[0] = 0;
                 editor_build_cancel(build_runtime.build);
                 editor_notification_panel_push(&notification_panel, "Build cancelled", "The active build was interrupted.");
@@ -2737,8 +2788,8 @@ int main(int argc, char **argv) {
                 }
             }
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            bool pointer_in_viewport = pointer.x >= 0.0f &&
-                pointer.x < EDITOR_VIEWPORT_WIDTH && pointer.y >= EDITOR_MENU_HEIGHT &&
+            bool pointer_in_viewport = !build_runtime.panel.selected && pointer.x >= 0.0f &&
+                pointer.x < EDITOR_VIEWPORT_WIDTH && pointer.y >= EDITOR_VIEWPORT_TOP &&
                 pointer.y < EDITOR_VIEWPORT_BOTTOM;
             bool up = rohr_input_key_pressed_check(SDL_SCANCODE_UP);
             bool down = rohr_input_key_pressed_check(SDL_SCANCODE_DOWN);
@@ -3665,12 +3716,30 @@ int main(int argc, char **argv) {
             }
         }
         rohr_graphics_screen_clip_clear();
+        if(build_runtime.panel.selected) {
+            bool transform_active = editor_viewport_transform_active_check(&viewport_state);
+            editor_viewport_transform_cancel(&viewport_state);
+            viewport_state.marquee_active = viewport_state.camera_panning = false;
+            (void)editor_navigation_viewport_transform_history_update(
+                &project, &viewport_state, &history, transform_active);
+        }
         (void)rohr_graphics_screen_clip_set(
-            0.0f, EDITOR_MENU_HEIGHT, EDITOR_VIEWPORT_WIDTH,
-            EDITOR_VIEWPORT_BOTTOM - EDITOR_MENU_HEIGHT);
+            0.0f, EDITOR_VIEWPORT_TOP, EDITOR_VIEWPORT_WIDTH,
+            EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP);
         editor_viewport_asset_root_set(workspace.open ? workspace.directory : NULL);
-        editor_viewport_draw(&project, &viewport_state,
+        if(!build_runtime.panel.selected) editor_viewport_draw(&project, &viewport_state,
             visual_settings_panel.state.grid_visible);
+        rohr_graphics_screen_clip_clear();
+        if(workspace.open) {
+            EditorSceneAction action = editor_scene_panel_draw(&build_runtime.panel,
+                editor_scene_bounds_get(), build_runtime.pending || editor_build_active_check(build_runtime.build));
+            if(action == EDITOR_SCENE_ACTION_EDITOR || action == EDITOR_SCENE_ACTION_STOP)
+                editor_scene_stop_request(&build_runtime);
+            else if(action == EDITOR_SCENE_ACTION_RUN) {
+                editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_SIMULATE, &notification_panel);
+                if(build_runtime.pending == EDITOR_BUILD_ACTION_SIMULATE + 1) build_runtime.launch_scene = true;
+            }
+        }
         rohr_graphics_screen_clip_clear();
         (void)rohr_graphics_screen_clip_set(0.0f, EDITOR_VIEWPORT_BOTTOM,
             EDITOR_VIEWPORT_WIDTH, EDITOR_WINDOW_HEIGHT - EDITOR_VIEWPORT_BOTTOM);
@@ -3686,8 +3755,8 @@ int main(int argc, char **argv) {
                 &color_picker_hex_field, &color_picker_opacity_field,
                 &opacity_label, &field_editing);
         }
-        editor_coordinate_toggle_draw(&coordinate_toggle, &project,
-            &viewport_state, EDITOR_MENU_HEIGHT);
+        if(!build_runtime.panel.selected) editor_coordinate_toggle_draw(&coordinate_toggle, &project,
+            &viewport_state, EDITOR_VIEWPORT_TOP);
         {
             bool context_visible = true;
             char context_name[EDITOR_OBJECT_NAME_MAX] = {0};
@@ -3879,10 +3948,12 @@ int main(int argc, char **argv) {
                 }
             }
 
+            scene_menu_open = false;
             rohr_ui_modal_controls_begin();
             file_menu = rohr_ui_menu("editor.menu.file", &file_label, file_options,
                 sizeof(file_options) / sizeof(file_options[0]),
                 file_bounds, NULL);
+            scene_menu_open |= file_menu.open;
             if(file_menu.changed && file_menu.selected_index == 0) {
                 workspace_browser_action = EDITOR_WORKSPACE_BROWSER_NEW;
                 (void)editor_file_browser_open(&file_browser,
@@ -3921,6 +3992,7 @@ int main(int argc, char **argv) {
                     &edit_label, edit_options,
                     sizeof(edit_options) / sizeof(edit_options[0]),
                     edit_bounds, NULL);
+            scene_menu_open |= edit_menu.open;
                 bool restored = false;
                 if(edit_menu.changed && edit_menu.selected_index == 0)
                     restored = editor_history_undo(&history);
@@ -3934,6 +4006,7 @@ int main(int argc, char **argv) {
                     &build_label, build_options,
                     sizeof(build_options) / sizeof(build_options[0]),
                     build_bounds, NULL);
+            scene_menu_open |= build_menu.open;
                 if(build_menu.changed && workspace.open && build_menu.selected_index == EDITOR_BUILD_ACTION_SETTINGS) {
                     scene_settings_panel.open = true;
                     scene_settings_panel.scroll = 0;
@@ -3943,6 +4016,7 @@ int main(int argc, char **argv) {
             {
                 UIDropdownResult run_menu = rohr_ui_menu("editor.menu.run", &run_label,
                     run_options, SDL_arraysize(run_options), run_bounds, NULL);
+            scene_menu_open |= run_menu.open;
                 if(run_menu.changed && workspace.open)
                     editor_run_request(&build_runtime, &workspace,
                         run_menu.selected_index == 1, &notification_panel);
@@ -3952,6 +4026,7 @@ int main(int argc, char **argv) {
                     "editor.menu.view", &view_label, view_options,
                 sizeof(view_options) / sizeof(view_options[0]),
                 view_bounds, NULL);
+            scene_menu_open |= view_menu.open;
                 if(view_menu.changed && view_menu.selected_index == 0) {
                     EditorCommand command = {
                         .type = EDITOR_COMMAND_VIEWPORT_CAMERA,
@@ -3977,6 +4052,7 @@ int main(int argc, char **argv) {
                     "editor.menu.terminal", &terminal_menu_label, terminal_options,
                     sizeof(terminal_options) / sizeof(terminal_options[0]),
                     terminal_bounds, NULL);
+            scene_menu_open |= terminal_menu.open;
                 if(terminal_menu.changed && terminal_menu.selected_index == 0)
                     editor_terminal_panel_visible_toggle(&terminal_panel);
                 else if(terminal_menu.changed && terminal_menu.selected_index == 1)
@@ -3990,6 +4066,7 @@ int main(int argc, char **argv) {
                 &settings_label,
                 settings_options, sizeof(settings_options) / sizeof(settings_options[0]),
                 settings_bounds, NULL);
+            scene_menu_open |= settings_menu.open;
             if(settings_menu.changed && settings_menu.selected_index == 0 &&
                     workspace.open) {
                 EditorResult result = editor_build_settings_panel_open(
@@ -4404,9 +4481,9 @@ int main(int argc, char **argv) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if(workspace.open && pointer.x >= 0.0f &&
+            if(workspace.open && !build_runtime.panel.selected && pointer.x >= 0.0f &&
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
-                    pointer.y >= EDITOR_MENU_HEIGHT &&
+                    pointer.y >= EDITOR_VIEWPORT_TOP &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
                     pointer_state.button_states[MOUSE_BUTTON_RIGHT] ==
                         MOUSE_BUTTON_STATE_PRESSED &&
@@ -4437,13 +4514,13 @@ int main(int argc, char **argv) {
             }
             editor_auto_shape_picker_frame_end(&auto_shape_editor, pointer,
                 pointer_state.button_states[MOUSE_BUTTON_LEFT], false);
-            bool ui_consumed = !workspace.open || file_browser.active ||
+            bool ui_consumed = build_runtime.panel.selected || !workspace.open || file_browser.active ||
                 close_action != EDITOR_CLOSE_NONE ||
                 context_menu_modal ||
                 editor_viewport_context_menu_open_check(&viewport_context_menu) ||
                 color_picker.open ||
                 rohr_ui_pointer_consumed_get() ||
-                pointer.y < EDITOR_MENU_HEIGHT ||
+                pointer.y < EDITOR_VIEWPORT_TOP ||
                 pointer.y >= EDITOR_VIEWPORT_BOTTOM;
             bool viewport_consumed;
             bool selection_modifier_active =
@@ -4452,7 +4529,9 @@ int main(int argc, char **argv) {
             bool transform_before =
                 editor_viewport_transform_active_check(&viewport_state);
             bool pan_modifier = editor_control_modifier_check();
-            if(viewport_state.marquee_active) {
+            if(build_runtime.panel.selected) {
+                viewport_consumed = true;
+            } else if(viewport_state.marquee_active) {
                 viewport_consumed = true;
                 if(pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                         MOUSE_BUTTON_STATE_RELEASED) {
@@ -4485,7 +4564,7 @@ int main(int argc, char **argv) {
                         viewport_wheel_y, ui_consumed);
                 viewport_state.selection_modifier = false;
             }
-            if(selection_modifier_active &&
+            if(!build_runtime.panel.selected && selection_modifier_active &&
                     (pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
                             MOUSE_BUTTON_STATE_PRESSED ||
                         pointer_state.button_states[MOUSE_BUTTON_LEFT] ==
@@ -4594,6 +4673,12 @@ int main(int argc, char **argv) {
             viewport_state.dragged_viewport_text ||
             viewport_state.rotated_viewport_item);
         rohr_ui_update();
+        if(scene_menu_open || file_browser.active || color_picker.open ||
+                build_settings_panel.open || visual_settings_panel.open || physics_settings_panel.open ||
+                scene_settings_panel.open || notification_panel.report_open || notification_panel.log_open ||
+                close_action != EDITOR_CLOSE_NONE)
+            editor_scene_panel_focus_set(&build_runtime.panel, false);
+        editor_scene_panel_input_mode_apply(&build_runtime.panel, editor_scene_bounds_get());
         if(!file_browser.active) {
             (void)rohr_graphics_screen_rect_draw(
                 EDITOR_VIEWPORT_WIDTH - 1.0f, EDITOR_MENU_HEIGHT, 3.0f,
@@ -4615,6 +4700,7 @@ int main(int argc, char **argv) {
     editor_project_destroy(&project);
     editor_build_runtime_cancel(&build_runtime);
     editor_build_destroy(build_runtime.build); build_runtime.build = NULL;
+    editor_scene_panel_destroy(&build_runtime.panel);
     editor_terminal_panel_destroy(&terminal_panel);
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);
@@ -4717,6 +4803,7 @@ fail:
     editor_project_destroy(&project);
     editor_build_runtime_cancel(&build_runtime);
     editor_build_destroy(build_runtime.build); build_runtime.build = NULL;
+    editor_scene_panel_destroy(&build_runtime.panel);
     editor_terminal_panel_destroy(&terminal_panel);
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);

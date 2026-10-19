@@ -121,7 +121,11 @@ game executable is ready. A failure notification can be clicked for details.
 Choose **Run > Run Application** to launch the last built application without
 compiling again. Use **Build > Scene Settings** to choose simulation objects and
 an optional viewport. **Simulate Scene** regenerates, builds, and prepares that
-selection stopped; viewport tabs and playback controls follow in the next goal. CLI users can
+selection in the **Scene Simulation** tab, stopped. Press **Run** to rebuild and
+start, **Pause/Resume** to preserve and continue the current instance, or **Stop**
+to clear it. Selecting **Editor** also stops simulation. Property edits apply on
+the next fresh Run. Click the scene image to focus its input; Escape releases it.
+CLI users can
 run `rohr-cli --project . simulate-scene` to regenerate, build, and launch a scene
 now; add `--object <name>` and `--viewport <name>` before the operation to select
 its content.
