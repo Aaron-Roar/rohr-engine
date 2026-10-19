@@ -277,10 +277,9 @@ static bool scenario_get(int kind, Position shift, Snapshot *snapshot) {
         JointAnchorIdResult bb=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Position){4,4}});
         EntityResult joint=rohr_entity_add();
         OK(aa); OK(bb); OK(joint);
-        if(kind==1) OK(rohr_physics_joint_pin_set(joint.result.value,aa.result.value,bb.result.value));
-        if(kind==2) OK(rohr_physics_joint_weld_set(joint.result.value,aa.result.value,bb.result.value));
-        if(kind==3) OK(rohr_physics_joint_spring_set(joint.result.value,
-            aa.result.value,bb.result.value,1,8,0.5f));
+        if(kind==1) OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_PIN, .anchor_a = aa.result.value, .anchor_b = bb.result.value}));
+        if(kind==2) OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_WELD, .anchor_a = aa.result.value, .anchor_b = bb.result.value}));
+        if(kind==3) OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_SPRING, .anchor_a = aa.result.value, .anchor_b = bb.result.value, .rest_length = 1, .rest_length_explicit = true, .stiffness = 8, .damping = 0.5f}));
     }
     for(int step=0;step<100;step+=1) CHECK((rohr_system_physics_update(0.01)).header.status != ROHR_REPORT_FAILED);
     EntityIndex i=rohr_entity_index_get(a).result.value;

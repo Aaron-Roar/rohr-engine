@@ -501,17 +501,15 @@ EntityResult entity_object_description_add(const ObjectDescription *description,
         SpawnEntry *a = entry_get(&c, d->endpoint_a), *b = entry_get(&c, d->endpoint_b);
         JointAnchorId anchor_a = a ? a->anchor : JOINT_ANCHOR_INVALID;
         JointAnchorId anchor_b = b ? b->anchor : JOINT_ANCHOR_INVALID;
-        if(d->joint_type == JOINT_PIN) result = physics_joint_pin_set(c.entries[i].entity, anchor_a, anchor_b);
-        else if(d->joint_type == JOINT_WELD) result = physics_joint_weld_set(c.entries[i].entity, anchor_a, anchor_b);
-        else if(d->joint_type == JOINT_SPRING) result = physics_joint_spring_set(c.entries[i].entity, anchor_a, anchor_b, d->rest_length, d->stiffness, d->damping);
-        else result = error_result_error(ERROR_ENGINE_STATE_INVALID);
+        EntityResult owner = entity_owner_get(c.entries[i].entity);
+        if(error_check(owner)) { result = error_result_error(owner.result.error); goto fail; }
+        result = physics_joint_description_set(c.entries[i].entity, (JointDescription){
+            .owner = owner.result.value, .type = d->joint_type,
+            .anchor_a = anchor_a, .anchor_b = anchor_b,
+            .rest_length = d->rest_length, .rest_length_explicit = true,
+            .stiffness = d->stiffness, .damping = d->damping,
+            .rest_angle = d->rest_angle, .rest_angle_explicit = true});
         if(error_check(result)) goto fail;
-        if(d->joint_type == JOINT_WELD) {
-            EntityIndex index; entity_index_get(c.entries[i].entity,&index);
-            Joint joint=joints[index]; joint.rest_angle=d->rest_angle;
-            result=physics_joint_component_set(c.entries[i].entity,joint);
-            if(error_check(result)) goto fail;
-        }
     }
     /* All bodies, topology, and joint bindings exist before source validation. */
     for(size_t i = 0; i < c.count; ++i) {

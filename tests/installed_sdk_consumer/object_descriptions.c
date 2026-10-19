@@ -46,8 +46,10 @@ int main(void) {
     EntityResult particle = rohr_physics_particle_add(particle_description); OK(particle);
     EntityResult particle_copy = physics_particle_add(particle_description); OK(particle_copy);
     assert(particle.result.value != particle_copy.result.value);
-    JointDescription joint_description = {.owner = soft.result.value, .a = local.result.value,
-        .b = particle.result.value, .type = JOINT_PIN};
+    JointAnchorIdResult local_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = local.result.value}); OK(local_anchor);
+    JointAnchorIdResult particle_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = particle.result.value}); OK(particle_anchor);
+    JointDescription joint_description = {.owner = soft.result.value, .anchor_a = local_anchor.result.value,
+        .anchor_b = particle_anchor.result.value, .type = JOINT_PIN};
     EntityResult joint = rohr_physics_joint_add(joint_description); OK(joint);
     OK(physics_joint_add(joint_description));
     JointAnchorDescription anchor_description = {.entity = particle.result.value, .local_offset = {1, 0}};

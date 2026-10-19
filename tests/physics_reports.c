@@ -60,9 +60,8 @@ static Entity joint_make(Entity a, Entity b, bool spring) {
     JointAnchorIdResult first = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){0}}); OK(first);
     JointAnchorIdResult second = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){0}}); OK(second);
     if(spring) {
-        OK(rohr_physics_joint_spring_set(joint.result.value,
-            first.result.value, second.result.value, 2, 1, 0));
-    } else OK(rohr_physics_joint_pin_set(joint.result.value, first.result.value, second.result.value));
+        OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_SPRING, .anchor_a = first.result.value, .anchor_b = second.result.value, .rest_length = 2, .rest_length_explicit = true, .stiffness = 1, .damping = 0}));
+    } else OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_PIN, .anchor_a = first.result.value, .anchor_b = second.result.value}));
     return joint.result.value;
 }
 

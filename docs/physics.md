@@ -23,9 +23,49 @@ targets, or reference entities, and `rohr_entity_owner_set` preserves connection
 
 `ParticleDescription` retains particle configuration fields and defaults, with
 an optional owner. Use `rohr_physics_particle_description_default_get()` for a
-valid unit particle. `JointDescription` contains owner, endpoints `a`/`b`, type,
-local anchor offsets, stiffness, and damping; creation derives the initial rest
-length and angle from the endpoints as before.
+valid unit particle. Joints use one `JointDescription` for creation, complete
+replacement, and retrieval:
+
+```c
+JointDescription spring = {
+    .owner = assembly,
+    .type = JOINT_SPRING,
+    .anchor_a = anchor_a,
+    .anchor_b = anchor_b,
+    .rest_length = 100.0f,
+    .rest_length_explicit = true,
+    .stiffness = 20.0f,
+    .damping = 2.0f,
+};
+EntityResult created = rohr_physics_joint_add(spring);
+/* Check created before using its value. */
+EngineResult changed = rohr_physics_joint_description_set(joint, spring);
+JointDescriptionResult current = rohr_physics_joint_description_get(joint);
+```
+
+Only anchor handles connect joints. Anchors are borrowed; adding or replacing a
+joint never allocates anchors or makes their bodies lifetime owners. The full
+setter also replaces `owner`; use the getter before editing an existing joint
+when its other fields and owner should remain unchanged. Validation, capacity,
+and ownership failures leave both configuration and owner untouched.
+
+Without `rest_length_explicit` / `rest_angle_explicit`, add/set measures the
+current world-anchor distance / relative body angle once. The getter returns
+resolved values with both flags true, so get-modify-set preserves the rest pose
+after the bodies move. Explicit flags allow zero rest length or angle. Angles
+are clockwise degrees. Rest length, stiffness, and damping must be finite and
+nonnegative; angles must be finite. An invalid anchor sentinel disconnects that
+endpoint and leaves the joint inactive; stale nonzero handles are errors.
+Automatic values resolve to zero while disconnected and are measured again on
+an automatic replacement after reconnecting.
+
+The positional pin/weld/spring setters and public raw component setter have been
+removed. New descriptions replace the former body-plus-local-offset constructor.
+Create anchors explicitly for manual wiring, or spawn a whole authored object to
+create and wire all its internal anchors and joints automatically. The solver
+uses the existing anchor-based path. Saved connected joints without anchor
+references are rejected with an explanatory error and load rollback; no anchors
+are synthesized. Anchor-based and intentionally disconnected saves remain valid.
 
 `rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body,
 .local_offset = {1, 0}})` returns a resource ID attached to `body`, not an entity
@@ -502,3 +542,18 @@ Current limitations:
   retains several concave surface manifolds;
 - extreme speed, very small geometry, or large mass ratios may require more
   substeps and solver iterations.
+
+## Configuration setter convention
+
+Use the same value description for creation and complete configuration
+replacement, with a matching getter. Retain focused setters for single fields;
+those setters preserve the other fields and lifetime ownership. Solver state
+and derived caches are not part of an authored description.
+
+The joint migration establishes this convention without changing other APIs.
+A follow-up audit identified the multi-field transform-lock setters as
+description candidates. Camera attachment configuration is another candidate.
+Existing collision, beam, viewport-item, and UI configuration setters already accept value structs; any
+naming alignment should be considered separately. Simple scalar/vector setters
+and timing-aware camera moves do not need descriptions merely to reduce their
+argument count.

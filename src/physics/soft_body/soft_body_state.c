@@ -408,8 +408,9 @@ SoftBodyNodeAnchorPinResult physics_soft_body_node_to_anchor_pin_add(SoftBodyNod
         (void)physics_joint_anchor_remove(node_anchor.result.value);
         return ERROR_RESULT_MAKE_ERROR(SoftBodyNodeAnchorPinResult, joint.result.error);
     }
-    pin_result = physics_joint_pin_set(joint.result.value, node_anchor.result.value, anchor);
-    if(!error_check(pin_result)) pin_result = entity_owner_set(joint.result.value, description.owner);
+    pin_result = physics_joint_description_set(joint.result.value, (JointDescription){
+        .owner = description.owner, .type = JOINT_PIN,
+        .anchor_a = node_anchor.result.value, .anchor_b = anchor});
     if(pin_result.kind == ERROR_RESULT_ERROR) {
         (void)entity_delete(joint.result.value);
         (void)physics_joint_anchor_remove(node_anchor.result.value);

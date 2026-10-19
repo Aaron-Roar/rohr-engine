@@ -7,6 +7,7 @@
 #include "editor_workspace.h"
 #include "legacy_scene_fixture.h"
 #include "editor_scene_source.h"
+#include "editor_starter_main_legacy.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -253,8 +254,21 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     for(size_t i = 0; i < sizeof(old) / sizeof(old[0]); ++i)
         if(!file_replace(legacy_path, old[i]) || !editor_workspace_c_generate(workspace, project) ||
                 SDL_GetPathInfo(legacy_path, NULL)) goto done;
+    /* Exact old joint setters upgrade, but even a comment makes main developer-owned. */
+    if(!file_replace(main_path, editor_starter_main_legacy_joint_source) ||
+            !editor_workspace_c_generate(workspace, project)) goto done;
+    SDL_free(loaded); loaded = SDL_LoadFile(main_path, NULL);
+    if(!loaded || strcmp(loaded, main_source)) goto done;
+    if(!file_replace(main_path, editor_starter_main_legacy_joint_source)) goto done;
+    FILE *custom = fopen(main_path, "ab");
+    if(!custom) goto done;
+    bool customized = fputs("\n/* developer customization */\n", custom) >= 0;
+    if(fclose(custom) != 0 || !customized || !editor_workspace_c_generate(workspace, project)) goto done;
+    if(!file_contains(main_path, "developer customization") ||
+            !file_contains(main_path, "rohr_physics_joint_spring_set")) goto done;
     valid = true;
 done:
+    if(main_source && !file_replace(main_path, main_source)) valid = false;
     if(cmake_source && !file_replace(cmake_path, cmake_source)) valid = false;
     SDL_free(main_source); SDL_free(scene_source); SDL_free(cmake_source);
     SDL_free(edited); SDL_free(loaded); return valid;
@@ -964,7 +978,7 @@ int main(void) {
                 !file_contains(path, "rohr_physics_joint_anchor_add") ||
                 !file_contains(path, "rohr_camera_create") ||
                 !file_contains(path, "rohr_camera_attach") ||
-                !file_contains(path, "rohr_physics_joint_spring_set") ||
+                !file_contains(path, "rohr_physics_joint_description_set") ||
                 !file_contains(path, "rohr_physics_soft_body_add") ||
                 !file_contains(path, "rohr_physics_soft_body_node_add") ||
                 !file_contains(path, "(Velocity){11.0000000f, 12.0000000f}") ||

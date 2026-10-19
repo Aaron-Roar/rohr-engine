@@ -54,6 +54,27 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Consistent Joint Description APIs
+
+Use one description for joint creation, replacement, and retrieval, with anchor
+handles as the only attachment model. This user-selected milestone replaces
+positional joint setters and rejects legacy body-local runtime attachments.
+
+1. [x] **Unify joint descriptions and migrate callers** — Added atomic add/set/get,
+   explicit or measured rest values, independent ownership, and disconnected
+   endpoint support. Migrate spawning, generated programs, examples, and tests;
+   preserve customized entry points and the external force-toggle example.
+   Verified rollback, saves, and physics parity with all 100 native tests and
+   eight focused ASan/UBSan tests with leak detection. Linux and Windows
+   cross-builds pass, including independent installed-SDK examples/consumer and
+   a freshly regenerated soft-body project. The external test project preserves
+   its custom main and toggles forces at two-second intervals. Standard builds
+   have no compiler warnings; stricter audits expose existing graphics warnings
+   and overlength starter strings, including the retained legacy template.
+   Native Windows execution and real desktop visual review remain unverified.
+
+Complete. Stop for review and a user-created commit before pursuing another goal.
+
 ### Browser-Style Viewport Tabs
 
 Refine viewport tabs into compact, closable, reorderable controls managed through

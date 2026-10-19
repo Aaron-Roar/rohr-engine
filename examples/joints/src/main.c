@@ -165,7 +165,10 @@ int main(void) {
     anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[1], .local_offset = (Vec2D){-35.0f, 0.0f}});
     if(bodies[0] == ENTITY_INVALID || bodies[1] == ENTITY_INVALID || pin_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
-            !result_ok(rohr_physics_joint_pin_set(pin_joint, anchor_a.result.value, anchor_b.result.value))) goto fail;
+            !result_ok(rohr_physics_joint_description_set(pin_joint, (JointDescription){
+            .type = JOINT_PIN,
+            .anchor_a = anchor_a.result.value,
+            .anchor_b = anchor_b.result.value}))) goto fail;
 
     bodies[2] = body_create((Position){-55.0f, 30.0f}, (Vec2D){60.0f, 22.0f}, 2.0f, weld_category, true);
     bodies[3] = body_create((Position){-25.0f, 60.0f}, (Vec2D){60.0f, 22.0f}, 4.0f, weld_category, true);
@@ -176,7 +179,10 @@ int main(void) {
     anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[3], .local_offset = (Vec2D){-30.0f, 0.0f}});
     if(bodies[2] == ENTITY_INVALID || bodies[3] == ENTITY_INVALID || weld_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
-            !result_ok(rohr_physics_joint_weld_set(weld_joint, anchor_a.result.value, anchor_b.result.value))) goto fail;
+            !result_ok(rohr_physics_joint_description_set(weld_joint, (JointDescription){
+            .type = JOINT_WELD,
+            .anchor_a = anchor_a.result.value,
+            .anchor_b = anchor_b.result.value}))) goto fail;
 
     bodies[4] = body_create((Position){105.0f, -70.0f}, (Vec2D){38.0f, 38.0f}, 2.0f, spring_category, true);
     bodies[5] = body_create((Position){215.0f, -70.0f}, (Vec2D){38.0f, 38.0f}, 2.0f, spring_category, true);
@@ -185,14 +191,14 @@ int main(void) {
     anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = bodies[5], .local_offset = (Vec2D){0.0f, 0.0f}});
     if(bodies[4] == ENTITY_INVALID || bodies[5] == ENTITY_INVALID || spring_joint == ENTITY_INVALID ||
             rohr_error_check(anchor_a) || rohr_error_check(anchor_b) ||
-            !result_ok(rohr_physics_joint_spring_set(
-                spring_joint,
-                anchor_a.result.value,
-                anchor_b.result.value,
-                110.0f,
-                14.0f,
-                2.5f
-            ))) goto fail;
+            !result_ok(rohr_physics_joint_description_set(spring_joint, (JointDescription){
+            .type = JOINT_SPRING,
+            .anchor_a = anchor_a.result.value,
+            .anchor_b = anchor_b.result.value,
+            .rest_length = 110.0f,
+            .rest_length_explicit = true,
+            .stiffness = 14.0f,
+            .damping = 2.5f}))) goto fail;
 
     RenderContext render_context = {walls, bodies};
     if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;

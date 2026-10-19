@@ -182,7 +182,7 @@ static void joints_retry(void) {
     Entity a = body(0, 0, false), b = body(10, 0, false), joint = entity();
     JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){0}}); OK(aa);
     JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){0}}); OK(bb);
-    OK(rohr_physics_joint_pin_set(joint, aa.result.value, bb.result.value));
+    OK(rohr_physics_joint_description_set(joint, (JointDescription){.type = JOINT_PIN, .anchor_a = aa.result.value, .anchor_b = bb.result.value}));
     EntityIndex k = index_of(joint);
     joints[k].anchor_a = UINT64_MAX;
     rohr_physics_pipeline_substep_begin();
@@ -190,7 +190,7 @@ static void joints_retry(void) {
     Report r = rohr_physics_pipeline_constraints_solve(3);
     assert(warning(&r, ROHR_PHYSICS_JOINT_TARGET, joint)->occurrence_count == 3);
     assert(entity_alive_check(joint) && joints[k].anchor_a == UINT64_MAX);
-    OK(rohr_physics_joint_pin_set(joint, aa.result.value, bb.result.value));
+    OK(rohr_physics_joint_description_set(joint, (JointDescription){.type = JOINT_PIN, .anchor_a = aa.result.value, .anchor_b = bb.result.value}));
     r = rohr_physics_pipeline_constraints_solve(3);
     assert(r.diagnostic_count == 0 && positions[index_of(a)].x == positions[index_of(b)].x);
     OK(rohr_entity_delete(a));
@@ -302,7 +302,7 @@ static void joint_corrections(void) {
     EntityIndex i = index_of(a), j = index_of(b);
     JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){-ROHR_WORLD_COORDINATE_MAX, 0}}); OK(aa);
     JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b, .local_offset = (Vec2D){ROHR_WORLD_COORDINATE_MAX, 0}}); OK(bb);
-    OK(rohr_physics_joint_pin_set(joint, aa.result.value, bb.result.value));
+    OK(rohr_physics_joint_description_set(joint, (JointDescription){.type = JOINT_PIN, .anchor_a = aa.result.value, .anchor_b = bb.result.value}));
     OK(rohr_physics_velocity_set(a, (Velocity){FLT_MAX, 0}));
     OK(rohr_physics_velocity_set(b, (Velocity){-FLT_MAX, 0}));
     physics_pipeline_substep_begin();
@@ -348,8 +348,11 @@ static void rejected_loads_and_limits(void) {
     warning(&r, ROHR_PHYSICS_AXIS_LOCK, a);
     assert(positions[i].x == ROHR_WORLD_COORDINATE_MAX);
     Entity spring = entity();
-    Joint joint = {.type = JOINT_SPRING, .a = a, .b = b, .stiffness = FLT_MAX};
-    OK(rohr_physics_joint_component_set(spring, joint));
+    JointAnchorIdResult anchor_a = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(anchor_a);
+    JointAnchorIdResult anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b}); OK(anchor_b);
+    OK(rohr_physics_joint_description_set(spring, (JointDescription){.type = JOINT_SPRING,
+        .anchor_a = anchor_a.result.value, .anchor_b = anchor_b.result.value,
+        .rest_length_explicit = true, .stiffness = FLT_MAX}));
     physics_pipeline_accelerations_clear();
     r = physics_pipeline_forces_apply();
     warning(&r, ROHR_PHYSICS_SPRING_CONTRIBUTION, spring);

@@ -9,6 +9,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <float.h>
 #include "physics/physics_operation.h"
 
 static JointAnchor joint_anchors[MAX_JOINT_ANCHORS];
@@ -68,7 +69,7 @@ void physics_joint_entity_clear(Entity entity, EntityIndex index) {
         (void)JointPool_release_at(&joints_pool, index);
 }
 
-EngineResult physics_joint_component_set(Entity entity, Joint joint) {
+EngineResult physics_joint_component_restore(Entity entity, Joint joint) {
     EntityIndex index;
     EntityIndex a_index;
     EntityIndex b_index;
@@ -81,6 +82,12 @@ EngineResult physics_joint_component_set(Entity entity, Joint joint) {
             !isfinite(joint.rest_length) || !isfinite(joint.stiffness) || !isfinite(joint.damping) ||
             !isfinite(joint.rest_angle) || !isfinite(joint.angular_stiffness) || !isfinite(joint.angular_damping))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(joint.rest_length < 0 || joint.stiffness < 0 || joint.damping < 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if((joint.a != ENTITY_INVALID) != (joint.anchor_a != JOINT_ANCHOR_INVALID) ||
+            (joint.b != ENTITY_INVALID) != (joint.anchor_b != JOINT_ANCHOR_INVALID))
+        return error_result_error_detail(ERROR_ENGINE_STATE_INVALID,
+            "Joint body-local attachments are unsupported; connect each body through an anchor");
     if(joint.type < JOINT_SPRING || joint.type > JOINT_PIN) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     }
@@ -214,134 +221,97 @@ EngineResult physics_joint_anchor_remove(JointAnchorId anchor) {
     return error_result_value(true);
 }
 
-static EngineResult physics_joint_anchors_set(
-        Entity joint_entity,
-        JointAnchorId anchor_a,
-        JointAnchorId anchor_b,
-        JointType type,
-        float rest_length,
-        float stiffness,
-        float damping
-) {
-    uint32_t slot;
-    Entity a = ENTITY_INVALID, b = ENTITY_INVALID;
-    Orientation angle_a = 0, angle_b = 0;
-    if(anchor_a != JOINT_ANCHOR_INVALID) {
-        EntityIndex index;
-        if(!physics_joint_anchor_slot_get(anchor_a, &slot) ||
-                !entity_index_get(joint_anchors[slot].entity, &index))
-            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
-        a = joint_anchors[slot].entity; angle_a = orientations[index];
-    }
-    if(anchor_b != JOINT_ANCHOR_INVALID) {
-        EntityIndex index;
-        if(!physics_joint_anchor_slot_get(anchor_b, &slot) ||
-                !entity_index_get(joint_anchors[slot].entity, &index))
-            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
-        b = joint_anchors[slot].entity; angle_b = orientations[index];
-    }
-    return physics_joint_component_set(joint_entity, (Joint){
-        .type = type,
-        .anchor_a = anchor_a,
-        .anchor_b = anchor_b,
-        .a = a,
-        .b = b,
-        .rest_length = rest_length,
-        .stiffness = stiffness,
-        .damping = damping,
-        .rest_angle = a && b ? angle_b - angle_a : 0
-    });
-}
-
-EngineResult physics_joint_pin_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b) {
-    return physics_joint_anchors_set(joint, anchor_a, anchor_b, JOINT_PIN, 0.0f, 0.0f, 0.0f);
-}
-
-EngineResult physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b) {
-    return physics_joint_anchors_set(joint, anchor_a, anchor_b, JOINT_WELD, 0.0f, 0.0f, 0.0f);
-}
-
-EngineResult physics_joint_spring_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b,
-        float rest_length, float stiffness, float damping) {
-    if(!isfinite(rest_length) || !isfinite(stiffness) || !isfinite(damping) ||
-            rest_length < 0.0f || stiffness < 0.0f || damping < 0.0f) {
+static EngineResult joint_description_resolve(JointDescription description, Joint *joint) {
+    if(description.type < JOINT_SPRING || description.type > JOINT_PIN ||
+            !isfinite(description.rest_length) || description.rest_length < 0 ||
+            !isfinite(description.stiffness) || description.stiffness < 0 ||
+            !isfinite(description.damping) || description.damping < 0 ||
+            !isfinite(description.rest_angle))
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    *joint = (Joint){.type = description.type,
+        .anchor_a = description.anchor_a, .anchor_b = description.anchor_b,
+        .stiffness = description.stiffness, .damping = description.damping,
+        .rest_length = description.rest_length_explicit ? description.rest_length : 0,
+        .rest_angle = description.rest_angle_explicit ? description.rest_angle : 0};
+    JointAnchorId anchors[] = {description.anchor_a, description.anchor_b};
+    Entity entities[] = {ENTITY_INVALID, ENTITY_INVALID};
+    EntityIndex indices[2] = {0};
+    for(size_t i = 0; i < 2; ++i) {
+        if(anchors[i] == JOINT_ANCHOR_INVALID) continue;
+        uint32_t slot;
+        if(!physics_joint_anchor_slot_get(anchors[i], &slot))
+            return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+        entities[i] = joint_anchors[slot].entity;
+        EngineResult result = physics_live_index_get(entities[i], &indices[i]);
+        if(error_check(result)) return result;
     }
-    return physics_joint_anchors_set(joint, anchor_a, anchor_b, JOINT_SPRING,
-        rest_length, stiffness, damping);
+    joint->a = entities[0]; joint->b = entities[1];
+    if(entities[0] != ENTITY_INVALID && entities[1] != ENTITY_INVALID) {
+        if(!description.rest_length_explicit) {
+            JointAnchorPositionResult a = physics_joint_anchor_world_position_get(anchors[0]);
+            JointAnchorPositionResult b = physics_joint_anchor_world_position_get(anchors[1]);
+            if(error_check(a)) return error_result_error(a.result.error);
+            if(error_check(b)) return error_result_error(b.result.error);
+            double length = hypot((double)b.result.value.x - a.result.value.x,
+                (double)b.result.value.y - a.result.value.y);
+            if(!isfinite(length) || length > FLT_MAX) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            joint->rest_length = (float)length;
+        }
+        if(!description.rest_angle_explicit) {
+            double angle = (double)orientations[indices[1]] - orientations[indices[0]];
+            if(!isfinite(angle) || fabs(angle) > FLT_MAX) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+            joint->rest_angle = (Orientation)angle;
+        }
+    }
+    return error_result_value(true);
+}
+
+EngineResult physics_joint_description_set(Entity entity, JointDescription description) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(error_check(result)) return result;
+    Joint joint;
+    result = joint_description_resolve(description, &joint);
+    if(error_check(result)) return result;
+    /* Entity-indexed pools are reserved ahead of time. Check storage before
+     * transferring ownership, the only fallible mutation, just like forces. */
+    if(!joints_pool.objects || !joints_pool.used || index >= joints_pool.capacity)
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    result = entity_owner_set(entity, description.owner);
+    if(error_check(result)) return result;
+    (void)JointPool_store_at(&joints_pool, index, joint);
+    entity_mask[index] |= ROHR_JOINT;
+    return error_result_value(true);
+}
+
+JointDescriptionResult physics_joint_description_get(Entity entity) {
+    EntityIndex index;
+    EngineResult result = physics_live_index_get(entity, &index);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(JointDescriptionResult, result.result.error);
+    if(!entity_index_components_check(index, ROHR_JOINT) || !joints_pool.used[index])
+        return ERROR_RESULT_MAKE_ERROR(JointDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    EntityResult owner = entity_owner_get(entity);
+    if(error_check(owner)) return ERROR_RESULT_MAKE_ERROR(JointDescriptionResult, owner.result.error);
+    Joint joint = joints[index];
+    JointDescription description = {.owner = owner.result.value, .type = joint.type,
+        .anchor_a = joint.anchor_a, .anchor_b = joint.anchor_b,
+        .rest_length = joint.rest_length, .stiffness = joint.stiffness, .damping = joint.damping,
+        .rest_angle = joint.rest_angle, .rest_length_explicit = true, .rest_angle_explicit = true};
+    return ERROR_RESULT_MAKE_VALUE(JointDescriptionResult, description);
 }
 
 EntityResult physics_joint_add(JointDescription description) {
-    Entity a = description.a;
-    Entity b = description.b;
-    JointType type = description.type;
-    Vec2D local_anchor_a = description.local_anchor_a;
-    Vec2D local_anchor_b = description.local_anchor_b;
-    float stiffness = description.stiffness;
-    float damping = description.damping;
-
-    EntityIndex a_index;
-    EntityIndex b_index;
-    EntityResult joint_result;
-    EngineResult result;
-
-    if(!(entity_index_get(a, &a_index) && entity_index_alive_check(a_index)) || !(entity_index_get(b, &b_index) && entity_index_alive_check(b_index))) {
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
-    }
-
-    if(!physics_vector_finite_check(local_anchor_a) || !physics_vector_finite_check(local_anchor_b) ||
-            !isfinite(stiffness) || !isfinite(damping))
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
+    Joint resolved;
+    EngineResult result = joint_description_resolve(description, &resolved);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
     if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
-    joint_result = entity_default_create("joint", ENTITY_INVALID);
-    if(joint_result.kind == ERROR_RESULT_ERROR) {
-        return joint_result;
-    }
-    Entity joint = joint_result.result.value;
-    EntityIndex joint_index;
-    if(!(entity_index_get(joint, &joint_index) && entity_index_alive_check(joint_index))) {
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NOT_FOUND);
-    }
-
-    Vec2D world_anchor_a = {
-        .x = positions[a_index].x + math_vector_rotate(local_anchor_a, orientations[a_index]).x,
-        .y = positions[a_index].y + math_vector_rotate(local_anchor_a, orientations[a_index]).y
-    };
-
-    Vec2D world_anchor_b = {
-        .x = positions[b_index].x + math_vector_rotate(local_anchor_b, orientations[b_index]).x,
-        .y = positions[b_index].y + math_vector_rotate(local_anchor_b, orientations[b_index]).y
-    };
-
-    Vec2D delta = {
-        .x = world_anchor_b.x - world_anchor_a.x,
-        .y = world_anchor_b.y - world_anchor_a.y
-    };
-
-    result = physics_joint_component_set(joint, (Joint){
-        .type = type,
-        .a = a,
-        .b = b,
-        .local_anchor_a = local_anchor_a,
-        .local_anchor_b = local_anchor_b,
-        .rest_length = math_vector_magnitude(delta),
-        .stiffness = stiffness,
-        .damping = damping,
-        .lock_angle = false,
-        .rest_angle = orientations[b_index] - orientations[a_index],
-        .angular_stiffness = 0.0f,
-        .angular_damping = 0.0f
-    });
-    if(result.kind == ERROR_RESULT_ERROR) {
-        (void)entity_delete(joint);
-        return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
-    }
-
-    result = entity_owner_set(joint, description.owner);
+    EntityResult joint = entity_default_create("joint", ENTITY_INVALID);
+    if(error_check(joint)) return joint;
+    result = physics_joint_description_set(joint.result.value, description);
     if(error_check(result)) {
-        (void)entity_delete(joint);
+        (void)entity_delete(joint.result.value);
         return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
     }
-    return ERROR_RESULT_MAKE_VALUE(EntityResult, joint);
+    return joint;
 }

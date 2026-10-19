@@ -1446,13 +1446,14 @@ EngineResult rohr_physics_transform_lock_current_transform_set(
  */
 EngineResult rohr_physics_target_set(Entity entity, Entity target);
 
-/**
- * @brief Adds or replaces complete joint data on an existing entity.
- * @param entity Entity that owns the joint component.
- * @param joint Complete joint component value.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_joint_component_set(Entity entity, Joint joint);
+/** Atomically replace the complete configuration and lifetime owner.
+ * Invalid anchors disconnect endpoints; stale nonzero handles are rejected.
+ * Automatic rest values measure the current pose once, or zero when disconnected.
+ * Failure leaves the entity, configuration, and ownership unchanged. */
+EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription description);
+/** Return the current owner and resolved rest values with explicit flags true.
+ * Get-modify-set preserves the resting pose even after the bodies have moved. */
+JointDescriptionResult rohr_physics_joint_description_get(Entity entity);
 
 /**
  * @brief Creates an anchor owned by an entity.
@@ -1486,46 +1487,11 @@ JointAnchorPositionResult rohr_physics_joint_anchor_world_position_get(JointAnch
  */
 EngineResult rohr_physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset);
 /**
- * @brief Removes an anchor and its connected joint entities.
+ * @brief Removes an anchor and disconnects joint endpoints that reference it.
  * @param anchor Anchor to remove.
  * @return EngineResult describing success or failure.
  */
 EngineResult rohr_physics_joint_anchor_remove(JointAnchorId anchor);
-/**
- * @brief Configures a joint entity as a rigid pin between two anchors.
- * @param joint Entity that owns the joint component.
- * @param anchor_a First anchor.
- * @param anchor_b Second anchor.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_joint_pin_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-/**
- * @brief Configures a joint entity as a rigid weld between two anchors.
- * @param joint Entity that owns the joint component.
- * @param anchor_a First anchor.
- * @param anchor_b Second anchor.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-/**
- * @brief Configures a joint entity as a damped spring between two anchors.
- * @param joint Entity that owns the joint component.
- * @param anchor_a First anchor.
- * @param anchor_b Second anchor.
- * @param rest_length Unstretched anchor distance.
- * @param stiffness Spring stiffness.
- * @param damping Relative-motion damping.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_joint_spring_set(
-    Entity joint,
-    JointAnchorId anchor_a,
-    JointAnchorId anchor_b,
-    float rest_length,
-    float stiffness,
-    float damping
-);
-
 /**
  * @brief Creates an empty soft body and its origin transform.
  *
@@ -1650,8 +1616,8 @@ EngineResult rohr_physics_soft_body_area_geometry_set(Entity area, SoftBodyAreaG
 EngineResult rohr_physics_soft_body_area_order_set(Entity area, uint32_t index);
 
 /**
- * @brief Creates a joint between two entities.
- * @param description Lifetime owner, endpoints, local offsets, and joint behavior.
+ * @brief Creates a joint borrowing two anchor handles.
+ * @param description Lifetime owner, anchor endpoints, joint behavior, and automatic or explicit rest values.
  * @return EntityResult containing the joint entity, or an error.
  */
 EntityResult rohr_physics_joint_add(JointDescription description);

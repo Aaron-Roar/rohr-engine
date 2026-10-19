@@ -5,6 +5,119 @@
 #include "rohr.h"
 
 #include <math.h>
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+
+#define OK(value) assert(!rohr_error_check(value))
+static Entity named_entity(const char *name) {
+    EntityResult result = rohr_entity_add(); OK(result);
+    OK(rohr_entity_name_set(result.result.value, name));
+    return result.result.value;
+}
+static JointDescription description_get(Entity joint) {
+    JointDescriptionResult result = rohr_physics_joint_description_get(joint); OK(result);
+    return result.result.value;
+}
+static void description_tests(void) {
+    Entity root = named_entity("joint_root"), other = named_entity("joint_other");
+    Entity a = named_entity("joint_a"), b = named_entity("joint_b");
+    OK(rohr_entity_owner_set(a, root)); OK(rohr_entity_owner_set(b, root));
+    OK(rohr_physics_position_set(a, (Position){0, 0}));
+    OK(rohr_physics_position_set(b, (Position){3, 4}));
+    OK(rohr_physics_orientation_set(a, 30)); OK(rohr_physics_orientation_set(b, 90));
+    JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(aa);
+    JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b}); OK(bb);
+    JointDescription automatic = {.owner = root, .type = JOINT_SPRING,
+        .anchor_a = aa.result.value, .anchor_b = bb.result.value, .stiffness = 10, .damping = 2};
+    EntityResult created = rohr_physics_joint_add(automatic); OK(created);
+    Entity joint = created.result.value;
+    OK(rohr_entity_name_set(joint, "joint_subject"));
+    JointDescription stored = description_get(joint);
+    assert(stored.owner == root && stored.rest_length == 5 && stored.rest_angle == 60);
+    assert(stored.rest_length_explicit && stored.rest_angle_explicit);
+    assert(rohr_physics_joint_anchors_get(a).result.value.count == 1);
+    EntityResult copy = physics_joint_add(automatic); OK(copy);
+    OK(rohr_entity_delete(copy.result.value));
+
+    /* Get-modify-set freezes measured values; an automatic replacement remeasures. */
+    OK(rohr_physics_position_set(b, (Position){6, 8})); OK(rohr_physics_orientation_set(b, 150));
+    stored.stiffness = 20;
+    OK(physics_joint_description_set(joint, stored));
+    assert(description_get(joint).rest_length == 5 && description_get(joint).rest_angle == 60);
+    OK(rohr_physics_joint_description_set(joint, automatic));
+    assert(description_get(joint).rest_length == 10 && description_get(joint).rest_angle == 120);
+    stored = description_get(joint); stored.rest_length = 0; stored.rest_angle = 0;
+    OK(rohr_physics_joint_description_set(joint, stored));
+    assert(description_get(joint).rest_length == 0 && description_get(joint).rest_angle == 0);
+    OK(rohr_entity_owner_set(joint, other)); assert(description_get(joint).owner == other);
+    stored.owner = root; OK(rohr_physics_joint_description_set(joint, stored));
+
+    /* Invalid replacements cannot transfer ownership, change type, or replace endpoints. */
+    Entity stale_owner = named_entity("stale_owner"); OK(rohr_entity_delete(stale_owner));
+    JointAnchorIdResult stale = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(stale);
+    OK(rohr_physics_joint_anchor_remove(stale.result.value));
+    for(int bad = 0; bad < 9; ++bad) {
+        JointDescription invalid = stored; invalid.owner = other;
+        switch(bad) {
+            case 0: invalid.anchor_a = stale.result.value; break;
+            case 1: invalid.stiffness = -1; break;
+            case 2: invalid.damping = NAN; break;
+            case 3: invalid.rest_length = -1; break;
+            case 4: invalid.rest_angle = INFINITY; break;
+            case 5: invalid.type = (JointType)99; break;
+            case 6: invalid.owner = stale_owner; break;
+            case 7: invalid.owner = joint; break;
+            default: invalid.damping = -1; break;
+        }
+        size_t count = rohr_entity_alive_count_get();
+        assert(rohr_error_check(rohr_physics_joint_description_set(joint, invalid)));
+        JointDescription after = description_get(joint);
+        assert(after.owner == root && after.type == stored.type && after.anchor_a == stored.anchor_a &&
+            after.anchor_b == stored.anchor_b && after.stiffness == stored.stiffness && after.rest_length == 0);
+        assert(rohr_entity_alive_count_get() == count);
+    }
+    assert(rohr_error_check(rohr_physics_joint_description_get(a)));
+    assert(rohr_error_check(rohr_physics_joint_description_set(stale_owner, stored)));
+
+    /* Anchor saves round-trip; live body endpoints without anchors are explicitly rejected. */
+    OK(rohr_game_state_file_save("joint_descriptions.json"));
+    OK(rohr_entity_delete(root)); OK(rohr_entity_delete(other));
+    size_t empty = rohr_entity_alive_count_get();
+    size_t size = 0; char *text = SDL_LoadFile("joint_descriptions.json", &size); assert(text);
+    char *field = strstr(text, "\"anchor_a\":"); assert(field);
+    char *value = field + strlen("\"anchor_a\":");
+    while(*value == ' ') ++value;
+    assert(*value == '0');
+    FILE *file = fopen("joint_legacy.json", "wb"); assert(file);
+    assert(fwrite(text, 1, (size_t)(value - text), file) == (size_t)(value - text));
+    assert(fputs("null", file) >= 0);
+    assert(fwrite(value + 1, 1, size - (size_t)(value + 1 - text), file) == size - (size_t)(value + 1 - text));
+    assert(fclose(file) == 0); SDL_free(text);
+    EngineResult rejected = rohr_game_state_file_load("joint_legacy.json");
+    assert(rohr_error_check(rejected) && rejected.result.error == ERROR_ENGINE_STATE_INVALID);
+    assert(strstr(rohr_error_message_get(rejected), "anchor"));
+    assert(rohr_entity_alive_count_get() == empty);
+    OK(rohr_game_state_file_load("joint_descriptions.json"));
+    EntityResult loaded = rohr_entity_by_name_get("joint_subject"); OK(loaded); joint = loaded.result.value;
+    EntityResult loaded_root = rohr_entity_by_name_get("joint_root"); OK(loaded_root); root = loaded_root.result.value;
+    stored = description_get(joint); assert(stored.owner == root && stored.rest_length == 0 && stored.rest_angle == 0);
+    assert(stored.anchor_a != JOINT_ANCHOR_INVALID && stored.anchor_b != JOINT_ANCHOR_INVALID);
+    OK(rohr_physics_joint_anchor_remove(stored.anchor_a));
+    assert(description_get(joint).anchor_a == JOINT_ANCHOR_INVALID && rohr_entity_alive_check(joint));
+    stored = description_get(joint); stored.rest_length_explicit = stored.rest_angle_explicit = false;
+    OK(rohr_physics_joint_description_set(joint, stored));
+    assert(description_get(joint).rest_length == 0 && description_get(joint).rest_angle == 0);
+    OK(rohr_game_state_file_save("joint_disconnected.json"));
+    OK(rohr_entity_delete(root));
+    loaded = rohr_entity_by_name_get("joint_other"); OK(loaded); OK(rohr_entity_delete(loaded.result.value));
+    OK(rohr_game_state_file_load("joint_disconnected.json"));
+    loaded = rohr_entity_by_name_get("joint_subject"); OK(loaded);
+    assert(description_get(loaded.result.value).anchor_a == JOINT_ANCHOR_INVALID);
+    loaded_root = rohr_entity_by_name_get("joint_root"); OK(loaded_root); OK(rohr_entity_delete(loaded_root.result.value));
+    loaded = rohr_entity_by_name_get("joint_other"); OK(loaded); OK(rohr_entity_delete(loaded.result.value));
+    assert(remove("joint_descriptions.json") == 0 && remove("joint_legacy.json") == 0 && remove("joint_disconnected.json") == 0);
+}
 
 int main(void) {
     EntityResult body_a;
@@ -17,6 +130,7 @@ int main(void) {
     EntityIndexResult index_b;
 
     if(rohr_error_check(rohr_engine_start())) return 1;
+    description_tests();
 
     /* Anchor placement is body-origin-relative and must not depend on hitbox geometry. */
     {
@@ -66,11 +180,7 @@ int main(void) {
     anchors = rohr_physics_joint_anchors_get(body_a.result.value);
     if(rohr_error_check(anchors) || anchors.result.value.count != 1 ||
             anchors.result.value.values[0] != anchor_a.result.value) goto fail;
-    if(rohr_error_check(rohr_physics_joint_pin_set(
-                joint.result.value,
-                anchor_a.result.value,
-                anchor_b.result.value
-            ))) goto fail;
+    if(rohr_error_check(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_PIN, .anchor_a = anchor_a.result.value, .anchor_b = anchor_b.result.value}))) goto fail;
 
     rohr_physics_pipeline_substep_begin();
     rohr_physics_pipeline_joints_gather();
@@ -97,22 +207,11 @@ int main(void) {
     anchor_b = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = body_b.result.value, .local_offset = (Vec2D){-1.0f, 0.0f}});
     joint = rohr_entity_add();
     if(rohr_error_check(anchor_a) || rohr_error_check(anchor_b) || rohr_error_check(joint) ||
-            rohr_error_check(rohr_physics_joint_weld_set(
-                joint.result.value,
-                anchor_a.result.value,
-                anchor_b.result.value
-            ))) goto fail;
+            rohr_error_check(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_WELD, .anchor_a = anchor_a.result.value, .anchor_b = anchor_b.result.value}))) goto fail;
     {
         EntityIndexResult joint_index = rohr_entity_index_get(joint.result.value);
         if(rohr_error_check(joint_index) || joints[joint_index.result.value].type != JOINT_WELD ||
-                rohr_error_check(rohr_physics_joint_spring_set(
-                    joint.result.value,
-                    anchor_a.result.value,
-                    anchor_b.result.value,
-                    2.0f,
-                    8.0f,
-                    0.5f
-                )) || joints[joint_index.result.value].type != JOINT_SPRING ||
+                rohr_error_check(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_SPRING, .anchor_a = anchor_a.result.value, .anchor_b = anchor_b.result.value, .rest_length = 2.0f, .rest_length_explicit = true, .stiffness = 8.0f, .damping = 0.5f})) || joints[joint_index.result.value].type != JOINT_SPRING ||
                 joints[joint_index.result.value].rest_length != 2.0f) goto fail;
     }
     if(rohr_error_check(rohr_entity_delete(body_a.result.value)) ||

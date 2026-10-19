@@ -119,7 +119,7 @@ static void detached_round_trip(void) {
     });
     OK(a);
     Entity joint = make();
-    OK(physics_joint_pin_set(joint, JOINT_ANCHOR_INVALID, JOINT_ANCHOR_INVALID));
+    OK(physics_joint_description_set(joint, (JointDescription){.type = JOINT_PIN, .anchor_a = JOINT_ANCHOR_INVALID, .anchor_b = JOINT_ANCHOR_INVALID}));
     OK(entity_object_member_restore(root, n.result.value, "node"));
     OK(entity_object_member_restore(root, b.result.value, "beam"));
     OK(entity_object_member_restore(root, a.result.value, "area"));
@@ -535,7 +535,10 @@ static void physics_ownership(void) {
     }));
     SoftBodyAreaGeometry geometry = {.outer = {.nodes = {n, x, y}, .node_count = 3}};
     Entity area = take(physics_soft_body_area_add((SoftBodyAreaDescription){.owner = a, .geometry = geometry}));
-    Entity joint = take(physics_joint_add((JointDescription){.a = n, .b = y, .type = JOINT_PIN, .local_anchor_a = (Vec2D){0}, .local_anchor_b = (Vec2D){0}, .stiffness = 0, .damping = 0}));
+    JointAnchorIdResult anchor_n = physics_joint_anchor_add((JointAnchorDescription){.entity = n}); OK(anchor_n);
+    JointAnchorIdResult anchor_y = physics_joint_anchor_add((JointAnchorDescription){.entity = y}); OK(anchor_y);
+    Entity joint = take(physics_joint_add((JointDescription){.type = JOINT_PIN,
+        .anchor_a = anchor_n.result.value, .anchor_b = anchor_y.result.value}));
     OK(physics_velocity_set(n, (Velocity){7, 8}));
     OK(rohr_entity_owner_set(n, b));
     assert(entity_owner_get(n).result.value == b);
@@ -722,8 +725,10 @@ static void remaining_creation_descriptions(void) {
     particle.position.x = 100;
     assert(first != second && physics_position_get(first).result.value.x == 3);
     OK(entity_owner_set(second, other));
-    JointDescription description = {.owner = owner, .a = first, .b = second,
-        .type = JOINT_SPRING, .local_anchor_a = {1, 0}, .local_anchor_b = {-1, 0},
+    JointAnchorIdResult first_anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = first, .local_offset = {1, 0}}); OK(first_anchor);
+    JointAnchorIdResult second_anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = second, .local_offset = {-1, 0}}); OK(second_anchor);
+    JointDescription description = {.owner = owner, .anchor_a = first_anchor.result.value,
+        .anchor_b = second_anchor.result.value, .type = JOINT_SPRING,
         .stiffness = 10, .damping = 2};
     Entity joint = take(rohr_physics_joint_add(description));
     Entity copy = take(physics_joint_add(description));
@@ -830,13 +835,14 @@ static void remaining_creation_rollback(void) {
             Entity owner = make(), a = make();
             Entity node = take(physics_soft_body_node_add((SoftBodyNodeDescription){.mass = 1, .radius = 1}));
             JointAnchorIdResult anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(anchor);
+            JointAnchorIdResult node_anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = node}); OK(node_anchor);
             size_t before = entity_alive_count_get();
             ParticleDescription particle = physics_particle_description_default_get(); particle.owner = owner;
             allocation_countdown = fail;
             EntityResult created;
             switch(kind) {
             case 0: created = physics_particle_add(particle); break;
-            case 1: created = physics_joint_add((JointDescription){.owner = owner, .a = a, .b = node, .type = JOINT_PIN}); break;
+            case 1: created = physics_joint_add((JointDescription){.owner = owner, .anchor_a = anchor.result.value, .anchor_b = node_anchor.result.value, .type = JOINT_PIN}); break;
             case 2: {
                 SoftBodyNodeAnchorPinResult pin = physics_soft_body_node_to_anchor_pin_add(
                     (SoftBodyNodeAnchorPinDescription){.owner = owner, .node = node, .anchor = anchor.result.value});
@@ -852,7 +858,7 @@ static void remaining_creation_rollback(void) {
                 ++failures;
                 assert(entity_alive_count_get() == before);
                 assert(!entity_components_check(owner, ROHR_OBJECT));
-                assert(physics_joint_anchors_get(node).result.value.count == 0);
+                assert(physics_joint_anchors_get(node).result.value.count == 1);
             } else {
                 ++successes;
                 assert(entity_owner_get(created.result.value).result.value == owner);
@@ -863,6 +869,29 @@ static void remaining_creation_rollback(void) {
         }
         assert(failures && successes);
     }
+    unsigned joint_failures = 0, joint_successes = 0;
+    for(long fail = 0; fail < 40; ++fail) {
+        Entity a = make(), b = make();
+        Entity joint = take(physics_joint_add((JointDescription){.owner = a, .type = JOINT_PIN}));
+        JointDescriptionResult prior = physics_joint_description_get(joint); OK(prior);
+        JointDescription replacement = prior.result.value;
+        replacement.owner = b; replacement.type = JOINT_SPRING; replacement.stiffness = 17;
+        allocation_countdown = fail;
+        EngineResult result = rohr_physics_joint_description_set(joint, replacement);
+        allocation_countdown = -1;
+        JointDescriptionResult after = physics_joint_description_get(joint); OK(after);
+        if(error_check(result)) {
+            ++joint_failures;
+            assert(after.result.value.owner == a && after.result.value.type == JOINT_PIN && after.result.value.stiffness == 0);
+            assert(!entity_components_check(b, ROHR_OBJECT));
+        } else {
+            ++joint_successes;
+            assert(after.result.value.owner == b && after.result.value.type == JOINT_SPRING && after.result.value.stiffness == 17);
+        }
+        OK(entity_delete(a)); OK(entity_delete(b));
+        assert(!entity_alive_check(joint));
+    }
+    assert(joint_failures && joint_successes);
     for(unsigned torque = 0; torque < 2; ++torque) {
         unsigned failures = 0, successes = 0;
         for(long fail = 0; fail < 20; ++fail) {

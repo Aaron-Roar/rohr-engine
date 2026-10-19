@@ -4,6 +4,7 @@
 
 #include "editor_workspace.h"
 #include "editor_starter_main.h"
+#include "editor_starter_main_legacy.h"
 #include "editor_scene_source.h"
 #include "editor_log.h"
 #include "editor_object_catalog.h"
@@ -1334,23 +1335,16 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "added.result.error); goto fail; }\n"
                 "      object->joint_%s = added.result.value; }\n",
                 joint->name);
-            if(joint->kind == EDITOR_JOINT_REVOLUTE) {
-                fprintf(source,
-                    "    result = rohr_physics_joint_pin_set(object->joint_%s, "
-                    "object->anchor_%s, object->anchor_%s);\n",
-                    joint->name, anchor_a->name, anchor_b->name);
-            } else if(joint->kind == EDITOR_JOINT_WELD) {
-                fprintf(source,
-                    "    result = rohr_physics_joint_weld_set(object->joint_%s, "
-                    "object->anchor_%s, object->anchor_%s);\n",
-                    joint->name, anchor_a->name, anchor_b->name);
-            } else {
-                fprintf(source,
-                    "    result = rohr_physics_joint_spring_set(object->joint_%s, "
-                    "object->anchor_%s, object->anchor_%s, %#.9gf, %#.9gf, %#.9gf);\n",
-                    joint->name, anchor_a->name, anchor_b->name,
-                    joint->rest_length, joint->stiffness, joint->damping);
-            }
+            fprintf(source,
+                "    result = rohr_physics_joint_description_set(object->joint_%s, (JointDescription){"
+                ".type = %s, .anchor_a = object->anchor_%s, .anchor_b = object->anchor_%s, "
+                ".rest_length = %#.9gf, .rest_length_explicit = true, "
+                ".stiffness = %#.9gf, .damping = %#.9gf, "
+                ".rest_angle = %#.9gf, .rest_angle_explicit = true});\n",
+                joint->name, joint->kind == EDITOR_JOINT_REVOLUTE ? "JOINT_PIN" :
+                    joint->kind == EDITOR_JOINT_WELD ? "JOINT_WELD" : "JOINT_SPRING",
+                anchor_a->name, anchor_b->name, joint->rest_length,
+                joint->stiffness, joint->damping, joint->rest_angle);
             fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
         }
         for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
@@ -1555,19 +1549,16 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 "added.result.error); goto fail; }\n"
                 "      object->joint_%s = added.result.value; }\n",
                 joint->name);
-            if(joint->kind == EDITOR_JOINT_REVOLUTE) fprintf(source,
-                "    result = rohr_physics_joint_pin_set(object->joint_%s, "
-                "object->anchor_%s, object->anchor_%s);\n",
-                joint->name, anchor_a->name, anchor_b->name);
-            else if(joint->kind == EDITOR_JOINT_WELD) fprintf(source,
-                "    result = rohr_physics_joint_weld_set(object->joint_%s, "
-                "object->anchor_%s, object->anchor_%s);\n",
-                joint->name, anchor_a->name, anchor_b->name);
-            else fprintf(source,
-                "    result = rohr_physics_joint_spring_set(object->joint_%s, "
-                "object->anchor_%s, object->anchor_%s, %#.9gf, %#.9gf, %#.9gf);\n",
-                joint->name, anchor_a->name, anchor_b->name,
-                joint->rest_length, joint->stiffness, joint->damping);
+            fprintf(source,
+                "    result = rohr_physics_joint_description_set(object->joint_%s, (JointDescription){"
+                ".type = %s, .anchor_a = object->anchor_%s, .anchor_b = object->anchor_%s, "
+                ".rest_length = %#.9gf, .rest_length_explicit = true, "
+                ".stiffness = %#.9gf, .damping = %#.9gf, "
+                ".rest_angle = %#.9gf, .rest_angle_explicit = true});\n",
+                joint->name, joint->kind == EDITOR_JOINT_REVOLUTE ? "JOINT_PIN" :
+                    joint->kind == EDITOR_JOINT_WELD ? "JOINT_WELD" : "JOINT_SPRING",
+                anchor_a->name, anchor_b->name, joint->rest_length,
+                joint->stiffness, joint->damping, joint->rest_angle);
             fprintf(source, "    if(rohr_error_check(result)) goto fail;\n");
         }
         for(size_t camera_index = 0; camera_index < object->camera_count;
@@ -2836,9 +2827,10 @@ static bool editor_workspace_legacy_main_upgrade(const EditorWorkspace *workspac
             "src/main.c")) return false;
     contents = SDL_LoadFile(path, NULL);
     if(contents == NULL) return false;
-    legacy = editor_workspace_tick_main_check(contents);
+    bool legacy_joints = strcmp(contents, editor_starter_main_legacy_joint_source) == 0;
+    legacy = legacy_joints || editor_workspace_tick_main_check(contents);
     SDL_free(contents);
-    return !legacy || editor_workspace_main_write(workspace, project, false);
+    return !legacy || editor_workspace_main_write(workspace, project, legacy_joints);
 }
 
 static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspace,

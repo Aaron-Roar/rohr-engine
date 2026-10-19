@@ -124,11 +124,15 @@ static bool anchored_joint_set(Entity a, Vec2D offset_a, Entity b, Vec2D offset_
         return false;
     }
     if(type == JOINT_WELD) {
-        return result_ok(rohr_physics_joint_weld_set(
-            joint.result.value, anchor_a.result.value, anchor_b.result.value));
+        return result_ok(rohr_physics_joint_description_set(joint.result.value, (JointDescription){
+            .type = JOINT_WELD,
+            .anchor_a = anchor_a.result.value,
+            .anchor_b = anchor_b.result.value}));
     }
-    return result_ok(rohr_physics_joint_pin_set(
-        joint.result.value, anchor_a.result.value, anchor_b.result.value));
+    return result_ok(rohr_physics_joint_description_set(joint.result.value, (JointDescription){
+            .type = JOINT_PIN,
+            .anchor_a = anchor_a.result.value,
+            .anchor_b = anchor_b.result.value}));
 }
 
 static const Color background_color = {18, 22, 30, 255};

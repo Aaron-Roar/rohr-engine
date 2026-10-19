@@ -5550,9 +5550,6 @@ void graphics_local_origins_draw(void) {
 }
 
 static bool graphics_joint_world_anchors_get(Joint joint, Position *anchor_a, Position *anchor_b) {
-    EntityIndex a_index;
-    EntityIndex b_index;
-
     if(anchor_a == NULL || anchor_b == NULL) return false;
     if(joint.anchor_a != JOINT_ANCHOR_INVALID && joint.anchor_b != JOINT_ANCHOR_INVALID) {
         JointAnchorPositionResult first = physics_joint_anchor_world_position_get(joint.anchor_a);
@@ -5562,15 +5559,7 @@ static bool graphics_joint_world_anchors_get(Joint joint, Position *anchor_a, Po
         *anchor_b = second.result.value;
         return true;
     }
-    if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
-            !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return false;
-    {
-        Vec2D offset_a = math_vector_rotate(joint.local_anchor_a, orientations[a_index]);
-        Vec2D offset_b = math_vector_rotate(joint.local_anchor_b, orientations[b_index]);
-        *anchor_a = (Position){positions[a_index].x + offset_a.x, positions[a_index].y + offset_a.y};
-        *anchor_b = (Position){positions[b_index].x + offset_b.x, positions[b_index].y + offset_b.y};
-    }
-    return true;
+    return false;
 }
 
 static bool graphics_joint_pin_symbol_draw(Position center, Color color) {

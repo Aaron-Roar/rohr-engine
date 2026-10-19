@@ -520,7 +520,13 @@ otherwise valid topology. Owner transforms are never applied to saved node poses
 
 `joint_anchors` is an array of local positions on each owner, including unused
 and shared anchors. Joint `anchor_a` and `anchor_b` are zero-based indices into
-the respective owners' arrays, or null for ordinary inline local anchors.
+the respective owners' arrays. Null means an intentionally disconnected endpoint
+and requires the corresponding `a` or `b` entity to be null too. A connected body
+without its anchor is rejected with a clear error and complete load rollback;
+the former inline body-local attachment model is no longer supported. Existing
+anchor-based saves keep their stored rest values. Legacy local-offset and angular
+fields remain in the serialization layout, but do not provide an attachment
+fallback.
 
 Runtime `lifetime.time` and `lifetime.tick` are remaining durations, with
 `time_enabled` and `tick_enabled` explicitly distinguishing disabled expiry

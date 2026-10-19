@@ -5,7 +5,6 @@
 #include "physics/physics_step_internal.h"
 #include "physics/physics_internal.h"
 #include "systems.h"
-#include "core/engine_internal.h"
 #include "math2d.h"
 #include "physics/physics_operation.h"
 #include <math.h>
@@ -40,50 +39,6 @@ static Velocity system_point_velocity(Entity entity, Vec2D world_offset) {
         .y = velocities[index].y + angular_part.y
     };
 }
-/* Legacy pin loads retain their one-tick lifetime. Prepare both endpoints
- * before creating anything; allocation failure releases this operation's
- * temporary entities without undoing earlier operations. */
-static void system_joint_load_pair_add(Entity a, Entity b, Position point_a,
-        Position point_b, Force force, Report *report, Entity source) {
-    Entity targets_pair[] = {a, b};
-    Position points[] = {point_a, point_b};
-    Force values[] = {force, {-force.x, -force.y}};
-    Torque torque[2];
-    bool active[2] = {false, false};
-    Entity created[2];
-    size_t count = 0;
-    EngineError failure = ERROR_NONE;
-    for(size_t n = 0; n < 2; ++n) {
-        EntityIndex i;
-        if(!entity_index_get(targets_pair[n], &i) || !physics_entity_simulated_get(i)) continue;
-        active[n] = true;
-        torque[n] = -math_cross_2d(math_vector_subtract(points[n],
-            physics_com_world_by_index_get(i)), values[n]);
-        if(!physics_vector_finite_check(values[n]) || !isfinite(torque[n])) {
-            physics_operation_reject(report, ROHR_PHYSICS_FORCE_CONTRIBUTION,
-                ERROR_ENGINE_STATE_INVALID, source, targets_pair[n]);
-            return;
-        }
-    }
-    for(size_t n = 0; n < 2; ++n) {
-        if(!active[n]) continue;
-        ForceDescription description = physics_force_vector_description(targets_pair[n], values[n]);
-        description.location = (ForceLocation){.offset = points[n]};
-        EntityResult force_result = physics_force_add(description);
-        if(force_result.kind == ERROR_RESULT_ERROR) { failure = force_result.result.error; break; }
-        created[count++] = force_result.result.value;
-    }
-    for(size_t n = 0; failure == ERROR_NONE && n < count; ++n) {
-        EngineResult result = entity_life_time_set(created[n], 0.0, engine_tick_get() + 1);
-        if(result.kind == ERROR_RESULT_ERROR) failure = result.result.error;
-    }
-    if(failure != ERROR_NONE) {
-        for(size_t n = 0; n < count; ++n) (void)entity_delete(created[n]);
-        physics_report_issue_add(report, ROHR_PHYSICS_CONSTRAINT_RESPONSE, ROHR_REPORT_SEVERITY_FATAL,
-            failure, ROHR_REPORT_UPDATE_ABORTED, source, b, "could not allocate paired joint contributions");
-    }
-}
-
 static float system_joint_inverse_inertia(EntityIndex index) {
     return physics_inverse_inertia_by_index_get(index);
 }
@@ -160,7 +115,7 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
     Position world_anchor_a;
     Position world_anchor_b;
 
-    if(joint.anchor_a != JOINT_ANCHOR_INVALID && joint.anchor_b != JOINT_ANCHOR_INVALID) {
+    {
         JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
         JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
         if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
@@ -174,11 +129,6 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
         world_anchor_b = anchor_b.result.value;
         offset_a = math_vector_subtract(world_anchor_a, positions[a_index]);
         offset_b = math_vector_subtract(world_anchor_b, positions[b_index]);
-    } else {
-        offset_a = math_vector_rotate(joint.local_anchor_a, orientations[a_index]);
-        offset_b = math_vector_rotate(joint.local_anchor_b, orientations[b_index]);
-        world_anchor_a = (Position){positions[a_index].x + offset_a.x, positions[a_index].y + offset_a.y};
-        world_anchor_b = (Position){positions[b_index].x + offset_b.x, positions[b_index].y + offset_b.y};
     }
 
     offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));
@@ -196,33 +146,10 @@ static void system_pin_joint_apply(Entity joint_entity, Report *report) {
         .y = velocity_b.y - velocity_a.y
     };
 
-    if(joint.anchor_a != JOINT_ANCHOR_INVALID && joint.anchor_b != JOINT_ANCHOR_INVALID) {
-        system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-            error, relative_velocity, (Vec2D){1.0f, 0.0f}, report, physics_operation_entity_get(joint_entity));
-        system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
-            error, relative_velocity, (Vec2D){0.0f, 1.0f}, report, physics_operation_entity_get(joint_entity));
-        return;
-    }
-
-    Force force_on_a = {
-        .x = joint.stiffness * error.x + joint.damping * relative_velocity.x,
-        .y = joint.stiffness * error.y + joint.damping * relative_velocity.y
-    };
-
-    Force force_on_b = {
-        .x = -force_on_a.x,
-        .y = -force_on_a.y
-    };
-
-    Entity source = physics_operation_entity_get(joint_entity);
-    if(!physics_vector_finite_check(force_on_a) ||
-            !isfinite(math_cross_2d(offset_a, force_on_a)) ||
-            !isfinite(math_cross_2d(offset_b, force_on_b))) {
-        physics_operation_reject(report, ROHR_PHYSICS_FORCE_CONTRIBUTION,
-            ERROR_ENGINE_STATE_INVALID, source, b);
-        return;
-    }
-    system_joint_load_pair_add(a, b, world_anchor_a, world_anchor_b, force_on_a, report, source);
+    system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
+        error, relative_velocity, (Vec2D){1.0f, 0.0f}, report, physics_operation_entity_get(joint_entity));
+    system_rigid_anchor_axis_solve(a_index, b_index, offset_a, offset_b,
+        error, relative_velocity, (Vec2D){0.0f, 1.0f}, report, physics_operation_entity_get(joint_entity));
 }
 
 static void system_weld_joint_apply(Entity joint_entity, Report *report) {
@@ -240,6 +167,8 @@ static void system_weld_joint_apply(Entity joint_entity, Report *report) {
     if(!entity_index_get(joint.a, &a_index) || !entity_index_alive_check(a_index) ||
             !entity_index_get(joint.b, &b_index) || !entity_index_alive_check(b_index)) return;
     if(a_index == b_index) return;
+    if(error_check(physics_joint_anchor_world_position_get(joint.anchor_a)) ||
+            error_check(physics_joint_anchor_world_position_get(joint.anchor_b))) return;
     inverse_inertia_a = physics_inverse_inertia_by_index_get(a_index);
     inverse_inertia_b = physics_inverse_inertia_by_index_get(b_index);
     inverse_inertia_sum = inverse_inertia_a + inverse_inertia_b;
@@ -291,7 +220,7 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
         Vec2D offset_b;
         Position world_anchor_a;
         Position world_anchor_b;
-        if(joint.anchor_a != JOINT_ANCHOR_INVALID && joint.anchor_b != JOINT_ANCHOR_INVALID) {
+        {
             JointAnchorPositionResult anchor_a = physics_joint_anchor_world_position_get(joint.anchor_a);
             JointAnchorPositionResult anchor_b = physics_joint_anchor_world_position_get(joint.anchor_b);
             if(anchor_a.kind == ERROR_RESULT_ERROR || anchor_b.kind == ERROR_RESULT_ERROR) {
@@ -305,11 +234,6 @@ static void system_spring_joint_apply(Entity joint_entity, Report *report) {
             world_anchor_b = anchor_b.result.value;
             offset_a = math_vector_subtract(world_anchor_a, positions[a_index]);
             offset_b = math_vector_subtract(world_anchor_b, positions[b_index]);
-        } else {
-            offset_a = math_vector_rotate(joint.local_anchor_a, orientations[a_index]);
-            offset_b = math_vector_rotate(joint.local_anchor_b, orientations[b_index]);
-            world_anchor_a = (Position){positions[a_index].x + offset_a.x, positions[a_index].y + offset_a.y};
-            world_anchor_b = (Position){positions[b_index].x + offset_b.x, positions[b_index].y + offset_b.y};
         }
 
         offset_a = math_vector_subtract(world_anchor_a, physics_com_world_by_index_get(a_index));

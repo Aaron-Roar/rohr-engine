@@ -43,6 +43,8 @@ bool physics_source_geometry_get(Entity source, bool torque, Position *point,
 void physics_sources_apply(Report *report, bool torque);
 ForceDescription physics_force_vector_description(Entity target, Force vector);
 bool physics_entity_nonrotating_check(EntityIndex index);
+/* Validated raw restore for saved solver state; never accepts body-local attachments. */
+EngineResult physics_joint_component_restore(Entity entity, Joint joint);
 void physics_joint_state_init(void);
 void physics_joint_entity_clear(Entity entity, EntityIndex index);
 void physics_soft_body_entity_clear(Entity entity, EntityIndex index);

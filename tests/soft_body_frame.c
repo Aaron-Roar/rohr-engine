@@ -111,7 +111,7 @@ static void pipeline_check(void) {
     EntityResult world=rohr_entity_add(); OK(world);
     OK(rohr_physics_position_set(world.result.value,((Position){4,5})));
     JointAnchorIdResult fixed=rohr_physics_joint_anchor_add((JointAnchorDescription){.entity=world.result.value}); OK(fixed);
-    OK(rohr_physics_joint_pin_set(joint.result.value,anchor.result.value,fixed.result.value));
+    OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){.type = JOINT_PIN, .anchor_a = anchor.result.value, .anchor_b = fixed.result.value}));
     rohr_physics_pipeline_substep_begin(); r=rohr_physics_pipeline_joints_gather(); assert(!r.has_fatal);
     r=rohr_physics_pipeline_constraints_solve(8); assert(!r.has_fatal);
     Position a=position(n[0]),c=position(n[1]); assert(a.y>1);

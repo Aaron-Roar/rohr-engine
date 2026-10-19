@@ -434,9 +434,9 @@ typedef struct Joint {
     /** Joint behavior type. */
     JointType type;
 
-    /** First explicit anchor handle, when configured through the anchor API. */
+    /** First borrowed anchor handle; invalid means disconnected. */
     JointAnchorId anchor_a;
-    /** Second explicit anchor handle, when configured through the anchor API. */
+    /** Second borrowed anchor handle; invalid means disconnected. */
     JointAnchorId anchor_b;
 
     /** First constrained entity. */
@@ -444,9 +444,9 @@ typedef struct Joint {
     /** Second constrained entity. */
     Entity b;
 
-    /** Anchor point local to entity a. */
+    /** Legacy serialization field; not used to connect or solve joints. */
     Vec2D local_anchor_a;
-    /** Anchor point local to entity b. */
+    /** Legacy serialization field; not used to connect or solve joints. */
     Vec2D local_anchor_b;
 
     /** Resting distance for spring joints. */
@@ -569,17 +569,23 @@ typedef struct SoftBodyAreaDescription {
     SoftBodyAreaGeometry geometry;
 } SoftBodyAreaDescription;
 
-/** Create a joint without inferring ownership from its endpoints. */
+/** Complete joint configuration. Endpoints borrow body-owned anchor resources.
+ * Invalid anchors disconnect an endpoint; ownership is independent of connections.
+ * Automatic rest values are measured once by add/set (zero if disconnected).
+ * Explicit flags allow authored rest values, including zero. */
 typedef struct JointDescription {
     Entity owner;
-    Entity a;
-    Entity b;
     JointType type;
-    Vec2D local_anchor_a;
-    Vec2D local_anchor_b;
+    JointAnchorId anchor_a;
+    JointAnchorId anchor_b;
+    float rest_length;
     float stiffness;
     float damping;
+    Orientation rest_angle;
+    bool rest_length_explicit;
+    bool rest_angle_explicit;
 } JointDescription;
+ERROR_DECLARE_RESULT_TYPE(JointDescriptionResult, JointDescription);
 
 /** Anchors are resources attached to an entity, not independently owned entities. */
 typedef struct JointAnchorDescription {
@@ -1031,8 +1037,10 @@ EngineResult physics_transform_lock_current_transform_set(
 /** Set the target component used by force and torque source entities. */
 EngineResult physics_target_set(Entity entity, Entity target);
 
-/** Add or replace complete joint component data on an existing entity. */
-EngineResult physics_joint_component_set(Entity entity, Joint joint);
+/** Atomically replace configuration and owner; failure leaves both unchanged. */
+EngineResult physics_joint_description_set(Entity entity, JointDescription description);
+/** Return current owner and resolved rest values with both explicit flags true. */
+JointDescriptionResult physics_joint_description_get(Entity entity);
 
 JointAnchorIdResult physics_joint_anchor_add(JointAnchorDescription description);
 JointAnchorListResult physics_joint_anchors_get(Entity entity);
@@ -1040,17 +1048,6 @@ JointAnchorPositionResult physics_joint_anchor_local_position_get(JointAnchorId 
 JointAnchorPositionResult physics_joint_anchor_world_position_get(JointAnchorId anchor);
 EngineResult physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset);
 EngineResult physics_joint_anchor_remove(JointAnchorId anchor);
-
-EngineResult physics_joint_pin_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-EngineResult physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-EngineResult physics_joint_spring_set(
-    Entity joint,
-    JointAnchorId anchor_a,
-    JointAnchorId anchor_b,
-    float rest_length,
-    float stiffness,
-    float damping
-);
 
 EntityResult physics_soft_body_add(SoftBodyDescription description);
 SoftBodyResult physics_soft_body_get(Entity soft_body);

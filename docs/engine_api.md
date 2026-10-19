@@ -32,19 +32,6 @@ See the [angle convention and format migration contract](angle_convention_contra
 
 ## Engine
 
-### `rohr_scene_run`
-
-```c
-Report rohr_scene_run(int argc, char **argv, SceneCallbacks callbacks);
-```
-
-Runs a standalone or editor-hosted scene in its own process. The runner owns
-engine and graphics startup/teardown. Required initialization and shutdown
-callbacks borrow a caller context; an optional gameplay callback returns a
-report before physics while playing. Shutdown also handles partial initialization.
-The returned report owns diagnostics after cleanup. See [scene entry points,
-hosting limits, and lifecycle](scene_projects.md#scene-runner-and-lifecycle).
-
 ### `rohr_engine_start`
 
 ```c
@@ -2310,20 +2297,29 @@ Sets the target used by a force or torque source entity.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_joint_component_set`
+### `rohr_physics_joint_description_set`
 
 ```c
-EngineResult rohr_physics_joint_component_set(Entity entity, Joint joint);
+EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription description);
 ```
 
-Adds or replaces complete joint data on an existing entity.
+ Atomically replace the complete configuration and lifetime owner.
 
-| Parameter | Description |
-| --- | --- |
-| `entity` | Entity that owns the joint component. |
-| `joint` | Complete joint component value. |
+Invalid anchors disconnect endpoints; stale nonzero handles are rejected.
 
-**Returns:** EngineResult describing success or failure.
+Automatic rest values measure the current pose once, or zero when disconnected.
+
+Failure leaves the entity, configuration, and ownership unchanged.
+
+### `rohr_physics_joint_description_get`
+
+```c
+JointDescriptionResult rohr_physics_joint_description_get(Entity entity);
+```
+
+ Return the current owner and resolved rest values with explicit flags true.
+
+Get-modify-set preserves the resting pose even after the bodies have moved.
 
 ### `rohr_physics_joint_anchor_add`
 
@@ -2402,62 +2398,11 @@ Sets an anchor offset relative to its owner's stable local origin.
 EngineResult rohr_physics_joint_anchor_remove(JointAnchorId anchor);
 ```
 
-Removes an anchor and its connected joint entities.
+Removes an anchor and disconnects joint endpoints that reference it.
 
 | Parameter | Description |
 | --- | --- |
 | `anchor` | Anchor to remove. |
-
-**Returns:** EngineResult describing success or failure.
-
-### `rohr_physics_joint_pin_set`
-
-```c
-EngineResult rohr_physics_joint_pin_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-```
-
-Configures a joint entity as a rigid pin between two anchors.
-
-| Parameter | Description |
-| --- | --- |
-| `joint` | Entity that owns the joint component. |
-| `anchor_a` | First anchor. |
-| `anchor_b` | Second anchor. |
-
-**Returns:** EngineResult describing success or failure.
-
-### `rohr_physics_joint_weld_set`
-
-```c
-EngineResult rohr_physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b);
-```
-
-Configures a joint entity as a rigid weld between two anchors.
-
-| Parameter | Description |
-| --- | --- |
-| `joint` | Entity that owns the joint component. |
-| `anchor_a` | First anchor. |
-| `anchor_b` | Second anchor. |
-
-**Returns:** EngineResult describing success or failure.
-
-### `rohr_physics_joint_spring_set`
-
-```c
-EngineResult rohr_physics_joint_spring_set( Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b, float rest_length, float stiffness, float damping );
-```
-
-Configures a joint entity as a damped spring between two anchors.
-
-| Parameter | Description |
-| --- | --- |
-| `joint` | Entity that owns the joint component. |
-| `anchor_a` | First anchor. |
-| `anchor_b` | Second anchor. |
-| `rest_length` | Unstretched anchor distance. |
-| `stiffness` | Spring stiffness. |
-| `damping` | Relative-motion damping. |
 
 **Returns:** EngineResult describing success or failure.
 
@@ -2468,13 +2413,6 @@ EntityResult rohr_physics_soft_body_add(SoftBodyDescription description);
 ```
 
 Creates an empty soft body and its origin transform.
-
-During physics updates, the origin follows the equal-weight average position
-and incremental best-fit rotation of directly owned nodes, preserving its
-offset from that private frame. Node membership changes preserve the origin;
-explicit body transforms still move the nodes. This tracking frame is separate
-from mass-weighted COM. See [the force contract](force_torque_contract.md) for
-degenerate geometry and sampling behavior.
 
 The returned owner entity is also the body's origin and may be passed to
 
@@ -2731,11 +2669,11 @@ Later areas draw on top within the same layer. Out-of-range indices fail.
 EntityResult rohr_physics_joint_add(JointDescription description);
 ```
 
-Creates a joint between two entities.
+Creates a joint borrowing two anchor handles.
 
 | Parameter | Description |
 | --- | --- |
-| `description` | Lifetime owner, endpoints, local offsets, and joint behavior. |
+| `description` | Lifetime owner, anchor endpoints, joint behavior, and automatic or explicit rest values. |
 
 **Returns:** EntityResult containing the joint entity, or an error.
 

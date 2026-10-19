@@ -309,9 +309,11 @@ static bool state_check(void) {
     OK(rohr_physics_angle_lock_set(driver.result.value, -450, 810));
     OK(rohr_physics_transform_lock_set(follower.result.value, driver.result.value,
         (Vec2D){0,10}, 810, true, true, true));
-    OK(rohr_physics_joint_component_set(joint.result.value, (Joint){
-        .type=JOINT_WELD, .a=driver.result.value, .b=follower.result.value,
-        .rest_angle=-450, .lock_angle=true, .angular_stiffness=2, .angular_damping=3}));
+    JointAnchorIdResult anchor_driver = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = driver.result.value}); OK(anchor_driver);
+    JointAnchorIdResult anchor_follower = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = follower.result.value}); OK(anchor_follower);
+    OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){
+        .type=JOINT_WELD, .anchor_a=anchor_driver.result.value, .anchor_b=anchor_follower.result.value,
+        .rest_angle=-450, .rest_angle_explicit=true}));
 
     /* Both runtime snapshots and explicitly authored documents retain turns. */
     for(int authored=0; authored<2; authored+=1) {
@@ -342,7 +344,8 @@ static bool state_check(void) {
             transform_locks[f].driver == driver.result.value);
         CHECK(joints[j].rest_angle == -450 && joints[j].a == driver.result.value &&
             joints[j].b == follower.result.value);
-        CHECK(joints[j].angular_stiffness == 2 && joints[j].angular_damping == 3);
+        JointDescriptionResult saved_joint = rohr_physics_joint_description_get(joint.result.value); OK(saved_joint);
+        CHECK(saved_joint.result.value.rest_angle_explicit && saved_joint.result.value.rest_angle == -450);
     }
     CHECK(SDL_RemovePath(path));
     return true;

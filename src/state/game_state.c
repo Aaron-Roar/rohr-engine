@@ -23,6 +23,7 @@
 #include "graphics.h"
 #include "graphics/texture_assets.h"
 #include "physics.h"
+#include "physics/physics_internal.h"
 #include "physics/collision/shape_decomposition.h"
 #include "yyjson/yyjson.h"
 
@@ -1774,7 +1775,7 @@ static EngineResult state_joint_load(Entity entity, yyjson_val *components) {
         if(!state_joint_anchor_read(yyjson_obj_get(value, "anchor_a"), joint.a, &joint.anchor_a) ||
                 !state_joint_anchor_read(yyjson_obj_get(value, "anchor_b"), joint.b, &joint.anchor_b))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        result = physics_joint_component_set(entity, joint);
+        result = physics_joint_component_restore(entity, joint);
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
 

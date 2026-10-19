@@ -183,7 +183,7 @@ API redesign is part of this milestone.
 
 Whole-struct camera create/set/get and attachment queries, sprite addition,
 viewport item and UI configuration APIs, `ui_slider`/`ui_slider_with_text`,
-and `physics_joint_component_set` consume/return these degree-based fields
+and joint description add/set/get consume/return these degree-based fields
 without new radians variants. Joint constructors and
 `physics_transform_lock_current_transform_set` derive degree-based relative
 angles from stored state. Shape generation APIs with no angle parameter keep

@@ -546,8 +546,11 @@ EngineResult rohr_physics_transform_lock_current_transform_set(Entity driven, En
 EngineResult rohr_physics_target_set(Entity entity, Entity target) {
     return physics_target_set(entity, target);
 }
-EngineResult rohr_physics_joint_component_set(Entity entity, Joint joint) {
-    return physics_joint_component_set(entity, joint);
+EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription description) {
+    return physics_joint_description_set(entity, description);
+}
+JointDescriptionResult rohr_physics_joint_description_get(Entity entity) {
+    return physics_joint_description_get(entity);
 }
 JointAnchorIdResult rohr_physics_joint_anchor_add(JointAnchorDescription description) { return physics_joint_anchor_add(description); }
 JointAnchorListResult rohr_physics_joint_anchors_get(Entity entity) { return physics_joint_anchors_get(entity); }
@@ -555,9 +558,7 @@ JointAnchorPositionResult rohr_physics_joint_anchor_local_position_get(JointAnch
 JointAnchorPositionResult rohr_physics_joint_anchor_world_position_get(JointAnchorId anchor) { return physics_joint_anchor_world_position_get(anchor); }
 EngineResult rohr_physics_joint_anchor_local_position_set(JointAnchorId anchor, Vec2D local_offset) { return physics_joint_anchor_local_position_set(anchor, local_offset); }
 EngineResult rohr_physics_joint_anchor_remove(JointAnchorId anchor) { return physics_joint_anchor_remove(anchor); }
-EngineResult rohr_physics_joint_pin_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b) { return physics_joint_pin_set(joint, anchor_a, anchor_b); }
-EngineResult rohr_physics_joint_weld_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b) { return physics_joint_weld_set(joint, anchor_a, anchor_b); }
-EngineResult rohr_physics_joint_spring_set(Entity joint, JointAnchorId anchor_a, JointAnchorId anchor_b, float rest_length, float stiffness, float damping) { return physics_joint_spring_set(joint, anchor_a, anchor_b, rest_length, stiffness, damping); }
+
 EntityResult rohr_physics_soft_body_add(SoftBodyDescription description) { return physics_soft_body_add(description); }
 SoftBodyResult rohr_physics_soft_body_get(Entity soft_body) { return physics_soft_body_get(soft_body); }
 EntityResult rohr_physics_soft_body_node_add(SoftBodyNodeDescription description) { return physics_soft_body_node_add(description); }
