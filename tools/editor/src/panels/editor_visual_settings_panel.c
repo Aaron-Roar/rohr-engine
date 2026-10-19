@@ -49,15 +49,15 @@ static void editor_visual_settings_apply(EditorVisualSettingsPanel *panel) {
     int width = panel->aspect_index == 0 ? height :
         (int)((float)height * (float)ratios[ratio][0] /
             (float)ratios[ratio][1] + 0.5f);
-    GraphicsWindowPresentationConfig config =
-        rohr_graphics_window_presentation_default_get();
+    WindowPresentationDescription config =
+        rohr_graphics_window_presentation_description_default_get();
     config.mode = (GraphicsWindowMode)panel->window_mode_index;
     config.window_width = width;
     config.window_height = height;
     config.logical_width = width;
     config.logical_height = height;
     config.aspect_ratio_auto = panel->aspect_index == 0;
-    if(rohr_error_check(rohr_graphics_window_presentation_set(config))) return;
+    if(rohr_error_check(rohr_graphics_window_presentation_description_set(config))) return;
     editor_window_height = (float)height;
     if(panel->state_ready) {
         EditorResult result;

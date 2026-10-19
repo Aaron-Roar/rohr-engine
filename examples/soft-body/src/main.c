@@ -334,8 +334,8 @@ int main(void) {
         });
         if(particles[i] == ENTITY_INVALID) goto fail;
     }
-    if(!result_ok(rohr_graphics_camera_with_options_attach(
-                chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
+    if(!result_ok(rohr_graphics_camera_attach(
+                (CameraAttachmentDescription){.entity = chassis, .follow_position = true}))) goto fail;
     if(!result_ok(rohr_camera_zoom_set(
                 rohr_camera_active_get(), camera_default_zoom, 0.0))) goto fail;
     RenderContext render_context = {walls, ramp, particles, chassis, cabin, wheels};
@@ -364,8 +364,9 @@ int main(void) {
             Tick ticks = rohr_engine_tick_delta_get();
             Tick current_tick = rohr_engine_tick_get();
             if(camera_returning && current_tick >= camera_return_end_tick) {
-                if(!result_ok(rohr_camera_attach(rohr_camera_active_get(),
-                            chassis, (Vec2D){0}, 0.0f, true, false))) goto fail;
+                if(!result_ok(rohr_camera_attachment_description_set(
+                            rohr_camera_active_get(),
+                            (CameraAttachmentDescription){.entity = chassis, .follow_position = true}))) goto fail;
                 camera_returning = false;
             }
             if(collision_slow_motion_active && current_tick >= zoom_end_tick) {
@@ -393,7 +394,9 @@ int main(void) {
             if(!collision_zoom_started) {
                 for(uint32_t i = 0; i < PIT_PARTICLE_COUNT; i += 1) {
                     if(!rohr_physics_contact_check(chassis, particles[i])) continue;
-                    if(!result_ok(rohr_camera_position_from_entity_set(
+                    /* This close-up intentionally leaves chassis following. */
+                    if(!result_ok(rohr_camera_detach(rohr_camera_active_get())) ||
+                            !result_ok(rohr_camera_position_from_entity_set(
                                 rohr_camera_active_get(), wheels[1].hub,
                                 camera_collision_zoom_duration)) ||
                             !result_ok(rohr_camera_zoom_set(

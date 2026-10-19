@@ -249,9 +249,9 @@ bool soft_body_areas_visual_run(void) {
         visual.labels[i] = text.result.value;
     }
     camera = rohr_camera_active_get();
-    Camera view = rohr_camera_get(camera).result.value;
+    CameraDescription view = rohr_camera_description_get(camera).result.value;
     view.position = (Position){0}; view.orientation = 0; view.zoom = 1;
-    if(rohr_error_check(rohr_camera_set(camera,view)) ||
+    if(rohr_error_check(rohr_camera_description_set(camera,view)) ||
             rohr_error_check(rohr_camera_render_callback_set(camera,area_visual_draw,&visual))) goto done;
     ViewportConfig config = rohr_viewport_config_default_get();
     config.rectangle = (ViewportRectangle){0,0,WINDOW_WIDTH,WINDOW_HEIGHT};

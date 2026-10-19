@@ -130,9 +130,6 @@ one operation:
 | `graphics_animated_sprite_orientation_offset_set` | `graphics_animated_sprite_orientation_offset_radians_set` | offset |
 | `graphics_animated_sprite_orientation_offset_get` | `graphics_animated_sprite_orientation_offset_radians_get` | successful result |
 | `graphics_camera_rotate` | `graphics_camera_radians_rotate` | rotation amount |
-| `graphics_camera_attach` | `graphics_camera_radians_attach` | orientation_offset |
-| `graphics_camera_with_options_attach` | `graphics_camera_with_options_radians_attach` | orientation_offset |
-| `graphics_camera_attachment_set` | `graphics_camera_attachment_radians_set` | orientation_offset |
 | `ui_quad` | `ui_radians_quad` | angle |
 
 `TransformLockDescription.local_angle` always uses clockwise degrees. The full
@@ -142,11 +139,12 @@ on retrieved values. Both helpers have equivalent `rohr_` facade spellings. The
 old positional `physics_transform_lock_radians_set` was removed in Description
 APIs Goal 3. Scalar radians conveniences in the table above remain available.
 
-The existing camera-ID attachment wrapper is named `rohr_camera_attach`,
-which delegates to `graphics_camera_attachment_set`. Its radians sibling is
-`rohr_camera_radians_attach`, delegating to
-`graphics_camera_attachment_radians_set`. Preserve this established naming;
-do not introduce a second `rohr_graphics_camera_attachment_set` wrapper.
+Camera and attachment descriptions always use degrees. Description APIs Goal 10
+replaced positional camera attachment calls and their radians siblings with
+`graphics_camera_attachment_description_set` / `rohr_camera_attachment_description_set`.
+Use explicit conversion helpers for description angles. Active-camera
+`graphics_camera_attach` / `rohr_graphics_camera_attach` also take a description;
+scalar rotation and its radians convenience remain available.
 
 Add pure conversion helpers and identical `rohr_` wrappers:
 
@@ -171,8 +169,8 @@ API redesign is part of this milestone.
 | `AngleLock` | `min`, `max` |
 | `TransformLock` | `local_angle` |
 | `Joint` | `rest_angle` |
-| `Camera`, `CameraConfig` | `orientation` |
-| `CameraAttachment` | `orientation_offset` |
+| `Camera`, `CameraDescription` | `orientation` |
+| `CameraAttachmentDescription` | `orientation_offset` |
 | `Sprite`, `AnimatedSprite` | `orientation_offset` |
 | `ViewportItemConfig` | `orientation`, `content_orientation` |
 | `ViewportUiTextConfig`, `ViewportUiShapeConfig` | `orientation` |

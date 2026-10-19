@@ -158,7 +158,7 @@ EngineResult player_world_create(PlayerWorld *object, Position position) {
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_hitbox_id_at_set(object->player, 0, UINT32_C(2));
     if(rohr_error_check(result)) goto fail;
-    { CameraIdResult created = rohr_camera_create((CameraConfig){.position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});
+    { CameraIdResult created = rohr_camera_create((CameraDescription){.enabled = true, .position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->camera_main_camera = created.result.value;
     }

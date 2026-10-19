@@ -37,7 +37,7 @@ int main(void) {
         "assets/game-state/relationships.json"
     };
     EntityIndex seeker_index;
-    CameraAttachment camera_attachment;
+    CameraAttachmentDescription camera_attachment;
 
     {
         EngineResult init_result = rohr_engine_start();
@@ -65,7 +65,7 @@ int main(void) {
     Entity seeker = seeker_result.result.value;
     Entity player = player_result.result.value;
     EntityIndexResult index_result = rohr_entity_index_get(seeker);
-    CameraAttachmentResult attachment_result = rohr_graphics_camera_attachment_get();
+    CameraAttachmentDescriptionResult attachment_result = rohr_camera_attachment_description_get(rohr_camera_active_get());
     if(rohr_error_check(index_result) || rohr_error_check(attachment_result)) {
         if(rohr_error_check(index_result)) {
             PRINT_ENGINE_ERROR(index_result);

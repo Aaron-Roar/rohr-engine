@@ -212,10 +212,33 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    Standard builds and strict input-module/consumer checks have no warnings;
    strict Pong builds expose the existing unused generated tag-query helper.
    Reconciled 1,584 installed-header entries and documentation links. Native
-   Windows execution remains unverified. Stop for review before Goal 10.
-10. [ ] **Standardize cameras and presentation configuration** — Unify camera,
-    attachment, and window presentation descriptions. Preserve unrelated
-    attachments/motion and keep timed commands and focused callbacks direct.
+   Windows execution remains unverified.
+10. [x] **Standardize cameras and presentation configuration** — Added
+    `CameraDescription`, `CameraAttachmentDescription`, and
+    `WindowPresentationDescription` with creation/default/full accessors; retained
+    resolved camera queries and focused/timed operations. Camera configuration
+    includes enable/pause flags and borrowed render callback/context. World edits
+    update attachment offsets; timed movement interpolates offsets while continuing
+    to follow the target. Only explicit detach breaks attachment. Unavailable
+    targets retain their generational reference and last resolved view. Unchanged
+    or unrelated edits preserve movement/zoom; invalid edits preserve configuration
+    and motion. Zero camera dimensions/zoom use valid defaults; invalid negative
+    or nonfinite values fail. Presentation validates before backend mutation and
+    attempts rollback on backend failure. Migrated generators, persistence,
+    examples, editor callers, SDK consumers, and degree-conversion documentation.
+    Existing cinematic examples now detach explicitly when ending following.
+    Verified all 101 native tests and final focused regressions; seven
+    ASan/UBSan/leak checks; full Linux and Windows cross-builds; seven independent
+    SDK examples and the camera consumer on both platforms, with Linux execution.
+    Regenerated center-of-mass/player-controller modules match checked-in output,
+    compile on both platforms, and launch on Linux without modifying their mains.
+    The external custom main is unchanged; scene hosting and two-second force
+    toggling pass. Standard builds are warning-free; strict audits retain existing
+    graphics macro/indentation warnings and Pong's unused generated helper.
+    Reconciled 1,580 header entries, nine remaining Config/Descriptor names, and
+    documentation links. Native Windows execution, desktop fullscreen recovery,
+    and real editor/application visual review remain unverified. Stop for review
+    before Goal 11.
 11. [ ] **Complete screen, viewport, layer, and persistent UI descriptions** —
     Standardize types and missing full accessors, including mount content and
     placement. Preserve handles, children, composition, dependencies, and

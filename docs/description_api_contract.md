@@ -1,9 +1,10 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–9 of **Consistent Description APIs** are implemented.
+Status: Goals 1–10 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
 configuration, particle, soft-body, anchor, asset-loading, text, sprite,
-animation-instance, audio, and logical input descriptions are shipped. Names and missing interfaces described
+animation-instance, audio, logical input, camera, attachment, and window
+presentation descriptions are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
 
@@ -86,9 +87,8 @@ only where explicitly specified; invalid replacements preserve the old state.
   create a description whose angle fields silently change units between calls;
   radians conveniences convert at the boundary into canonical descriptions.
 
-These are future migration requirements, not claims that every current full
-setter already meets them. For example, the current camera value setter clears
-attachments and active motion; Goal 10 must remove unrelated resets.
+Remaining migration requirements apply to the unfinished families. Goal 10
+replaced the camera setter that previously cleared attachments and active motion.
 
 ## Compatibility and verification
 
@@ -148,7 +148,7 @@ appear in the header inventory below.
 | Sprites, frames, players / 7 — shipped | `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` | Description creation/default/full accessors, plus catalog-to-instance helpers. `Sprite` is the stored configuration alias; `AnimatedSprite` and `AnimationPlayer` retain separate runtime state. | Atomic image/catalog replacement; borrowed getters; stable frame IDs preserve compatible progress. Frame index and clocks remain outside descriptions. |
 | Audio / 8 — shipped | `SoundDescription`, `MusicDescription` | Description creation, muted defaults, and `audio_sound_description_set/get`, `audio_music_description_set/get`. | Full replacement is one queued command; unchanged sources preserve progress. Prepared source changes keep handles and install stopped. Getters borrow applied paths; focused controls remain direct. |
 | Logical input / 9 — shipped | `InputControllerDescription`, `InputActionDescription`; copied `InputBindingList` defaults | Creation and full `_description_set/get`, plus default getters. Focused binding/state and text-input operations stay direct. | Stable handles and validated controller moves; compatible overrides survive. Incompatible edits reject atomically. No-op and rename preserve state/events; rebinding preserves persistent state; type/mode/initial changes reinitialize only the edited action. |
-| Cameras and presentation / 10 | `CameraConfig`, `Camera`, `CameraAttachment`, `GraphicsWindowPresentationConfig` | Use `CameraDescription`, `CameraAttachmentDescription`, `GraphicsWindowPresentationDescription` with complete/default accessors. Retain resolved camera queries if needed separately from configuration retrieval. Include callback/context in full configuration while retaining its focused setter. | Unrelated edits preserve attachments and motion. Changing a driven transform/zoom supersedes only the affected motion channel. Timed commands stay direct. Global presentation needs full set/get, not an artificial resource constructor. |
+| Cameras and presentation / 10 — shipped | `CameraDescription`, `CameraAttachmentDescription`, `WindowPresentationDescription`; resolved `Camera` query retained | Creation and full/default accessors, including callback/context and enable/pause flags. Attachments have separate full accessors. | World edits update offsets and preserve attachment; timed movement interpolates offsets while following the target. Only explicit detach breaks the reference. Unrelated motion survives. Presentation validates before applying and attempts backend rollback on failure. |
 | Screens, viewports, layers, persistent UI / 11 | `ScreenConfig`, `ViewportConfig`, `ViewportItemConfig`, `ViewportUiShapeConfig`, `ViewportUiTextConfig`, `ViewportUiSliderConfig`; positional layer creation | Rename to corresponding `*Description` types; add missing screen/viewport/layer full accessors using `GraphicsLayerDescription`; standardize existing persistent UI accessors. Mount descriptions include content references alongside placement. | Retain handles, mounted children, global layer identity, clipping/composition, resource references, and unrelated interaction state. Creating a mount must still distinguish existing reusable content from convenience creation of new content. |
 | Final verification / 12 | All migrated families | Reconcile inventory and examples; no independent new configuration family. | Verify the complete installed SDK and generated/example parity, including the external force-toggle example. |
 
@@ -533,6 +533,70 @@ in one call. Examples and installed-SDK tests use the description signatures.
 Focused overrides, binding setters, button-state operations, raw input queries,
 and text-input operations remain direct, with their existing semantics.
 
+## Shipped Goal 10 behavior
+
+`CameraDescription` replaces creation-only `CameraConfig` and the old whole-camera
+setter. It contains world position/orientation, dimensions, zoom, enabled,
+`pause_with_engine`, `render_callback`, and `render_context`. The default getter
+returns enabled, window-sized dimensions, unit zoom, and rendering allowed while
+paused. Literal omitted flags remain false. Zero dimensions/zoom use valid
+defaults; negative or nonfinite values and invalid world positions are rejected.
+`Camera` and `camera_get` remain resolved-view queries. Full description getters
+also return the current resolved world view, including for inactive cameras,
+without changing the active camera or renderer selection.
+
+Attachments have separate `CameraAttachmentDescription` full setters/getters and
+a default getter that follows position and orientation. The entity is non-owning;
+callers supply a valid entity and any required transform components. Offsets are
+local when following both position and orientation; position offsets are world
+coordinates when position following is disabled. All description angles use
+clockwise degrees. Positional/options/radians attachment overloads are removed;
+use `math_radians_to_degrees` explicitly in the canonical description. The active
+camera convenience `graphics_camera_attach` also takes a description. Facade
+handle APIs retain the `rohr_camera_` prefix.
+
+World position/orientation edits convert back into attachment offsets. They do
+not detach. A full unchanged description preserves motion; a position change
+replaces only positional movement, a zoom change replaces only zoom movement,
+and orientation/dimension/callback/enable/pause edits preserve unrelated motion.
+Focused setters remain direct. Timed attached movement converts its requested
+world destination into an offset at command acceptance, then interpolates that
+offset while inheriting subsequent target motion/rotation. Invalid requests
+preserve the attachment and both motion channels. Explicit detach freezes the
+last resolved world view and cancels offset movement, preserving zoom movement.
+
+If a target becomes unavailable, the camera retains the exact generational
+reference and its last resolved view. The stored attachment getter still returns
+that description; the existing active-camera live-attachment predicate returns
+false. Reused entity slots cannot capture the camera. World transform edits fail
+while the retained target is unavailable; unrelated configuration edits remain
+valid. Explicit detach makes it independently movable. Callbacks and contexts are copied but
+remain caller-owned; descriptions never allocate or acquire ownership.
+
+`WindowPresentationDescription` replaces `GraphicsWindowPresentationConfig`;
+default/full accessors use `_description_` naming. Defaults and focused controls
+retain existing behavior. Invalid dimensions/modes fail before backend mutation;
+unchanged descriptions avoid SDL calls. If backend application fails, the engine
+attempts to restore the preceding window and logical presentation, publishing
+configuration only on complete success. Native OS recovery can itself fail;
+callers must check the returned error. Hosted scenes retain the requested mode
+while applying windowed output, preserving the existing desktop isolation.
+
+```c
+CameraDescription description = rohr_camera_description_default_get();
+description.render_callback = draw_scene;
+description.render_context = &scene;
+CameraIdResult created = rohr_camera_create(description);
+/* Check created before using its handle. */
+CameraAttachmentDescription follow = rohr_camera_attachment_description_default_get();
+follow.entity = player;
+follow.position_offset = (Vec2D){0, 100};
+EngineResult attached = rohr_camera_attachment_description_set(created.result.value, follow);
+/* Check attached. Movement now adjusts the offset instead of detaching. */
+EngineResult moved = rohr_camera_position_move(created.result.value, (Vec2D){50, 0}, 0.5);
+/* Check moved. Use rohr_camera_detach explicitly to stop following. */
+```
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -581,15 +645,14 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1584** classified declaration/macro entries.
+The current inventory contains **1580** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 252 |
+| C: Compliant | Existing description interface | — | 274 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
-| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
+| EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 400 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
@@ -752,17 +815,9 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 254 entries</summary>
+<summary>graphics.h: 252 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
-
-**M10 — Camera and presentation configuration (Goal 10)**
-
-- `graphics_camera_attach`, `graphics_camera_attachment_get`, `graphics_camera_attachment_radians_set`.
-- `graphics_camera_attachment_set`, `graphics_camera_config_default_get`, `graphics_camera_create`.
-- `graphics_camera_get`, `graphics_camera_radians_attach`, `graphics_camera_set`.
-- `graphics_camera_with_options_attach`, `graphics_camera_with_options_radians_attach`, `graphics_window_presentation_default_get`.
-- `graphics_window_presentation_get`, `graphics_window_presentation_set`.
 
 **M11 — Screen, viewport, layer, and persistent UI configuration (Goal 11)**
 
@@ -785,11 +840,15 @@ Source: [graphics.h](../include/graphics.h).
 - `graphics_animation_frame_create`, `graphics_animation_frame_description_default_get`, `graphics_animation_frame_description_get`.
 - `graphics_animation_load`, `graphics_animation_player_create`, `graphics_animation_player_description_default_get`.
 - `graphics_animation_player_description_from_animation_get`, `graphics_animation_player_description_get`, `graphics_animation_player_description_set`.
-- `graphics_font_description_default_get`, `graphics_font_description_get`, `graphics_font_load`.
-- `graphics_sprite_add`, `graphics_sprite_create`, `graphics_sprite_description_default_get`.
-- `graphics_sprite_description_get`, `graphics_sprite_description_set`, `graphics_text_create`.
-- `graphics_text_description_default_get`, `graphics_text_description_get`, `graphics_text_description_set`.
-- `graphics_texture_description_default_get`, `graphics_texture_description_get`, `graphics_texture_load`.
+- `graphics_camera_attach`, `graphics_camera_attachment_description_default_get`, `graphics_camera_attachment_description_get`.
+- `graphics_camera_attachment_description_set`, `graphics_camera_create`, `graphics_camera_description_default_get`.
+- `graphics_camera_description_get`, `graphics_camera_description_set`, `graphics_font_description_default_get`.
+- `graphics_font_description_get`, `graphics_font_load`, `graphics_sprite_add`.
+- `graphics_sprite_create`, `graphics_sprite_description_default_get`, `graphics_sprite_description_get`.
+- `graphics_sprite_description_set`, `graphics_text_create`, `graphics_text_description_default_get`.
+- `graphics_text_description_get`, `graphics_text_description_set`, `graphics_texture_description_default_get`.
+- `graphics_texture_description_get`, `graphics_texture_load`, `graphics_window_presentation_description_default_get`.
+- `graphics_window_presentation_description_get`, `graphics_window_presentation_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -818,18 +877,19 @@ Source: [graphics.h](../include/graphics.h).
 - `graphics_animated_sprite_frame_offset_get`, `graphics_animated_sprite_frame_rotation_get`, `graphics_animated_sprite_frame_rotation_radians_get`.
 - `graphics_animated_sprite_frame_scale_get`, `graphics_animated_sprite_orientation_offset_get`, `graphics_animated_sprite_orientation_offset_radians_get`.
 - `graphics_animation_info_get`, `graphics_animation_valid_check`, `graphics_camera_active_get`.
-- `graphics_camera_attached_get`, `graphics_camera_moving_get`, `graphics_camera_zoom_get`.
-- `graphics_contacts_debug_check`, `graphics_font_default_get`, `graphics_font_valid_check`.
-- `graphics_layer_active_get`, `graphics_layer_animation_get`, `graphics_layer_animation_id_get`.
-- `graphics_layer_entity_get`, `graphics_layer_entity_id_get`, `graphics_layer_get`.
-- `graphics_layer_name_get`, `graphics_layer_name_id_get`, `graphics_layer_sprite_get`.
-- `graphics_layer_sprite_id_get`, `graphics_layer_ui_get`, `graphics_layer_ui_id_get`.
-- `graphics_mouse_screen_position_get`, `graphics_render_output_size_get`, `graphics_screen_to_world_get`.
-- `graphics_sprite_body_offset_get`, `graphics_sprite_orientation_offset_get`, `graphics_sprite_orientation_offset_radians_get`.
-- `graphics_text_valid_check`, `graphics_texture_size_get`, `graphics_texture_valid_check`.
-- `graphics_ui_slider_value_get`, `graphics_viewport_item_drag_mode_get`, `graphics_viewport_item_dragging_check`.
-- `graphics_viewport_item_viewport_get`, `graphics_viewport_ui_hovered_check`, `graphics_viewport_ui_pressed_check`.
-- `graphics_viewport_ui_slider_changed_check`, `graphics_window_to_screen_get`, `graphics_world_to_screen_get`.
+- `graphics_camera_attached_get`, `graphics_camera_get`, `graphics_camera_moving_get`.
+- `graphics_camera_zoom_get`, `graphics_contacts_debug_check`, `graphics_font_default_get`.
+- `graphics_font_valid_check`, `graphics_layer_active_get`, `graphics_layer_animation_get`.
+- `graphics_layer_animation_id_get`, `graphics_layer_entity_get`, `graphics_layer_entity_id_get`.
+- `graphics_layer_get`, `graphics_layer_name_get`, `graphics_layer_name_id_get`.
+- `graphics_layer_sprite_get`, `graphics_layer_sprite_id_get`, `graphics_layer_ui_get`.
+- `graphics_layer_ui_id_get`, `graphics_mouse_screen_position_get`, `graphics_render_output_size_get`.
+- `graphics_screen_to_world_get`, `graphics_sprite_body_offset_get`, `graphics_sprite_orientation_offset_get`.
+- `graphics_sprite_orientation_offset_radians_get`, `graphics_text_valid_check`, `graphics_texture_size_get`.
+- `graphics_texture_valid_check`, `graphics_ui_slider_value_get`, `graphics_viewport_item_drag_mode_get`.
+- `graphics_viewport_item_dragging_check`, `graphics_viewport_item_viewport_get`, `graphics_viewport_ui_hovered_check`.
+- `graphics_viewport_ui_pressed_check`, `graphics_viewport_ui_slider_changed_check`, `graphics_window_to_screen_get`.
+- `graphics_world_to_screen_get`.
 
 **EO — Operation, lifecycle, execution, or drawing**
 
@@ -1095,17 +1155,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 780 entries</summary>
+<summary>rohr.h: 778 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M10 — Camera and presentation configuration (Goal 10)**
-
-- `rohr_camera_attach`, `rohr_camera_config_default_get`, `rohr_camera_create`.
-- `rohr_camera_get`, `rohr_camera_radians_attach`, `rohr_camera_set`.
-- `rohr_graphics_camera_attach`, `rohr_graphics_camera_attachment_get`, `rohr_graphics_camera_radians_attach`.
-- `rohr_graphics_camera_with_options_attach`, `rohr_graphics_camera_with_options_radians_attach`, `rohr_graphics_window_presentation_default_get`.
-- `rohr_graphics_window_presentation_get`, `rohr_graphics_window_presentation_set`.
 
 **M11 — Screen, viewport, layer, and persistent UI configuration (Goal 11)**
 
@@ -1122,46 +1174,50 @@ Source: [rohr.h](../include/rohr.h).
 
 - `rohr_audio_music_create`, `rohr_audio_music_description_default_get`, `rohr_audio_music_description_get`.
 - `rohr_audio_music_description_set`, `rohr_audio_sound_create`, `rohr_audio_sound_description_default_get`.
-- `rohr_audio_sound_description_get`, `rohr_audio_sound_description_set`, `rohr_entity_description_add`.
-- `rohr_entity_description_get`, `rohr_entity_description_set`, `rohr_entity_lifetime_description_get`.
-- `rohr_entity_lifetime_description_set`, `rohr_entity_object_add`, `rohr_entity_object_add_with_options`.
-- `rohr_entity_object_by_name_add`, `rohr_entity_object_by_name_add_with_options`, `rohr_entity_object_description_add`.
-- `rohr_entity_object_description_by_name_add`, `rohr_graphics_animated_sprite_add`, `rohr_graphics_animated_sprite_create`.
-- `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`, `rohr_graphics_animated_sprite_description_get`.
-- `rohr_graphics_animated_sprite_description_set`, `rohr_graphics_animated_sprite_frame_add`, `rohr_graphics_animated_sprite_frame_description_get`.
-- `rohr_graphics_animated_sprite_frame_description_set`, `rohr_graphics_animated_sprite_value_description_get`, `rohr_graphics_animated_sprite_value_description_set`.
-- `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`, `rohr_graphics_animation_description_default_get`.
-- `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`, `rohr_graphics_animation_frame_description_default_get`.
-- `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_load`, `rohr_graphics_animation_player_create`.
-- `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`, `rohr_graphics_animation_player_description_get`.
-- `rohr_graphics_animation_player_description_set`, `rohr_graphics_font_description_default_get`, `rohr_graphics_font_description_get`.
-- `rohr_graphics_font_load`, `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`.
-- `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`.
-- `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`.
-- `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`.
-- `rohr_graphics_texture_load`, `rohr_input_action_create`, `rohr_input_action_description_default_get`.
-- `rohr_input_action_description_get`, `rohr_input_action_description_set`, `rohr_input_controller_create`.
-- `rohr_input_controller_description_default_get`, `rohr_input_controller_description_get`, `rohr_input_controller_description_set`.
-- `rohr_object_collision_description_get`, `rohr_object_collision_description_set`, `rohr_object_color_description_get`.
-- `rohr_object_color_description_set`, `rohr_object_description_by_name_get`, `rohr_object_force_description_set`.
-- `rohr_object_get`, `rohr_object_material_description_get`, `rohr_object_material_description_set`.
-- `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`.
-- `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
-- `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`, `rohr_physics_force_description_get`.
-- `rohr_physics_force_description_set`, `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`.
-- `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`.
-- `rohr_physics_joint_description_set`, `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`.
-- `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`.
-- `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`.
-- `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`.
-- `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`.
-- `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`.
-- `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`.
-- `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`.
-- `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`.
-- `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`.
-- `rohr_physics_torque_add`, `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
-- `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
+- `rohr_audio_sound_description_get`, `rohr_audio_sound_description_set`, `rohr_camera_attachment_description_default_get`.
+- `rohr_camera_attachment_description_get`, `rohr_camera_attachment_description_set`, `rohr_camera_create`.
+- `rohr_camera_description_default_get`, `rohr_camera_description_get`, `rohr_camera_description_set`.
+- `rohr_entity_description_add`, `rohr_entity_description_get`, `rohr_entity_description_set`.
+- `rohr_entity_lifetime_description_get`, `rohr_entity_lifetime_description_set`, `rohr_entity_object_add`.
+- `rohr_entity_object_add_with_options`, `rohr_entity_object_by_name_add`, `rohr_entity_object_by_name_add_with_options`.
+- `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`, `rohr_graphics_animated_sprite_add`.
+- `rohr_graphics_animated_sprite_create`, `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`.
+- `rohr_graphics_animated_sprite_description_get`, `rohr_graphics_animated_sprite_description_set`, `rohr_graphics_animated_sprite_frame_add`.
+- `rohr_graphics_animated_sprite_frame_description_get`, `rohr_graphics_animated_sprite_frame_description_set`, `rohr_graphics_animated_sprite_value_description_get`.
+- `rohr_graphics_animated_sprite_value_description_set`, `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`.
+- `rohr_graphics_animation_description_default_get`, `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`.
+- `rohr_graphics_animation_frame_description_default_get`, `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_load`.
+- `rohr_graphics_animation_player_create`, `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`.
+- `rohr_graphics_animation_player_description_get`, `rohr_graphics_animation_player_description_set`, `rohr_graphics_camera_attach`.
+- `rohr_graphics_font_description_default_get`, `rohr_graphics_font_description_get`, `rohr_graphics_font_load`.
+- `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`, `rohr_graphics_sprite_description_default_get`.
+- `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`, `rohr_graphics_text_create`.
+- `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`.
+- `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`.
+- `rohr_graphics_window_presentation_description_default_get`, `rohr_graphics_window_presentation_description_get`, `rohr_graphics_window_presentation_description_set`.
+- `rohr_input_action_create`, `rohr_input_action_description_default_get`, `rohr_input_action_description_get`.
+- `rohr_input_action_description_set`, `rohr_input_controller_create`, `rohr_input_controller_description_default_get`.
+- `rohr_input_controller_description_get`, `rohr_input_controller_description_set`, `rohr_object_collision_description_get`.
+- `rohr_object_collision_description_set`, `rohr_object_color_description_get`, `rohr_object_color_description_set`.
+- `rohr_object_description_by_name_get`, `rohr_object_force_description_set`, `rohr_object_get`.
+- `rohr_object_material_description_get`, `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`.
+- `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
+- `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
+- `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
+- `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`.
+- `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
+- `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`.
+- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
+- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`.
+- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`.
+- `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`.
+- `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`.
+- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`.
+- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
+- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`.
+- `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
+- `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`.
+- `rohr_physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -1219,67 +1275,68 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_audio_sound_loop_check`, `rohr_audio_sound_pan_get`, `rohr_audio_sound_playback_rate_get`.
 - `rohr_audio_sound_playing_check`, `rohr_audio_sound_valid_check`, `rohr_audio_sound_volume_get`.
 - `rohr_audio_started_check`, `rohr_audio_volume_get`, `rohr_camera_active_get`.
-- `rohr_camera_moving_get`, `rohr_camera_zoom_get`, `rohr_console_active_get`.
-- `rohr_directory_base_get`, `rohr_engine_paused_get`, `rohr_engine_tick_delta_get`.
-- `rohr_engine_tick_get`, `rohr_engine_time_get`, `rohr_engine_time_per_tick_get`.
-- `rohr_entity_alive_at_get`, `rohr_entity_alive_check`, `rohr_entity_alive_count_get`.
-- `rohr_entity_by_name_get`, `rohr_entity_children_get`, `rohr_entity_components_check`.
-- `rohr_entity_from_index_get`, `rohr_entity_group_by_name_get`, `rohr_entity_group_entity_check`.
-- `rohr_entity_group_get`, `rohr_entity_group_name_get`, `rohr_entity_groups_get`.
-- `rohr_entity_index_alive_check`, `rohr_entity_index_components_check`, `rohr_entity_index_get`.
-- `rohr_entity_info_check`, `rohr_entity_info_get`, `rohr_entity_info_issues_count_get`.
-- `rohr_entity_info_issues_get`, `rohr_entity_info_release`, `rohr_entity_info_retain`.
-- `rohr_entity_name_get`, `rohr_entity_object_anchor_get`, `rohr_entity_object_camera_get`.
-- `rohr_entity_object_member_by_name_get`, `rohr_entity_object_member_name_get`, `rohr_entity_object_members_get`.
-- `rohr_entity_owner_get`, `rohr_entity_parent_get`, `rohr_graphics_aabb_tree_debug_check`.
-- `rohr_graphics_animated_sprite_body_offset_get`, `rohr_graphics_animated_sprite_frame_index_get`, `rohr_graphics_animated_sprite_frame_offset_get`.
-- `rohr_graphics_animated_sprite_frame_rotation_get`, `rohr_graphics_animated_sprite_frame_rotation_radians_get`, `rohr_graphics_animated_sprite_frame_scale_get`.
-- `rohr_graphics_animated_sprite_orientation_offset_get`, `rohr_graphics_animated_sprite_orientation_offset_radians_get`, `rohr_graphics_animation_info_get`.
-- `rohr_graphics_animation_valid_check`, `rohr_graphics_camera_attached_get`, `rohr_graphics_contacts_debug_check`.
-- `rohr_graphics_font_default_get`, `rohr_graphics_font_valid_check`, `rohr_graphics_layer_active_get`.
-- `rohr_graphics_layer_animation_get`, `rohr_graphics_layer_animation_id_get`, `rohr_graphics_layer_entity_get`.
-- `rohr_graphics_layer_entity_id_get`, `rohr_graphics_layer_get`, `rohr_graphics_layer_name_get`.
-- `rohr_graphics_layer_name_id_get`, `rohr_graphics_layer_sprite_get`, `rohr_graphics_layer_sprite_id_get`.
-- `rohr_graphics_layer_ui_get`, `rohr_graphics_layer_ui_id_get`, `rohr_graphics_mouse_screen_position_get`.
-- `rohr_graphics_render_output_size_get`, `rohr_graphics_screen_to_world_get`, `rohr_graphics_sprite_body_offset_get`.
-- `rohr_graphics_sprite_orientation_offset_get`, `rohr_graphics_sprite_orientation_offset_radians_get`, `rohr_graphics_text_valid_check`.
-- `rohr_graphics_texture_size_get`, `rohr_graphics_texture_valid_check`, `rohr_graphics_ui_slider_value_get`.
-- `rohr_graphics_world_to_screen_get`, `rohr_input_action_axis_1d_get`, `rohr_input_action_axis_2d_get`.
-- `rohr_input_action_bindings_default_get`, `rohr_input_action_bindings_effective_get`, `rohr_input_action_bindings_override_check`.
-- `rohr_input_action_bindings_override_get`, `rohr_input_action_button_down_check`, `rohr_input_action_button_initial_state_check`.
-- `rohr_input_action_button_mode_get`, `rohr_input_action_button_pressed_check`, `rohr_input_action_button_released_check`.
-- `rohr_input_action_by_name_get`, `rohr_input_action_type_get`, `rohr_input_binding_valid_check`.
-- `rohr_input_controller_by_name_get`, `rohr_input_controller_enabled_check`, `rohr_input_key_down_check`.
-- `rohr_input_key_pressed_check`, `rohr_input_key_released_check`, `rohr_input_modifiers_get`.
-- `rohr_input_mouse_button_down_check`, `rohr_input_mouse_button_pressed_check`, `rohr_input_mouse_button_released_check`.
-- `rohr_input_mouse_delta_get`, `rohr_input_mouse_position_get`, `rohr_input_mouse_relative_mode_check`.
-- `rohr_input_mouse_wheel_get`, `rohr_input_text_state_get`, `rohr_physics_angular_velocity_get`.
-- `rohr_physics_angular_velocity_maximum_get`, `rohr_physics_angular_velocity_maximum_radians_get`, `rohr_physics_angular_velocity_radians_get`.
-- `rohr_physics_center_of_mass_automatic_check`, `rohr_physics_center_of_mass_local_position_get`, `rohr_physics_center_of_mass_world_position_get`.
-- `rohr_physics_collision_between_check`, `rohr_physics_contact_check`, `rohr_physics_contact_count_get`.
-- `rohr_physics_contact_entered_check`, `rohr_physics_contact_exited_check`, `rohr_physics_contact_get`.
-- `rohr_physics_contact_stayed_check`, `rohr_physics_contact_total_impulse_get`, `rohr_physics_contacts_get`.
-- `rohr_physics_dt_per_tick_get`, `rohr_physics_entity_held_get`, `rohr_physics_force_location_get`.
-- `rohr_physics_force_magnitude_get`, `rohr_physics_force_orientation_get`, `rohr_physics_force_target_get`.
-- `rohr_physics_global_hit_box_get`, `rohr_physics_gravity_check`, `rohr_physics_gravity_get`.
-- `rohr_physics_hitbox_active_id_get`, `rohr_physics_hitbox_active_index_get`, `rohr_physics_hitbox_animation_binding_at_get`.
-- `rohr_physics_hitbox_animation_binding_get`, `rohr_physics_hitbox_at_get`, `rohr_physics_hitbox_by_id_get`.
-- `rohr_physics_hitbox_count_get`, `rohr_physics_hitbox_get`, `rohr_physics_hitbox_id_at_get`.
-- `rohr_physics_joint_anchor_local_position_get`, `rohr_physics_joint_anchor_world_position_get`, `rohr_physics_joint_anchors_get`.
-- `rohr_physics_kinematic_driven_check`, `rohr_physics_mass_check`, `rohr_physics_mass_get`.
-- `rohr_physics_moment_of_inertia_get`, `rohr_physics_overlap_check`, `rohr_physics_overlap_count_get`.
-- `rohr_physics_overlap_entered_check`, `rohr_physics_overlap_exited_check`, `rohr_physics_overlap_get`.
-- `rohr_physics_overlap_stayed_check`, `rohr_physics_overlaps_get`, `rohr_physics_particle_origin_get`.
-- `rohr_physics_particle_overlap_get`, `rohr_physics_particle_radius_get`, `rohr_physics_position_get`.
-- `rohr_physics_sat_overlap_get`, `rohr_physics_soft_body_area_get`, `rohr_physics_soft_body_beam_get`.
-- `rohr_physics_soft_body_get`, `rohr_physics_soft_body_node_get`, `rohr_physics_soft_body_node_local_position_get`.
-- `rohr_physics_solver_iterations_get`, `rohr_physics_substeps_get`, `rohr_physics_torque_magnitude_get`.
-- `rohr_physics_torque_target_get`, `rohr_physics_world_position_check`, `rohr_ui_button_by_name_get`.
-- `rohr_ui_button_style_default_get`, `rohr_ui_font_by_name_get`, `rohr_ui_key_pressed_check`.
-- `rohr_ui_label_by_name_get`, `rohr_ui_navigation_focus_bounds_get`, `rohr_ui_pointer_consumed_get`.
-- `rohr_ui_primary_pressed_check`, `rohr_ui_slider_by_name_get`, `rohr_ui_slider_config_default_get`.
-- `rohr_viewport_item_drag_mode_get`, `rohr_viewport_item_dragging_check`, `rohr_viewport_item_viewport_get`.
-- `rohr_viewport_ui_hovered_check`, `rohr_viewport_ui_pressed_check`, `rohr_viewport_ui_slider_changed_check`.
+- `rohr_camera_get`, `rohr_camera_moving_get`, `rohr_camera_zoom_get`.
+- `rohr_console_active_get`, `rohr_directory_base_get`, `rohr_engine_paused_get`.
+- `rohr_engine_tick_delta_get`, `rohr_engine_tick_get`, `rohr_engine_time_get`.
+- `rohr_engine_time_per_tick_get`, `rohr_entity_alive_at_get`, `rohr_entity_alive_check`.
+- `rohr_entity_alive_count_get`, `rohr_entity_by_name_get`, `rohr_entity_children_get`.
+- `rohr_entity_components_check`, `rohr_entity_from_index_get`, `rohr_entity_group_by_name_get`.
+- `rohr_entity_group_entity_check`, `rohr_entity_group_get`, `rohr_entity_group_name_get`.
+- `rohr_entity_groups_get`, `rohr_entity_index_alive_check`, `rohr_entity_index_components_check`.
+- `rohr_entity_index_get`, `rohr_entity_info_check`, `rohr_entity_info_get`.
+- `rohr_entity_info_issues_count_get`, `rohr_entity_info_issues_get`, `rohr_entity_info_release`.
+- `rohr_entity_info_retain`, `rohr_entity_name_get`, `rohr_entity_object_anchor_get`.
+- `rohr_entity_object_camera_get`, `rohr_entity_object_member_by_name_get`, `rohr_entity_object_member_name_get`.
+- `rohr_entity_object_members_get`, `rohr_entity_owner_get`, `rohr_entity_parent_get`.
+- `rohr_graphics_aabb_tree_debug_check`, `rohr_graphics_animated_sprite_body_offset_get`, `rohr_graphics_animated_sprite_frame_index_get`.
+- `rohr_graphics_animated_sprite_frame_offset_get`, `rohr_graphics_animated_sprite_frame_rotation_get`, `rohr_graphics_animated_sprite_frame_rotation_radians_get`.
+- `rohr_graphics_animated_sprite_frame_scale_get`, `rohr_graphics_animated_sprite_orientation_offset_get`, `rohr_graphics_animated_sprite_orientation_offset_radians_get`.
+- `rohr_graphics_animation_info_get`, `rohr_graphics_animation_valid_check`, `rohr_graphics_camera_attached_get`.
+- `rohr_graphics_contacts_debug_check`, `rohr_graphics_font_default_get`, `rohr_graphics_font_valid_check`.
+- `rohr_graphics_layer_active_get`, `rohr_graphics_layer_animation_get`, `rohr_graphics_layer_animation_id_get`.
+- `rohr_graphics_layer_entity_get`, `rohr_graphics_layer_entity_id_get`, `rohr_graphics_layer_get`.
+- `rohr_graphics_layer_name_get`, `rohr_graphics_layer_name_id_get`, `rohr_graphics_layer_sprite_get`.
+- `rohr_graphics_layer_sprite_id_get`, `rohr_graphics_layer_ui_get`, `rohr_graphics_layer_ui_id_get`.
+- `rohr_graphics_mouse_screen_position_get`, `rohr_graphics_render_output_size_get`, `rohr_graphics_screen_to_world_get`.
+- `rohr_graphics_sprite_body_offset_get`, `rohr_graphics_sprite_orientation_offset_get`, `rohr_graphics_sprite_orientation_offset_radians_get`.
+- `rohr_graphics_text_valid_check`, `rohr_graphics_texture_size_get`, `rohr_graphics_texture_valid_check`.
+- `rohr_graphics_ui_slider_value_get`, `rohr_graphics_world_to_screen_get`, `rohr_input_action_axis_1d_get`.
+- `rohr_input_action_axis_2d_get`, `rohr_input_action_bindings_default_get`, `rohr_input_action_bindings_effective_get`.
+- `rohr_input_action_bindings_override_check`, `rohr_input_action_bindings_override_get`, `rohr_input_action_button_down_check`.
+- `rohr_input_action_button_initial_state_check`, `rohr_input_action_button_mode_get`, `rohr_input_action_button_pressed_check`.
+- `rohr_input_action_button_released_check`, `rohr_input_action_by_name_get`, `rohr_input_action_type_get`.
+- `rohr_input_binding_valid_check`, `rohr_input_controller_by_name_get`, `rohr_input_controller_enabled_check`.
+- `rohr_input_key_down_check`, `rohr_input_key_pressed_check`, `rohr_input_key_released_check`.
+- `rohr_input_modifiers_get`, `rohr_input_mouse_button_down_check`, `rohr_input_mouse_button_pressed_check`.
+- `rohr_input_mouse_button_released_check`, `rohr_input_mouse_delta_get`, `rohr_input_mouse_position_get`.
+- `rohr_input_mouse_relative_mode_check`, `rohr_input_mouse_wheel_get`, `rohr_input_text_state_get`.
+- `rohr_physics_angular_velocity_get`, `rohr_physics_angular_velocity_maximum_get`, `rohr_physics_angular_velocity_maximum_radians_get`.
+- `rohr_physics_angular_velocity_radians_get`, `rohr_physics_center_of_mass_automatic_check`, `rohr_physics_center_of_mass_local_position_get`.
+- `rohr_physics_center_of_mass_world_position_get`, `rohr_physics_collision_between_check`, `rohr_physics_contact_check`.
+- `rohr_physics_contact_count_get`, `rohr_physics_contact_entered_check`, `rohr_physics_contact_exited_check`.
+- `rohr_physics_contact_get`, `rohr_physics_contact_stayed_check`, `rohr_physics_contact_total_impulse_get`.
+- `rohr_physics_contacts_get`, `rohr_physics_dt_per_tick_get`, `rohr_physics_entity_held_get`.
+- `rohr_physics_force_location_get`, `rohr_physics_force_magnitude_get`, `rohr_physics_force_orientation_get`.
+- `rohr_physics_force_target_get`, `rohr_physics_global_hit_box_get`, `rohr_physics_gravity_check`.
+- `rohr_physics_gravity_get`, `rohr_physics_hitbox_active_id_get`, `rohr_physics_hitbox_active_index_get`.
+- `rohr_physics_hitbox_animation_binding_at_get`, `rohr_physics_hitbox_animation_binding_get`, `rohr_physics_hitbox_at_get`.
+- `rohr_physics_hitbox_by_id_get`, `rohr_physics_hitbox_count_get`, `rohr_physics_hitbox_get`.
+- `rohr_physics_hitbox_id_at_get`, `rohr_physics_joint_anchor_local_position_get`, `rohr_physics_joint_anchor_world_position_get`.
+- `rohr_physics_joint_anchors_get`, `rohr_physics_kinematic_driven_check`, `rohr_physics_mass_check`.
+- `rohr_physics_mass_get`, `rohr_physics_moment_of_inertia_get`, `rohr_physics_overlap_check`.
+- `rohr_physics_overlap_count_get`, `rohr_physics_overlap_entered_check`, `rohr_physics_overlap_exited_check`.
+- `rohr_physics_overlap_get`, `rohr_physics_overlap_stayed_check`, `rohr_physics_overlaps_get`.
+- `rohr_physics_particle_origin_get`, `rohr_physics_particle_overlap_get`, `rohr_physics_particle_radius_get`.
+- `rohr_physics_position_get`, `rohr_physics_sat_overlap_get`, `rohr_physics_soft_body_area_get`.
+- `rohr_physics_soft_body_beam_get`, `rohr_physics_soft_body_get`, `rohr_physics_soft_body_node_get`.
+- `rohr_physics_soft_body_node_local_position_get`, `rohr_physics_solver_iterations_get`, `rohr_physics_substeps_get`.
+- `rohr_physics_torque_magnitude_get`, `rohr_physics_torque_target_get`, `rohr_physics_world_position_check`.
+- `rohr_ui_button_by_name_get`, `rohr_ui_button_style_default_get`, `rohr_ui_font_by_name_get`.
+- `rohr_ui_key_pressed_check`, `rohr_ui_label_by_name_get`, `rohr_ui_navigation_focus_bounds_get`.
+- `rohr_ui_pointer_consumed_get`, `rohr_ui_primary_pressed_check`, `rohr_ui_slider_by_name_get`.
+- `rohr_ui_slider_config_default_get`, `rohr_viewport_item_drag_mode_get`, `rohr_viewport_item_dragging_check`.
+- `rohr_viewport_item_viewport_get`, `rohr_viewport_ui_hovered_check`, `rohr_viewport_ui_pressed_check`.
+- `rohr_viewport_ui_slider_changed_check`.
 
 **EO — Operation, lifecycle, execution, or drawing**
 

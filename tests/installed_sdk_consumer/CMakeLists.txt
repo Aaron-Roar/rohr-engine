@@ -84,3 +84,15 @@ target_link_libraries(rohr_input_descriptions PRIVATE Rohr::Engine)
 if(NOT MSVC)
     target_compile_options(rohr_input_descriptions PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+add_executable(rohr_camera_descriptions ../camera_descriptions.c)
+target_link_libraries(rohr_camera_descriptions PRIVATE Rohr::Engine)
+if(NOT MSVC)
+    target_compile_options(rohr_camera_descriptions PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(rohr_camera_descriptions PRIVATE ROHR_TEST_CAMERA_WRAP)
+    target_link_options(rohr_camera_descriptions PRIVATE
+        -Wl,--wrap=SDL_GetPerformanceCounter -Wl,--wrap=SDL_GetPerformanceFrequency
+        -Wl,--wrap=SDL_SetRenderLogicalPresentation)
+endif()

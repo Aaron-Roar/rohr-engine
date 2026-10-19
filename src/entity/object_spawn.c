@@ -384,14 +384,13 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
                 .lock_position = true, .lock_orientation = d->follow_orientation, .inherit_velocity = true}));
         }
         if(d->kind == OBJECT_CAMERA) {
-            CameraIdResult camera = graphics_camera_create((CameraConfig){
+            CameraIdResult camera = graphics_camera_create((CameraDescription){
                 .position = position, .orientation = orientation,
-                .dimensions = {d->size.x, d->size.y}, .zoom = d->zoom});
+                .dimensions = {d->size.x, d->size.y}, .zoom = d->zoom,
+                .enabled = object_description_visible_check(d)});
             if(error_check(camera)) return error_result_error(camera.result.error);
             EntityIndex index; entity_index_get(e, &index); instance_cameras[index] = camera.result.value;
-            if(!object_description_visible_check(d)) APPLY(graphics_camera_disable_set(camera.result.value));
-            if(target) APPLY(graphics_camera_attachment_set(camera.result.value, target, d->position,
-                d->orientation, d->follow_position, d->follow_orientation));
+            if(target) APPLY(graphics_camera_attachment_description_set(camera.result.value, (CameraAttachmentDescription){.entity = target, .position_offset = d->position, .orientation_offset = d->orientation, .follow_position = d->follow_position, .follow_orientation = d->follow_orientation}));
         }
     }
     return error_result_value(true);

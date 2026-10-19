@@ -31,7 +31,7 @@ int main(void) {
     OK(rohr_physics_position_set(other.node_5, (Position){500,0}));
     CHECK(rohr_physics_position_get(first->node_5).result.value.x < 0);
     /* Draw both generated instances through a real viewport/screen. */
-    CameraIdResult camera = rohr_camera_create(rohr_camera_config_default_get());
+    CameraIdResult camera = rohr_camera_create(rohr_camera_description_default_get());
     OK(camera);
     ViewportIdResult viewport = rohr_viewport_create(rohr_viewport_config_default_get());
     OK(viewport);

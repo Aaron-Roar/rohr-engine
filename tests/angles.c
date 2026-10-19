@@ -157,9 +157,9 @@ static bool physics_check(void) {
 static bool graphics_check(void) {
     OK(rohr_graphics_start());
     CameraId camera=rohr_camera_active_get();
-    Camera c=rohr_camera_get(camera).result.value;
+    CameraDescription c=rohr_camera_description_get(camera).result.value;
     c.orientation=90;
-    OK(rohr_camera_set(camera,c));
+    OK(rohr_camera_description_set(camera,c));
     Position center=rohr_graphics_world_to_screen_get(c.position);
     Position up=rohr_graphics_world_to_screen_get((Position){c.position.x,c.position.y+10});
     CHECK(up.x < center.x && near(up.y,center.y));
@@ -171,20 +171,20 @@ static bool graphics_check(void) {
     EntityResult made=entity_add(); OK(made); Entity e=made.result.value;
     OK(physics_position_set(e,(Position){0}));
     OK(physics_orientation_set(e,90));
-    OK(graphics_camera_radians_attach(e,(Vec2D){0,2},PI_F/2));
+    OK(graphics_camera_attach((CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0,2}, .orientation_offset = math_radians_to_degrees(PI_F/2), .follow_position = true, .follow_orientation = true}));
     CHECK(point(rohr_camera_get(camera).result.value.position,(Position){2,0}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,180));
-    OK(rohr_graphics_camera_radians_attach(e,(Vec2D){0},PI_F));
+    OK(rohr_graphics_camera_attach((CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(PI_F), .follow_position = true, .follow_orientation = true}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,270));
-    OK(graphics_camera_with_options_radians_attach(e,(Vec2D){0},PI_F,true,false));
+    OK(graphics_camera_attach((CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(PI_F), .follow_position = true, .follow_orientation = false}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,180));
-    OK(rohr_graphics_camera_with_options_radians_attach(e,(Vec2D){0},PI_F/2,true,true));
+    OK(rohr_graphics_camera_attach((CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(PI_F/2), .follow_position = true, .follow_orientation = true}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,180));
-    OK(graphics_camera_attachment_radians_set(camera,e,(Vec2D){0},PI_F,true,true));
+    OK(graphics_camera_attachment_description_set(camera, (CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(PI_F), .follow_position = true, .follow_orientation = true}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,270));
-    OK(rohr_camera_radians_attach(camera,e,(Vec2D){0},-PI_F,true,true));
+    OK(rohr_camera_attachment_description_set(camera, (CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(-PI_F), .follow_position = true, .follow_orientation = true}));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,-90));
-    CHECK(rohr_error_check(rohr_camera_radians_attach(camera,e,(Vec2D){0},FLT_MAX,true,true)));
+    CHECK(rohr_error_check(rohr_camera_attachment_description_set(camera, (CameraAttachmentDescription){.entity = e, .position_offset = (Vec2D){0}, .orientation_offset = math_radians_to_degrees(FLT_MAX), .follow_position = true, .follow_orientation = true})));
     CHECK(near(rohr_camera_get(camera).result.value.orientation,-90));
     graphics_camera_detach();
 

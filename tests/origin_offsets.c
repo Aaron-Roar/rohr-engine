@@ -137,21 +137,20 @@ static bool particle_offsets_test(void) {
 static bool camera_offsets_test(void) {
     EntityResult body = rohr_entity_add();
     CameraResult camera;
-    CameraAttachmentResult attachment;
+    CameraAttachmentDescriptionResult attachment;
     CHECK(!rohr_error_check(body));
     CHECK(!rohr_error_check(rohr_physics_position_set(body.result.value,
         (Position){10, 20})));
     CHECK(!rohr_error_check(rohr_physics_orientation_set(body.result.value,
         -90.0f)));
-    CHECK(!rohr_error_check(rohr_graphics_camera_attach(body.result.value,
-        (Position){2, 3}, -15.0f)));
+    CHECK(!rohr_error_check(rohr_graphics_camera_attach((CameraAttachmentDescription){.entity = body.result.value, .position_offset = (Position){2, 3}, .orientation_offset = -15.0f, .follow_position = true, .follow_orientation = true})));
     camera = rohr_camera_get(rohr_camera_active_get());
     CHECK(!rohr_error_check(camera) &&
         position_equal(camera.result.value.position, (Position){7, 22}));
     CHECK(!rohr_error_check(rohr_physics_position_set(body.result.value,
         (Position){30, 40})));
     camera = rohr_camera_get(rohr_camera_active_get());
-    attachment = rohr_graphics_camera_attachment_get();
+    attachment = rohr_camera_attachment_description_get(rohr_camera_active_get());
     CHECK(!rohr_error_check(camera) &&
         position_equal(camera.result.value.position, (Position){27, 42}));
     CHECK(!rohr_error_check(attachment) &&

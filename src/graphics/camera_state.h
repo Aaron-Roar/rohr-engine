@@ -6,7 +6,7 @@
 #include "graphics.h"
 typedef struct CameraStateSnapshot {
     Camera value;
-    CameraAttachment attachment;
+    CameraAttachmentDescription attachment;
     bool attached;
     bool enabled;
     bool pause_with_engine;

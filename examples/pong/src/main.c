@@ -126,6 +126,9 @@ static EngineResult pong_update_camera(
         }
     } else if(*state == PONG_CAMERA_MOVING_TO_BALL
             || *state == PONG_CAMERA_FOLLOWING_BALL) {
+        /* Returning home intentionally ends ball following. */
+        result = rohr_camera_detach(camera);
+        if(rohr_error_check(result)) return result;
         result = rohr_camera_zoom_set(camera, 1.0f, camera_return_duration);
         if(rohr_error_check(result)) return result;
         result = rohr_camera_position_set(camera, home, camera_return_duration);
@@ -359,20 +362,21 @@ int main(void) {
 
     left_camera = rohr_camera_active_get();
     {
-        Camera left_camera_value = {
+        CameraDescription left_camera_value = {
+            .enabled = true,
             .position = {0.0f, field_camera_center_y},
             .orientation = 90.0f,
             .dimensions = {field_camera_width, field_camera_height},
             .zoom = 1.0f,
         };
-        EngineResult camera_result = rohr_camera_set(left_camera, left_camera_value);
+        EngineResult camera_result = rohr_camera_description_set(left_camera, left_camera_value);
         if(rohr_error_check(camera_result)) {
             PRINT_ENGINE_ERROR(camera_result);
             goto fail;
         }
     }
     {
-        CameraConfig config = rohr_camera_config_default_get();
+        CameraDescription config = rohr_camera_description_default_get();
         CameraIdResult camera_result;
         config.position = (Position){0.0f, -field_camera_center_y};
         config.orientation = 90.0f;

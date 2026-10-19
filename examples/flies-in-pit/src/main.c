@@ -150,7 +150,7 @@ int main(void) {
     if(!example_viewport_create(render_scene, &render_context, &viewport)) goto fail;
     rohr_graphics_aabb_tree_debug_set(broadphase_debug);
     rohr_graphics_contacts_debug_set(broadphase_debug);
-    CameraAttachmentResult attachment_result = rohr_graphics_camera_attachment_get();
+    CameraAttachmentDescriptionResult attachment_result = rohr_camera_attachment_description_get(rohr_camera_active_get());
     if(rohr_error_check(attachment_result)
             || attachment_result.result.value.entity != large_fly
             || !attachment_result.result.value.follow_position

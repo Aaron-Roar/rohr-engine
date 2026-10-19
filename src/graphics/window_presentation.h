@@ -8,6 +8,6 @@
 #include "graphics.h"
 
 EngineResult graphics_window_presentation_apply(SDL_Window *window,
-    GraphicsWindowPresentationConfig config);
+    WindowPresentationDescription config);
 
 #endif

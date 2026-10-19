@@ -114,9 +114,12 @@ int main(void) {
     rohr_physics_friction_set(water_smash, 0.4);
     rohr_physics_dynamic_set(water_smash);
     EngineResult camera_result = rohr_graphics_camera_attach(
-            water_smash,
-            (Vec2D){.x = 0.0f, .y = 100.0f},
-            0.0f);
+        (CameraAttachmentDescription){
+            .entity = water_smash,
+            .position_offset = {0.0f, 100.0f},
+            .follow_position = true,
+            .follow_orientation = true,
+        });
     if(rohr_error_check(camera_result)) {
         PRINT_ENGINE_ERROR(camera_result);
         goto fail;

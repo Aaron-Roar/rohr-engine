@@ -374,10 +374,10 @@ static EditorResult editor_gui_state_resolve(EditorGuiState *state,
 }
 
 static bool editor_gui_state_presentation_apply(const EditorGuiState *state) {
-    GraphicsWindowPresentationConfig config;
+    WindowPresentationDescription config;
     EngineResult result;
     if(state == NULL) return false;
-    config = rohr_graphics_window_presentation_default_get();
+    config = rohr_graphics_window_presentation_description_default_get();
     config.logical_width = state->logical_width;
     config.logical_height = state->logical_height;
     config.window_width = state->logical_width;
@@ -390,7 +390,7 @@ static bool editor_gui_state_presentation_apply(const EditorGuiState *state) {
     else if(strcmp(state->window_mode, "fullscreen") == 0)
         config.mode = GRAPHICS_WINDOW_MODE_FULLSCREEN;
     else return false;
-    result = rohr_graphics_window_presentation_set(config);
+    result = rohr_graphics_window_presentation_description_set(config);
     if(!rohr_error_check(result)) return true;
     editor_log_error("main", "error %d: %s\n", (int)result.result.error,
         rohr_error_message_get(result));

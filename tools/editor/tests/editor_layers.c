@@ -277,13 +277,13 @@ static bool animation_direction_check(void) {
         .frame_files = {paths[0], paths[1]}};
     AnimationAssetResult asset = rohr_graphics_animation_load(descriptor);
     CHECK(!rohr_error_check(asset));
-    CameraResult camera = rohr_camera_get(rohr_camera_active_get());
+    CameraDescriptionResult camera = rohr_camera_description_get(rohr_camera_active_get());
     CHECK(!rohr_error_check(camera));
     camera.result.value.position = (Position){0};
     camera.result.value.orientation = 0;
     camera.result.value.zoom = 1;
     camera.result.value.dimensions = (Vec2D){1280,720};
-    OK(rohr_camera_set(rohr_camera_active_get(), camera.result.value));
+    OK(rohr_camera_description_set(rohr_camera_active_get(), camera.result.value));
     for(int left = 0; left < 2; left += 1) {
         AnimatedSprite sprite = rohr_graphics_animated_sprite_create(rohr_graphics_animated_sprite_description_from_animation_get(asset.result.value).result.value).result.value;
         sprite.scale = (Scale){1,1};

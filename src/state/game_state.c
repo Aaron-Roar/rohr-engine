@@ -871,13 +871,16 @@ static EngineResult state_camera_load(yyjson_val *camera) {
                 || !state_number(transform, "orientation", &orientation)) {
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         }
-        return graphics_camera_set(
-            graphics_camera_active_get(),
-            (Camera){
-                .position = position,
-                .orientation = (Orientation)orientation
-            }
-        );
+        CameraDescriptionResult current = graphics_camera_description_get(graphics_camera_active_get());
+        if(error_check(current)) return error_result_error(current.result.error);
+        current.result.value.position = position;
+        current.result.value.orientation = (Orientation)orientation;
+        if(!physics_world_position_check(position) || !isfinite((Orientation)orientation))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        /* An explicitly unattached saved view also replaces a now-stale target. */
+        result = graphics_camera_attachment_remove(graphics_camera_active_get());
+        if(error_check(result)) return result;
+        return graphics_camera_description_set(graphics_camera_active_get(), current.result.value);
     }
 
     entity_name = yyjson_obj_get(attachment, "entity");
@@ -906,13 +909,7 @@ static EngineResult state_camera_load(yyjson_val *camera) {
     }
     result = state_resolve_name(entity_name, &entity);
     if(result.kind == ERROR_RESULT_ERROR) return result;
-    return graphics_camera_with_options_attach(
-        entity,
-        position_offset,
-        (Orientation)orientation_offset,
-        follow_position,
-        follow_orientation
-    );
+    return graphics_camera_attach((CameraAttachmentDescription){.entity = entity, .position_offset = position_offset, .orientation_offset = (Orientation)orientation_offset, .follow_position = follow_position, .follow_orientation = follow_orientation});
 }
 
 static bool state_entity_count(yyjson_val *description, uint64_t *count) {
@@ -2456,7 +2453,7 @@ EngineResult game_state_file_save(const char *path) {
         CameraStateSnapshot snapshot;
         EngineResult captured = graphics_camera_state_get(graphics_camera_active_get(), &snapshot);
         if(error_check(captured)) { yyjson_mut_doc_free(document); return captured; }
-        CameraAttachment attachment = snapshot.attachment;
+        CameraAttachmentDescription attachment = snapshot.attachment;
         if(snapshot.attached) {
             EntityNameResult entity_name = entity_name_get(attachment.entity);
             if(entity_name.kind == ERROR_RESULT_VALUE) {

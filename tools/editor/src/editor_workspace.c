@@ -1605,8 +1605,8 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             if(target_name != NULL)
                 snprintf(target, sizeof(target), "%s", target_name);
             fprintf(source,
-                "    { CameraIdResult created = rohr_camera_create((CameraConfig){"
-                ".position = (Position){%s%#.9gf, %s%#.9gf}, "
+                "    { CameraIdResult created = rohr_camera_create((CameraDescription){"
+                ".enabled = true, .position = (Position){%s%#.9gf, %s%#.9gf}, "
                 ".orientation = %#.9gf, .dimensions = {%#.9gf, %#.9gf}, .zoom = %#.9gf});\n"
                 "      if(rohr_error_check(created)) { result = rohr_error_result_error("
                 "created.result.error); goto fail; }\n"
@@ -1619,8 +1619,10 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 camera->zoom,
                 camera->name);
             if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) fprintf(source,
-                "      result = rohr_camera_attach(object->camera_%s, object->%s, "
-                "(Vec2D){%#.9gf, %#.9gf}, %#.9gf, true, %s);\n"
+                "      result = rohr_camera_attachment_description_set(object->camera_%s, "
+                "(CameraAttachmentDescription){.entity = object->%s, "
+                ".position_offset = {%#.9gf, %#.9gf}, .orientation_offset = %#.9gf, "
+                ".follow_position = true, .follow_orientation = %s});\n"
                 "      if(rohr_error_check(result)) goto fail;\n",
                 camera->name, target, camera->position.x, camera->position.y,
                 camera->rotation, camera->inherit_orientation ? "true" : "false");

@@ -14,7 +14,7 @@ static void count_camera_render(CameraId camera, void *context) {
 }
 
 int main(void) {
-    CameraConfig config = rohr_camera_config_default_get();
+    CameraDescription config = rohr_camera_description_default_get();
     CameraId original;
     CameraIdResult first_result;
     CameraIdResult second_result;
@@ -91,10 +91,10 @@ int main(void) {
     }
     rohr_graphics_layer_active_set(0);
     {
-        GraphicsWindowPresentationConfig presentation =
-            rohr_graphics_window_presentation_default_get();
-        GraphicsWindowPresentationConfig active =
-            rohr_graphics_window_presentation_get();
+        WindowPresentationDescription presentation =
+            rohr_graphics_window_presentation_description_default_get();
+        WindowPresentationDescription active =
+            rohr_graphics_window_presentation_description_get();
         if(active.mode != GRAPHICS_WINDOW_MODE_WINDOWED ||
                 active.logical_width != WINDOW_WIDTH ||
                 active.logical_height != WINDOW_HEIGHT) {
@@ -106,18 +106,18 @@ int main(void) {
         presentation.window_height = 480;
         presentation.logical_width = 800;
         presentation.logical_height = 600;
-        if(rohr_error_check(rohr_graphics_window_presentation_set(presentation))) {
+        if(rohr_error_check(rohr_graphics_window_presentation_description_set(presentation))) {
             rohr_graphics_stop();
             rohr_engine_stop();
             return 1;
         }
-        active = rohr_graphics_window_presentation_get();
+        active = rohr_graphics_window_presentation_description_get();
         if(active.mode != GRAPHICS_WINDOW_MODE_WINDOWED ||
                 active.window_width <= 0 || active.window_height <= 0 ||
                 active.logical_width != 800 || active.logical_height != 600 ||
                 active.aspect_ratio_auto ||
-                rohr_error_check(rohr_graphics_window_presentation_set(
-                    rohr_graphics_window_presentation_default_get()))) {
+                rohr_error_check(rohr_graphics_window_presentation_description_set(
+                    rohr_graphics_window_presentation_description_default_get()))) {
             rohr_graphics_stop();
             rohr_engine_stop();
             return 1;
@@ -137,7 +137,7 @@ int main(void) {
     config.position = (Position){10.0f, 20.0f};
     config.zoom = 2.0f;
     first_result = rohr_camera_create(config);
-    second_result = rohr_camera_create(rohr_camera_config_default_get());
+    second_result = rohr_camera_create(rohr_camera_description_default_get());
     if(rohr_error_check(first_result) || rohr_error_check(second_result) ||
             rohr_error_check(rohr_camera_active_set(first_result.result.value))) {
         rohr_engine_stop();
@@ -193,18 +193,18 @@ int main(void) {
                 target_entity_result.result.value,
                 0.0
             ))
-            || rohr_graphics_camera_attachment_get().kind != ERROR_RESULT_ERROR
+            || rohr_camera_attachment_description_get(rohr_camera_active_get()).kind != ERROR_RESULT_ERROR
             || rohr_error_check(rohr_camera_entity_attachment_set(
                 original,
                 target_entity_result.result.value
             ))
-            || rohr_graphics_camera_attachment_get().kind == ERROR_RESULT_ERROR
+            || rohr_camera_attachment_description_get(rohr_camera_active_get()).kind == ERROR_RESULT_ERROR
             || rohr_error_check(rohr_camera_position_move(
                 original,
                 (Vec2D){5.0f, -5.0f},
                 -1.0
             ))
-            || rohr_graphics_camera_attachment_get().kind != ERROR_RESULT_ERROR) {
+            || rohr_camera_attachment_description_get(rohr_camera_active_get()).kind == ERROR_RESULT_ERROR) {
         rohr_graphics_stop();
         rohr_engine_stop();
         return 1;

@@ -7,22 +7,22 @@
 #include <stdio.h>
 #include <string.h>
 
-static bool presentation_set(GraphicsWindowPresentationConfig *config,
+static bool presentation_set(WindowPresentationDescription *config,
         GraphicsWindowMode mode) {
     EngineResult result;
     config->mode = mode;
-    result = rohr_graphics_window_presentation_set(*config);
+    result = rohr_graphics_window_presentation_description_set(*config);
     if(rohr_error_check(result)) {
         fprintf(stderr, "%s\n", rohr_error_message_get(result));
         return false;
     }
-    return rohr_graphics_window_presentation_get().mode == mode;
+    return rohr_graphics_window_presentation_description_get().mode == mode;
 }
 
 int main(void) {
-    GraphicsWindowPresentationConfig config =
-        rohr_graphics_window_presentation_default_get();
-    GraphicsWindowPresentationConfig active;
+    WindowPresentationDescription config =
+        rohr_graphics_window_presentation_description_default_get();
+    WindowPresentationDescription active;
     if(rohr_error_check(rohr_engine_start()) ||
             rohr_error_check(rohr_graphics_start())) return 1;
     if(!presentation_set(&config, GRAPHICS_WINDOW_MODE_WINDOWED)) goto fail;
@@ -34,7 +34,7 @@ int main(void) {
     }
     if(!presentation_set(&config, GRAPHICS_WINDOW_MODE_BORDERLESS_FULLSCREEN))
         goto fail;
-    active = rohr_graphics_window_presentation_get();
+    active = rohr_graphics_window_presentation_description_get();
     config.window_width = active.window_width;
     config.window_height = active.window_height;
     config.logical_width = active.window_width;

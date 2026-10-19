@@ -668,9 +668,9 @@ Scale rohr_graphics_render_output_size_get(void) { return graphics_render_output
 bool rohr_graphics_logical_size_set(int width, int height) { return graphics_logical_size_set(width, height); }
 bool rohr_graphics_aspect_ratio_set(int width, int height) { return graphics_aspect_ratio_set(width, height); }
 bool rohr_graphics_aspect_ratio_auto_set(bool enabled) { return graphics_aspect_ratio_auto_set(enabled); }
-GraphicsWindowPresentationConfig rohr_graphics_window_presentation_default_get(void) { return graphics_window_presentation_default_get(); }
-GraphicsWindowPresentationConfig rohr_graphics_window_presentation_get(void) { return graphics_window_presentation_get(); }
-EngineResult rohr_graphics_window_presentation_set(GraphicsWindowPresentationConfig config) { return graphics_window_presentation_set(config); }
+WindowPresentationDescription rohr_graphics_window_presentation_description_default_get(void) { return graphics_window_presentation_description_default_get(); }
+WindowPresentationDescription rohr_graphics_window_presentation_description_get(void) { return graphics_window_presentation_description_get(); }
+EngineResult rohr_graphics_window_presentation_description_set(WindowPresentationDescription config) { return graphics_window_presentation_description_set(config); }
 bool rohr_graphics_screen_clip_set(float x, float y, float width, float height) { return graphics_screen_clip_set(x, y, width, height); }
 void rohr_graphics_screen_clip_clear(void) { graphics_screen_clip_clear(); }
 bool rohr_graphics_screen_clip_push(float x, float y, float width, float height) { return graphics_screen_clip_push(x, y, width, height); }
@@ -765,42 +765,21 @@ AnimationFrameIndexResult rohr_graphics_animated_sprite_frame_index_get(Entity e
 void rohr_graphics_textures_scale(Entity entity, Scale scale) { graphics_textures_scale(entity, scale); }
 void rohr_graphics_camera_move(Vec2D translation) { graphics_camera_move(translation); }
 void rohr_graphics_camera_rotate(Orientation degrees) { graphics_camera_rotate(degrees); }
-EngineResult rohr_graphics_camera_attach(Entity entity, Vec2D position_offset, Orientation orientation_offset) { return graphics_camera_attach(entity, position_offset, orientation_offset); }
-EngineResult rohr_graphics_camera_with_options_attach(Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation) { return graphics_camera_with_options_attach(entity, position_offset, orientation_offset, follow_position, follow_orientation); }
+EngineResult rohr_graphics_camera_attach(CameraAttachmentDescription description) { return graphics_camera_attach(description); }
 void rohr_graphics_camera_detach(void) { graphics_camera_detach(); }
 bool rohr_graphics_camera_attached_get(void) { return graphics_camera_attached_get(); }
-CameraAttachmentResult rohr_graphics_camera_attachment_get(void) {
-    CameraAttachment attachment;
-    if(!graphics_camera_attachment_get(&attachment)) {
-        return ERROR_RESULT_MAKE_ERROR(CameraAttachmentResult, ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    return ERROR_RESULT_MAKE_VALUE(CameraAttachmentResult, attachment);
-}
-CameraConfig rohr_camera_config_default_get(void) { return graphics_camera_config_default_get(); }
-CameraIdResult rohr_camera_create(CameraConfig config) { return graphics_camera_create(config); }
-EngineResult rohr_camera_destroy(CameraId camera_id) { return graphics_camera_destroy(camera_id); }
-EngineResult rohr_camera_active_set(CameraId camera_id) { return graphics_camera_active_set(camera_id); }
+CameraDescription rohr_camera_description_default_get(void) { return graphics_camera_description_default_get(); }
+CameraIdResult rohr_camera_create(CameraDescription description) { return graphics_camera_create(description); }
+EngineResult rohr_camera_destroy(CameraId id) { return graphics_camera_destroy(id); }
+EngineResult rohr_camera_active_set(CameraId id) { return graphics_camera_active_set(id); }
 CameraId rohr_camera_active_get(void) { return graphics_camera_active_get(); }
-CameraResult rohr_camera_get(CameraId camera_id) { return graphics_camera_get(camera_id); }
-EngineResult rohr_camera_set(CameraId camera_id, Camera value) { return graphics_camera_set(camera_id, value); }
-EngineResult rohr_camera_attach(
-        CameraId camera_id,
-        Entity entity,
-        Vec2D position_offset,
-        Orientation orientation_offset,
-        bool follow_position,
-        bool follow_orientation
-        ) {
-    return graphics_camera_attachment_set(
-        camera_id,
-        entity,
-        position_offset,
-        orientation_offset,
-        follow_position,
-        follow_orientation
-    );
-}
-EngineResult rohr_camera_detach(CameraId camera_id) { return graphics_camera_attachment_remove(camera_id); }
+CameraResult rohr_camera_get(CameraId id) { return graphics_camera_get(id); }
+CameraDescriptionResult rohr_camera_description_get(CameraId id) { return graphics_camera_description_get(id); }
+EngineResult rohr_camera_description_set(CameraId id, CameraDescription description) { return graphics_camera_description_set(id, description); }
+CameraAttachmentDescription rohr_camera_attachment_description_default_get(void) { return graphics_camera_attachment_description_default_get(); }
+EngineResult rohr_camera_attachment_description_set(CameraId id, CameraAttachmentDescription description) { return graphics_camera_attachment_description_set(id, description); }
+CameraAttachmentDescriptionResult rohr_camera_attachment_description_get(CameraId id) { return graphics_camera_attachment_description_get(id); }
+EngineResult rohr_camera_detach(CameraId id) { return graphics_camera_attachment_remove(id); }
 EngineResult rohr_camera_render_callback_set(CameraId camera, CameraRenderCallback callback, void *context) { return graphics_camera_render_callback_set(camera, callback, context); }
 EngineResult rohr_camera_enable_set(CameraId camera) { return graphics_camera_enable_set(camera); }
 EngineResult rohr_camera_disable_set(CameraId camera) { return graphics_camera_disable_set(camera); }
@@ -987,7 +966,6 @@ EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min,
     return physics_angle_lock_radians_set(entity, min, max);
 }
 
-
 bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color) {
     return graphics_screen_quad_radians_draw(center, width, height, angle, color);
 }
@@ -1028,35 +1006,6 @@ SpriteOrientationResult rohr_graphics_animated_sprite_orientation_offset_radians
 
 void rohr_graphics_camera_radians_rotate(Orientation radians) {
     graphics_camera_radians_rotate(radians);
-}
-
-EngineResult rohr_graphics_camera_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset
-) {
-    return graphics_camera_radians_attach(entity, position_offset, orientation_offset);
-}
-
-EngineResult rohr_graphics_camera_with_options_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-) {
-    return graphics_camera_with_options_radians_attach(entity, position_offset, orientation_offset, follow_position, follow_orientation);
-}
-
-EngineResult rohr_camera_radians_attach(
-    CameraId camera,
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-) {
-    return graphics_camera_attachment_radians_set(camera, entity, position_offset, orientation_offset, follow_position, follow_orientation);
 }
 
 void rohr_ui_radians_quad(Position center, float width, float height, float angle, Color color) {

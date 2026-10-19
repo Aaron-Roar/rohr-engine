@@ -317,8 +317,8 @@ static bool rendering_check(void) {
     Color red={255,0,0,255}, green={0,255,0,255};
     OK(rohr_graphics_soft_body_area_color_set(upper.result.value,red));
     CameraId camera = rohr_camera_active_get();
-    Camera c = rohr_camera_get(camera).result.value; c.position=(Position){0}; c.orientation=0; c.zoom=1; c.dimensions=(Vec2D){640,480};
-    OK(rohr_camera_set(camera,c));
+    CameraDescription c = rohr_camera_description_get(camera).result.value; c.position=(Position){0}; c.orientation=0; c.zoom=1; c.dimensions=(Vec2D){640,480};
+    OK(rohr_camera_description_set(camera,c));
     OK(rohr_camera_render_callback_set(camera,scene_draw,&body.result.value));
     ViewportIdResult viewport=rohr_viewport_create((ViewportConfig){.rectangle={0,0,640,480}}); OK(viewport);
     ScreenIdResult screen=rohr_screen_create((ScreenConfig){.camera=camera,.width=640,.height=480}); OK(screen);

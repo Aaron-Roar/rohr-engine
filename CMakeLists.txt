@@ -515,6 +515,25 @@ if(ROHR_BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME input_actions COMMAND input_actions_test)
 
+    add_executable(camera_descriptions_test tests/camera_descriptions.c)
+    target_link_libraries(camera_descriptions_test PRIVATE rohr_engine)
+    set_target_properties(camera_descriptions_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(camera_descriptions_test PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(camera_descriptions_test PRIVATE ROHR_TEST_CAMERA_WRAP)
+        target_link_options(camera_descriptions_test PRIVATE
+            -Wl,--wrap=SDL_GetPerformanceCounter -Wl,--wrap=SDL_GetPerformanceFrequency
+            -Wl,--wrap=SDL_SetRenderLogicalPresentation)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(camera_descriptions_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(camera_descriptions_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    add_test(NAME camera_descriptions COMMAND camera_descriptions_test)
+    set_tests_properties(camera_descriptions PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(cameras_test tests/cameras.c)
     add_executable(scene_runner_test tests/scene_runner.c)
     target_link_libraries(scene_runner_test PRIVATE rohr_engine)
@@ -1277,6 +1296,7 @@ if(ROHR_BUILD_TESTS)
         directory_test
         input_actions_test
         cameras_test
+        camera_descriptions_test
         ui_instance_isolation_test
         graphics_layer_order_test
         window_presentation_test

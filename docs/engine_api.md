@@ -3180,10 +3180,10 @@ bool rohr_graphics_aspect_ratio_auto_set(bool enabled);
 
  Matches the logical aspect ratio to the render output when enabled.
 
-### `rohr_graphics_window_presentation_get`
+### `rohr_graphics_window_presentation_description_get`
 
 ```c
-GraphicsWindowPresentationConfig rohr_graphics_window_presentation_get(void);
+WindowPresentationDescription rohr_graphics_window_presentation_description_get(void);
 ```
 
  Returns the active window mode and actual physical/logical dimensions.
@@ -4065,64 +4065,10 @@ void rohr_graphics_camera_radians_rotate(Orientation radians);
 ### `rohr_graphics_camera_attach`
 
 ```c
-EngineResult rohr_graphics_camera_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset );
+EngineResult rohr_graphics_camera_attach(CameraAttachmentDescription description);
 ```
 
-Attaches the camera to an entity's position and orientation.
-
-The position offset is in the entity's local space and rotates with the
-
-entity. The orientation offset is added to the entity's orientation.
-
-| Parameter | Description |
-| --- | --- |
-| `entity` | Entity transform to follow. |
-| `position_offset` | Local-space position offset. |
-| `orientation_offset` | orientation offset in clockwise degrees. |
-
-**Returns:** EngineResult describing success or a missing transform.
-
-### `rohr_graphics_camera_radians_attach`
-
-```c
-EngineResult rohr_graphics_camera_radians_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset );
-```
-
- Clockwise-positive radians alternative; other parameters retain their units.
-
-### `rohr_graphics_camera_with_options_attach`
-
-```c
-EngineResult rohr_graphics_camera_with_options_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
-```
-
-Attaches a camera with independent transform inheritance.
-
-When orientation following is disabled, position_offset is world-space.
-
-When position following is disabled, position_offset is the fixed camera
-
-position. When orientation following is disabled, orientation_offset is the
-
-fixed camera orientation.
-
-| Parameter | Description |
-| --- | --- |
-| `entity` | Entity to associate with the camera. |
-| `position_offset` | Relative offset or fixed world position. |
-| `orientation_offset` | Relative or fixed clockwise orientation in degrees. |
-| `follow_position` | Whether to inherit entity position. |
-| `follow_orientation` | Whether to inherit entity orientation. |
-
-**Returns:** EngineResult describing success or a missing required transform.
-
-### `rohr_graphics_camera_with_options_radians_attach`
-
-```c
-EngineResult rohr_graphics_camera_with_options_radians_attach( Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
-```
-
- Clockwise-positive radians alternative; other parameters retain their units.
+ Attach the active camera using clockwise degree offsets.
 
 ### `rohr_graphics_camera_detach`
 
@@ -4130,7 +4076,7 @@ EngineResult rohr_graphics_camera_with_options_radians_attach( Entity entity, Ve
 void rohr_graphics_camera_detach(void);
 ```
 
-Detaches the camera and preserves its current world transform.
+ Explicitly detach the active camera, preserving its resolved view.
 
 ### `rohr_graphics_camera_attached_get`
 
@@ -4138,19 +4084,7 @@ Detaches the camera and preserves its current world transform.
 bool rohr_graphics_camera_attached_get(void);
 ```
 
-Reports whether the camera is attached to a live entity transform.
-
-**Returns:** true when attached to a valid entity transform.
-
-### `rohr_graphics_camera_attachment_get`
-
-```c
-CameraAttachmentResult rohr_graphics_camera_attachment_get(void);
-```
-
-Returns the active camera attachment description.
-
-**Returns:** CameraAttachmentResult containing the attachment or a missing-component error.
+ Whether the active camera can currently resolve its retained attachment.
 
 ### `rohr_graphics_world_to_screen_get`
 
@@ -5771,21 +5705,21 @@ EngineResult rohr_game_state_template_file_save(const char *path);
 
  Saves retained authored definitions without expanding prototypes.
 
-### `rohr_camera_config_default_get`
+### `rohr_camera_description_default_get`
 
 ```c
-CameraConfig rohr_camera_config_default_get(void);
+CameraDescription rohr_camera_description_default_get(void);
 ```
 
- Returns defaults for a full-screen camera with unit zoom.
+ Enabled, full-window dimensions, unit zoom, rendering allowed while paused.
 
 ### `rohr_camera_create`
 
 ```c
-CameraIdResult rohr_camera_create(CameraConfig config);
+CameraIdResult rohr_camera_create(CameraDescription description);
 ```
 
- Creates an engine-owned camera.
+ Create a camera from complete configuration; zero dimensions/zoom use defaults.
 
 ### `rohr_camera_destroy`
 
@@ -5793,23 +5727,7 @@ CameraIdResult rohr_camera_create(CameraConfig config);
 EngineResult rohr_camera_destroy(CameraId camera);
 ```
 
- Destroys a non-active camera.
-
-### `rohr_camera_active_set`
-
-```c
-EngineResult rohr_camera_active_set(CameraId camera);
-```
-
- Selects the camera used by transforms and subsequent drawing.
-
-### `rohr_camera_active_get`
-
-```c
-CameraId rohr_camera_active_get(void);
-```
-
- Returns the active camera handle.
+ Destroy a non-active camera.
 
 ### `rohr_camera_get`
 
@@ -5817,31 +5735,49 @@ CameraId rohr_camera_active_get(void);
 CameraResult rohr_camera_get(CameraId camera);
 ```
 
- Returns an engine-owned camera value.
+ Current resolved world view. Missing targets retain the last resolved view.
 
-### `rohr_camera_set`
-
-```c
-EngineResult rohr_camera_set(CameraId camera, Camera value);
-```
-
- Replaces a camera value and detaches it.
-
-### `rohr_camera_attach`
+### `rohr_camera_description_get`
 
 ```c
-EngineResult rohr_camera_attach( CameraId camera, Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
+CameraDescriptionResult rohr_camera_description_get(CameraId camera);
 ```
 
- Attaches a camera to an entity transform.
+ Current configuration, including resolved world transform and borrowed callback context.
 
-### `rohr_camera_radians_attach`
+### `rohr_camera_description_set`
 
 ```c
-EngineResult rohr_camera_radians_attach( CameraId camera, Entity entity, Vec2D position_offset, Orientation orientation_offset, bool follow_position, bool follow_orientation );
+EngineResult rohr_camera_description_set(CameraId camera, CameraDescription description);
 ```
 
- Clockwise-positive radians alternative; other parameters retain their units.
+ Atomic replacement; world edits adjust offsets without detaching.
+
+Unchanged fields preserve progress; position/zoom edits replace only that motion.
+
+### `rohr_camera_attachment_description_default_get`
+
+```c
+CameraAttachmentDescription rohr_camera_attachment_description_default_get(void);
+```
+
+ Follow both position and orientation; fill the required entity handle.
+
+### `rohr_camera_attachment_description_set`
+
+```c
+EngineResult rohr_camera_attachment_description_set(CameraId camera, CameraAttachmentDescription description);
+```
+
+ Replace an attachment atomically; unchanged configuration preserves motion.
+
+### `rohr_camera_attachment_description_get`
+
+```c
+CameraAttachmentDescriptionResult rohr_camera_attachment_description_get(CameraId camera);
+```
+
+ Copy the retained attachment, including an unavailable target reference.
 
 ### `rohr_camera_detach`
 
@@ -5849,7 +5785,7 @@ EngineResult rohr_camera_radians_attach( CameraId camera, Entity entity, Vec2D p
 EngineResult rohr_camera_detach(CameraId camera);
 ```
 
- Detaches a camera while preserving its resolved transform.
+ Explicitly detach, preserving the last resolved world view.
 
 ### `rohr_ui_input_set`
 

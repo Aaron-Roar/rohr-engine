@@ -174,7 +174,7 @@ EngineResult mass_demo_create(MassDemo *object, Position position) {
     { JointAnchorIdResult created = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = object->explicit_body, .local_offset = (Vec2D){100.000000f, 30.0000000f}});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->anchor_explicit_tip = created.result.value; }
-    { CameraIdResult created = rohr_camera_create((CameraConfig){.position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});
+    { CameraIdResult created = rohr_camera_create((CameraDescription){.enabled = true, .position = (Position){position.x + 0.00000000f, position.y + 0.00000000f}, .orientation = 0.00000000f, .dimensions = {1280.00000f, 720.000000f}, .zoom = 1.00000000f});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       object->camera_main_camera = created.result.value;
     }

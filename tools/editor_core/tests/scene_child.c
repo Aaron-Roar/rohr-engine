@@ -23,12 +23,12 @@ static void camera_draw(CameraId camera, void *context) {
 static EngineResult initialize(void *context) {
     (void)context;
     if(!strcmp(mode, "init_fail")) return error_result_error_detail(ERROR_ENGINE_STATE_INVALID, "fixture initialization failure");
-    GraphicsWindowPresentationConfig config = graphics_window_presentation_default_get();
+    WindowPresentationDescription config = graphics_window_presentation_description_default_get();
     config.window_width = 640; config.window_height = 480;
     config.logical_width = 320; config.logical_height = 180;
     if(hosted) config.mode = GRAPHICS_WINDOW_MODE_FULLSCREEN;
     if(!strcmp(mode, "large")) { config.logical_width = 1920; config.logical_height = 1080; config.window_width = 1920; config.window_height = 1080; }
-    OK(graphics_window_presentation_set(config));
+    OK(graphics_window_presentation_description_set(config));
     EntityResult moving = physics_particle_add((ParticleDescription){.radius = 1,
         .mass_value = 1, .velocity = {10, 0}});
     OK(moving); particle = moving.result.value;
@@ -46,7 +46,7 @@ static EngineResult initialize(void *context) {
     ViewportIdResult viewport = graphics_viewport_create((ViewportConfig){.rectangle = {0, 0, 320, 180}, .background_color = {1,2,3,255}});
     OK(viewport); OK(graphics_viewport_enable_set(viewport.result.value));
     for(unsigned i = 0; i < 2; ++i) {
-        CameraIdResult camera = graphics_camera_create(graphics_camera_config_default_get()); OK(camera);
+        CameraIdResult camera = graphics_camera_create(graphics_camera_description_default_get()); OK(camera);
         OK(graphics_camera_render_callback_set(camera.result.value, camera_draw, &indices[i]));
         ScreenIdResult screen = graphics_screen_create((ScreenConfig){camera.result.value, 160, 180}); OK(screen);
         ViewportItemIdResult item = graphics_viewport_screen_add(viewport.result.value, screen.result.value,

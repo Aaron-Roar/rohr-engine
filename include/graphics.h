@@ -60,14 +60,14 @@ typedef enum GraphicsWindowMode {
     GRAPHICS_WINDOW_MODE_FULLSCREEN
 } GraphicsWindowMode;
 
-typedef struct GraphicsWindowPresentationConfig {
+typedef struct WindowPresentationDescription {
     GraphicsWindowMode mode;
     int window_width;
     int window_height;
     int logical_width;
     int logical_height;
     bool aspect_ratio_auto;
-} GraphicsWindowPresentationConfig;
+} WindowPresentationDescription;
 
 /** 2D scale factor for textures and sprites. */
 typedef struct {
@@ -105,13 +105,19 @@ typedef struct {
     float zoom;
 } Camera;
 
-/** Defaults used when creating an engine-owned camera. */
-typedef struct CameraConfig {
+/** Complete camera configuration; attachment and animation progress are separate.
+ * Position/orientation are resolved world values. Callback context is borrowed. */
+typedef struct CameraDescription {
     Position position;
     Orientation orientation;
     Vec2D dimensions;
     float zoom;
-} CameraConfig;
+    bool enabled;
+    bool pause_with_engine;
+    CameraRenderCallback render_callback;
+    void *render_context;
+} CameraDescription;
+ERROR_DECLARE_RESULT_TYPE(CameraDescriptionResult, CameraDescription);
 
 ERROR_DECLARE_RESULT_TYPE(CameraIdResult, CameraId);
 ERROR_DECLARE_RESULT_TYPE(CameraResult, Camera);
@@ -122,8 +128,8 @@ typedef struct {
     /** Entity transform followed by the camera. */
     Entity entity;
     /**
-     * Local offset when following orientation, otherwise a world-space offset
-     * or fixed position.
+     * Local offset when following both position and orientation; world-space
+     * offset when following position alone; fixed world position otherwise.
      */
     Vec2D position_offset;
     /** Relative or fixed clockwise orientation in degrees. */
@@ -132,10 +138,10 @@ typedef struct {
     bool follow_position;
     /** Whether the camera inherits the entity orientation. */
     bool follow_orientation;
-} CameraAttachment;
+} CameraAttachmentDescription;
 
-/** Result type for functions that return a CameraAttachment. */
-ERROR_DECLARE_RESULT_TYPE(CameraAttachmentResult, CameraAttachment);
+/** Result type for functions that return a CameraAttachmentDescription. */
+ERROR_DECLARE_RESULT_TYPE(CameraAttachmentDescriptionResult, CameraAttachmentDescription);
 
 typedef uint32_t ViewportId;
 typedef uint32_t ViewportItemId;
@@ -886,74 +892,34 @@ void graphics_camera_rotate(Orientation degrees);
 /** Clockwise-positive radians alternative; other parameters retain their units. */
 void graphics_camera_radians_rotate(Orientation radians);
 
-/**
- * Attach the camera to an entity transform.
- *
- * The position offset is expressed in the entity's local space. The
- * orientation offset is added to the entity's orientation.
- */
-EngineResult graphics_camera_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset
-);
-/** Clockwise-positive radians alternative; other parameters retain their units. */
-EngineResult graphics_camera_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset
-);
-
-/** Attach a camera with independent position and orientation following. */
-EngineResult graphics_camera_with_options_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-);
-/** Clockwise-positive radians alternative; other parameters retain their units. */
-EngineResult graphics_camera_with_options_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-);
-
-/** Detach the camera while preserving its resolved world transform. */
+/** Attach the active camera; all angles are clockwise degrees. */
+EngineResult graphics_camera_attach(CameraAttachmentDescription description);
+/** Explicitly detach the active camera, preserving its last resolved world view. */
 void graphics_camera_detach(void);
-
-/** Report whether the camera is attached to a live entity transform. */
+/** Whether the active camera can currently resolve its retained attachment. */
 bool graphics_camera_attached_get(void);
 
-/** Copy the active attachment description to the caller. */
-bool graphics_camera_attachment_get(CameraAttachment *attachment);
-
-CameraConfig graphics_camera_config_default_get(void);
-CameraIdResult graphics_camera_create(CameraConfig config);
+/** Enabled, full-window dimensions, unit zoom, rendering allowed while paused. */
+CameraDescription graphics_camera_description_default_get(void);
+CameraIdResult graphics_camera_create(CameraDescription description);
 EngineResult graphics_camera_destroy(CameraId camera);
 EngineResult graphics_camera_active_set(CameraId camera);
 CameraId graphics_camera_active_get(void);
+/** Resolved world view; unavailable attachment targets leave the last view frozen. */
 CameraResult graphics_camera_get(CameraId camera);
-EngineResult graphics_camera_set(CameraId camera, Camera value);
-EngineResult graphics_camera_attachment_set(
-    CameraId camera,
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-);
-/** Clockwise-positive radians alternative; other parameters retain their units. */
-EngineResult graphics_camera_attachment_radians_set(
-    CameraId camera,
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-);
+/** Copy current resolved configuration; callback context remains caller-owned. */
+CameraDescriptionResult graphics_camera_description_get(CameraId camera);
+/** Atomic replacement. World edits adjust attachment offsets, never detach.
+ * Unchanged fields preserve movement; position/zoom edits replace only that motion.
+ * Zero dimensions/zoom use defaults; negative/nonfinite values are rejected. */
+EngineResult graphics_camera_description_set(CameraId camera, CameraDescription description);
+/** Follow both position and orientation; fill the required non-owning entity handle. */
+CameraAttachmentDescription graphics_camera_attachment_description_default_get(void);
+/** Validate and replace attachment configuration. Unchanged edits preserve motion. */
+EngineResult graphics_camera_attachment_description_set(CameraId camera,
+    CameraAttachmentDescription description);
+/** Copy the stored attachment, even if its target is temporarily unavailable. */
+CameraAttachmentDescriptionResult graphics_camera_attachment_description_get(CameraId camera);
 EngineResult graphics_camera_attachment_remove(CameraId camera);
 
 /** Register the drawing callback invoked automatically when this camera is needed. */
@@ -970,7 +936,8 @@ EngineResult graphics_camera_pause_with_engine_set(CameraId camera);
 EngineResult graphics_camera_render_when_paused_set(CameraId camera);
 /** Move relatively over engine-tick time; non-positive duration is immediate. */
 EngineResult graphics_camera_position_move(CameraId camera, Vec2D translation, Time duration);
-/** Move to a world position over engine-tick time. */
+/** Move over engine-tick time. Attached cameras interpolate an offset destination
+ * computed from this world position at acceptance, retaining target following. */
 EngineResult graphics_camera_position_set(CameraId camera, Position position, Time duration);
 /** Move toward an entity's current position without attaching. */
 EngineResult graphics_camera_position_from_entity_set(CameraId camera, Entity entity, Time duration);
@@ -1049,10 +1016,10 @@ Scale graphics_render_output_size_get(void);
 bool graphics_logical_size_set(int width, int height);
 bool graphics_aspect_ratio_set(int width, int height);
 bool graphics_aspect_ratio_auto_set(bool enabled);
-GraphicsWindowPresentationConfig graphics_window_presentation_default_get(void);
-GraphicsWindowPresentationConfig graphics_window_presentation_get(void);
-EngineResult graphics_window_presentation_set(
-    GraphicsWindowPresentationConfig config);
+WindowPresentationDescription graphics_window_presentation_description_default_get(void);
+WindowPresentationDescription graphics_window_presentation_description_get(void);
+EngineResult graphics_window_presentation_description_set(
+    WindowPresentationDescription config);
 
 /** Get the mouse position in logical screen coordinates. */
 Position graphics_mouse_screen_position_get(void);

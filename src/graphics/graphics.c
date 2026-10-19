@@ -272,7 +272,7 @@ static GraphicsEntityLayerBinding graphics_sprite_layer_bindings[MAX_ENTITIES] =
 static GraphicsEntityLayerBinding graphics_animation_layer_bindings[MAX_ENTITIES] = {0};
 
 typedef struct ActiveCameraAttachment {
-    CameraAttachment value;
+    CameraAttachmentDescription value;
     bool attached;
 } ActiveCameraAttachment;
 
@@ -698,18 +698,19 @@ static bool graphics_camera_slot(CameraId id, size_t *slot) {
     return true;
 }
 
-CameraConfig graphics_camera_config_default_get(void) {
-    return (CameraConfig){
+CameraDescription graphics_camera_description_default_get(void) {
+    return (CameraDescription){
         .dimensions = {WINDOW_WIDTH, WINDOW_HEIGHT},
         .zoom = 1.0f,
+        .enabled = true,
     };
 }
 
-static Camera graphics_camera_from_config_get(CameraConfig config) {
-    CameraConfig defaults = graphics_camera_config_default_get();
-    if(config.dimensions.x <= 0.0f) config.dimensions.x = defaults.dimensions.x;
-    if(config.dimensions.y <= 0.0f) config.dimensions.y = defaults.dimensions.y;
-    if(config.zoom <= 0.0f) config.zoom = defaults.zoom;
+static Camera graphics_camera_from_description_get(CameraDescription config) {
+    CameraDescription defaults = graphics_camera_description_default_get();
+    if(config.dimensions.x == 0.0f) config.dimensions.x = defaults.dimensions.x;
+    if(config.dimensions.y == 0.0f) config.dimensions.y = defaults.dimensions.y;
+    if(config.zoom == 0.0f) config.zoom = defaults.zoom;
     return (Camera){
         .position = config.position,
         .orientation = config.orientation,
@@ -759,7 +760,7 @@ static void graphics_recording_disable(const char *reason) {
 }
 
 EngineResult graphics_tables_init(void) {
-    CameraConfig default_config = graphics_camera_config_default_get();
+    CameraDescription default_config = graphics_camera_description_default_get();
     memset(cameras, 0, sizeof(cameras));
     memset(camera_attachments, 0, sizeof(camera_attachments));
     memset(camera_runtime, 0, sizeof(camera_runtime));
@@ -770,7 +771,7 @@ EngineResult graphics_tables_init(void) {
     cameras_used[0] = true;
     camera_generations[0] = 1;
     active_camera = graphics_camera_id(0);
-    camera = graphics_camera_from_config_get(default_config);
+    camera = graphics_camera_from_description_get(default_config);
     cameras[0] = camera;
     camera_runtime[0].enabled = true;
     camera_attachment = (ActiveCameraAttachment){0};
@@ -1271,16 +1272,99 @@ static void graphics_camera_store_active(void) {
     }
 }
 
-CameraIdResult graphics_camera_create(CameraConfig config) {
-    size_t slot;
-    for(slot = 0; slot < MAX_CAMERAS; slot += 1) {
+static EngineResult graphics_camera_description_validate(CameraDescription description) {
+    if(!physics_world_position_check(description.position) ||
+            !isfinite(description.orientation) ||
+            !isfinite(description.dimensions.x) || !isfinite(description.dimensions.y) ||
+            !isfinite(description.zoom) || description.dimensions.x < 0.0f ||
+            description.dimensions.y < 0.0f || description.zoom < 0.0f)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    return error_result_value(true);
+}
+
+/* Resolve into a candidate without mutating camera state or the active renderer. */
+static EngineResult graphics_camera_attachment_resolve_value(
+        CameraAttachmentDescription description, Camera *value) {
+    EntityIndex index;
+    if(!isfinite(description.position_offset.x) || !isfinite(description.position_offset.y) ||
+            !isfinite(description.orientation_offset))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!entity_index_get(description.entity, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    if((description.follow_position && (index >= positions_pool.capacity || !positions_pool.used[index])) ||
+            (description.follow_orientation && (index >= orientations_pool.capacity || !orientations_pool.used[index])))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    Vec2D offset = description.position_offset;
+    if(description.follow_position && description.follow_orientation)
+        offset = math_vector_rotate(offset, orientations[index]);
+    Camera candidate = *value;
+    candidate.position = description.follow_position ?
+        (Position){positions[index].x + offset.x, positions[index].y + offset.y} : offset;
+    candidate.orientation = description.follow_orientation ?
+        orientations[index] + description.orientation_offset : description.orientation_offset;
+    if(!physics_world_position_check(candidate.position) || !isfinite(candidate.orientation))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    *value = candidate;
+    return error_result_value(true);
+}
+
+static Camera graphics_camera_resolved_value_get(size_t slot) {
+    Camera value = cameras[slot];
+    if(camera_attachments[slot].attached)
+        (void)graphics_camera_attachment_resolve_value(camera_attachments[slot].value, &value);
+    return value;
+}
+
+static void graphics_camera_slot_publish(size_t slot, Camera value,
+        ActiveCameraAttachment attachment) {
+    cameras[slot] = value;
+    camera_attachments[slot] = attachment;
+    if(graphics_camera_id(slot) == active_camera) {
+        camera = value;
+        camera_attachment = attachment;
+    }
+}
+
+/* Preserve the requested world view by expressing changed channels in the
+ * attachment's space. Failed target resolution leaves the live state intact. */
+static EngineResult graphics_camera_offsets_update(ActiveCameraAttachment *attachment,
+        Camera value, bool position_changed, bool orientation_changed) {
+    if(!attachment->attached || (!position_changed && !orientation_changed))
+        return error_result_value(true);
+    Camera resolved = value;
+    EngineResult result = graphics_camera_attachment_resolve_value(attachment->value, &resolved);
+    if(error_check(result)) return result;
+    EntityIndex index;
+    if(!entity_index_get(attachment->value.entity, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    CameraAttachmentDescription *description = &attachment->value;
+    if(position_changed) {
+        Vec2D offset = value.position;
+        if(description->follow_position) {
+            offset.x -= positions[index].x;
+            offset.y -= positions[index].y;
+            if(description->follow_orientation) offset = math_vector_rotate(offset, -orientations[index]);
+        }
+        description->position_offset = offset;
+    }
+    if(orientation_changed) description->orientation_offset = description->follow_orientation ?
+        value.orientation - orientations[index] : value.orientation;
+    return graphics_camera_attachment_resolve_value(*description, &resolved);
+}
+
+CameraIdResult graphics_camera_create(CameraDescription description) {
+    EngineResult result = graphics_camera_description_validate(description);
+    if(error_check(result)) return ERROR_RESULT_MAKE_ERROR(CameraIdResult, result.result.error);
+    for(size_t slot = 0; slot < MAX_CAMERAS; slot += 1) {
         if(!cameras_used[slot]) {
             camera_generations[slot] += 1;
             if(camera_generations[slot] == 0) camera_generations[slot] = 1;
             cameras_used[slot] = true;
-            cameras[slot] = graphics_camera_from_config_get(config);
+            cameras[slot] = graphics_camera_from_description_get(description);
             camera_attachments[slot] = (ActiveCameraAttachment){0};
-            camera_runtime[slot] = (CameraRuntime){.enabled = true};
+            camera_runtime[slot] = (CameraRuntime){.enabled = description.enabled,
+                .pause_with_engine = description.pause_with_engine,
+                .callback = description.render_callback, .context = description.render_context};
             camera_motion[slot] = (CameraMotion){0};
             camera_zoom_motion[slot] = (CameraZoomMotion){0};
             return ERROR_RESULT_MAKE_VALUE(CameraIdResult, graphics_camera_id(slot));
@@ -1311,14 +1395,27 @@ CameraId graphics_camera_active_get(void) {
 
 CameraResult graphics_camera_get(CameraId id) {
     size_t slot;
-    if(!graphics_camera_slot(id, &slot)) {
+    if(!graphics_camera_slot(id, &slot))
         return ERROR_RESULT_MAKE_ERROR(CameraResult, ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    if(id == active_camera) {
-        (void)graphics_resolve_camera_attachment();
-        graphics_camera_store_active();
-    }
-    return ERROR_RESULT_MAKE_VALUE(CameraResult, cameras[slot]);
+    graphics_camera_store_active();
+    Camera value = graphics_camera_resolved_value_get(slot);
+    graphics_camera_slot_publish(slot, value, camera_attachments[slot]);
+    return ERROR_RESULT_MAKE_VALUE(CameraResult, value);
+}
+
+CameraDescriptionResult graphics_camera_description_get(CameraId id) {
+    size_t slot;
+    if(!graphics_camera_slot(id, &slot))
+        return ERROR_RESULT_MAKE_ERROR(CameraDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    CameraResult resolved = graphics_camera_get(id);
+    Camera value = resolved.result.value;
+    return ERROR_RESULT_MAKE_VALUE(CameraDescriptionResult, ((CameraDescription){
+        .position = value.position, .orientation = value.orientation,
+        .dimensions = value.dimensions, .zoom = value.zoom,
+        .enabled = camera_runtime[slot].enabled,
+        .pause_with_engine = camera_runtime[slot].pause_with_engine,
+        .render_callback = camera_runtime[slot].callback,
+        .render_context = camera_runtime[slot].context}));
 }
 
 EngineResult graphics_camera_state_get(CameraId id, CameraStateSnapshot *snapshot) {
@@ -1333,26 +1430,25 @@ EngineResult graphics_camera_state_get(CameraId id, CameraStateSnapshot *snapsho
     return error_result_value(true);
 }
 
-EngineResult graphics_camera_set(CameraId id, Camera value) {
+EngineResult graphics_camera_description_set(CameraId id, CameraDescription description) {
     size_t slot;
-    if(!graphics_camera_slot(id, &slot)) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    value = graphics_camera_from_config_get((CameraConfig){
-        .position = value.position,
-        .orientation = value.orientation,
-        .dimensions = value.dimensions,
-        .zoom = value.zoom,
-    });
-    cameras[slot] = value;
-    camera_attachments[slot] = (ActiveCameraAttachment){0};
-    camera_motion[slot] = (CameraMotion){0};
-    camera_zoom_motion[slot] = (CameraZoomMotion){0};
-    if(id == active_camera) {
-        camera = value;
-        camera_attachment = (ActiveCameraAttachment){0};
-        return graphics_camera_active_set(id);
-    }
+    if(!graphics_camera_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    EngineResult result = graphics_camera_description_validate(description);
+    if(error_check(result)) return result;
+    graphics_camera_store_active();
+    Camera current = graphics_camera_resolved_value_get(slot);
+    Camera value = graphics_camera_from_description_get(description);
+    bool position_changed = value.position.x != current.position.x || value.position.y != current.position.y;
+    bool orientation_changed = value.orientation != current.orientation;
+    ActiveCameraAttachment attachment = camera_attachments[slot];
+    result = graphics_camera_offsets_update(&attachment, value, position_changed, orientation_changed);
+    if(error_check(result)) return result;
+    if(position_changed) camera_motion[slot] = (CameraMotion){0};
+    if(value.zoom != current.zoom) camera_zoom_motion[slot] = (CameraZoomMotion){0};
+    camera_runtime[slot] = (CameraRuntime){.enabled = description.enabled,
+        .pause_with_engine = description.pause_with_engine,
+        .callback = description.render_callback, .context = description.render_context};
+    graphics_camera_slot_publish(slot, value, attachment);
     return error_result_value(true);
 }
 
@@ -1394,40 +1490,12 @@ EngineResult graphics_camera_destroy(CameraId id) {
 }
 
 static bool graphics_resolve_camera_attachment(void) {
-    EntityIndex index;
-    Vec2D world_offset = camera_attachment.value.position_offset;
-
-    if(!camera_attachment.attached) {
-        return false;
-    }
-    if(!entity_index_get(camera_attachment.value.entity, &index)
-            || (camera_attachment.value.follow_position
-                && (index >= positions_pool.capacity
-                    || !positions_pool.used[index]))
-            || (camera_attachment.value.follow_orientation
-                && (index >= orientations_pool.capacity
-                    || !orientations_pool.used[index]))) {
-        camera_attachment = (ActiveCameraAttachment){0};
-        return false;
-    }
-
-    if(camera_attachment.value.follow_orientation) {
-        world_offset = math_vector_rotate(
-            camera_attachment.value.position_offset,
-            orientations[index]
-        );
-    }
-    camera.position = camera_attachment.value.follow_position
-            ? (Position){
-                .x = positions[index].x + world_offset.x,
-                .y = positions[index].y + world_offset.y
-            }
-            : camera_attachment.value.position_offset;
-    camera.orientation = camera_attachment.value.follow_orientation
-            ? orientations[index]
-                + camera_attachment.value.orientation_offset
-            : camera_attachment.value.orientation_offset;
-    graphics_camera_store_active();
+    size_t slot;
+    if(!graphics_camera_slot(active_camera, &slot) || !camera_attachment.attached) return false;
+    Camera value = camera;
+    EngineResult result = graphics_camera_attachment_resolve_value(camera_attachment.value, &value);
+    if(error_check(result)) return false;
+    graphics_camera_slot_publish(slot, value, camera_attachment);
     return true;
 }
 
@@ -1436,129 +1504,67 @@ void graphics_camera_move(Vec2D translation) {
 }
 
 void graphics_camera_rotate(Orientation degrees) {
-    if(!isfinite(degrees)) return;
-    if(graphics_resolve_camera_attachment()) {
-        if(!isfinite(camera_attachment.value.orientation_offset + degrees) ||
-                !isfinite(camera.orientation + degrees)) return;
-        camera_attachment.value.orientation_offset += degrees;
-    }
-    if(!isfinite(camera.orientation + degrees)) return;
-    camera.orientation += degrees;
-    graphics_camera_store_active();
+    if(!isfinite(degrees) || degrees == 0.0f) return;
+    CameraDescriptionResult current = graphics_camera_description_get(active_camera);
+    if(error_check(current)) return;
+    current.result.value.orientation += degrees;
+    (void)graphics_camera_description_set(active_camera, current.result.value);
 }
 
-EngineResult graphics_camera_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset
-) {
-    return graphics_camera_with_options_attach(
-        entity,
-        position_offset,
-        orientation_offset,
-        true,
-        true
-    );
+CameraAttachmentDescription graphics_camera_attachment_description_default_get(void) {
+    return (CameraAttachmentDescription){.follow_position = true, .follow_orientation = true};
 }
 
-EngineResult graphics_camera_with_options_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-) {
-    EntityIndex index;
+EngineResult graphics_camera_attach(CameraAttachmentDescription description) {
+    return graphics_camera_attachment_description_set(active_camera, description);
+}
 
-    if(!isfinite(orientation_offset))
-        return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    if(!entity_index_get(entity, &index)) {
-        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
-    }
-    if((follow_position
-            && (index >= positions_pool.capacity
-                || !positions_pool.used[index]))
-            || (follow_orientation
-                && (index >= orientations_pool.capacity
-                    || !orientations_pool.used[index]))) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    }
-
-    camera_attachment = (ActiveCameraAttachment){
-        .value = {
-            .entity = entity,
-            .position_offset = position_offset,
-            .orientation_offset = orientation_offset,
-            .follow_position = follow_position,
-            .follow_orientation = follow_orientation
-        },
-        .attached = true
-    };
-    (void)graphics_resolve_camera_attachment();
+EngineResult graphics_camera_attachment_description_set(CameraId id,
+        CameraAttachmentDescription description) {
+    size_t slot;
+    if(!graphics_camera_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     graphics_camera_store_active();
+    Camera value = graphics_camera_resolved_value_get(slot);
+    EngineResult result = graphics_camera_attachment_resolve_value(description, &value);
+    if(error_check(result)) return result;
+    CameraAttachmentDescription old = camera_attachments[slot].value;
+    bool same_position_driver = camera_attachments[slot].attached &&
+        old.position_offset.x == description.position_offset.x &&
+        old.position_offset.y == description.position_offset.y &&
+        old.follow_position == description.follow_position &&
+        (!description.follow_position || (old.entity == description.entity &&
+            old.follow_orientation == description.follow_orientation));
+    if(!same_position_driver) camera_motion[slot] = (CameraMotion){0};
+    graphics_camera_slot_publish(slot, value, (ActiveCameraAttachment){description, true});
     return error_result_value(true);
 }
 
-void graphics_camera_detach(void) {
-    (void)graphics_resolve_camera_attachment();
-    camera_attachment = (ActiveCameraAttachment){0};
+CameraAttachmentDescriptionResult graphics_camera_attachment_description_get(CameraId id) {
+    size_t slot;
+    if(!graphics_camera_slot(id, &slot))
+        return ERROR_RESULT_MAKE_ERROR(CameraAttachmentDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
     graphics_camera_store_active();
+    if(!camera_attachments[slot].attached)
+        return ERROR_RESULT_MAKE_ERROR(CameraAttachmentDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(CameraAttachmentDescriptionResult, camera_attachments[slot].value);
+}
+
+void graphics_camera_detach(void) {
+    (void)graphics_camera_attachment_remove(active_camera);
 }
 
 bool graphics_camera_attached_get(void) {
     return graphics_resolve_camera_attachment();
 }
 
-bool graphics_camera_attachment_get(CameraAttachment *attachment) {
-    if(attachment == NULL || !graphics_resolve_camera_attachment()) {
-        return false;
-    }
-    *attachment = camera_attachment.value;
-    return true;
-}
-
-EngineResult graphics_camera_attachment_set(
-        CameraId id,
-        Entity entity,
-        Vec2D position_offset,
-        Orientation orientation_offset,
-        bool follow_position,
-        bool follow_orientation
-        ) {
-    CameraId previous = active_camera;
-    size_t slot;
-    if(!isfinite(orientation_offset))
-        return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    if(!graphics_camera_slot(id, &slot)) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    camera_motion[slot] = (CameraMotion){0};
-    EngineResult result = graphics_camera_active_set(id);
-    if(error_check(result)) return result;
-    result = graphics_camera_with_options_attach(
-        entity,
-        position_offset,
-        orientation_offset,
-        follow_position,
-        follow_orientation
-    );
-    graphics_camera_store_active();
-    if(previous != id) (void)graphics_camera_active_set(previous);
-    return result;
-}
-
 EngineResult graphics_camera_attachment_remove(CameraId id) {
-    CameraId previous = active_camera;
     size_t slot;
-    if(!graphics_camera_slot(id, &slot)) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    }
-    camera_motion[slot] = (CameraMotion){0};
-    EngineResult result = graphics_camera_active_set(id);
-    if(error_check(result)) return result;
-    graphics_camera_detach();
+    if(!graphics_camera_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     graphics_camera_store_active();
-    if(previous != id) (void)graphics_camera_active_set(previous);
+    if(!camera_attachments[slot].attached) return error_result_value(true);
+    Camera value = graphics_camera_resolved_value_get(slot);
+    camera_motion[slot] = (CameraMotion){0};
+    graphics_camera_slot_publish(slot, value, (ActiveCameraAttachment){0});
     return error_result_value(true);
 }
 
@@ -1767,68 +1773,50 @@ EngineResult graphics_camera_render_when_paused_set(CameraId camera_id) {
     return error_result_value(true);
 }
 
-static EngineResult graphics_camera_resolve_and_detach(CameraId camera_id, Camera *value) {
-    CameraResult camera_result;
-    EngineResult result;
-    if(value == NULL) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    result = graphics_camera_attachment_remove(camera_id);
-    if(result.kind == ERROR_RESULT_ERROR) return result;
-    camera_result = graphics_camera_get(camera_id);
-    if(camera_result.kind == ERROR_RESULT_ERROR) {
-        return error_result_error(camera_result.result.error);
-    }
-    *value = camera_result.result.value;
+static EngineResult graphics_camera_motion_ticks_get(Time duration, Tick *ticks) {
+    if(!isfinite(duration)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(duration <= 0.0) { *ticks = 0; return error_result_value(true); }
+    double count = ceil(duration / engine_time_per_tick_get());
+    if(!isfinite(count) || count >= (double)UINT64_MAX)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    *ticks = count < 1.0 ? 1 : (Tick)count;
     return error_result_value(true);
 }
 
-static EngineResult graphics_camera_start_motion(
-    CameraId camera_id,
-    Position target,
-    Time duration
-) {
-    Camera value;
+static EngineResult graphics_camera_start_motion(CameraId id, Position target, Time duration) {
     size_t slot;
-    EngineResult result;
-    Tick duration_ticks;
-    if(!graphics_camera_slot(camera_id, &slot)) {
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    Tick ticks;
+    if(!graphics_camera_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(!physics_world_position_check(target)) return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
+    EngineResult result = graphics_camera_motion_ticks_get(duration, &ticks);
+    if(error_check(result)) return result;
+    graphics_camera_store_active();
+    Camera value = graphics_camera_resolved_value_get(slot);
+    Position start = value.position;
+    ActiveCameraAttachment attachment = camera_attachments[slot];
+    value.position = target;
+    result = graphics_camera_offsets_update(&attachment, value, true, false);
+    if(error_check(result)) return result;
+    if(ticks == 0) {
+        camera_motion[slot] = (CameraMotion){0};
+        graphics_camera_slot_publish(slot, value, attachment);
+    } else {
+        if(attachment.attached) {
+            start = camera_attachments[slot].value.position_offset;
+            target = attachment.value.position_offset;
+        }
+        camera_motion[slot] = (CameraMotion){.start = start, .target = target,
+            .start_tick = engine_tick_get(), .duration_ticks = ticks, .active = true};
     }
-    if(!physics_world_position_check(target))
-        return error_result_error(ERROR_ENGINE_POSITION_OUT_OF_RANGE);
-    result = graphics_camera_resolve_and_detach(camera_id, &value);
-    if(result.kind == ERROR_RESULT_ERROR) return result;
-    if(duration <= 0.0) {
-        value.position = target;
-        return graphics_camera_set(camera_id, value);
-    }
-    duration_ticks = (Tick)ceil(duration / engine_time_per_tick_get());
-    if(duration_ticks == 0) duration_ticks = 1;
-    camera_motion[slot] = (CameraMotion){
-        .start = value.position,
-        .target = target,
-        .start_tick = engine_tick_get(),
-        .duration_ticks = duration_ticks,
-        .active = true,
-    };
     return error_result_value(true);
 }
 
-EngineResult graphics_camera_position_move(
-    CameraId camera_id,
-    Vec2D translation,
-    Time duration
-) {
-    Camera value;
-    EngineResult result = graphics_camera_resolve_and_detach(camera_id, &value);
-    if(result.kind == ERROR_RESULT_ERROR) return result;
-    return graphics_camera_start_motion(
-        camera_id,
-        (Position){
-            value.position.x + translation.x,
-            value.position.y + translation.y,
-        },
-        duration
-    );
+EngineResult graphics_camera_position_move(CameraId id, Vec2D translation, Time duration) {
+    CameraResult current = graphics_camera_get(id);
+    if(error_check(current)) return error_result_error(current.result.error);
+    return graphics_camera_start_motion(id, (Position){
+        current.result.value.position.x + translation.x,
+        current.result.value.position.y + translation.y}, duration);
 }
 
 EngineResult graphics_camera_position_set(CameraId camera_id, Position position, Time duration) {
@@ -1857,14 +1845,9 @@ EngineResult graphics_camera_entity_attachment_set(CameraId camera_id, Entity en
     if(result.kind == ERROR_RESULT_ERROR) {
         return error_result_error(result.result.error);
     }
-    return graphics_camera_attachment_set(
-        camera_id,
-        entity,
-        (Vec2D){0.0f, 0.0f},
-        result.result.value.orientation,
-        true,
-        false
-    );
+    return graphics_camera_attachment_description_set(camera_id,
+        (CameraAttachmentDescription){.entity = entity, .orientation_offset = result.result.value.orientation,
+            .follow_position = true});
 }
 
 EngineResult graphics_camera_moving_get(CameraId camera_id) {
@@ -1885,15 +1868,15 @@ EngineResult graphics_camera_zoom_set(
     if(!graphics_camera_slot(camera_id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    if(zoom <= 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!isfinite(zoom) || zoom <= 0.0f) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    EngineResult result = graphics_camera_motion_ticks_get(duration, &duration_ticks);
+    if(error_check(result)) return result;
     if(duration <= 0.0) {
         cameras[slot].zoom = zoom;
         camera_zoom_motion[slot] = (CameraZoomMotion){0};
         if(camera_id == active_camera) camera.zoom = zoom;
         return error_result_value(true);
     }
-    duration_ticks = (Tick)ceil(duration / engine_time_per_tick_get());
-    if(duration_ticks == 0) duration_ticks = 1;
     camera_zoom_motion[slot] = (CameraZoomMotion){
         .start = cameras[slot].zoom,
         .target = zoom,
@@ -2892,8 +2875,8 @@ bool graphics_aspect_ratio_auto_set(bool enabled) {
     return true;
 }
 
-GraphicsWindowPresentationConfig graphics_window_presentation_default_get(void) {
-    return (GraphicsWindowPresentationConfig){
+WindowPresentationDescription graphics_window_presentation_description_default_get(void) {
+    return (WindowPresentationDescription){
         .mode = GRAPHICS_WINDOW_MODE_WINDOWED,
         .window_width = WINDOW_WIDTH,
         .window_height = WINDOW_HEIGHT,
@@ -2903,8 +2886,8 @@ GraphicsWindowPresentationConfig graphics_window_presentation_default_get(void) 
     };
 }
 
-GraphicsWindowPresentationConfig graphics_window_presentation_get(void) {
-    GraphicsWindowPresentationConfig config = {
+WindowPresentationDescription graphics_window_presentation_description_get(void) {
+    WindowPresentationDescription config = {
         .mode = graphics_window_mode,
         .window_width = WINDOW_WIDTH,
         .window_height = WINDOW_HEIGHT,
@@ -2918,31 +2901,49 @@ GraphicsWindowPresentationConfig graphics_window_presentation_get(void) {
     return config;
 }
 
-EngineResult graphics_window_presentation_set(
-        GraphicsWindowPresentationConfig config) {
-    EngineResult result;
+EngineResult graphics_window_presentation_description_set(
+        WindowPresentationDescription description) {
     if(sdl_renderer == NULL || sdl_window == NULL)
         return error_result_error(ERROR_ENGINE_GRAPHICS_NOT_INITIALIZED);
-    if(config.logical_width <= 0 || config.logical_height <= 0)
+    if(description.mode < GRAPHICS_WINDOW_MODE_WINDOWED ||
+            description.mode > GRAPHICS_WINDOW_MODE_FULLSCREEN ||
+            description.window_width <= 0 || description.window_height <= 0 ||
+            description.logical_width <= 0 || description.logical_height <= 0)
         return error_result_error(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED);
-    GraphicsWindowPresentationConfig applied = config;
-    /* A hosted scene must never switch the editor's desktop into fullscreen. */
-    if(graphics_scene_hosted) {
-        if(config.logical_width > 4096 || config.logical_height > 4096 ||
-                config.window_width > 4096 || config.window_height > 4096)
-            return error_result_error_detail(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED,
-                "Hosted window/logical dimensions exceed 4096 by 4096");
-        if(config.mode < GRAPHICS_WINDOW_MODE_WINDOWED || config.mode > GRAPHICS_WINDOW_MODE_FULLSCREEN)
-            return error_result_error(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED);
-        applied.mode = GRAPHICS_WINDOW_MODE_WINDOWED;
+    if(graphics_scene_hosted && (description.logical_width > 4096 ||
+            description.logical_height > 4096 || description.window_width > 4096 ||
+            description.window_height > 4096))
+        return error_result_error_detail(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED,
+            "Hosted window/logical dimensions exceed 4096 by 4096");
+    WindowPresentationDescription previous = graphics_window_presentation_description_get();
+    if(previous.mode == description.mode && previous.window_width == description.window_width &&
+            previous.window_height == description.window_height &&
+            previous.logical_width == description.logical_width &&
+            previous.logical_height == description.logical_height &&
+            previous.aspect_ratio_auto == description.aspect_ratio_auto)
+        return error_result_value(true);
+    WindowPresentationDescription applied = description;
+    /* Hosted scenes retain requested configuration without changing the desktop mode. */
+    if(graphics_scene_hosted) { applied.mode = GRAPHICS_WINDOW_MODE_WINDOWED; previous.mode = GRAPHICS_WINDOW_MODE_WINDOWED; }
+    int old_width, old_height;
+    SDL_RendererLogicalPresentation old_presentation;
+    if(!SDL_GetRenderLogicalPresentation(sdl_renderer, &old_width, &old_height, &old_presentation))
+        return error_result_error_detail(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED, SDL_GetError());
+    EngineResult result = graphics_window_presentation_apply(sdl_window, applied);
+    if(!error_check(result) && !SDL_SetRenderLogicalPresentation(sdl_renderer,
+            description.logical_width, description.logical_height, SDL_LOGICAL_PRESENTATION_LETTERBOX))
+        result = error_result_error_detail(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED, SDL_GetError());
+    if(error_check(result)) {
+        /* SDL window calls can partially apply before failing. Restore both backend
+         * states; public configuration is published only after complete success. */
+        (void)graphics_window_presentation_apply(sdl_window, previous);
+        (void)SDL_SetRenderLogicalPresentation(sdl_renderer, old_width, old_height, old_presentation);
+        return result;
     }
-    result = graphics_window_presentation_apply(sdl_window, applied);
-    if(error_check(result)) return result;
-    if(!graphics_logical_size_set(config.logical_width, config.logical_height))
-        return error_result_error_detail(
-            ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED, SDL_GetError());
-    graphics_aspect_ratio_auto = config.aspect_ratio_auto;
-    graphics_window_mode = config.mode;
+    graphics_logical_width = description.logical_width;
+    graphics_logical_height = description.logical_height;
+    graphics_aspect_ratio_auto = description.aspect_ratio_auto;
+    graphics_window_mode = description.mode;
     return error_result_value(true);
 }
 
@@ -3269,13 +3270,15 @@ static void graphics_camera_motions_update(void) {
             float progress = elapsed >= motion->duration_ticks
                 ? 1.0f
                 : (float)elapsed / (float)motion->duration_ticks;
-            cameras[slot].position = (Position){
+            Position position = {
                 .x = motion->start.x + (target.x - motion->start.x) * progress,
                 .y = motion->start.y + (target.y - motion->start.y) * progress,
             };
-            if(graphics_camera_id(slot) == active_camera) {
-                camera.position = cameras[slot].position;
-            }
+            if(camera_attachments[slot].attached) {
+                camera_attachments[slot].value.position_offset = position;
+                cameras[slot] = graphics_camera_resolved_value_get(slot);
+            } else cameras[slot].position = position;
+            graphics_camera_slot_publish(slot, cameras[slot], camera_attachments[slot]);
             if(progress >= 1.0f) *motion = (CameraMotion){0};
         }
         if(camera_zoom_motion[slot].active) {
@@ -6017,34 +6020,8 @@ void graphics_camera_radians_rotate(Orientation radians) {
     graphics_camera_rotate(math_radians_to_degrees(radians));
 }
 
-EngineResult graphics_camera_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset
-) {
-    return graphics_camera_attach(entity, position_offset, math_radians_to_degrees(orientation_offset));
-}
 
-EngineResult graphics_camera_with_options_radians_attach(
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-) {
-    return graphics_camera_with_options_attach(entity, position_offset, math_radians_to_degrees(orientation_offset), follow_position, follow_orientation);
-}
 
-EngineResult graphics_camera_attachment_radians_set(
-    CameraId camera,
-    Entity entity,
-    Vec2D position_offset,
-    Orientation orientation_offset,
-    bool follow_position,
-    bool follow_orientation
-) {
-    return graphics_camera_attachment_set(camera, entity, position_offset, math_radians_to_degrees(orientation_offset), follow_position, follow_orientation);
-}
 
 AnimatedSpriteDescription graphics_animated_sprite_description_default_get(void) {
     return (AnimatedSpriteDescription){.scale = {1, 1}, .direction = DIRECTION_RIGHT,

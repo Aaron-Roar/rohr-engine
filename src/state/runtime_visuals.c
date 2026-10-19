@@ -234,19 +234,18 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
     if(v) { EngineResult result=animation_read(entity,v); if(error_check(result)) return result; }
     v=yyjson_obj_get(components,"object_camera");
     if(v) {
-        CameraConfig config; bool enabled,paused;
+        CameraDescription config = {0}; bool enabled,paused;
         if(!vector_read(v,"position",&config.position.x,&config.position.y) ||
                 !vector_read(v,"dimensions",&config.dimensions.x,&config.dimensions.y) ||
                 !scalar(v,"orientation",&config.orientation) || !scalar(v,"zoom",&config.zoom) ||
                 config.dimensions.x<=0 || config.dimensions.y<=0 || config.zoom<=0 ||
                 !boolean(v,"enabled",&enabled) || !boolean(v,"paused",&paused))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        config.enabled = enabled; config.pause_with_engine = paused;
         CameraIdResult created=graphics_camera_create(config);
         if(error_check(created)) return error_result_error(created.result.error);
         EngineResult result=object_instance_camera_restore(entity,created.result.value);
         if(error_check(result)) { (void)graphics_camera_destroy(created.result.value); return result; }
-        if(!enabled) result=graphics_camera_disable_set(created.result.value);
-        if(!error_check(result) && paused) result=graphics_camera_pause_with_engine_set(created.result.value);
         yyjson_val *target=yyjson_obj_get(v,"target");
         if(!error_check(result) && target) {
             Position offset; Orientation angle; bool follow_position,follow_orientation;
@@ -256,7 +255,7 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
                 return error_result_error(ERROR_ENGINE_STATE_INVALID);
             EntityResult target_entity=entity_by_name_get(yyjson_get_str(target));
             if(error_check(target_entity)) return error_result_error(target_entity.result.error);
-            result=graphics_camera_attachment_set(created.result.value,target_entity.result.value,offset,angle,follow_position,follow_orientation);
+            result=graphics_camera_attachment_description_set(created.result.value, (CameraAttachmentDescription){.entity = target_entity.result.value, .position_offset = offset, .orientation_offset = angle, .follow_position = follow_position, .follow_orientation = follow_orientation});
         }
         if(error_check(result)) return result;
     }

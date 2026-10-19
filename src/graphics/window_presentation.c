@@ -5,7 +5,7 @@
 #include "window_presentation.h"
 
 EngineResult graphics_window_presentation_apply(SDL_Window *window,
-        GraphicsWindowPresentationConfig config) {
+        WindowPresentationDescription config) {
     bool applied = false;
     if(window == NULL || config.window_width <= 0 || config.window_height <= 0)
         return error_result_error(ERROR_ENGINE_GRAPHICS_WINDOW_PRESENTATION_FAILED);
