@@ -462,6 +462,7 @@ typedef struct EditorObject {
     /** Editor-only placement in the top-level project overview. */
     Position overview_position;
     bool visible;
+    bool simulation_excluded;
     EditorRigidBody *rigid_bodies;
     size_t rigid_body_count;
     size_t rigid_body_capacity;
@@ -666,6 +667,8 @@ typedef struct EditorNavigationState {
 } EditorNavigationState;
 
 typedef struct EditorProject {
+    /* Editor simulation only. Zero deliberately selects no viewport. */
+    EditorLayoutViewportId simulation_viewport;
     Time engine_time_per_tick;
     bool physics_timestep_override;
     Time physics_dt_per_tick;

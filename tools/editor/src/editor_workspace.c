@@ -296,6 +296,7 @@ static bool editor_workspace_starter_project_init(EditorProject *project) {
     camera->dimensions = (Scale){WINDOW_WIDTH, WINDOW_HEIGHT};
     layout_viewport = editor_project_layout_viewport_add(project);
     if(layout_viewport == NULL) return false;
+    project->simulation_viewport = layout_viewport->id;
     layout_viewport->config.rectangle = (ViewportRectangle){
         0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT};
     snprintf(layout_viewport->name, sizeof(layout_viewport->name),
@@ -2657,6 +2658,7 @@ static bool editor_workspace_scene_modules_write(const EditorWorkspace *workspac
     }
     filtered.layout_viewports = NULL; filtered.layout_viewport_count = 0;
     for(size_t i = 0; i < project->layout_viewport_count; ++i) {
+        if(selection && selection->viewport_selected && !selection->viewport) break;
         if(selection && selection->viewport && project->layout_viewports[i].id != selection->viewport) continue;
         viewport = project->layout_viewports[i];
         filtered.layout_viewports = &viewport; filtered.layout_viewport_count = 1;
@@ -2881,6 +2883,23 @@ EditorResult editor_workspace_scene_generate(const EditorWorkspace *workspace,
 
 bool editor_workspace_c_generate(const EditorWorkspace *workspace, const EditorProject *project) {
     return !editor_result_check(editor_workspace_scene_generate(workspace, project, NULL));
+}
+
+EditorResult editor_workspace_editor_generate(const EditorWorkspace *workspace,
+        const EditorProject *project) {
+    if(!project) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "No project is open");
+    EditorResult validation = editor_soft_areas_generation_validate(project);
+    if(editor_result_check(validation)) return validation;
+    EditorObjectId *ids = project->object_count ? malloc(project->object_count * sizeof(*ids)) : NULL;
+    if(project->object_count && !ids)
+        return editor_result_error(EDITOR_ERROR_CAPACITY, "Could not allocate simulation selection");
+    EditorSceneSelection selection = {.objects_selected = true, .objects = ids,
+        .viewport_selected = true, .viewport = project->simulation_viewport};
+    for(size_t i = 0; i < project->object_count; ++i)
+        if(!project->objects[i].simulation_excluded) ids[selection.object_count++] = project->objects[i].id;
+    EditorResult result = editor_workspace_scene_generate(workspace, project, &selection);
+    free(ids);
+    return result;
 }
 
 EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *project,

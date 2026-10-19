@@ -136,6 +136,7 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
     if(!added) { editor_project_object_destroy(&copy);return NULL; }
     uint32_t new_id=added->id; char name[EDITOR_OBJECT_NAME_MAX]; strcpy(name,added->name);
     editor_project_object_destroy(added); *added=copy; added->id=new_id; strcpy(added->name,name);
+    added->simulation_excluded = false;
     /* Element references are object-local. Retaining element IDs remaps every
      * connection into this independent copy; source identities remain unique. */
     for(size_t i=0;i<added->force_count;++i) {

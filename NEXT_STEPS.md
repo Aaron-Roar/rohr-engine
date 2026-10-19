@@ -122,21 +122,33 @@ user selected this milestone before the remaining roadmap priorities. See
    and interrupt cleanup. Normal builds have no compiler warnings; strict checks
    retain only the existing starter-template overlength-string warning. Windows
    runtime and real application visual review remain unverified.
-5. [ ] **Editor scene settings and regeneration on simulation requests** — Add
-   Build > Scene Settings with an object checklist, All/None, and one viewport
-   selector. Save simulation-only selections with undo/redo; new objects default
-   included. Simulate Scene regenerates/builds current selections before preparing
-   the scene stopped. Build Scene/Project use the same settings. Failed builds
-   must not launch old output; Run Application remains run-only.
+5. [x] **Editor scene settings and regeneration on simulation requests** — Added
+   Build > Scene Settings with a scrollable object checklist, All/None, and an
+   optional viewport. Choices persist independently of visibility and share
+   undo/redo; new and duplicated objects default included. Deleting the selected
+   viewport deselects it, and undo restores it. Editor generation uses these
+   choices while CLI defaults stay independent. Simulate Scene regenerates and
+   builds in-memory selections before preparing output stopped. Failed, skipped,
+   active, or cancelled builds cannot prepare older output; Run Application stays
+   run-only. Verified 99 native tests, six focused regression checks, five
+   ASan/UBSan/leak checks, final affected checks and normal/sanitized editor startup,
+   installed-SDK generation/build/runtime and hosting without a viewport,
+   Linux/Windows editor and generated-project builds, and independent SDK examples
+   on both platforms with Linux startup outside source directories. Normal builds
+   have no compiler warnings; strict checks add none over the existing switch and
+   starter-template warnings. Windows runtime and real editor interaction review
+   remain unverified.
 6. [ ] **Viewport tabs and simulation controls** — Editor and Scene Simulation
    tabs; open simulation stopped; Run/Pause and Stop controls; Editor selection
    stops simulation; fresh starts regenerate/build while pause/resume preserves
    the running instance; verify focused input,
-   composition, lifecycle, and platform behavior.
+   composition, lifecycle, and platform behavior. Stream simulation stdout/stderr
+   and report issues to the editor terminal; capture warnings/errors in editor
+   notifications. No viewport is valid and runs without visuals or a special warning.
 
 Complete and verify one goal at a time, then stop for review and a user-created
-commit. Goals 1–4 are complete. The revised generated-scene workflow precedes editor
-selection settings and viewport tabs.
+commit. Goals 1–5 are complete. Viewport tabs, playback controls, and simulation
+terminal/notification output are next, only on explicit user instruction.
 
 ### Soft-Body Force Following and Generated-App Regression
 

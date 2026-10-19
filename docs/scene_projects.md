@@ -29,10 +29,31 @@ cmake --build build --target MyGame_project
 The scene executable opens an ordinary window when run directly. It also supports
 isolated hosting through the SDK scene runner and editor-core session API described
 below. The Build and Run menus are available. Viewport tabs and playback controls
-remain goal 6; **Simulate Scene** currently resolves and prepares the built scene
-in a stopped state, reporting its executable path without launching it. Goal 5
-adds editor selection settings and regeneration on simulation requests. The CLI
-workflow below already regenerates and builds each request.
+remain goal 6; **Simulate Scene** regenerates and builds the current editor
+selection, then prepares it stopped, reporting its executable path without
+launching it. The CLI workflow below builds and launches a standalone window.
+
+## Editor scene settings
+
+Open **Build > Scene Settings** for an object checklist, **All**/**None** buttons,
+and one viewport dropdown with a **None** option. Changes apply immediately,
+participate in undo/redo, and are saved with the project. All/None affects current
+objects; newly created or duplicated objects start included. These choices are
+independent of the editor eye and Visible in App.
+
+Older projects start with all objects included and their first viewport selected.
+Deleting the selected viewport clears the choice; undo restores it. Choosing None
+is valid and remains None when viewports are added. Simulation can run without
+viewport visuals, with no special warning or substitute camera.
+
+Every editor generation uses these settings for simulation output, including
+Build Scene and Build Project, while the application catalog stays complete.
+Simulate Scene uses current in-memory changes without requiring a save. It stops
+an existing simulation before generation and compilation, and prepares output
+only after successful compilation. Failure, cancellation, disabled compilation,
+and project transitions cannot prepare an older executable. Build diagnostics
+use the existing terminal and notifications. Goal 6 will also route running
+simulation output and report warnings/errors to those destinations.
 
 ## CLI simulation selection
 
@@ -53,7 +74,7 @@ Without an object selector all objects are included. One `--object` or
 viewport in stored project order is used; `--viewport` or `--viewport-id` selects
 exactly one. Names follow the existing object naming convention, with exact
 viewport names also accepted. Unknown, ambiguous, repeated, or invalid selectors
-fail before generation. CLI requests neither save selections nor alter authored
+fail before generation. CLI defaults ignore the saved editor selections. CLI requests neither save selections nor alter authored
 project data, application `main.c`, or the complete application catalog.
 
 A selected viewport retains its authored placement, clipping, screens, UI, and
@@ -61,12 +82,14 @@ visibility. A screen whose camera is absent contributes no drawing, leaving the
 underlying viewport composition visible; other screens and UI continue normally.
 No object is automatically included and no replacement camera is created. A
 project with no viewport has no viewport visuals. The generation API also allows
-an explicit empty object list for the forthcoming editor controls.
+an explicit empty object list.
 
 `editor_workspace_scene_generate` takes a borrowed `EditorSceneSelection`.
 Zero initialization means all objects/first viewport; `objects_selected=true`
 uses the supplied stable-ID list, including an empty list. A nonzero viewport ID
-selects that viewport. Selection validation precedes file writes. The generator
+selects that viewport; `viewport_selected=true` with ID zero selects none.
+`editor_workspace_editor_generate` uses saved editor choices without modifying
+them. Selection validation precedes file writes. The generator
 uses a temporary filtered view of authored data and the existing catalog/viewport
 generators; it does not modify the project or change physics pipeline behavior.
 
@@ -79,13 +102,12 @@ generators; it does not modify the project or change physics pipeline behavior.
 | Build Project | Yes | Application and scene |
 | Generate App C | Yes | None |
 | Compile App | No | Application only |
+| Simulate Scene | Yes | Scene only, then prepare stopped |
 
 Build actions configure before compiling. **Run Application** starts the existing
-application; **Simulate Scene** prepares the existing scene for playback. Neither
-run action generates, configures, or compiles. Missing executables produce a
-notification directing you to build first. Changes become available after an
-explicit successful build and a new run request. A failed build never triggers
-an implicit repair or rebuild.
+application without generation or compilation; missing output produces a build
+notification. **Simulate Scene** always regenerates, configures, and compiles
+before preparing the resulting scene stopped.
 
 Generated CMake writes target names and per-configuration executable paths under
 `build/`. Run resolves the actual output path, including custom output names and
@@ -140,9 +162,9 @@ New tutorial content is added only when creating a new project. Existing scenes
 are not given a `Tug` object automatically. The tutorial main is an editable
 example, not a synchronized inventory: after renaming or removing its referenced
 objects, update its explicit calls. The generic scene entry point continues to
-follow the requested simulation selection when C is regenerated. Ordinary
-Generate App C/build generation resets simulation output to all objects and the
-first viewport until the editor settings are implemented in goal 5.
+follow the requested simulation selection when C is regenerated. Editor
+generation uses Scene Settings; CLI generation defaults to all objects and the
+first viewport, independently of those saved settings.
 
 An exact match of the preceding generated CMake scaffold receives this line:
 
@@ -302,7 +324,10 @@ review planned with the viewport tabs, or for native Windows runtime testing.
 
 `editor_scene_generation_test` and the CLI scene-selection test cover defaults,
 explicit selections, invalid requests, application independence, and unchanged
-authored data. `tools/editor_core/tests/generated_scene_selection` compiles the
+authored data. `editor_scene_settings_test` covers panel input, scrolling, modal
+capture, shared history, persistence, and viewport deletion. Build controller
+checks reject preparation after active, failed, cancelled, and skipped builds.
+`tools/editor_core/tests/generated_scene_selection` compiles the
 actual generated entry point against the installed SDK and verifies object,
 viewport, screen, and UI counts, rendering/physics updates, and complete teardown.
 Its probe accepts expected object, viewport, screen, and UI counts as four arguments.

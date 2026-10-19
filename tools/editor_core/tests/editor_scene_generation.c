@@ -76,6 +76,17 @@ int main(int argc, char **argv) {
     selection.objects_selected = true;
     OK(editor_workspace_scene_generate(&workspace, &project, &selection)); check_generated(&workspace, 0, 0, 0);
     project.layout_viewport_count = viewport_count;
+    /* Editor selections are independent of visibility and CLI/default generation. */
+    project.objects[0].simulation_excluded = true;
+    project.objects[1].visible = false;
+    project.simulation_viewport = viewport_id;
+    OK(editor_workspace_editor_generate(&workspace, &project)); check_generated(&workspace, 1, 1, 1);
+    project.simulation_viewport = 0;
+    OK(editor_workspace_editor_generate(&workspace, &project)); check_generated(&workspace, 1, 0, 0);
+    assert(editor_workspace_save(&workspace, &project));
+    OK(editor_workspace_scene_generate(&workspace, &project, NULL)); check_generated(&workspace, 2, 1, 1);
+    project.objects[0].simulation_excluded = false;
+    project.objects[1].visible = true;
     /* Leave an authored two-viewport fixture for installed-SDK/CLI probes. */
     selection = (EditorSceneSelection){.viewport = viewport_id};
     if(argc > 2 && !strcmp(argv[2], "tug")) selection = (EditorSceneSelection){.objects_selected = true, .objects = &tug_id, .object_count = 1};
@@ -85,6 +96,11 @@ int main(int argc, char **argv) {
         selection = (EditorSceneSelection){.objects_selected = true};
     }
     OK(editor_workspace_scene_generate(&workspace, &project, &selection));
+    if(argc > 2 && !strcmp(argv[2], "editor")) {
+        project.objects[0].simulation_excluded = true;
+        project.simulation_viewport = 0;
+        OK(editor_workspace_editor_generate(&workspace, &project));
+    }
     project.layout_viewport_count = viewport_count;
     SDL_free(app_objects); SDL_free(app_viewports); editor_project_destroy(&project); return 0;
 }

@@ -28,6 +28,8 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_VIEWPORT_CAMERA,
     EDITOR_COMMAND_VIEWPORT_COORDINATES,
     EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET,
+    EDITOR_COMMAND_SIMULATION_OBJECT_SET,
+    EDITOR_COMMAND_SIMULATION_VIEWPORT_SET,
     EDITOR_COMMAND_VISIBILITY,
     EDITOR_COMMAND_NAVIGATION_SET,
     EDITOR_COMMAND_ITEM_ADD,
@@ -403,6 +405,8 @@ typedef struct EditorCommand {
             Acceleration physics_gravity;
             uint32_t physics_solver_iterations;
         } project_physics_settings_set;
+        struct { EditorObjectId object; bool included; } simulation_object;
+        struct { EditorLayoutViewportId viewport; } simulation_viewport;
         struct {
             EditorItemKind kind;
             EditorObjectId object;

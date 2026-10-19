@@ -756,6 +756,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
     input_controllers = yyjson_mut_arr(document);
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "format_version", EDITOR_PROJECT_FORMAT_VERSION);
+    yyjson_mut_obj_add_uint(document, root, "simulation_viewport", project->simulation_viewport);
     {
         yyjson_mut_val *physics = yyjson_mut_obj(document);
         yyjson_mut_obj_add_real(document, physics, "engine_time_per_tick",
@@ -930,6 +931,7 @@ bool editor_project_save(const EditorProject *project, const char *path) {
         yyjson_mut_obj_add_val(document, value, "overview_position",
             editor_json_position_write(document, object->overview_position));
         yyjson_mut_obj_add_bool(document, value, "visible", object->visible);
+        yyjson_mut_obj_add_bool(document, value, "simulation_excluded", object->simulation_excluded);
     yyjson_mut_obj_add_bool(document, value, "visible_in_app", !object->app_hidden);
         for(size_t j = 0; j < object->rigid_body_count; j += 1)
             yyjson_mut_arr_add_val(bodies, editor_json_body_write(document,
@@ -2489,6 +2491,8 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 (camera_values != NULL && !yyjson_is_arr(camera_values)) ||
                 (hierarchy != NULL && !yyjson_is_arr(hierarchy))) goto done;
         object->overview_position = object->position;
+        if(yyjson_obj_get(value, "simulation_excluded") != NULL &&
+                !editor_json_bool(value, "simulation_excluded", &object->simulation_excluded)) goto done;
         if(overview_position != NULL && !editor_json_position_read(
                 overview_position, &object->overview_position)) goto done;
         editor_project_object_name_format(object->name, sizeof(object->name), object->name);
@@ -2865,6 +2869,11 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                     loaded.input_controller_count)) goto done;
     }
     if(!editor_project_ui_definitions_refresh(&loaded)) goto done;
+    if(yyjson_obj_get(root, "simulation_viewport") == NULL)
+        loaded.simulation_viewport = loaded.layout_viewport_count ? loaded.layout_viewports[0].id : 0;
+    else if(!editor_json_uint(root, "simulation_viewport", &loaded.simulation_viewport)) goto done;
+    if(loaded.simulation_viewport && !editor_project_layout_viewport_get(&loaded, loaded.simulation_viewport))
+        loaded.simulation_viewport = 0;
     if(!editor_json_references_valid(&loaded)) {
         result = editor_result_error(EDITOR_ERROR_REFERENCE_INVALID,
             "Project editor state '%s' contains an invalid entity, joint, beam, or collision-mask reference",

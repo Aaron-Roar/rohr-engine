@@ -23,6 +23,10 @@ void editor_build_destroy(EditorBuild *build);
 bool editor_build_active_check(const EditorBuild *build);
 EditorBuildStage editor_build_stage_get(const EditorBuild *build);
 bool editor_build_compiled_check(const EditorBuild *build);
+/* Resolves only a successfully compiled scene from this build. Failed, skipped,
+ * cancelled, active, and application-only builds cannot prepare older output. */
+EditorResult editor_build_scene_prepared_get(const EditorBuild *build,
+    char *output, size_t capacity);
 EditorBuildTarget editor_build_target_get(const EditorBuild *build);
 const char *editor_build_target_label_get(EditorBuildTarget target);
 EditorResult editor_build_target_name_get(const EditorWorkspace *workspace,

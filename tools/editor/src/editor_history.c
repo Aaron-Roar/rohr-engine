@@ -50,6 +50,7 @@ struct EditorHistorySpriteChange {
 };
 
 struct EditorHistoryUiChange {
+    EditorLayoutViewportId simulation_viewport;
     EditorLayoutViewport *viewports;
     size_t viewport_count;
     EditorViewportUiDefinition *definitions;
@@ -156,6 +157,7 @@ static EditorHistoryUiChange *editor_history_ui_capture(
     change = calloc(1, sizeof(*change));
     if(change == NULL) return NULL;
     change->viewport_count = project->layout_viewport_count;
+    change->simulation_viewport = project->simulation_viewport;
     change->definition_count = project->ui_definition_count;
     change->font_count = project->ui_font_count;
     change->next_viewport_id = project->next_layout_viewport_id;
@@ -213,6 +215,7 @@ fail:
 static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
         const EditorHistoryUiChange *second) {
     if(first == NULL || second == NULL ||
+            first->simulation_viewport != second->simulation_viewport ||
             first->viewport_count != second->viewport_count ||
             first->definition_count != second->definition_count ||
             first->font_count != second->font_count ||
@@ -772,6 +775,7 @@ static void editor_history_action_apply(EditorProject *project,
         free(project->ui_definitions);
         free(project->ui_fonts);
         project->layout_viewports = viewports;
+        project->simulation_viewport = change->simulation_viewport;
         project->layout_viewport_count = change->viewport_count;
         project->layout_viewport_capacity = change->viewport_count;
         project->ui_definitions = definitions;
@@ -1370,6 +1374,16 @@ static bool editor_history_inverse_get(EditorProject *project,
             return true;
         case EDITOR_COMMAND_VIEWPORT_COORDINATES:
             inverse->data.viewport_coordinates.local = project->viewport_local_view;
+            return true;
+        case EDITOR_COMMAND_SIMULATION_OBJECT_SET:
+            for(size_t i = 0; i < project->object_count; ++i)
+                if(project->objects[i].id == command->data.simulation_object.object) {
+                    inverse->data.simulation_object.included = !project->objects[i].simulation_excluded;
+                    return true;
+                }
+            return false;
+        case EDITOR_COMMAND_SIMULATION_VIEWPORT_SET:
+            inverse->data.simulation_viewport.viewport = project->simulation_viewport;
             return true;
         case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
             inverse->data.project_physics_settings_set.engine_time_per_tick =

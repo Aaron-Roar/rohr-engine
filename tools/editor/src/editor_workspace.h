@@ -46,9 +46,13 @@ typedef struct EditorSceneSelection {
     size_t object_count;
     bool objects_selected;
     EditorLayoutViewportId viewport;
+    /* Distinguishes explicit no viewport (ID zero) from the first-viewport default. */
+    bool viewport_selected;
 } EditorSceneSelection;
 EditorResult editor_workspace_scene_generate(const EditorWorkspace *workspace,
     const EditorProject *project, const EditorSceneSelection *selection);
+EditorResult editor_workspace_editor_generate(const EditorWorkspace *workspace,
+    const EditorProject *project);
 
 EditorWorkspaceConfig editor_workspace_config_default_get(void);
 EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *project,

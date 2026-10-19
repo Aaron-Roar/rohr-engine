@@ -983,6 +983,7 @@ bool editor_project_layout_viewport_remove(EditorProject *project,
     for(index = 0; index < project->layout_viewport_count; index += 1)
         if(project->layout_viewports[index].id == id) break;
     if(index == project->layout_viewport_count) return false;
+    if(project->simulation_viewport == id) project->simulation_viewport = 0;
     free(project->layout_viewports[index].camera_items);
     free(project->layout_viewports[index].ui_items);
     for(size_t i = index + 1; i < project->layout_viewport_count; i += 1)

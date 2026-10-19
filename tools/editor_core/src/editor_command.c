@@ -531,6 +531,21 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         case EDITOR_COMMAND_VIEWPORT_COORDINATES:
             project->viewport_local_view = command->data.viewport_coordinates.local;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        case EDITOR_COMMAND_SIMULATION_OBJECT_SET:
+            for(size_t i = 0; i < project->object_count; ++i)
+                if(project->objects[i].id == command->data.simulation_object.object) {
+                    project->objects[i].simulation_excluded = !command->data.simulation_object.included;
+                    return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+                }
+            return editor_command_error(editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                "Simulation object was not found").result.error);
+        case EDITOR_COMMAND_SIMULATION_VIEWPORT_SET:
+            if(command->data.simulation_viewport.viewport && !editor_project_layout_viewport_get(
+                    project, command->data.simulation_viewport.viewport))
+                return editor_command_error(editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                    "Simulation viewport was not found").result.error);
+            project->simulation_viewport = command->data.simulation_viewport.viewport;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
         case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
             if(!isfinite((double)command->data.project_physics_settings_set.
                         engine_time_per_tick) ||
@@ -3837,6 +3852,10 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             !editor_command_text_append(output, output_capacity, &used, " "))
         goto capacity_error;
     switch(command->type) {
+        case EDITOR_COMMAND_SIMULATION_OBJECT_SET:
+        case EDITOR_COMMAND_SIMULATION_VIEWPORT_SET:
+            return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Simulation settings are editor-only");
         case EDITOR_COMMAND_OBJECT_ADD:
             if(!editor_command_text_append(output, output_capacity, &used, "add ") ||
                     !editor_command_shell_text_append(output, output_capacity, &used,

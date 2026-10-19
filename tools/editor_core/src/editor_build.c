@@ -23,6 +23,7 @@ struct EditorBuild {
     EditorBuildOutput output;
     void *context;
     bool compiled;
+    bool succeeded;
 };
 static bool target_valid_check(EditorBuildTarget target) {
     return target >= EDITOR_BUILD_APPLICATION && target <= EDITOR_BUILD_PROJECT;
@@ -188,6 +189,7 @@ EditorResult editor_build_start(EditorBuild *build, const EditorWorkspace *works
         EditorBuildTarget target, EditorSceneSession *scene, EditorBuildOutput output, void *context) {
     if(!build || !workspace || !workspace->open || !config || !target_valid_check(target) || editor_build_active_check(build))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "A build is already active or no project is open");
+    build->succeeded = false;
     EditorResult resolved = workspace_absolute_get(workspace, &build->workspace);
     if(editor_result_check(resolved)) return resolved;
     build->target = target; build->scene = scene; build->compiled = false;
@@ -233,7 +235,10 @@ EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_c
         if(!editor_result_check(result) && !done) return result;
         if(!editor_result_check(result) && *exit_code == 0 && build->stage == EDITOR_BUILD_CONFIGURING) {
             result = stage_start(build, false);
-        } else { build->stage = EDITOR_BUILD_IDLE; *finished = true; }
+        } else {
+            build->succeeded = !editor_result_check(result) && *exit_code == 0 && build->compiled;
+            build->stage = EDITOR_BUILD_IDLE; *finished = true;
+        }
     }
     if(editor_result_check(result)) {
         editor_build_cancel(build); *finished = true; *exit_code = 1;
@@ -242,10 +247,18 @@ EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_c
 }
 void editor_build_cancel(EditorBuild *build) {
     if(!build) return;
+    build->succeeded = false;
     editor_build_process_destroy(build->process); build->process = NULL; build->stage = EDITOR_BUILD_IDLE;
 }
 void editor_build_destroy(EditorBuild *build) { if(build) { editor_build_cancel(build); SDL_free(build); } }
 bool editor_build_active_check(const EditorBuild *build) { return build && build->stage != EDITOR_BUILD_IDLE; }
 EditorBuildStage editor_build_stage_get(const EditorBuild *build) { return build ? build->stage : EDITOR_BUILD_IDLE; }
 bool editor_build_compiled_check(const EditorBuild *build) { return build && build->compiled; }
+EditorResult editor_build_scene_prepared_get(const EditorBuild *build, char *output, size_t capacity) {
+    if(output && capacity) output[0] = 0;
+    if(!build || !build->succeeded || editor_build_active_check(build) ||
+            build->target == EDITOR_BUILD_APPLICATION)
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Scene preparation requires successful compilation");
+    return editor_build_executable_get(&build->workspace, EDITOR_BUILD_SCENE, output, capacity);
+}
 EditorBuildTarget editor_build_target_get(const EditorBuild *build) { return build ? build->target : EDITOR_BUILD_PROJECT; }

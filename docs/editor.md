@@ -195,7 +195,8 @@ Saving and generating are separate operations:
 - **Build > Build Application**, **Build Scene**, and **Build Project** generate and build the chosen target(s).
 - **Build > Compile App** configures and compiles the application without generation.
 - **Run > Run Application** launches the existing application executable without compiling.
-- **Run > Simulate Scene** prepares the existing scene executable, stopped. Viewport tabs and playback controls follow in milestone goal 6; selection settings and regeneration on requests follow in goal 5.
+- **Build > Scene Settings** selects included objects and an optional viewport. All/None affects current objects; new objects default included. Choices are saved with undo/redo, independently of visibility. Deleting the selected viewport leaves None selected.
+- **Run > Simulate Scene** regenerates and builds the current selection, including unsaved changes, then prepares the scene stopped. Failure or cancellation cannot prepare old output. Viewport tabs, playback controls, and runtime terminal/notification output follow in milestone goal 6.
 - **File > Close** closes the project and asks about unsaved changes.
 - **File > Exit** safely exits and asks about unsaved changes.
 
