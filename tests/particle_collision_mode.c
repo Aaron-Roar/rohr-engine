@@ -79,7 +79,7 @@ static bool particle_config_test(void) {
                 ROHR_PARTICLE | ROHR_HIT_BOX | ROHR_STATIC) ||
             rohr_entity_components_check(second_result.result.value,
                 ROHR_DYNAMIC) ||
-            rohr_entity_components_check(second_result.result.value,
+            !rohr_entity_components_check(second_result.result.value,
                 ROHR_MASS) ||
             rohr_entity_components_check(second_result.result.value,
                 ROHR_COLLISION) ||

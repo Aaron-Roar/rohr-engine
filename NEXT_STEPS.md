@@ -101,10 +101,23 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    existing gravity-initializer and long starter-string warnings. Reconciled
    1,478 current header entries and 17 remaining Config/Descriptor type names.
    Native Windows execution and real desktop visual review remain unverified.
-   Stop for review before Goal 4.
-4. [ ] **Complete particle description APIs** — Add full set/get using current
-   configurable values; preserve particle/collision geometry, ownership,
-   current motion, and standalone-particle restrictions.
+4. [x] **Complete particle description APIs** — Added standalone-only full
+   description set/get using current configuration, with atomic geometry and
+   ownership replacement. Focused radius/origin setters synchronize the active
+   polygon and particle circle; hitbox IDs, inactive variants, and unrelated
+   state remain intact. Static particles retain mass, velocity, acceleration,
+   and gravity configuration for subsequent dynamic transitions and saves.
+   Hybrid-body and soft-node focused behavior remains unchanged. Verified all
+   100 native tests and eight ASan/UBSan/leak checks, including allocation
+   rollback, static transitions, saved settings, geometry coherence, and entity
+   isolation. Linux and Windows cross-builds, independent installed-SDK
+   center_of_mass/soft-body examples and consumer, regenerated soft-body builds
+   and Linux launch, external scene hosting, and two-second force toggling pass.
+   Standard builds have no compiler warnings; strict checks identify only the
+   existing gravity-initializer and long starter-string warnings. Reconciled
+   1,482 current header entries and updated configuration/physics references.
+   Native Windows execution and real desktop visual review remain unverified.
+   Stop for review before Goal 5.
 5. [ ] **Complete soft-body and anchor description APIs** — Complete full
    configuration for containers, nodes, beams, areas, and anchors. Include
    explicit/measured beam rest values and collision/material groups; preserve

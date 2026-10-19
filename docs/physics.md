@@ -286,10 +286,19 @@ Creation derives the circular polygon hitbox from `radius` and offsets both
 representations by `local_origin`. A
 `rigid_vertices` value of zero selects
 `ROHR_PARTICLE_RIGID_VERTICES_DEFAULT`; an explicit value changes only the
-polygon approximation quality. The particle circle and initial polygon radius
-therefore cannot disagree. `static_body` creates a static particle; otherwise
-mass, initial motion, acceleration, and optional gravity are applied to a
-dynamic particle.
+polygon approximation quality. Creation and full configuration replacement keep
+circle and active polygon geometry synchronized. `static_body` creates a static
+particle; mass, velocity, acceleration, and gravity settings are retained even
+while static, ready for a later dynamic transition.
+
+`rohr_physics_particle_description_get()` returns current configurable values,
+including the owner and active polygon quality. Modify its result and pass it to
+`rohr_physics_particle_description_set()` to edit selected fields. Full replacement
+is atomic: invalid input or allocation/ownership failure preserves the original
+particle. Omitted fields become zero/false, with the documented zero-vertex
+exception above. These full accessors accept standalone particles only; hybrid
+rigid bodies and soft-body nodes retain their own APIs. Names, parenting,
+connections, lifetimes, hold state, and visual resources are preserved.
 
 Particle origin is a local offset from the rigid-body origin and rotates with
 the body. Particle radius and origin have dedicated APIs:
@@ -298,6 +307,10 @@ the body. Particle radius and origin have dedicated APIs:
 rohr_physics_particle_origin_set(entity, (Position){4.0f, 0.0f});
 rohr_physics_particle_radius_set(entity, 12.0f);
 ```
+
+For standalone particles, these focused setters also rebuild the active polygon,
+retaining its ID, inactive variants, and animation bindings. For hybrid rigid
+bodies and soft-body nodes, their existing geometry behavior remains unchanged.
 
 If no explicit radius exists, it is derived from the hitbox centroid and
 farthest vertex. Broadphase bounds include both the polygon and an explicit,

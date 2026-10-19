@@ -599,6 +599,8 @@ EntityResult rohr_physics_joint_add(JointDescription description) {
 OverlapInfo rohr_physics_particle_overlap_get(Shape shape_1, Shape shape_2) { return physics_particle_overlap_get(shape_1, shape_2); }
 ParticleDescription rohr_physics_particle_description_default_get(void) { return physics_particle_description_default_get(); }
 EntityResult rohr_physics_particle_add(ParticleDescription config) { return physics_particle_add(config); }
+EngineResult rohr_physics_particle_description_set(Entity entity, ParticleDescription description) { return physics_particle_description_set(entity, description); }
+ParticleDescriptionResult rohr_physics_particle_description_get(Entity entity) { return physics_particle_description_get(entity); }
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin) { return physics_particle_origin_set(entity, local_origin); }
 PositionResult rohr_physics_particle_origin_get(Entity entity) { return physics_particle_origin_get(entity); }
 EngineResult rohr_physics_particle_radius_set(Entity entity, float radius) { return physics_particle_radius_set(entity, radius); }

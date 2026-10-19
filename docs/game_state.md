@@ -238,7 +238,10 @@ explicit overrides. Their owned `particle_geometry` stores `standalone`,
 survive saving. For ordinary particle-collision bodies, omitted radius keeps
 radius derived from geometry and omitted origin keeps the default local zero;
 standalone particles require both. Ordinary rigid bodies with particle collision may still use
-explicit COM. Simulated particle rotation remains disabled.
+explicit COM. Simulated particle rotation remains disabled. Static standalone
+particles retain mass, velocity, acceleration, and gravity configuration through
+the existing saved fields. Older saves that omitted static mass/motion continue
+to load; the particle description getter reports zero for absent stored values.
 
 Supported value keys are:
 

@@ -1633,11 +1633,17 @@ ParticleDescription rohr_physics_particle_description_default_get(void);
  * @return EntityResult containing the created particle, or an error.
  */
 EntityResult rohr_physics_particle_add(ParticleDescription config);
-/** Set a particle circle's origin relative to its rigid-body origin. */
+/** Atomically replace standalone particle configuration and ownership. Static
+ * particles retain mass, velocity, acceleration, and gravity configuration.
+ * Changed geometry updates both circle and active polygon, retaining hitbox IDs. */
+EngineResult rohr_physics_particle_description_set(Entity entity, ParticleDescription description);
+/** Get current configuration; non-standalone entities return component-missing. */
+ParticleDescriptionResult rohr_physics_particle_description_get(Entity entity);
+/** Set the circle origin and synchronize standalone particle polygon geometry. */
 EngineResult rohr_physics_particle_origin_set(Entity entity, Position local_origin);
 /** Get a particle circle's origin relative to its rigid-body origin. */
 PositionResult rohr_physics_particle_origin_get(Entity entity);
-/** Set a particle circle's radius independently of its polygon hitbox. */
+/** Set the circle radius and synchronize standalone particle polygon geometry. */
 EngineResult rohr_physics_particle_radius_set(Entity entity, float radius);
 /** Get a particle circle's effective radius. */
 ParticleRadiusResult rohr_physics_particle_radius_get(Entity entity);

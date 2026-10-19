@@ -69,6 +69,15 @@ int main(void) {
     ParticleDescription particle_description = rohr_physics_particle_description_default_get();
     particle_description.owner = soft.result.value;
     EntityResult particle = rohr_physics_particle_add(particle_description); OK(particle);
+    ParticleDescriptionResult particle_value = rohr_physics_particle_description_get(particle.result.value); OK(particle_value);
+    particle_value.result.value.static_body = true;
+    particle_value.result.value.mass_value = 7;
+    particle_value.result.value.velocity = (Velocity){2, 3};
+    particle_value.result.value.gravity_enabled = true;
+    OK(rohr_physics_particle_description_set(particle.result.value, particle_value.result.value));
+    assert(rohr_physics_particle_description_get(particle.result.value).result.value.velocity.y == 3);
+    OK(rohr_physics_particle_radius_set(particle.result.value, 4));
+    assert(rohr_physics_hitbox_get(particle.result.value).result.value.vertices[0].x == 4);
     EntityResult particle_copy = physics_particle_add(particle_description); OK(particle_copy);
     assert(particle.result.value != particle_copy.result.value);
     JointAnchorIdResult local_anchor = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = local.result.value}); OK(local_anchor);

@@ -1123,8 +1123,166 @@ static void authored_configuration_descriptions(void) {
     OK(entity_delete(before.result.value)); OK(entity_delete(after.result.value));
 }
 
+static void particle_descriptions(void) {
+    Entity owner = make(), next = make(), parent = make();
+    ParticleDescription value = physics_particle_description_default_get();
+    value.owner = owner; value.position = (Position){11, 12}; value.local_origin = (Position){2, 3};
+    value.velocity = (Velocity){4, 5}; value.acceleration = (Acceleration){6, 7};
+    value.mass_value = 8; value.radius = 3; value.rigid_vertices = 7;
+    value.static_body = true; value.gravity_enabled = true;
+    EntityResult created = rohr_physics_particle_add(value); OK(created);
+    Entity particle = created.result.value;
+    EntityIndex index = index_of(particle);
+    OK(entity_parent_set(particle, parent));
+    OK(physics_entity_hold(particle));
+    OK(entity_lifetime_description_set(particle, (EntityLifetimeDescription){.expiry_tick = 100, .tick_enabled = true}));
+    EntityName name = entity_name_get(particle).result.value;
+    ParticleDescriptionResult got = rohr_physics_particle_description_get(particle); OK(got);
+    assert(got.result.value.static_body && got.result.value.mass_value == 8 && got.result.value.gravity_enabled);
+    assert(got.result.value.velocity.x == 4 && got.result.value.acceleration.y == 7);
+    assert(got.result.value.owner == owner && got.result.value.rigid_vertices == 7);
+    HitboxId id = physics_hitbox_active_id_get(particle).result.value;
+    OK(physics_particle_description_set(particle, got.result.value));
+    assert(physics_hitbox_active_id_get(particle).result.value == id);
+    OK(physics_entity_unhold(particle));
+    (void)physics_pipeline_integrate(0.1);
+    assert(positions[index].x == 11 && velocities[index].x == 4);
+    OK(physics_entity_hold(particle));
+    value = got.result.value; value.owner = next; value.static_body = false; value.gravity_enabled = false;
+    value.radius = 5; value.rigid_vertices = 9; value.local_origin = (Position){-2, 1};
+    value.collision_enabled = false; value.collision_filter = (CollisionFilterDescription){4, 8};
+    OK(rohr_physics_particle_description_set(particle, value));
+    assert(entity_owner_get(particle).result.value == next);
+    assert(entity_parent_get(particle).result.value == parent);
+    assert(!strcmp(entity_name_get(particle).result.value.value, name.value));
+    assert(entity_components_check(particle, ROHR_HOLD | ROHR_LIFETIME));
+    assert(!entity_components_check(particle, ROHR_COLLISION));
+    assert(velocities[index].x == 4 && accelerations[index].y == 7);
+    assert(physics_hitbox_active_id_get(particle).result.value == id);
+    Shape shape = physics_hitbox_get(particle).result.value;
+    assert(shape.amount_of_vertices == 9 && fabsf(shape.vertices[0].x - 3) < 0.0001f);
+    assert(fabsf(physics_center_of_mass_local_position_get(particle).result.value.x + 2) < 0.0001f);
+    OK(physics_hitbox_add(particle, math_square_create(3, 4)));
+    HitboxId extra_id = physics_hitbox_id_at_get(particle, 1).result.value;
+    Shape extra_shape = physics_hitbox_at_get(particle, 1).result.value;
+    OK(rohr_physics_particle_radius_set(particle, 6));
+    OK(rohr_physics_particle_origin_set(particle, (Position){3, -4}));
+    shape = physics_hitbox_get(particle).result.value;
+    assert(shape.amount_of_vertices == 9 && fabsf(shape.vertices[0].x - 9) < 0.0001f);
+    assert(fabsf(shape.vertices[0].y + 4) < 0.0001f);
+    assert(physics_hitbox_active_id_get(particle).result.value == id);
+    assert(physics_hitbox_id_at_get(particle, 1).result.value == extra_id);
+    Shape untouched = physics_hitbox_at_get(particle, 1).result.value;
+    assert(!memcmp(&extra_shape, &untouched, sizeof(Shape)));
+    value = physics_particle_description_get(particle).result.value;
+    assert(value.radius == 6 && value.local_origin.x == 3 && value.mass_value == 8);
+    ParticleDescription invalid[8];
+    for(size_t i = 0; i < 8; ++i) invalid[i] = value;
+    invalid[0].radius = 0; invalid[1].mass_value = -1; invalid[2].velocity.x = NAN;
+    invalid[3].rigid_vertices = MAX_VERTICIES + 1; invalid[4].restitution = 2;
+    invalid[5].friction = INFINITY; invalid[6].owner = particle;
+    invalid[7].local_origin = (Position){ROHR_WORLD_COORDINATE_MAX, 0};
+    for(size_t i = 0; i < 8; ++i) {
+        assert(error_check(physics_particle_description_set(particle, invalid[i])));
+        ParticleDescription after = physics_particle_description_get(particle).result.value;
+        assert(after.owner == next && after.radius == 6 && after.mass_value == 8 && after.local_origin.x == 3);
+        Shape after_shape = physics_hitbox_get(particle).result.value;
+        assert(!memcmp(&shape, &after_shape, sizeof(Shape)));
+    }
+    assert(error_check(physics_particle_radius_set(particle, INFINITY)));
+    assert(error_check(physics_particle_origin_set(particle, (Position){ROHR_WORLD_COORDINATE_MAX, 0})));
+    assert(physics_particle_origin_get(particle).result.value.x == 3);
+    Entity hybrid = make(); OK(physics_hitbox_set(hybrid, math_square_create(2, 3)));
+    OK(physics_particle_radius_set(hybrid, 2));
+    assert(error_check(physics_particle_description_get(hybrid)));
+    assert(error_check(physics_particle_description_set(hybrid, value)));
+    Shape hybrid_before = physics_hitbox_get(hybrid).result.value;
+    OK(physics_particle_origin_set(hybrid, (Position){1, 1}));
+    Shape hybrid_after = physics_hitbox_get(hybrid).result.value;
+    assert(!memcmp(&hybrid_before, &hybrid_after, sizeof(Shape)));
+    EntityResult soft = physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+    EntityResult node = physics_soft_body_node_add((SoftBodyNodeDescription){.owner = soft.result.value, .radius = 1, .mass = 1}); OK(node);
+    assert(error_check(physics_particle_description_get(node.result.value)));
+    assert(error_check(physics_particle_description_set(node.result.value, value)));
+    OK(entity_delete(soft.result.value)); OK(entity_delete(hybrid));
+    /* Full replacement clears omitted values; focused changes retain the others. */
+    OK(physics_particle_description_set(particle, (ParticleDescription){.radius = 2}));
+    got = physics_particle_description_get(particle); OK(got);
+    assert(got.result.value.owner == ENTITY_INVALID && got.result.value.mass_value == 0);
+    assert(got.result.value.velocity.x == 0 && !got.result.value.collision_enabled);
+    assert(got.result.value.rigid_vertices == ROHR_PARTICLE_RIGID_VERTICES_DEFAULT);
+    assert(entity_components_check(particle, ROHR_KINEMATIC_DRIVEN | ROHR_HOLD));
+    /* Retained static settings survive saves, including gravity and hitbox IDs. */
+    value.static_body = true; value.gravity_enabled = true;
+    OK(physics_particle_description_set(particle, value));
+    OK(game_state_file_save("particle_descriptions.json"));
+    OK(entity_delete(owner)); OK(entity_delete(next)); OK(entity_delete(parent));
+    assert(!entity_alive_check(particle));
+    assert(error_check(physics_particle_description_get(particle)));
+    assert(error_check(physics_particle_description_set(particle, value)));
+    OK(game_state_file_load("particle_descriptions.json"));
+    EntityResult restored = entity_by_name_get(name.value); OK(restored);
+    got = physics_particle_description_get(restored.result.value); OK(got);
+    assert(got.result.value.static_body && got.result.value.gravity_enabled && got.result.value.mass_value == 8);
+    assert(got.result.value.velocity.x == 4 && got.result.value.acceleration.y == 7);
+    assert(got.result.value.radius == 6 && got.result.value.rigid_vertices == 9);
+    assert(physics_hitbox_active_id_get(restored.result.value).result.value == id);
+    Entity restored_owner = got.result.value.owner, restored_parent = entity_parent_get(restored.result.value).result.value;
+    OK(physics_entity_unhold(restored.result.value));
+    got.result.value.static_body = false;
+    OK(physics_particle_description_set(restored.result.value, got.result.value));
+    (void)physics_pipeline_integrate(0.1);
+    assert(physics_position_get(restored.result.value).result.value.x > got.result.value.position.x);
+    assert(orientations[index_of(restored.result.value)] == 0);
+    OK(entity_delete(restored_owner)); OK(entity_delete(restored_parent));
+    /* The empty first owner was saved too. */
+    while(entity_alive_count_get()) OK(entity_delete(entity_alive_at_get(0).result.value));
+    assert(remove("particle_descriptions.json") == 0);
+}
+
+static void particle_description_rollback(void) {
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    for(unsigned missing = 0; missing < 2; ++missing) {
+        unsigned failures = 0, successes = 0;
+        for(long fail = 0; fail < 24; ++fail) {
+            Entity owner = make(), next = make();
+            ParticleDescription value = physics_particle_description_default_get(); value.owner = owner;
+            EntityResult created = physics_particle_add(value); OK(created);
+            Entity entity = created.result.value;
+            if(missing) OK(physics_hitbox_remove(entity));
+            else {
+                /* With existing geometry, a focused edit needs no allocation. */
+                allocation_countdown = 0;
+                EngineResult result = physics_particle_radius_set(entity, 1);
+                allocation_countdown = -1; OK(result);
+            }
+            value.owner = next; value.radius = 3; value.mass_value = 4; value.position.x = 10;
+            allocation_countdown = fail;
+            EngineResult result = physics_particle_description_set(entity, value);
+            allocation_countdown = -1;
+            ParticleDescriptionResult current = physics_particle_description_get(entity); OK(current);
+            if(error_check(result)) {
+                ++failures;
+                assert(current.result.value.owner == owner && current.result.value.radius == 1);
+                assert(current.result.value.mass_value == 1 && current.result.value.position.x == 0);
+                assert(!entity_components_check(next, ROHR_OBJECT));
+                assert(entity_components_check(entity, ROHR_HIT_BOX) == !missing);
+            } else {
+                ++successes;
+                assert(current.result.value.owner == next && current.result.value.radius == 3);
+                assert(current.result.value.mass_value == 4 && current.result.value.position.x == 10);
+                assert(entity_components_check(entity, ROHR_HIT_BOX));
+            }
+            OK(entity_delete(owner)); OK(entity_delete(next));
+        }
+        assert(failures && successes);
+    }
+#endif
+}
+
 int main(void) {
     OK(rohr_engine_start());
+    particle_descriptions(); particle_description_rollback();
     metadata_descriptions(); metadata_allocation_rollback(); lifetime_descriptions();
     authored_configuration_descriptions();
     remaining_creation_descriptions(); source_description_ownership(); remaining_creation_rollback();

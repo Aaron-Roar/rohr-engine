@@ -327,23 +327,23 @@ ERROR_DECLARE_RESULT_TYPE(ForceMagnitudeResult, float);
 /** Default polygon vertex count used to approximate a particle circle. */
 #define ROHR_PARTICLE_RIGID_VERTICES_DEFAULT 16u
 
-/** Value description used to create one standalone particle entity. */
+/** Complete creation/replacement configuration for one standalone particle. */
 typedef struct ParticleDescription {
     /** Optional lifetime owner; connections do not imply ownership. */
     Entity owner;
-    /** Initial world position of the particle entity. */
+    /** Current world position of the particle entity. */
     Position position;
     /** Shared local offset of the particle circle and polygon hitbox. */
     Position local_origin;
-    /** Initial linear velocity; ignored for static particles. */
+    /** Linear velocity; retained while static for a later dynamic transition. */
     Velocity velocity;
-    /** Initial linear acceleration; ignored for static particles. */
+    /** Linear acceleration; retained while static. */
     Acceleration acceleration;
     /** Radius shared by the particle circle and polygon hitbox. */
     float radius;
     /** Circle approximation quality; zero selects the engine default. */
     uint32_t rigid_vertices;
-    /** Dynamic mass; ignored for static particles. */
+    /** Mass retained while static; static response still has zero inverse mass. */
     Mass mass_value;
     Friction friction;
     Restitution restitution;
@@ -355,6 +355,7 @@ typedef struct ParticleDescription {
     /** Whether overlaps enter physical collision response. */
     bool collision_enabled;
 } ParticleDescription;
+ERROR_DECLARE_RESULT_TYPE(ParticleDescriptionResult, ParticleDescription);
 
 ERROR_DECLARE_RESULT_TYPE(PositionResult, Position);
 ERROR_DECLARE_RESULT_TYPE(BoolResult, bool);
@@ -1101,8 +1102,17 @@ OverlapInfo physics_particle_overlap_get(Shape shape_1, Shape shape_2);
 ParticleDescription physics_particle_description_default_get(void);
 /** Create one translation-only particle entity from a reusable configuration. */
 EntityResult physics_particle_add(ParticleDescription config);
+/** Atomically replace a standalone particle's current configuration and owner.
+ * Rebuild changed circle/polygon geometry together, retaining hitbox IDs and
+ * inactive variants. Preserve unrelated state; omitted fields are zero/false. */
+EngineResult physics_particle_description_set(Entity entity, ParticleDescription description);
+/** Get current values, including stored static motion and active polygon quality.
+ * Non-standalone particles and soft-body nodes return component-missing. */
+ParticleDescriptionResult physics_particle_description_get(Entity entity);
+/** Update circle origin and, for standalone particles, its active polygon too. */
 EngineResult physics_particle_origin_set(Entity entity, Position local_origin);
 PositionResult physics_particle_origin_get(Entity entity);
+/** Update circle radius and, for standalone particles, its active polygon too. */
 EngineResult physics_particle_radius_set(Entity entity, float radius);
 ParticleRadiusResult physics_particle_radius_get(Entity entity);
 
