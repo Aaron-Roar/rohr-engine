@@ -431,7 +431,7 @@ static void section_capture(Snapshot *s, EntityIndex index, EntityInfoFlags flag
         GET_CAPTURE(MomentOfInertiaResult, physics_moment_of_inertia_get(entity), moment_of_inertia, isfinite(result.result.value));
         break;
     case FLAG(PHYSICS_COLLISION_FILTER):
-        GET_CAPTURE(CollisionFilterConfigResult, physics_collision_filter_get(entity), collision_filter, true);
+        GET_CAPTURE(CollisionFilterDescriptionResult, physics_collision_filter_description_get(entity), collision_filter, true);
         break;
     case FLAG(PHYSICS_HITBOX_LOCAL):
         if(!hitbox_storage_check(s, index, flag, true)) break;

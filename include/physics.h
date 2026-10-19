@@ -138,15 +138,15 @@ typedef uint64_t RohrCollisionCategoryMask;
 #define ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE (UINT64_C(1) << 63)
 
 /** Collision filtering configuration owned by one collider entity. */
-typedef struct CollisionFilterConfig {
+typedef struct CollisionFilterDescription {
     /** Categories represented by this collider. */
     RohrCollisionCategoryMask category;
     /** Categories this collider permits collision checks against. */
     RohrCollisionCategoryMask collides_with;
-} CollisionFilterConfig;
+} CollisionFilterDescription;
 
 /** Result type for functions returning collision filter configuration. */
-ERROR_DECLARE_RESULT_TYPE(CollisionFilterConfigResult, CollisionFilterConfig);
+ERROR_DECLARE_RESULT_TYPE(CollisionFilterDescriptionResult, CollisionFilterDescription);
 
 /** Surface friction coefficient. */
 typedef Vec1D Friction;
@@ -347,7 +347,7 @@ typedef struct ParticleDescription {
     Mass mass_value;
     Friction friction;
     Restitution restitution;
-    CollisionFilterConfig collision_filter;
+    CollisionFilterDescription collision_filter;
     /** Whether to create a static rather than dynamic particle. */
     bool static_body;
     /** Whether a dynamic particle receives engine gravity. */
@@ -362,6 +362,26 @@ ERROR_DECLARE_RESULT_TYPE(MomentOfInertiaResult, float);
 ERROR_DECLARE_RESULT_TYPE(AngularVelocityResult, AngularVelocity);
 ERROR_DECLARE_RESULT_TYPE(ForceResult, Force);
 ERROR_DECLARE_RESULT_TYPE(TorqueResult, Torque);
+
+/** Complete axis constraint configuration. The setter normalizes a finite,
+ * nonzero axis; point_on_axis uses world coordinates. */
+typedef struct AxisLockDescription {
+    Axis axis;
+    Position point_on_axis;
+} AxisLockDescription;
+ERROR_DECLARE_RESULT_TYPE(AxisLockDescriptionResult, AxisLockDescription);
+
+/** Complete transform-following configuration. Offsets are driver-local and
+ * local_angle is clockwise degrees. References do not imply lifetime ownership. */
+typedef struct TransformLockDescription {
+    Entity driver;
+    Vec2D local_offset;
+    Orientation local_angle;
+    bool lock_position;
+    bool lock_orientation;
+    bool inherit_velocity;
+} TransformLockDescription;
+ERROR_DECLARE_RESULT_TYPE(TransformLockDescriptionResult, TransformLockDescription);
 
 /** Constraint that locks movement onto an axis through a point. */
 typedef struct AxisLock {
@@ -504,7 +524,7 @@ typedef struct SoftBodyNode {
 typedef struct SoftBodyBeamCollisionConfig {
     bool enabled;
     float thickness;
-    CollisionFilterConfig filter;
+    CollisionFilterDescription filter;
 } SoftBodyBeamCollisionConfig;
 
 /** Elastic connection between two soft-body nodes. */
@@ -640,7 +660,7 @@ MEMORY_DECLARE_OBJECT_POOL(HitboxVariantListPool, HitboxVariantList);
 MEMORY_DECLARE_OBJECT_POOL(HitboxAnimationBindingListPool,
     HitboxAnimationBindingList);
 /** Pool storing collision filters by EntityIndex. */
-MEMORY_DECLARE_OBJECT_POOL(CollisionFilterConfigPool, CollisionFilterConfig);
+MEMORY_DECLARE_OBJECT_POOL(CollisionFilterDescriptionPool, CollisionFilterDescription);
 /** Pool storing orientations by EntityIndex. */
 MEMORY_DECLARE_OBJECT_POOL(OrientationPool, Orientation);
 /** Pool storing angular velocities by EntityIndex. */
@@ -676,7 +696,7 @@ extern ShapePool hit_boxes_pool;
 extern ShapePool world_hit_boxes_pool;
 extern HitboxVariantListPool hitbox_variants_pool;
 extern HitboxAnimationBindingListPool hitbox_animation_bindings_pool;
-extern CollisionFilterConfigPool collision_filters_pool;
+extern CollisionFilterDescriptionPool collision_filters_pool;
 extern OrientationPool orientations_pool;
 extern AngularVelocityPool angular_velocities_pool;
 extern AngularVelocityPool angular_velocity_maximums_pool;
@@ -930,11 +950,11 @@ void physics_hitbox_animation_binding_hitbox_remove(EntityIndex index,
     HitboxId hitbox_id);
 void physics_hitbox_animation_bindings_entity_clear(EntityIndex index);
 /** Return the default collision filter: default category against all categories. */
-CollisionFilterConfig physics_collision_filter_config_default_get(void);
+CollisionFilterDescription physics_collision_filter_description_default_get(void);
 /** Replace an entity's complete collision filter, with or without geometry. */
-EngineResult physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
+EngineResult physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config);
 /** Return an entity's collision filter. Entities without an override use defaults. */
-CollisionFilterConfigResult physics_collision_filter_get(Entity entity);
+CollisionFilterDescriptionResult physics_collision_filter_description_get(Entity entity);
 /** Set the categories represented by an entity. */
 EngineResult physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category);
 /** Set the category whitelist an entity can collide with. */
@@ -983,42 +1003,24 @@ EngineResult physics_group_entities_unhold(GroupId group);
 EngineResult physics_angle_lock_set(Entity entity, Orientation min, Orientation max);
 /** Clockwise-positive radians alternative; other parameters retain their units. */
 EngineResult physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max);
-/** Add or update an axis lock constraint. */
-EngineResult physics_axis_lock_set(Entity entity, Axis axis, Position axis_point);
+/** Atomically replace the axis constraint; finite nonzero axis required.
+ * Stores a normalized axis without changing current motion or ownership. */
+EngineResult physics_axis_lock_description_set(Entity entity, AxisLockDescription description);
+/** Get stored configuration; returns component-missing when no axis lock exists. */
+AxisLockDescriptionResult physics_axis_lock_description_get(Entity entity);
+/** Remove the axis lock without changing current motion. Idempotent for live entities. */
+EngineResult physics_axis_lock_remove(Entity entity);
 /** Set an entity's friction value. */
 EngineResult physics_friction_set(Entity entity, float friction);
 
-/**
- * Add or update a transform lock.
- *
- * @param driven Entity whose transform is controlled.
- * @param driver Entity that drives the transform.
- * @param local_offset Offset from the driver in local space.
- * @param local_angle Orientation offset from the driver.
- * @param lock_position Whether to lock position.
- * @param lock_orientation Whether to lock orientation.
- * @param inherit_velocity Whether to inherit velocity.
- * @return EngineResult describing success or failure.
- */
-EngineResult physics_transform_lock_set(
-        Entity driven,
-        Entity driver,
-        Vec2D local_offset,
-        Orientation local_angle,
-        bool lock_position,
-        bool lock_orientation,
-        bool inherit_velocity
-);
-/** Clockwise-positive radians alternative; other parameters retain their units. */
-EngineResult physics_transform_lock_radians_set(
-        Entity driven,
-        Entity driver,
-        Vec2D local_offset,
-        Orientation local_angle,
-        bool lock_position,
-        bool lock_orientation,
-        bool inherit_velocity
-);
+/** Atomically replace transform-following configuration using clockwise degrees.
+ * Requires a live driver even when all flags are false. Does not capture the
+ * current transform, move entities, or alter ownership. Use explicit conversion
+ * helpers when supplying radians. */
+EngineResult physics_transform_lock_description_set(Entity driven, TransformLockDescription description);
+/** Get stored configuration, including its driver handle; component-missing
+ * when absent. A deleted driver can remain in the stored configuration. */
+TransformLockDescriptionResult physics_transform_lock_description_get(Entity driven);
 
 /** Remove a transform lock from an entity. */
 EngineResult physics_transform_lock_remove(Entity entity);

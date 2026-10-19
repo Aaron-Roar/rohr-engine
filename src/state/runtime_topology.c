@@ -114,7 +114,7 @@ EngineResult state_topology_load(Entity entity, yyjson_val *components,
             value.radius > 0 && positions_pool.used[index] && mass_pool.used[index] && mass[index] > 0 &&
             velocities_pool.used[index] && accelerations_pool.used[index] &&
             color_read(node, &value.draw_color, &value.draw_color_overridden));
-        CollisionFilterConfigResult filter = physics_collision_filter_get(entity);
+        CollisionFilterDescriptionResult filter = physics_collision_filter_description_get(entity);
         REQUIRE(!error_check(filter));
         value.category = filter.result.value.category;
         value.collides_with = filter.result.value.collides_with;

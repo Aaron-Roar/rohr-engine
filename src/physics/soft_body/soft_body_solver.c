@@ -64,7 +64,7 @@ static void system_soft_body_beams_apply(Report *report) {
 
 static bool system_soft_boundary_filter_allows(
         const SystemSoftBoundaryQuery *query, EntityIndex rigid) {
-    CollisionFilterConfig rigid_filter = physics_collision_filter_config_default_get();
+    CollisionFilterDescription rigid_filter = physics_collision_filter_description_default_get();
     const SoftBodyBeam *beam;
 
     if(query == NULL || query->beam_index >= soft_body_beams_pool.capacity ||

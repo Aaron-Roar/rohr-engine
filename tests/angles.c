@@ -93,10 +93,14 @@ static bool physics_check(void) {
     CHECK(near(angle_locks[i].min,-450) && near(angle_locks[i].max,810));
     OK(rohr_physics_angle_lock_radians_set(e,-PI_F,PI_F));
     CHECK(near(angle_locks[i].min,-180));
-    OK(physics_transform_lock_radians_set(f,e,(Vec2D){0},PI_F/2,true,true,true));
+    OK(physics_transform_lock_description_set(f, (TransformLockDescription){
+        .driver = e, .local_offset = (Vec2D){0}, .local_angle = math_radians_to_degrees(PI_F/2),
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     EntityIndex fi=rohr_entity_index_get(f).result.value;
     CHECK(near(transform_locks[fi].local_angle,90));
-    OK(rohr_physics_transform_lock_radians_set(f,e,(Vec2D){0},-PI_F,true,true,true));
+    OK(rohr_physics_transform_lock_description_set(f, (TransformLockDescription){
+        .driver = e, .local_offset = (Vec2D){0}, .local_angle = rohr_math_radians_to_degrees(-PI_F),
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     CHECK(near(transform_locks[fi].local_angle,-180));
     CHECK(rohr_error_check(physics_orientation_radians_set(e,FLT_MAX)));
     CHECK(orientations[i]==810);
@@ -307,8 +311,9 @@ static bool state_check(void) {
     OK(rohr_physics_angular_velocity_set(driver.result.value, 810));
     OK(rohr_physics_angular_acceleration_set(driver.result.value, -450));
     OK(rohr_physics_angle_lock_set(driver.result.value, -450, 810));
-    OK(rohr_physics_transform_lock_set(follower.result.value, driver.result.value,
-        (Vec2D){0,10}, 810, true, true, true));
+    OK(rohr_physics_transform_lock_description_set(follower.result.value, (TransformLockDescription){
+        .driver = driver.result.value, .local_offset = (Vec2D){0,10}, .local_angle = 810,
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     JointAnchorIdResult anchor_driver = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = driver.result.value}); OK(anchor_driver);
     JointAnchorIdResult anchor_follower = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = follower.result.value}); OK(anchor_follower);
     OK(rohr_physics_joint_description_set(joint.result.value, (JointDescription){

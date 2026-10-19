@@ -121,7 +121,6 @@ one operation:
 | `physics_angular_velocity_maximum_get` | `physics_angular_velocity_maximum_radians_get` | successful result |
 | `physics_angular_acceleration_set` | `physics_angular_acceleration_radians_set` | acceleration |
 | `physics_angle_lock_set` | `physics_angle_lock_radians_set` | min and max |
-| `physics_transform_lock_set` | `physics_transform_lock_radians_set` | local_angle |
 | `graphics_screen_quad_draw` | `graphics_screen_quad_radians_draw` | angle |
 | `graphics_texture_draw` | `graphics_texture_radians_draw` | orientation |
 | `graphics_screen_texture_draw` | `graphics_screen_texture_radians_draw` | orientation |
@@ -135,6 +134,13 @@ one operation:
 | `graphics_camera_with_options_attach` | `graphics_camera_with_options_radians_attach` | orientation_offset |
 | `graphics_camera_attachment_set` | `graphics_camera_attachment_radians_set` | orientation_offset |
 | `ui_quad` | `ui_radians_quad` | angle |
+
+`TransformLockDescription.local_angle` always uses clockwise degrees. The full
+transform-lock setter/getter has one canonical description format; convert radians
+with `math_radians_to_degrees()` before setting, or use `math_degrees_to_radians()`
+on retrieved values. Both helpers have equivalent `rohr_` facade spellings. The
+old positional `physics_transform_lock_radians_set` was removed in Description
+APIs Goal 3. Scalar radians conveniences in the table above remain available.
 
 The existing camera-ID attachment wrapper is named `rohr_camera_attach`,
 which delegates to `graphics_camera_attachment_set`. Its radians sibling is

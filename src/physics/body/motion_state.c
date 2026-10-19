@@ -295,15 +295,3 @@ EngineResult physics_angular_acceleration_radians_set(
 EngineResult physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max) {
     return physics_angle_lock_set(entity, math_radians_to_degrees(min), math_radians_to_degrees(max));
 }
-
-EngineResult physics_transform_lock_radians_set(
-        Entity driven,
-        Entity driver,
-        Vec2D local_offset,
-        Orientation local_angle,
-        bool lock_position,
-        bool lock_orientation,
-        bool inherit_velocity
-) {
-    return physics_transform_lock_set(driven, driver, local_offset, math_radians_to_degrees(local_angle), lock_position, lock_orientation, inherit_velocity);
-}

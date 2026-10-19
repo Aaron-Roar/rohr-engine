@@ -22,7 +22,7 @@ static bool particle_config_test(void) {
     PositionResult first_position;
     ParticleRadiusResult first_radius;
     PositionResult second_origin;
-    CollisionFilterConfigResult second_filter;
+    CollisionFilterDescriptionResult second_filter;
 
     if(defaults.radius != 1.0f ||
             defaults.rigid_vertices != ROHR_PARTICLE_RIGID_VERTICES_DEFAULT ||
@@ -46,7 +46,7 @@ static bool particle_config_test(void) {
     second_config.rigid_vertices = 7;
     second_config.static_body = true;
     second_config.collision_enabled = false;
-    second_config.collision_filter = (CollisionFilterConfig){
+    second_config.collision_filter = (CollisionFilterDescription){
         .category = UINT64_C(4), .collides_with = UINT64_C(2)};
     second_result = rohr_physics_particle_add(second_config);
     if(rohr_error_check(second_result)) {
@@ -58,7 +58,7 @@ static bool particle_config_test(void) {
     first_position = rohr_physics_position_get(first_result.result.value);
     first_radius = rohr_physics_particle_radius_get(first_result.result.value);
     second_origin = rohr_physics_particle_origin_get(second_result.result.value);
-    second_filter = rohr_physics_collision_filter_get(second_result.result.value);
+    second_filter = rohr_physics_collision_filter_description_get(second_result.result.value);
     if(rohr_error_check(first_hitbox) || rohr_error_check(second_hitbox) ||
             rohr_error_check(first_position) || rohr_error_check(first_radius) ||
             rohr_error_check(second_origin) || rohr_error_check(second_filter) ||

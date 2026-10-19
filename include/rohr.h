@@ -1237,11 +1237,11 @@ HitboxIndexResult rohr_physics_hitbox_animation_binding_at_get(Entity entity,
 void rohr_physics_hitbox_animation_bindings_update(void);
 
 /** Return the default collision filtering configuration. */
-CollisionFilterConfig rohr_physics_collision_filter_config_default_get(void);
+CollisionFilterDescription rohr_physics_collision_filter_description_default_get(void);
 /** Replace an entity's collision category and whitelist, with or without geometry. */
-EngineResult rohr_physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
+EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config);
 /** Return an entity's collision filtering configuration. */
-CollisionFilterConfigResult rohr_physics_collision_filter_get(Entity entity);
+CollisionFilterDescriptionResult rohr_physics_collision_filter_description_get(Entity entity);
 /** Set the collision categories represented by an entity. */
 EngineResult rohr_physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category);
 /** Set the collision category whitelist for an entity. */
@@ -1375,14 +1375,13 @@ EngineResult rohr_physics_angle_lock_set(Entity entity, Orientation min, Orienta
 /** Clockwise-positive radians alternative; other parameters retain their units. */
 EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min, Orientation max);
 
-/**
- * @brief Locks an entity position along an axis.
- * @param entity Entity to modify.
- * @param axis Axis to lock against.
- * @param axis_point Point on the locked axis.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_axis_lock_set(Entity entity, Axis axis, Position axis_point);
+/** Atomically replace the axis constraint; finite nonzero axis required.
+ * Stores a normalized axis without changing current motion or ownership. */
+EngineResult rohr_physics_axis_lock_description_set(Entity entity, AxisLockDescription description);
+/** Get stored configuration; returns component-missing when no axis lock exists. */
+AxisLockDescriptionResult rohr_physics_axis_lock_description_get(Entity entity);
+/** Remove the axis lock without changing current motion. Idempotent for live entities. */
+EngineResult rohr_physics_axis_lock_remove(Entity entity);
 
 /**
  * @brief Sets an entity friction value.
@@ -1394,36 +1393,14 @@ EngineResult rohr_physics_axis_lock_set(Entity entity, Axis axis, Position axis_
  */
 EngineResult rohr_physics_friction_set(Entity entity, float friction);
 
-/**
- * @brief Locks one entity transform to another entity.
- * @param driven Entity whose transform is driven.
- * @param driver Entity used as the transform source.
- * @param local_offset Offset from driver to driven in driver-local space.
- * @param local_angle Orientation offset from driver to driven.
- * @param lock_position true to lock position.
- * @param lock_orientation true to lock orientation.
- * @param inherit_velocity true to inherit driver velocity.
- * @return EngineResult describing success or failure.
- */
-EngineResult rohr_physics_transform_lock_set(
-    Entity driven,
-    Entity driver,
-    Vec2D local_offset,
-    Orientation local_angle,
-    bool lock_position,
-    bool lock_orientation,
-    bool inherit_velocity
-);
-/** Clockwise-positive radians alternative; other parameters retain their units. */
-EngineResult rohr_physics_transform_lock_radians_set(
-    Entity driven,
-    Entity driver,
-    Vec2D local_offset,
-    Orientation local_angle,
-    bool lock_position,
-    bool lock_orientation,
-    bool inherit_velocity
-);
+/** Atomically replace transform-following configuration using clockwise degrees.
+ * Requires a live driver even when all flags are false. Does not capture the
+ * current transform, move entities, or alter ownership. Use explicit conversion
+ * helpers when supplying radians. */
+EngineResult rohr_physics_transform_lock_description_set(Entity driven, TransformLockDescription description);
+/** Get stored configuration, including its driver handle; component-missing
+ * when absent. A deleted driver can remain in the stored configuration. */
+TransformLockDescriptionResult rohr_physics_transform_lock_description_get(Entity driven);
 
 /**
  * @brief Removes an entity transform lock.

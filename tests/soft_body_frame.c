@@ -25,7 +25,7 @@ static Entity body(Position p, float a) {
 }
 static Entity node(Entity b, Position p, float m) {
     EntityResult r=rohr_physics_soft_body_node_add((SoftBodyNodeDescription){.owner=b,.position=p,.mass=m,.radius=.1f}); OK(r);
-    OK(rohr_physics_collision_filter_set(r.result.value,((CollisionFilterConfig){0}))); return r.result.value;
+    OK(rohr_physics_collision_filter_description_set(r.result.value,((CollisionFilterDescription){0}))); return r.result.value;
 }
 static void tracked(void) {
     Report r=rohr_physics_pipeline_forces_apply();

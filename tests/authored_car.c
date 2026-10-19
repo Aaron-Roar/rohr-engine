@@ -23,7 +23,7 @@ static Entity box(Position p,Vec2D dimensions,bool fixed,Entity owner) {
     OK(rohr_physics_position_set(e,p));OK(rohr_physics_hitbox_set(e,rohr_math_square_create(dimensions.x,dimensions.y)));
     OK(rohr_physics_orientation_set(e,0));OK(rohr_physics_velocity_set(e,(Velocity){0}));
     if(fixed) OK(rohr_physics_static_set(e));else {OK(rohr_physics_mass_set(e,1));OK(rohr_physics_dynamic_set(e));}
-    OK(rohr_physics_collision_filter_set(e,(CollisionFilterConfig){ROHR_COLLISION_CATEGORY_ALL,ROHR_COLLISION_CATEGORY_ALL}));
+    OK(rohr_physics_collision_filter_description_set(e,(CollisionFilterDescription){ROHR_COLLISION_CATEGORY_ALL,ROHR_COLLISION_CATEGORY_ALL}));
     OK(rohr_entity_components_add(e,ROHR_COLLISION));
     OK(rohr_entity_owner_set(e,owner));return e;
 }

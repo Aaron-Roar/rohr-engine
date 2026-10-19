@@ -85,10 +85,23 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    audits identify only existing gravity-initializer and long starter-string
    warnings. Reconciled all 1,474 current header entries and documentation links.
    Native Windows execution and real desktop visual review remain unverified.
-   Stop for review before Goal 3.
-3. [ ] **Standardize physics configuration** — Complete transform/axis-lock
-   descriptions and collision-filter naming/accessors. Preserve basic angle
-   ranges, focused hitbox binding setters, and direct capture/motion operations.
+3. [x] **Standardize physics configuration** — Added atomic axis/transform-lock
+   description set/get and explicit axis-lock removal. Missing locks return a
+   component-missing error; replacement preserves current motion and ownership.
+   Transform descriptions use degrees with explicit conversion helpers for
+   radians. Axis normalization supports tiny/large finite vectors and rejects
+   zero. Renamed collision-filter descriptions/results/pools and complete/default
+   accessors across nested configuration, snapshots, persistence, and callers.
+   Preserved focused setters, angle ranges, saved fields, and direct capture.
+   Verified all 100 native tests and eight ASan/UBSan/leak checks; full Linux and
+   Windows cross-builds; independent installed-SDK center_of_mass/soft-body
+   examples and consumer; regenerated soft-body builds and Linux launch; external
+   scene hosting and two-second force toggling with its custom main preserved.
+   Standard builds have no compiler warnings; strict checks identify only the
+   existing gravity-initializer and long starter-string warnings. Reconciled
+   1,478 current header entries and 17 remaining Config/Descriptor type names.
+   Native Windows execution and real desktop visual review remain unverified.
+   Stop for review before Goal 4.
 4. [ ] **Complete particle description APIs** — Add full set/get using current
    configurable values; preserve particle/collision geometry, ownership,
    current motion, and standalone-particle restrictions.

@@ -31,7 +31,7 @@ int main(void) {
     const RohrCollisionCategoryMask enemy = UINT64_C(1) << 2;
     EntityResult first;
     EntityResult second;
-    CollisionFilterConfigResult filter;
+    CollisionFilterDescriptionResult filter;
     ContactInfo contact;
     EntityResult gravity_entity;
     EntityResult kinematic_entity;
@@ -210,7 +210,7 @@ int main(void) {
         rohr_engine_stop();
         return 1;
     }
-    filter = rohr_physics_collision_filter_get(first.result.value);
+    filter = rohr_physics_collision_filter_description_get(first.result.value);
     if(filter.kind == ERROR_RESULT_ERROR ||
             filter.result.value.category != ROHR_COLLISION_CATEGORY_DEFAULT ||
             filter.result.value.collides_with != ROHR_COLLISION_CATEGORY_ALL ||

@@ -192,7 +192,7 @@ static bool locks_check(void) {
     EntityIndex j=rohr_entity_index_get(f).result.value;
     OK(rohr_physics_center_of_mass_local_position_set(e,(Position){2,0}));
     OK(rohr_physics_angular_velocity_radians_set(e,-1));
-    OK(rohr_physics_axis_lock_set(e,(Axis){1,0},(Position){0}));
+    OK(rohr_physics_axis_lock_description_set(e, (AxisLockDescription){.axis = (Axis){1,0}, .point_on_axis = (Position){0}}));
     CHECK((rohr_system_physics_update(0.2)).header.status != ROHR_REPORT_FAILED);
     CHECK(near(positions[i].y,0));
     /* Origin velocity is COM velocity minus omega cross COM offset. */
@@ -204,7 +204,9 @@ static bool locks_check(void) {
     OK(rohr_physics_angular_velocity_radians_set(e,-1));
     OK(rohr_physics_center_of_mass_local_position_set(f,(Position){0,3}));
     OK(rohr_physics_dynamic_set(f));
-    OK(rohr_physics_transform_lock_set(f,e,(Vec2D){4,0},0,true,true,true));
+    OK(rohr_physics_transform_lock_description_set(f, (TransformLockDescription){
+        .driver = e, .local_offset = (Vec2D){4,0}, .local_angle = 0,
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     CHECK((rohr_system_physics_update(0.1)).header.status != ROHR_REPORT_FAILED);
     Vec2D r=rohr_math_vector_rotate((Vec2D){4,0},orientations[i]);
     CHECK(point_near(positions[j],(Position){positions[i].x+r.x,positions[i].y+r.y}));

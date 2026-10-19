@@ -124,7 +124,7 @@ typedef struct ObjectDescription ObjectDescription;
     Position center_of_mass; \
     Position particle_origin; \
     uint32_t particle_vertices; \
-    CollisionFilterConfig collision_filter; \
+    CollisionFilterDescription collision_filter; \
     const ObjectHitbox *geometry; \
     size_t geometry_count; \
     size_t active_geometry; \
@@ -192,7 +192,7 @@ typedef struct ObjectMaterialDescription {
 ERROR_DECLARE_RESULT_TYPE(ObjectMaterialDescriptionResult, ObjectMaterialDescription);
 typedef struct ObjectCollisionDescription {
     bool enabled;
-    CollisionFilterConfig filter;
+    CollisionFilterDescription filter;
 } ObjectCollisionDescription;
 ERROR_DECLARE_RESULT_TYPE(ObjectCollisionDescriptionResult, ObjectCollisionDescription);
 typedef struct ObjectColorDescription {

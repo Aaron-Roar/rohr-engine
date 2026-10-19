@@ -1897,26 +1897,26 @@ EngineResult rohr_physics_hitbox_active_index_set(Entity entity, size_t index);
 
  Selects the hitbox variant used by the next physics tick.
 
-### `rohr_physics_collision_filter_config_default_get`
+### `rohr_physics_collision_filter_description_default_get`
 
 ```c
-CollisionFilterConfig rohr_physics_collision_filter_config_default_get(void);
+CollisionFilterDescription rohr_physics_collision_filter_description_default_get(void);
 ```
 
  Return the default collision filtering configuration.
 
-### `rohr_physics_collision_filter_set`
+### `rohr_physics_collision_filter_description_set`
 
 ```c
-EngineResult rohr_physics_collision_filter_set(Entity entity, CollisionFilterConfig config);
+EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config);
 ```
 
  Replace an entity's collision category and whitelist, with or without geometry.
 
-### `rohr_physics_collision_filter_get`
+### `rohr_physics_collision_filter_description_get`
 
 ```c
-CollisionFilterConfigResult rohr_physics_collision_filter_get(Entity entity);
+CollisionFilterDescriptionResult rohr_physics_collision_filter_description_get(Entity entity);
 ```
 
  Return an entity's collision filtering configuration.
@@ -2218,21 +2218,31 @@ EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min,
 
  Clockwise-positive radians alternative; other parameters retain their units.
 
-### `rohr_physics_axis_lock_set`
+### `rohr_physics_axis_lock_description_set`
 
 ```c
-EngineResult rohr_physics_axis_lock_set(Entity entity, Axis axis, Position axis_point);
+EngineResult rohr_physics_axis_lock_description_set(Entity entity, AxisLockDescription description);
 ```
 
-Locks an entity position along an axis.
+ Atomically replace the axis constraint; finite nonzero axis required.
 
-| Parameter | Description |
-| --- | --- |
-| `entity` | Entity to modify. |
-| `axis` | Axis to lock against. |
-| `axis_point` | Point on the locked axis. |
+Stores a normalized axis without changing current motion or ownership.
 
-**Returns:** EngineResult describing success or failure.
+### `rohr_physics_axis_lock_description_get`
+
+```c
+AxisLockDescriptionResult rohr_physics_axis_lock_description_get(Entity entity);
+```
+
+ Get stored configuration; returns component-missing when no axis lock exists.
+
+### `rohr_physics_axis_lock_remove`
+
+```c
+EngineResult rohr_physics_axis_lock_remove(Entity entity);
+```
+
+ Remove the axis lock without changing current motion. Idempotent for live entities.
 
 ### `rohr_physics_friction_set`
 
@@ -2253,33 +2263,29 @@ collision. Beam values must be finite and nonnegative; errors preserve state.
 
 **Returns:** EngineResult describing success or failure.
 
-### `rohr_physics_transform_lock_set`
+### `rohr_physics_transform_lock_description_set`
 
 ```c
-EngineResult rohr_physics_transform_lock_set( Entity driven, Entity driver, Vec2D local_offset, Orientation local_angle, bool lock_position, bool lock_orientation, bool inherit_velocity );
+EngineResult rohr_physics_transform_lock_description_set(Entity driven, TransformLockDescription description);
 ```
 
-Locks one entity transform to another entity.
+ Atomically replace transform-following configuration using clockwise degrees.
 
-| Parameter | Description |
-| --- | --- |
-| `driven` | Entity whose transform is driven. |
-| `driver` | Entity used as the transform source. |
-| `local_offset` | Offset from driver to driven in driver-local space. |
-| `local_angle` | Orientation offset from driver to driven. |
-| `lock_position` | true to lock position. |
-| `lock_orientation` | true to lock orientation. |
-| `inherit_velocity` | true to inherit driver velocity. |
+Requires a live driver even when all flags are false. Does not capture the
 
-**Returns:** EngineResult describing success or failure.
+current transform, move entities, or alter ownership. Use explicit conversion
 
-### `rohr_physics_transform_lock_radians_set`
+helpers when supplying radians.
+
+### `rohr_physics_transform_lock_description_get`
 
 ```c
-EngineResult rohr_physics_transform_lock_radians_set( Entity driven, Entity driver, Vec2D local_offset, Orientation local_angle, bool lock_position, bool lock_orientation, bool inherit_velocity );
+TransformLockDescriptionResult rohr_physics_transform_lock_description_get(Entity driven);
 ```
 
- Clockwise-positive radians alternative; other parameters retain their units.
+ Get stored configuration, including its driver handle; component-missing
+
+when absent. A deleted driver can remain in the stored configuration.
 
 ### `rohr_physics_transform_lock_remove`
 

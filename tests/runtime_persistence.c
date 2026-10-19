@@ -123,9 +123,11 @@ static void fixture(void) {
     Position p=physics_position_get(nodes[1]).result.value; p.x+=3; OK(physics_position_set(nodes[1],p));
     OK(physics_velocity_set(nodes[1],(Velocity){2,3})); OK(physics_acceleration_set(nodes[1],(Acceleration){4,5}));
     OK(physics_static_set(nodes[0])); OK(physics_entity_hold(nodes[2]));
-    OK(physics_axis_lock_set(nodes[5],(Axis){1,0},physics_position_get(nodes[5]).result.value));
+    OK(physics_axis_lock_description_set(nodes[5], (AxisLockDescription){.axis = (Axis){1,0}, .point_on_axis = physics_position_get(nodes[5]).result.value}));
     OK(physics_angle_lock_set(nodes[5],-20,80));
-    OK(physics_transform_lock_set(nodes[6],nodes[7],(Vec2D){5,0},0,true,false,true));
+    OK(physics_transform_lock_description_set(nodes[6], (TransformLockDescription){
+        .driver = nodes[7], .local_offset = (Vec2D){5,0}, .local_angle = 0,
+        .lock_position = true, .lock_orientation = false, .inherit_velocity = true}));
     JointAnchorIdResult anchor=physics_joint_anchor_add((JointAnchorDescription){.entity = nodes[0], .local_offset = (Vec2D){0.2f,0.3f}}); OK(anchor);
     OK(physics_joint_anchor_add((JointAnchorDescription){.entity = nodes[0], .local_offset = (Vec2D){4,5}})); /* unused anchor */
     SoftBodyNodeAnchorPinResult pin=physics_soft_body_node_to_anchor_pin_add((SoftBodyNodeAnchorPinDescription){.node = nodes[3], .anchor = anchor.result.value}); OK(pin);

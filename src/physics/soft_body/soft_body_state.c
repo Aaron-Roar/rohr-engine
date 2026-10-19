@@ -259,7 +259,7 @@ EntityResult physics_soft_body_node_add(SoftBodyNodeDescription description) {
                 math_circle_create(radius, 8)).kind == ERROR_RESULT_ERROR ||
             physics_restitution_set(node.result.value, 0.25f).kind == ERROR_RESULT_ERROR ||
             physics_friction_set(node.result.value, 0.0f).kind == ERROR_RESULT_ERROR ||
-            physics_collision_filter_set(node.result.value, (CollisionFilterConfig){
+            physics_collision_filter_description_set(node.result.value, (CollisionFilterDescription){
                 .category = ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE,
                 .collides_with = ROHR_COLLISION_CATEGORY_ALL &
                     ~ROHR_COLLISION_CATEGORY_SOFT_BODY_NODE
@@ -359,7 +359,7 @@ EngineResult physics_soft_body_node_collision_filter_set(Entity node,
     if(!entity_index_components_check(index, ROHR_SOFT_BODY_NODE) || !soft_body_nodes_pool.used[index]) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    result = physics_collision_filter_set(node, (CollisionFilterConfig){
+    result = physics_collision_filter_description_set(node, (CollisionFilterDescription){
         .category = category,
         .collides_with = collides_with
     });
@@ -433,9 +433,9 @@ EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description) {
     EntityResult beam;
     Vec2D delta;
     float collision_thickness;
-    CollisionFilterConfig filter_a;
-    CollisionFilterConfig filter_b;
-    CollisionFilterConfigResult filter_result;
+    CollisionFilterDescription filter_a;
+    CollisionFilterDescription filter_b;
+    CollisionFilterDescriptionResult filter_result;
     bool collision_enabled;
 
     if(!isfinite(stiffness) || !isfinite(damping) || stiffness < 0 || damping < 0 ||
@@ -476,11 +476,11 @@ EntityResult physics_soft_body_beam_add(SoftBodyBeamDescription description) {
         soft_body_nodes[a_index].radius, soft_body_nodes[b_index].radius);
     if(!isfinite(collision_thickness) || collision_thickness <= 0.0f)
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    filter_result = physics_collision_filter_get(node_a);
+    filter_result = physics_collision_filter_description_get(node_a);
     if(error_check(filter_result))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, filter_result.result.error);
     filter_a = filter_result.result.value;
-    filter_result = physics_collision_filter_get(node_b);
+    filter_result = physics_collision_filter_description_get(node_b);
     if(error_check(filter_result))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, filter_result.result.error);
     filter_b = filter_result.result.value;

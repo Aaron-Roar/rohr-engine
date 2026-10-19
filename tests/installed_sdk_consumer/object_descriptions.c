@@ -9,6 +9,22 @@
 int main(void) {
     OK(rohr_engine_start());
     EntityResult metadata = rohr_entity_description_add((EntityDescription){.name = "sdk metadata"}); OK(metadata);
+    EntityResult driver = rohr_entity_add(); OK(driver);
+    OK(rohr_physics_axis_lock_description_set(metadata.result.value,
+        (AxisLockDescription){.axis = {0, 2}, .point_on_axis = {3, 4}}));
+    assert(rohr_physics_axis_lock_description_get(metadata.result.value).result.value.axis.y == 1);
+    OK(rohr_physics_axis_lock_remove(metadata.result.value));
+    OK(rohr_physics_transform_lock_description_set(metadata.result.value,
+        (TransformLockDescription){.driver = driver.result.value,
+            .local_angle = rohr_math_radians_to_degrees(PI_F), .lock_orientation = true}));
+    TransformLockDescriptionResult lock = rohr_physics_transform_lock_description_get(metadata.result.value); OK(lock);
+    assert(lock.result.value.local_angle == 180 && lock.result.value.driver == driver.result.value);
+    assert(rohr_math_degrees_to_radians(lock.result.value.local_angle) == PI_F);
+    OK(rohr_physics_transform_lock_remove(metadata.result.value));
+    CollisionFilterDescription filter = rohr_physics_collision_filter_description_default_get();
+    OK(rohr_physics_collision_filter_description_set(metadata.result.value, filter));
+    assert(rohr_physics_collision_filter_description_get(metadata.result.value).result.value.collides_with == filter.collides_with);
+    OK(rohr_entity_delete(driver.result.value));
     EntityDescriptionResult metadata_value = rohr_entity_description_get(metadata.result.value); OK(metadata_value);
     OK(rohr_entity_description_set(metadata.result.value, metadata_value.result.value));
     OK(rohr_entity_lifetime_description_set(metadata.result.value, (EntityLifetimeDescription){.tick_enabled = true}));

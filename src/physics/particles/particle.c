@@ -14,7 +14,7 @@ ParticleDescription physics_particle_description_default_get(void) {
         .rigid_vertices = ROHR_PARTICLE_RIGID_VERTICES_DEFAULT,
         .mass_value = 1.0f,
         .friction = 0.5f,
-        .collision_filter = physics_collision_filter_config_default_get(),
+        .collision_filter = physics_collision_filter_description_default_get(),
         .collision_enabled = true
     };
 }
@@ -72,7 +72,7 @@ EntityResult physics_particle_add(ParticleDescription config) {
     }
     PARTICLE_APPLY(physics_friction_set(particle, config.friction));
     PARTICLE_APPLY(physics_restitution_set(particle, config.restitution));
-    PARTICLE_APPLY(physics_collision_filter_set(
+    PARTICLE_APPLY(physics_collision_filter_description_set(
         particle, config.collision_filter));
     if(!config.collision_enabled)
         PARTICLE_APPLY(entity_components_delete(particle, ROHR_COLLISION));

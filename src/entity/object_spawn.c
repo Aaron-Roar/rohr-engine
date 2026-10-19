@@ -199,7 +199,7 @@ static EngineResult body_apply(Entity entity, const ObjectDescription *d, bool n
     if(!node) APPLY(physics_angular_velocity_set(entity, d->angular_velocity));
     APPLY(physics_friction_set(entity, d->friction));
     APPLY(physics_restitution_set(entity, d->restitution));
-    APPLY(physics_collision_filter_set(entity, d->collision_filter));
+    APPLY(physics_collision_filter_description_set(entity, d->collision_filter));
     if(d->static_body) APPLY(physics_static_set(entity));
     else APPLY(physics_dynamic_set(entity));
     if(d->gravity_enabled) APPLY(physics_gravity_enable(entity));
@@ -378,8 +378,9 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         if(target) {
             APPLY(physics_dynamic_set(e));
             APPLY(physics_velocity_set(e, (Velocity){0}));
-            APPLY(physics_transform_lock_set(e, target, d->position,
-                d->orientation, true, d->follow_orientation, true));
+            APPLY(physics_transform_lock_description_set(e, (TransformLockDescription){
+                .driver = target, .local_offset = d->position, .local_angle = d->orientation,
+                .lock_position = true, .lock_orientation = d->follow_orientation, .inherit_velocity = true}));
         }
     }
     if(visual) {
@@ -390,8 +391,9 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
         if(attached_visual) {
             APPLY(physics_dynamic_set(e));
             APPLY(physics_velocity_set(e, (Velocity){0}));
-            APPLY(physics_transform_lock_set(e, target, d->position,
-                d->orientation, true, d->follow_orientation, true));
+            APPLY(physics_transform_lock_description_set(e, (TransformLockDescription){
+                .driver = target, .local_offset = d->position, .local_angle = d->orientation,
+                .lock_position = true, .lock_orientation = d->follow_orientation, .inherit_velocity = true}));
         }
         if(d->kind == OBJECT_CAMERA) {
             CameraIdResult camera = graphics_camera_create((CameraConfig){

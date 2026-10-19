@@ -1382,7 +1382,7 @@ static EngineResult state_components_load(
         yyjson_val *with = yyjson_obj_get(value, "collides_with");
         if(!yyjson_is_obj(value) || !yyjson_is_uint(category) || !yyjson_is_uint(with))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        result = physics_collision_filter_set(entity, (CollisionFilterConfig){
+        result = physics_collision_filter_description_set(entity, (CollisionFilterDescription){
             .category = yyjson_get_uint(category), .collides_with = yyjson_get_uint(with)});
         if(error_check(result)) return result;
     }
@@ -1492,19 +1492,18 @@ static EngineResult state_components_load(
 
     value = yyjson_obj_get(components, "axis_lock");
     if(value != NULL) {
-        AxisLock lock;
+        AxisLockDescription lock;
         if(!yyjson_is_obj(value)
                 || !state_vec2(yyjson_obj_get(value, "axis"), &lock.axis)
                 || !state_vec2(yyjson_obj_get(value, "point"), &lock.point_on_axis))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        if(AxisLockPool_store_at(&axis_locks_pool, index, lock).kind == ERROR_RESULT_ERROR)
-            return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
-        entity_mask[index] |= ROHR_AXIS_LOCK;
+        result = physics_axis_lock_description_set(entity, lock);
+        if(error_check(result)) return result;
     }
 
     value = yyjson_obj_get(components, "transform_lock");
     if(value != NULL) {
-        TransformLock lock = {0};
+        TransformLockDescription lock = {0};
         yyjson_val *driver = yyjson_obj_get(value, "driver");
         if(!yyjson_is_obj(value)
                 || state_resolve_name(driver, &lock.driver).kind == ERROR_RESULT_ERROR
@@ -1515,9 +1514,8 @@ static EngineResult state_components_load(
                 || !state_boolean(value, "inherit_velocity", &lock.inherit_velocity))
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         lock.local_angle = (float)number;
-        if(TransformLockPool_store_at(&transform_locks_pool, index, lock).kind == ERROR_RESULT_ERROR)
-            return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
-        entity_mask[index] |= ROHR_TRANSFORM_LOCK;
+        result = physics_transform_lock_description_set(entity, lock);
+        if(error_check(result)) return result;
     }
 
     value = yyjson_obj_get(components, "animated_sprite");

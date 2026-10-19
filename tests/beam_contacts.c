@@ -179,8 +179,8 @@ static void subdivided_support_test(bool beam_only, float x, float angle,
     OK(rohr_physics_hitbox_set(rigid.result.value, triangle));
     OK(rohr_physics_static_set(rigid.result.value));
     OK(rohr_entity_components_add(rigid.result.value, ROHR_COLLISION));
-    OK(rohr_physics_collision_filter_set(rigid.result.value,
-        (CollisionFilterConfig){.category = 1, .collides_with = 1}));
+    OK(rohr_physics_collision_filter_description_set(rigid.result.value,
+        (CollisionFilterDescription){.category = 1, .collides_with = 1}));
     EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
     float y = beam_only ? 68 : 75;
     EntityResult a = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
@@ -215,8 +215,8 @@ static void subdivided_support_test(bool beam_only, float x, float angle,
         if(beam_only) OK(rohr_physics_soft_body_beam_collision_disable(target));
         else OK(rohr_entity_components_delete(target, ROHR_COLLISION));
     } else if(excluded == 2) {
-        OK(rohr_physics_collision_filter_set(rigid.result.value,
-            (CollisionFilterConfig){.category = 2, .collides_with = 2}));
+        OK(rohr_physics_collision_filter_description_set(rigid.result.value,
+            (CollisionFilterDescription){.category = 2, .collides_with = 2}));
     }
     Velocity initial = rohr_math_vector_rotate((Velocity){0, -1}, angle);
     OK(rohr_physics_velocity_set(a.result.value, initial));

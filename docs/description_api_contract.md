@@ -1,7 +1,8 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–2 of **Consistent Description APIs** are implemented.
-Entity metadata, lifetime, authored configuration, and spawn descriptions are shipped. Names and missing interfaces described
+Status: Goals 1–3 of **Consistent Description APIs** are implemented.
+Entity metadata, lifetime, authored configuration, spawning, and physics
+configuration descriptions are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
 
@@ -141,7 +142,7 @@ appear in the header inventory below.
 | --- | --- | --- | --- |
 | Entity metadata and lifetime / 2 — shipped | `EntityDescription`, `EntityLifetimeDescription`; `LifeTime` remains storage | `entity_description_add/set/get` and `entity_lifetime_description_set/get`; retain bare `entity_add()` and focused name/owner/removal APIs. | Copied bounded names; atomic ownership/name replacement; explicit deadline enable flags; no implicit ownership from connections. |
 | Authored objects / 2 — shipped | `ObjectDescription`, `ObjectSpawnDescription`, `ObjectMaterialDescription`, `ObjectCollisionDescription`, `ObjectColorDescription` | `object_*_description_set/get`, `object_spawn_description_default_get`, and existing dot catalogs. Force/torque descriptions remain compliant. | Immutable getters; setters require editable copies and affect future spawns. Color includes explicit override state. No live hierarchy replacement setter. |
-| Physics configuration / 3 | `TransformLock`, `AxisLock`, `CollisionFilterConfig` | Add `TransformLockDescription` and `AxisLockDescription` full set/get; rename filter configuration to `CollisionFilterDescription` and its full/default accessors. | Preserve current-transform capture as a direct operation, reference checks, and canonical angle units. Angle bounds remain a basic range. Migrate nested filter type uses in particles, objects, and beams in this goal. |
+| Physics configuration / 3 — shipped | `TransformLockDescription`, `AxisLockDescription`, `CollisionFilterDescription`; solver lock storage remains separate | Full lock set/get, explicit removal, and collision-filter full/default accessors. Nested filter types use the common description. | Degrees only in descriptions; explicit conversions for radians. Lock edits preserve current motion, ownership, and parenting; capture-current-transform stays direct. Missing locks return component-missing. |
 | Particles / 4 | `ParticleDescription` | Creation already takes a description; add `physics_particle_description_set/get`, retaining its default getter. | Current motion, owner, particle radius/origin and polygon approximation stay coherent; static/dynamic behavior and standalone no-rotation rules remain. |
 | Soft bodies and anchors / 5 | `SoftBodyDescription`, `SoftBodyNodeDescription`, `SoftBodyBeamDescription`, `SoftBodyAreaDescription`, `JointAnchorDescription`, `SoftBodyBeamCollisionConfig` | Complete existing description families with full set/get. Extend beam configuration to its stored rest/material/collision properties; use `SoftBodyBeamCollisionDescription` for the full collision group. Reuse `CollisionFilterDescription` for node/beam full filters. | Keep world/local creation variants explicit. Container edits do not reconstruct children; owner changes preserve connections. Beam getters preserve resolved rest values; automatic measurement happens only when requested. Anchor replacement updates references transactionally without implicit reownership of joints. |
 | Shared assets and text / 6 | `TextureDescriptor`, `FontDescriptor`, `AnimationDescriptor`; positional text creation | Rename loading types to `TextureDescription`, `FontDescription`, `AnimationDescription`; add missing description/metadata retrieval for immutable inputs. Add `TextDescription` create/full set/get for font/value/color/wrapping. | No shared-resource mutation. Retain unique text ownership, queued payload revisions, immutable animation IDs/timing, and explicit borrowed metadata lifetime. |
@@ -156,9 +157,10 @@ Bare entity/group allocation and simple key/scancode binding builders remain dir
 helper already takes `SoftBodyNodeAnchorPinDescription`; it creates a combination
 of resources, not a new resource kind needing an artificial full setter.
 
-Dependencies follow the goal order: Goal 2 can use today's filter type until
-Goal 3 migrates it; Goals 4/5 use Goal 3's filter contract; Goal 7 consumes Goal 6's
-asset contracts; Goals 10/11 consume the resource/text work and Goal 11 follows
+Dependencies follow the goal order: Goal 3 migrated the shared filter type,
+including Goal 2's authored collision description; Goals 4/5 use that contract.
+Goal 7 consumes Goal 6's asset contracts; Goals 10/11 consume the resource/text
+work and Goal 11 follows
 camera configuration. Every implementation goal depends on Goal 1. Goal 12
 requires all preceding goals and does not defer their own necessary verification.
 
@@ -188,7 +190,7 @@ Material and collision descriptions support physics bodies, particles, nodes,
 and beams. Getters work on generated catalogs, loaded immutable catalogs, and
 editable copies; setters require registered editable copies. Friction must be
 finite/nonnegative and restitution finite in [0, 1]. Collision contains `enabled`
-and the existing `CollisionFilterConfig filter` (renamed in Goal 3). Color contains
+and `CollisionFilterDescription filter` (renamed in Goal 3). Color contains
 `color`, `border_color`, and `overridden`; setting `overridden = false` restores
 inherited style without discarding the stored colors. These edits change future
 spawns only. `ObjectSpawnDescription` contains inclusion `flags` and world `offset`;
@@ -198,6 +200,49 @@ Existing `_with_options` dot-catalog convenience macros retain their names.
 Removed positional APIs: `entity_life_time_set`, `object_material_set`,
 `object_collision_set`, `object_color_set`, and their facade spellings.
 `ObjectSpawnOptions` is replaced by `ObjectSpawnDescription` without an alias.
+
+## Shipped Goal 3 behavior
+
+`AxisLockDescription` contains `axis` and `point_on_axis` in world coordinates.
+`physics_axis_lock_description_set/get` replaces or copies that configuration.
+The axis must be finite and nonzero; normalization uses double precision so tiny
+and large finite float vectors remain valid directions. The world point must
+satisfy the existing coordinate bounds. Getters return the stored normalized axis.
+`physics_axis_lock_remove` clears both component and storage and is idempotent
+for a live entity.
+
+`TransformLockDescription` contains `driver`, driver-local `local_offset`, clockwise
+**degree** `local_angle`, `lock_position`, `lock_orientation`, and `inherit_velocity`.
+`physics_transform_lock_description_set/get` replaces or copies configuration.
+Every replacement requires a live driver, finite offsets, and a finite angle.
+Omitted booleans become false and omitted offsets/angle become zero; all flags
+false is a stored inactive configuration, not a removal request. Negative angles
+and multiple revolutions remain intact. Use `math_radians_to_degrees` for incoming
+radians and `math_degrees_to_radians` when radians are needed by caller code.
+The positional radians transform-lock setter was removed; other scalar radians
+conveniences are outside this goal. `physics_transform_lock_current_transform_set`
+remains a direct capture operation, and `physics_transform_lock_remove` remains
+explicit. Reference checking and solver ordering otherwise retain their behavior.
+
+Both lock getters return `ERROR_ENGINE_COMPONENT_MISSING` when absent and reject
+dead target handles. A stored transform-lock driver may become stale after its
+entity is deleted: inspection still returns that handle, while replacing that
+description rejects it until repaired. Setters prepare validated values before
+publishing storage/component changes, require no new allocation, and do not move
+entities, reset motion, reparent, or change ownership. Constraints apply during
+the existing physics update. Save fields are unchanged; loading uses validated
+setters. `AxisLock` and `TransformLock` remain solver/snapshot storage types.
+
+`CollisionFilterDescription` replaces `CollisionFilterConfig`, including typed
+results, pools, particle configuration, authored objects, beams, and inspection.
+`physics_collision_filter_description_set/get` replace and inspect configuration;
+`physics_collision_filter_description_default_get` supplies defaults. A live entity with no filter returns DEFAULT/ALL without adding a
+component. An explicitly zero filter remains valid and permits no collisions.
+Focused category/allowed-mask setters retain their names and preserve the other
+field. Soft-node/beam specialized full accessors remain assigned to Goal 5.
+
+All new APIs have equivalent `rohr_` wrappers. Removed positional lock/filter
+names and old filter types have no compatibility aliases.
 
 ## Explicit exemptions
 
@@ -247,11 +292,10 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1474** classified declaration/macro entries.
+The current inventory contains **1478** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M3: Migration required | Physics configuration | 3 | 12 |
 | M4: Migration required | Particle configuration | 4 | 4 |
 | M5: Migration required | Soft-body and anchor configuration | 5 | 18 |
 | M6: Migration required | Asset loading and text configuration | 6 | 8 |
@@ -260,10 +304,10 @@ The current inventory contains **1474** classified declaration/macro entries.
 | M9: Migration required | Logical input configuration | 9 | 4 |
 | M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 66 |
+| C: Compliant | Existing description interface | — | 80 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
-| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 454 |
+| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
 | ET: Intentionally exempt | Build-time tooling | — | 4 |
@@ -643,14 +687,9 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 209 entries</summary>
+<summary>physics.h: 211 entries</summary>
 
 Source: [physics.h](../include/physics.h).
-
-**M3 — Physics configuration (Goal 3)**
-
-- `physics_axis_lock_set`, `physics_collision_filter_config_default_get`, `physics_collision_filter_get`.
-- `physics_collision_filter_set`, `physics_transform_lock_radians_set`, `physics_transform_lock_set`.
 
 **M4 — Particle configuration (Goal 4)**
 
@@ -664,10 +703,12 @@ Source: [physics.h](../include/physics.h).
 
 **C — Existing description interface**
 
-- `physics_force_add`, `physics_force_description_get`, `physics_force_description_set`.
-- `physics_joint_add`, `physics_joint_description_get`, `physics_joint_description_set`.
-- `physics_soft_body_node_to_anchor_pin_add`, `physics_torque_add`, `physics_torque_description_get`.
-- `physics_torque_description_set`.
+- `physics_axis_lock_description_get`, `physics_axis_lock_description_set`, `physics_collision_filter_description_default_get`.
+- `physics_collision_filter_description_get`, `physics_collision_filter_description_set`, `physics_force_add`.
+- `physics_force_description_get`, `physics_force_description_set`, `physics_joint_add`.
+- `physics_joint_description_get`, `physics_joint_description_set`, `physics_soft_body_node_to_anchor_pin_add`.
+- `physics_torque_add`, `physics_torque_description_get`, `physics_torque_description_set`.
+- `physics_transform_lock_description_get`, `physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -718,25 +759,26 @@ Source: [physics.h](../include/physics.h).
 **EO — Operation, lifecycle, execution, or drawing**
 
 - `physics_acceleration_away_from_entity_set`, `physics_acceleration_away_from_position_set`, `physics_acceleration_toward_entity_set`.
-- `physics_acceleration_toward_position_set`, `physics_angular_impulse_apply`, `physics_dt_update`.
-- `physics_engine_time_per_tick_use`, `physics_entity_hold`, `physics_entity_stop`.
-- `physics_entity_unhold`, `physics_force_apply`, `physics_gravity_disable`.
-- `physics_gravity_enable`, `physics_group_acceleration_away_from_entity_set`, `physics_group_acceleration_toward_entity_set`.
-- `physics_group_entities_hold`, `physics_group_entities_stop`, `physics_group_entities_unhold`.
-- `physics_group_velocity_away_from_entity_set`, `physics_group_velocity_toward_entity_set`, `physics_hitbox_add`.
-- `physics_hitbox_animation_binding_at_remove`, `physics_hitbox_animation_binding_remove`, `physics_hitbox_at_remove`.
-- `physics_hitbox_autoshape_circle_set`, `physics_hitbox_autoshape_rectangle_set`, `physics_hitbox_autoshape_triangle_set`.
-- `physics_hitbox_by_id_remove`, `physics_hitbox_remove`, `physics_impulse_apply`.
-- `physics_joint_anchor_remove`, `physics_kinematic_driven_remove`, `physics_mass_remove`.
-- `physics_pipeline_accelerations_clear`, `physics_pipeline_constraints_solve`, `physics_pipeline_contacts_gather`.
-- `physics_pipeline_forces_apply`, `physics_pipeline_gravity_apply`, `physics_pipeline_integrate`.
-- `physics_pipeline_joints_gather`, `physics_pipeline_step_begin`, `physics_pipeline_substep`.
-- `physics_pipeline_substep_begin`, `physics_pipeline_update`, `physics_shape_world_radians_translate`.
-- `physics_shape_world_translate`, `physics_soft_body_autoshape_circle_set`, `physics_soft_body_autoshape_rectangle_set`.
-- `physics_soft_body_autoshape_triangle_set`, `physics_soft_body_beam_collision_disable`, `physics_soft_body_beam_collision_enable`.
-- `physics_soft_body_node_impulse_apply`, `physics_torque_apply`, `physics_transform_lock_current_transform_set`.
-- `physics_transform_lock_remove`, `physics_update`, `physics_velocity_away_from_entity_set`.
-- `physics_velocity_away_from_position_set`, `physics_velocity_toward_entity_set`, `physics_velocity_toward_position_set`.
+- `physics_acceleration_toward_position_set`, `physics_angular_impulse_apply`, `physics_axis_lock_remove`.
+- `physics_dt_update`, `physics_engine_time_per_tick_use`, `physics_entity_hold`.
+- `physics_entity_stop`, `physics_entity_unhold`, `physics_force_apply`.
+- `physics_gravity_disable`, `physics_gravity_enable`, `physics_group_acceleration_away_from_entity_set`.
+- `physics_group_acceleration_toward_entity_set`, `physics_group_entities_hold`, `physics_group_entities_stop`.
+- `physics_group_entities_unhold`, `physics_group_velocity_away_from_entity_set`, `physics_group_velocity_toward_entity_set`.
+- `physics_hitbox_add`, `physics_hitbox_animation_binding_at_remove`, `physics_hitbox_animation_binding_remove`.
+- `physics_hitbox_at_remove`, `physics_hitbox_autoshape_circle_set`, `physics_hitbox_autoshape_rectangle_set`.
+- `physics_hitbox_autoshape_triangle_set`, `physics_hitbox_by_id_remove`, `physics_hitbox_remove`.
+- `physics_impulse_apply`, `physics_joint_anchor_remove`, `physics_kinematic_driven_remove`.
+- `physics_mass_remove`, `physics_pipeline_accelerations_clear`, `physics_pipeline_constraints_solve`.
+- `physics_pipeline_contacts_gather`, `physics_pipeline_forces_apply`, `physics_pipeline_gravity_apply`.
+- `physics_pipeline_integrate`, `physics_pipeline_joints_gather`, `physics_pipeline_step_begin`.
+- `physics_pipeline_substep`, `physics_pipeline_substep_begin`, `physics_pipeline_update`.
+- `physics_shape_world_radians_translate`, `physics_shape_world_translate`, `physics_soft_body_autoshape_circle_set`.
+- `physics_soft_body_autoshape_rectangle_set`, `physics_soft_body_autoshape_triangle_set`, `physics_soft_body_beam_collision_disable`.
+- `physics_soft_body_beam_collision_enable`, `physics_soft_body_node_impulse_apply`, `physics_torque_apply`.
+- `physics_transform_lock_current_transform_set`, `physics_transform_lock_remove`, `physics_update`.
+- `physics_velocity_away_from_entity_set`, `physics_velocity_away_from_position_set`, `physics_velocity_toward_entity_set`.
+- `physics_velocity_toward_position_set`.
 
 **EM — Pure math or utility calculation**
 
@@ -763,14 +805,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 725 entries</summary>
+<summary>rohr.h: 727 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M3 — Physics configuration (Goal 3)**
-
-- `rohr_physics_axis_lock_set`, `rohr_physics_collision_filter_config_default_get`, `rohr_physics_collision_filter_get`.
-- `rohr_physics_collision_filter_set`, `rohr_physics_transform_lock_radians_set`, `rohr_physics_transform_lock_set`.
 
 **M4 — Particle configuration (Goal 4)**
 
@@ -831,10 +868,12 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_object_collision_description_set`, `rohr_object_color_description_get`, `rohr_object_color_description_set`.
 - `rohr_object_description_by_name_get`, `rohr_object_force_description_set`, `rohr_object_get`.
 - `rohr_object_material_description_get`, `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`.
-- `rohr_object_torque_description_set`, `rohr_physics_force_add`, `rohr_physics_force_description_get`.
-- `rohr_physics_force_description_set`, `rohr_physics_joint_add`, `rohr_physics_joint_description_get`.
-- `rohr_physics_joint_description_set`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
-- `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
+- `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
+- `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
+- `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
+- `rohr_physics_joint_add`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
+- `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`, `rohr_physics_torque_description_get`.
+- `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -1000,37 +1039,38 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_input_text_stop`, `rohr_object_copy`, `rohr_object_destroy`.
 - `rohr_object_load`, `rohr_physics_acceleration_away_from_entity_set`, `rohr_physics_acceleration_away_from_position_set`.
 - `rohr_physics_acceleration_toward_entity_set`, `rohr_physics_acceleration_toward_position_set`, `rohr_physics_angular_impulse_apply`.
-- `rohr_physics_dt_update`, `rohr_physics_engine_time_per_tick_use`, `rohr_physics_entity_hold`.
-- `rohr_physics_entity_stop`, `rohr_physics_entity_unhold`, `rohr_physics_force_apply`.
-- `rohr_physics_gravity_disable`, `rohr_physics_gravity_enable`, `rohr_physics_group_acceleration_away_from_entity_set`.
-- `rohr_physics_group_acceleration_toward_entity_set`, `rohr_physics_group_entities_hold`, `rohr_physics_group_entities_stop`.
-- `rohr_physics_group_entities_unhold`, `rohr_physics_group_velocity_away_from_entity_set`, `rohr_physics_group_velocity_toward_entity_set`.
-- `rohr_physics_hitbox_add`, `rohr_physics_hitbox_animation_binding_at_remove`, `rohr_physics_hitbox_animation_binding_remove`.
-- `rohr_physics_hitbox_at_remove`, `rohr_physics_hitbox_autoshape_circle_set`, `rohr_physics_hitbox_autoshape_rectangle_set`.
-- `rohr_physics_hitbox_autoshape_triangle_set`, `rohr_physics_hitbox_by_id_remove`, `rohr_physics_hitbox_remove`.
-- `rohr_physics_impulse_apply`, `rohr_physics_joint_anchor_remove`, `rohr_physics_kinematic_driven_remove`.
-- `rohr_physics_mass_remove`, `rohr_physics_pipeline_accelerations_clear`, `rohr_physics_pipeline_constraints_solve`.
-- `rohr_physics_pipeline_contacts_gather`, `rohr_physics_pipeline_forces_apply`, `rohr_physics_pipeline_gravity_apply`.
-- `rohr_physics_pipeline_integrate`, `rohr_physics_pipeline_joints_gather`, `rohr_physics_pipeline_step_begin`.
-- `rohr_physics_pipeline_substep`, `rohr_physics_pipeline_substep_begin`, `rohr_physics_pipeline_update`.
-- `rohr_physics_shape_world_radians_translate`, `rohr_physics_shape_world_translate`, `rohr_physics_soft_body_autoshape_circle_set`.
-- `rohr_physics_soft_body_autoshape_rectangle_set`, `rohr_physics_soft_body_autoshape_triangle_set`, `rohr_physics_soft_body_beam_collision_disable`.
-- `rohr_physics_soft_body_beam_collision_enable`, `rohr_physics_soft_body_node_impulse_apply`, `rohr_physics_torque_apply`.
-- `rohr_physics_transform_lock_current_transform_set`, `rohr_physics_transform_lock_remove`, `rohr_physics_update`.
-- `rohr_physics_velocity_away_from_entity_set`, `rohr_physics_velocity_away_from_position_set`, `rohr_physics_velocity_toward_entity_set`.
-- `rohr_physics_velocity_toward_position_set`, `rohr_screen_destroy`, `rohr_system_physics_update`.
-- `rohr_ui_border`, `rohr_ui_button`, `rohr_ui_button_disabled`.
-- `rohr_ui_clip_begin`, `rohr_ui_clip_end`, `rohr_ui_component_bounds_get`.
-- `rohr_ui_content`, `rohr_ui_dropdown`, `rohr_ui_dropdown_actions`.
-- `rohr_ui_event_add`, `rohr_ui_field`, `rohr_ui_field_event_add`.
-- `rohr_ui_field_focus_clear`, `rohr_ui_input_set`, `rohr_ui_interaction`.
-- `rohr_ui_label`, `rohr_ui_menu`, `rohr_ui_modal_controls_begin`.
-- `rohr_ui_modal_controls_end`, `rohr_ui_modal_set`, `rohr_ui_multiline_field`.
-- `rohr_ui_navigation_activate`, `rohr_ui_navigation_move`, `rohr_ui_quad`.
-- `rohr_ui_radians_quad`, `rohr_ui_scroll_region_begin`, `rohr_ui_scroll_region_end`.
-- `rohr_ui_slider`, `rohr_ui_slider_with_text`, `rohr_ui_surface`.
-- `rohr_ui_translation_y_pop`, `rohr_ui_translation_y_push`, `rohr_ui_update`.
-- `rohr_viewport_camera_clear`, `rohr_viewport_destroy`, `rohr_viewport_item_remove`.
+- `rohr_physics_axis_lock_remove`, `rohr_physics_dt_update`, `rohr_physics_engine_time_per_tick_use`.
+- `rohr_physics_entity_hold`, `rohr_physics_entity_stop`, `rohr_physics_entity_unhold`.
+- `rohr_physics_force_apply`, `rohr_physics_gravity_disable`, `rohr_physics_gravity_enable`.
+- `rohr_physics_group_acceleration_away_from_entity_set`, `rohr_physics_group_acceleration_toward_entity_set`, `rohr_physics_group_entities_hold`.
+- `rohr_physics_group_entities_stop`, `rohr_physics_group_entities_unhold`, `rohr_physics_group_velocity_away_from_entity_set`.
+- `rohr_physics_group_velocity_toward_entity_set`, `rohr_physics_hitbox_add`, `rohr_physics_hitbox_animation_binding_at_remove`.
+- `rohr_physics_hitbox_animation_binding_remove`, `rohr_physics_hitbox_at_remove`, `rohr_physics_hitbox_autoshape_circle_set`.
+- `rohr_physics_hitbox_autoshape_rectangle_set`, `rohr_physics_hitbox_autoshape_triangle_set`, `rohr_physics_hitbox_by_id_remove`.
+- `rohr_physics_hitbox_remove`, `rohr_physics_impulse_apply`, `rohr_physics_joint_anchor_remove`.
+- `rohr_physics_kinematic_driven_remove`, `rohr_physics_mass_remove`, `rohr_physics_pipeline_accelerations_clear`.
+- `rohr_physics_pipeline_constraints_solve`, `rohr_physics_pipeline_contacts_gather`, `rohr_physics_pipeline_forces_apply`.
+- `rohr_physics_pipeline_gravity_apply`, `rohr_physics_pipeline_integrate`, `rohr_physics_pipeline_joints_gather`.
+- `rohr_physics_pipeline_step_begin`, `rohr_physics_pipeline_substep`, `rohr_physics_pipeline_substep_begin`.
+- `rohr_physics_pipeline_update`, `rohr_physics_shape_world_radians_translate`, `rohr_physics_shape_world_translate`.
+- `rohr_physics_soft_body_autoshape_circle_set`, `rohr_physics_soft_body_autoshape_rectangle_set`, `rohr_physics_soft_body_autoshape_triangle_set`.
+- `rohr_physics_soft_body_beam_collision_disable`, `rohr_physics_soft_body_beam_collision_enable`, `rohr_physics_soft_body_node_impulse_apply`.
+- `rohr_physics_torque_apply`, `rohr_physics_transform_lock_current_transform_set`, `rohr_physics_transform_lock_remove`.
+- `rohr_physics_update`, `rohr_physics_velocity_away_from_entity_set`, `rohr_physics_velocity_away_from_position_set`.
+- `rohr_physics_velocity_toward_entity_set`, `rohr_physics_velocity_toward_position_set`, `rohr_screen_destroy`.
+- `rohr_system_physics_update`, `rohr_ui_border`, `rohr_ui_button`.
+- `rohr_ui_button_disabled`, `rohr_ui_clip_begin`, `rohr_ui_clip_end`.
+- `rohr_ui_component_bounds_get`, `rohr_ui_content`, `rohr_ui_dropdown`.
+- `rohr_ui_dropdown_actions`, `rohr_ui_event_add`, `rohr_ui_field`.
+- `rohr_ui_field_event_add`, `rohr_ui_field_focus_clear`, `rohr_ui_input_set`.
+- `rohr_ui_interaction`, `rohr_ui_label`, `rohr_ui_menu`.
+- `rohr_ui_modal_controls_begin`, `rohr_ui_modal_controls_end`, `rohr_ui_modal_set`.
+- `rohr_ui_multiline_field`, `rohr_ui_navigation_activate`, `rohr_ui_navigation_move`.
+- `rohr_ui_quad`, `rohr_ui_radians_quad`, `rohr_ui_scroll_region_begin`.
+- `rohr_ui_scroll_region_end`, `rohr_ui_slider`, `rohr_ui_slider_with_text`.
+- `rohr_ui_surface`, `rohr_ui_translation_y_pop`, `rohr_ui_translation_y_push`.
+- `rohr_ui_update`, `rohr_viewport_camera_clear`, `rohr_viewport_destroy`.
+- `rohr_viewport_item_remove`.
 
 **EM — Pure math or utility calculation**
 
@@ -1144,7 +1184,7 @@ internals are support machinery, not additional configuration APIs.
 
 - `entity_components.h`: `EntityMaskPool`, `GroupEntityPool`, `GroupIdPool`, `ParentPool`, `ChildrenPool`, `EntityGroupMembershipPool`, `EntityGroupPool`, `LifeTimePool`, `TargetPool`, `EntityNamePool`.
 - `graphics.h`: `SpritePool`, `AnimatedSpritePool`.
-- `physics.h`: `PositionPool`, `ParticleGeometryPool`, `VelocityPool`, `AccelerationPool`, `MassPool`, `ForcePool`, `ShapePool`, `HitboxVariantListPool`, `HitboxAnimationBindingListPool`, `CollisionFilterConfigPool`, `OrientationPool`, `AngularVelocityPool`, `AngularAccelerationPool`, `TorquePool`, `FrictionPool`, `RestitutionPool`, `AngleLockPool`, `AxisLockPool`, `TransformLockPool`, `JointPool`, `SoftBodyPool`, `SoftBodyNodePool`, `SoftBodyBeamPool`.
+- `physics.h`: `PositionPool`, `ParticleGeometryPool`, `VelocityPool`, `AccelerationPool`, `MassPool`, `ForcePool`, `ShapePool`, `HitboxVariantListPool`, `HitboxAnimationBindingListPool`, `CollisionFilterDescriptionPool`, `OrientationPool`, `AngularVelocityPool`, `AngularAccelerationPool`, `TorquePool`, `FrictionPool`, `RestitutionPool`, `AngleLockPool`, `AxisLockPool`, `TransformLockPool`, `JointPool`, `SoftBodyPool`, `SoftBodyNodePool`, `SoftBodyBeamPool`.
 
 ## Keeping this inventory current
 

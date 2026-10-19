@@ -516,9 +516,9 @@ EngineResult rohr_physics_hitbox_animation_binding_at_set(Entity entity, size_t 
 EngineResult rohr_physics_hitbox_animation_binding_at_remove(Entity entity, size_t frame_index) { return physics_hitbox_animation_binding_at_remove(entity, frame_index); }
 HitboxIndexResult rohr_physics_hitbox_animation_binding_at_get(Entity entity, size_t frame_index) { return physics_hitbox_animation_binding_at_get(entity, frame_index); }
 void rohr_physics_hitbox_animation_bindings_update(void) { physics_hitbox_animation_bindings_update(); }
-CollisionFilterConfig rohr_physics_collision_filter_config_default_get(void) { return physics_collision_filter_config_default_get(); }
-EngineResult rohr_physics_collision_filter_set(Entity entity, CollisionFilterConfig config) { return physics_collision_filter_set(entity, config); }
-CollisionFilterConfigResult rohr_physics_collision_filter_get(Entity entity) { return physics_collision_filter_get(entity); }
+CollisionFilterDescription rohr_physics_collision_filter_description_default_get(void) { return physics_collision_filter_description_default_get(); }
+EngineResult rohr_physics_collision_filter_description_set(Entity entity, CollisionFilterDescription config) { return physics_collision_filter_description_set(entity, config); }
+CollisionFilterDescriptionResult rohr_physics_collision_filter_description_get(Entity entity) { return physics_collision_filter_description_get(entity); }
 EngineResult rohr_physics_collision_category_set(Entity entity, RohrCollisionCategoryMask category) { return physics_collision_category_set(entity, category); }
 EngineResult rohr_physics_collision_with_set(Entity entity, RohrCollisionCategoryMask categories) { return physics_collision_with_set(entity, categories); }
 EngineResult rohr_physics_collision_with_all_set(Entity entity) { return physics_collision_with_all_set(entity); }
@@ -538,10 +538,15 @@ EngineResult rohr_physics_entity_unhold(Entity entity) { return physics_entity_u
 EngineResult rohr_physics_group_entities_hold(GroupId group) { return physics_group_entities_hold(group); }
 EngineResult rohr_physics_group_entities_unhold(GroupId group) { return physics_group_entities_unhold(group); }
 EngineResult rohr_physics_angle_lock_set(Entity entity, Orientation min, Orientation max) { return physics_angle_lock_set(entity, min, max); }
-EngineResult rohr_physics_axis_lock_set(Entity entity, Axis axis, Position axis_point) { return physics_axis_lock_set(entity, axis, axis_point); }
+EngineResult rohr_physics_axis_lock_description_set(Entity entity, AxisLockDescription description) { return physics_axis_lock_description_set(entity, description); }
+AxisLockDescriptionResult rohr_physics_axis_lock_description_get(Entity entity) { return physics_axis_lock_description_get(entity); }
+EngineResult rohr_physics_axis_lock_remove(Entity entity) { return physics_axis_lock_remove(entity); }
 EngineResult rohr_physics_friction_set(Entity entity, float friction) { return physics_friction_set(entity, friction); }
-EngineResult rohr_physics_transform_lock_set(Entity driven, Entity driver, Vec2D local_offset, Orientation local_angle, bool lock_position, bool lock_orientation, bool inherit_velocity) {
-    return physics_transform_lock_set(driven, driver, local_offset, local_angle, lock_position, lock_orientation, inherit_velocity);
+EngineResult rohr_physics_transform_lock_description_set(Entity driven, TransformLockDescription description) {
+    return physics_transform_lock_description_set(driven, description);
+}
+TransformLockDescriptionResult rohr_physics_transform_lock_description_get(Entity driven) {
+    return physics_transform_lock_description_get(driven);
 }
 EngineResult rohr_physics_transform_lock_remove(Entity entity) { return physics_transform_lock_remove(entity); }
 EngineResult rohr_physics_transform_lock_current_transform_set(Entity driven, Entity driver, bool lock_position, bool lock_orientation, bool inherit_velocity) {
@@ -979,17 +984,6 @@ EngineResult rohr_physics_angle_lock_radians_set(Entity entity, Orientation min,
     return physics_angle_lock_radians_set(entity, min, max);
 }
 
-EngineResult rohr_physics_transform_lock_radians_set(
-    Entity driven,
-    Entity driver,
-    Vec2D local_offset,
-    Orientation local_angle,
-    bool lock_position,
-    bool lock_orientation,
-    bool inherit_velocity
-) {
-    return physics_transform_lock_radians_set(driven, driver, local_offset, local_angle, lock_position, lock_orientation, inherit_velocity);
-}
 
 bool rohr_graphics_screen_quad_radians_draw(Position center, float width, float height, float angle, Color color) {
     return graphics_screen_quad_radians_draw(center, width, height, angle, color);

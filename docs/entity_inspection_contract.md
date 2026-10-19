@@ -106,7 +106,7 @@ unsupported until explicitly assigned; future source fields are not included now
 | 19 | `PHYSICS_RESTITUTION` | `Restitution` | `restitution` |
 | 20 | `PHYSICS_BODY_MODE` | `EntityInfoBodyMode` | `body_mode` |
 | 21 | `PHYSICS_PARTICLE` | `ParticleGeometry` | `particle` |
-| 22 | `PHYSICS_COLLISION_FILTER` | `CollisionFilterConfig` | `collision_filter` |
+| 22 | `PHYSICS_COLLISION_FILTER` | `CollisionFilterDescription` | `collision_filter` |
 | 23 | `PHYSICS_HITBOX_ACTIVE` | `EntityInfoActiveHitbox` | `hitbox_active` |
 | 24 | `PHYSICS_HITBOX_LOCAL` | `Shape` | `hitbox_local` |
 | 25 | `PHYSICS_HITBOX_WORLD` | `Shape` | `hitbox_world` |

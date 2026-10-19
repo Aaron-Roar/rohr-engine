@@ -202,7 +202,7 @@ typedef struct EntityInfo {
     Restitution restitution;
     EntityInfoBodyMode body_mode;
     ParticleGeometry particle;
-    CollisionFilterConfig collision_filter;
+    CollisionFilterDescription collision_filter;
     EntityInfoActiveHitbox hitbox_active;
     Shape hitbox_local;
     Shape hitbox_world;

@@ -129,7 +129,9 @@ static void integration_and_locks(void) {
     assert(orientations[i] == 0 && positions[i].x == ROHR_WORLD_COORDINATE_MAX);
     assert(angular_velocities[i] == 180);
     OK(rohr_physics_angular_velocity_set(a, 0));
-    OK(rohr_physics_transform_lock_set(a, b, (Vec2D){FLT_MAX, FLT_MAX}, 30, true, true, true));
+    OK(rohr_physics_transform_lock_description_set(a, (TransformLockDescription){
+        .driver = b, .local_offset = (Vec2D){FLT_MAX, FLT_MAX}, .local_angle = 30,
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     r = rohr_physics_pipeline_integrate(0);
     warning(&r, ROHR_PHYSICS_TRANSFORM_LOCK, a);
     assert(positions[i].x == ROHR_WORLD_COORDINATE_MAX && orientations[i] == 0);
@@ -144,7 +146,9 @@ static void integration_and_locks(void) {
     assert(issues.result.value.total == 1 && issue.reason == ROHR_ENTITY_INFO_REFERENCE_MISSING);
     assert(issue.reference.id == UINT32_MAX && issue.field == ROHR_ENTITY_INFO_FIELD_TARGET);
     stored_equal(&r, ROHR_PHYSICS_INTEGRATION_REPORT);
-    OK(rohr_physics_transform_lock_set(a, b, (Vec2D){0}, 0, true, false, false));
+    OK(rohr_physics_transform_lock_description_set(a, (TransformLockDescription){
+        .driver = b, .local_offset = (Vec2D){0}, .local_angle = 0,
+        .lock_position = true, .lock_orientation = false, .inherit_velocity = false}));
     r = rohr_physics_pipeline_integrate(0);
     assert(r.diagnostic_count == 0 && positions[i].x == 10);
     EntityInfo repaired = inspect(a, ROHR_ENTITY_INFO_PHYSICS_TRANSFORM_LOCK); no_issues(&repaired);
@@ -166,8 +170,10 @@ static void setters(void) {
     BAD(rohr_physics_force_add(force_vector_description(a, (Force){NAN, 0})));
     BAD(rohr_physics_torque_add((TorqueDescription){.target = a, .magnitude = INFINITY}));
     BAD(rohr_physics_impulse_apply(a, (Vec2D){NAN, 0}));
-    BAD(rohr_physics_axis_lock_set(a, (Axis){NAN, 1}, (Position){0}));
-    BAD(rohr_physics_transform_lock_set(a, b, (Vec2D){INFINITY, 0}, 0, true, true, true));
+    BAD(rohr_physics_axis_lock_description_set(a, (AxisLockDescription){.axis = (Axis){NAN, 1}, .point_on_axis = (Position){0}}));
+    BAD(rohr_physics_transform_lock_description_set(a, (TransformLockDescription){
+        .driver = b, .local_offset = (Vec2D){INFINITY, 0}, .local_angle = 0,
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true}));
     BAD(rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a, .local_offset = (Vec2D){NAN, 0}}));
     assert(entity_alive_count_get() == count && entity_mask[i] == mask);
     assert(velocities[i].x == 0 && accelerations[i].y == 0);
@@ -342,7 +348,7 @@ static void rejected_loads_and_limits(void) {
     warning(&r, ROHR_PHYSICS_ANGLE_LOCK, a);
     assert(orientations[i] == 0 && positions[i].x == ROHR_WORLD_COORDINATE_MAX);
     OK(rohr_entity_components_delete(a, ROHR_ANGLE_LOCK));
-    OK(rohr_physics_axis_lock_set(a, (Axis){0, 1}, (Position){0}));
+    OK(rohr_physics_axis_lock_description_set(a, (AxisLockDescription){.axis = (Axis){0, 1}, .point_on_axis = (Position){0}}));
     axis_locks[i].point_on_axis = (Position){NAN, 0};
     r = physics_pipeline_integrate(0);
     warning(&r, ROHR_PHYSICS_AXIS_LOCK, a);
@@ -414,7 +420,125 @@ static void paired_contact_rejection(void) {
     rohr_engine_stop();
 }
 
+static void configuration_descriptions(void) {
+    OK(rohr_engine_start());
+    Entity driven = body(1, 2, false), driver = body(10, 20, false), owner = entity();
+    EntityIndex index = index_of(driven);
+    OK(entity_owner_set(driven, owner));
+    OK(entity_parent_set(driven, owner));
+    OK(physics_velocity_set(driven, (Velocity){3, 4}));
+    OK(physics_orientation_set(driver, 90));
+    OK(physics_orientation_set(driven, -450));
+    AxisLockDescriptionResult absent_axis = rohr_physics_axis_lock_description_get(driven);
+    TransformLockDescriptionResult absent_transform = rohr_physics_transform_lock_description_get(driven);
+    assert(absent_axis.kind == ERROR_RESULT_ERROR && absent_axis.result.error == ERROR_ENGINE_COMPONENT_MISSING);
+    assert(absent_transform.kind == ERROR_RESULT_ERROR && absent_transform.result.error == ERROR_ENGINE_COMPONENT_MISSING);
+    BAD(physics_axis_lock_description_set(driven, (AxisLockDescription){0}));
+    BAD(physics_transform_lock_description_set(driven, (TransformLockDescription){0}));
+    assert(!entity_components_check(driven, ROHR_AXIS_LOCK));
+    assert(!entity_components_check(driven, ROHR_TRANSFORM_LOCK));
+    AxisLockDescription axis = {.axis = {3, 4}, .point_on_axis = {7, 8}};
+    OK(rohr_physics_axis_lock_description_set(driven, axis));
+    AxisLockDescriptionResult got_axis = rohr_physics_axis_lock_description_get(driven); OK(got_axis);
+    assert(fabsf(got_axis.result.value.axis.x - 0.6f) < 0.00001f);
+    assert(fabsf(got_axis.result.value.axis.y - 0.8f) < 0.00001f);
+    assert(got_axis.result.value.point_on_axis.x == 7 && got_axis.result.value.point_on_axis.y == 8);
+    OK(physics_axis_lock_description_set(driven, got_axis.result.value));
+    AxisLockDescription invalid_axis[] = {
+        {.axis = {0, 0}}, {.axis = {NAN, 1}}, {.axis = {1, INFINITY}},
+        {.axis = {1, 0}, .point_on_axis = {INFINITY, 0}},
+        {.axis = {1, 0}, .point_on_axis = {ROHR_WORLD_COORDINATE_MAX * 2, 0}}
+    };
+    for(size_t i = 0; i < sizeof(invalid_axis) / sizeof(invalid_axis[0]); ++i) {
+        BAD(physics_axis_lock_description_set(driven, invalid_axis[i]));
+        AxisLockDescription after = physics_axis_lock_description_get(driven).result.value;
+        assert(after.axis.x == got_axis.result.value.axis.x && after.axis.y == got_axis.result.value.axis.y);
+        assert(after.point_on_axis.x == 7 && after.point_on_axis.y == 8);
+    }
+    Axis extremes[] = {{FLT_MAX, FLT_MAX}, {FLT_TRUE_MIN, 0}};
+    for(size_t i = 0; i < sizeof(extremes) / sizeof(extremes[0]); ++i) {
+        OK(physics_axis_lock_description_set(driven, (AxisLockDescription){.axis = extremes[i]}));
+        Axis stored = physics_axis_lock_description_get(driven).result.value.axis;
+        assert(isfinite(stored.x) && isfinite(stored.y));
+        assert(fabsf(hypotf(stored.x, stored.y) - 1) < 0.00001f);
+    }
+    TransformLockDescription lock = {.driver = driver, .local_offset = {5, 6}, .local_angle = 810,
+        .lock_position = true, .lock_orientation = true, .inherit_velocity = true};
+    OK(rohr_physics_transform_lock_description_set(driven, lock));
+    TransformLockDescriptionResult got = rohr_physics_transform_lock_description_get(driven); OK(got);
+    assert(got.result.value.driver == driver && got.result.value.local_angle == 810);
+    assert(got.result.value.local_offset.x == 5 && got.result.value.local_offset.y == 6);
+    assert(got.result.value.lock_position && got.result.value.lock_orientation && got.result.value.inherit_velocity);
+    OK(physics_transform_lock_description_set(driven, got.result.value));
+    TransformLockDescription invalid[] = {lock, lock, lock};
+    invalid[0].driver = ENTITY_INVALID;
+    invalid[1].local_angle = NAN;
+    invalid[2].local_offset.x = INFINITY;
+    for(size_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i) {
+        BAD(rohr_physics_transform_lock_description_set(driven, invalid[i]));
+        TransformLockDescription after = physics_transform_lock_description_get(driven).result.value;
+        assert(after.driver == driver && after.local_angle == 810 && after.local_offset.x == 5);
+        assert(after.lock_position && after.lock_orientation && after.inherit_velocity);
+    }
+    /* Configuration edits and removal do not replay simulation or change topology. */
+    assert(positions[index].x == 1 && positions[index].y == 2 && orientations[index] == -450);
+    assert(velocities[index].x == 3 && velocities[index].y == 4);
+    assert(entity_owner_get(driven).result.value == owner && entity_parent_get(driven).result.value == owner);
+    OK(rohr_physics_axis_lock_remove(driven)); OK(physics_axis_lock_remove(driven));
+    BAD(physics_axis_lock_description_get(driven));
+    assert(!axis_locks_pool.used[index] && entity_components_check(driven, ROHR_TRANSFORM_LOCK));
+    OK(physics_transform_lock_description_set(driven, (TransformLockDescription){.driver = driver}));
+    TransformLockDescription zeroed = physics_transform_lock_description_get(driven).result.value;
+    assert(!zeroed.lock_position && !zeroed.lock_orientation && !zeroed.inherit_velocity);
+    assert(zeroed.local_angle == 0 && zeroed.local_offset.x == 0 && zeroed.local_offset.y == 0);
+    assert(entity_components_check(driven, ROHR_TRANSFORM_LOCK));
+    assert(positions[index].x == 1 && velocities[index].x == 3);
+    OK(physics_transform_lock_current_transform_set(driven, driver, true, true, false));
+    TransformLockDescription captured = physics_transform_lock_description_get(driven).result.value;
+    assert(captured.local_angle == -540 && captured.driver == driver);
+    Vec2D expected = math_vector_rotate((Vec2D){-9, -18}, -90);
+    assert(fabsf(captured.local_offset.x - expected.x) < 0.00001f);
+    assert(fabsf(captured.local_offset.y - expected.y) < 0.00001f);
+    OK(entity_delete(driver));
+    /* Inspection preserves the stored reference; replacement validates it. */
+    got = physics_transform_lock_description_get(driven); OK(got);
+    assert(got.result.value.driver == driver);
+    BAD(physics_transform_lock_description_set(driven, got.result.value));
+    assert(physics_transform_lock_description_get(driven).result.value.local_angle == -540);
+    OK(rohr_physics_transform_lock_remove(driven)); OK(physics_transform_lock_remove(driven));
+    BAD(physics_transform_lock_description_get(driven));
+    assert(!transform_locks_pool.used[index]);
+    BAD(physics_axis_lock_description_get(driver)); BAD(physics_axis_lock_remove(driver));
+    BAD(physics_axis_lock_description_set(driver, axis));
+    BAD(physics_transform_lock_description_get(driver)); BAD(physics_transform_lock_remove(driver));
+    BAD(physics_transform_lock_description_set(driver, lock));
+
+    CollisionFilterDescription defaults = rohr_physics_collision_filter_description_default_get();
+    CollisionFilterDescriptionResult filter = rohr_physics_collision_filter_description_get(driven); OK(filter);
+    assert(filter.result.value.category == defaults.category && filter.result.value.collides_with == defaults.collides_with);
+    assert(!entity_components_check(driven, ROHR_COLLISION_FILTER));
+    OK(rohr_physics_collision_filter_description_set(driven, (CollisionFilterDescription){0}));
+    filter = physics_collision_filter_description_get(driven); OK(filter);
+    assert(filter.result.value.category == 0 && filter.result.value.collides_with == 0);
+    assert(!physics_collision_between_check(driven, owner));
+    CollisionFilterDescription selected = {.category = UINT64_C(1) << 63, .collides_with = UINT64_C(1) << 62};
+    OK(physics_collision_filter_description_set(driven, selected));
+    filter = physics_collision_filter_description_get(driven); OK(filter);
+    assert(filter.result.value.category == selected.category && filter.result.value.collides_with == selected.collides_with);
+    OK(physics_collision_filter_description_set(driven, filter.result.value));
+    OK(physics_collision_category_set(driven, 4));
+    assert(physics_collision_filter_description_get(driven).result.value.collides_with == selected.collides_with);
+    OK(physics_collision_with_set(driven, 8));
+    assert(physics_collision_filter_description_get(driven).result.value.category == 4);
+    BAD(physics_collision_filter_description_get(driver));
+    BAD(physics_collision_filter_description_set(driver, defaults));
+    assert(positions[index].x == 1 && velocities[index].x == 3 && orientations[index] == -450);
+    assert(entity_owner_get(driven).result.value == owner);
+    rohr_engine_stop();
+}
+
 int main(void) {
+    configuration_descriptions();
     movement_retry();
     integration_and_locks();
     setters();

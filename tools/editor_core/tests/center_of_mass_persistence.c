@@ -59,7 +59,7 @@ static bool runtime_check(void) {
     config.local_origin = (Position){4,2};
     config.radius = 2;
     config.collision_enabled = false;
-    config.collision_filter = (CollisionFilterConfig){.category=UINT64_C(8), .collides_with=UINT64_C(16)};
+    config.collision_filter = (CollisionFilterDescription){.category=UINT64_C(8), .collides_with=UINT64_C(16)};
     EntityResult particle = rohr_physics_particle_add(config);
     OK(particle);
     OK(rohr_entity_name_set(particle.result.value, "pure_particle"));
@@ -108,12 +108,12 @@ static bool runtime_check(void) {
     CHECK(point_equal(rohr_physics_center_of_mass_local_position_get(named_entity("empty_body")).result.value,
         (Position){-4,8}));
     CHECK(rohr_error_check(rohr_physics_moment_of_inertia_get(named_entity("empty_body"))));
-    CHECK(rohr_physics_collision_filter_get(named_entity("empty_body")).result.value.category == UINT64_C(32));
-    CHECK(rohr_physics_collision_filter_get(named_entity("empty_body")).result.value.collides_with == UINT64_C(64));
+    CHECK(rohr_physics_collision_filter_description_get(named_entity("empty_body")).result.value.category == UINT64_C(32));
+    CHECK(rohr_physics_collision_filter_description_get(named_entity("empty_body")).result.value.collides_with == UINT64_C(64));
     body = named_entity("pure_particle");
     CHECK(!rohr_entity_components_check(body, ROHR_COLLISION));
-    CHECK(rohr_physics_collision_filter_get(body).result.value.category == UINT64_C(8));
-    CHECK(rohr_physics_collision_filter_get(body).result.value.collides_with == UINT64_C(16));
+    CHECK(rohr_physics_collision_filter_description_get(body).result.value.category == UINT64_C(8));
+    CHECK(rohr_physics_collision_filter_description_get(body).result.value.collides_with == UINT64_C(16));
     CHECK(rohr_physics_center_of_mass_automatic_check(body).result.value);
     CHECK(rohr_error_check(rohr_physics_center_of_mass_local_position_set(body, (Position){1,2})));
     CHECK(point_equal(rohr_physics_particle_origin_get(body).result.value, (Position){5,3}));

@@ -126,8 +126,8 @@ int main(void) {
                     body.result.value, (Position){0}))) goto fail;
     }
     {
-        CollisionFilterConfigResult filter =
-            rohr_physics_collision_filter_get(node_a.result.value);
+        CollisionFilterDescriptionResult filter =
+            rohr_physics_collision_filter_description_get(node_a.result.value);
         if(rohr_error_check(filter) ||
                 !rohr_entity_components_check(node_a.result.value,
                     ROHR_SOFT_BODY_NODE | ROHR_PARTICLE | ROHR_HIT_BOX | ROHR_COLLISION) ||
@@ -404,8 +404,8 @@ int main(void) {
                 object_position.result.value.y != -1.25f ||
                 rohr_physics_contact_check(
                     boundary_beam.result.value, object.result.value) ||
-                rohr_error_check(rohr_physics_collision_filter_set(
-                    object.result.value, (CollisionFilterConfig){
+                rohr_error_check(rohr_physics_collision_filter_description_set(
+                    object.result.value, (CollisionFilterDescription){
                         .category = UINT64_C(2),
                         .collides_with = UINT64_C(2)
                     }))) goto fail;
