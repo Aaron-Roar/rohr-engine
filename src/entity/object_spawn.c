@@ -21,7 +21,7 @@ typedef struct SpawnEntry {
 typedef struct SpawnContext {
     SpawnEntry *entries;
     size_t count;
-    ObjectSpawnOptions options;
+    ObjectSpawnDescription options;
 } SpawnContext;
 static bool object_description_visible_check(const ObjectDescription *description) {
     for(const ObjectDescription *item = description; item; item = item->parent)
@@ -469,10 +469,11 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
     if(!error_check(result)) result = name_set(entry->entity, d, parent);
     if(!error_check(result)) result = entity_object_member_restore(parent, entry->entity, d->name);
     if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
-        result = entity_life_time_set(entry->entity, 0.0, engine_tick_get() + 1);
+        result = entity_lifetime_description_set(entry->entity, (EntityLifetimeDescription){
+            .expiry_tick = engine_tick_get() + 1, .tick_enabled = true});
     return result;
 }
-EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnOptions options) {
+EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnDescription options) {
     if(!description || (!(description->categories & options.flags) && !description->child_count) ||
             !object_flags_check(options.flags) || !isfinite(options.offset.x) || !isfinite(options.offset.y))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
@@ -526,7 +527,7 @@ fail:
     free(c.entries);
     return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
 }
-EntityResult entity_object_description_by_name_add(const ObjectDescription *scope, const char *name, ObjectSpawnOptions options) {
+EntityResult entity_object_description_by_name_add(const ObjectDescription *scope, const char *name, ObjectSpawnDescription options) {
     ObjectDescriptionResult found = object_description_name_get(scope, name);
     if(error_check(found)) return ERROR_RESULT_MAKE_ERROR(EntityResult, found.result.error);
     return entity_object_description_add(found.result.value, options);

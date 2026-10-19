@@ -796,7 +796,7 @@ static void catalog_constructor_write(FILE *f, const EditorObject *o, const char
         "    if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);\n"
         "    *object = (%s){0};\n"
         "    EntityResult added = rohr_entity_object_description_add(rohr_object_get(objects.%s),\n"
-        "        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});\n"
+        "        (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});\n"
         "    if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);\n"
         "    object->source_instance = added.result.value;\n"
         "    EngineResult result = rohr_error_result_value(true);\n", variable,o->name,o->name,variable);

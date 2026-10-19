@@ -38,12 +38,16 @@
 #define rohr_object_velocity_set object_velocity_set
 #define rohr_object_acceleration_set object_acceleration_set
 #define rohr_object_angular_velocity_set object_angular_velocity_set
-#define rohr_object_material_set object_material_set
-#define rohr_object_collision_set object_collision_set
+#define rohr_object_material_description_set object_material_description_set
+#define rohr_object_material_description_get object_material_description_get
+#define rohr_object_collision_description_set object_collision_description_set
+#define rohr_object_collision_description_get object_collision_description_get
 #define rohr_object_radius_set object_radius_set
 #define rohr_object_visibility_set object_visibility_set
-#define rohr_object_color_set object_color_set
+#define rohr_object_color_description_set object_color_description_set
+#define rohr_object_color_description_get object_color_description_get
 #define rohr_object_scale_set object_scale_set
+#define rohr_object_spawn_description_default_get object_spawn_description_default_get
 #define rohr_entity_object_description_add entity_object_description_add
 #define rohr_entity_object_description_by_name_add entity_object_description_by_name_add
 #define rohr_entity_object_add entity_object_add
@@ -575,6 +579,12 @@ EntityResult rohr_entity_from_index_get(EntityIndex index);
  * limit is reached.
  */
 EntityResult rohr_entity_add(void);
+/** Create copied metadata and ownership; empty creation names are generated. */
+EntityResult rohr_entity_description_add(EntityDescription description);
+/** Atomically replace name and owner; the name must be nonempty and unique. */
+EngineResult rohr_entity_description_set(Entity entity, EntityDescription description);
+/** Get a copied name and current independent owner. */
+EntityDescriptionResult rohr_entity_description_get(Entity entity);
 
 /** Assigns a unique fixed-size name to an entity. */
 EngineResult rohr_entity_name_set(Entity entity, const char *name);
@@ -767,13 +777,14 @@ ChildrenResult rohr_entity_children_get(Entity entity);
 ParentResult rohr_entity_parent_get(Entity entity);
 
 /**
- * @brief Adds or updates an entity lifetime.
+ * @brief Replaces absolute lifetime deadlines; both disabled removes the configuration.
  * @param entity Stable entity id to modify.
- * @param expirey_time Engine time when the entity expires.
- * @param expirey_tick Engine tick when the entity expires.
+ * @param description Explicit flags allow enabled zero deadlines. Time must be finite and nonnegative.
  * @return EngineResult describing success or failure.
  */
-EngineResult rohr_entity_life_time_set(Entity entity, Time expirey_time, Tick expirey_tick);
+EngineResult rohr_entity_lifetime_description_set(Entity entity, EntityLifetimeDescription description);
+/** Get lifetime configuration, or disabled zeros when absent on a live entity. */
+EntityLifetimeDescriptionResult rohr_entity_lifetime_description_get(Entity entity);
 
 /**
  * @brief Removes lifetime data from an entity.

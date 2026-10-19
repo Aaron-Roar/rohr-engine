@@ -60,7 +60,8 @@ static void lifecycle_counts(const Report *r, uint64_t examined, uint64_t expire
 }
 static Entity entity(Time time, Tick tick) {
     EntityResult added = rohr_entity_add(); OK(added);
-    OK(rohr_entity_life_time_set(added.result.value, time, tick));
+    OK(rohr_entity_lifetime_description_set(added.result.value, (EntityLifetimeDescription){
+        .expiry_time = time < 0 ? 0 : time, .expiry_tick = tick, .time_enabled = time != 0, .tick_enabled = tick != 0}));
     return added.result.value;
 }
 static void unavailable(void) {
@@ -81,7 +82,7 @@ static void independent_cleanup(void) {
     Time before = rohr_engine_time_get(); Tick tick = rohr_engine_tick_get();
     Report r = rohr_engine_lifecycle_update(); complete(&r, ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(r.entry_count == 0 && r.diagnostic_count == 0);
-    lifecycle_counts(&r, 3, 1, 1, 0);
+    lifecycle_counts(&r, 2, 1, 1, 0);
     assert(!rohr_entity_alive_check(expired));
     assert(rohr_entity_alive_check(future) && rohr_entity_alive_check(permanent));
     assert(rohr_engine_time_get() == before && rohr_engine_tick_get() == tick);
@@ -89,7 +90,7 @@ static void independent_cleanup(void) {
     assert(r.entry_count == 1 && r.entries[0].header.id == ROHR_ENGINE_LIFECYCLE_REPORT_ID);
     assert(r.entries[0].invocation_count == 1);
     assert(metric(&r, ROHR_ENGINE_REPORT_ID, ROHR_REPORT_TICKS_ADVANCED_COUNT) == 0);
-    lifecycle_counts(&r, 2, 0, 0, 0);
+    lifecycle_counts(&r, 1, 0, 0, 0);
     Report saved = r, snapshot = r;
     rohr_engine_stop();
     assert(memcmp(&saved, &snapshot, sizeof(saved)) == 0);
@@ -117,8 +118,8 @@ static Report clock_path(bool combined) {
     assert(engine_time_get() == 0.625);
     assert(!entity_alive_check(by_tick) && !entity_alive_check(by_time));
     assert(entity_alive_check(future) && entity_alive_check(permanent));
-    lifecycle_counts(&r, 4, 2, 2, 0);
-    Report again = rohr_engine_lifecycle_update(); lifecycle_counts(&again, 2, 0, 0, 0);
+    lifecycle_counts(&r, 3, 2, 2, 0);
+    Report again = rohr_engine_lifecycle_update(); lifecycle_counts(&again, 1, 0, 0, 0);
     assert(engine_tick_delta_get() == 2);
     counter += 128;
     engine_time_update(); /* Accumulate without consuming ticks or clearing delta. */
@@ -126,7 +127,7 @@ static Report clock_path(bool combined) {
     assert(entity_alive_check(future));
     assert(rohr_engine_tick_update() == 1 && engine_tick_delta_get() == 1);
     assert(entity_alive_check(future));
-    again = rohr_engine_lifecycle_update(); lifecycle_counts(&again, 2, 1, 1, 0);
+    again = rohr_engine_lifecycle_update(); lifecycle_counts(&again, 1, 1, 1, 0);
     assert(!entity_alive_check(future));
     assert(engine_tick_update() == 0 && engine_tick_delta_get() == 0);
     counter += 256;

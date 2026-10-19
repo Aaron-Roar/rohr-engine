@@ -330,6 +330,9 @@ EntityIndexResult rohr_entity_index_get(Entity entity) {
 }
 EntityResult rohr_entity_from_index_get(EntityIndex index) { return entity_from_index_get(index); }
 EntityResult rohr_entity_add(void) { return entity_add(); }
+EntityResult rohr_entity_description_add(EntityDescription description) { return entity_description_add(description); }
+EngineResult rohr_entity_description_set(Entity entity, EntityDescription description) { return entity_description_set(entity, description); }
+EntityDescriptionResult rohr_entity_description_get(Entity entity) { return entity_description_get(entity); }
 EngineResult rohr_entity_name_set(Entity entity, const char *name) { return entity_name_set(entity, name); }
 EntityResult rohr_entity_by_name_get(const char *name) { return entity_by_name_get(name); }
 EntityNameResult rohr_entity_name_get(Entity entity) { return entity_name_get(entity); }
@@ -367,7 +370,8 @@ EngineResult rohr_entity_parent_remove(Entity child) { return entity_parent_remo
 EngineResult rohr_entity_child_remove(Entity parent, Entity child) { return entity_child_remove(parent, child); }
 ChildrenResult rohr_entity_children_get(Entity entity) { return entity_children_get(entity); }
 ParentResult rohr_entity_parent_get(Entity entity) { return entity_parent_get(entity); }
-EngineResult rohr_entity_life_time_set(Entity entity, Time expirey_time, Tick expirey_tick) { return entity_life_time_set(entity, expirey_time, expirey_tick); }
+EngineResult rohr_entity_lifetime_description_set(Entity entity, EntityLifetimeDescription description) { return entity_lifetime_description_set(entity, description); }
+EntityLifetimeDescriptionResult rohr_entity_lifetime_description_get(Entity entity) { return entity_lifetime_description_get(entity); }
 EngineResult rohr_entity_life_time_remove(Entity entity) { return entity_life_time_remove(entity); }
 
 EngineResult rohr_physics_dt_per_tick_set(Time dt) { return physics_dt_per_tick_set(dt); }

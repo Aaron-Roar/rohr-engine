@@ -155,6 +155,22 @@ typedef struct EntityName {
 /** Result type for functions that return an EntityName. */
 ERROR_DECLARE_RESULT_TYPE(EntityNameResult, EntityName);
 
+/** Copied metadata only; ownership is independent of parenting and connections. */
+typedef struct EntityDescription {
+    char name[ENTITY_NAME_MAX];
+    Entity owner;
+} EntityDescription;
+ERROR_DECLARE_RESULT_TYPE(EntityDescriptionResult, EntityDescription);
+
+/** Absolute deadlines. Enabled zero deadlines expire on the next lifecycle update. */
+typedef struct EntityLifetimeDescription {
+    Time expiry_time;
+    Tick expiry_tick;
+    bool time_enabled;
+    bool tick_enabled;
+} EntityLifetimeDescription;
+ERROR_DECLARE_RESULT_TYPE(EntityLifetimeDescriptionResult, EntityLifetimeDescription);
+
 /** Parent entity id alias. */
 typedef Entity Parent;
 
@@ -347,6 +363,13 @@ EntityResult entity_from_index_get(EntityIndex index);
  */
 EntityResult entity_add(void);
 
+/** Create metadata and ownership atomically; an empty name generates a unique name. */
+EntityResult entity_description_add(EntityDescription description);
+/** Replace metadata atomically. Requires a nonempty, unique, terminated name. */
+EngineResult entity_description_set(Entity entity, EntityDescription description);
+/** Return a copied name and current owner, without borrowing engine storage. */
+EntityDescriptionResult entity_description_get(Entity entity);
+
 /**
  * Delete an entity and make its id/index slots reusable.
  *
@@ -535,14 +558,16 @@ ChildrenResult entity_children_get(Entity entity);
 ParentResult entity_parent_get(Entity entity);
 
 /**
- * Set an entity lifetime expiry by time and/or tick.
+ * Replace absolute lifetime deadlines. Disabled deadlines are cleared; both
+ * disabled removes lifetime data. Expiry occurs during lifecycle updates.
  *
  * @param entity Entity id to update.
- * @param expirey_time Engine time expiry, or zero when unused.
- * @param expirey_tick Engine tick expiry, or zero when unused.
+ * @param description Complete replacement; time must be finite and nonnegative.
  * @return EngineResult describing success or failure.
  */
-EngineResult entity_life_time_set(Entity entity, Time expirey_time, Tick expirey_tick);
+EngineResult entity_lifetime_description_set(Entity entity, EntityLifetimeDescription description);
+/** Return disabled zeros when a live entity has no lifetime configuration. */
+EntityLifetimeDescriptionResult entity_lifetime_description_get(Entity entity);
 
 /**
  * Remove lifetime data from an entity.

@@ -94,8 +94,8 @@ static void catalog(void) {
     sibling.id=5; sibling.name="sibling"; sibling.frames=&frame; sibling.frame_count=1;
     const ObjectDescription *body_children[]={&attached,&sibling}, *children[]={&body,&free_animation};
     body.children=body_children; body.child_count=2; root.children=children; root.child_count=2;
-    EntityResult a=rohr_entity_object_description_add(&root,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(a);
-    EntityResult b=rohr_entity_object_description_add(&root,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(b);
+    EntityResult a=rohr_entity_object_description_add(&root,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(a);
+    EntityResult b=rohr_entity_object_description_add(&root,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); OK(b);
     Entity attached_a=member(a.result.value,"attached"), free_a=member(a.result.value,"free");
     assert(attached_a==member(a.result.value,"body"));
     assert(member(a.result.value,"sibling")!=attached_a);
@@ -111,7 +111,7 @@ static void catalog(void) {
     OK(rohr_entity_delete(b.result.value));
     /* Malformed nonempty descriptions must still fail and roll back. */
     free_animation.frame_count=1; free_animation.frames=NULL;
-    a=rohr_entity_object_description_add(&root,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL});
+    a=rohr_entity_object_description_add(&root,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL});
     assert(rohr_error_check(a));
     assert(graphics_animation_assets_stats_get().live_resources==0);
     assert(graphics_texture_assets_stats_get().live_resources==0);

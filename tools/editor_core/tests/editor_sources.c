@@ -95,7 +95,7 @@ static void runtime_source_tests(const ObjectDescription *root) {
                 EntityResult a=entity_object_add(copied.result.value);
                 if(error_check(a)) fprintf(stderr,"source case target=%zu location=%u orientation=%u: error %d\n",target,location,orientation,a.result.error);
                 OK(a);
-                EntityResult b=entity_object_description_add(copied.result.value,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset={100,40}});OK(b);
+                EntityResult b=entity_object_description_add(copied.result.value,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL,.offset={100,40}});OK(b);
                 ForceDescriptionResult first=physics_force_description_get(member(a.result.value,"push"));OK(first);
                 ForceDescriptionResult second=physics_force_description_get(member(b.result.value,"push"));OK(second);
                 assert(first.result.value.owner==a.result.value && second.result.value.owner==b.result.value);

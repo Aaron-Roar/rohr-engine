@@ -152,11 +152,10 @@ static EngineResult spawn_obstacle(ObstacleRecord records[], size_t *next_record
     rohr_physics_friction_set(obstacle, 0.45f);
     rohr_physics_hitbox_set(obstacle, rohr_math_circle_create(size, 8));
     rohr_physics_dynamic_set(obstacle);
-    EngineResult lifetime_result = rohr_entity_life_time_set(
-        obstacle,
-        rohr_engine_time_get() + 12.0,
-        0
-    );
+    EngineResult lifetime_result = rohr_entity_lifetime_description_set(obstacle, (EntityLifetimeDescription){
+        .expiry_time = rohr_engine_time_get() + 12.0,
+        .time_enabled = true
+    });
     if(rohr_error_check(lifetime_result)) {
         rohr_entity_delete(obstacle);
         return lifetime_result;

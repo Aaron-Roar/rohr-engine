@@ -8,6 +8,15 @@
 #define OK(call) assert(!rohr_error_check(call))
 int main(void) {
     OK(rohr_engine_start());
+    EntityResult metadata = rohr_entity_description_add((EntityDescription){.name = "sdk metadata"}); OK(metadata);
+    EntityDescriptionResult metadata_value = rohr_entity_description_get(metadata.result.value); OK(metadata_value);
+    OK(rohr_entity_description_set(metadata.result.value, metadata_value.result.value));
+    OK(rohr_entity_lifetime_description_set(metadata.result.value, (EntityLifetimeDescription){.tick_enabled = true}));
+    assert(rohr_entity_lifetime_description_get(metadata.result.value).result.value.tick_enabled);
+    assert(rohr_engine_lifecycle_update().header.status == ROHR_REPORT_COMPLETE);
+    assert(!rohr_entity_alive_check(metadata.result.value));
+    ObjectSpawnDescription spawn = rohr_object_spawn_description_default_get();
+    assert(spawn.flags == ROHR_ENTITY_OBJECT_ALL);
     ObjectDescription source_object = {.id=1,.name="loads",.kind=OBJECT_CONTAINER,.categories=ROHR_ENTITY_OBJECT_ALL};
     ObjectDescription receiving_body = {.id=2,.name="receiver",.kind=OBJECT_BODY,.mass=1,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS};
     ObjectDescription authored_force = {.id=3,.name="thrust",.kind=OBJECT_FORCE,.parent=&source_object,.categories=ROHR_ENTITY_OBJECT_PHYSICS,
@@ -81,7 +90,13 @@ int main(void) {
     ObjectDescriptionResult copy=rohr_object_copy(objects.mass_demo); OK(copy);
     ObjectDescriptionResult body=rohr_object_description_by_name_get(copy.result.value,"automatic_body"); OK(body);
     OK(rohr_object_mass_set(body.result.value,7));
-    OK(rohr_object_material_set(body.result.value,0.4f,0.6f));
+    OK(rohr_object_material_description_set(body.result.value, (ObjectMaterialDescription){.friction=0.4f,.restitution=0.6f}));
+    ObjectMaterialDescriptionResult material = rohr_object_material_description_get(body.result.value); OK(material);
+    assert(material.result.value.restitution == 0.6f);
+    ObjectCollisionDescriptionResult collision = rohr_object_collision_description_get(body.result.value); OK(collision);
+    OK(rohr_object_collision_description_set(body.result.value, collision.result.value));
+    ObjectColorDescriptionResult color = rohr_object_color_description_get(body.result.value); OK(color);
+    OK(rohr_object_color_description_set(body.result.value, color.result.value));
     EntityResult whole=rohr_entity_object_add(copy.result.value); OK(whole);
     OK(rohr_object_destroy(copy.result.value));
     EntityResult member=rohr_entity_object_member_by_name_get(whole.result.value,"automatic_body"); OK(member);

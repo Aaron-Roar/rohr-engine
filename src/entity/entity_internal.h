@@ -6,7 +6,7 @@
 
 #include "entity_components.h"
 
-/* Creation only: setters must preserve the entity's current name. */
+/* Naming helpers for creation; configuration setters preserve names unless explicitly replacing metadata. */
 EntityResult entity_named_create(const char *name);
 EntityResult entity_default_create(const char *kind, Entity owner);
 

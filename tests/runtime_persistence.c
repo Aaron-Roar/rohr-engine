@@ -280,11 +280,15 @@ static void lifetime(void) {
         "{\"name\":\"disabled\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":false}}},"
         "{\"name\":\"later\",\"components\":{\"lifetime\":{\"time\":12.5,\"tick\":42,\"time_enabled\":true,\"tick_enabled\":true}}}]}");
     OK(game_state_file_load("runtime_lifetime.json"));
+    Entity due_time=take(entity_description_add((EntityDescription){.name="due_time"}));
+    OK(entity_lifetime_description_set(due_time,(EntityLifetimeDescription){.time_enabled=true}));
+    assert(entity_lifetime_description_get(named("due")).result.value.tick_enabled);
+    assert(!entity_components_check(named("disabled"),ROHR_LIFETIME));
     assert(life_times[idx(named("later"))].expirey_tick==engine_tick_get()+42);
     assert(fabs(life_times[idx(named("later"))].expirey_time-engine_time_get()-12.5)<0.001);
     OK(game_state_file_save("runtime_lifetime_saved.json")); restart();
     OK(game_state_file_load("runtime_lifetime_saved.json"));
-    engine_lifecycle_update(); BAD(entity_by_name_get("due")); named("disabled"); named("later");
+    engine_lifecycle_update(); BAD(entity_by_name_get("due_time")); BAD(entity_by_name_get("due")); named("disabled"); named("later");
     restart();
     OK(engine_time_per_tick_set(0.001)); SDL_Delay(3); engine_tick_update();
     assert(engine_tick_get()>0);
@@ -292,7 +296,8 @@ static void lifetime(void) {
     OK(physics_force_apply((ForceDescription){0}));
     OK(physics_torque_apply((TorqueDescription){0}));
     Entity timed=take(entity_add()); OK(entity_name_set(timed,"timed"));
-    OK(entity_life_time_set(timed,engine_time_get()+10,engine_tick_get()+50));
+    OK(entity_lifetime_description_set(timed,(EntityLifetimeDescription){
+        .expiry_time=engine_time_get()+10,.expiry_tick=engine_tick_get()+50,.time_enabled=true,.tick_enabled=true}));
     OK(game_state_file_save("runtime_source_lifetime.json")); restart();
     OK(game_state_file_load("runtime_source_lifetime.json"));
     assert(life_times[idx(named("force_2"))].expirey_tick==1);

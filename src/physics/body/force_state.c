@@ -485,7 +485,8 @@ EngineResult physics_force_apply(ForceDescription description) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     EntityResult source = physics_force_add(description);
     if(error_check(source)) return error_result_error(source.result.error);
-    EngineResult result = entity_life_time_set(source.result.value, 0.0, engine_tick_get() + 1);
+    EngineResult result = entity_lifetime_description_set(source.result.value, (EntityLifetimeDescription){
+        .expiry_tick = engine_tick_get() + 1, .tick_enabled = true});
     if(error_check(result)) (void)entity_delete(source.result.value);
     return result;
 }
@@ -587,7 +588,8 @@ EngineResult physics_torque_apply(TorqueDescription description) {
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     EntityResult source = physics_torque_add(description);
     if(error_check(source)) return error_result_error(source.result.error);
-    EngineResult result = entity_life_time_set(source.result.value, 0.0, engine_tick_get() + 1);
+    EngineResult result = entity_lifetime_description_set(source.result.value, (EntityLifetimeDescription){
+        .expiry_tick = engine_tick_get() + 1, .tick_enabled = true});
     if(error_check(result)) (void)entity_delete(source.result.value);
     return result;
 }

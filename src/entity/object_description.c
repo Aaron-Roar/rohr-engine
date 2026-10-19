@@ -301,20 +301,35 @@ EngineResult object_angular_velocity_set(const ObjectDescription *description, A
     if(!d || d->kind != OBJECT_BODY || !isfinite(value)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     d->angular_velocity = value; return error_result_value(true);
 }
-EngineResult object_material_set(const ObjectDescription *description, float friction, float restitution) {
-    ObjectDescription *d = editable_get(description);
-    if(!d || !isfinite(friction) || friction < 0 || !isfinite(restitution) || restitution < 0 || restitution > 1 ||
-            !(d->categories & ROHR_ENTITY_OBJECT_PHYSICS) ||
-            (d->kind != OBJECT_BODY && d->kind != OBJECT_PARTICLE && d->kind != OBJECT_NODE && d->kind != OBJECT_BEAM))
-        return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    d->friction = friction; d->restitution = restitution; return error_result_value(true);
+static bool object_physics_material_check(const ObjectDescription *d) {
+    return d && (d->categories & ROHR_ENTITY_OBJECT_PHYSICS) &&
+        (d->kind == OBJECT_BODY || d->kind == OBJECT_PARTICLE || d->kind == OBJECT_NODE || d->kind == OBJECT_BEAM);
 }
-EngineResult object_collision_set(const ObjectDescription *description, bool enabled, CollisionFilterConfig filter) {
+EngineResult object_material_description_set(const ObjectDescription *description, ObjectMaterialDescription value) {
     ObjectDescription *d = editable_get(description);
-    if(!d || !(d->categories & ROHR_ENTITY_OBJECT_PHYSICS) ||
-            (d->kind != OBJECT_BODY && d->kind != OBJECT_PARTICLE && d->kind != OBJECT_NODE && d->kind != OBJECT_BEAM))
+    if(!object_physics_material_check(d) || !isfinite(value.friction) || value.friction < 0 ||
+            !isfinite(value.restitution) || value.restitution < 0 || value.restitution > 1)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    d->collision_enabled = enabled; d->collision_filter = filter; return error_result_value(true);
+    d->friction = value.friction; d->restitution = value.restitution;
+    return error_result_value(true);
+}
+ObjectMaterialDescriptionResult object_material_description_get(const ObjectDescription *description) {
+    if(!object_physics_material_check(description))
+        return ERROR_RESULT_MAKE_ERROR(ObjectMaterialDescriptionResult, ERROR_ENGINE_STATE_INVALID);
+    ObjectMaterialDescription value = {.friction = description->friction, .restitution = description->restitution};
+    return ERROR_RESULT_MAKE_VALUE(ObjectMaterialDescriptionResult, value);
+}
+EngineResult object_collision_description_set(const ObjectDescription *description, ObjectCollisionDescription value) {
+    ObjectDescription *d = editable_get(description);
+    if(!object_physics_material_check(d)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    d->collision_enabled = value.enabled; d->collision_filter = value.filter;
+    return error_result_value(true);
+}
+ObjectCollisionDescriptionResult object_collision_description_get(const ObjectDescription *description) {
+    if(!object_physics_material_check(description))
+        return ERROR_RESULT_MAKE_ERROR(ObjectCollisionDescriptionResult, ERROR_ENGINE_STATE_INVALID);
+    ObjectCollisionDescription value = {.enabled = description->collision_enabled, .filter = description->collision_filter};
+    return ERROR_RESULT_MAKE_VALUE(ObjectCollisionDescriptionResult, value);
 }
 EngineResult object_radius_set(const ObjectDescription *description, float radius) {
     ObjectDescription *d = editable_get(description);
@@ -328,10 +343,21 @@ EngineResult object_visibility_set(const ObjectDescription *description, bool vi
     if(!d) return error_result_error(ERROR_ENGINE_STATE_INVALID);
     d->visible = visible; return error_result_value(true);
 }
-EngineResult object_color_set(const ObjectDescription *description, Color color, Color border) {
+EngineResult object_color_description_set(const ObjectDescription *description, ObjectColorDescription value) {
     ObjectDescription *d = editable_get(description);
     if(!d) return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    d->color = color; d->border_color = border; d->color_overridden = true; return error_result_value(true);
+    d->color = value.color; d->border_color = value.border_color; d->color_overridden = value.overridden;
+    return error_result_value(true);
+}
+ObjectColorDescriptionResult object_color_description_get(const ObjectDescription *description) {
+    if(!description) return ERROR_RESULT_MAKE_ERROR(ObjectColorDescriptionResult, ERROR_ENGINE_STATE_INVALID);
+    ObjectColorDescription value = {
+        .color = description->color, .border_color = description->border_color, .overridden = description->color_overridden
+    };
+    return ERROR_RESULT_MAKE_VALUE(ObjectColorDescriptionResult, value);
+}
+ObjectSpawnDescription object_spawn_description_default_get(void) {
+    return (ObjectSpawnDescription){.flags = ROHR_ENTITY_OBJECT_ALL};
 }
 EngineResult object_scale_set(const ObjectDescription *description, Scale scale) {
     ObjectDescription *d = editable_get(description);

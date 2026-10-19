@@ -1470,12 +1470,12 @@ static EngineResult state_components_load(
                 (!time_enabled && expiry_time != 0) || (!tick_enabled && expiry_tick != 0) ||
                 expiry_tick > UINT64_MAX - engine_tick_get())
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        result = entity_life_time_set(entity,
-            time_enabled ? engine_time_get() + expiry_time : 0,
-            tick_enabled ? engine_tick_get() + expiry_tick : 0);
+        result = entity_lifetime_description_set(entity, (EntityLifetimeDescription){
+            .expiry_time = time_enabled ? engine_time_get() + expiry_time : 0,
+            .expiry_tick = tick_enabled ? engine_tick_get() + expiry_tick : 0,
+            .time_enabled = time_enabled, .tick_enabled = tick_enabled
+        });
         if(result.kind == ERROR_RESULT_ERROR) return result;
-        life_times[index].time_enabled = time_enabled;
-        life_times[index].tick_enabled = tick_enabled;
     }
 
     value = yyjson_obj_get(components, "angle_lock");

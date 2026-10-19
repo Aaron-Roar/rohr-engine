@@ -120,7 +120,7 @@ EngineResult car_create(Car *object, Position position) {
     if(!object) return rohr_error_result_error(ERROR_MEMORY_POOL_NULL_POINTER);
     *object = (Car){0};
     EntityResult added = rohr_entity_object_description_add(rohr_object_get(objects.car),
-        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});
+        (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL,.offset=position});
     if(rohr_error_check(added)) return rohr_error_result_error(added.result.error);
     object->source_instance = added.result.value;
     EngineResult result = rohr_error_result_value(true);

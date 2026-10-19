@@ -184,6 +184,33 @@ ObjectDescriptionResult object_description_copy(const ObjectDescription *descrip
 #define object_copy(value) object_description_copy(object_description_ref(value), ROHR_ENTITY_OBJECT_ALL)
 #define object_copy_with_options(value, flags) object_description_copy(object_description_ref(value), flags)
 EngineResult object_destroy(const ObjectDescription *description);
+
+typedef struct ObjectMaterialDescription {
+    float friction;
+    float restitution;
+} ObjectMaterialDescription;
+ERROR_DECLARE_RESULT_TYPE(ObjectMaterialDescriptionResult, ObjectMaterialDescription);
+typedef struct ObjectCollisionDescription {
+    bool enabled;
+    CollisionFilterConfig filter;
+} ObjectCollisionDescription;
+ERROR_DECLARE_RESULT_TYPE(ObjectCollisionDescriptionResult, ObjectCollisionDescription);
+typedef struct ObjectColorDescription {
+    Color color;
+    Color border_color;
+    bool overridden;
+} ObjectColorDescription;
+ERROR_DECLARE_RESULT_TYPE(ObjectColorDescriptionResult, ObjectColorDescription);
+
+/** Full replacement on editable copies only; affects future spawns. Getters
+ * also accept immutable generated and loaded descriptions. Material/collision
+ * require a physics body, particle, node, or beam. Color retains inheritance. */
+EngineResult object_material_description_set(const ObjectDescription *description, ObjectMaterialDescription value);
+ObjectMaterialDescriptionResult object_material_description_get(const ObjectDescription *description);
+EngineResult object_collision_description_set(const ObjectDescription *description, ObjectCollisionDescription value);
+ObjectCollisionDescriptionResult object_collision_description_get(const ObjectDescription *description);
+EngineResult object_color_description_set(const ObjectDescription *description, ObjectColorDescription value);
+ObjectColorDescriptionResult object_color_description_get(const ObjectDescription *description);
 EngineResult object_force_description_set(const ObjectDescription *description, ObjectForceDescription value);
 EngineResult object_torque_description_set(const ObjectDescription *description, ObjectTorqueDescription value);
 EngineResult object_mass_set(const ObjectDescription *description, Mass mass);
@@ -192,32 +219,31 @@ EngineResult object_velocity_set(const ObjectDescription *description, Velocity 
 EngineResult object_acceleration_set(const ObjectDescription *description, Acceleration acceleration);
 EngineResult object_orientation_set(const ObjectDescription *description, Orientation orientation);
 EngineResult object_angular_velocity_set(const ObjectDescription *description, AngularVelocity value);
-EngineResult object_material_set(const ObjectDescription *description, float friction, float restitution);
-EngineResult object_collision_set(const ObjectDescription *description, bool enabled, CollisionFilterConfig filter);
 EngineResult object_radius_set(const ObjectDescription *description, float radius);
 EngineResult object_visibility_set(const ObjectDescription *description, bool visible);
-EngineResult object_color_set(const ObjectDescription *description, Color color, Color border);
 EngineResult object_scale_set(const ObjectDescription *description, Scale scale);
 
-typedef struct ObjectSpawnOptions {
+typedef struct ObjectSpawnDescription {
     EntityObjectFlags flags;
     Position offset;
-} ObjectSpawnOptions;
+} ObjectSpawnDescription;
+/** Select all categories at zero offset. An explicitly empty flags mask is invalid. */
+ObjectSpawnDescription object_spawn_description_default_get(void);
 /** Retrieve the camera resource owned by a spawned camera entity. */
 CameraIdResult entity_object_camera_get(Entity entity);
 /** Retrieve an anchor resource owned by a spawned anchor entity. */
 JointAnchorIdResult entity_object_anchor_get(Entity entity);
 /** Draw retained instance appearance and owned descendants in the active camera. */
 bool entity_object_draw(Entity entity);
-EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnOptions options);
+EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnDescription options);
 #define entity_object_add(value) entity_object_description_add(object_description_ref(value), \
-    (ObjectSpawnOptions){.flags = ROHR_ENTITY_OBJECT_ALL})
+    (ObjectSpawnDescription){.flags = ROHR_ENTITY_OBJECT_ALL})
 #define entity_object_add_with_options(value, flags_value) entity_object_description_add(object_description_ref(value), \
-    (ObjectSpawnOptions){.flags = (flags_value)})
-EntityResult entity_object_description_by_name_add(const ObjectDescription *scope, const char *name, ObjectSpawnOptions options);
+    (ObjectSpawnDescription){.flags = (flags_value)})
+EntityResult entity_object_description_by_name_add(const ObjectDescription *scope, const char *name, ObjectSpawnDescription options);
 #define entity_object_by_name_add(scope, name) entity_object_description_by_name_add(object_description_ref(scope), name, \
-    (ObjectSpawnOptions){.flags = ROHR_ENTITY_OBJECT_ALL})
+    (ObjectSpawnDescription){.flags = ROHR_ENTITY_OBJECT_ALL})
 #define entity_object_by_name_add_with_options(scope, name, flags_value) \
-    entity_object_description_by_name_add(object_description_ref(scope), name, (ObjectSpawnOptions){.flags = (flags_value)})
+    entity_object_description_by_name_add(object_description_ref(scope), name, (ObjectSpawnDescription){.flags = (flags_value)})
 
 #endif

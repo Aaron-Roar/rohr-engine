@@ -56,6 +56,14 @@ node masses. Copies have dynamic layouts and use scoped lookup for descendants;
 their property values are readable through the common description pointer.
 There is no mutable generated global and no raw-description creation API.
 
+Full grouped configuration uses `ObjectMaterialDescription` (friction/restitution),
+`ObjectCollisionDescription` (enabled/filter), and `ObjectColorDescription`
+(color/border_color/overridden), with `object_*_description_set/get` accessors.
+Getters accept immutable catalogs too; setters accept only editable copies.
+Replacement is complete: omitted fields become zero/false, not preserved values.
+Use get-modify-set for partial edits. Color's `overridden` flag explicitly restores
+inherited style. Existing instances keep their original configuration.
+
 ## Instances
 
 New projects demonstrate explicit catalog spawning in `main.c` and whole-scene
@@ -74,8 +82,9 @@ offset applies once. Editor overview position never contributes to gameplay.
 `entity_object_add_with_options(description, flags)` and
 `entity_object_by_name_add_with_options(scope, name, flags)` select categories.
 Use `entity_object_description_add(object_get(description),
-(ObjectSpawnOptions){.flags = ROHR_ENTITY_OBJECT_ALL, .offset = {100, 0}})`
-for additional placement. Visual-only physical shapes retain static drawing
+(ObjectSpawnDescription){.flags = ROHR_ENTITY_OBJECT_ALL, .offset = {100, 0}})`
+for additional placement. `object_spawn_description_default_get()` returns ALL
+at zero offset; a zero-initialized flags mask is invalid. Visual-only physical shapes retain static drawing
 geometry with collision response and gravity disabled. Physics-only instances
 do not load image resources. Included visuals attached to a body use its sprite
 components; scoped lookup of their names returns that body entity.
@@ -89,6 +98,12 @@ Drawing and playback skip them. This also reserves the primary animation slot
 for an attached empty animation, so a populated sibling keeps its own entity.
 Entity info identifies the empty state, and the animation-update report records
 an informational skip. Adding frames later resumes ordinary playback.
+
+`entity_description_add((EntityDescription){.name = "car"})` creates named metadata;
+empty creation names are generated uniquely. `entity_description_set/get` replaces
+or copies name and owner together; full replacement rejects an empty name.
+The name array is copied, and failed ownership preparation cannot publish a rename.
+`entity_add()` and the focused name/owner setters remain available.
 
 Every live entity can own members through `entity_owner_set(member, owner)`
 (or `rohr_entity_owner_set`). Ownership storage is initialized internally and may

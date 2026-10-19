@@ -29,7 +29,7 @@ static void runtime_check(EditorProject *p, bool draws) {
     assert(!rohr_error_check(description));
     const ObjectDescription *object=description.result.value->children[0];
     assert(object->children[0]->visible == !p->objects[0].rigid_bodies[0].app_hidden);
-    EntityResult instance=rohr_entity_object_description_add(object,(ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL});
+    EntityResult instance=rohr_entity_object_description_add(object,(ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL});
     assert(!rohr_error_check(instance));
     EntityResult body=rohr_entity_object_member_by_name_get(instance.result.value,"body");
     assert(!rohr_error_check(body));
@@ -193,7 +193,7 @@ static void source_runtime_check(void) {
     j->visuals.endpoint_b.offset=(Position){4,5}; j->visuals.endpoint_b.fill_color=0xff0000ff;
     ObjectDescriptionResult d=object_description_project_read(&p,""); assert(!rohr_error_check(d));
     EntityResult root=rohr_entity_object_description_add(d.result.value->children[0],
-        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_ALL}); assert(!rohr_error_check(root));
+        (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_ALL}); assert(!rohr_error_check(root));
     Entity body=rohr_entity_object_member_by_name_get(root.result.value,"target").result.value;
     const char *names[]={"force","torque","joint"}; Entity entities[3];
     uint64_t total=0;
@@ -234,7 +234,7 @@ static void source_runtime_check(void) {
     assert(!rohr_error_check(rohr_entity_delete(root.result.value)));
     for(size_t i=0;i<3;++i) assert(!rohr_entity_alive_check(entities[i]));
     root=rohr_entity_object_description_add(d.result.value->children[0],
-        (ObjectSpawnOptions){.flags=ROHR_ENTITY_OBJECT_PHYSICS}); assert(!rohr_error_check(root));
+        (ObjectSpawnDescription){.flags=ROHR_ENTITY_OBJECT_PHYSICS}); assert(!rohr_error_check(root));
     assert(drawn(root.result.value)==0);
     assert(!rohr_error_check(rohr_entity_delete(root.result.value)));
     object_description_tree_destroy((ObjectDescription *)d.result.value); editor_project_destroy(&p);

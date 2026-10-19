@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 
 MEMORY_DECLARE_OBJECT_POOL(EntityAlivePool, bool);
 MEMORY_DEFINE_OBJECT_POOL(EntityAlivePool, bool)
@@ -613,6 +614,58 @@ EntityResult entity_default_create(const char *kind, Entity owner) {
 
 EntityResult entity_add(void) {
     return entity_default_create("entity", ENTITY_INVALID);
+}
+
+EntityResult entity_description_add(EntityDescription description) {
+    if(!memchr(description.name, '\0', sizeof(description.name)))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
+    if(description.owner != ENTITY_INVALID && !entity_alive_check(description.owner))
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_INVALID_ENTITY);
+    EntityResult created = description.name[0] ? entity_named_create(description.name) :
+        entity_default_create("entity", description.owner);
+    if(error_check(created)) return created;
+    EngineResult result = entity_owner_set(created.result.value, description.owner);
+    if(error_check(result)) {
+        (void)entity_delete(created.result.value);
+        return ERROR_RESULT_MAKE_ERROR(EntityResult, result.result.error);
+    }
+    return created;
+}
+
+EngineResult entity_description_set(Entity entity, EntityDescription description) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index))
+        return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
+    const char *end = memchr(description.name, '\0', sizeof(description.name));
+    if(!end) return error_result_error(ERROR_ENGINE_ENTITY_NAME_TOO_LONG);
+    if(!description.name[0]) return error_result_error(ERROR_ENGINE_INVALID_ENTITY_NAME);
+    EntityResult existing = entity_by_name_get(description.name);
+    if(!error_check(existing) && existing.result.value != entity)
+        return error_result_error(ERROR_ENGINE_DUPLICATE_ENTITY_NAME);
+    /* Preflight the nonallocating name store before ownership prepares its allocations. */
+    if(!entity_names_pool.objects || !entity_names_pool.used || index >= entity_names_pool.capacity)
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    bool member_name_missing = !object_member_names[index].value[0];
+    EngineResult result = entity_owner_set(entity, description.owner);
+    if(error_check(result)) return result;
+    EntityName name = {0};
+    memcpy(name.value, description.name, (size_t)(end - description.name));
+    (void)EntityNamePool_store_at(&entity_names_pool, index, name);
+    entity_mask[index] |= ROHR_ENTITY_NAME;
+    if(member_name_missing && description.owner != ENTITY_INVALID)
+        object_member_names[index] = name;
+    return error_result_value(true);
+}
+
+EntityDescriptionResult entity_description_get(Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index))
+        return ERROR_RESULT_MAKE_ERROR(EntityDescriptionResult, ERROR_ENGINE_INVALID_ENTITY);
+    EntityNameResult name = entity_name_get(entity);
+    if(error_check(name)) return ERROR_RESULT_MAKE_ERROR(EntityDescriptionResult, name.result.error);
+    EntityDescription description = {.owner = object_member_owners[index]};
+    memcpy(description.name, name.result.value.value, sizeof(description.name));
+    return ERROR_RESULT_MAKE_VALUE(EntityDescriptionResult, description);
 }
 
 static void entity_index_clear(EntityIndex index) {
@@ -1593,25 +1646,43 @@ ParentResult entity_parent_get(Entity entity) {
 
 
 
-EngineResult entity_life_time_set(Entity entity, Time expirey_time, Tick expirey_tick) {
+EngineResult entity_lifetime_description_set(Entity entity, EntityLifetimeDescription description) {
     EntityIndex index;
-    EngineResult result;
 
     if(!entity_index_get(entity, &index) || !entity_index_alive_check(index)) {
         return error_result_error(ERROR_ENGINE_INVALID_ENTITY);
     }
 
-    result = entity_components_add(entity, ROHR_LIFETIME);
-    if(result.kind == ERROR_RESULT_ERROR) {
-        return result;
-    }
+    if(!isfinite(description.expiry_time) || description.expiry_time < 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(!description.time_enabled && !description.tick_enabled)
+        return entity_life_time_remove(entity);
+    if(!life_times_pool.objects || !life_times_pool.used || index >= life_times_pool.capacity)
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     (void)LifeTimePool_store_at(&life_times_pool, index, (LifeTime){
-        .expirey_time = expirey_time,
-        .expirey_tick = expirey_tick,
-        .time_enabled = expirey_time != 0,
-        .tick_enabled = expirey_tick != 0
+        .expirey_time = description.time_enabled ? description.expiry_time : 0,
+        .expirey_tick = description.tick_enabled ? description.expiry_tick : 0,
+        .time_enabled = description.time_enabled,
+        .tick_enabled = description.tick_enabled
     });
+    entity_mask[index] |= ROHR_LIFETIME;
     return error_result_value(true);
+}
+
+EntityLifetimeDescriptionResult entity_lifetime_description_get(Entity entity) {
+    EntityIndex index;
+    if(!entity_index_get(entity, &index))
+        return ERROR_RESULT_MAKE_ERROR(EntityLifetimeDescriptionResult, ERROR_ENGINE_INVALID_ENTITY);
+    EntityLifetimeDescription description = {0};
+    if((entity_mask[index] & ROHR_LIFETIME) && index < life_times_pool.capacity && life_times_pool.used[index]) {
+        LifeTime lifetime = life_times[index];
+        description = (EntityLifetimeDescription){
+            .expiry_time = lifetime.expirey_time, .expiry_tick = lifetime.expirey_tick,
+            .time_enabled = lifetime.time_enabled || lifetime.expirey_time != 0,
+            .tick_enabled = lifetime.tick_enabled || lifetime.expirey_tick != 0
+        };
+    }
+    return ERROR_RESULT_MAKE_VALUE(EntityLifetimeDescriptionResult, description);
 }
 
 EngineResult entity_life_time_remove(Entity entity) {

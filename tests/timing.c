@@ -54,8 +54,9 @@ int main(void) {
     }
     transient = rohr_entity_add();
     if(rohr_error_check(transient) ||
-            rohr_error_check(rohr_entity_life_time_set(
-                transient.result.value, 0.0, rohr_engine_tick_get() + 1))) {
+            rohr_error_check(rohr_entity_lifetime_description_set(
+                transient.result.value, (EntityLifetimeDescription){
+                    .expiry_tick = rohr_engine_tick_get() + 1, .tick_enabled = true}))) {
         rohr_engine_stop();
         return 1;
     }

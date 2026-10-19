@@ -269,6 +269,13 @@ static void runtime_documents(void) {
     const char *path=ROHR_TEST_SOURCE_DIR "/examples/center_of_mass/objects/project.rohr.json";
     ObjectDescriptionResult a=object_load(path), b=object_load(path); OK(a); OK(b);
     assert(a.result.value==b.result.value);
+    ObjectDescriptionResult immutable = object_description_by_name_get(a.result.value, "automatic_body"); OK(immutable);
+    ObjectMaterialDescriptionResult material = object_material_description_get(immutable.result.value); OK(material);
+    ObjectCollisionDescriptionResult collision = object_collision_description_get(immutable.result.value); OK(collision);
+    ObjectColorDescriptionResult color = object_color_description_get(immutable.result.value); OK(color);
+    assert(error_check(object_material_description_set(immutable.result.value, material.result.value)));
+    assert(error_check(object_collision_description_set(immutable.result.value, collision.result.value)));
+    assert(error_check(object_color_description_set(immutable.result.value, color.result.value)));
     ObjectDescriptionResult copy=object_copy(a.result.value); OK(copy);
     OK(object_destroy(a.result.value)); OK(object_destroy(b.result.value));
     EntityResult instance=entity_object_add(copy.result.value); OK(instance);
@@ -922,8 +929,204 @@ static void remaining_creation_rollback(void) {
 #endif
 }
 
+static void metadata_descriptions(void) {
+    uint32_t before = entity_alive_count_get();
+    Entity owner = make(), next = make(), parent = make();
+    EntityDescription description = {.name = "metadata member", .owner = owner};
+    EntityResult created = rohr_entity_description_add(description); OK(created);
+    Entity entity = created.result.value;
+    description.name[0] = 'X';
+    EntityDescriptionResult saved = rohr_entity_description_get(entity); OK(saved);
+    assert(!strcmp(saved.result.value.name, "metadata member") && saved.result.value.owner == owner);
+    assert(error_check(entity_description_add(saved.result.value)));
+    OK(entity_parent_set(entity, parent));
+    OK(physics_position_set(entity, (Position){12, 34}));
+    EntityDescription replacement = {.name = "metadata renamed", .owner = next};
+    OK(rohr_entity_description_set(entity, replacement));
+    assert(!strcmp(saved.result.value.name, "metadata member"));
+    assert(entity_owner_get(entity).result.value == next);
+    assert(entity_parent_get(entity).result.value == parent);
+    assert(physics_position_get(entity).result.value.x == 12);
+    assert(!strcmp(entity_object_member_name_get(entity).result.value.value, "metadata member"));
+    assert(error_check(entity_object_member_by_name_get(owner, "metadata member")));
+    assert(entity_object_member_by_name_get(next, "metadata member").result.value == entity);
+    EntityDescription invalid = replacement;
+    memcpy(invalid.name, entity_name_get(owner).result.value.value, sizeof(invalid.name));
+    invalid.owner = owner;
+    assert(error_check(entity_description_set(entity, invalid)));
+    invalid = replacement; invalid.name[0] = '\0';
+    assert(error_check(entity_description_set(entity, invalid)));
+    memset(invalid.name, 'x', sizeof(invalid.name));
+    assert(error_check(entity_description_set(entity, invalid)));
+    assert(error_check(entity_description_add(invalid)));
+    invalid = replacement; invalid.owner = entity;
+    assert(error_check(entity_description_set(entity, invalid)));
+    invalid = (EntityDescription){.name = "cycle", .owner = entity};
+    assert(error_check(entity_description_set(next, invalid)));
+    Entity stale = make(); OK(entity_delete(stale));
+    invalid = replacement; invalid.owner = stale;
+    assert(error_check(entity_description_set(entity, invalid)));
+    assert(error_check(entity_description_add(invalid)));
+    assert(error_check(entity_description_get(stale)));
+    assert(error_check(entity_description_set(stale, replacement)));
+    EntityDescriptionResult current = entity_description_get(entity); OK(current);
+    assert(!strcmp(current.result.value.name, replacement.name) && current.result.value.owner == next);
+    replacement.owner = ENTITY_INVALID;
+    OK(entity_description_set(entity, replacement));
+    EntityResult generated = entity_description_add((EntityDescription){.owner = owner}); OK(generated);
+    EntityResult generated2 = entity_description_add((EntityDescription){.owner = owner}); OK(generated2);
+    assert(strcmp(entity_name_get(generated.result.value).result.value.value,
+        entity_name_get(generated2.result.value).result.value.value));
+    EntityDescription longest = {0}; memset(longest.name, 'a', sizeof(longest.name) - 1);
+    EntityResult bounded = entity_description_add(longest); OK(bounded);
+    OK(entity_delete(bounded.result.value));
+    OK(entity_delete(owner)); OK(entity_delete(next)); OK(entity_delete(parent));
+    assert(entity_alive_check(entity));
+    OK(entity_delete(entity));
+    assert(entity_alive_count_get() == before);
+}
+
+static void metadata_allocation_rollback(void) {
+#ifdef ROHR_TEST_ALLOCATION_WRAP
+    for(int creating = 0; creating < 2; ++creating) {
+        unsigned failures = 0, successes = 0;
+        for(long fail = 0; fail < 24; ++fail) {
+            Entity owner = make(), next = make();
+            EntityResult member = entity_description_add((EntityDescription){.name = "before", .owner = owner}); OK(member);
+            uint32_t before = entity_alive_count_get();
+            EntityDescription description = {.name = "after", .owner = next};
+            allocation_countdown = fail;
+            EntityResult added = {0};
+            EngineResult changed = {0};
+            if(creating) added = entity_description_add(description);
+            else changed = entity_description_set(member.result.value, description);
+            allocation_countdown = -1;
+            if(creating ? error_check(added) : error_check(changed)) {
+                ++failures;
+                assert(entity_alive_count_get() == before);
+                assert(error_check(entity_by_name_get("after")));
+                EntityDescriptionResult old = entity_description_get(member.result.value); OK(old);
+                assert(!strcmp(old.result.value.name, "before") && old.result.value.owner == owner);
+                assert(!entity_components_check(next, ROHR_OBJECT));
+            } else {
+                ++successes;
+                Entity entity = creating ? added.result.value : member.result.value;
+                assert(entity_owner_get(entity).result.value == next);
+                assert(!strcmp(entity_name_get(entity).result.value.value, "after"));
+            }
+            OK(entity_delete(owner)); OK(entity_delete(next));
+        }
+        assert(failures && successes);
+    }
+#endif
+}
+
+static void lifetime_descriptions(void) {
+    Entity entity = make();
+    EntityLifetimeDescriptionResult empty = rohr_entity_lifetime_description_get(entity); OK(empty);
+    assert(!empty.result.value.time_enabled && !empty.result.value.tick_enabled);
+    assert(empty.result.value.expiry_time == 0 && empty.result.value.expiry_tick == 0);
+    for(unsigned flags = 0; flags < 4; ++flags) {
+        EntityLifetimeDescription description = {.expiry_time = engine_time_get() + 100,
+            .expiry_tick = engine_tick_get() + 100, .time_enabled = (flags & 1) != 0, .tick_enabled = (flags & 2) != 0};
+        OK(rohr_entity_lifetime_description_set(entity, description));
+        EntityLifetimeDescriptionResult got = entity_lifetime_description_get(entity); OK(got);
+        assert(got.result.value.time_enabled == description.time_enabled && got.result.value.tick_enabled == description.tick_enabled);
+        assert(got.result.value.expiry_time == (description.time_enabled ? description.expiry_time : 0));
+        assert(got.result.value.expiry_tick == (description.tick_enabled ? description.expiry_tick : 0));
+        assert(entity_components_check(entity, ROHR_LIFETIME) == (flags != 0));
+        OK(entity_lifetime_description_set(entity, got.result.value));
+    }
+    Time invalid[] = {-1, INFINITY, NAN};
+    for(size_t i = 0; i < sizeof(invalid)/sizeof(invalid[0]); ++i) {
+        EntityLifetimeDescription prior = entity_lifetime_description_get(entity).result.value;
+        assert(error_check(entity_lifetime_description_set(entity, (EntityLifetimeDescription){.expiry_time = invalid[i]})));
+        EntityLifetimeDescription got = entity_lifetime_description_get(entity).result.value;
+        assert(got.expiry_time == prior.expiry_time && got.expiry_tick == prior.expiry_tick);
+        assert(got.time_enabled && got.tick_enabled);
+    }
+    OK(entity_lifetime_description_set(entity, (EntityLifetimeDescription){.expiry_time = 12, .expiry_tick = 23}));
+    assert(!entity_components_check(entity, ROHR_LIFETIME));
+    assert(engine_lifecycle_update().header.status == ROHR_REPORT_COMPLETE);
+    assert(entity_alive_check(entity)); OK(entity_delete(entity));
+    for(unsigned flags = 1; flags < 4; ++flags) {
+        entity = make();
+        OK(entity_lifetime_description_set(entity, (EntityLifetimeDescription){
+            .time_enabled = (flags & 1) != 0, .tick_enabled = (flags & 2) != 0}));
+        assert(entity_alive_check(entity));
+        assert(engine_lifecycle_update().header.status == ROHR_REPORT_COMPLETE);
+        assert(!entity_alive_check(entity));
+    }
+    assert(error_check(entity_lifetime_description_get(entity)));
+    assert(error_check(entity_lifetime_description_set(entity, (EntityLifetimeDescription){0})));
+}
+
+static void authored_configuration_descriptions(void) {
+    ObjectDescription body = {.name = "configured", .id = 1, .kind = OBJECT_BODY,
+        .categories = ROHR_ENTITY_OBJECT_ALL, .mass = 1, .radius = 2,
+        .friction = 0.2f, .restitution = 0.3f, .collision_enabled = true,
+        .color = {1, 2, 3, 4}, .border_color = {5, 6, 7, 8}};
+    ObjectDescription wrong = {.name = "container", .kind = OBJECT_CONTAINER, .categories = ROHR_ENTITY_OBJECT_ALL};
+    ObjectMaterialDescription material = object_material_description_get(&body).result.value;
+    assert(material.friction == 0.2f && material.restitution == 0.3f);
+    ObjectCollisionDescription collision = object_collision_description_get(&body).result.value;
+    assert(collision.enabled);
+    ObjectColorDescription color = object_color_description_get(&body).result.value;
+    assert(!color.overridden);
+    assert(error_check(object_material_description_set(&body, material)));
+    assert(error_check(object_collision_description_set(&body, collision)));
+    assert(error_check(object_color_description_set(&body, color)));
+    assert(error_check(object_material_description_get(&wrong)));
+    assert(error_check(object_collision_description_get(&wrong)));
+    assert(error_check(object_material_description_get(NULL)));
+    assert(error_check(object_collision_description_get(NULL)));
+    assert(error_check(object_color_description_get(NULL)));
+    ObjectDescriptionResult copied = object_copy(body); OK(copied);
+    ObjectDescriptionResult bad_kind = object_copy(wrong); OK(bad_kind);
+    assert(error_check(object_material_description_set(bad_kind.result.value, material)));
+    assert(error_check(object_collision_description_set(bad_kind.result.value, collision)));
+    OK(object_destroy(bad_kind.result.value));
+    ObjectSpawnDescription spawn = rohr_object_spawn_description_default_get();
+    assert(spawn.flags == ROHR_ENTITY_OBJECT_ALL && spawn.offset.x == 0 && spawn.offset.y == 0);
+    EntityResult before = entity_object_description_add(copied.result.value, spawn); OK(before);
+    assert(error_check(entity_object_description_add(copied.result.value, (ObjectSpawnDescription){0})));
+    material = (ObjectMaterialDescription){.friction = 0.7f, .restitution = 0.8f};
+    OK(object_material_description_set(copied.result.value, material));
+    ObjectMaterialDescription bad[] = {{-1,0}, {0,-1}, {0,2}, {NAN,0}, {0,INFINITY}};
+    for(size_t i = 0; i < sizeof(bad)/sizeof(bad[0]); ++i) {
+        assert(error_check(object_material_description_set(copied.result.value, bad[i])));
+        assert(object_material_description_get(copied.result.value).result.value.friction == 0.7f);
+        assert(object_material_description_get(copied.result.value).result.value.restitution == 0.8f);
+    }
+    collision = (ObjectCollisionDescription){.enabled = false, .filter = {.category = 4, .collides_with = 8}};
+    OK(object_collision_description_set(copied.result.value, collision));
+    ObjectCollisionDescription got = object_collision_description_get(copied.result.value).result.value;
+    assert(!got.enabled && got.filter.category == 4 && got.filter.collides_with == 8);
+    color.overridden = true;
+    OK(object_color_description_set(copied.result.value, color));
+    assert(object_color_description_get(copied.result.value).result.value.overridden);
+    color.overridden = false;
+    OK(object_color_description_set(copied.result.value, color));
+    ObjectColorDescription style = object_color_description_get(copied.result.value).result.value;
+    assert(!style.overridden && !memcmp(&style.color, &color.color, sizeof(Color)) &&
+        !memcmp(&style.border_color, &color.border_color, sizeof(Color)));
+    spawn.offset = (Position){40, 50}; spawn.flags = ROHR_ENTITY_OBJECT_PHYSICS;
+    EntityResult after = entity_object_description_add(copied.result.value, spawn); OK(after);
+    assert(frictions[index_of(before.result.value)] == 0.2f);
+    assert(frictions[index_of(after.result.value)] == 0.7f);
+    assert(physics_position_get(after.result.value).result.value.x == 40);
+    assert(entity_components_check(before.result.value, ROHR_COLLISION));
+    assert(!entity_components_check(after.result.value, ROHR_COLLISION));
+    OK(object_material_description_set(copied.result.value, (ObjectMaterialDescription){0}));
+    assert(object_material_description_get(copied.result.value).result.value.restitution == 0);
+    OK(object_destroy(copied.result.value));
+    OK(entity_delete(before.result.value)); OK(entity_delete(after.result.value));
+}
+
 int main(void) {
     OK(rohr_engine_start());
+    metadata_descriptions(); metadata_allocation_rollback(); lifetime_descriptions();
+    authored_configuration_descriptions();
     remaining_creation_descriptions(); source_description_ownership(); remaining_creation_rollback();
     soft_creation_descriptions(); soft_creation_rollback();
     ownership_transfers(); physics_ownership(); ownership_round_trip();

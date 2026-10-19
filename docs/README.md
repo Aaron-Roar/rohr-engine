@@ -16,6 +16,7 @@ smaller internal module headers and implementations.
 ## Public API
 
 - [Engine API reference](engine_api.md)
+- [Description API contract and migration inventory](description_api_contract.md)
 - [Entity inspection and snapshot ownership](entity_inspection_contract.md)
 - [Tools API reference](tools_api.md)
 

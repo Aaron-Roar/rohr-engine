@@ -54,6 +54,80 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Consistent Description APIs
+
+Standardize creation and complete configuration set/get across the public
+runtime API. Keep focused setters and temporary operations direct. This
+user-selected milestone follows the completed joint-description migration and
+precedes the remaining priorities. The narrowed scope supersedes the earlier
+14-goal proposal: drawing and immediate-mode UI conversion are excluded, leaving
+12 goals. See the [contract and complete API inventory](docs/description_api_contract.md).
+
+1. [x] **Establish the API inventory and contract** — Documented the narrowed
+   scope, atomic replacement, state preservation, ownership, compatibility,
+   defaults, and planned interfaces. Classified all 1,458 declaration/macro
+   entries across 20 installed headers, plus generated pool interfaces; every
+   migration has one owning goal. Verified independent prototype coverage,
+   all 18 Config/Descriptor type names, documentation links, ordered goal
+   assignments, and clean diffs. Documentation only: runtime builds, sanitizer
+   runs, and platform execution were not applicable.
+2. [x] **Standardize entity and authored-object configuration** — Added atomic
+   copied name/owner descriptions, explicit lifetime enable flags, authored
+   material/collision/color full accessors, and `ObjectSpawnDescription` defaults.
+   Full setters replace configuration; focused setters remain direct. Preserved
+   dot catalogs, independent ownership, topology, saved formats, immutable
+   catalog inspection, and existing instances. Migrated callers, generated C,
+   examples, and the external project's custom main. Verified all 100 native
+   tests and eight ASan/UBSan/leak checks; full Linux/Windows cross-builds;
+   independent installed-SDK fly-to-finish/soft-body examples and consumer;
+   regenerated soft-body builds and Linux launch; external scene hosting and
+   two-second force toggling. Standard builds have no compiler warnings; strict
+   audits identify only existing gravity-initializer and long starter-string
+   warnings. Reconciled all 1,474 current header entries and documentation links.
+   Native Windows execution and real desktop visual review remain unverified.
+   Stop for review before Goal 3.
+3. [ ] **Standardize physics configuration** — Complete transform/axis-lock
+   descriptions and collision-filter naming/accessors. Preserve basic angle
+   ranges, focused hitbox binding setters, and direct capture/motion operations.
+4. [ ] **Complete particle description APIs** — Add full set/get using current
+   configurable values; preserve particle/collision geometry, ownership,
+   current motion, and standalone-particle restrictions.
+5. [ ] **Complete soft-body and anchor description APIs** — Complete full
+   configuration for containers, nodes, beams, areas, and anchors. Include
+   explicit/measured beam rest values and collision/material groups; preserve
+   connections, local/world conventions, and child topology.
+6. [ ] **Standardize asset loading and text configuration** — Standardize
+   immutable texture/font/animation descriptions and inspection; add complete
+   text create/set/get. Preserve sharing, borrowed metadata, and payload lifetime.
+7. [ ] **Complete sprite and animation-instance descriptions** — Separate
+   configurable sprite/frame/player values from playback state. Preserve
+   compatible progress, empty animations, frame IDs, and reference ownership.
+8. [ ] **Complete audio description APIs** — Standardize sound/music descriptions
+   and full/default accessors. Preserve progress for ordinary edits; prepare
+   changed sources atomically and leave successful replacements stopped.
+9. [ ] **Complete logical input descriptions** — Add controller/action creation
+   and full set/get, preserving names, ownership, defaults/overrides, and
+   unrelated logical state. Keep focused binding/state and text-input calls direct.
+10. [ ] **Standardize cameras and presentation configuration** — Unify camera,
+    attachment, and window presentation descriptions. Preserve unrelated
+    attachments/motion and keep timed commands and focused callbacks direct.
+11. [ ] **Complete screen, viewport, layer, and persistent UI descriptions** —
+    Standardize types and missing full accessors, including mount content and
+    placement. Preserve handles, children, composition, dependencies, and
+    unrelated interaction state. Immediate-mode UI remains outside scope.
+12. [ ] **Finish migration and verify coverage** — Reconcile all headers and
+    documentation, regenerate/build affected examples and starter projects,
+    and verify installed SDKs. Preserve the external example's explicit main
+    and two-second force toggle.
+
+Every code goal migrates its callers and performs its own native, sanitizer,
+Linux/Windows build, and affected generated-project/SDK checks. Goal 12 integrates
+those results rather than postponing required verification. Complete one goal
+at a time and stop for review and a user-created commit; pursue each subsequent
+goal only on explicit user instruction. Before implementing each remaining goal,
+ask for and resolve any material clarifications with the user. Full description
+setters replace configuration: omitted fields become zero/false, not patches.
+
 ### Consistent Joint Description APIs
 
 Use one description for joint creation, replacement, and retrieval, with anchor

@@ -528,6 +528,30 @@ Entity ids are stable handles and may not match component table indexes.
 
 **Returns:** EntityResult containing the new entity id, or an error if the entity limit is reached.
 
+### `rohr_entity_description_add`
+
+```c
+EntityResult rohr_entity_description_add(EntityDescription description);
+```
+
+ Create copied metadata and ownership; empty creation names are generated.
+
+### `rohr_entity_description_set`
+
+```c
+EngineResult rohr_entity_description_set(Entity entity, EntityDescription description);
+```
+
+ Atomically replace name and owner; the name must be nonempty and unique.
+
+### `rohr_entity_description_get`
+
+```c
+EntityDescriptionResult rohr_entity_description_get(Entity entity);
+```
+
+ Get a copied name and current independent owner.
+
 ### `rohr_entity_name_set`
 
 ```c
@@ -862,21 +886,28 @@ Returns the parent assigned to an entity.
 
 **Returns:** ParentResult containing parent id, or an error.
 
-### `rohr_entity_life_time_set`
+### `rohr_entity_lifetime_description_set`
 
 ```c
-EngineResult rohr_entity_life_time_set(Entity entity, Time expirey_time, Tick expirey_tick);
+EngineResult rohr_entity_lifetime_description_set(Entity entity, EntityLifetimeDescription description);
 ```
 
-Adds or updates an entity lifetime.
+Replaces absolute lifetime deadlines; both disabled removes the configuration.
 
 | Parameter | Description |
 | --- | --- |
 | `entity` | Stable entity id to modify. |
-| `expirey_time` | Engine time when the entity expires. |
-| `expirey_tick` | Engine tick when the entity expires. |
+| `description` | Explicit flags allow enabled zero deadlines. Time must be finite and nonnegative. |
 
 **Returns:** EngineResult describing success or failure.
+
+### `rohr_entity_lifetime_description_get`
+
+```c
+EntityLifetimeDescriptionResult rohr_entity_lifetime_description_get(Entity entity);
+```
+
+ Get lifetime configuration, or disabled zeros when absent on a live entity.
 
 ### `rohr_entity_life_time_remove`
 
