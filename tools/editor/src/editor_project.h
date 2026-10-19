@@ -500,7 +500,7 @@ typedef struct EditorViewportCameraItem {
     char name[EDITOR_OBJECT_NAME_MAX];
     EditorObjectId object;
     EditorCameraId camera;
-    ViewportItemConfig placement;
+    ViewportItemDescription placement;
     /** Zero selects placement.layer as a direct numeric layer. */
     EditorGraphicsLayerId graphics_layer;
     Position content_offset;
@@ -624,7 +624,7 @@ typedef struct EditorViewportUiItem {
 typedef struct EditorLayoutViewport {
     EditorLayoutViewportId id;
     char name[EDITOR_OBJECT_NAME_MAX];
-    ViewportConfig config;
+    ViewportDescription config;
     /** Editor-only placement in the top-level project overview. */
     Position overview_position;
     uint32_t background_color;

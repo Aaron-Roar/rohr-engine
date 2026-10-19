@@ -28,7 +28,7 @@ int main(void) {
     GraphicsUiIdResult slider_result;
     ViewportItemIdResult slider_item_result;
     GraphicsLayerIdResult world_layer_result;
-    ViewportUiShapeConfig ui_shape = {
+    ViewportUiShapeDescription ui_shape = {
         .shape = {.amount_of_vertices = 4, .vertices = {
             {10.0f, 10.0f}, {110.0f, 10.0f},
             {110.0f, 70.0f}, {10.0f, 70.0f}}},
@@ -75,10 +75,10 @@ int main(void) {
         rohr_engine_stop();
         return 1;
     }
-    world_layer_result = rohr_graphics_layer_create("world", 100);
+    world_layer_result = rohr_graphics_layer_create((LayerDescription){.name = "world", .value = 100});
     if(rohr_error_check(world_layer_result) ||
-            !rohr_error_check(rohr_graphics_layer_create("world", 200)) ||
-            rohr_error_check(rohr_graphics_layer_create("also-world", 100)) ||
+            !rohr_error_check(rohr_graphics_layer_create((LayerDescription){.name = "world", .value = 200})) ||
+            rohr_error_check(rohr_graphics_layer_create((LayerDescription){.name = "also-world", .value = 100})) ||
             rohr_error_check(rohr_graphics_layer_name_set("world", 125)) ||
             rohr_error_check(rohr_graphics_layer_name_get("world")) ||
             rohr_graphics_layer_name_get("world").result.value != 125 ||
@@ -269,11 +269,11 @@ int main(void) {
         return 1;
     }
     {
-        ViewportConfig viewport_config = rohr_viewport_config_default_get();
+        ViewportDescription viewport_config = rohr_viewport_description_default_get();
         viewport_result = rohr_viewport_create(viewport_config);
     }
     if(rohr_error_check(viewport_result)
-            || rohr_viewport_config_default_get().fit != SCREEN_FIT_CONTAIN
+            || rohr_viewport_description_default_get().fit != SCREEN_FIT_CONTAIN
             || rohr_error_check(rohr_viewport_camera_set(
                 viewport_result.result.value,
                 original
@@ -302,7 +302,7 @@ int main(void) {
             || (viewport_item_result = rohr_viewport_camera_add(
                     viewport_result.result.value,
                     second_result.result.value,
-                    (ViewportItemConfig){
+                    (ViewportItemDescription){
                         .rectangle = {20.0f, 30.0f, 320.0f, 180.0f},
                         .fit = SCREEN_FIT_COVER,
                         .orientation = 0.25f,
@@ -316,9 +316,10 @@ int main(void) {
             || rohr_viewport_item_drag_mode_get(viewport_item_result.result.value).
                 result.value != VIEWPORT_ITEM_DRAG_Y
             || (rohr_graphics_show(), render_count != 4)
-            || rohr_error_check(rohr_viewport_item_set(
+            || rohr_error_check(rohr_viewport_item_description_set(
                 viewport_item_result.result.value,
-                (ViewportItemConfig){
+                (ViewportItemDescription){
+                    .screen = rohr_viewport_item_description_get(viewport_item_result.result.value).result.value.screen,
                     .rectangle = {40.0f, 50.0f, 160.0f, 90.0f},
                     .fit = SCREEN_FIT_CONTAIN,
                     .layer = -1,
@@ -342,13 +343,13 @@ int main(void) {
     }
     /* The attachment test deleted its entity; layer checks need a live one. */
     target_entity_result = rohr_entity_add();
-    viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
+    viewport_result = rohr_viewport_create(rohr_viewport_description_default_get());
     default_font = rohr_graphics_font_default_get();
     default_text = rohr_graphics_text_create((TextDescription){.font = default_font, .value = "Built-In 123!", .color = (Color){255, 255, 255, 255}});
-    ui_shape.text = (ViewportUiTextConfig){.text =
+    ui_shape.text = (ViewportUiTextDescription){.text =
         rohr_error_check(default_text) ? (TextAsset){0} : default_text.result.value,
         .scale = {2.0f, 2.0f}};
-    second_viewport_result = rohr_viewport_create(rohr_viewport_config_default_get());
+    second_viewport_result = rohr_viewport_create(rohr_viewport_description_default_get());
     if(rohr_error_check(target_entity_result) || rohr_error_check(viewport_result) ||
             rohr_error_check(second_viewport_result) ||
             rohr_error_check(default_text) ||
@@ -357,7 +358,7 @@ int main(void) {
             (ui_result = rohr_graphics_ui_shape_create(ui_shape),
                 rohr_error_check(ui_result)) ||
             (slider_result = rohr_graphics_ui_slider_create(
-                (ViewportUiSliderConfig){.minimum = -1.0f, .maximum = 1.0f,
+                (ViewportUiSliderDescription){.minimum = -1.0f, .maximum = 1.0f,
                     .value = 0.26f, .step = 0.25f, .length = 200.0f,
                     .track_thickness = 6.0f, .thumb_width = 12.0f,
                     .thumb_height = 24.0f, .thumb_radius = 9.0f,
@@ -365,14 +366,14 @@ int main(void) {
                     .thumb_shape = VIEWPORT_UI_SLIDER_THUMB_CIRCLE,
                     .enabled = true}),
                 rohr_error_check(slider_result)) ||
-            rohr_error_check(rohr_graphics_ui_slider_get(slider_result.result.value)) ||
-            fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
+            rohr_error_check(rohr_graphics_ui_slider_description_get(slider_result.result.value)) ||
+            fabsf(rohr_graphics_ui_slider_description_get(slider_result.result.value).
                 result.value.value - 0.25f) > 0.001f ||
-            rohr_graphics_ui_slider_get(slider_result.result.value).
+            rohr_graphics_ui_slider_description_get(slider_result.result.value).
                 result.value.thumb_shape != VIEWPORT_UI_SLIDER_THUMB_CIRCLE ||
-            fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
+            fabsf(rohr_graphics_ui_slider_description_get(slider_result.result.value).
                 result.value.thumb_radius - 9.0f) > 0.001f ||
-            fabsf(rohr_graphics_ui_slider_get(slider_result.result.value).
+            fabsf(rohr_graphics_ui_slider_description_get(slider_result.result.value).
                 result.value.thumb_offset - 5.0f) > 0.001f ||
             rohr_error_check(rohr_graphics_ui_slider_value_set(
                 slider_result.result.value, 0.74f)) ||
@@ -380,12 +381,12 @@ int main(void) {
                 result.value - 0.75f) > 0.001f ||
             (slider_item_result = rohr_viewport_ui_add(
                 viewport_result.result.value, slider_result.result.value,
-                (ViewportItemConfig){.rectangle = {200.0f, 100.0f, 0.0f, 0.0f},
+                (ViewportItemDescription){.rectangle = {200.0f, 100.0f, 0.0f, 0.0f},
                     .content_scale = {1.0f, 1.0f}, .visible = true}),
                 rohr_error_check(slider_item_result)) ||
             (ui_item_result = rohr_viewport_ui_add(
                 viewport_result.result.value, ui_result.result.value,
-                (ViewportItemConfig){.layer = 1, .visible = true}),
+                (ViewportItemDescription){.layer = 1, .visible = true}),
                 rohr_error_check(ui_item_result)) ||
             rohr_error_check(rohr_viewport_item_drag_mode_set(
                 ui_item_result.result.value, VIEWPORT_ITEM_DRAG_X)) ||
@@ -396,16 +397,16 @@ int main(void) {
             rohr_viewport_item_dragging_check(ui_item_result.result.value) ||
             (second_ui_item_result = rohr_viewport_ui_add(
                 second_viewport_result.result.value, ui_result.result.value,
-                (ViewportItemConfig){.rectangle = {10.0f, 12.0f, 80.0f, 40.0f},
+                (ViewportItemDescription){.rectangle = {10.0f, 12.0f, 80.0f, 40.0f},
                     .content_scale = {1.5f, 0.75f}, .content_orientation = 0.2f,
                     .layer = 2, .visible = true, .clip_enabled = true,
                     .clip_rectangle = {10.0f, 12.0f, 80.0f, 40.0f}}),
                 rohr_error_check(second_ui_item_result)) ||
-            rohr_error_check(rohr_viewport_item_set(ui_item_result.result.value,
-                (ViewportItemConfig){.rectangle = {20.0f, 30.0f, 0.0f, 0.0f},
+            rohr_error_check(rohr_viewport_item_description_set(ui_item_result.result.value,
+                (ViewportItemDescription){.ui = ui_result.result.value, .rectangle = {20.0f, 30.0f, 0.0f, 0.0f},
                     .content_scale = {1.0f, 1.0f}, .visible = true})) ||
-            rohr_error_check(rohr_viewport_item_get(ui_item_result.result.value)) ||
-            rohr_viewport_item_get(ui_item_result.result.value)
+            rohr_error_check(rohr_viewport_item_description_get(ui_item_result.result.value)) ||
+            rohr_viewport_item_description_get(ui_item_result.result.value)
                 .result.value.rectangle.x != 20.0f ||
             rohr_error_check(rohr_viewport_item_viewport_get(
                 second_ui_item_result.result.value)) ||
@@ -422,11 +423,11 @@ int main(void) {
             !rohr_error_check(rohr_graphics_ui_destroy(ui_result.result.value)) ||
             (viewport_item_result = rohr_viewport_ui_shape_add(
                 viewport_result.result.value, ui_shape,
-                (ViewportItemConfig){.layer = 1, .visible = true}),
+                (ViewportItemDescription){.layer = 1, .visible = true}),
                 rohr_error_check(viewport_item_result)) ||
             !rohr_error_check(rohr_viewport_ui_shape_add(
-                viewport_result.result.value, (ViewportUiShapeConfig){0},
-                (ViewportItemConfig){.visible = true})) ||
+                viewport_result.result.value, (ViewportUiShapeDescription){0},
+                (ViewportItemDescription){.visible = true})) ||
             rohr_error_check(rohr_viewport_enable_set(viewport_result.result.value)) ||
             (rohr_graphics_show(), false) ||
             rohr_viewport_ui_pressed_check(ui_item_result.result.value) ||

@@ -18,14 +18,14 @@ EngineResult project_viewports_create(ProjectViewports *resources, ProjectObject
     if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.floor, 0))) goto fail;
     if(rohr_error_check(result = rohr_graphics_layer_entity_set(objects->player_world.player, 0))) goto fail;
     resources->fonts[resources->font_count++] = rohr_graphics_font_default_get();
-    { ViewportIdResult created = rohr_viewport_create((ViewportConfig){.rectangle={0.00000000f, 0.00000000f, 1280.00000000f, 720.00000000f}, .fit=2, .background_color=rohr_graphics_color_hex_create(UINT32_C(0x000000ff))});
+    { ViewportIdResult created = rohr_viewport_create((ViewportDescription){.rectangle={0.00000000f, 0.00000000f, 1280.00000000f, 720.00000000f}, .fit=2, .background_color=rohr_graphics_color_hex_create(UINT32_C(0x000000ff))});
       if(rohr_error_check(created)) { result = rohr_error_result_error(created.result.error); goto fail; }
       resources->viewports[resources->viewport_count++] = created.result.value;
       if(rohr_error_check(result = rohr_camera_render_callback_set(objects->player_world.camera_main_camera, render_scene, objects))) goto fail;
-      { ScreenIdResult screen = rohr_screen_create((ScreenConfig){objects->player_world.camera_main_camera, 1280, 720});
+      { ScreenIdResult screen = rohr_screen_create((ScreenDescription){objects->player_world.camera_main_camera, 1280, 720});
         if(rohr_error_check(screen)) { result = rohr_error_result_error(screen.result.error); goto fail; }
         resources->screens[resources->screen_count++] = screen.result.value;
-        ViewportItemIdResult item = rohr_viewport_screen_add(resources->viewports[resources->viewport_count - 1], screen.result.value, (ViewportItemConfig){.rectangle={0.00000000f, 0.00000000f, 1280.00000000f, 720.00000000f}, .fit=2, .orientation=0.00000000f, .content_offset={0.00000000f, 0.00000000f}, .content_scale={1.00000000f, 1.00000000f}, .content_orientation=0.00000000f, .layer=0, .visible=true, .drag_mode=0});
+        ViewportItemIdResult item = rohr_viewport_screen_add(resources->viewports[resources->viewport_count - 1], screen.result.value, (ViewportItemDescription){.rectangle={0.00000000f, 0.00000000f, 1280.00000000f, 720.00000000f}, .fit=2, .orientation=0.00000000f, .content_offset={0.00000000f, 0.00000000f}, .content_scale={1.00000000f, 1.00000000f}, .content_orientation=0.00000000f, .layer=0, .visible=true, .drag_mode=0});
         if(rohr_error_check(item)) { result = rohr_error_result_error(item.result.error); goto fail; }
       }
       if(rohr_error_check(result = rohr_viewport_enable_set(resources->viewports[resources->viewport_count - 1]))) goto fail;

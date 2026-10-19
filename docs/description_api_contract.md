@@ -1,12 +1,12 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–10 of **Consistent Description APIs** are implemented.
+Status: Goals 1–11 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
 configuration, particle, soft-body, anchor, asset-loading, text, sprite,
-animation-instance, audio, logical input, camera, attachment, and window
-presentation descriptions are shipped. Names and missing interfaces described
-as planned below are not declarations of shipped functionality. The symbol
-inventory records the headers as they exist at this goal boundary.
+animation-instance, audio, logical input, camera, attachment, window presentation,
+screen, viewport, layer, and persistent UI descriptions are shipped. The symbol
+inventory records the headers as they exist at this goal boundary. Goal 12 remains
+for final integration and migration verification.
 
 ## Scope and naming
 
@@ -149,7 +149,7 @@ appear in the header inventory below.
 | Audio / 8 — shipped | `SoundDescription`, `MusicDescription` | Description creation, muted defaults, and `audio_sound_description_set/get`, `audio_music_description_set/get`. | Full replacement is one queued command; unchanged sources preserve progress. Prepared source changes keep handles and install stopped. Getters borrow applied paths; focused controls remain direct. |
 | Logical input / 9 — shipped | `InputControllerDescription`, `InputActionDescription`; copied `InputBindingList` defaults | Creation and full `_description_set/get`, plus default getters. Focused binding/state and text-input operations stay direct. | Stable handles and validated controller moves; compatible overrides survive. Incompatible edits reject atomically. No-op and rename preserve state/events; rebinding preserves persistent state; type/mode/initial changes reinitialize only the edited action. |
 | Cameras and presentation / 10 — shipped | `CameraDescription`, `CameraAttachmentDescription`, `WindowPresentationDescription`; resolved `Camera` query retained | Creation and full/default accessors, including callback/context and enable/pause flags. Attachments have separate full accessors. | World edits update offsets and preserve attachment; timed movement interpolates offsets while following the target. Only explicit detach breaks the reference. Unrelated motion survives. Presentation validates before applying and attempts backend rollback on failure. |
-| Screens, viewports, layers, persistent UI / 11 | `ScreenConfig`, `ViewportConfig`, `ViewportItemConfig`, `ViewportUiShapeConfig`, `ViewportUiTextConfig`, `ViewportUiSliderConfig`; positional layer creation | Rename to corresponding `*Description` types; add missing screen/viewport/layer full accessors using `GraphicsLayerDescription`; standardize existing persistent UI accessors. Mount descriptions include content references alongside placement. | Retain handles, mounted children, global layer identity, clipping/composition, resource references, and unrelated interaction state. Creating a mount must still distinguish existing reusable content from convenience creation of new content. |
+| Screens, viewports, layers, persistent UI / 11 — shipped | `ScreenDescription`, `ViewportDescription`, `ViewportItemDescription`, `ViewportUiShapeDescription`, `ViewportUiTextDescription`, `ViewportUiSliderDescription`, `LayerDescription` | Creation and default/full accessors; item descriptions include screen/UI references and named-layer bindings. | Retain handles, children, clipping/composition, resource dependencies, and compatible interaction state. Content replacement acquires before release. Automatically created UI survives until its last mount is removed. |
 | Final verification / 12 | All migrated families | Reconcile inventory and examples; no independent new configuration family. | Verify the complete installed SDK and generated/example parity, including the external force-toggle example. |
 
 Bare entity/group allocation and simple key/scancode binding builders remain direct. Likewise, the soft-node pin
@@ -597,6 +597,72 @@ EngineResult moved = rohr_camera_position_move(created.result.value, (Vec2D){50,
 /* Check moved. Use rohr_camera_detach explicitly to stop following. */
 ```
 
+## Shipped Goal 11 behavior
+
+Screen, viewport, mounted-item, and persistent UI `Config` types now use the
+corresponding `Description` names. Full accessors consistently use
+`_description_set/get`; default getters make useful defaults explicit. Immediate
+mode UI types remain unchanged. Full descriptions replace configuration, rather
+than patching omitted fields. Focused setters remain direct.
+
+`LayerDescription` contains a copied nonempty unique name and numeric order.
+Creation and full replacement reject duplicate names; renaming retains the handle
+and all entity/UI assignments. Getters borrow the stored name until that layer is
+changed or destroyed. Existing keyed numeric setters remain focused operations.
+
+`ScreenDescription` contains a camera and texture dimensions. Resize prepares the
+replacement texture before publishing, retaining the screen handle and every
+mount; backend failure preserves the previous resource. Zero dimensions use the
+window defaults, while negative dimensions and invalid camera references fail.
+An unchanged description avoids backend work. Mutation while actively drawing
+that screen is rejected. `ViewportDescription` includes rectangle, fitting,
+background, and `enabled`; its default remains disabled. Viewport edits preserve
+all child handles. Zero viewport dimensions normalize to window dimensions.
+
+`ViewportItemDescription` includes exactly one nonzero `screen` or `ui` handle,
+placement/content transforms in degrees, clipping, visibility, drag mode, literal
+`layer`, and optional `layer_id`. A nonzero layer handle selects the registered
+layer; otherwise the numeric value applies. The getter preserves that binding,
+including after focused layer edits, so get/edit/set never silently loses it.
+Destroying a named layer retains its last numeric order on existing assignments.
+A full item replacement can change resource or switch between screen and UI while
+retaining the item handle and parent viewport. Both-zero, both-nonzero, stale,
+nonfinite, or invalid-enum configurations fail before changing dependencies.
+Screen items normalize zero placement dimensions to window dimensions; UI items
+may use zero dimensions. Existing zero-scale rendering conventions are preserved.
+
+`graphics_viewport_item_add(viewport, description)` mounts existing content
+without acquiring public ownership. Screen/UI/camera convenience mounting remains
+available; the explicit content argument supplies the reference. UI creation
+helpers additionally create an automatically managed definition. Removing or
+replacing its original mount does not destroy that definition while another mount
+still uses it; final unmount cleans it up. Explicitly created reusable UI remains
+caller-owned and cannot be destroyed while mounted. Text dependencies are acquired
+before release. An unchanged text reference keeps its existing dependency even
+when its public owner has been destroyed, without restoring public validity.
+
+Persistent UI full setters preserve compatible interaction state. Slider getters
+include the current value; get/edit/set appearance edits retain that value and
+active dragging. Supplied values clamp to the range and snap by step. Equal or
+reversed bounds fail; use the default getter for a valid 0–1 range. Zero slider
+geometry, text scale, border thickness, and hash spacing retain their documented
+fallback defaults; negative/nonfinite geometry is rejected. Full item content
+replacement, hiding, viewport disabling, and disabling an active slider cancel the
+relevant interaction immediately. Drag-mode changes cancel incompatible captures.
+No-op/style edits preserve valid capture and the latest interaction flags.
+
+```c
+ViewportItemDescriptionResult current = rohr_viewport_item_description_get(item);
+if(!rohr_error_check(current)) {
+    current.result.value.screen = SCREEN_INVALID;
+    current.result.value.ui = reusable_slider;
+    current.result.value.rectangle.x = 200;
+    EngineResult changed = rohr_viewport_item_description_set(item, current.result.value);
+    /* Check changed; item and its parent viewport retain their identities. */
+    (void)changed;
+}
+```
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -645,12 +711,11 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1580** classified declaration/macro entries.
+The current inventory contains **1602** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 274 |
+| C: Compliant | Existing description interface | — | 342 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 400 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
@@ -815,20 +880,9 @@ Source: [game_state.h](../include/game_state.h).
 </details>
 
 <details>
-<summary>graphics.h: 252 entries</summary>
+<summary>graphics.h: 263 entries</summary>
 
 Source: [graphics.h](../include/graphics.h).
-
-**M11 — Screen, viewport, layer, and persistent UI configuration (Goal 11)**
-
-- `graphics_layer_create`, `graphics_screen_config_default_get`, `graphics_screen_create`.
-- `graphics_ui_shape_create`, `graphics_ui_shape_get`, `graphics_ui_shape_set`.
-- `graphics_ui_slider_create`, `graphics_ui_slider_get`, `graphics_ui_slider_set`.
-- `graphics_ui_text_create`, `graphics_ui_text_get`, `graphics_ui_text_set`.
-- `graphics_viewport_camera_add`, `graphics_viewport_config_default_get`, `graphics_viewport_create`.
-- `graphics_viewport_item_config_default_get`, `graphics_viewport_item_get`, `graphics_viewport_item_set`.
-- `graphics_viewport_screen_add`, `graphics_viewport_ui_add`, `graphics_viewport_ui_shape_add`.
-- `graphics_viewport_ui_slider_add`, `graphics_viewport_ui_text_add`.
 
 **C — Existing description interface**
 
@@ -843,12 +897,23 @@ Source: [graphics.h](../include/graphics.h).
 - `graphics_camera_attach`, `graphics_camera_attachment_description_default_get`, `graphics_camera_attachment_description_get`.
 - `graphics_camera_attachment_description_set`, `graphics_camera_create`, `graphics_camera_description_default_get`.
 - `graphics_camera_description_get`, `graphics_camera_description_set`, `graphics_font_description_default_get`.
-- `graphics_font_description_get`, `graphics_font_load`, `graphics_sprite_add`.
-- `graphics_sprite_create`, `graphics_sprite_description_default_get`, `graphics_sprite_description_get`.
-- `graphics_sprite_description_set`, `graphics_text_create`, `graphics_text_description_default_get`.
-- `graphics_text_description_get`, `graphics_text_description_set`, `graphics_texture_description_default_get`.
-- `graphics_texture_description_get`, `graphics_texture_load`, `graphics_window_presentation_description_default_get`.
-- `graphics_window_presentation_description_get`, `graphics_window_presentation_description_set`.
+- `graphics_font_description_get`, `graphics_font_load`, `graphics_layer_create`.
+- `graphics_layer_description_default_get`, `graphics_layer_description_get`, `graphics_layer_description_set`.
+- `graphics_screen_create`, `graphics_screen_description_default_get`, `graphics_screen_description_get`.
+- `graphics_screen_description_set`, `graphics_sprite_add`, `graphics_sprite_create`.
+- `graphics_sprite_description_default_get`, `graphics_sprite_description_get`, `graphics_sprite_description_set`.
+- `graphics_text_create`, `graphics_text_description_default_get`, `graphics_text_description_get`.
+- `graphics_text_description_set`, `graphics_texture_description_default_get`, `graphics_texture_description_get`.
+- `graphics_texture_load`, `graphics_ui_shape_create`, `graphics_ui_shape_description_default_get`.
+- `graphics_ui_shape_description_get`, `graphics_ui_shape_description_set`, `graphics_ui_slider_create`.
+- `graphics_ui_slider_description_default_get`, `graphics_ui_slider_description_get`, `graphics_ui_slider_description_set`.
+- `graphics_ui_text_create`, `graphics_ui_text_description_default_get`, `graphics_ui_text_description_get`.
+- `graphics_ui_text_description_set`, `graphics_viewport_camera_add`, `graphics_viewport_create`.
+- `graphics_viewport_description_default_get`, `graphics_viewport_description_get`, `graphics_viewport_description_set`.
+- `graphics_viewport_item_add`, `graphics_viewport_item_description_default_get`, `graphics_viewport_item_description_get`.
+- `graphics_viewport_item_description_set`, `graphics_viewport_screen_add`, `graphics_viewport_ui_add`.
+- `graphics_viewport_ui_shape_add`, `graphics_viewport_ui_slider_add`, `graphics_viewport_ui_text_add`.
+- `graphics_window_presentation_description_default_get`, `graphics_window_presentation_description_get`, `graphics_window_presentation_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -1155,20 +1220,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 778 entries</summary>
+<summary>rohr.h: 789 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M11 — Screen, viewport, layer, and persistent UI configuration (Goal 11)**
-
-- `rohr_graphics_layer_create`, `rohr_graphics_ui_shape_create`, `rohr_graphics_ui_shape_get`.
-- `rohr_graphics_ui_shape_set`, `rohr_graphics_ui_slider_create`, `rohr_graphics_ui_slider_get`.
-- `rohr_graphics_ui_slider_set`, `rohr_graphics_ui_text_create`, `rohr_graphics_ui_text_get`.
-- `rohr_graphics_ui_text_set`, `rohr_screen_config_default_get`, `rohr_screen_create`.
-- `rohr_viewport_camera_add`, `rohr_viewport_config_default_get`, `rohr_viewport_create`.
-- `rohr_viewport_item_config_default_get`, `rohr_viewport_item_get`, `rohr_viewport_item_set`.
-- `rohr_viewport_screen_add`, `rohr_viewport_ui_add`, `rohr_viewport_ui_shape_add`.
-- `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_text_add`.
 
 **C — Existing description interface**
 
@@ -1190,34 +1244,45 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_graphics_animation_player_create`, `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`.
 - `rohr_graphics_animation_player_description_get`, `rohr_graphics_animation_player_description_set`, `rohr_graphics_camera_attach`.
 - `rohr_graphics_font_description_default_get`, `rohr_graphics_font_description_get`, `rohr_graphics_font_load`.
-- `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`, `rohr_graphics_sprite_description_default_get`.
-- `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`, `rohr_graphics_text_create`.
-- `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`.
-- `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`.
-- `rohr_graphics_window_presentation_description_default_get`, `rohr_graphics_window_presentation_description_get`, `rohr_graphics_window_presentation_description_set`.
-- `rohr_input_action_create`, `rohr_input_action_description_default_get`, `rohr_input_action_description_get`.
-- `rohr_input_action_description_set`, `rohr_input_controller_create`, `rohr_input_controller_description_default_get`.
-- `rohr_input_controller_description_get`, `rohr_input_controller_description_set`, `rohr_object_collision_description_get`.
-- `rohr_object_collision_description_set`, `rohr_object_color_description_get`, `rohr_object_color_description_set`.
-- `rohr_object_description_by_name_get`, `rohr_object_force_description_set`, `rohr_object_get`.
-- `rohr_object_material_description_get`, `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`.
-- `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
-- `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
-- `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
-- `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`.
-- `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
-- `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`.
-- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
-- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`.
-- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`.
-- `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`.
-- `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`.
-- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`.
-- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
-- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`.
-- `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
-- `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`.
-- `rohr_physics_transform_lock_description_set`.
+- `rohr_graphics_layer_create`, `rohr_graphics_layer_description_default_get`, `rohr_graphics_layer_description_get`.
+- `rohr_graphics_layer_description_set`, `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`.
+- `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`.
+- `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`.
+- `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`.
+- `rohr_graphics_texture_load`, `rohr_graphics_ui_shape_create`, `rohr_graphics_ui_shape_description_default_get`.
+- `rohr_graphics_ui_shape_description_get`, `rohr_graphics_ui_shape_description_set`, `rohr_graphics_ui_slider_create`.
+- `rohr_graphics_ui_slider_description_default_get`, `rohr_graphics_ui_slider_description_get`, `rohr_graphics_ui_slider_description_set`.
+- `rohr_graphics_ui_text_create`, `rohr_graphics_ui_text_description_default_get`, `rohr_graphics_ui_text_description_get`.
+- `rohr_graphics_ui_text_description_set`, `rohr_graphics_window_presentation_description_default_get`, `rohr_graphics_window_presentation_description_get`.
+- `rohr_graphics_window_presentation_description_set`, `rohr_input_action_create`, `rohr_input_action_description_default_get`.
+- `rohr_input_action_description_get`, `rohr_input_action_description_set`, `rohr_input_controller_create`.
+- `rohr_input_controller_description_default_get`, `rohr_input_controller_description_get`, `rohr_input_controller_description_set`.
+- `rohr_object_collision_description_get`, `rohr_object_collision_description_set`, `rohr_object_color_description_get`.
+- `rohr_object_color_description_set`, `rohr_object_description_by_name_get`, `rohr_object_force_description_set`.
+- `rohr_object_get`, `rohr_object_material_description_get`, `rohr_object_material_description_set`.
+- `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`.
+- `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
+- `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`, `rohr_physics_force_description_get`.
+- `rohr_physics_force_description_set`, `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`.
+- `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`.
+- `rohr_physics_joint_description_set`, `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`.
+- `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`.
+- `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`.
+- `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`.
+- `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`.
+- `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`.
+- `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`.
+- `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`.
+- `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`.
+- `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`.
+- `rohr_physics_torque_add`, `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
+- `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`, `rohr_screen_create`.
+- `rohr_screen_description_default_get`, `rohr_screen_description_get`, `rohr_screen_description_set`.
+- `rohr_viewport_camera_add`, `rohr_viewport_create`, `rohr_viewport_description_default_get`.
+- `rohr_viewport_description_get`, `rohr_viewport_description_set`, `rohr_viewport_item_add`.
+- `rohr_viewport_item_description_default_get`, `rohr_viewport_item_description_get`, `rohr_viewport_item_description_set`.
+- `rohr_viewport_screen_add`, `rohr_viewport_ui_add`, `rohr_viewport_ui_shape_add`.
+- `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_text_add`.
 
 **EV — Focused/basic-value mutation or lookup**
 

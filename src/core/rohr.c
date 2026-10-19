@@ -627,7 +627,7 @@ EngineResult rohr_graphics_start(void) { return graphics_start(); }
 void rohr_graphics_stop(void) { graphics_stop(); }
 bool rohr_graphics_events_poll(SDL_Event *event) { return graphics_events_poll(event); }
 void rohr_graphics_background_draw(Color color) { graphics_background_draw(color); }
-GraphicsLayerIdResult rohr_graphics_layer_create(const char *name, int value) { return graphics_layer_create(name, value); }
+GraphicsLayerIdResult rohr_graphics_layer_create(LayerDescription description) { return graphics_layer_create(description); }
 EngineResult rohr_graphics_layer_destroy(GraphicsLayerId layer) { return graphics_layer_destroy(layer); }
 EngineResult rohr_graphics_layer_set(GraphicsLayerId layer, int value) { return graphics_layer_set(layer, value); }
 GraphicsLayerValueResult rohr_graphics_layer_get(GraphicsLayerId layer) { return graphics_layer_get(layer); }
@@ -792,35 +792,35 @@ EngineResult rohr_camera_entity_attachment_set(CameraId camera, Entity entity) {
 EngineResult rohr_camera_moving_get(CameraId camera) { return graphics_camera_moving_get(camera); }
 EngineResult rohr_camera_zoom_set(CameraId camera, float zoom, Time duration) { return graphics_camera_zoom_set(camera, zoom, duration); }
 CameraZoomResult rohr_camera_zoom_get(CameraId camera) { return graphics_camera_zoom_get(camera); }
-ViewportConfig rohr_viewport_config_default_get(void) { return graphics_viewport_config_default_get(); }
-ViewportItemConfig rohr_viewport_item_config_default_get(void) { return graphics_viewport_item_config_default_get(); }
-ScreenConfig rohr_screen_config_default_get(void) { return graphics_screen_config_default_get(); }
-ScreenIdResult rohr_screen_create(ScreenConfig config) { return graphics_screen_create(config); }
+ViewportDescription rohr_viewport_description_default_get(void) { return graphics_viewport_description_default_get(); }
+ViewportItemDescription rohr_viewport_item_description_default_get(void) { return graphics_viewport_item_description_default_get(); }
+ScreenDescription rohr_screen_description_default_get(void) { return graphics_screen_description_default_get(); }
+ScreenIdResult rohr_screen_create(ScreenDescription config) { return graphics_screen_create(config); }
 EngineResult rohr_screen_destroy(ScreenId screen) { return graphics_screen_destroy(screen); }
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera) { return graphics_screen_camera_set(screen, camera); }
-ViewportIdResult rohr_viewport_create(ViewportConfig config) { return graphics_viewport_create(config); }
+ViewportIdResult rohr_viewport_create(ViewportDescription config) { return graphics_viewport_create(config); }
 EngineResult rohr_viewport_destroy(ViewportId viewport) { return graphics_viewport_destroy(viewport); }
-ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemConfig config) { return graphics_viewport_camera_add(viewport, camera, config); }
-ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemConfig config) { return graphics_viewport_screen_add(viewport, screen, config); }
-GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape) { return graphics_ui_shape_create(shape); }
-GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text) { return graphics_ui_text_create(text); }
-GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderConfig slider) { return graphics_ui_slider_create(slider); }
-EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape) { return graphics_ui_shape_set(ui, shape); }
-GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui) { return graphics_ui_shape_get(ui); }
-EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text) { return graphics_ui_text_set(ui, text); }
-GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui) { return graphics_ui_text_get(ui); }
-EngineResult rohr_graphics_ui_slider_set(GraphicsUiId ui, ViewportUiSliderConfig slider) { return graphics_ui_slider_set(ui, slider); }
-GraphicsUiSliderResult rohr_graphics_ui_slider_get(GraphicsUiId ui) { return graphics_ui_slider_get(ui); }
+ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport, CameraId camera, ViewportItemDescription config) { return graphics_viewport_camera_add(viewport, camera, config); }
+ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport, ScreenId screen, ViewportItemDescription config) { return graphics_viewport_screen_add(viewport, screen, config); }
+GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeDescription shape) { return graphics_ui_shape_create(shape); }
+GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextDescription text) { return graphics_ui_text_create(text); }
+GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderDescription slider) { return graphics_ui_slider_create(slider); }
+EngineResult rohr_graphics_ui_shape_description_set(GraphicsUiId ui, ViewportUiShapeDescription shape) { return graphics_ui_shape_description_set(ui, shape); }
+ViewportUiShapeDescriptionResult rohr_graphics_ui_shape_description_get(GraphicsUiId ui) { return graphics_ui_shape_description_get(ui); }
+EngineResult rohr_graphics_ui_text_description_set(GraphicsUiId ui, ViewportUiTextDescription text) { return graphics_ui_text_description_set(ui, text); }
+ViewportUiTextDescriptionResult rohr_graphics_ui_text_description_get(GraphicsUiId ui) { return graphics_ui_text_description_get(ui); }
+EngineResult rohr_graphics_ui_slider_description_set(GraphicsUiId ui, ViewportUiSliderDescription slider) { return graphics_ui_slider_description_set(ui, slider); }
+ViewportUiSliderDescriptionResult rohr_graphics_ui_slider_description_get(GraphicsUiId ui) { return graphics_ui_slider_description_get(ui); }
 EngineResult rohr_graphics_ui_slider_value_set(GraphicsUiId ui, float value) { return graphics_ui_slider_value_set(ui, value); }
 GraphicsUiSliderValueResult rohr_graphics_ui_slider_value_get(GraphicsUiId ui) { return graphics_ui_slider_value_get(ui); }
 EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui) { return graphics_ui_destroy(ui); }
-ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport, GraphicsUiId ui, ViewportItemConfig config) { return graphics_viewport_ui_add(viewport, ui, config); }
-ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport, ViewportUiShapeConfig shape, ViewportItemConfig config) { return graphics_viewport_ui_shape_add(viewport, shape, config); }
-ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport, ViewportUiTextConfig text, ViewportItemConfig config) { return graphics_viewport_ui_text_add(viewport, text, config); }
-ViewportItemIdResult rohr_viewport_ui_slider_add(ViewportId viewport, ViewportUiSliderConfig slider, ViewportItemConfig config) { return graphics_viewport_ui_slider_add(viewport, slider, config); }
+ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport, GraphicsUiId ui, ViewportItemDescription config) { return graphics_viewport_ui_add(viewport, ui, config); }
+ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport, ViewportUiShapeDescription shape, ViewportItemDescription config) { return graphics_viewport_ui_shape_add(viewport, shape, config); }
+ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport, ViewportUiTextDescription text, ViewportItemDescription config) { return graphics_viewport_ui_text_add(viewport, text, config); }
+ViewportItemIdResult rohr_viewport_ui_slider_add(ViewportId viewport, ViewportUiSliderDescription slider, ViewportItemDescription config) { return graphics_viewport_ui_slider_add(viewport, slider, config); }
 EngineResult rohr_viewport_item_remove(ViewportItemId item) { return graphics_viewport_item_remove(item); }
-EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config) { return graphics_viewport_item_set(item, config); }
-ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item) { return graphics_viewport_item_get(item); }
+EngineResult rohr_viewport_item_description_set(ViewportItemId item, ViewportItemDescription config) { return graphics_viewport_item_description_set(item, config); }
+ViewportItemDescriptionResult rohr_viewport_item_description_get(ViewportItemId item) { return graphics_viewport_item_description_get(item); }
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item) { return graphics_viewport_item_viewport_get(item); }
 bool rohr_viewport_ui_hovered_check(ViewportItemId item) { return graphics_viewport_ui_hovered_check(item); }
 bool rohr_viewport_ui_pressed_check(ViewportItemId item) { return graphics_viewport_ui_pressed_check(item); }
@@ -1121,3 +1121,25 @@ InputControllerDescriptionResult rohr_input_controller_description_get(InputCont
 InputActionDescription rohr_input_action_description_default_get(void) { return input_action_description_default_get(); }
 EngineResult rohr_input_action_description_set(InputActionId action, InputActionDescription description) { return input_action_description_set(action, description); }
 InputActionDescriptionResult rohr_input_action_description_get(InputActionId action) { return input_action_description_get(action); }
+
+LayerDescription rohr_graphics_layer_description_default_get(void) { return graphics_layer_description_default_get(); }
+
+EngineResult rohr_graphics_layer_description_set(GraphicsLayerId layer, LayerDescription description) { return graphics_layer_description_set(layer, description); }
+
+LayerDescriptionResult rohr_graphics_layer_description_get(GraphicsLayerId layer) { return graphics_layer_description_get(layer); }
+
+EngineResult rohr_screen_description_set(ScreenId screen, ScreenDescription description) { return graphics_screen_description_set(screen, description); }
+
+ScreenDescriptionResult rohr_screen_description_get(ScreenId screen) { return graphics_screen_description_get(screen); }
+
+EngineResult rohr_viewport_description_set(ViewportId viewport, ViewportDescription description) { return graphics_viewport_description_set(viewport, description); }
+
+ViewportDescriptionResult rohr_viewport_description_get(ViewportId viewport) { return graphics_viewport_description_get(viewport); }
+
+ViewportItemIdResult rohr_viewport_item_add(ViewportId viewport, ViewportItemDescription description) { return graphics_viewport_item_add(viewport, description); }
+
+ViewportUiShapeDescription rohr_graphics_ui_shape_description_default_get(void) { return graphics_ui_shape_description_default_get(); }
+
+ViewportUiTextDescription rohr_graphics_ui_text_description_default_get(void) { return graphics_ui_text_description_default_get(); }
+
+ViewportUiSliderDescription rohr_graphics_ui_slider_description_default_get(void) { return graphics_ui_slider_description_default_get(); }

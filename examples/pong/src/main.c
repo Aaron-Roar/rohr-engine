@@ -389,12 +389,12 @@ int main(void) {
         right_camera = camera_result.result.value;
     }
     {
-        ViewportConfig config = rohr_viewport_config_default_get();
+        ViewportDescription config = rohr_viewport_description_default_get();
         ViewportIdResult result;
-        ScreenConfig screen_config = rohr_screen_config_default_get();
+        ScreenDescription screen_config = rohr_screen_description_default_get();
         ScreenIdResult screen_result;
-        ViewportItemConfig left_item = rohr_viewport_item_config_default_get();
-        ViewportItemConfig right_item = rohr_viewport_item_config_default_get();
+        ViewportItemDescription left_item = rohr_viewport_item_description_default_get();
+        ViewportItemDescription right_item = rohr_viewport_item_description_default_get();
         float viewport_width = WINDOW_WIDTH * 0.5f;
         float scale = WINDOW_HEIGHT / field_camera_height;
         float displayed_width = field_camera_width * scale;

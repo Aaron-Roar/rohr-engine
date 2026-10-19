@@ -336,7 +336,7 @@ The public ownership shape follows existing naming conventions:
 - Text keeps `graphics_text_create`, `graphics_text_value_set`, and
   `graphics_text_destroy`, adds `graphics_text_valid_check`, and makes destroy a
   result-returning, pointer-consuming operation. There is intentionally no text
-  retain API. Persistent `ViewportUiTextConfig` values carry a `TextAsset`
+  retain API. Persistent `ViewportUiTextDescription` values carry a `TextAsset`
   handle value instead of a caller-owned pointer; zero means no text, and UI
   creation or replacement acquires the private dependency.
 - Sound and music keep their existing create, playback, mutation, and query

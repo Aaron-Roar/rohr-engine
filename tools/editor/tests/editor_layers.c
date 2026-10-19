@@ -613,7 +613,7 @@ static bool soft_area_picking_check(void) {
 bool editor_layers_check(void) {
     OK(rohr_engine_start());
     OK(rohr_graphics_start());
-    ViewportConfig config = rohr_viewport_config_default_get();
+    ViewportDescription config = rohr_viewport_description_default_get();
     ViewportIdResult viewport = rohr_viewport_create(config);
     CHECK(!rohr_error_check(viewport));
     OK(rohr_viewport_camera_clear(viewport.result.value));

@@ -172,8 +172,8 @@ API redesign is part of this milestone.
 | `Camera`, `CameraDescription` | `orientation` |
 | `CameraAttachmentDescription` | `orientation_offset` |
 | `Sprite`, `AnimatedSprite` | `orientation_offset` |
-| `ViewportItemConfig` | `orientation`, `content_orientation` |
-| `ViewportUiTextConfig`, `ViewportUiShapeConfig` | `orientation` |
+| `ViewportItemDescription` | `orientation`, `content_orientation` |
+| `ViewportUiTextDescription`, `ViewportUiShapeDescription` | `orientation` |
 | `UISliderConfig` | `angle` |
 | `EditorRigidBody`, `EditorSoftBody` | `rotation`, `initial_angular_velocity` |
 | `EditorAnchor` | `rotation` |

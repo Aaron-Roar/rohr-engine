@@ -148,7 +148,7 @@ static void description_checks(void) {
     assert(graphics_font_assets_stats_get().owner_references == 1);
     assert(graphics_text_description_get(text).result.value.wrap_width == 45);
     assert(text.size.y > 18);
-    GraphicsUiIdResult ui = rohr_graphics_ui_text_create((ViewportUiTextConfig){
+    GraphicsUiIdResult ui = rohr_graphics_ui_text_create((ViewportUiTextDescription){
         .text = text, .scale = {1, 1}});
     assert(!rohr_error_check(ui));
     assert(rohr_graphics_text_draw(&text, (Position){0}));
@@ -162,7 +162,7 @@ static void description_checks(void) {
     Scale size;
     assert(graphics_text_internal_size_get(handle, &size));
     assert(size.x == text.size.x && size.y == text.size.y);
-    assert(rohr_graphics_ui_text_get(ui.result.value).result.value.text.handle == handle);
+    assert(rohr_graphics_ui_text_description_get(ui.result.value).result.value.text.handle == handle);
     rohr_graphics_show();
     assert(!rohr_graphics_font_valid_check(old_font));
     TextAsset stale = text;
@@ -188,7 +188,7 @@ int main(void) {
     TextAsset zero = {0};
     GraphicsUiIdResult ui;
     GraphicsUiIdResult shape_ui;
-    GraphicsUiTextResult ui_value;
+    ViewportUiTextDescriptionResult ui_value;
     TextHandle expired;
     Scale previous_size;
     bool engine_started = false;
@@ -256,24 +256,24 @@ int main(void) {
 
     first = rohr_graphics_text_create((TextDescription){.font = default_font, .value = "ui owner", .color = (Color){255, 255, 255, 255}});
     second = rohr_graphics_text_create((TextDescription){.font = default_font, .value = "replacement", .color = (Color){255, 255, 255, 255}});
-    ui = rohr_graphics_ui_text_create((ViewportUiTextConfig){
+    ui = rohr_graphics_ui_text_create((ViewportUiTextDescription){
         .text = first.result.value, .scale = {1.0f, 1.0f}});
     if(rohr_error_check(first) || rohr_error_check(second) ||
             rohr_error_check(ui) ||
             !stats_check(2, 2, 1, 2, 0, "ui dependency"))
         return fail("persistent UI did not acquire text", true, true);
-    if(rohr_error_check(rohr_graphics_ui_text_set(ui.result.value,
-                (ViewportUiTextConfig){.text = second.result.value,
+    if(rohr_error_check(rohr_graphics_ui_text_description_set(ui.result.value,
+                (ViewportUiTextDescription){.text = second.result.value,
                     .scale = {1.0f, 1.0f}})) ||
             !stats_check(2, 2, 1, 2, 0, "ui replacement"))
         return fail("persistent UI replacement failed", true, true);
-    ui_value = rohr_graphics_ui_text_get(ui.result.value);
+    ui_value = rohr_graphics_ui_text_description_get(ui.result.value);
     if(rohr_error_check(ui_value) ||
             ui_value.result.value.text.handle != second.result.value.handle ||
-            !rohr_error_check(rohr_graphics_ui_text_set(ui.result.value,
-                (ViewportUiTextConfig){.text = invalid,
+            !rohr_error_check(rohr_graphics_ui_text_description_set(ui.result.value,
+                (ViewportUiTextDescription){.text = invalid,
                     .scale = {1.0f, 1.0f}})) ||
-            rohr_graphics_ui_text_get(ui.result.value).result.value.text.handle !=
+            rohr_graphics_ui_text_description_get(ui.result.value).result.value.text.handle !=
                 second.result.value.handle ||
             !stats_check(2, 2, 1, 2, 0, "failed UI replacement"))
         return fail("persistent UI getter did not return borrowed text", true, true);
@@ -288,7 +288,7 @@ int main(void) {
         return fail("persistent UI dependency cleanup failed", true, true);
 
     first = rohr_graphics_text_create((TextDescription){.font = default_font, .value = "shape label", .color = (Color){255, 255, 255, 255}});
-    shape_ui = rohr_graphics_ui_shape_create((ViewportUiShapeConfig){
+    shape_ui = rohr_graphics_ui_shape_create((ViewportUiShapeDescription){
         .shape = {.amount_of_vertices = 3,
             .vertices = {{0.0f, 0.0f}, {10.0f, 0.0f}, {0.0f, 10.0f}}},
         .text = {.text = first.result.value, .scale = {1.0f, 1.0f}}});
@@ -327,7 +327,7 @@ int main(void) {
             zero.handle != TEXT_HANDLE_INVALID ||
             rohr_graphics_text_valid_check(stale))
         return fail("zero or stale destruction contract failed", true, true);
-    ui = rohr_graphics_ui_text_create((ViewportUiTextConfig){
+    ui = rohr_graphics_ui_text_create((ViewportUiTextDescription){
         .text = stale, .scale = {1.0f, 1.0f}});
     if(!rohr_error_check(ui) || !stats_check(0, 0, 0, 0, 0,
             "stale UI rejection"))
@@ -337,7 +337,7 @@ int main(void) {
         return fail("text generation did not advance", true, true);
 
     shutdown_stale = first.result.value;
-    ui = rohr_graphics_ui_text_create((ViewportUiTextConfig){
+    ui = rohr_graphics_ui_text_create((ViewportUiTextDescription){
         .text = first.result.value, .scale = {1.0f, 1.0f}});
     if(rohr_error_check(ui) ||
             !rohr_graphics_text_draw(&first.result.value, (Position){0}) ||

@@ -322,7 +322,7 @@ int main(void) {
     OK(rohr_engine_start()); OK(rohr_graphics_start());
     OK(rohr_graphics_vsync_set(false)); OK(rohr_graphics_frame_limit_set(1000));
     CameraId camera=rohr_camera_active_get();
-    ViewportIdResult viewport=rohr_viewport_create(rohr_viewport_config_default_get()); OK(viewport);
+    ViewportIdResult viewport=rohr_viewport_create(rohr_viewport_description_default_get()); OK(viewport);
     OK(rohr_viewport_camera_set(viewport.result.value,camera));
     OK(rohr_viewport_enable_set(viewport.result.value));
     OK(rohr_camera_render_callback_set(camera,render,NULL));

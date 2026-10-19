@@ -43,24 +43,24 @@ static EngineResult initialize(void *context) {
     OK(input_text_start()); OK(input_text_area_set((SDL_Rect){10, 20, 60, 30}, 4));
     OK(input_mouse_relative_mode_set(true));
     static unsigned indices[] = {0, 1};
-    ViewportIdResult viewport = graphics_viewport_create((ViewportConfig){.rectangle = {0, 0, 320, 180}, .background_color = {1,2,3,255}});
+    ViewportIdResult viewport = graphics_viewport_create((ViewportDescription){.rectangle = {0, 0, 320, 180}, .background_color = {1,2,3,255}});
     OK(viewport); OK(graphics_viewport_enable_set(viewport.result.value));
     for(unsigned i = 0; i < 2; ++i) {
         CameraIdResult camera = graphics_camera_create(graphics_camera_description_default_get()); OK(camera);
         OK(graphics_camera_render_callback_set(camera.result.value, camera_draw, &indices[i]));
-        ScreenIdResult screen = graphics_screen_create((ScreenConfig){camera.result.value, 160, 180}); OK(screen);
+        ScreenIdResult screen = graphics_screen_create((ScreenDescription){camera.result.value, 160, 180}); OK(screen);
         ViewportItemIdResult item = graphics_viewport_screen_add(viewport.result.value, screen.result.value,
-            (ViewportItemConfig){.rectangle = {i ? 160 : -10, 0, i ? 145 : 170, 180}, .fit = SCREEN_FIT_STRETCH,
+            (ViewportItemDescription){.rectangle = {i ? 160 : -10, 0, i ? 145 : 170, 180}, .fit = SCREEN_FIT_STRETCH,
                 .orientation = i ? 15 : 0, .layer = i ? 2 : 0, .visible = true}); OK(item);
     }
-    ViewportUiShapeConfig shape = {.shape = {.amount_of_vertices = 4,
+    ViewportUiShapeDescription shape = {.shape = {.amount_of_vertices = 4,
         .vertices = {{0,0}, {40,0}, {40,30}, {0,30}}}, .position = {0,0},
         .fill_color = {20, 40, 180, 255}, .button_enabled = true,
         .hover_fill_color = {20,40,180,255}, .click_fill_color = {20,40,180,255}};
     ViewportItemIdResult ui = graphics_viewport_ui_shape_add(viewport.result.value, shape,
-        (ViewportItemConfig){.rectangle = {10,10,40,30}, .layer = 3, .visible = true}); OK(ui); button = ui.result.value;
+        (ViewportItemDescription){.rectangle = {10,10,40,30}, .layer = 3, .visible = true}); OK(ui); button = ui.result.value;
     ui = graphics_viewport_ui_shape_add(viewport.result.value, shape,
-        (ViewportItemConfig){.rectangle = {130,90,40,30}, .layer = 1, .visible = true}); OK(ui);
+        (ViewportItemDescription){.rectangle = {130,90,40,30}, .layer = 1, .visible = true}); OK(ui);
     puts("INITIALIZED");
     if(!strcmp(mode, "logs")) for(unsigned i = 0; i < 8192; ++i) puts("bounded log overflow fixture");
     return error_result_value(true);

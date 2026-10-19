@@ -1783,7 +1783,7 @@ bool rohr_graphics_events_poll(SDL_Event *event);
  */
 void rohr_graphics_background_draw(Color color);
 
-GraphicsLayerIdResult rohr_graphics_layer_create(const char *name, int value);
+GraphicsLayerIdResult rohr_graphics_layer_create(LayerDescription description);
 EngineResult rohr_graphics_layer_destroy(GraphicsLayerId layer);
 EngineResult rohr_graphics_layer_set(GraphicsLayerId layer, int value);
 GraphicsLayerValueResult rohr_graphics_layer_get(GraphicsLayerId layer);
@@ -2257,42 +2257,58 @@ EngineResult rohr_camera_moving_get(CameraId camera);
 EngineResult rohr_camera_zoom_set(CameraId camera, float zoom, Time duration);
 CameraZoomResult rohr_camera_zoom_get(CameraId camera);
 
-ViewportConfig rohr_viewport_config_default_get(void);
-ViewportItemConfig rohr_viewport_item_config_default_get(void);
-ScreenConfig rohr_screen_config_default_get(void);
-ScreenIdResult rohr_screen_create(ScreenConfig config);
+LayerDescription rohr_graphics_layer_description_default_get(void);
+EngineResult rohr_graphics_layer_description_set(GraphicsLayerId layer, LayerDescription description);
+LayerDescriptionResult rohr_graphics_layer_description_get(GraphicsLayerId layer);
+EngineResult rohr_screen_description_set(ScreenId screen, ScreenDescription description);
+ScreenDescriptionResult rohr_screen_description_get(ScreenId screen);
+EngineResult rohr_viewport_description_set(ViewportId viewport, ViewportDescription description);
+ViewportDescriptionResult rohr_viewport_description_get(ViewportId viewport);
+/** Mount exactly one existing screen or UI reference without transferring ownership.
+ * Full item replacement preserves the handle, acquiring new dependencies before release.
+ * Content replacement, hiding, or disabling cancels incompatible pointer interaction. */
+ViewportItemIdResult rohr_viewport_item_add(ViewportId viewport, ViewportItemDescription description);
+ViewportUiShapeDescription rohr_graphics_ui_shape_description_default_get(void);
+ViewportUiTextDescription rohr_graphics_ui_text_description_default_get(void);
+ViewportUiSliderDescription rohr_graphics_ui_slider_description_default_get(void);
+ViewportDescription rohr_viewport_description_default_get(void);
+ViewportItemDescription rohr_viewport_item_description_default_get(void);
+/** Defaults use the active camera and window dimensions. Zero dimensions normalize;
+ * negative dimensions and unavailable cameras fail without mutation. */
+ScreenDescription rohr_screen_description_default_get(void);
+ScreenIdResult rohr_screen_create(ScreenDescription config);
 EngineResult rohr_screen_destroy(ScreenId screen);
 EngineResult rohr_screen_camera_set(ScreenId screen, CameraId camera);
-ViewportIdResult rohr_viewport_create(ViewportConfig config);
+ViewportIdResult rohr_viewport_create(ViewportDescription config);
 EngineResult rohr_viewport_destroy(ViewportId viewport);
 ViewportItemIdResult rohr_viewport_camera_add(ViewportId viewport,
-    CameraId camera, ViewportItemConfig config);
+    CameraId camera, ViewportItemDescription config);
 ViewportItemIdResult rohr_viewport_screen_add(ViewportId viewport,
-    ScreenId screen, ViewportItemConfig config);
-GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeConfig shape);
-GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextConfig text);
-GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderConfig slider);
-EngineResult rohr_graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
-GraphicsUiShapeResult rohr_graphics_ui_shape_get(GraphicsUiId ui);
-EngineResult rohr_graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
-GraphicsUiTextResult rohr_graphics_ui_text_get(GraphicsUiId ui);
-EngineResult rohr_graphics_ui_slider_set(GraphicsUiId ui,
-    ViewportUiSliderConfig slider);
-GraphicsUiSliderResult rohr_graphics_ui_slider_get(GraphicsUiId ui);
+    ScreenId screen, ViewportItemDescription config);
+GraphicsUiIdResult rohr_graphics_ui_shape_create(ViewportUiShapeDescription shape);
+GraphicsUiIdResult rohr_graphics_ui_text_create(ViewportUiTextDescription text);
+GraphicsUiIdResult rohr_graphics_ui_slider_create(ViewportUiSliderDescription slider);
+EngineResult rohr_graphics_ui_shape_description_set(GraphicsUiId ui, ViewportUiShapeDescription shape);
+ViewportUiShapeDescriptionResult rohr_graphics_ui_shape_description_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_text_description_set(GraphicsUiId ui, ViewportUiTextDescription text);
+ViewportUiTextDescriptionResult rohr_graphics_ui_text_description_get(GraphicsUiId ui);
+EngineResult rohr_graphics_ui_slider_description_set(GraphicsUiId ui,
+    ViewportUiSliderDescription slider);
+ViewportUiSliderDescriptionResult rohr_graphics_ui_slider_description_get(GraphicsUiId ui);
 EngineResult rohr_graphics_ui_slider_value_set(GraphicsUiId ui, float value);
 GraphicsUiSliderValueResult rohr_graphics_ui_slider_value_get(GraphicsUiId ui);
 EngineResult rohr_graphics_ui_destroy(GraphicsUiId ui);
 ViewportItemIdResult rohr_viewport_ui_add(ViewportId viewport,
-    GraphicsUiId ui, ViewportItemConfig config);
+    GraphicsUiId ui, ViewportItemDescription config);
 ViewportItemIdResult rohr_viewport_ui_shape_add(ViewportId viewport,
-    ViewportUiShapeConfig shape, ViewportItemConfig config);
+    ViewportUiShapeDescription shape, ViewportItemDescription config);
 ViewportItemIdResult rohr_viewport_ui_text_add(ViewportId viewport,
-    ViewportUiTextConfig text, ViewportItemConfig config);
+    ViewportUiTextDescription text, ViewportItemDescription config);
 ViewportItemIdResult rohr_viewport_ui_slider_add(ViewportId viewport,
-    ViewportUiSliderConfig slider, ViewportItemConfig config);
+    ViewportUiSliderDescription slider, ViewportItemDescription config);
 EngineResult rohr_viewport_item_remove(ViewportItemId item);
-EngineResult rohr_viewport_item_set(ViewportItemId item, ViewportItemConfig config);
-ViewportItemConfigResult rohr_viewport_item_get(ViewportItemId item);
+EngineResult rohr_viewport_item_description_set(ViewportItemId item, ViewportItemDescription config);
+ViewportItemDescriptionResult rohr_viewport_item_description_get(ViewportItemId item);
 ViewportIdResult rohr_viewport_item_viewport_get(ViewportItemId item);
 bool rohr_viewport_ui_hovered_check(ViewportItemId item);
 bool rohr_viewport_ui_pressed_check(ViewportItemId item);

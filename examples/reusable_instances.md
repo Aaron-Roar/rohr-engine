@@ -42,8 +42,8 @@ if(rohr_error_check(project_viewports_create(&viewports, &objects))) return 1;
 
 /* Each mount has its own mutable visual resource and placement handle. */
 (void)rohr_graphics_ui_slider_value_set(viewports.ui_elements[0], 75.0f);
-(void)rohr_viewport_item_set(viewports.ui_items[0],
-    (ViewportItemConfig){.rectangle = {40.0f, 40.0f, 0.0f, 0.0f},
+(void)rohr_viewport_item_description_set(viewports.ui_items[0],
+    (ViewportItemDescription){.rectangle = {40.0f, 40.0f, 0.0f, 0.0f},
         .content_scale = {1.0f, 1.0f}, .visible = true});
 ```
 

@@ -7,7 +7,7 @@
 bool example_viewport_create(CameraRenderCallback callback, void *context,
         ViewportId *viewport) {
     CameraId camera;
-    ViewportConfig config;
+    ViewportDescription config;
     ViewportIdResult created;
 
     if(callback == NULL || viewport == NULL) return false;
@@ -15,7 +15,7 @@ bool example_viewport_create(CameraRenderCallback callback, void *context,
     camera = rohr_camera_active_get();
     if(camera == CAMERA_INVALID || rohr_error_check(
             rohr_camera_render_callback_set(camera, callback, context))) return false;
-    config = rohr_viewport_config_default_get();
+    config = rohr_viewport_description_default_get();
     config.rectangle = (ViewportRectangle){0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT};
     created = rohr_viewport_create(config);
     if(rohr_error_check(created)) return false;

@@ -2396,7 +2396,7 @@ int main(int argc, char **argv) {
     editor_window_layout_sync();
     {
         startup_stage = "editor viewport creation";
-        ViewportConfig config = rohr_viewport_config_default_get();
+        ViewportDescription config = rohr_viewport_description_default_get();
         ViewportIdResult result;
 
         config.rectangle = (ViewportRectangle){

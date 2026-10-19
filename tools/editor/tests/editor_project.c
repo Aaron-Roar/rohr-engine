@@ -714,7 +714,7 @@ int main(void) {
                 !file_contains(path, ".thumb_shape=1") ||
                 !file_contains(path, ".thumb_radius=14.00000000f") ||
                 !file_contains(path, ".thumb_offset=-18.00000000f") ||
-                !file_contains(path, "rohr_graphics_layer_create(\"hud\", 500)") ||
+                !file_contains(path, "rohr_graphics_layer_create((LayerDescription){.name = \"hud\", .value = 500})") ||
                 !file_contains(path, "rohr_graphics_layer_ui_id_set") ||
                 !file_contains(path, "rohr_graphics_layer_entity_id_set") ||
                 !file_contains(path, ".drag_mode=1") ||

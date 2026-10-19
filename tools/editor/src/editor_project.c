@@ -956,7 +956,7 @@ EditorLayoutViewport *editor_project_layout_viewport_add(EditorProject *project)
     viewport = &project->layout_viewports[project->layout_viewport_count++];
     *viewport = (EditorLayoutViewport){
         .id = project->next_layout_viewport_id++,
-        .config = rohr_viewport_config_default_get(),
+        .config = rohr_viewport_description_default_get(),
         .background_color = 0x000000FFu,
         .enabled = true,
     };
@@ -1070,7 +1070,7 @@ EditorViewportCameraItem *editor_viewport_camera_add(EditorProject *project,
         .id = project->next_viewport_camera_item_id++,
         .object = object_id,
         .camera = camera_id,
-        .placement = rohr_viewport_item_config_default_get(),
+        .placement = rohr_viewport_item_description_default_get(),
         .content_scale = {1.0f, 1.0f},
     };
     item->placement.rectangle.width = viewport->config.rectangle.width;

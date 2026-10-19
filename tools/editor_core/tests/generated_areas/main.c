@@ -33,7 +33,7 @@ int main(void) {
     /* Draw both generated instances through a real viewport/screen. */
     CameraIdResult camera = rohr_camera_create(rohr_camera_description_default_get());
     OK(camera);
-    ViewportIdResult viewport = rohr_viewport_create(rohr_viewport_config_default_get());
+    ViewportIdResult viewport = rohr_viewport_create(rohr_viewport_description_default_get());
     OK(viewport);
     OK(rohr_viewport_camera_set(viewport.result.value, camera.result.value));
     project_objects_draw_all(&objects);

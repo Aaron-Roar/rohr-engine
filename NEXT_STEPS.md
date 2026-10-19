@@ -239,10 +239,34 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
     documentation links. Native Windows execution, desktop fullscreen recovery,
     and real editor/application visual review remain unverified. Stop for review
     before Goal 11.
-11. [ ] **Complete screen, viewport, layer, and persistent UI descriptions** —
-    Standardize types and missing full accessors, including mount content and
-    placement. Preserve handles, children, composition, dependencies, and
-    unrelated interaction state. Immediate-mode UI remains outside scope.
+11. [x] **Complete screen, viewport, layer, and persistent UI descriptions** —
+    Standardized creation/default/full accessors and description result types,
+    including `LayerDescription` and viewport enable state. Layer renaming keeps
+    identities and assignments; duplicate names fail atomically. Screen resizing
+    prepares resources before publishing and preserves all mounts. Item descriptions
+    include screen/UI references, placement, clipping, and named-layer bindings;
+    replacement can switch content kinds without replacing the item or viewport.
+    Mount existing content with `viewport_item_add`,
+    paired with `viewport_item_remove`; viewport allocation retains `viewport_create`.
+    Automatically created UI remains alive until its final shared mount is removed.
+    Unchanged text dependencies remain usable after public-owner destruction.
+    Appearance edits preserve live slider values and compatible pointer captures;
+    hiding, disabling, and content replacement cancel incompatible interaction.
+    Migrated callers, generated modules, editor references, examples, and docs;
+    immediate-mode UI remains unchanged. Verified all 102 native tests, six
+    ASan/UBSan/leak checks, Linux and Windows cross-builds, twelve independent
+    installed-SDK examples on both platforms with Linux launches, and the new SDK
+    consumer. Regenerated center-of-mass/player-controller modules match checked-in
+    output and build on both platforms without changing their mains. External
+    scene hosting, two-second force toggling, and application launch pass with its
+    custom main unchanged. Standard builds are warning-free; strict audits retain
+    existing graphics macro/indentation warnings and Pong's unused generated helper.
+    Reconciled 1,602 installed-header entries and three exempt Config names.
+    The final mounting-name refinement passes five focused native tests, the
+    viewport sanitizer test, full Linux/Windows builds, installed-SDK consumers
+    on both platforms, and a rebuilt viewport example with Linux execution.
+    Native Windows execution and real editor/application visual review remain
+    unverified. Stop for review before Goal 12.
 12. [ ] **Finish migration and verify coverage** — Reconcile all headers and
     documentation, regenerate/build affected examples and starter projects,
     and verify installed SDKs. Preserve the external example's explicit main

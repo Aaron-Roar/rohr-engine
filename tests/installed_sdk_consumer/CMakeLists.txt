@@ -96,3 +96,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         -Wl,--wrap=SDL_GetPerformanceCounter -Wl,--wrap=SDL_GetPerformanceFrequency
         -Wl,--wrap=SDL_SetRenderLogicalPresentation)
 endif()
+
+add_executable(rohr_viewport_descriptions ../viewport_descriptions.c)
+target_link_libraries(rohr_viewport_descriptions PRIVATE Rohr::Engine)
+if(NOT MSVC)
+    target_compile_options(rohr_viewport_descriptions PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_definitions(rohr_viewport_descriptions PRIVATE ROHR_TEST_VIEWPORT_WRAP)
+    target_link_options(rohr_viewport_descriptions PRIVATE
+        -Wl,--wrap=SDL_CreateTexture -Wl,--wrap=SDL_GetMouseState)
+endif()

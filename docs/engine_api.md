@@ -5787,6 +5787,28 @@ EngineResult rohr_camera_detach(CameraId camera);
 
  Explicitly detach, preserving the last resolved world view.
 
+### `rohr_viewport_item_add`
+
+```c
+ViewportItemIdResult rohr_viewport_item_add(ViewportId viewport, ViewportItemDescription description);
+```
+
+ Mount exactly one existing screen or UI reference without transferring ownership.
+
+Full item replacement preserves the handle, acquiring new dependencies before release.
+
+Content replacement, hiding, or disabling cancels incompatible pointer interaction.
+
+### `rohr_screen_description_default_get`
+
+```c
+ScreenDescription rohr_screen_description_default_get(void);
+```
+
+ Defaults use the active camera and window dimensions. Zero dimensions normalize;
+
+negative dimensions and unavailable cameras fail without mutation.
+
 ### `rohr_ui_input_set`
 
 ```c

@@ -39,12 +39,12 @@ static void runtime_check(EditorProject *p, bool draws) {
     CameraIdResult camera=rohr_entity_object_camera_get(camera_entity.result.value);
     assert(!rohr_error_check(camera));
     assert(!rohr_error_check(rohr_camera_render_callback_set(camera.result.value,render,&instance.result.value)));
-    ScreenIdResult screen=rohr_screen_create((ScreenConfig){camera.result.value,320,240});
+    ScreenIdResult screen=rohr_screen_create((ScreenDescription){camera.result.value,320,240});
     assert(!rohr_error_check(screen));
-    ViewportIdResult viewport=rohr_viewport_create((ViewportConfig){.rectangle={0,0,320,240}});
+    ViewportIdResult viewport=rohr_viewport_create((ViewportDescription){.rectangle={0,0,320,240}});
     assert(!rohr_error_check(viewport));
     assert(!rohr_error_check(rohr_viewport_screen_add(viewport.result.value,screen.result.value,
-        (ViewportItemConfig){.rectangle={0,0,320,240},.content_scale={1,1},.visible=true})));
+        (ViewportItemDescription){.rectangle={0,0,320,240},.content_scale={1,1},.visible=true})));
     assert(!rohr_error_check(rohr_viewport_enable_set(viewport.result.value)));
     frames=0; rohr_graphics_show(); assert((frames>0)==draws);
     assert(!rohr_error_check(rohr_viewport_destroy(viewport.result.value)));

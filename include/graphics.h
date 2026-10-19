@@ -156,13 +156,21 @@ typedef uint32_t ScreenId;
 #define GRAPHICS_LAYER_INVALID 0
 #define SCREEN_INVALID 0
 
-typedef struct ScreenConfig {
+/** A globally named render order. Names are copied on input and borrowed on get. */
+typedef struct LayerDescription {
+    const char *name;
+    int value;
+} LayerDescription;
+ERROR_DECLARE_RESULT_TYPE(LayerDescriptionResult, LayerDescription);
+
+typedef struct ScreenDescription {
     CameraId camera;
     int width;
     int height;
-} ScreenConfig;
+} ScreenDescription;
 
 ERROR_DECLARE_RESULT_TYPE(ScreenIdResult, ScreenId);
+ERROR_DECLARE_RESULT_TYPE(ScreenDescriptionResult, ScreenDescription);
 
 typedef enum ScreenFit {
     SCREEN_FIT_NONE,
@@ -180,17 +188,20 @@ typedef enum ViewportItemDragMode {
 
 ERROR_DECLARE_RESULT_TYPE(ViewportItemDragModeResult, ViewportItemDragMode);
 
-typedef struct ViewportConfig {
+typedef struct ViewportDescription {
     /** Window-space destination and clipping rectangle. */
     ViewportRectangle rectangle;
     /** How assigned screen content is fitted into the rectangle. */
     ScreenFit fit;
     /** Color drawn inside the viewport before its items are composed. */
     Color background_color;
-} ViewportConfig;
+    bool enabled;
+} ViewportDescription;
 
-/** Viewport-local placement of camera content. */
-typedef struct ViewportItemConfig {
+/** Mounted content and viewport-local placement. Exactly one content handle is required. */
+typedef struct ViewportItemDescription {
+    ScreenId screen;
+    GraphicsUiId ui;
     ViewportRectangle rectangle;
     ScreenFit fit;
     Orientation orientation;
@@ -198,6 +209,8 @@ typedef struct ViewportItemConfig {
     Scale content_scale;
     Orientation content_orientation;
     int layer;
+    /** A nonzero named layer takes precedence over the literal layer value. */
+    GraphicsLayerId layer_id;
     bool visible;
     /** Runtime pointer-drag constraint for mounted UI items. */
     ViewportItemDragMode drag_mode;
@@ -205,7 +218,7 @@ typedef struct ViewportItemConfig {
     bool clip_enabled;
     /** Viewport-local clip rectangle, independent from item placement. */
     ViewportRectangle clip_rectangle;
-} ViewportItemConfig;
+} ViewportItemDescription;
 
 typedef enum ViewportUiBorderType {
     VIEWPORT_UI_BORDER_LINE,
@@ -231,16 +244,16 @@ typedef struct TextAsset {
 /** Result type for functions that return a TextAsset. */
 ERROR_DECLARE_RESULT_TYPE(TextAssetResult, TextAsset);
 
-typedef struct ViewportUiTextConfig {
+typedef struct ViewportUiTextDescription {
     /** Borrowed on input; persistent UI acquires an internal dependency. */
     TextAsset text;
     Position position;
     Position offset;
     Scale scale;
     Orientation orientation;
-} ViewportUiTextConfig;
+} ViewportUiTextDescription;
 
-typedef struct ViewportUiShapeConfig {
+typedef struct ViewportUiShapeDescription {
     Shape shape;
     Position position;
     Orientation orientation;
@@ -256,8 +269,8 @@ typedef struct ViewportUiShapeConfig {
     Color hover_fill_color;
     Color click_border_color;
     Color click_fill_color;
-    ViewportUiTextConfig text;
-} ViewportUiShapeConfig;
+    ViewportUiTextDescription text;
+} ViewportUiShapeDescription;
 
 typedef enum ViewportUiSliderThumbShape {
     VIEWPORT_UI_SLIDER_THUMB_RECTANGLE,
@@ -265,7 +278,7 @@ typedef enum ViewportUiSliderThumbShape {
 } ViewportUiSliderThumbShape;
 
 /** Reusable viewport slider definition. Placement and rotation belong to its item. */
-typedef struct ViewportUiSliderConfig {
+typedef struct ViewportUiSliderDescription {
     float minimum;
     float maximum;
     float value;
@@ -284,15 +297,16 @@ typedef struct ViewportUiSliderConfig {
     Color hover_thumb_color;
     Color pressed_thumb_color;
     bool enabled;
-} ViewportUiSliderConfig;
+} ViewportUiSliderDescription;
 
 ERROR_DECLARE_RESULT_TYPE(ViewportIdResult, ViewportId);
+ERROR_DECLARE_RESULT_TYPE(ViewportDescriptionResult, ViewportDescription);
 ERROR_DECLARE_RESULT_TYPE(ViewportItemIdResult, ViewportItemId);
-ERROR_DECLARE_RESULT_TYPE(ViewportItemConfigResult, ViewportItemConfig);
+ERROR_DECLARE_RESULT_TYPE(ViewportItemDescriptionResult, ViewportItemDescription);
 ERROR_DECLARE_RESULT_TYPE(GraphicsUiIdResult, GraphicsUiId);
-ERROR_DECLARE_RESULT_TYPE(GraphicsUiShapeResult, ViewportUiShapeConfig);
-ERROR_DECLARE_RESULT_TYPE(GraphicsUiTextResult, ViewportUiTextConfig);
-ERROR_DECLARE_RESULT_TYPE(GraphicsUiSliderResult, ViewportUiSliderConfig);
+ERROR_DECLARE_RESULT_TYPE(ViewportUiShapeDescriptionResult, ViewportUiShapeDescription);
+ERROR_DECLARE_RESULT_TYPE(ViewportUiTextDescriptionResult, ViewportUiTextDescription);
+ERROR_DECLARE_RESULT_TYPE(ViewportUiSliderDescriptionResult, ViewportUiSliderDescription);
 ERROR_DECLARE_RESULT_TYPE(GraphicsUiSliderValueResult, float);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerIdResult, GraphicsLayerId);
 ERROR_DECLARE_RESULT_TYPE(GraphicsLayerValueResult, int);
@@ -557,7 +571,10 @@ bool graphics_events_poll(SDL_Event *event);
 void graphics_background_draw(Color color);
 
 /** Create a uniquely named layer. Different layers may share a numeric value. */
-GraphicsLayerIdResult graphics_layer_create(const char *name, int value);
+GraphicsLayerIdResult graphics_layer_create(LayerDescription description);
+LayerDescription graphics_layer_description_default_get(void);
+EngineResult graphics_layer_description_set(GraphicsLayerId layer, LayerDescription description);
+LayerDescriptionResult graphics_layer_description_get(GraphicsLayerId layer);
 EngineResult graphics_layer_destroy(GraphicsLayerId layer);
 EngineResult graphics_layer_set(GraphicsLayerId layer, int value);
 GraphicsLayerValueResult graphics_layer_get(GraphicsLayerId layer);
@@ -950,43 +967,57 @@ EngineResult graphics_camera_zoom_set(CameraId camera, float zoom, Time duration
 CameraZoomResult graphics_camera_zoom_get(CameraId camera);
 
 /** Return a disabled, full-window viewport using contain fitting. */
-ViewportConfig graphics_viewport_config_default_get(void);
-ViewportItemConfig graphics_viewport_item_config_default_get(void);
-ScreenConfig graphics_screen_config_default_get(void);
-ScreenIdResult graphics_screen_create(ScreenConfig config);
+ViewportDescription graphics_viewport_description_default_get(void);
+ViewportItemDescription graphics_viewport_item_description_default_get(void);
+/** Defaults use the active camera and window dimensions. Zero dimensions normalize;
+ * negative dimensions and unavailable cameras fail without mutation. */
+ScreenDescription graphics_screen_description_default_get(void);
+ScreenIdResult graphics_screen_create(ScreenDescription config);
+EngineResult graphics_screen_description_set(ScreenId screen, ScreenDescription description);
+ScreenDescriptionResult graphics_screen_description_get(ScreenId screen);
 EngineResult graphics_screen_destroy(ScreenId screen);
 EngineResult graphics_screen_camera_set(ScreenId screen, CameraId camera);
-ViewportIdResult graphics_viewport_create(ViewportConfig config);
+ViewportIdResult graphics_viewport_create(ViewportDescription config);
+EngineResult graphics_viewport_description_set(ViewportId viewport, ViewportDescription description);
+ViewportDescriptionResult graphics_viewport_description_get(ViewportId viewport);
+/** Mount exactly one existing screen or UI reference without transferring ownership.
+ * Full item replacement preserves the handle, acquiring new dependencies before release.
+ * Content replacement, hiding, or disabling cancels incompatible pointer interaction. */
+ViewportItemIdResult graphics_viewport_item_add(ViewportId viewport, ViewportItemDescription description);
 EngineResult graphics_viewport_destroy(ViewportId viewport);
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId viewport,
-    CameraId camera, ViewportItemConfig config);
+    CameraId camera, ViewportItemDescription config);
 ViewportItemIdResult graphics_viewport_screen_add(ViewportId viewport,
-    ScreenId screen, ViewportItemConfig config);
-GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape);
-GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text);
-GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider);
-EngineResult graphics_ui_shape_set(GraphicsUiId ui, ViewportUiShapeConfig shape);
-GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId ui);
-EngineResult graphics_ui_text_set(GraphicsUiId ui, ViewportUiTextConfig text);
-GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId ui);
-EngineResult graphics_ui_slider_set(GraphicsUiId ui, ViewportUiSliderConfig slider);
-GraphicsUiSliderResult graphics_ui_slider_get(GraphicsUiId ui);
+    ScreenId screen, ViewportItemDescription config);
+ViewportUiShapeDescription graphics_ui_shape_description_default_get(void);
+GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeDescription shape);
+ViewportUiTextDescription graphics_ui_text_description_default_get(void);
+GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextDescription text);
+ViewportUiSliderDescription graphics_ui_slider_description_default_get(void);
+GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderDescription slider);
+EngineResult graphics_ui_shape_description_set(GraphicsUiId ui, ViewportUiShapeDescription shape);
+ViewportUiShapeDescriptionResult graphics_ui_shape_description_get(GraphicsUiId ui);
+EngineResult graphics_ui_text_description_set(GraphicsUiId ui, ViewportUiTextDescription text);
+ViewportUiTextDescriptionResult graphics_ui_text_description_get(GraphicsUiId ui);
+EngineResult graphics_ui_slider_description_set(GraphicsUiId ui, ViewportUiSliderDescription slider);
+ViewportUiSliderDescriptionResult graphics_ui_slider_description_get(GraphicsUiId ui);
 EngineResult graphics_ui_slider_value_set(GraphicsUiId ui, float value);
 GraphicsUiSliderValueResult graphics_ui_slider_value_get(GraphicsUiId ui);
 EngineResult graphics_ui_destroy(GraphicsUiId ui);
 ViewportItemIdResult graphics_viewport_ui_add(ViewportId viewport,
-    GraphicsUiId ui, ViewportItemConfig config);
-/** Compatibility helpers that create a viewport-owned UI definition. */
+    GraphicsUiId ui, ViewportItemDescription config);
+/** Convenience creation: the new UI definition is automatically cleaned up after
+ * its final mount is removed or replaced, including additional shared mounts. */
 ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId viewport,
-    ViewportUiShapeConfig shape, ViewportItemConfig config);
+    ViewportUiShapeDescription shape, ViewportItemDescription config);
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId viewport,
-    ViewportUiTextConfig text, ViewportItemConfig config);
+    ViewportUiTextDescription text, ViewportItemDescription config);
 ViewportItemIdResult graphics_viewport_ui_slider_add(ViewportId viewport,
-    ViewportUiSliderConfig slider, ViewportItemConfig config);
+    ViewportUiSliderDescription slider, ViewportItemDescription config);
 EngineResult graphics_viewport_item_remove(ViewportItemId item);
-EngineResult graphics_viewport_item_set(ViewportItemId item,
-    ViewportItemConfig config);
-ViewportItemConfigResult graphics_viewport_item_get(ViewportItemId item);
+EngineResult graphics_viewport_item_description_set(ViewportItemId item,
+    ViewportItemDescription config);
+ViewportItemDescriptionResult graphics_viewport_item_description_get(ViewportItemId item);
 ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item);
 /** Return whether this mounted UI instance was hovered during its latest draw. */
 bool graphics_viewport_ui_hovered_check(ViewportItemId item);

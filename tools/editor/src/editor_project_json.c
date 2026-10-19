@@ -2639,7 +2639,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
         yyjson_val *overview_position = yyjson_obj_get(value, "overview_position");
         EditorLayoutViewport *viewport = &loaded.layout_viewports[i];
         uint32_t fit;
-        viewport->config = rohr_viewport_config_default_get();
+        viewport->config = rohr_viewport_description_default_get();
         viewport->background_color = 0x000000FFu;
         if(!yyjson_is_obj(value) ||
                 !editor_json_uint(value, "id", &viewport->id) || viewport->id == 0 ||

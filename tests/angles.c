@@ -226,16 +226,16 @@ static bool graphics_check(void) {
     CHECK(hit.hovered && hit.value > 0.8f);
     ui_update();
     graphics_show();
-    ViewportIdResult viewport=rohr_viewport_create((ViewportConfig){
+    ViewportIdResult viewport=rohr_viewport_create((ViewportDescription){
         .rectangle={0,0,1100,480},.background_color={0,0,0,255}});
     OK(viewport);
-    ScreenIdResult screen=rohr_screen_create((ScreenConfig){.camera=camera,.width=640,.height=480});
-    ScreenIdResult second=rohr_screen_create((ScreenConfig){.camera=camera,.width=640,.height=480});
+    ScreenIdResult screen=rohr_screen_create((ScreenDescription){.camera=camera,.width=640,.height=480});
+    ScreenIdResult second=rohr_screen_create((ScreenDescription){.camera=camera,.width=640,.height=480});
     OK(screen); OK(second);
     ViewportItemIdResult screen_item=rohr_viewport_screen_add(viewport.result.value,screen.result.value,
-        (ViewportItemConfig){.rectangle={0,0,660,480},.visible=true,.layer=0});
+        (ViewportItemDescription){.rectangle={0,0,660,480},.visible=true,.layer=0});
     ViewportItemIdResult second_item=rohr_viewport_screen_add(viewport.result.value,second.result.value,
-        (ViewportItemConfig){.rectangle={600,0,640,480},.orientation=90,.visible=true,.layer=2});
+        (ViewportItemDescription){.rectangle={600,0,640,480},.orientation=90,.visible=true,.layer=2});
     OK(screen_item); OK(second_item);
     OK(rohr_camera_render_callback_set(camera,rotation_scene_draw,NULL));
     OK(rohr_viewport_enable_set(viewport.result.value));
@@ -244,45 +244,45 @@ static bool graphics_check(void) {
     CHECK(red_pixel_check(430,220,true) && red_pixel_check(430,180,false));
     CHECK(red_pixel_check(940,140,true) && red_pixel_check(940,100,false));
     CHECK(red_pixel_check(1140,240,false));
-    ViewportItemConfig second_config=rohr_viewport_item_get(second_item.result.value).result.value;
+    ViewportItemDescription second_config=rohr_viewport_item_description_get(second_item.result.value).result.value;
     second_config.orientation=30; second_config.content_orientation=60;
-    OK(rohr_viewport_item_set(second_item.result.value,second_config));
+    OK(rohr_viewport_item_description_set(second_item.result.value,second_config));
     graphics_show(); CHECK(red_pixel_check(940,140,true));
     second_config.orientation=90; second_config.content_orientation=0;
     second_config.rectangle.x=520;
-    OK(rohr_viewport_item_set(second_item.result.value,second_config));
+    OK(rohr_viewport_item_description_set(second_item.result.value,second_config));
     graphics_show(); CHECK(red_pixel_check(1060,240,true));
     second_config.rectangle.x=600;
-    OK(rohr_viewport_item_set(second_item.result.value,second_config));
-    GraphicsUiIdResult shape=graphics_ui_shape_create((ViewportUiShapeConfig){
+    OK(rohr_viewport_item_description_set(second_item.result.value,second_config));
+    GraphicsUiIdResult shape=graphics_ui_shape_create((ViewportUiShapeDescription){
         .shape=math_square_create(10,10),.position={30,0},.border_enabled=true,.fill_color={255,0,0,255}});
     OK(shape);
     ViewportItemIdResult item=rohr_viewport_ui_add(viewport.result.value,shape.result.value,
-        (ViewportItemConfig){.rectangle={200,200,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=1});
+        (ViewportItemDescription){.rectangle={200,200,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=1});
     OK(item); OK(rohr_viewport_enable_set(viewport.result.value));
     graphics_show();
     CHECK(red_pixel_check(200,230,true) && red_pixel_check(200,170,false));
     ViewportItemIdResult cover=rohr_viewport_ui_add(viewport.result.value,shape.result.value,
-        (ViewportItemConfig){.rectangle={960,150,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=1});
+        (ViewportItemDescription){.rectangle={960,150,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=1});
     OK(cover);
     /* UI composition follows screen composition; layers order UI siblings. */
-    GraphicsUiIdResult occluder=graphics_ui_shape_create((ViewportUiShapeConfig){
+    GraphicsUiIdResult occluder=graphics_ui_shape_create((ViewportUiShapeDescription){
         .shape=math_square_create(10,10),.position={30,0},.border_enabled=true,.fill_color={0,0,0,255}});
     OK(occluder);
     ViewportItemIdResult occluder_item=rohr_viewport_ui_add(viewport.result.value,occluder.result.value,
-        (ViewportItemConfig){.rectangle={960,150,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=2});
+        (ViewportItemDescription){.rectangle={960,150,0,0},.content_scale={1,1},.orientation=90,.visible=true,.layer=2});
     OK(occluder_item);
     graphics_show(); CHECK(red_pixel_check(960,180,false));
-    ViewportItemConfig cover_config=rohr_viewport_item_get(cover.result.value).result.value;
+    ViewportItemDescription cover_config=rohr_viewport_item_description_get(cover.result.value).result.value;
     cover_config.layer=3;
-    OK(rohr_viewport_item_set(cover.result.value,cover_config));
+    OK(rohr_viewport_item_description_set(cover.result.value,cover_config));
     graphics_show(); CHECK(red_pixel_check(960,180,true));
     cover_config.visible=false;
-    OK(rohr_viewport_item_set(cover.result.value,cover_config));
+    OK(rohr_viewport_item_description_set(cover.result.value,cover_config));
     graphics_show(); CHECK(red_pixel_check(960,180,false));
     cover_config.visible=true; second_config.visible=false;
-    OK(rohr_viewport_item_set(cover.result.value,cover_config));
-    OK(rohr_viewport_item_set(second_item.result.value,second_config));
+    OK(rohr_viewport_item_description_set(cover.result.value,cover_config));
+    OK(rohr_viewport_item_description_set(second_item.result.value,second_config));
     graphics_show();
     CHECK(red_pixel_check(960,180,true) && red_pixel_check(940,140,false));
     OK(rohr_viewport_destroy(viewport.result.value));

@@ -328,12 +328,13 @@ typedef enum GraphicsUiKind {
 typedef struct GraphicsUiElement {
     GraphicsUiKind kind;
     union {
-        ViewportUiShapeConfig shape;
-        ViewportUiTextConfig text;
-        ViewportUiSliderConfig slider;
+        ViewportUiShapeDescription shape;
+        ViewportUiTextDescription text;
+        ViewportUiSliderDescription slider;
     } value;
     uint32_t generation;
     size_t mount_count;
+    bool automatic_cleanup;
     bool used;
 } GraphicsUiElement;
 
@@ -347,10 +348,9 @@ typedef struct GraphicsViewport {
             ScreenId screen;
             GraphicsUiId ui;
         } value;
-        ViewportItemConfig config;
+        ViewportItemDescription config;
         GraphicsLayerBinding layer_binding;
         ViewportItemId id;
-        bool owns_ui;
         bool hovered;
         bool pressed;
         bool changed;
@@ -375,6 +375,7 @@ static ViewportItemId graphics_viewport_item_next_id = 1;
 static ScreenId drawing_screen = SCREEN_INVALID;
 static CameraId camera_before_screen = CAMERA_INVALID;
 EngineResult graphics_screen_destroy(ScreenId id);
+static void graphics_viewport_item_release(GraphicsViewport *viewport, size_t item_slot);
 static void graphics_commands_discard(void);
 
 static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
@@ -505,7 +506,9 @@ static GraphicsLayerValueResult graphics_layer_binding_value_get(
         ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
 }
 
-GraphicsLayerIdResult graphics_layer_create(const char *name, int value) {
+GraphicsLayerIdResult graphics_layer_create(LayerDescription description) {
+    const char *name = description.name;
+    int value = description.value;
     size_t length;
     size_t existing;
     if(name == NULL || name[0] == '\0')
@@ -533,6 +536,35 @@ GraphicsLayerIdResult graphics_layer_create(const char *name, int value) {
             graphics_registered_layer_id(slot));
     }
     return ERROR_RESULT_MAKE_ERROR(GraphicsLayerIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+LayerDescription graphics_layer_description_default_get(void) {
+    return (LayerDescription){0};
+}
+
+EngineResult graphics_layer_description_set(GraphicsLayerId layer, LayerDescription description) {
+    size_t slot, other;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    if(description.name == NULL || description.name[0] == '\0')
+        return error_result_error(ERROR_ENGINE_INVALID_GRAPHICS_LAYER_NAME);
+    size_t length = strlen(description.name);
+    if(length >= GRAPHICS_LAYER_NAME_MAX)
+        return error_result_error(ERROR_ENGINE_GRAPHICS_LAYER_NAME_TOO_LONG);
+    if(graphics_registered_layer_name_slot(description.name, &other) && other != slot)
+        return error_result_error(ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME);
+    memmove(graphics_registered_layers[slot].name, description.name, length + 1);
+    graphics_registered_layers[slot].value = description.value;
+    return error_result_value(true);
+}
+
+LayerDescriptionResult graphics_layer_description_get(GraphicsLayerId layer) {
+    size_t slot;
+    if(!graphics_registered_layer_slot(layer, &slot))
+        return ERROR_RESULT_MAKE_ERROR(LayerDescriptionResult, ERROR_ENGINE_GRAPHICS_LAYER_NOT_FOUND);
+    return ERROR_RESULT_MAKE_VALUE(LayerDescriptionResult,
+        ((LayerDescription){.name = graphics_registered_layers[slot].name,
+            .value = graphics_registered_layers[slot].value}));
 }
 
 EngineResult graphics_layer_destroy(GraphicsLayerId layer) {
@@ -1568,15 +1600,15 @@ EngineResult graphics_camera_attachment_remove(CameraId id) {
     return error_result_value(true);
 }
 
-ScreenConfig graphics_screen_config_default_get(void) {
-    return (ScreenConfig){
+ScreenDescription graphics_screen_description_default_get(void) {
+    return (ScreenDescription){
         .camera = active_camera,
         .width = WINDOW_WIDTH,
         .height = WINDOW_HEIGHT,
     };
 }
 
-ScreenIdResult graphics_screen_create(ScreenConfig config) {
+ScreenIdResult graphics_screen_create(ScreenDescription config) {
     size_t slot;
     if(sdl_renderer == NULL) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
@@ -1584,8 +1616,10 @@ ScreenIdResult graphics_screen_create(ScreenConfig config) {
     if(!graphics_camera_slot(config.camera, &slot)) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_COMPONENT_MISSING);
     }
-    if(config.width <= 0) config.width = WINDOW_WIDTH;
-    if(config.height <= 0) config.height = WINDOW_HEIGHT;
+    if(config.width < 0 || config.height < 0)
+        return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_STATE_INVALID);
+    if(config.width == 0) config.width = WINDOW_WIDTH;
+    if(config.height == 0) config.height = WINDOW_HEIGHT;
     for(slot = 0; slot < MAX_SCREENS; slot += 1) {
         SDL_Texture *texture;
         if(screens_used[slot]) continue;
@@ -1599,7 +1633,10 @@ ScreenIdResult graphics_screen_create(ScreenConfig config) {
         if(texture == NULL) {
             return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
         }
-        (void)SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE);
+        if(!SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE)) {
+            SDL_DestroyTexture(texture);
+            return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
+        }
         screen_generations[slot] += 1;
         if(screen_generations[slot] == 0) screen_generations[slot] = 1;
         screens_used[slot] = true;
@@ -1617,6 +1654,44 @@ ScreenIdResult graphics_screen_create(ScreenConfig config) {
     return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
+ScreenDescriptionResult graphics_screen_description_get(ScreenId id) {
+    size_t slot;
+    if(!graphics_screen_slot(id, &slot))
+        return ERROR_RESULT_MAKE_ERROR(ScreenDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ScreenDescriptionResult,
+        ((ScreenDescription){.camera = screens[slot].camera,
+            .width = screens[slot].width, .height = screens[slot].height}));
+}
+
+EngineResult graphics_screen_description_set(ScreenId id, ScreenDescription description) {
+    size_t slot, camera_slot;
+    if(!graphics_screen_slot(id, &slot) || !graphics_camera_slot(description.camera, &camera_slot))
+        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(description.width < 0 || description.height < 0)
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(description.width == 0) description.width = WINDOW_WIDTH;
+    if(description.height == 0) description.height = WINDOW_HEIGHT;
+    GraphicsScreen *screen = &screens[slot];
+    if(screen->width == description.width && screen->height == description.height &&
+            screen->camera == description.camera) return error_result_value(true);
+    if(id == drawing_screen) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(screen->width != description.width || screen->height != description.height) {
+        SDL_Texture *texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA8888,
+            SDL_TEXTUREACCESS_TARGET, description.width, description.height);
+        if(texture == NULL) return error_result_error(ERROR_ENGINE_GRAPHICS_INIT_FAILED);
+        if(!SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE)) {
+            SDL_DestroyTexture(texture);
+            return error_result_error(ERROR_ENGINE_GRAPHICS_INIT_FAILED);
+        }
+        SDL_DestroyTexture(screen->texture);
+        screen->texture = texture;
+        screen->width = description.width;
+        screen->height = description.height;
+    }
+    screen->camera = description.camera;
+    return error_result_value(true);
+}
+
 EngineResult graphics_screen_destroy(ScreenId id) {
     size_t slot;
     if(!graphics_screen_slot(id, &slot) || id == drawing_screen) {
@@ -1629,7 +1704,7 @@ EngineResult graphics_screen_destroy(ScreenId id) {
                         viewports[viewport].items[item].kind ==
                             GRAPHICS_VIEWPORT_ITEM_SCREEN &&
                         viewports[viewport].items[item].value.screen == id)
-                    viewports[viewport].items[item].used = false;
+                    graphics_viewport_item_release(&viewports[viewport], item);
     SDL_DestroyTexture(screens[slot].texture);
     screens[slot] = (GraphicsScreen){0};
     screens_used[slot] = false;
@@ -1703,7 +1778,7 @@ static EngineResult graphics_camera_begin(CameraId camera_id) {
         if(result.kind == ERROR_RESULT_ERROR) return result;
     }
     if(!graphics_screen_for_camera(camera_id, &screen_slot)) {
-        ScreenConfig config = graphics_screen_config_default_get();
+        ScreenDescription config = graphics_screen_description_default_get();
         ScreenIdResult result;
         config.camera = camera_id;
         config.width = width;
@@ -1895,16 +1970,16 @@ CameraZoomResult graphics_camera_zoom_get(CameraId camera_id) {
     return ERROR_RESULT_MAKE_VALUE(CameraZoomResult, cameras[slot].zoom);
 }
 
-ViewportConfig graphics_viewport_config_default_get(void) {
-    return (ViewportConfig){
+ViewportDescription graphics_viewport_description_default_get(void) {
+    return (ViewportDescription){
         .rectangle = {0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT},
         .fit = SCREEN_FIT_CONTAIN,
         .background_color = {0, 0, 0, 255},
     };
 }
 
-ViewportItemConfig graphics_viewport_item_config_default_get(void) {
-    return (ViewportItemConfig){
+ViewportItemDescription graphics_viewport_item_description_default_get(void) {
+    return (ViewportItemDescription){
         .rectangle = {0.0f, 0.0f, WINDOW_WIDTH, WINDOW_HEIGHT},
         .fit = SCREEN_FIT_CONTAIN,
         .content_scale = {1.0f, 1.0f},
@@ -1912,14 +1987,56 @@ ViewportItemConfig graphics_viewport_item_config_default_get(void) {
     };
 }
 
-ViewportIdResult graphics_viewport_create(ViewportConfig config) {
+static bool graphics_rectangle_valid_check(ViewportRectangle value) {
+    return isfinite(value.x) && isfinite(value.y) && isfinite(value.width) &&
+        isfinite(value.height) && value.width >= 0 && value.height >= 0;
+}
+
+static bool graphics_viewport_description_prepare(ViewportDescription *description) {
+    if(!graphics_rectangle_valid_check(description->rectangle) ||
+            description->fit < SCREEN_FIT_NONE || description->fit > SCREEN_FIT_COVER)
+        return false;
+    if(description->rectangle.width == 0) description->rectangle.width = WINDOW_WIDTH;
+    if(description->rectangle.height == 0) description->rectangle.height = WINDOW_HEIGHT;
+    return true;
+}
+
+static void graphics_viewport_item_interaction_clear(GraphicsViewport *viewport, size_t item) {
+    ViewportItemId id = viewport->items[item].id;
+    if(graphics_ui_dragging_item == id) graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+    if(graphics_ui_slider_dragging_item == id) graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
+    viewport->items[item].hovered = false;
+    viewport->items[item].pressed = false;
+    viewport->items[item].changed = false;
+}
+
+ViewportDescriptionResult graphics_viewport_description_get(ViewportId id) {
     size_t slot;
-    ViewportConfig defaults = graphics_viewport_config_default_get();
-    if(config.rectangle.width <= 0.0f) config.rectangle.width = defaults.rectangle.width;
-    if(config.rectangle.height <= 0.0f) config.rectangle.height = defaults.rectangle.height;
-    if(config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER) {
-        config.fit = defaults.fit;
-    }
+    if(!graphics_viewport_slot(id, &slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    return ERROR_RESULT_MAKE_VALUE(ViewportDescriptionResult,
+        ((ViewportDescription){.rectangle = viewports[slot].rectangle, .fit = viewports[slot].fit,
+            .background_color = viewports[slot].background_color, .enabled = viewports[slot].enabled}));
+}
+
+EngineResult graphics_viewport_description_set(ViewportId id, ViewportDescription description) {
+    size_t slot;
+    if(!graphics_viewport_slot(id, &slot)) return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    if(!graphics_viewport_description_prepare(&description)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    viewports[slot].rectangle = description.rectangle;
+    viewports[slot].fit = description.fit;
+    viewports[slot].background_color = description.background_color;
+    viewports[slot].enabled = description.enabled;
+    if(!description.enabled)
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; ++item)
+            if(viewports[slot].items[item].used) graphics_viewport_item_interaction_clear(&viewports[slot], item);
+    return error_result_value(true);
+}
+
+ViewportIdResult graphics_viewport_create(ViewportDescription config) {
+    size_t slot;
+    if(!graphics_viewport_description_prepare(&config))
+        return ERROR_RESULT_MAKE_ERROR(ViewportIdResult, ERROR_ENGINE_STATE_INVALID);
     for(slot = 0; slot < MAX_VIEWPORTS; slot += 1) {
         if(viewports_used[slot]) continue;
         viewport_generations[slot] += 1;
@@ -1929,7 +2046,7 @@ ViewportIdResult graphics_viewport_create(ViewportConfig config) {
             .rectangle = config.rectangle,
             .fit = config.fit,
             .background_color = config.background_color,
-            .enabled = false,
+            .enabled = config.enabled,
         };
         return ERROR_RESULT_MAKE_VALUE(
             ViewportIdResult,
@@ -1951,7 +2068,7 @@ static bool graphics_ui_slot(GraphicsUiId id, size_t *slot) {
 }
 
 static EngineResult graphics_ui_text_dependency_add(
-        ViewportUiTextConfig text) {
+        ViewportUiTextDescription text) {
     return graphics_text_dependency_add(text.text);
 }
 
@@ -1998,7 +2115,6 @@ static void graphics_viewport_item_release(GraphicsViewport *viewport,
         size_t item_slot) {
     GraphicsUiId ui;
     size_t ui_slot;
-    bool owns_ui;
     if(viewport == NULL || item_slot >= MAX_VIEWPORT_ITEMS ||
             !viewport->items[item_slot].used) return;
     if(viewport->items[item_slot].id == graphics_ui_dragging_item)
@@ -2010,12 +2126,11 @@ static void graphics_viewport_item_release(GraphicsViewport *viewport,
         return;
     }
     ui = viewport->items[item_slot].value.ui;
-    owns_ui = viewport->items[item_slot].owns_ui;
     if(graphics_ui_slot(ui, &ui_slot) &&
             graphics_ui_elements[ui_slot].mount_count > 0)
         graphics_ui_elements[ui_slot].mount_count -= 1;
     viewport->items[item_slot].used = false;
-    if(owns_ui && graphics_ui_slot(ui, &ui_slot) &&
+    if(graphics_ui_slot(ui, &ui_slot) && graphics_ui_elements[ui_slot].automatic_cleanup &&
             graphics_ui_elements[ui_slot].mount_count == 0)
         graphics_ui_element_clear(&graphics_ui_elements[ui_slot]);
 }
@@ -2027,61 +2142,86 @@ static ViewportItemId graphics_viewport_item_id_create(void) {
 }
 
 ViewportItemIdResult graphics_viewport_camera_add(ViewportId id, CameraId camera_id,
-        ViewportItemConfig config) {
+        ViewportItemDescription config) {
     size_t screen_slot;
     if(!graphics_screen_for_camera(camera_id, &screen_slot)) {
-        ScreenConfig screen_config = graphics_screen_config_default_get();
+        ScreenDescription screen_config = graphics_screen_description_default_get();
         ScreenIdResult created;
         screen_config.camera = camera_id;
         created = graphics_screen_create(screen_config);
         if(created.kind == ERROR_RESULT_ERROR)
             return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
                 created.result.error);
-        return graphics_viewport_screen_add(id, created.result.value, config);
+        ViewportItemIdResult mounted = graphics_viewport_screen_add(id, created.result.value, config);
+        if(mounted.kind == ERROR_RESULT_ERROR) (void)graphics_screen_destroy(created.result.value);
+        return mounted;
     }
     return graphics_viewport_screen_add(id,
         graphics_resource_id(screen_generations[screen_slot], screen_slot), config);
 }
 
 ViewportItemIdResult graphics_viewport_screen_add(ViewportId id, ScreenId screen_id,
-        ViewportItemConfig config) {
-    size_t viewport_slot;
-    size_t screen_slot;
-    ViewportItemConfig defaults = graphics_viewport_item_config_default_get();
-    if(!graphics_viewport_slot(id, &viewport_slot) ||
-            !graphics_screen_slot(screen_id, &screen_slot))
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
-            ERROR_ENGINE_COMPONENT_MISSING);
-    if(config.rectangle.width <= 0.0f) config.rectangle.width = defaults.rectangle.width;
-    if(config.rectangle.height <= 0.0f) config.rectangle.height = defaults.rectangle.height;
-    if(config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER)
-        config.fit = defaults.fit;
-    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-        if(viewports[viewport_slot].items[item].used) continue;
-        viewports[viewport_slot].items[item].kind = GRAPHICS_VIEWPORT_ITEM_SCREEN;
-        viewports[viewport_slot].items[item].value.screen = screen_id;
-        viewports[viewport_slot].items[item].config = config;
-        viewports[viewport_slot].items[item].layer_binding =
-            (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
-                .value = config.layer};
-        viewports[viewport_slot].items[item].id = graphics_viewport_item_id_create();
-        viewports[viewport_slot].items[item].used = true;
-        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
-            viewports[viewport_slot].items[item].id);
-    }
-    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+        ViewportItemDescription config) {
+    config.screen = screen_id;
+    config.ui = GRAPHICS_UI_INVALID;
+    return graphics_viewport_item_add(id, config);
 }
 
-GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
+ViewportUiTextDescription graphics_ui_text_description_default_get(void) {
+    return (ViewportUiTextDescription){.scale = {1, 1}};
+}
+
+ViewportUiShapeDescription graphics_ui_shape_description_default_get(void) {
+    return (ViewportUiShapeDescription){.border_thickness = 1, .border_hash_spacing = 8,
+        .text = {.scale = {1, 1}}};
+}
+
+ViewportUiSliderDescription graphics_ui_slider_description_default_get(void) {
+    return (ViewportUiSliderDescription){.maximum = 1, .length = 180,
+        .track_thickness = 6, .thumb_width = 12, .thumb_height = 24, .thumb_radius = 9};
+}
+
+static bool graphics_ui_text_description_prepare(ViewportUiTextDescription *text) {
+    if(!isfinite(text->position.x) || !isfinite(text->position.y) ||
+            !isfinite(text->offset.x) || !isfinite(text->offset.y) ||
+            !isfinite(text->scale.x) || !isfinite(text->scale.y) ||
+            !isfinite(text->orientation) || text->scale.x < 0 || text->scale.y < 0)
+        return false;
+    if(text->scale.x == 0) text->scale.x = 1;
+    if(text->scale.y == 0) text->scale.y = 1;
+    return true;
+}
+
+static bool graphics_ui_shape_description_prepare(ViewportUiShapeDescription *shape) {
+    if(shape->shape.amount_of_vertices < 3 || shape->shape.amount_of_vertices > MAX_VERTICIES ||
+            !isfinite(shape->position.x) || !isfinite(shape->position.y) || !isfinite(shape->orientation) ||
+            !isfinite(shape->border_thickness) || !isfinite(shape->border_hash_spacing) ||
+            !isfinite(shape->border_corner_radius) || shape->border_thickness < 0 ||
+            shape->border_hash_spacing < 0 || shape->border_corner_radius < 0 ||
+            shape->border_type < VIEWPORT_UI_BORDER_LINE || shape->border_type > VIEWPORT_UI_BORDER_HASHED ||
+            !graphics_ui_text_description_prepare(&shape->text)) return false;
+    for(size_t vertex = 0; vertex < shape->shape.amount_of_vertices; ++vertex)
+        if(!isfinite(shape->shape.vertices[vertex].x) || !isfinite(shape->shape.vertices[vertex].y)) return false;
+    if(shape->border_thickness == 0) shape->border_thickness = 1;
+    if(shape->border_hash_spacing == 0) shape->border_hash_spacing = 8;
+    return true;
+}
+
+static void graphics_ui_interactions_cancel(GraphicsUiId id, bool shape_button_only) {
+    for(size_t viewport = 0; viewport < MAX_VIEWPORTS; ++viewport)
+        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; ++item)
+            if(viewports[viewport].items[item].used &&
+                    viewports[viewport].items[item].kind == GRAPHICS_VIEWPORT_ITEM_UI &&
+                    viewports[viewport].items[item].value.ui == id &&
+                    (!shape_button_only || viewports[viewport].items[item].config.drag_mode == VIEWPORT_ITEM_DRAG_NONE))
+                graphics_viewport_item_interaction_clear(&viewports[viewport], item);
+}
+
+GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeDescription shape) {
     EngineResult dependency;
-    if(shape.shape.amount_of_vertices < 3 ||
-            shape.shape.amount_of_vertices > MAX_VERTICIES)
+    if(!graphics_ui_shape_description_prepare(&shape))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
             ERROR_ENGINE_INVALID_SHAPE);
-    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
-    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
-    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
-    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
     dependency = graphics_ui_text_dependency_add(shape.text);
     if(error_check(dependency))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
@@ -2103,10 +2243,10 @@ GraphicsUiIdResult graphics_ui_shape_create(ViewportUiShapeConfig shape) {
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
+GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextDescription text) {
     EngineResult dependency;
-    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
-    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
+    if(!graphics_ui_text_description_prepare(&text))
+        return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_ENGINE_STATE_INVALID);
     dependency = graphics_ui_text_dependency_add(text);
     if(error_check(dependency))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
@@ -2128,12 +2268,17 @@ GraphicsUiIdResult graphics_ui_text_create(ViewportUiTextConfig text) {
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
+static bool graphics_ui_slider_prepare(ViewportUiSliderDescription *slider) {
     if(slider == NULL || !isfinite(slider->minimum) ||
             !isfinite(slider->maximum) || !isfinite(slider->value) ||
             !isfinite(slider->step) || !isfinite(slider->thumb_offset) ||
             slider->maximum <= slider->minimum || slider->step < 0.0f)
         return false;
+    const float dimensions[] = {slider->length, slider->track_thickness,
+        slider->thumb_width, slider->thumb_height, slider->thumb_radius};
+    for(size_t i = 0; i < sizeof(dimensions) / sizeof(dimensions[0]); ++i)
+        if(!isfinite(dimensions[i]) || dimensions[i] < 0) return false;
+    if(!isfinite(slider->maximum - slider->minimum)) return false;
     if(slider->length <= 0.0f) slider->length = 180.0f;
     if(slider->track_thickness <= 0.0f) slider->track_thickness = 6.0f;
     if(slider->thumb_width <= 0.0f) slider->thumb_width = 12.0f;
@@ -2144,15 +2289,15 @@ static bool graphics_ui_slider_prepare(ViewportUiSliderConfig *slider) {
     slider->value = fmaxf(slider->minimum,
         fminf(slider->maximum, slider->value));
     if(slider->step > 0.0f) {
-        slider->value = slider->minimum + roundf(
-            (slider->value - slider->minimum) / slider->step) * slider->step;
+        slider->value = (float)((double)slider->minimum + round(
+            ((double)slider->value - slider->minimum) / slider->step) * slider->step);
         slider->value = fmaxf(slider->minimum,
             fminf(slider->maximum, slider->value));
     }
     return true;
 }
 
-GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider) {
+GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderDescription slider) {
     if(!graphics_ui_slider_prepare(&slider))
         return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult,
             ERROR_ENGINE_COMPONENT_MISSING);
@@ -2172,90 +2317,93 @@ GraphicsUiIdResult graphics_ui_slider_create(ViewportUiSliderConfig slider) {
     return ERROR_RESULT_MAKE_ERROR(GraphicsUiIdResult, ERROR_MEMORY_POOL_FULL);
 }
 
-EngineResult graphics_ui_shape_set(GraphicsUiId id, ViewportUiShapeConfig shape) {
+EngineResult graphics_ui_shape_description_set(GraphicsUiId id, ViewportUiShapeDescription shape) {
     EngineResult dependency;
     TextHandle previous;
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SHAPE)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(shape.shape.amount_of_vertices < 3 ||
-            shape.shape.amount_of_vertices > MAX_VERTICIES)
+    if(!graphics_ui_shape_description_prepare(&shape))
         return error_result_error(ERROR_ENGINE_INVALID_SHAPE);
-    if(shape.border_thickness <= 0.0f) shape.border_thickness = 1.0f;
-    if(shape.border_hash_spacing <= 0.0f) shape.border_hash_spacing = 8.0f;
-    if(shape.text.scale.x <= 0.0f) shape.text.scale.x = 1.0f;
-    if(shape.text.scale.y <= 0.0f) shape.text.scale.y = 1.0f;
-    dependency = graphics_ui_text_dependency_add(shape.text);
-    if(error_check(dependency)) return dependency;
     previous = graphics_ui_elements[slot].value.shape.text.text.handle;
+    if(previous != shape.text.text.handle) {
+        dependency = graphics_ui_text_dependency_add(shape.text);
+        if(error_check(dependency)) return dependency;
+    }
+    bool button_disabled = graphics_ui_elements[slot].value.shape.button_enabled && !shape.button_enabled;
     graphics_ui_elements[slot].value.shape = shape;
-    graphics_text_dependency_remove(previous);
+    if(previous != shape.text.text.handle) graphics_text_dependency_remove(previous);
+    if(button_disabled) graphics_ui_interactions_cancel(id, true);
     return error_result_value(true);
 }
 
-GraphicsUiShapeResult graphics_ui_shape_get(GraphicsUiId id) {
+ViewportUiShapeDescriptionResult graphics_ui_shape_description_get(GraphicsUiId id) {
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SHAPE)
-        return ERROR_RESULT_MAKE_ERROR(GraphicsUiShapeResult,
+        return ERROR_RESULT_MAKE_ERROR(ViewportUiShapeDescriptionResult,
             ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(GraphicsUiShapeResult,
+    return ERROR_RESULT_MAKE_VALUE(ViewportUiShapeDescriptionResult,
         graphics_ui_elements[slot].value.shape);
 }
 
-EngineResult graphics_ui_text_set(GraphicsUiId id, ViewportUiTextConfig text) {
+EngineResult graphics_ui_text_description_set(GraphicsUiId id, ViewportUiTextDescription text) {
     size_t slot;
     EngineResult dependency;
     TextHandle previous;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_TEXT)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(text.scale.x <= 0.0f) text.scale.x = 1.0f;
-    if(text.scale.y <= 0.0f) text.scale.y = 1.0f;
-    dependency = graphics_ui_text_dependency_add(text);
-    if(error_check(dependency)) return dependency;
+    if(!graphics_ui_text_description_prepare(&text))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
     previous = graphics_ui_elements[slot].value.text.text.handle;
+    if(previous != text.text.handle) {
+        dependency = graphics_ui_text_dependency_add(text);
+        if(error_check(dependency)) return dependency;
+    }
     graphics_ui_elements[slot].value.text = text;
-    graphics_text_dependency_remove(previous);
+    if(previous != text.text.handle) graphics_text_dependency_remove(previous);
     return error_result_value(true);
 }
 
-GraphicsUiTextResult graphics_ui_text_get(GraphicsUiId id) {
+ViewportUiTextDescriptionResult graphics_ui_text_description_get(GraphicsUiId id) {
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_TEXT)
-        return ERROR_RESULT_MAKE_ERROR(GraphicsUiTextResult,
+        return ERROR_RESULT_MAKE_ERROR(ViewportUiTextDescriptionResult,
             ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(GraphicsUiTextResult,
+    return ERROR_RESULT_MAKE_VALUE(ViewportUiTextDescriptionResult,
         graphics_ui_elements[slot].value.text);
 }
 
-EngineResult graphics_ui_slider_set(GraphicsUiId id,
-        ViewportUiSliderConfig slider) {
+EngineResult graphics_ui_slider_description_set(GraphicsUiId id,
+        ViewportUiSliderDescription slider) {
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(!graphics_ui_slider_prepare(&slider))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
+    bool disabled = graphics_ui_elements[slot].value.slider.enabled && !slider.enabled;
     graphics_ui_elements[slot].value.slider = slider;
+    if(disabled) graphics_ui_interactions_cancel(id, false);
     return error_result_value(true);
 }
 
-GraphicsUiSliderResult graphics_ui_slider_get(GraphicsUiId id) {
+ViewportUiSliderDescriptionResult graphics_ui_slider_description_get(GraphicsUiId id) {
     size_t slot;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
-        return ERROR_RESULT_MAKE_ERROR(GraphicsUiSliderResult,
+        return ERROR_RESULT_MAKE_ERROR(ViewportUiSliderDescriptionResult,
             ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(GraphicsUiSliderResult,
+    return ERROR_RESULT_MAKE_VALUE(ViewportUiSliderDescriptionResult,
         graphics_ui_elements[slot].value.slider);
 }
 
 EngineResult graphics_ui_slider_value_set(GraphicsUiId id, float value) {
     size_t slot;
-    ViewportUiSliderConfig slider;
+    ViewportUiSliderDescription slider;
     if(!graphics_ui_slot(id, &slot) ||
             graphics_ui_elements[slot].kind != GRAPHICS_UI_SLIDER)
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
@@ -2288,34 +2436,14 @@ EngineResult graphics_ui_destroy(GraphicsUiId id) {
 }
 
 ViewportItemIdResult graphics_viewport_ui_add(ViewportId id, GraphicsUiId ui,
-        ViewportItemConfig config) {
-    size_t viewport_slot;
-    size_t ui_slot;
-    if(!graphics_viewport_slot(id, &viewport_slot) ||
-            !graphics_ui_slot(ui, &ui_slot) ||
-            config.drag_mode < VIEWPORT_ITEM_DRAG_NONE ||
-            config.drag_mode > VIEWPORT_ITEM_DRAG_XY)
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult,
-            ERROR_ENGINE_COMPONENT_MISSING);
-    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-        if(viewports[viewport_slot].items[item].used) continue;
-        viewports[viewport_slot].items[item].kind = GRAPHICS_VIEWPORT_ITEM_UI;
-        viewports[viewport_slot].items[item].value.ui = ui;
-        viewports[viewport_slot].items[item].config = config;
-        viewports[viewport_slot].items[item].layer_binding =
-            (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
-                .value = config.layer};
-        viewports[viewport_slot].items[item].id = graphics_viewport_item_id_create();
-        viewports[viewport_slot].items[item].used = true;
-        graphics_ui_elements[ui_slot].mount_count += 1;
-        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult,
-            viewports[viewport_slot].items[item].id);
-    }
-    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+        ViewportItemDescription config) {
+    config.screen = SCREEN_INVALID;
+    config.ui = ui;
+    return graphics_viewport_item_add(id, config);
 }
 
 ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId id,
-        ViewportUiShapeConfig shape, ViewportItemConfig config) {
+        ViewportUiShapeDescription shape, ViewportItemDescription config) {
     GraphicsUiIdResult created = graphics_ui_shape_create(shape);
     ViewportItemIdResult mounted;
     size_t viewport_slot;
@@ -2327,13 +2455,15 @@ ViewportItemIdResult graphics_viewport_ui_shape_add(ViewportId id,
         (void)graphics_ui_destroy(created.result.value);
         return mounted;
     }
-    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
-        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot)) {
+        size_t ui_slot;
+        if(graphics_ui_slot(created.result.value, &ui_slot)) graphics_ui_elements[ui_slot].automatic_cleanup = true;
+    }
     return mounted;
 }
 
 ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId id,
-        ViewportUiTextConfig text, ViewportItemConfig config) {
+        ViewportUiTextDescription text, ViewportItemDescription config) {
     GraphicsUiIdResult created = graphics_ui_text_create(text);
     ViewportItemIdResult mounted;
     size_t viewport_slot;
@@ -2345,13 +2475,15 @@ ViewportItemIdResult graphics_viewport_ui_text_add(ViewportId id,
         (void)graphics_ui_destroy(created.result.value);
         return mounted;
     }
-    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
-        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot)) {
+        size_t ui_slot;
+        if(graphics_ui_slot(created.result.value, &ui_slot)) graphics_ui_elements[ui_slot].automatic_cleanup = true;
+    }
     return mounted;
 }
 
 ViewportItemIdResult graphics_viewport_ui_slider_add(ViewportId id,
-        ViewportUiSliderConfig slider, ViewportItemConfig config) {
+        ViewportUiSliderDescription slider, ViewportItemDescription config) {
     GraphicsUiIdResult created = graphics_ui_slider_create(slider);
     ViewportItemIdResult mounted;
     size_t viewport_slot;
@@ -2363,8 +2495,10 @@ ViewportItemIdResult graphics_viewport_ui_slider_add(ViewportId id,
         (void)graphics_ui_destroy(created.result.value);
         return mounted;
     }
-    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot))
-        viewports[viewport_slot].items[item_slot].owns_ui = true;
+    if(graphics_viewport_item_slot(mounted.result.value, &viewport_slot, &item_slot)) {
+        size_t ui_slot;
+        if(graphics_ui_slot(created.result.value, &ui_slot)) graphics_ui_elements[ui_slot].automatic_cleanup = true;
+    }
     return mounted;
 }
 
@@ -2377,34 +2511,94 @@ EngineResult graphics_viewport_item_remove(ViewportItemId item_id) {
     return error_result_value(true);
 }
 
-EngineResult graphics_viewport_item_set(ViewportItemId item_id, ViewportItemConfig config) {
-    size_t viewport_slot;
-    size_t item_slot;
+static bool graphics_viewport_item_description_prepare(ViewportItemDescription *description) {
+    size_t slot;
+    if((description->screen != SCREEN_INVALID) == (description->ui != GRAPHICS_UI_INVALID) ||
+            (description->screen != SCREEN_INVALID && !graphics_screen_slot(description->screen, &slot)) ||
+            (description->ui != GRAPHICS_UI_INVALID && !graphics_ui_slot(description->ui, &slot)) ||
+            (description->layer_id != GRAPHICS_LAYER_INVALID &&
+                !graphics_registered_layer_slot(description->layer_id, &slot)) ||
+            !graphics_rectangle_valid_check(description->rectangle) ||
+            !graphics_rectangle_valid_check(description->clip_rectangle) ||
+            !isfinite(description->orientation) || !isfinite(description->content_orientation) ||
+            !isfinite(description->content_offset.x) || !isfinite(description->content_offset.y) ||
+            !isfinite(description->content_scale.x) || !isfinite(description->content_scale.y) ||
+            description->fit < SCREEN_FIT_NONE || description->fit > SCREEN_FIT_COVER ||
+            description->drag_mode < VIEWPORT_ITEM_DRAG_NONE || description->drag_mode > VIEWPORT_ITEM_DRAG_XY)
+        return false;
+    if(description->screen != SCREEN_INVALID) {
+        if(description->rectangle.width == 0) description->rectangle.width = WINDOW_WIDTH;
+        if(description->rectangle.height == 0) description->rectangle.height = WINDOW_HEIGHT;
+    }
+    return true;
+}
+
+EngineResult graphics_viewport_item_description_set(ViewportItemId item_id, ViewportItemDescription config) {
+    size_t viewport_slot, item_slot, ui_slot;
     if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(config.drag_mode < VIEWPORT_ITEM_DRAG_NONE ||
-            config.drag_mode > VIEWPORT_ITEM_DRAG_XY)
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    if(viewports[viewport_slot].items[item_slot].kind ==
-            GRAPHICS_VIEWPORT_ITEM_SCREEN &&
-            (config.rectangle.width <= 0.0f || config.rectangle.height <= 0.0f ||
-             config.fit < SCREEN_FIT_NONE || config.fit > SCREEN_FIT_COVER))
-        return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    viewports[viewport_slot].items[item_slot].config = config;
-    viewports[viewport_slot].items[item_slot].layer_binding =
-        (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE,
-            .value = config.layer};
+    if(!graphics_viewport_item_description_prepare(&config))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    GraphicsViewport *viewport = &viewports[viewport_slot];
+    bool old_ui = viewport->items[item_slot].kind == GRAPHICS_VIEWPORT_ITEM_UI;
+    bool new_ui = config.ui != GRAPHICS_UI_INVALID;
+    bool changed = old_ui != new_ui || (old_ui ? viewport->items[item_slot].value.ui != config.ui
+        : viewport->items[item_slot].value.screen != config.screen);
+    if(changed) {
+        /* Acquire the replacement before releasing the previous dependency. */
+        if(new_ui && graphics_ui_slot(config.ui, &ui_slot)) graphics_ui_elements[ui_slot].mount_count++;
+        graphics_viewport_item_release(viewport, item_slot);
+        viewport->items[item_slot].used = true;
+    }
+    if(changed || !config.visible || !viewport->enabled)
+        graphics_viewport_item_interaction_clear(viewport, item_slot);
+    if(config.drag_mode != viewport->items[item_slot].config.drag_mode) {
+        if(graphics_ui_dragging_item == item_id) graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
+        if(config.drag_mode != VIEWPORT_ITEM_DRAG_NONE && graphics_ui_slider_dragging_item == item_id)
+            graphics_ui_slider_dragging_item = VIEWPORT_ITEM_INVALID;
+    }
+    viewport->items[item_slot].kind = new_ui ? GRAPHICS_VIEWPORT_ITEM_UI : GRAPHICS_VIEWPORT_ITEM_SCREEN;
+    if(new_ui) viewport->items[item_slot].value.ui = config.ui;
+    else viewport->items[item_slot].value.screen = config.screen;
+    viewport->items[item_slot].config = config;
+    viewport->items[item_slot].layer_binding = config.layer_id != GRAPHICS_LAYER_INVALID
+        ? (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_ID, .layer = config.layer_id}
+        : (GraphicsLayerBinding){.kind = GRAPHICS_LAYER_BINDING_VALUE, .value = config.layer};
     return error_result_value(true);
 }
 
-ViewportItemConfigResult graphics_viewport_item_get(ViewportItemId item_id) {
-    size_t viewport_slot;
-    size_t item_slot;
+ViewportItemIdResult graphics_viewport_item_add(ViewportId id, ViewportItemDescription config) {
+    size_t viewport_slot, ui_slot;
+    if(!graphics_viewport_slot(id, &viewport_slot))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_ENGINE_COMPONENT_MISSING);
+    if(!graphics_viewport_item_description_prepare(&config))
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_ENGINE_STATE_INVALID);
+    GraphicsViewport *viewport = &viewports[viewport_slot];
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; ++item) {
+        if(viewport->items[item].used) continue;
+        memset(&viewport->items[item], 0, sizeof(viewport->items[item]));
+        viewport->items[item].id = graphics_viewport_item_id_create();
+        viewport->items[item].used = true;
+        viewport->items[item].kind = config.ui ? GRAPHICS_VIEWPORT_ITEM_UI : GRAPHICS_VIEWPORT_ITEM_SCREEN;
+        if(config.ui) {
+            viewport->items[item].value.ui = config.ui;
+            if(graphics_ui_slot(config.ui, &ui_slot)) graphics_ui_elements[ui_slot].mount_count++;
+        } else viewport->items[item].value.screen = config.screen;
+        (void)graphics_viewport_item_description_set(viewport->items[item].id, config);
+        return ERROR_RESULT_MAKE_VALUE(ViewportItemIdResult, viewport->items[item].id);
+    }
+    return ERROR_RESULT_MAKE_ERROR(ViewportItemIdResult, ERROR_MEMORY_POOL_FULL);
+}
+
+ViewportItemDescriptionResult graphics_viewport_item_description_get(ViewportItemId item_id) {
+    size_t viewport_slot, item_slot;
     if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
-        return ERROR_RESULT_MAKE_ERROR(ViewportItemConfigResult,
-            ERROR_ENGINE_COMPONENT_MISSING);
-    return ERROR_RESULT_MAKE_VALUE(ViewportItemConfigResult,
-        viewports[viewport_slot].items[item_slot].config);
+        return ERROR_RESULT_MAKE_ERROR(ViewportItemDescriptionResult, ERROR_ENGINE_COMPONENT_MISSING);
+    ViewportItemDescription description = viewports[viewport_slot].items[item_slot].config;
+    GraphicsLayerBinding binding = viewports[viewport_slot].items[item_slot].layer_binding;
+    description.layer_id = binding.kind == GRAPHICS_LAYER_BINDING_ID ? binding.layer : GRAPHICS_LAYER_INVALID;
+    if(binding.kind == GRAPHICS_LAYER_BINDING_VALUE) description.layer = binding.value;
+    return ERROR_RESULT_MAKE_VALUE(ViewportItemDescriptionResult, description);
 }
 
 ViewportIdResult graphics_viewport_item_viewport_get(ViewportItemId item_id) {
@@ -2455,10 +2649,9 @@ EngineResult graphics_viewport_item_drag_mode_set(ViewportItemId item_id,
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(!graphics_viewport_item_slot(item_id, &viewport_slot, &item_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
-    viewports[viewport_slot].items[item_slot].config.drag_mode = mode;
-    if(mode == VIEWPORT_ITEM_DRAG_NONE && graphics_ui_dragging_item == item_id)
-        graphics_ui_dragging_item = VIEWPORT_ITEM_INVALID;
-    return error_result_value(true);
+    ViewportItemDescription description = graphics_viewport_item_description_get(item_id).result.value;
+    description.drag_mode = mode;
+    return graphics_viewport_item_description_set(item_id, description);
 }
 
 ViewportItemDragModeResult graphics_viewport_item_drag_mode_get(
@@ -2728,7 +2921,7 @@ EngineResult graphics_viewport_camera_set(ViewportId id, CameraId camera_id) {
     for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1)
         graphics_viewport_item_release(&viewports[slot], item);
     {
-        ViewportItemConfig config = graphics_viewport_item_config_default_get();
+        ViewportItemDescription config = graphics_viewport_item_description_default_get();
         config.rectangle.width = viewports[slot].rectangle.width;
         config.rectangle.height = viewports[slot].rectangle.height;
         config.fit = viewports[slot].fit;
@@ -2763,6 +2956,8 @@ EngineResult graphics_viewport_disable_set(ViewportId id) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     viewports[slot].enabled = false;
+    for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; ++item)
+        if(viewports[slot].items[item].used) graphics_viewport_item_interaction_clear(&viewports[slot], item);
     return error_result_value(true);
 }
 
@@ -3378,7 +3573,7 @@ static Vec2D graphics_screen_vector_rotate(Vec2D vector, float degrees) {
 }
 
 static Position graphics_viewport_ui_local_point_get(const GraphicsViewport *viewport,
-        const ViewportItemConfig *item, Position point) {
+        const ViewportItemDescription *item, Position point) {
     Scale scale = item->content_scale;
     Orientation orientation = item->orientation + item->content_orientation;
     Vec2D transformed;
@@ -3393,7 +3588,7 @@ static Position graphics_viewport_ui_local_point_get(const GraphicsViewport *vie
 }
 
 static Position graphics_viewport_ui_point_get(const GraphicsViewport *viewport,
-        const ViewportItemConfig *item, const ViewportUiShapeConfig *shape,
+        const ViewportItemDescription *item, const ViewportUiShapeDescription *shape,
         Position point) {
     Position centroid = math_polygon_centroid(shape->shape);
     Vec2D relative = {point.x - centroid.x, point.y - centroid.y};
@@ -3424,8 +3619,8 @@ static void graphics_viewport_ui_line_draw(Position start, Position end,
 }
 
 static void graphics_viewport_ui_slider_thumb_draw(
-        const GraphicsViewport *viewport, const ViewportItemConfig *item,
-        const ViewportUiSliderConfig *slider, Position center, Color color) {
+        const GraphicsViewport *viewport, const ViewportItemDescription *item,
+        const ViewportUiSliderDescription *slider, Position center, Color color) {
     SDL_Vertex vertices[17] = {0};
     int indices[48] = {0};
     size_t point_count = slider->thumb_shape ==
@@ -3467,7 +3662,7 @@ static void graphics_viewport_ui_slider_thumb_draw(
 }
 
 static void graphics_viewport_ui_border_segment_draw(Position start, Position end,
-        const ViewportUiShapeConfig *shape, Color color) {
+        const ViewportUiShapeDescription *shape, Color color) {
     Vec2D edge = {end.x - start.x, end.y - start.y};
     float length = sqrtf(edge.x * edge.x + edge.y * edge.y);
     float thickness = fmaxf(1.0f, shape->border_thickness);
@@ -3498,7 +3693,7 @@ static Position graphics_viewport_ui_corner_point_get(Position corner,
 }
 
 static void graphics_viewport_ui_border_draw(const Position *points, size_t count,
-        const ViewportUiShapeConfig *shape, Color color) {
+        const ViewportUiShapeDescription *shape, Color color) {
     float radius = fmaxf(0.0f, shape->border_corner_radius);
     if(radius <= 0.0f) {
         for(size_t i = 0; i < count; i += 1)
@@ -3552,7 +3747,7 @@ static bool graphics_viewport_ui_point_inside(Position point,
 }
 
 static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
-        const ViewportItemConfig *item, const ViewportUiTextConfig *text, Position anchor,
+        const ViewportItemDescription *item, const ViewportUiTextDescription *text, Position anchor,
         Orientation inherited_orientation) {
     GraphicsTextPayload *payload;
     SDL_Texture *texture;
@@ -3588,8 +3783,8 @@ static void graphics_viewport_ui_text_draw(const GraphicsViewport *viewport,
 }
 
 static bool graphics_viewport_ui_text_point_inside(
-        const GraphicsViewport *viewport, const ViewportItemConfig *item,
-        const ViewportUiTextConfig *text, Position pointer) {
+        const GraphicsViewport *viewport, const ViewportItemDescription *item,
+        const ViewportUiTextDescription *text, Position pointer) {
     Scale asset_size;
     Scale scale;
     Position center;
@@ -3616,7 +3811,7 @@ static bool graphics_viewport_ui_text_point_inside(
 }
 
 static bool graphics_viewport_screen_point_inside(
-        const GraphicsViewport *viewport, const ViewportItemConfig *item,
+        const GraphicsViewport *viewport, const ViewportItemDescription *item,
         Position pointer) {
     Position center;
     Vec2D relative;
@@ -3642,7 +3837,7 @@ static bool graphics_viewport_screen_point_inside(
 }
 
 static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
-        const ViewportItemConfig *item, const ViewportUiShapeConfig *shape,
+        const ViewportItemDescription *item, const ViewportUiShapeDescription *shape,
         bool *hovered_result, bool *pressed_result) {
     Shape prepared;
     Position points[MAX_VERTICIES];
@@ -3704,7 +3899,7 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
         Position centroid = math_polygon_centroid(shape->shape);
         Vec2D offset = graphics_screen_vector_rotate((Vec2D){shape->text.offset.x,
             shape->text.offset.y}, shape->orientation);
-        ViewportUiTextConfig text = shape->text;
+        ViewportUiTextDescription text = shape->text;
         text.offset = (Position){offset.x, offset.y};
         graphics_viewport_ui_text_draw(viewport, item, &text,
             (Position){shape->position.x + centroid.x,
@@ -3713,7 +3908,7 @@ static void graphics_viewport_ui_shape_draw(const GraphicsViewport *viewport,
 }
 
 static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
-        const ViewportItemConfig *item, ViewportUiSliderConfig *slider,
+        const ViewportItemDescription *item, ViewportUiSliderDescription *slider,
         ViewportItemId item_id, bool mouse_down, bool mouse_pressed,
         bool *hovered_result, bool *pressed_result, bool *changed_result) {
     float half_length;
@@ -3814,7 +4009,7 @@ static void graphics_viewports_draw(void) {
         size_t drag_item;
         if(graphics_viewport_item_slot(graphics_ui_dragging_item,
                 &drag_viewport, &drag_item)) {
-            ViewportItemConfig *drag = &viewports[drag_viewport].items[
+            ViewportItemDescription *drag = &viewports[drag_viewport].items[
                 drag_item].config;
             Vec2D delta = {pointer.x - graphics_ui_drag_pointer.x,
                 pointer.y - graphics_ui_drag_pointer.y};
@@ -3888,7 +4083,7 @@ static void graphics_viewports_draw(void) {
             size_t item = graphics_viewport_next_item_get(viewport, drawn);
             size_t screen_slot;
             GraphicsScreen *screen;
-            ViewportItemConfig *config;
+            ViewportItemDescription *config;
             SDL_FRect destination;
             float scale_x;
             float scale_y;

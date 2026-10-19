@@ -2043,7 +2043,7 @@ static bool editor_workspace_generated_viewports_write(
     for(size_t i = 0; i < project->graphics_layer_count; i += 1) {
         fprintf(source,
             "    { GraphicsLayerIdResult created = rohr_graphics_layer_create("
-                "\"%s\", %d);\n"
+                "(LayerDescription){.name = \"%s\", .value = %d});\n"
             "      if(rohr_error_check(created)) { result = "
                 "rohr_error_result_error(created.result.error); goto fail; }\n"
             "      resources->layers[resources->layer_count++] = "
@@ -2166,7 +2166,7 @@ static bool editor_workspace_generated_viewports_write(
         const EditorLayoutViewport *viewport =
             &project->layout_viewports[viewport_index];
         fprintf(source,
-            "    { ViewportIdResult created = rohr_viewport_create((ViewportConfig){"
+            "    { ViewportIdResult created = rohr_viewport_create((ViewportDescription){"
             ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
             ".background_color=rohr_graphics_color_hex_create(UINT32_C(0x%08x))});\n"
             "      if(rohr_error_check(created)) { result = "
@@ -2194,7 +2194,7 @@ static bool editor_workspace_generated_viewports_write(
             fprintf(source,
                 "      if(rohr_error_check(result = rohr_camera_render_callback_set("
                     "objects->%s.camera_%s, render_scene, objects))) goto fail;\n"
-                "      { ScreenIdResult screen = rohr_screen_create((ScreenConfig){"
+                "      { ScreenIdResult screen = rohr_screen_create((ScreenDescription){"
                     "objects->%s.camera_%s, %d, %d});\n"
                 "        if(rohr_error_check(screen)) { result = "
                     "rohr_error_result_error(screen.result.error); goto fail; }\n"
@@ -2202,7 +2202,7 @@ static bool editor_workspace_generated_viewports_write(
                     "screen.result.value;\n"
                 "        ViewportItemIdResult item = rohr_viewport_screen_add("
                     "resources->viewports[resources->viewport_count - 1], "
-                    "screen.result.value, (ViewportItemConfig){"
+                    "screen.result.value, (ViewportItemDescription){"
                     ".rectangle={%.8ff, %.8ff, %.8ff, %.8ff}, .fit=%d, "
                     ".orientation=%.8ff, .content_offset={%.8ff, %.8ff}, "
                     ".content_scale={%.8ff, %.8ff}, .content_orientation=%.8ff, "
@@ -2258,7 +2258,7 @@ static bool editor_workspace_generated_viewports_write(
             }
             if(definition->kind == EDITOR_VIEWPORT_UI_SHAPE) {
                 const EditorViewportUiShape *shape = &definition->value.shape;
-                fprintf(source, "      { ViewportUiShapeConfig ui = {"
+                fprintf(source, "      { ViewportUiShapeDescription ui = {"
                     ".orientation=%.8ff, "
                     ".border_enabled=%s, .border_type=%d, "
                     ".border_thickness=%.8ff, .border_hash_spacing=%.8ff, "
@@ -2299,7 +2299,7 @@ static bool editor_workspace_generated_viewports_write(
                         "created_ui.result.value;\n"
                     "        ViewportItemIdResult added = rohr_viewport_ui_add("
                     "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemConfig){"
+                    "created_ui.result.value, (ViewportItemDescription){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
                     ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
@@ -2329,7 +2329,7 @@ static bool editor_workspace_generated_viewports_write(
                 fprintf(source, "      }\n");
             } else if(definition->kind == EDITOR_VIEWPORT_UI_TEXT) {
                 fprintf(source, "      { GraphicsUiIdResult created_ui = "
-                    "rohr_graphics_ui_text_create((ViewportUiTextConfig){"
+                    "rohr_graphics_ui_text_create((ViewportUiTextDescription){"
                     ".text=%s, "
                     ".position={%.8ff, %.8ff}, .offset={%.8ff, %.8ff}, "
                     ".scale={%.8ff, %.8ff}});\n"
@@ -2339,7 +2339,7 @@ static bool editor_workspace_generated_viewports_write(
                         "created_ui.result.value;\n"
                     "        ViewportItemIdResult added = rohr_viewport_ui_add("
                     "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemConfig){"
+                    "created_ui.result.value, (ViewportItemDescription){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
                     ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
@@ -2377,7 +2377,7 @@ static bool editor_workspace_generated_viewports_write(
                 const EditorViewportUiSlider *slider = &definition->value.slider;
                 fprintf(source,
                     "      { GraphicsUiIdResult created_ui = "
-                    "rohr_graphics_ui_slider_create((ViewportUiSliderConfig){"
+                    "rohr_graphics_ui_slider_create((ViewportUiSliderDescription){"
                     ".minimum=%.8ff, .maximum=%.8ff, .value=%.8ff, .step=%.8ff, "
                     ".length=%.8ff, .track_thickness=%.8ff, "
                     ".thumb_width=%.8ff, .thumb_height=%.8ff, "
@@ -2395,7 +2395,7 @@ static bool editor_workspace_generated_viewports_write(
                         "created_ui.result.value;\n"
                     "        ViewportItemIdResult added = rohr_viewport_ui_add("
                     "resources->viewports[resources->viewport_count - 1], "
-                    "created_ui.result.value, (ViewportItemConfig){"
+                    "created_ui.result.value, (ViewportItemDescription){"
                     ".rectangle={%.8ff, %.8ff, 0.0f, 0.0f}, "
                     ".content_scale={%.8ff, %.8ff}, .orientation=%.8ff, "
                     ".layer=%d, .visible=%s, .drag_mode=%d, .clip_enabled=%s, "
