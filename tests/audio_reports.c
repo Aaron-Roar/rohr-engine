@@ -27,6 +27,23 @@ static SDL_AudioStreamCallback callback;
 static void *callback_context;
 static SDL_AudioStream *test_stream;
 static bool real_playback, fail_output, fail_decode, fail_seek;
+static bool in_pump, fail_wav_load, fail_decode_buffer;
+static float first_sample;
+void *__real_SDL_malloc(size_t);
+void *__wrap_SDL_malloc(size_t size) {
+    assert(!in_pump);
+    if(fail_decode_buffer && (size == 4096 * sizeof(float) || size == 8192 * sizeof(float))) return NULL;
+    return __real_SDL_malloc(size);
+}
+void __real_SDL_free(void *);
+void __wrap_SDL_free(void *pointer) { assert(!in_pump); __real_SDL_free(pointer); }
+bool __real_SDL_LoadWAV(const char *, SDL_AudioSpec *, Uint8 **, Uint32 *);
+bool __wrap_SDL_LoadWAV(const char *path, SDL_AudioSpec *spec, Uint8 **samples, Uint32 *length) {
+    assert(!in_pump);
+    return fail_wav_load ? SDL_SetError("injected WAV load failure") : __real_SDL_LoadWAV(path, spec, samples, length);
+}
+void __real_stb_vorbis_close(stb_vorbis *);
+void __wrap_stb_vorbis_close(stb_vorbis *decoder) { assert(!in_pump); __real_stb_vorbis_close(decoder); }
 static unsigned int output_calls;
 static uint64_t sample_frames;
 static double sample_energy;
@@ -65,6 +82,7 @@ bool __wrap_SDL_PutAudioStreamData(SDL_AudioStream *stream, const void *data, in
     output_calls += 1;
     if(fail_output) { fail_output = false; return SDL_SetError("injected audio output failure"); }
     const float *samples = data;
+    if(length > 0) first_sample = samples[0];
     for(int i = 0; i < length / (int)sizeof(float); i += 1) sample_energy += fabs(samples[i]);
     sample_frames += (uint64_t)length / (2 * sizeof(float));
     return true;
@@ -85,7 +103,9 @@ int __wrap_stb_vorbis_seek_start(stb_vorbis *v) {
 }
 static void pump(size_t frames) {
     assert(SDL_LockAudioStream(test_stream));
+    in_pump = true;
     callback(callback_context, test_stream, (int)(frames * 2 * sizeof(float)), 0);
+    in_pump = false;
     SDL_UnlockAudioStream(test_stream);
 }
 
@@ -110,7 +130,7 @@ static void timing_boundaries(void) {
 
 static void delayed_and_failures(void) {
     OK(rohr_audio_start());
-    SoundConfig config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
+    SoundDescription config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
     SoundResult sound = audio_sound_create(config);
     OK(sound);
     OK(rohr_audio_sound_play(sound.result.value));
@@ -149,7 +169,7 @@ static void delayed_and_failures(void) {
     pump(1);
     assert(!audio_sound_playing_check(sound.result.value));
 
-    MusicConfig mc = {.path = AUDIO_TEST_MUSIC_PATH, .volume = 1, .loop = true, .playback_rate = 1};
+    MusicDescription mc = {.path = AUDIO_TEST_MUSIC_PATH, .volume = 1, .loop = true, .playback_rate = 1};
     MusicResult music = audio_music_create(mc);
     OK(music);
     OK(audio_music_play(music.result.value));
@@ -278,8 +298,8 @@ static void delayed_and_failures(void) {
 
 static void overflow_test(void) {
     OK(audio_start());
-    SoundConfig config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
-    MusicConfig mc = {.path = AUDIO_TEST_MUSIC_PATH, .volume = 1, .loop = true, .playback_rate = 100};
+    SoundDescription config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
+    MusicDescription mc = {.path = AUDIO_TEST_MUSIC_PATH, .volume = 1, .loop = true, .playback_rate = 100};
     MusicResult music = audio_music_create(mc); OK(music);
     OK(audio_music_play(music.result.value));
     (void)audio_update(); pump(1); (void)audio_update();
@@ -333,6 +353,173 @@ static void overflow_test(void) {
     (void)audio_stop(); (void)audio_update();
 }
 
+static void fixture_copy(const char *source, const char *destination) {
+    size_t size = 0;
+    void *bytes = SDL_LoadFile(source, &size);
+    assert(bytes != NULL && SDL_SaveFile(destination, bytes, size));
+    SDL_free(bytes);
+}
+
+static void descriptions_test(void) {
+    const char *wav = "audio_description_replacement.wav";
+    const char *ogg = "audio_description_replacement.ogg";
+    fixture_copy(AUDIO_TEST_PATH, wav);
+    fixture_copy(AUDIO_TEST_MUSIC_PATH, ogg);
+    OK(audio_start());
+    SoundDescription sd = rohr_audio_sound_description_default_get();
+    MusicDescription md = rohr_audio_music_description_default_get();
+    assert(sd.volume == 0 && md.volume == 0 && sd.playback_rate == 1 && md.playback_rate == 1);
+    sd.path = AUDIO_TEST_PATH;
+    md.path = AUDIO_TEST_MUSIC_PATH;
+    SoundResult sound = rohr_audio_sound_create(sd); OK(sound);
+    MusicResult music = rohr_audio_music_create(md); OK(music);
+    assert(rohr_audio_sound_description_get(sound.result.value).result.value.volume == 0);
+    assert(rohr_audio_music_description_get(music.result.value).result.value.volume == 0);
+    OK(audio_sound_play(sound.result.value));
+    (void)audio_update();
+    double energy = sample_energy;
+    pump(100);
+    assert(sample_energy == energy && audio_sound_playing_check(sound.result.value));
+    sd = rohr_audio_sound_description_get(sound.result.value).result.value;
+    sd.volume = 0.5f; sd.pan = 0.75f;
+    OK(rohr_audio_sound_description_set(sound.result.value, sd));
+    assert(audio_sound_volume_get(sound.result.value).result.value == 0);
+    assert(audio_sound_pan_get(sound.result.value).result.value == 0);
+    (void)audio_update(); pump(AUDIO_TEST_SAMPLE_COUNT - 100 + 1);
+    /* Muting and full edits did not reset the cursor. */
+    assert(!audio_sound_playing_check(sound.result.value) && sample_energy > energy);
+    assert(audio_sound_pan_get(sound.result.value).result.value == 0.75f);
+    sd.loop = true;
+    OK(audio_sound_description_set(sound.result.value, sd));
+    OK(audio_sound_play(sound.result.value));
+    (void)audio_update(); pump(16);
+    SoundDescription before = audio_sound_description_get(sound.result.value).result.value;
+    sd.path = "missing_description.wav"; sd.volume = 0.1f;
+    assert(error_check(audio_sound_description_set(sound.result.value, sd)));
+    assert(audio_sound_playing_check(sound.result.value));
+    assert(audio_sound_volume_get(sound.result.value).result.value == before.volume);
+    sd.path = NULL;
+    assert(error_check(audio_sound_description_set(sound.result.value, sd)));
+    sd.path = wav;
+    fail_wav_load = true;
+    assert(error_check(audio_sound_description_set(sound.result.value, sd)));
+    fail_wav_load = false;
+    assert(audio_sound_playing_check(sound.result.value));
+    char copied_path[128]; snprintf(copied_path, sizeof(copied_path), "%s", wav);
+    sd.path = copied_path;
+    OK(audio_sound_description_set(sound.result.value, sd));
+    memset(copied_path, 'x', strlen(copied_path)); /* Request owns its input. */
+    assert(audio_sound_playing_check(sound.result.value));
+    assert(strcmp(audio_sound_description_get(sound.result.value).result.value.path, before.path) == 0);
+    (void)audio_update(); pump(1);
+    assert(!audio_sound_playing_check(sound.result.value));
+    assert(audio_sound_valid_check(sound.result.value));
+    assert(strstr(audio_sound_description_get(sound.result.value).result.value.path, wav));
+    /* A borrowed old path survives callback retirement and can be copied back. */
+    sd = before;
+    OK(audio_sound_description_set(sound.result.value, sd));
+    OK(audio_sound_play(sound.result.value));
+    (void)audio_update(); pump(1);
+    assert(audio_sound_playing_check(sound.result.value));
+    OK(audio_sound_stop(sound.result.value)); (void)audio_update(); pump(1);
+
+    /* Compare actual samples around an edit to prove music cursor preservation. */
+    md.volume = 1;
+    OK(audio_music_description_set(music.result.value, md));
+    OK(audio_music_play(music.result.value)); (void)audio_update(); pump(128); pump(1);
+    float expected = first_sample;
+    OK(audio_music_play(music.result.value)); (void)audio_update(); pump(128);
+    md.loop = true;
+    OK(rohr_audio_music_description_set(music.result.value, md));
+    (void)audio_update(); pump(1);
+    assert(fabsf(first_sample - expected) < 0.000001f);
+    OK(audio_music_pause(music.result.value)); (void)audio_update(); pump(1);
+    md.volume = 0;
+    OK(audio_music_description_set(music.result.value, md)); (void)audio_update(); pump(1);
+    assert(audio_music_paused_check(music.result.value));
+    assert(audio_music_volume_get(music.result.value).result.value == 0);
+    md.path = "missing_description.ogg";
+    assert(error_check(audio_music_description_set(music.result.value, md)));
+    assert(audio_music_paused_check(music.result.value));
+    md.path = ogg;
+    fail_decode_buffer = true;
+    assert(error_check(audio_music_description_set(music.result.value, md)));
+    fail_decode_buffer = false;
+    assert(audio_music_paused_check(music.result.value));
+    OK(audio_music_description_set(music.result.value, md));
+    md.volume = 0.3f;
+    /* Same pending source: applying a later ordinary edit must not stop play. */
+    OK(audio_music_play(music.result.value));
+    OK(audio_music_description_set(music.result.value, md));
+    assert(audio_music_paused_check(music.result.value));
+    (void)audio_update(); pump(1);
+    assert(audio_music_playing_check(music.result.value));
+    assert(audio_music_volume_get(music.result.value).result.value == 0.3f);
+    /* A -> B -> A queued together must prepare both source changes. */
+    md.path = AUDIO_TEST_MUSIC_PATH;
+    OK(audio_music_description_set(music.result.value, md));
+    md.path = ogg;
+    OK(audio_music_description_set(music.result.value, md));
+    (void)audio_update(); pump(1);
+    assert(!audio_music_playing_check(music.result.value) && !audio_music_paused_check(music.result.value));
+    assert(strstr(rohr_audio_music_description_get(music.result.value).result.value.path, ogg));
+    assert(audio_music_valid_check(music.result.value));
+
+    /* Editing an inactive track must not interrupt a different active track. */
+    MusicResult other = audio_music_create(md); OK(other);
+    OK(audio_music_play(other.result.value));
+    md.path = AUDIO_TEST_MUSIC_PATH;
+    OK(audio_music_description_set(music.result.value, md));
+    (void)audio_update(); pump(1);
+    assert(audio_music_playing_check(other.result.value));
+    assert(!audio_music_playing_check(music.result.value));
+    OK(audio_music_destroy(&other.result.value));
+    /* Omitted fields replace configuration with zero; getters do not supply defaults. */
+    OK(audio_sound_description_set(sound.result.value, (SoundDescription){.path = AUDIO_TEST_PATH}));
+    (void)audio_update(); pump(1);
+    SoundDescription zero = audio_sound_description_get(sound.result.value).result.value;
+    assert(zero.volume == 0 && zero.pan == 0 && zero.playback_rate == 0 && !zero.loop);
+
+    /* Full descriptions consume one queue entry and cannot apply partially. */
+    (void)audio_update();
+    sd = audio_sound_description_get(sound.result.value).result.value;
+    for(size_t i = 0; i < ROHR_AUDIO_REQUEST_CAPACITY; i += 1)
+        OK(audio_sound_description_set(sound.result.value, sd));
+    EngineResult full = audio_music_description_set(music.result.value, md);
+    assert(error_check(full) && full.result.error == ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED);
+    (void)audio_update(); pump(1);
+    Report report = audio_update();
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_PROCESSED_COUNT) == ROHR_AUDIO_REQUEST_CAPACITY);
+    assert(report.diagnostic_count == 0);
+    /* Prepared sources belong to requests even after the target is destroyed. */
+    sd.path = wav; OK(audio_sound_description_set(sound.result.value, sd));
+    md.path = ogg; OK(audio_music_description_set(music.result.value, md));
+    (void)audio_update();
+    Sound stale_sound = sound.result.value; Music stale_music = music.result.value;
+    OK(audio_sound_destroy(&sound.result.value)); OK(audio_music_destroy(&music.result.value));
+    sound = audio_sound_create(sd); music = audio_music_create(md); OK(sound); OK(music);
+    assert(sound.result.value != stale_sound && music.result.value != stale_music);
+    pump(1); report = audio_update();
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_SKIPPED_COUNT) == 2);
+    assert(report.diagnostic_count == 2);
+    assert(!audio_sound_playing_check(sound.result.value) && !audio_music_playing_check(music.result.value));
+    /* Replacements do not require an unused public player/track slot. */
+    for(size_t i = 0; i < ROHR_AUDIO_SOUND_LIMIT - 1; i += 1) {
+        SoundResult added = audio_sound_create(sd); OK(added);
+    }
+    for(size_t i = 0; i < ROHR_AUDIO_MUSIC_LIMIT - 1; i += 1) {
+        MusicResult added = audio_music_create(md); OK(added);
+    }
+    assert(error_check(audio_sound_create(sd)) && error_check(audio_music_create(md)));
+    sd.path = AUDIO_TEST_PATH; md.path = AUDIO_TEST_MUSIC_PATH;
+    OK(audio_sound_description_set(sound.result.value, sd));
+    OK(audio_music_description_set(music.result.value, md));
+    report = audio_stop();
+    assert(metric(&report, ROHR_AUDIO_COMMANDS_REPORT_ID, ROHR_REPORT_CANCELLED_COMMAND_COUNT) == 2);
+    (void)audio_update();
+    assert(remove(wav) == 0 && remove(ogg) == 0);
+}
+
 static void benchmark(void) {
     OK(audio_start());
     uint64_t start = SDL_GetTicksNS();
@@ -362,7 +549,10 @@ static int SDLCALL produce(void *context) {
             while(SDL_GetAtomicInt(p->go) < 2) SDL_Delay(1);
         }
         if(i >= 500 && i % 8 == 0) SDL_Delay(1);
-        EngineResult r = rohr_audio_sound_volume_set(p->sound, (float)(i % 10) / 10.0f);
+        EngineResult r = i % 17 == 0 ?
+            rohr_audio_sound_description_set(p->sound, (SoundDescription){.path = AUDIO_TEST_PATH,
+                .volume = (float)(i % 10) / 10.0f, .loop = true, .playback_rate = 1}) :
+            rohr_audio_sound_volume_set(p->sound, (float)(i % 10) / 10.0f);
         if(!error_check(r)) p->accepted += 1;
         else if(r.result.error == ERROR_ENGINE_AUDIO_REQUEST_CAPACITY_EXCEEDED) p->full += 1;
         else if(r.result.error == ERROR_ENGINE_AUDIO_NOT_STARTED) p->stopped += 1;
@@ -376,7 +566,7 @@ static void concurrent_test(void) {
     real_playback = true;
 #endif
     OK(audio_start());
-    SoundConfig config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
+    SoundDescription config = {.path = AUDIO_TEST_PATH, .volume = 1, .loop = true, .playback_rate = 1};
     SoundResult sound = audio_sound_create(config); OK(sound);
     SDL_AtomicInt go = {0}, ready = {0};
     Producer producers[4] = {0};
@@ -445,6 +635,7 @@ int main(void) {
     timing_boundaries();
     delayed_and_failures();
     overflow_test();
+    descriptions_test();
     benchmark();
 #endif
     concurrent_test();

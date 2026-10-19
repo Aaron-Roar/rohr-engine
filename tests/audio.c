@@ -66,13 +66,13 @@ static EngineResult control_complete(EngineResult accepted) {
 }
 
 int main(void) {
-    SoundConfig config = rohr_audio_sound_config_default_get();
+    SoundDescription config = rohr_audio_sound_description_default_get();
     SoundResult first;
     SoundResult second;
     Sound stale_sound;
     Sound shutdown_sound;
     Sound zero_sound = SOUND_INVALID;
-    MusicConfig music_config = rohr_audio_music_config_default_get();
+    MusicDescription music_config = rohr_audio_music_description_default_get();
     MusicResult first_music;
     MusicResult second_music;
     Music stale_music;
@@ -80,7 +80,7 @@ int main(void) {
     Music zero_music = MUSIC_INVALID;
     AudioValueResult value;
 
-    if(config.path != NULL || config.volume != 1.0f || config.pan != 0.0f ||
+    if(config.path != NULL || config.volume != 0.0f || config.pan != 0.0f ||
             config.loop || config.playback_rate != 1.0f)
         return fail("unexpected sound defaults");
     first = rohr_audio_sound_create(config);
@@ -92,7 +92,7 @@ int main(void) {
             error_check(rohr_audio_sound_destroy(&zero_sound)) ||
             zero_sound != SOUND_INVALID)
         return fail("direct or wrapper sound zero-owner contract failed");
-    if(music_config.path != NULL || music_config.volume != 1.0f ||
+    if(music_config.path != NULL || music_config.volume != 0.0f ||
             music_config.loop || music_config.playback_rate != 1.0f)
         return fail("unexpected music defaults");
     first_music = rohr_audio_music_create(music_config);

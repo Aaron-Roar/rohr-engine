@@ -232,10 +232,18 @@ EngineResult rohr_audio_volume_set(float volume);
 /** Return the shared mixer volume. */
 float rohr_audio_volume_get(void);
 
-/** Return defaults for one WAV sound playback instance. */
-SoundConfig rohr_audio_sound_config_default_get(void);
+/** Return muted defaults: volume zero, centered pan, rate one, no looping. */
+SoundDescription rohr_audio_sound_description_default_get(void);
 /** Load a WAV and create one independently controlled playback instance. */
-SoundResult rohr_audio_sound_create(SoundConfig config);
+SoundResult rohr_audio_sound_create(SoundDescription config);
+/** Prepare a complete replacement and enqueue one atomic update. Same-source
+ * edits preserve progress; a changed source is installed stopped. Paths are
+ * required and copied; failures leave existing state and queued work intact. */
+EngineResult rohr_audio_sound_description_set(Sound sound, SoundDescription description);
+/** Applied configuration, with a borrowed resolved path. The path remains valid
+ * until a subsequent update, creation, destruction, full setter, or shutdown.
+ * Synchronize those calls with users of borrowed paths on other threads. */
+SoundDescriptionResult rohr_audio_sound_description_get(Sound sound);
 /** Stop and release one sound owner, clearing it on success. */
 EngineResult rohr_audio_sound_destroy(Sound *sound);
 /** Return whether a sound player handle is currently valid. */
@@ -269,10 +277,18 @@ AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound);
 /** Return true only while the sound is actively advancing. */
 bool rohr_audio_sound_playing_check(Sound sound);
 
-/** Return defaults for one streamed Ogg Vorbis track. */
-MusicConfig rohr_audio_music_config_default_get(void);
+/** Return muted defaults: volume zero, rate one, no looping. */
+MusicDescription rohr_audio_music_description_default_get(void);
 /** Open an Ogg Vorbis file for incremental decoding during playback. */
-MusicResult rohr_audio_music_create(MusicConfig config);
+MusicResult rohr_audio_music_create(MusicDescription config);
+/** Prepare a complete replacement and enqueue one atomic update. Same-source
+ * edits preserve progress; a changed source is installed stopped. Paths are
+ * required and copied; failures leave existing state and queued work intact. */
+EngineResult rohr_audio_music_description_set(Music music, MusicDescription description);
+/** Applied configuration, with a borrowed resolved path. The path remains valid
+ * until a subsequent update, creation, destruction, full setter, or shutdown.
+ * Synchronize those calls with users of borrowed paths on other threads. */
+MusicDescriptionResult rohr_audio_music_description_get(Music music);
 /** Stop and release one music owner, clearing it on success. */
 EngineResult rohr_audio_music_destroy(Music *music);
 /** Return whether a streamed music handle is currently valid. */

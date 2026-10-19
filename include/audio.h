@@ -26,7 +26,7 @@ typedef uint32_t Music;
 #define MUSIC_INVALID UINT32_C(0)
 
 /** Values used to load and initialize a WAV sound. */
-typedef struct SoundConfig {
+typedef struct SoundDescription {
     /** WAV file decoded into a cache shared by matching Sound players. */
     const char *path;
     /** Linear gain from zero (silent) to one (full volume). */
@@ -37,10 +37,10 @@ typedef struct SoundConfig {
     bool loop;
     /** Speed and pitch ratio. Non-positive values are stored as zero. */
     float playback_rate;
-} SoundConfig;
+} SoundDescription;
 
 /** Values used to open and initialize one streamed Ogg Vorbis track. */
-typedef struct MusicConfig {
+typedef struct MusicDescription {
     /** Ogg Vorbis file kept open by the created Music. */
     const char *path;
     /** Linear gain from zero (silent) to one (full volume). */
@@ -49,11 +49,13 @@ typedef struct MusicConfig {
     bool loop;
     /** Speed and pitch ratio. Non-positive values are stored as zero. */
     float playback_rate;
-} MusicConfig;
+} MusicDescription;
 
 ERROR_DECLARE_RESULT_TYPE(SoundResult, Sound);
 ERROR_DECLARE_RESULT_TYPE(MusicResult, Music);
 ERROR_DECLARE_RESULT_TYPE(AudioValueResult, float);
+ERROR_DECLARE_RESULT_TYPE(SoundDescriptionResult, SoundDescription);
+ERROR_DECLARE_RESULT_TYPE(MusicDescriptionResult, MusicDescription);
 
 /**
  * All runtime controls enqueue requests, including master volume. Call
@@ -78,10 +80,18 @@ EngineResult audio_volume_set(float volume);
 /** Return the shared mixer volume. */
 float audio_volume_get(void);
 
-/** Return defaults for one WAV sound playback instance. */
-SoundConfig audio_sound_config_default_get(void);
+/** Return muted defaults: volume zero, centered pan, rate one, no looping. */
+SoundDescription audio_sound_description_default_get(void);
 /** Load a WAV and create one independently controlled playback instance. */
-SoundResult audio_sound_create(SoundConfig config);
+SoundResult audio_sound_create(SoundDescription config);
+/** Prepare a complete replacement and enqueue one atomic update. Same-source
+ * edits preserve progress; a changed source is installed stopped. Paths are
+ * required and copied; failures leave existing state and queued work intact. */
+EngineResult audio_sound_description_set(Sound sound, SoundDescription description);
+/** Applied configuration, with a borrowed resolved path. The path remains valid
+ * until a subsequent update, creation, destruction, full setter, or shutdown.
+ * Synchronize those calls with users of borrowed paths on other threads. */
+SoundDescriptionResult audio_sound_description_get(Sound sound);
 /** Stop and release one sound owner, clearing it on success. */
 EngineResult audio_sound_destroy(Sound *sound);
 /** Return whether a sound player handle is currently valid. */
@@ -102,10 +112,18 @@ AudioValueResult audio_sound_playback_rate_get(Sound sound);
 /** Return true only while the sound is actively advancing. */
 bool audio_sound_playing_check(Sound sound);
 
-/** Return defaults for one streamed Ogg Vorbis track. */
-MusicConfig audio_music_config_default_get(void);
+/** Return muted defaults: volume zero, rate one, no looping. */
+MusicDescription audio_music_description_default_get(void);
 /** Open an Ogg Vorbis file for incremental decoding during playback. */
-MusicResult audio_music_create(MusicConfig config);
+MusicResult audio_music_create(MusicDescription config);
+/** Prepare a complete replacement and enqueue one atomic update. Same-source
+ * edits preserve progress; a changed source is installed stopped. Paths are
+ * required and copied; failures leave existing state and queued work intact. */
+EngineResult audio_music_description_set(Music music, MusicDescription description);
+/** Applied configuration, with a borrowed resolved path. The path remains valid
+ * until a subsequent update, creation, destruction, full setter, or shutdown.
+ * Synchronize those calls with users of borrowed paths on other threads. */
+MusicDescriptionResult audio_music_description_get(Music music);
 /** Stop and release one music owner, clearing it on success. */
 EngineResult audio_music_destroy(Music *music);
 /** Return whether a streamed music handle is currently valid. */

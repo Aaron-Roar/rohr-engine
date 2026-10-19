@@ -27,6 +27,14 @@ Follow the [reporting instructions](agent_instructions/system_reporting.md).
   ineligible until submitted. The callback applies eligible work in order at
   its next buffer boundary; play followed by pause is valid even if the track
   was stopped when both calls were made.
+- Full description setters prepare changed sources synchronously, then enqueue
+  one atomic replacement. Compatible configuration preserves progress; changed
+  sources keep the handle and install stopped. Getters return applied descriptions
+  with borrowed paths. Prepared and retired owners use 256 bounded slots; callback
+  application transfers ownership without source allocation/destruction. Caller
+  updates/preparation/creation collect completed owners, and shutdown releases
+  cancelled ones. Preparation failures are immediate; a destroyed target remains
+  a deferred execution warning. See [Audio](audio.md#full-descriptions).
 - Destruction invalidates the handle immediately. Submitted references to a
   destroyed owner produce a warning when executed and cannot act on a reused
   slot. Loading/setup remains outside the callback.

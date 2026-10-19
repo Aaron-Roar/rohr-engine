@@ -1,8 +1,8 @@
 # Description API Contract and Migration Inventory
 
-Status: Goals 1–7 of **Consistent Description APIs** are implemented.
+Status: Goals 1–8 of **Consistent Description APIs** are implemented.
 Entity metadata, lifetime, authored configuration, spawning, and physics
-configuration, particle, soft-body, anchor, asset-loading, text, sprite, and animation-instance descriptions
+configuration, particle, soft-body, anchor, asset-loading, text, sprite, animation-instance, and audio descriptions
 are shipped. Names and missing interfaces described
 as planned below are not declarations of shipped functionality. The symbol
 inventory records the headers as they exist at this goal boundary.
@@ -146,7 +146,7 @@ appear in the header inventory below.
 | Soft bodies and anchors / 5 — shipped | `SoftBodyDescription`, `SoftBodyNodeDescription`, `SoftBodyBeamDescription`, `SoftBodyAreaDescription`, `JointAnchorDescription`, `SoftBodyBeamCollisionDescription` | Full set/get for all five families, including current motion, materials, collision, and existing visuals; use `SoftBodyBeamCollisionDescription` for the full collision group. Reuse `CollisionFilterDescription` for node/beam full filters. | Keep world/local creation variants explicit. Container edits do not reconstruct children; owner changes preserve connections. Beam getters preserve resolved rest values; automatic measurement happens only when requested. Beam collision defaults off and never derives settings from endpoints. Anchor replacement updates references transactionally without implicit reownership of joints. |
 | Shared assets and text / 6 — shipped | `TextureDescription`, `FontDescription`, `AnimationDescription`, `TextDescription` | Loading/default/inspection for immutable assets; full text create/set/get. Animation uses `frame_count`. | Sharing and borrowed metadata; unique text ownership; atomic replacement; queued payloads retain their exact font revision. |
 | Sprites, frames, players / 7 — shipped | `SpriteDescription`, `AnimatedSpriteDescription`, `AnimationFrameDescription`, `AnimationPlayerDescription` | Description creation/default/full accessors, plus catalog-to-instance helpers. `Sprite` is the stored configuration alias; `AnimatedSprite` and `AnimationPlayer` retain separate runtime state. | Atomic image/catalog replacement; borrowed getters; stable frame IDs preserve compatible progress. Frame index and clocks remain outside descriptions. |
-| Audio / 8 | `SoundConfig`, `MusicConfig` | Rename to `SoundDescription`, `MusicDescription`; standardize defaults and add `audio_sound_description_set/get`, `audio_music_description_set/get`. | Volume/pan/loop/rate edits preserve progress; failed source replacement preserves playback and references; successful source replacement is stopped. Callback/reporting architecture is unchanged. |
+| Audio / 8 — shipped | `SoundDescription`, `MusicDescription` | Description creation, muted defaults, and `audio_sound_description_set/get`, `audio_music_description_set/get`. | Full replacement is one queued command; unchanged sources preserve progress. Prepared source changes keep handles and install stopped. Getters borrow applied paths; focused controls remain direct. |
 | Logical input / 9 | Positional controller/action creation; `InputBinding`, `InputBindingList` | Add `InputControllerDescription`, `InputActionDescription` creation/full set/get. Include authored action behavior/default bindings; retain focused override-list/state APIs. | Controller-local name uniqueness, ownership, defaults versus overrides, and type/mode transitions remain explicit. No controller child-action rebuild or synthetic presses from unrelated edits. |
 | Cameras and presentation / 10 | `CameraConfig`, `Camera`, `CameraAttachment`, `GraphicsWindowPresentationConfig` | Use `CameraDescription`, `CameraAttachmentDescription`, `GraphicsWindowPresentationDescription` with complete/default accessors. Retain resolved camera queries if needed separately from configuration retrieval. Include callback/context in full configuration while retaining its focused setter. | Unrelated edits preserve attachments and motion. Changing a driven transform/zoom supersedes only the affected motion channel. Timed commands stay direct. Global presentation needs full set/get, not an artificial resource constructor. |
 | Screens, viewports, layers, persistent UI / 11 | `ScreenConfig`, `ViewportConfig`, `ViewportItemConfig`, `ViewportUiShapeConfig`, `ViewportUiTextConfig`, `ViewportUiSliderConfig`; positional layer creation | Rename to corresponding `*Description` types; add missing screen/viewport/layer full accessors using `GraphicsLayerDescription`; standardize existing persistent UI accessors. Mount descriptions include content references alongside placement. | Retain handles, mounted children, global layer identity, clipping/composition, resource references, and unrelated interaction state. Creating a mount must still distinguish existing reusable content from convenience creation of new content. |
@@ -453,6 +453,47 @@ explicitly after applying configuration, preserving existing save formats.
 All changed APIs have matching `rohr_` wrappers; old positional signatures and
 old frame type/accessor names are removed.
 
+## Shipped Goal 8 behavior
+
+`SoundDescription` and `MusicDescription` replace the old configuration type
+names. Creation accepts these descriptions. Defaults are **volume zero (muted)**,
+playback rate one, looping off, and centered sound pan. Master mixer volume stays
+one. Explicit volume enables sound without changing playback rate or play state.
+Omitted literal values remain zero/false; zero rate freezes an armed player.
+Full replacements use existing focused normalization for volume, pan, and rate.
+
+Full `_description_set` prepares a source on the calling thread and enqueues one
+atomic command. Call `audio_update()` to submit it. Getters return applied state;
+request acceptance does not mean the callback has executed it. Ordinary edits
+preserve cursor, playing state, and explicit music pause. A changed source keeps
+the same handle but installs stopped at its beginning, with music pause cleared.
+Replacing an inactive track does not stop another active track. A later queued
+play starts the replacement normally; same-source edits queued after it preserve
+that play. Prior queued descriptions determine source identity at FIFO execution.
+
+Paths are required, resolved, and copied before return. Same resolved paths reuse
+the current/queued source and do not reload changed file contents. Failed file
+loading, allocation, or queue acceptance preserves the existing configuration and
+playback, and leaves previously accepted requests intact. Playback may continue
+naturally while preparation runs. A target destroyed before application produces
+a report warning; stale commands cannot affect a reused slot.
+
+Description getters copy numeric values and borrow the applied resolved path.
+That path is usable until a subsequent update, creation, destruction, full setter,
+or shutdown; coordinate these operations across threads. Get-modify-set directly
+is supported: setters resolve/copy their input before reclaiming retired paths.
+Copy paths into caller storage if retaining them across those operations.
+
+The existing 256-request limit includes each full description as one request.
+Prepared and retired owners use a bounded array of 256 slots. The sound cache
+allows 128 live-player sources plus 256 prepared sources; replacement does not
+need a spare public player or track handle. The callback swaps owners and marks
+retired slots without loading, allocating, freeing, or closing sources. Updates
+and subsequent preparation/creation reclaim completed owners on the caller;
+shutdown also releases cancelled requests. Existing callback decoding and report
+collection semantics remain unchanged. Matching `rohr_` wrappers, the audible
+example, installed-SDK checks, and API references use the new names.
+
 ## Explicit exemptions
 
 - **Focused values:** retain setters for magnitude, transform values, scalar
@@ -501,15 +542,14 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1564** classified declaration/macro entries.
+The current inventory contains **1572** classified declaration/macro entries.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
-| M8: Migration required | Audio configuration | 8 | 8 |
 | M9: Migration required | Logical input configuration | 9 | 4 |
 | M10: Migration required | Camera and presentation configuration | 10 | 28 |
 | M11: Migration required | Screen, viewport, layer, and persistent UI configuration | 11 | 46 |
-| C: Compliant | Existing description interface | — | 220 |
+| C: Compliant | Existing description interface | — | 236 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 398 |
 | EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
@@ -520,14 +560,15 @@ The current inventory contains **1564** classified declaration/macro entries.
 The per-header lists are exhaustive. Every declaration/alias is classified once.
 
 <details>
-<summary>audio.h: 37 entries</summary>
+<summary>audio.h: 41 entries</summary>
 
 Source: [audio.h](../include/audio.h).
 
-**M8 — Audio configuration (Goal 8)**
+**C — Existing description interface**
 
-- `audio_music_config_default_get`, `audio_music_create`, `audio_sound_config_default_get`.
-- `audio_sound_create`.
+- `audio_music_create`, `audio_music_description_default_get`, `audio_music_description_get`.
+- `audio_music_description_set`, `audio_sound_create`, `audio_sound_description_default_get`.
+- `audio_sound_description_get`, `audio_sound_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 
@@ -1014,14 +1055,9 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 770 entries</summary>
+<summary>rohr.h: 774 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
-
-**M8 — Audio configuration (Goal 8)**
-
-- `rohr_audio_music_config_default_get`, `rohr_audio_music_create`, `rohr_audio_sound_config_default_get`.
-- `rohr_audio_sound_create`.
 
 **M9 — Logical input configuration (Goal 9)**
 
@@ -1048,43 +1084,45 @@ Source: [rohr.h](../include/rohr.h).
 
 **C — Existing description interface**
 
-- `rohr_entity_description_add`, `rohr_entity_description_get`, `rohr_entity_description_set`.
-- `rohr_entity_lifetime_description_get`, `rohr_entity_lifetime_description_set`, `rohr_entity_object_add`.
-- `rohr_entity_object_add_with_options`, `rohr_entity_object_by_name_add`, `rohr_entity_object_by_name_add_with_options`.
-- `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`, `rohr_graphics_animated_sprite_add`.
-- `rohr_graphics_animated_sprite_create`, `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`.
-- `rohr_graphics_animated_sprite_description_get`, `rohr_graphics_animated_sprite_description_set`, `rohr_graphics_animated_sprite_frame_add`.
-- `rohr_graphics_animated_sprite_frame_description_get`, `rohr_graphics_animated_sprite_frame_description_set`, `rohr_graphics_animated_sprite_value_description_get`.
-- `rohr_graphics_animated_sprite_value_description_set`, `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`.
-- `rohr_graphics_animation_description_default_get`, `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`.
-- `rohr_graphics_animation_frame_description_default_get`, `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_load`.
-- `rohr_graphics_animation_player_create`, `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`.
-- `rohr_graphics_animation_player_description_get`, `rohr_graphics_animation_player_description_set`, `rohr_graphics_font_description_default_get`.
-- `rohr_graphics_font_description_get`, `rohr_graphics_font_load`, `rohr_graphics_sprite_add`.
-- `rohr_graphics_sprite_create`, `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`.
-- `rohr_graphics_sprite_description_set`, `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`.
-- `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`.
-- `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`, `rohr_object_collision_description_get`.
-- `rohr_object_collision_description_set`, `rohr_object_color_description_get`, `rohr_object_color_description_set`.
-- `rohr_object_description_by_name_get`, `rohr_object_force_description_set`, `rohr_object_get`.
-- `rohr_object_material_description_get`, `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`.
-- `rohr_object_torque_description_set`, `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`.
-- `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`.
-- `rohr_physics_force_add`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
-- `rohr_physics_joint_add`, `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`.
-- `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
-- `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`.
-- `rohr_physics_particle_description_set`, `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`.
-- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`.
-- `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`.
-- `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`.
-- `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`.
-- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`.
-- `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
-- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`.
-- `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`.
-- `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`.
-- `rohr_physics_transform_lock_description_set`.
+- `rohr_audio_music_create`, `rohr_audio_music_description_default_get`, `rohr_audio_music_description_get`.
+- `rohr_audio_music_description_set`, `rohr_audio_sound_create`, `rohr_audio_sound_description_default_get`.
+- `rohr_audio_sound_description_get`, `rohr_audio_sound_description_set`, `rohr_entity_description_add`.
+- `rohr_entity_description_get`, `rohr_entity_description_set`, `rohr_entity_lifetime_description_get`.
+- `rohr_entity_lifetime_description_set`, `rohr_entity_object_add`, `rohr_entity_object_add_with_options`.
+- `rohr_entity_object_by_name_add`, `rohr_entity_object_by_name_add_with_options`, `rohr_entity_object_description_add`.
+- `rohr_entity_object_description_by_name_add`, `rohr_graphics_animated_sprite_add`, `rohr_graphics_animated_sprite_create`.
+- `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`, `rohr_graphics_animated_sprite_description_get`.
+- `rohr_graphics_animated_sprite_description_set`, `rohr_graphics_animated_sprite_frame_add`, `rohr_graphics_animated_sprite_frame_description_get`.
+- `rohr_graphics_animated_sprite_frame_description_set`, `rohr_graphics_animated_sprite_value_description_get`, `rohr_graphics_animated_sprite_value_description_set`.
+- `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`, `rohr_graphics_animation_description_default_get`.
+- `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`, `rohr_graphics_animation_frame_description_default_get`.
+- `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_load`, `rohr_graphics_animation_player_create`.
+- `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`, `rohr_graphics_animation_player_description_get`.
+- `rohr_graphics_animation_player_description_set`, `rohr_graphics_font_description_default_get`, `rohr_graphics_font_description_get`.
+- `rohr_graphics_font_load`, `rohr_graphics_sprite_add`, `rohr_graphics_sprite_create`.
+- `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`.
+- `rohr_graphics_text_create`, `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`.
+- `rohr_graphics_text_description_set`, `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`.
+- `rohr_graphics_texture_load`, `rohr_object_collision_description_get`, `rohr_object_collision_description_set`.
+- `rohr_object_color_description_get`, `rohr_object_color_description_set`, `rohr_object_description_by_name_get`.
+- `rohr_object_force_description_set`, `rohr_object_get`, `rohr_object_material_description_get`.
+- `rohr_object_material_description_set`, `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`.
+- `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`, `rohr_physics_collision_filter_description_default_get`.
+- `rohr_physics_collision_filter_description_get`, `rohr_physics_collision_filter_description_set`, `rohr_physics_force_add`.
+- `rohr_physics_force_description_get`, `rohr_physics_force_description_set`, `rohr_physics_joint_add`.
+- `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`.
+- `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`, `rohr_physics_particle_add`.
+- `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`.
+- `rohr_physics_soft_body_add`, `rohr_physics_soft_body_area_add`, `rohr_physics_soft_body_area_description_default_get`.
+- `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_beam_add`.
+- `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`.
+- `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_description_default_get`.
+- `rohr_physics_soft_body_beam_description_get`, `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_description_default_get`.
+- `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_node_add`.
+- `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`, `rohr_physics_soft_body_node_description_default_get`.
+- `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_local_add`.
+- `rohr_physics_soft_body_node_to_anchor_pin_add`, `rohr_physics_torque_add`, `rohr_physics_torque_description_get`.
+- `rohr_physics_torque_description_set`, `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`.
 
 **EV — Focused/basic-value mutation or lookup**
 

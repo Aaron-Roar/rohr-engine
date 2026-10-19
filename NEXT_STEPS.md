@@ -173,10 +173,25 @@ precedes the remaining priorities. The narrowed scope supersedes the earlier
    only existing viewport backend-expression and indentation warnings.
    Reconciled 1,564 installed-header entries and 13 remaining Config/Descriptor
    names. Native Windows execution and real desktop review remain unverified.
-   Stop for review before Goal 8.
-8. [ ] **Complete audio description APIs** — Standardize sound/music descriptions
-   and full/default accessors. Preserve progress for ordinary edits; prepare
-   changed sources atomically and leave successful replacements stopped.
+8. [x] **Complete audio description APIs** — Added `SoundDescription` and
+   `MusicDescription` creation/default/full accessors. Both default to volume zero;
+   the audible example sets volume explicitly. Full setters prepare sources on
+   the caller and enqueue one atomic replacement. Same-source edits preserve
+   position and play/pause state; changed sources keep handles and install stopped.
+   Getters expose applied configuration with borrowed resolved paths, and focused
+   controls remain direct. Bounded prepared/retired ownership keeps source loading
+   and destruction out of callback application, supports replacement at full player
+   capacity, and preserves FIFO ordering, cancellation, and report semantics.
+   Verified all 100 native tests and three ASan/UBSan/leak checks, including muted
+   advancement, source/queue/allocation failure rollback, music sample continuity,
+   destruction/slot reuse, full-capacity replacement, and concurrent producers.
+   Full Linux/Windows cross-builds and independent installed-SDK audio example
+   and consumer builds pass; Linux startup and SDK execution pass. The regenerated
+   external project preserves its custom main; scene hosting and two-second force
+   toggling pass. Standard builds and strict changed-module/SDK checks have no
+   compiler warnings. Reconciled 1,572 installed-header entries and 11 remaining
+   Config/Descriptor names. Native Windows execution and real audio-device review
+   remain unverified. Stop for review before Goal 9.
 9. [ ] **Complete logical input descriptions** — Add controller/action creation
    and full set/get, preserving names, ownership, defaults/overrides, and
    unrelated logical state. Keep focused binding/state and text-input calls direct.

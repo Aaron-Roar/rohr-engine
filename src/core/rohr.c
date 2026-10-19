@@ -45,10 +45,10 @@ EngineResult rohr_audio_volume_set(float volume) {
     return audio_volume_set(volume);
 }
 float rohr_audio_volume_get(void) { return audio_volume_get(); }
-SoundConfig rohr_audio_sound_config_default_get(void) {
-    return audio_sound_config_default_get();
+SoundDescription rohr_audio_sound_description_default_get(void) {
+    return audio_sound_description_default_get();
 }
-SoundResult rohr_audio_sound_create(SoundConfig config) {
+SoundResult rohr_audio_sound_create(SoundDescription config) {
     return audio_sound_create(config);
 }
 EngineResult rohr_audio_sound_destroy(Sound *sound) {
@@ -92,10 +92,10 @@ AudioValueResult rohr_audio_sound_playback_rate_get(Sound sound) {
 bool rohr_audio_sound_playing_check(Sound sound) {
     return audio_sound_playing_check(sound);
 }
-MusicConfig rohr_audio_music_config_default_get(void) {
-    return audio_music_config_default_get();
+MusicDescription rohr_audio_music_description_default_get(void) {
+    return audio_music_description_default_get();
 }
-MusicResult rohr_audio_music_create(MusicConfig config) {
+MusicResult rohr_audio_music_create(MusicDescription config) {
     return audio_music_create(config);
 }
 EngineResult rohr_audio_music_destroy(Music *music) {
@@ -1159,3 +1159,9 @@ EngineResult rohr_graphics_animated_sprite_value_description_set(AnimatedSprite 
 EngineResult rohr_graphics_animated_sprite_description_set(Entity entity, AnimatedSpriteDescription description) { return graphics_animated_sprite_description_set(entity, description); }
 
 AnimatedSpriteDescriptionResult rohr_graphics_animated_sprite_description_get(Entity entity) { return graphics_animated_sprite_description_get(entity); }
+
+EngineResult rohr_audio_sound_description_set(Sound sound, SoundDescription description) { return audio_sound_description_set(sound, description); }
+SoundDescriptionResult rohr_audio_sound_description_get(Sound sound) { return audio_sound_description_get(sound); }
+
+EngineResult rohr_audio_music_description_set(Music music, MusicDescription description) { return audio_music_description_set(music, description); }
+MusicDescriptionResult rohr_audio_music_description_get(Music music) { return audio_music_description_get(music); }

@@ -147,9 +147,10 @@ int main(void) {
     audio_started = true;
 
     {
-        SoundConfig config = rohr_audio_sound_config_default_get();
+        SoundDescription config = rohr_audio_sound_description_default_get();
         SoundResult created;
         config.path = "assets/audio/wav/water-splash-3.wav";
+        config.volume = 1.0f;
         created = rohr_audio_sound_create(config);
         if(rohr_error_check(created)) {
             error_print(created.result.error);
@@ -158,7 +159,7 @@ int main(void) {
         sound = created.result.value;
     }
     for(size_t index = 0; index < AUDIO_MUSIC_COUNT; index += 1) {
-        MusicConfig config = rohr_audio_music_config_default_get();
+        MusicDescription config = rohr_audio_music_description_default_get();
         MusicResult created;
         config.path = audio_music_paths[index];
         config.volume = 0.7f;

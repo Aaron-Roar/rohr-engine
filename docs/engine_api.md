@@ -5329,21 +5329,45 @@ float rohr_audio_volume_get(void);
 
  Return the shared mixer volume.
 
-### `rohr_audio_sound_config_default_get`
+### `rohr_audio_sound_description_default_get`
 
 ```c
-SoundConfig rohr_audio_sound_config_default_get(void);
+SoundDescription rohr_audio_sound_description_default_get(void);
 ```
 
- Return defaults for one WAV sound playback instance.
+ Return muted defaults: volume zero, centered pan, rate one, no looping.
 
 ### `rohr_audio_sound_create`
 
 ```c
-SoundResult rohr_audio_sound_create(SoundConfig config);
+SoundResult rohr_audio_sound_create(SoundDescription config);
 ```
 
  Load a WAV and create one independently controlled playback instance.
+
+### `rohr_audio_sound_description_set`
+
+```c
+EngineResult rohr_audio_sound_description_set(Sound sound, SoundDescription description);
+```
+
+ Prepare a complete replacement and enqueue one atomic update. Same-source
+
+edits preserve progress; a changed source is installed stopped. Paths are
+
+required and copied; failures leave existing state and queued work intact.
+
+### `rohr_audio_sound_description_get`
+
+```c
+SoundDescriptionResult rohr_audio_sound_description_get(Sound sound);
+```
+
+ Applied configuration, with a borrowed resolved path. The path remains valid
+
+until a subsequent update, creation, destruction, full setter, or shutdown.
+
+Synchronize those calls with users of borrowed paths on other threads.
 
 ### `rohr_audio_sound_destroy`
 
@@ -5451,21 +5475,45 @@ bool rohr_audio_sound_playing_check(Sound sound);
 
  Return true only while the sound is actively advancing.
 
-### `rohr_audio_music_config_default_get`
+### `rohr_audio_music_description_default_get`
 
 ```c
-MusicConfig rohr_audio_music_config_default_get(void);
+MusicDescription rohr_audio_music_description_default_get(void);
 ```
 
- Return defaults for one streamed Ogg Vorbis track.
+ Return muted defaults: volume zero, rate one, no looping.
 
 ### `rohr_audio_music_create`
 
 ```c
-MusicResult rohr_audio_music_create(MusicConfig config);
+MusicResult rohr_audio_music_create(MusicDescription config);
 ```
 
  Open an Ogg Vorbis file for incremental decoding during playback.
+
+### `rohr_audio_music_description_set`
+
+```c
+EngineResult rohr_audio_music_description_set(Music music, MusicDescription description);
+```
+
+ Prepare a complete replacement and enqueue one atomic update. Same-source
+
+edits preserve progress; a changed source is installed stopped. Paths are
+
+required and copied; failures leave existing state and queued work intact.
+
+### `rohr_audio_music_description_get`
+
+```c
+MusicDescriptionResult rohr_audio_music_description_get(Music music);
+```
+
+ Applied configuration, with a borrowed resolved path. The path remains valid
+
+until a subsequent update, creation, destruction, full setter, or shutdown.
+
+Synchronize those calls with users of borrowed paths on other threads.
 
 ### `rohr_audio_music_destroy`
 

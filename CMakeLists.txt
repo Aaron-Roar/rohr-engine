@@ -482,7 +482,9 @@ if(ROHR_BUILD_TESTS)
             -Wl,--wrap=SDL_OpenAudioDeviceStream -Wl,--wrap=SDL_ResumeAudioStreamDevice
             -Wl,--wrap=SDL_PutAudioStreamData -Wl,--wrap=stb_vorbis_get_samples_float_interleaved
             -Wl,--wrap=SDL_GetTicksNS -Wl,--wrap=SDL_LockMutex -Wl,--wrap=SDL_LockAudioStream
-            -Wl,--wrap=stb_vorbis_get_error -Wl,--wrap=stb_vorbis_seek_start)
+            -Wl,--wrap=stb_vorbis_get_error -Wl,--wrap=stb_vorbis_seek_start
+            -Wl,--wrap=SDL_malloc -Wl,--wrap=SDL_free -Wl,--wrap=SDL_LoadWAV
+            -Wl,--wrap=stb_vorbis_close)
     endif()
     if(ROHR_ENABLE_SANITIZERS)
         target_compile_options(audio_reports_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})

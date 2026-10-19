@@ -46,8 +46,9 @@ resource lifetime against shutdown and synchronize with the callback; callers
 must still protect their own shared handle variables. Resource loading and
 creation/destruction remain synchronous. Service startup must obey the platform's
 SDL startup requirements. The first stateful audio API call initializes one
-process-lived application mutex; reporting and request submission allocate no
-per-request storage.
+process-lived application mutex. Scalar request submission and reporting allocate
+no per-request storage; full descriptions may allocate paths and prepare sources
+on the calling thread before enqueueing.
 
 The named `ROHR_AUDIO_REQUEST_CAPACITY` is 256 outstanding requests. Pending and
 submitted requests share that capacity; a full queue returns
@@ -64,6 +65,43 @@ shutdown copy. See [Audio reports](reports.md#audio-reports).
 Manual mixing and direct sample output are deferred; no SDL audio handles or
 sample-buffer processing API are exposed.
 
+## Full descriptions
+
+`SoundDescription` and `MusicDescription` are used for creation and full
+configuration replacement. Default getters return volume **0 (muted)**, playback
+rate 1, looping off, and centered pan for sounds. The master mixer remains at 1.
+Set volume explicitly when sound should be audible. Literal omitted fields stay
+zero/false, so `{.path = "effect.wav"}` also has playback rate zero.
+
+```c
+SoundDescriptionResult current = rohr_audio_sound_description_get(sound_handle);
+if(!error_check(current)) {
+    current.result.value.volume = 0.4f;
+    EngineResult accepted = rohr_audio_sound_description_set(sound_handle, current.result.value);
+    /* Check accepted; the regular audio_update submits the complete edit. */
+    (void)accepted;
+}
+```
+
+Each full setter enqueues one atomic replacement. Volume, pan, loop, and rate
+edits preserve playback position and play/pause state. A different resolved path
+is prepared before acceptance and installed stopped when the command executes;
+the handle remains unchanged. A later play request starts the new source. File,
+allocation, and queue failures leave existing playback and accepted work intact.
+Paths must be nonempty. The same resolved source is not reloaded from disk, even
+when earlier queued descriptions select it. Use focused setters for single edits.
+
+Getters report applied settings and a borrowed resolved path. Copy the path if
+keeping it across an update, creation, destruction, full setter, or shutdown.
+Synchronize those operations on other threads with use of borrowed paths.
+Immediate get-modify-set copies the path before retired sources are reclaimed.
+
+Prepared sources remain owned by requests until application or cancellation.
+The callback swaps ownership without freeing sources. Updates and subsequent
+preparation/creation reclaim completed resources on the calling thread; shutdown
+also frees cancelled replacements. One full description consumes one of the
+existing 256 request slots. No extra public player/track slot is needed.
+
 ## Sounds
 
 A `Sound` is one independently controlled playback instance. WAV files are
@@ -72,7 +110,7 @@ normalized path. Players created from the same path share those immutable
 decoded samples while keeping independent cursors and playback settings.
 
 ```c
-SoundConfig config = rohr_audio_sound_config_default_get();
+SoundDescription config = rohr_audio_sound_description_default_get();
 config.path = "assets/jump.wav";
 config.volume = 0.8f;
 config.pan = 0.0f;
@@ -107,7 +145,7 @@ small blocks as the shared mixer requests them. Music is not fully decoded
 into memory. The initial implementation accepts mono and stereo Vorbis streams.
 
 ```c
-MusicConfig config = rohr_audio_music_config_default_get();
+MusicDescription config = rohr_audio_music_description_default_get();
 config.path = "assets/theme.ogg";
 config.volume = 0.7f;
 config.loop = true;
