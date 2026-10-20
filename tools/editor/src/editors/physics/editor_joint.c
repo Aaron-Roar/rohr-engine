@@ -235,6 +235,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     if(connections_open) {
     {
         const TextAsset *options[EDITOR_ANCHOR_MAX + 1];
+        EditorSelectionRef references[EDITOR_ANCHOR_MAX + 1] = {0};
         size_t selected_a = 0, selected_b = 0;
         options[0] = &editor->none_label;
         for(size_t i = 0; i < object->anchor_count && i < EDITOR_ANCHOR_MAX; i += 1) {
@@ -242,6 +243,8 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
                     &editor->anchor_names[i], editor->anchor_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
             options[i + 1] = &editor->anchor_names[i];
+            references[i + 1] = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
+                object->id, 0, 0, object->anchors[i].id};
             if(object->anchors[i].id == joint->anchor_a) selected_a = i + 1;
             if(object->anchors[i].id == joint->anchor_b) selected_b = i + 1;
         }
@@ -249,14 +252,14 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             (UIRect){context->x + 8.0f, connections_y, 55.0f, 28.0f});
         rohr_ui_label(&editor->anchor_b_label,
             (UIRect){context->x + 8.0f, connections_y + 36.0f, 55.0f, 28.0f});
-        UIDropdownResult a = editor_mode_dropdown("editor.joint.anchor_a", options,
-            object->anchor_count + 1, selected_a,
+        UIDropdownResult a = editor_mode_reference_dropdown("editor.joint.anchor_a", options,
+            (object->anchor_count < EDITOR_ANCHOR_MAX ? object->anchor_count : EDITOR_ANCHOR_MAX) + 1, selected_a,
             (UIRect){context->x + 63.0f, connections_y,
-                context->width - 73.0f, 28.0f}, NULL);
-        UIDropdownResult b = editor_mode_dropdown("editor.joint.anchor_b", options,
-            object->anchor_count + 1, selected_b,
+                context->width - 73.0f, 28.0f}, NULL, context, references);
+        UIDropdownResult b = editor_mode_reference_dropdown("editor.joint.anchor_b", options,
+            (object->anchor_count < EDITOR_ANCHOR_MAX ? object->anchor_count : EDITOR_ANCHOR_MAX) + 1, selected_b,
             (UIRect){context->x + 63.0f, connections_y + 36.0f,
-                context->width - 73.0f, 28.0f}, NULL);
+                context->width - 73.0f, 28.0f}, NULL, context, references);
         if(a.button_hovered || a.hovered_index >= 0)
             anchor_preview_set(context->viewport, object, a.hovered_index > 0 ?
                 object->anchors[a.hovered_index - 1].id : joint->anchor_a);

@@ -2230,6 +2230,7 @@ int main(int argc, char **argv) {
     UIPointerState pointer_state = {0};
     float viewport_wheel_y = 0.0f;
     FontAsset font = {0};
+    SDL_Cursor *reference_cursor = NULL;
     FontAsset notification_font = {0};
     TextAsset file_label = {0};
     TextAsset edit_label = {0};
@@ -2534,6 +2535,7 @@ int main(int argc, char **argv) {
     }
     editor_project_launcher_state_init(
         &project_launcher_state, &new_label, &open_label);
+    reference_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR);
     startup_stage = "visual settings initialization";
     if(!editor_visual_settings_panel_state_set(&visual_settings_panel,
             &gui_state, gui_state_path)) goto fail;
@@ -2570,7 +2572,7 @@ int main(int argc, char **argv) {
         viewport_wheel_y = 0.0f;
         rohr_input_frame_begin();
         while(SDL_PollEvent(&event)) {
-            bool scene_blocked = !workspace.open || file_browser.active || scene_menu_open ||
+            bool scene_blocked = viewport_state.reference_picker_open || !workspace.open || file_browser.active || scene_menu_open ||
                 editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
                 build_settings_panel.open || visual_settings_panel.open || color_picker.open ||
                 physics_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
@@ -2593,7 +2595,7 @@ int main(int argc, char **argv) {
             if(tab_consumed) continue;
             if(editor_scene_panel_event_add(&build_runtime.panel, &event, editor_scene_bounds_get(), scene_blocked)) continue;
             input_event_add(&event);
-            EditorHistoryShortcutResult shortcut = build_settings_panel.open ||
+            EditorHistoryShortcutResult shortcut = viewport_state.reference_picker_open || build_settings_panel.open ||
                 visual_settings_panel.open || physics_settings_panel.open ||
                 input_settings_panel.key_capture_active ?
                 (EditorHistoryShortcutResult){0} :
@@ -2609,7 +2611,7 @@ int main(int argc, char **argv) {
                 }
                 continue;
             }
-            bool terminal_input_blocked = file_browser.active ||
+            bool terminal_input_blocked = viewport_state.reference_picker_open || file_browser.active ||
                 editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
                 build_settings_panel.open || visual_settings_panel.open ||
                 physics_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
@@ -2666,7 +2668,10 @@ int main(int argc, char **argv) {
             viewport_state.mode == EDITOR_VIEWPORT_SOFT_NODE ? &soft_node_editor.collision :
             viewport_state.mode == EDITOR_VIEWPORT_SOFT_BEAM ? &soft_beam_editor.collision :
             viewport_state.mode == EDITOR_VIEWPORT_PARTICLE ? &particle_editor.collision : NULL;
-        if(file_browser.active &&
+        if(viewport_state.reference_picker_open &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            /* The open reference dropdown consumes Escape without navigating back. */
+        } else if(file_browser.active &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             if(!editor_file_browser_parent(&file_browser)) {
                 file_browser.active = false;
@@ -2767,7 +2772,7 @@ int main(int argc, char **argv) {
                 editor_viewport_back(&viewport_state);
             }
         }
-        if(workspace.open && !build_settings_panel.open &&
+        if(workspace.open && !viewport_state.reference_picker_open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open &&
                 !input_settings_panel.key_capture_active &&
                 !field_editing &&
@@ -2780,7 +2785,7 @@ int main(int argc, char **argv) {
                 rohr_input_key_pressed_check(SDL_SCANCODE_DELETE)) {
             (void)editor_selected_delete(&project, &viewport_state);
         }
-        if(workspace.open && !build_settings_panel.open &&
+        if(workspace.open && !viewport_state.reference_picker_open && !build_settings_panel.open &&
                 !visual_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open &&
                 !input_settings_panel.key_capture_active &&
                 !field_editing &&
@@ -2859,7 +2864,7 @@ int main(int argc, char **argv) {
             Position pointer = rohr_graphics_mouse_screen_position_get();
             MouseButtonState primary = pointer_state.button_states[MOUSE_BUTTON_LEFT];
 
-            if(file_browser.active || build_settings_panel.open ||
+            if(viewport_state.reference_picker_open || file_browser.active || build_settings_panel.open ||
                     visual_settings_panel.open || physics_settings_panel.open || scene_settings_panel.open) {
                 panel_resizing = false;
             } else if(!panel_resizing && primary == MOUSE_BUTTON_STATE_PRESSED &&
@@ -2876,7 +2881,7 @@ int main(int argc, char **argv) {
                     primary == MOUSE_BUTTON_STATE_UP) {
                 panel_resizing = false;
             }
-            if(!terminal_panel.visible) {
+            if(viewport_state.reference_picker_open || !terminal_panel.visible) {
                 terminal_resizing = false;
             } else if(!terminal_resizing && primary == MOUSE_BUTTON_STATE_PRESSED &&
                     pointer.x >= 0.0f && pointer.x < EDITOR_VIEWPORT_WIDTH &&
@@ -3009,6 +3014,15 @@ int main(int argc, char **argv) {
         viewport_state.preview_camera = 0;
         viewport_state.preview_reference_object = 0;
         viewport_state.preview_reference = (ObjectSourceReference){0};
+        editor_mode_reference_frame_begin(&viewport_state,
+            !workspace.open || build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR ||
+            file_browser.active || context_menu_modal || color_picker.open ||
+            build_settings_panel.open || visual_settings_panel.open || physics_settings_panel.open ||
+            scene_settings_panel.open || notification_panel.log_open || notification_panel.report_open ||
+            close_action != EDITOR_CLOSE_NONE);
+        viewport_state.reference_pick_overlay = (UIRect){14,
+            EDITOR_ACTION_BAR_TOP - 40.0f * notification_panel.store.toast_count,
+            190, 40.0f * notification_panel.store.toast_count};
         field_editing = false;
         Position hierarchy_pointer = rohr_graphics_mouse_screen_position_get();
         MouseButtonState hierarchy_primary =
@@ -3734,13 +3748,7 @@ int main(int argc, char **argv) {
             (void)editor_navigation_viewport_transform_history_update(
                 &project, &viewport_state, &history, transform_active);
         }
-        (void)rohr_graphics_screen_clip_set(
-            0.0f, EDITOR_VIEWPORT_TOP, EDITOR_VIEWPORT_WIDTH,
-            EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP);
         editor_viewport_asset_root_set(workspace.open ? workspace.directory : NULL);
-        if(build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) editor_viewport_draw(&project, &viewport_state,
-            visual_settings_panel.state.grid_visible);
-        rohr_graphics_screen_clip_clear();
         if(workspace.open) {
             EditorSceneAction action = editor_scene_panel_draw(&build_runtime.panel,
                 editor_scene_bounds_get(), build_runtime.pending || editor_build_active_check(build_runtime.build));
@@ -4140,13 +4148,25 @@ int main(int argc, char **argv) {
                 &project, build_settings_bounds);
         if(!workspace.open) scene_settings_panel.open = false;
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !visual_settings_panel.open && !physics_settings_panel.open)
-            editor_scene_settings_panel_draw(&scene_settings_panel, &project, &history, build_settings_bounds);
+                !build_settings_panel.open && !visual_settings_panel.open && !physics_settings_panel.open &&
+                scene_settings_panel.open) {
+            /* The scene dialog owns this picker; its body is excluded from picking. */
+            viewport_state.reference_picker_blocked =
+                build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR;
+            editor_scene_settings_panel_draw(&scene_settings_panel, &project, &history,
+                &viewport_state, build_settings_bounds);
+        }
         if(build_settings_panel.build_requested) {
             build_settings_panel.build_requested = false;
             editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_COMPILE, &notification_panel);
         }
 
+        /* Draw after property/dialog controls so reference previews use this frame's hover. */
+        (void)rohr_graphics_screen_clip_set(0.0f, EDITOR_VIEWPORT_TOP,
+            EDITOR_VIEWPORT_WIDTH, EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP);
+        if(build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR)
+            editor_viewport_draw(&project, &viewport_state, visual_settings_panel.state.grid_visible);
+        rohr_graphics_screen_clip_clear();
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_NOTIFICATION);
         editor_notification_panel_toast_draw(&notification_panel,
             EDITOR_WINDOW_HEIGHT);
@@ -4504,7 +4524,8 @@ int main(int argc, char **argv) {
             editor_window_width, 1.0f, (Color){75, 84, 100, 255});
         {
             Position pointer = rohr_graphics_mouse_screen_position_get();
-            if(workspace.open && (build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) && pointer.x >= 0.0f &&
+            if(workspace.open && !viewport_state.reference_picker_open &&
+                    (build_runtime.panel.active_tab == EDITOR_SCENE_TAB_EDITOR) && pointer.x >= 0.0f &&
                     pointer.x < EDITOR_VIEWPORT_WIDTH &&
                     pointer.y >= EDITOR_VIEWPORT_TOP &&
                     pointer.y < EDITOR_VIEWPORT_BOTTOM &&
@@ -4542,7 +4563,7 @@ int main(int argc, char **argv) {
                 context_menu_modal ||
                 editor_viewport_context_menu_open_check(&viewport_context_menu) ||
                 color_picker.open ||
-                rohr_ui_pointer_consumed_get() ||
+                viewport_state.reference_picker_open || rohr_ui_pointer_consumed_get() ||
                 pointer.y < EDITOR_VIEWPORT_TOP ||
                 pointer.y >= EDITOR_VIEWPORT_BOTTOM;
             bool viewport_consumed;
@@ -4709,6 +4730,8 @@ int main(int argc, char **argv) {
                 (Color){75, 84, 100, 255});
         }
         editor_log_update();
+        (void)SDL_SetCursor(viewport_state.reference_picker_hovered && reference_cursor != NULL ?
+            reference_cursor : SDL_GetDefaultCursor());
         rohr_graphics_show();
     }
 
@@ -4810,6 +4833,7 @@ int main(int argc, char **argv) {
     (void)rohr_graphics_font_release(&notification_font);
     (void)rohr_graphics_font_release(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
+    SDL_DestroyCursor(reference_cursor);
     rohr_graphics_stop();
     rohr_engine_stop();
     editor_log_close();
@@ -4915,6 +4939,7 @@ fail:
     (void)rohr_graphics_font_release(&notification_font);
     (void)rohr_graphics_font_release(&font);
     if(viewport != 0) (void)rohr_viewport_destroy(viewport);
+    SDL_DestroyCursor(reference_cursor);
     rohr_graphics_stop();
     rohr_engine_stop();
     editor_log_close();

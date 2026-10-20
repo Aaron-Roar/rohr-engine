@@ -1116,12 +1116,14 @@ static EditorHitbox *editor_selected_hitbox_get(EditorObject *object,
 void editor_viewport_state_init(EditorViewportState *state) {
     if(state == NULL) return;
     free(state->selected_items);
+    (void)rohr_graphics_text_destroy(&state->reference_hint);
     *state = (EditorViewportState){.dragged_vertex = -1};
 }
 
 void editor_viewport_state_destroy(EditorViewportState *state) {
     if(state == NULL) return;
     free(state->selected_items);
+    (void)rohr_graphics_text_destroy(&state->reference_hint);
     *state = (EditorViewportState){0};
 }
 
@@ -3741,9 +3743,41 @@ static bool editor_hitbox_pick_check(const EditorObject *object,
     return false;
 }
 
+static EditorSelectionRef editor_pick_owner_get(EditorSelectionRef ref);
+
+static int editor_reference_index_get(const EditorProject *project,
+        EditorSelectionRef hit, const EditorSelectionRef *references, size_t count) {
+    EditorSelectionRef matches[3] = {hit, editor_pick_owner_get(hit),
+        {EDITOR_SELECTION_OBJECT, hit.object, 0, 0, hit.object}};
+    if(hit.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
+        matches[2] = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            hit.object, 0, 0, hit.object};
+        if(hit.parent != 0) {
+            EditorLayoutViewport *layout = editor_project_layout_viewport_get(
+                (EditorProject *)project, hit.object);
+            if(layout != NULL) for(size_t i = 0; i < layout->camera_item_count; ++i) {
+                const EditorViewportCameraItem *item = &layout->camera_items[i];
+                if(item->id == hit.item) matches[1] = (EditorSelectionRef){
+                    EDITOR_SELECTION_CAMERA, item->object, 0, 0, item->camera};
+            }
+        }
+    }
+    for(size_t match = 0; match < 3; ++match)
+        for(size_t i = 0; i < count; ++i) {
+            EditorSelectionRef ref = references[i], candidate = matches[match];
+            if(ref.kind != EDITOR_SELECTION_NONE && ref.kind == candidate.kind &&
+                    ref.object == candidate.object && ref.parent == candidate.parent &&
+                    ref.container == candidate.container && ref.item == candidate.item)
+                return (int)i;
+        }
+    return -1;
+}
+
 static void editor_pick_candidate_set(const EditorProject *project,
         EditorGraphicsLayerBinding binding, int kind, EditorSelectionRef hit,
-        EditorSelectionRef *selection, int64_t *layer) {
+        EditorSelectionRef *selection, int64_t *layer,
+        const EditorSelectionRef *references, size_t reference_count) {
+    if(references != NULL && editor_reference_index_get(project, hit, references, reference_count) < 0) return;
     int64_t key = (int64_t)editor_layer_value_get(project, binding) * EDITOR_SCENE_LAYER_STRIDE + kind;
     if(key > *layer) {
         *layer = key;
@@ -3754,7 +3788,8 @@ static void editor_pick_candidate_set(const EditorProject *project,
 /* Resolve geometry front-to-back as object_draw queues its layers.
  * Selection state may choose a child only after this occlusion test. */
 static bool editor_object_front_selection_get(const EditorProject *project, EditorObject *object,
-        const EditorViewportState *state, Position pointer, EditorSelectionRef *selection, int64_t *layer) {
+        const EditorViewportState *state, Position pointer, EditorSelectionRef *selection, int64_t *layer,
+        const EditorSelectionRef *references, size_t reference_count) {
     if(object == NULL || !object->visible) return false;
     *layer = INT64_MIN;
     int kind = EDITOR_GRAPHICS_LAYER_ANIMATION;
@@ -3765,7 +3800,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         if(!editor_camera_hit_check(object,camera,state,pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
             object->id, 0, 0, camera->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
     }
     for(size_t i = object->animated_sprite_count; i > 0; i -= 1) {
         EditorAnimatedSprite *sprite = &object->animated_sprite_items[i - 1];
@@ -3783,7 +3818,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                     editor_animation_frame_size_get(frame).y * sprite->scale.y}, rotation, pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANIMATED_SPRITE,
             object->id, 0, 0, sprite->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
     }
     kind = EDITOR_GRAPHICS_LAYER_SPRITE;
     for(size_t i = object->sprite_count; i > 0; i -= 1) {
@@ -3794,7 +3829,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                 editor_sprite_world_rotation_get(object, sprite), pointer)) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
             object->id, 0, 0, sprite->id};
-        editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+        editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
     }
 
     for(size_t i=object->force_count;i>0;--i) {
@@ -3802,7 +3837,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         int force_layer=editor_force_pick_layer_get(object,force,pointer);
         if(force_layer) {
             EditorSelectionRef hit={EDITOR_SELECTION_FORCE,object->id,0,0,force->id};
-            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},force_layer,hit,selection,layer);
+            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},force_layer,hit,selection,layer,references,reference_count);
         }
     }
     for(size_t i=object->torque_count;i>0;--i) {
@@ -3810,7 +3845,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         int torque_layer=editor_torque_pick_layer_get(object,torque,pointer);
         if(torque_layer) {
             EditorSelectionRef hit={EDITOR_SELECTION_TORQUE,object->id,0,0,torque->id};
-            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},torque_layer,hit,selection,layer);
+            editor_pick_candidate_set(project,(EditorGraphicsLayerBinding){0},torque_layer,hit,selection,layer,references,reference_count);
         }
     }
     kind = EDITOR_GRAPHICS_LAYER_JOINT;
@@ -3820,7 +3855,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         if(editor_anchor_hit_check(object,anchor,pointer)) {
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_ANCHOR,
                 object->id, 0, 0, anchor->id};
-            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
         }
     }
 
@@ -3831,7 +3866,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
         if(!joint_layer) continue;
         EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_JOINT,
             object->id, 0, 0, joint->id};
-        editor_pick_candidate_set(project, binding, joint_layer, hit, selection, layer);
+        editor_pick_candidate_set(project, binding, joint_layer, hit, selection, layer, references, reference_count);
     }
     kind = EDITOR_GRAPHICS_LAYER_SOFT_BODY;
     for(size_t i = object->soft_body_count; i > 0; i -= 1) {
@@ -3845,7 +3880,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                     pointer.y - world.y) > 10.0f) continue;
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
                 object->id, body->id, 0, node->id};
-            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
         }
         for(size_t j = body->beam_count; j > 0; j -= 1) {
             EditorSoftBeam *beam = &body->beams[j - 1];
@@ -3859,7 +3894,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                 continue;
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_BEAM,
                 object->id, body->id, 0, beam->id};
-            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
         }
         for(size_t j = body->area_count; j > 0; j -= 1) {
             EditorSoftArea *area = &body->areas[j - 1];
@@ -3868,7 +3903,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
             binding = area->graphics_layer_inherited ? body->graphics_layer : area->graphics_layer;
             EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_SOFT_AREA,
                 object->id, body->id, 0, area->id};
-            editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+            editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
         }
     }
     kind = EDITOR_GRAPHICS_LAYER_RIGID_BODY;
@@ -3891,7 +3926,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                 EditorSelectionRef hit = (EditorSelectionRef){body->standalone_particle ?
                         EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
                     object->id, 0, 0, body->id};
-                editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+                editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
                 continue;
             }
             if(body->standalone_particle) continue;
@@ -3901,7 +3936,7 @@ static bool editor_object_front_selection_get(const EditorProject *project, Edit
                         object, body, box, pointer)) continue;
                 EditorSelectionRef hit = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
                     object->id, body->id, 0, box->id};
-                editor_pick_candidate_set(project, binding, kind, hit, selection, layer);
+                editor_pick_candidate_set(project, binding, kind, hit, selection, layer, references, reference_count);
             }
         }
     }
@@ -3973,7 +4008,8 @@ static int editor_viewport_item_layer_base_get(
 
 static bool editor_viewport_front_selection_get(EditorProject *project,
         const EditorViewportState *state, Position pointer,
-        EditorSelectionRef *selection) {
+        EditorSelectionRef *selection,
+        const EditorSelectionRef *references, size_t reference_count) {
     EditorObject *object;
     Position world_pointer;
     if(project == NULL || state == NULL || selection == NULL) return false;
@@ -3996,7 +4032,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                     editor_project_layout_viewport_get(project, item.id);
                 ViewportRectangle bounds;
                 EditorViewportState layout_state = *state;
-                EditorSelectionRef layout_hit;
+                EditorSelectionRef layout_hit = {0};
                 int layer = -1;
                 if(viewport == NULL || !viewport->enabled) continue;
                 bounds = viewport->config.rectangle;
@@ -4006,7 +4042,9 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                         world_pointer.x <= bounds.x + bounds.width &&
                         world_pointer.y <= bounds.y &&
                         world_pointer.y >= bounds.y - bounds.height)
-                    layer = EDITOR_GRAPHICS_LAYER_COMPOSITION - 64;
+                    layer = references == NULL || editor_reference_index_get(project,
+                        (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT, viewport->id, 0, 0, viewport->id},
+                        references, reference_count) >= 0 ? EDITOR_GRAPHICS_LAYER_COMPOSITION - 64 : -1;
                 layout_state.mode = EDITOR_VIEWPORT_LAYOUT;
                 layout_state.layout_elements_hidden = false;
                 layout_state.selected_layout_viewport = viewport->id;
@@ -4017,7 +4055,7 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                     pointer.y + (viewport->config.rectangle.y + bounds.y) *
                         project->viewport_camera_zoom};
                 if(editor_viewport_front_selection_get(project, &layout_state,
-                        local_pointer, &layout_hit)) {
+                        local_pointer, &layout_hit, references, reference_count)) {
                     if(layout_hit.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT) {
                         for(size_t j = 0; j < viewport->camera_item_count; j += 1)
                             if(viewport->camera_items[j].id == layout_hit.item)
@@ -4032,8 +4070,9 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                     editor_project_selected_get(project));
                 if(layer >= 0 && (INT64_C(1) << 48) + layer > front_layer) {
                     front_layer = (INT64_C(1) << 48) + layer;
-                    *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
-                        viewport->id, 0, 0, viewport->id};
+                    *selection = references != NULL && layout_hit.kind != EDITOR_SELECTION_NONE ?
+                        layout_hit : (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+                            viewport->id, 0, 0, viewport->id};
                 }
             } else {
                 EditorObject *candidate = editor_object_query_get(project, item.id);
@@ -4044,9 +4083,9 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 overview = *candidate;
                 overview.position = candidate->overview_position;
                 if(editor_object_front_selection_get(project, &overview, state, world_pointer,
-                        &hit, &layer) && layer > front_layer) {
+                        &hit, &layer, references, reference_count) && layer > front_layer) {
                     front_layer = layer;
-                    *selection = (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
+                    *selection = references != NULL ? hit : (EditorSelectionRef){EDITOR_SELECTION_OBJECT,
                         candidate->id, 0, 0, candidate->id};
                 }
             }
@@ -4103,12 +4142,14 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                 hit.y <= rectangle.y + rectangle.height;
             int layer = editor_viewport_item_layer_base_get(project, viewport, viewport->camera_item_count + i - 1);
             if(!item_hit || layer <= front_layer) continue;
-            front_layer = layer;
-            *selection = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+            EditorSelectionRef reference_hit = (EditorSelectionRef){item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
                     EDITOR_SELECTION_UI_SHAPE :
                 item->kind == EDITOR_VIEWPORT_UI_TEXT ? EDITOR_SELECTION_UI_TEXT :
                     EDITOR_SELECTION_UI_SLIDER,
                 viewport->id, 0, 0, item->id};
+            if(references != NULL && editor_reference_index_get(project, reference_hit, references, reference_count) < 0) continue;
+            front_layer = layer;
+            *selection = reference_hit;
         }
         for(size_t i = viewport->camera_item_count; i > 0; i -= 1) {
             EditorViewportCameraItem *item = &viewport->camera_items[i - 1];
@@ -4123,22 +4164,36 @@ static bool editor_viewport_front_selection_get(EditorProject *project,
                     fabsf(unrotated.y) > fabsf(rectangle.height) * 0.5f) continue;
             int layer = editor_viewport_item_layer_base_get(project, viewport, i - 1);
             if(layer <= front_layer) continue;
-            front_layer = layer;
-            *selection = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            EditorSelectionRef hit = {EDITOR_SELECTION_LAYOUT_VIEWPORT,
                 viewport->id, viewport->id, 0, item->id};
+            if(references != NULL && editor_reference_index_get(project, hit, references, reference_count) < 0) continue;
+            front_layer = layer;
+            *selection = hit;
         }
         return selection->kind != EDITOR_SELECTION_NONE;
     }
     object = editor_project_selected_get(project);
     int64_t layer;
-    return editor_object_front_selection_get(project, object, state, world_pointer, selection, &layer);
+    return editor_object_front_selection_get(project, object, state, world_pointer, selection, &layer, references, reference_count);
+}
+
+int editor_viewport_reference_at_get(EditorProject *project,
+        const EditorViewportState *state, Position pointer,
+        const EditorSelectionRef *references, size_t count) {
+    EditorSelectionRef hit;
+    if(references == NULL || count == 0 || pointer.x < 0 ||
+            pointer.x >= EDITOR_VIEWPORT_WIDTH || pointer.y < EDITOR_VIEWPORT_TOP ||
+            pointer.y >= EDITOR_VIEWPORT_BOTTOM) return -1;
+    if(!editor_viewport_front_selection_get(project, state, pointer, &hit,
+            references, count)) return -1;
+    return editor_reference_index_get(project, hit, references, count);
 }
 
 bool editor_viewport_selection_at_get(EditorProject *project,
         const EditorViewportState *state, Position pointer,
         EditorSelectionRef *selection) {
     EditorSelectionRef current;
-    if(!editor_viewport_front_selection_get(project, state, pointer, selection))
+    if(!editor_viewport_front_selection_get(project, state, pointer, selection, NULL, 0))
         return false;
     if(state->mode == EDITOR_VIEWPORT_ANIMATION_FRAME &&
             selection->kind == EDITOR_SELECTION_ANIMATED_SPRITE &&
@@ -4227,7 +4282,7 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
     if(pointer_consumed || pointer.x < 0.0f ||
             pointer.x >= EDITOR_VIEWPORT_WIDTH) return false;
     if(primary_button == MOUSE_BUTTON_STATE_PRESSED) {
-        (void)editor_viewport_front_selection_get(project, state, pointer, &front);
+        (void)editor_viewport_front_selection_get(project, state, pointer, &front, NULL, 0);
     }
     if(state->soft_area_picking && state->mode != EDITOR_VIEWPORT_SOFT_AREA &&
             state->mode != EDITOR_VIEWPORT_SOFT_HOLE) state->soft_area_picking = false;
@@ -6639,6 +6694,34 @@ static void editor_reference_outline_draw(Position a, Position b, void *context)
     editor_line_draw(a, b, (Color){255, 215, 70, 255});
 }
 
+static void editor_reference_preview_draw(const EditorProject *project,
+        const EditorViewportState *state) {
+    EditorSelectionRef ref = state->reference_preview;
+    EditorObject *object = editor_object_query_get((EditorProject *)project, ref.object);
+    if(object == NULL || ref.kind == EDITOR_SELECTION_NONE) return;
+    EditorObject overview = *object;
+    if(state->mode == EDITOR_VIEWPORT_HIERARCHY) overview.position = object->overview_position;
+    ObjectSourceReference source = {.id = ref.item, .soft_body = ref.parent};
+    switch(ref.kind) {
+        case EDITOR_SELECTION_RIGID_BODY: source.kind = OBJECT_SOURCE_BODY; break;
+        case EDITOR_SELECTION_PARTICLE: source.kind = OBJECT_SOURCE_PARTICLE; break;
+        case EDITOR_SELECTION_SOFT_BODY: source.kind = OBJECT_SOURCE_SOFT_BODY; break;
+        case EDITOR_SELECTION_SOFT_NODE: source.kind = OBJECT_SOURCE_NODE; break;
+        case EDITOR_SELECTION_SOFT_BEAM: source.kind = OBJECT_SOURCE_BEAM; break;
+        case EDITOR_SELECTION_HITBOX: {
+            EditorRigidBody *body = editor_project_rigid_body_get(object, ref.parent);
+            EditorHitbox *box = editor_project_hitbox_get(body, ref.item);
+            if(box != NULL) for(size_t i = 0; i < box->vertex_count; ++i)
+                editor_reference_outline_draw(editor_hitbox_vertex_world_get(&overview, body, box, i),
+                    editor_hitbox_vertex_world_get(&overview, body, box, (i + 1) % box->vertex_count), NULL);
+            return;
+        }
+        default: return;
+    }
+    (void)editor_viewport_reference_outline_visit(&overview, source, editor_view_scale,
+        editor_reference_outline_draw, NULL);
+}
+
 static void editor_viewport_object_draw(const EditorObject *object,
     const EditorViewportState *state, bool object_selected) {
     bool object_highlighted;
@@ -7171,7 +7254,9 @@ static void editor_viewport_content_draw(const EditorProject *project,
             bool viewport_selected = project_preview &&
                 state->selection == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
                 state->selected_layout_viewport == viewport->id;
-            Color border = viewport_selected ? (Color){255, 210, 70, 255} :
+            bool reference_preview = state->reference_preview.kind == EDITOR_SELECTION_LAYOUT_VIEWPORT &&
+                state->reference_preview.object == viewport->id;
+            Color border = viewport_selected || reference_preview ? (Color){255, 210, 70, 255} :
                 (Color){70, 180, 255, 255};
             rectangle.x = origin.x + rectangle.x * zoom;
             rectangle.y = project_preview ?
@@ -7210,7 +7295,10 @@ static void editor_viewport_content_draw(const EditorProject *project,
                 ViewportRectangle camera = item->placement.rectangle;
                 bool selected = item->id == state->selected_viewport_camera_item &&
                     state->selection != EDITOR_SELECTION_NONE;
-                Color color = selected ?
+                bool reference_preview = state->reference_preview.kind == EDITOR_SELECTION_CAMERA &&
+                    state->reference_preview.object == item->object &&
+                    state->reference_preview.item == item->camera;
+                Color color = selected || reference_preview ?
                     (Color){255, 210, 70, 255} : (Color){130, 220, 150, 255};
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;
@@ -7563,6 +7651,7 @@ static void editor_viewport_content_draw(const EditorProject *project,
         editor_viewport_object_draw(selected, state, true);
     }
     rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_VIEWPORT_CONTROL);
+    editor_reference_preview_draw(project, state);
     if((state->mode == EDITOR_VIEWPORT_FORCE || state->mode == EDITOR_VIEWPORT_TORQUE) && selected != NULL &&
             selected->id == state->preview_reference_object)
         (void)editor_viewport_reference_outline_visit(selected, state->preview_reference,

@@ -20,6 +20,7 @@ static void finish(const EditorCommand *command, const EditorCommandResult *resu
 }
 static void panel(EditorParticleEditor *ui, EditorModeContext *context,
         Position pointer, MouseButtonState button, float shift) {
+    editor_mode_reference_frame_begin(context->viewport, false);
     rohr_ui_input_set((UIInput){pointer, button});
     rohr_ui_clip_begin((UIRect){0, 0, 400, 720});
     rohr_ui_translation_y_push(shift);
@@ -197,7 +198,7 @@ int main(int argc, char **argv) {
     /* Parenting uses the normal entity dropdown and command history. */
     only_section(&ui, &ui.parenting_section);
     click(&ui, &context, (Position){200, 344});
-    click(&ui, &context, (Position){200, 400});
+    click(&ui, &context, (Position){200, 400 + context.viewport->reference_hint.size.y + 12});
     assert(body->parent == project.objects[0].rigid_bodies[0].id);
     assert(editor_history_undo(&history));
     body = editor_project_rigid_body_get(&project.objects[0], body_id);

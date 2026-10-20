@@ -22,6 +22,7 @@ typedef struct EditorForceEditor {
     EditorForceReferenceLabel *references;
     const TextAsset **options;
     size_t *indices;
+    EditorSelectionRef *pick_references;
     size_t reference_count;
     size_t row;
     const char *scope;

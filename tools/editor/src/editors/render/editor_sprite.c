@@ -68,6 +68,7 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
     float rotation, width, height, y;
     bool visible, follow;
     const TextAsset *body_options[EDITOR_RIGID_BODY_MAX + 1];
+    EditorSelectionRef references[EDITOR_RIGID_BODY_MAX + 1] = {0};
     UIFieldResult name_result, path_result = {0}, x_result = {0}, y_result = {0};
     UIFieldResult rotation_result = {0}, width_result = {0}, height_result = {0};
     UIDropdownResult body_result = {0};
@@ -99,6 +100,9 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
                 &editor->body_names[i], editor->body_cache[i],
                 EDITOR_OBJECT_NAME_MAX)) return false;
         body_options[i + 1] = &editor->body_names[i];
+        references[i + 1] = (EditorSelectionRef){object->rigid_bodies[i].standalone_particle ?
+            EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+            object->id, 0, 0, object->rigid_bodies[i].id};
         if(object->rigid_bodies[i].id == sprite->rigid_body) body_selected = i + 1;
     }
     position = sprite->position; rotation = sprite->rotation;
@@ -170,10 +174,10 @@ bool editor_sprite_editor_draw(EditorSpriteEditor *editor,
         y = attachment.content_y;
         rohr_ui_label(&editor->body_label,
             (UIRect){context->x + 8.0f, y, 90.0f, 28.0f});
-        body_result = editor_mode_dropdown("editor.sprite.body", body_options,
-            object->rigid_body_count + 1, body_selected,
+        body_result = editor_mode_reference_dropdown("editor.sprite.body", body_options,
+            (object->rigid_body_count < EDITOR_RIGID_BODY_MAX ? object->rigid_body_count : EDITOR_RIGID_BODY_MAX) + 1, body_selected,
             (UIRect){context->x + 100.0f, y, context->width - 110.0f, 28.0f},
-            &section_field_style);
+            &section_field_style, context, references);
         if(preview != NULL)
             preview(preview_context, object, body_result, sprite->rigid_body);
     }

@@ -356,6 +356,7 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
     if(parenting_open) {
         const TextAsset *options[EDITOR_RIGID_BODY_MAX + 1];
         EditorRigidBodyId ids[EDITOR_RIGID_BODY_MAX + 1] = {0};
+        EditorSelectionRef references[EDITOR_RIGID_BODY_MAX + 1] = {0};
         size_t count = 1, selected = 0;
         options[0] = &editor->none_label;
         for(size_t i = 0; i < object->rigid_body_count &&
@@ -368,16 +369,19 @@ bool editor_particle_editor_draw(EditorParticleEditor *editor,
                 return field_active;
             options[count] = &editor->parent_names[count - 1];
             ids[count] = candidate->id;
+            references[count] = (EditorSelectionRef){candidate->standalone_particle ?
+                EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, candidate->id};
             if(candidate->id == body->parent) selected = count;
             count += 1;
         }
         rohr_ui_label(&editor->parent_label,
             (UIRect){x + 8.0f, parenting_y, 70.0f, 28.0f});
         UIButtonStyle field_style = editor_mode_section_field_style_get();
-        UIDropdownResult result = editor_mode_dropdown("editor.particle.parent",
+        UIDropdownResult result = editor_mode_reference_dropdown("editor.particle.parent",
             options, count, selected,
             (UIRect){x + 80.0f, parenting_y, width - 90.0f, 28.0f},
-            &field_style);
+            &field_style, context, references);
         if(result.button_hovered || result.hovered_index >= 0) {
             size_t preview = result.hovered_index >= 0 ?
                 (size_t)result.hovered_index : selected;

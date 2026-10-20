@@ -554,6 +554,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     const TextAsset *camera_options[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
     EditorObjectId camera_objects[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
     EditorCameraId camera_ids[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
+    EditorSelectionRef references[EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX] = {0};
     size_t camera_count = 0;
     size_t selected_camera = 0;
     float y = 42.0f;
@@ -599,6 +600,8 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             camera_options[camera_count] = &editor->camera_names[camera_count];
             camera_objects[camera_count] = object->id;
             camera_ids[camera_count] = camera->id;
+            references[camera_count] = (EditorSelectionRef){EDITOR_SELECTION_CAMERA,
+                object->id, 0, 0, camera->id};
             if(item->object == object->id && item->camera == camera->id)
                 selected_camera = camera_count;
             camera_count += 1;
@@ -642,10 +645,10 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
             (UIRect){context->x + 8.0f, y, 70.0f, 28.0f});
     }
     if(source_section.expanded && camera_count > 0) {
-        UIDropdownResult source = editor_mode_dropdown("editor.layout.screen.source",
+        UIDropdownResult source = editor_mode_reference_dropdown("editor.layout.screen.source",
             camera_options, camera_count, selected_camera,
             (UIRect){context->x + 82.0f, y, context->width - 92.0f, 28.0f},
-            NULL);
+            NULL, context, references);
         if(source.button_hovered || source.hovered_index >= 0) {
             size_t preview = source.hovered_index >= 0 ?
                 (size_t)source.hovered_index : selected_camera;

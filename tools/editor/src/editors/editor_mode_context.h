@@ -41,6 +41,7 @@ typedef struct EditorModeContext {
     void *hierarchy_context;
     MouseButtonState primary_button;
     struct EditorModeLayerControl *layer_control;
+    UIRect reference_pick_exclusion;
 } EditorModeContext;
 
 #endif

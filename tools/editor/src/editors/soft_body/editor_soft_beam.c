@@ -161,6 +161,7 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     }
     {
         const TextAsset *options[EDITOR_SOFT_NODE_MAX + 1];
+        EditorSelectionRef references[EDITOR_SOFT_NODE_MAX + 1] = {0};
         size_t selected_a = 0, selected_b = 0;
         options[0] = &editor->none_label;
         for(size_t i = 0; i < body->node_count && i < EDITOR_SOFT_NODE_MAX; i += 1) {
@@ -168,6 +169,8 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
                     &editor->node_names[i], editor->node_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return name_result.active;
             options[i + 1] = &editor->node_names[i];
+            references[i + 1] = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+                object->id, body->id, 0, body->nodes[i].id};
             if(body->nodes[i].id == beam->node_a) selected_a = i + 1;
             if(body->nodes[i].id == beam->node_b) selected_b = i + 1;
         }
@@ -175,14 +178,14 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
             (UIRect){context->x + 8.0f, 122.0f, 70.0f, 28.0f});
         rohr_ui_label(&editor->node_b_label,
             (UIRect){context->x + 8.0f, 158.0f, 70.0f, 28.0f});
-        UIDropdownResult a = editor_mode_dropdown("editor.soft_beam.node_a", options,
-            body->node_count + 1, selected_a,
+        UIDropdownResult a = editor_mode_reference_dropdown("editor.soft_beam.node_a", options,
+            (body->node_count < EDITOR_SOFT_NODE_MAX ? body->node_count : EDITOR_SOFT_NODE_MAX) + 1, selected_a,
             (UIRect){context->x + 80.0f, 122.0f,
-                context->width - 90.0f, 28.0f}, NULL);
-        UIDropdownResult b = editor_mode_dropdown("editor.soft_beam.node_b", options,
-            body->node_count + 1, selected_b,
+                context->width - 90.0f, 28.0f}, NULL, context, references);
+        UIDropdownResult b = editor_mode_reference_dropdown("editor.soft_beam.node_b", options,
+            (body->node_count < EDITOR_SOFT_NODE_MAX ? body->node_count : EDITOR_SOFT_NODE_MAX) + 1, selected_b,
             (UIRect){context->x + 80.0f, 158.0f,
-                context->width - 90.0f, 28.0f}, NULL);
+                context->width - 90.0f, 28.0f}, NULL, context, references);
         if(a.button_hovered) context->viewport->preview_soft_node = beam->node_a;
         else if(a.hovered_index > 0) context->viewport->preview_soft_node =
             body->nodes[a.hovered_index - 1].id;

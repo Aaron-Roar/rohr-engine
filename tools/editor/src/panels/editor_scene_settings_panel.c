@@ -42,6 +42,7 @@ void editor_scene_settings_panel_destroy(EditorSceneSettingsPanel *panel) {
     labels_destroy(panel->objects, panel->object_count);
     labels_destroy(panel->viewports, panel->viewport_count);
     free(panel->viewport_options);
+    free(panel->viewport_references);
     rohr_graphics_text_destroy(&panel->menu_label); rohr_graphics_text_destroy(&panel->title);
     rohr_graphics_text_destroy(&panel->close_label); rohr_graphics_text_destroy(&panel->all_label);
     rohr_graphics_text_destroy(&panel->none_label); rohr_graphics_text_destroy(&panel->viewport_label);
@@ -66,7 +67,7 @@ bool editor_scene_settings_all_set(EditorProject *project, EditorHistory *histor
     return false;
 }
 void editor_scene_settings_panel_draw(EditorSceneSettingsPanel *panel,
-        EditorProject *project, EditorHistory *history, UIRect bounds) {
+        EditorProject *project, EditorHistory *history, EditorViewportState *state, UIRect bounds) {
     if(!panel || !panel->open || !project) return;
     if(!labels_resize(&panel->objects, &panel->object_count, project->object_count, panel->font) ||
             !labels_resize(&panel->viewports, &panel->viewport_count, project->layout_viewport_count, panel->font)) return;
@@ -76,14 +77,21 @@ void editor_scene_settings_panel_draw(EditorSceneSettingsPanel *panel,
             (panel->viewport_count + 1) * sizeof(*options));
         if(!options) return;
         panel->viewport_options = options;
+        EditorSelectionRef *references = realloc(panel->viewport_references,
+            (panel->viewport_count + 1) * sizeof(*references));
+        if(!references) return;
+        panel->viewport_references = references;
         panel->viewport_option_count = panel->viewport_count + 1;
     }
     const TextAsset **options = panel->viewport_options;
     options[0] = &panel->none_label;
+    panel->viewport_references[0] = (EditorSelectionRef){0};
     size_t selected = 0;
     for(size_t i = 0; i < panel->viewport_count; ++i) {
         label_sync(&panel->viewports[i], project->layout_viewports[i].name);
         options[i + 1] = &panel->viewports[i].text;
+        panel->viewport_references[i + 1] = (EditorSelectionRef){EDITOR_SELECTION_LAYOUT_VIEWPORT,
+            project->layout_viewports[i].id, 0, 0, project->layout_viewports[i].id};
         if(project->simulation_viewport == project->layout_viewports[i].id) selected = i + 1;
     }
     rohr_ui_modal_controls_begin();
@@ -91,9 +99,12 @@ void editor_scene_settings_panel_draw(EditorSceneSettingsPanel *panel,
     rohr_ui_border(bounds, 2, (Color){5, 6, 8, 255});
     rohr_ui_label(&panel->title, (UIRect){bounds.x + 20, bounds.y + 14, bounds.width - 40, 32});
     rohr_ui_label(&panel->viewport_label, (UIRect){bounds.x + 20, bounds.y + 60, 120, 28});
-    UIDropdownResult viewport = editor_mode_dropdown("editor.scene.viewport", options,
+    EditorModeContext context = {.project = project, .history = history, .viewport = state,
+        .reference_pick_exclusion = bounds};
+    UIDropdownResult viewport = editor_mode_reference_dropdown("editor.scene.viewport", options,
         panel->viewport_count + 1, selected,
-        (UIRect){bounds.x + 150, bounds.y + 60, bounds.width - 170, 28}, NULL);
+        (UIRect){bounds.x + 150, bounds.y + 60, bounds.width - 170, 28}, NULL,
+        &context, panel->viewport_references);
     if(viewport.changed) {
         EditorCommand command = {.type = EDITOR_COMMAND_SIMULATION_VIEWPORT_SET,
             .data.simulation_viewport = {viewport.selected_index ?

@@ -94,6 +94,7 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
     float rotation, scale_x, scale_y, ticks, seconds, starting;
     bool visible, follow, playing;
     const TextAsset *body_options[EDITOR_RIGID_BODY_MAX + 1];
+    EditorSelectionRef references[EDITOR_RIGID_BODY_MAX + 1] = {0};
     const TextAsset *direction_options[2] = {&editor->left_label, &editor->right_label};
     UIFieldResult name_result, x_result = {0}, y_result = {0}, rotation_result = {0};
     UIFieldResult sx_result = {0}, sy_result = {0}, ticks_result = {0},
@@ -193,6 +194,9 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
                 &editor->body_names[i], editor->body_cache[i],
                 EDITOR_OBJECT_NAME_MAX)) return false;
         body_options[i + 1] = &editor->body_names[i];
+        references[i + 1] = (EditorSelectionRef){object->rigid_bodies[i].standalone_particle ?
+            EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+            object->id, 0, 0, object->rigid_bodies[i].id};
         if(object->rigid_bodies[i].id == sprite->rigid_body) body_selected = i + 1;
     }
     body_result.selected_index = body_selected;
@@ -200,10 +204,10 @@ bool editor_animated_sprite_editor_draw(EditorAnimatedSpriteEditor *editor,
         UIButtonStyle style = editor_mode_section_field_style_get();
         rohr_ui_label(&editor->body_label,
             (UIRect){context->x + 8.0f, attachment_y, 90.0f, 28.0f});
-        body_result = editor_mode_dropdown("editor.animated_sprite.body", body_options,
-            object->rigid_body_count + 1, body_selected,
+        body_result = editor_mode_reference_dropdown("editor.animated_sprite.body", body_options,
+            (object->rigid_body_count < EDITOR_RIGID_BODY_MAX ? object->rigid_body_count : EDITOR_RIGID_BODY_MAX) + 1, body_selected,
             (UIRect){context->x + 100.0f, attachment_y,
-                context->width - 110.0f, 28.0f}, &style);
+                context->width - 110.0f, 28.0f}, &style, context, references);
         if(preview != NULL)
             preview(preview_context, object, body_result, sprite->rigid_body);
     }

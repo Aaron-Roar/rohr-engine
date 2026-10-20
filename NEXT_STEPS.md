@@ -71,7 +71,7 @@ cleanup (whole-object car spawning alongside direct API scenery construction).
    and independent installed-SDK UI example builds for both platforms with a
    Linux launch outside the source tree. Builds introduce no compiler warnings.
    Native Windows execution and real desktop visual review remain unverified.
-2. [ ] **Pick scene references through the viewport** — While a compatible
+2. [x] **Pick scene references through the viewport** — While a compatible
    selection dropdown is open, allow clicking a compatible viewport item to
    update its field and close the popup, regardless of the highlighted option.
    Show “Choose below or click in the viewport” and “Esc to cancel” in a hint
@@ -79,10 +79,20 @@ cleanup (whole-object car spawning alongside direct API scenery construction).
    hovered targets and use a picking cursor; incompatible clicks leave the value
    unchanged and Escape cancels. A dedicated “Select from Viewport…” entry is
    only a fallback if the popup interaction prevents the preferred approach.
-   Clarify overlapping-target handling before beginning this goal.
+   Overlaps choose the frontmost compatible visible item in the editor's draw
+   order, skipping incompatible items (confirmed by the user). Implemented across
+   force/torque references, attachment and parent fields, joint anchors, beam
+   endpoints, active hitboxes, screen camera sources, and scene viewport choices.
+   Existing validation, undo/redo, selection, and navigation are preserved;
+   modal surfaces and notification overlays block picking through themselves.
+   Verified 42 UI/editor/API checks, nine ASan/UBSan/leak checks, full Linux and
+   Windows cross-builds, and independent installed-SDK UI example builds for
+   both platforms. Linux editor startup and the UI example's launch outside the
+   source tree pass. Builds introduce no compiler warnings. Native Windows
+   execution and real desktop visual review remain unverified.
 
-Goal 1 is complete. Stop for review and a user-created commit.
-Do not begin Goal 2 without explicit user instruction.
+Both goals are complete. Stop for review and a user-created commit before
+beginning the proposed example cleanup, which requires a new user instruction.
 
 ### Consistent Description APIs
 

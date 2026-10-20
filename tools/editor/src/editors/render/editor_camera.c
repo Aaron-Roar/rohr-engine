@@ -171,16 +171,27 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         ADD_TARGET(EDITOR_CAMERA_ATTACHMENT_ANCHOR, object->anchors[i].id, 0,
             object->anchors[i].name);
 #undef ADD_TARGET
+    EditorSelectionRef references[257] = {0};
+    for(size_t i = 1; i < option_count; ++i) {
+        EditorHierarchySelection kind = kinds[i] == EDITOR_CAMERA_ATTACHMENT_SOFT_BODY ?
+            EDITOR_SELECTION_SOFT_BODY : kinds[i] == EDITOR_CAMERA_ATTACHMENT_SOFT_NODE ?
+            EDITOR_SELECTION_SOFT_NODE : kinds[i] == EDITOR_CAMERA_ATTACHMENT_ANCHOR ?
+            EDITOR_SELECTION_ANCHOR : EDITOR_SELECTION_RIGID_BODY;
+        EditorRigidBody *body = kind == EDITOR_SELECTION_RIGID_BODY ?
+            editor_project_rigid_body_get(object, target_ids[i]) : NULL;
+        if(body != NULL && body->standalone_particle) kind = EDITOR_SELECTION_PARTICLE;
+        references[i] = (EditorSelectionRef){kind, object->id, parent_ids[i], 0, target_ids[i]};
+    }
     attachment.selected_index = selected;
     inherit = camera->inherit_orientation;
     if(attachment_section.expanded) {
         y = attachment_section.content_y;
         rohr_ui_label(&editor->attachment_label,
             (UIRect){context->x + 8.0f, y, 82.0f, 28.0f});
-        attachment = editor_mode_dropdown("editor.camera.attachment", options,
+        attachment = editor_mode_reference_dropdown("editor.camera.attachment", options,
             option_count, selected,
             (UIRect){context->x + 94.0f, y, context->width - 104.0f, 28.0f},
-            &section_field_style);
+            &section_field_style, context, references);
         if(attachment.button_hovered || attachment.hovered_index >= 0) {
             size_t preview = attachment.hovered_index >= 0 ?
                 (size_t)attachment.hovered_index : selected;

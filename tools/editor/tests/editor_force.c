@@ -23,6 +23,7 @@ static bool pointer(EditorProject *p,EditorViewportState *s,EditorHistory *h,Pos
     assert(editor_navigation_viewport_transform_history_update(p,s,h,active)); return result;
 }
 static void panel(EditorForceEditor *ui,EditorModeContext *context,Position at,MouseButtonState button) {
+    editor_mode_reference_frame_begin(context->viewport, false);
     rohr_ui_input_set((UIInput){at,button});
     (void)editor_force_editor_draw(ui,context); rohr_ui_update();
 }
@@ -171,7 +172,7 @@ static void reference_hover_check(void) {
     ObjectForceDescription before=f->description;
     panel_click(&ui,&context,(Position){200,232});
     for(size_t i=0;i<7;++i) {
-        panel(&ui,&context,(Position){200,260+28*i},MOUSE_BUTTON_STATE_UP);
+        panel(&ui,&context,(Position){200,260+state.reference_hint.size.y+12+28*i},MOUSE_BUTTON_STATE_UP);
         reference_check(&state,o->id,refs[i]);
         assert(state.selected_force==f->id && state.selection==EDITOR_SELECTION_FORCE);
         assert(memcmp(&before,&f->description,sizeof(before))==0);
@@ -190,7 +191,7 @@ static void reference_hover_check(void) {
     editor_mode_accordion_section_expanded_set(&ui.location_section,true);
     f->description.location=(ObjectForceLocation){.kind=ROHR_FORCE_BEAM_POSITION,.reference=refs[6]};
     panel_click(&ui,&context,(Position){200,268});
-    panel(&ui,&context,(Position){200,296},MOUSE_BUTTON_STATE_UP);
+    panel(&ui,&context,(Position){200,296+state.reference_hint.size.y+12},MOUSE_BUTTON_STATE_UP);
     reference_check(&state,o->id,refs[6]);
     panel_click(&ui,&context,(Position){0,0});
     editor_mode_accordion_section_expanded_set(&ui.location_section,false);

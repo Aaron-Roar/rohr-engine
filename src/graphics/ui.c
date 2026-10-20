@@ -112,6 +112,9 @@ typedef struct UIContext {
     size_t dropdown_first_action_index;
     UIRect dropdown_bounds;
     UIRect dropdown_menu_bounds;
+    UIRect dropdown_popup_bounds;
+    const TextAsset *dropdown_hint;
+    int dropdown_pick_pressed;
     UIButtonStyle dropdown_style;
     size_t dropdown_first_option;
     bool dropdown_option_interaction;
@@ -634,7 +637,7 @@ void ui_input_set(UIInput input) {
     ui_context.input = input;
     ui_context.dropdown_capture_id = ui_context.dropdown_id;
     ui_context.dropdown_capture_bounds = ui_context.dropdown_bounds;
-    ui_context.dropdown_capture_menu_bounds = ui_context.dropdown_menu_bounds;
+    ui_context.dropdown_capture_menu_bounds = ui_context.dropdown_popup_bounds;
     if(input.primary_button == MOUSE_BUTTON_STATE_UP) {
         if(ui_context.active_id == ui_context.field_capture_id)
             ui_context.active_id = 0;
@@ -1242,6 +1245,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     UIRect resolved_bounds = ui_bounds_resolve(bounds);
     size_t visible_count;
     UIRect menu_bounds;
+    UIRect popup_bounds;
+    float hint_height = config.hint == NULL ? 0.0f : config.hint->size.y + 12.0f;
 
     if(dropdown_id == 0 || options == NULL ||
             option_count == 0 || selected_index >= option_count ||
@@ -1251,26 +1256,34 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
         option_count : config.visible_row_limit;
     menu_bounds = (UIRect){resolved_bounds.x, resolved_bounds.y + resolved_bounds.height,
         resolved_bounds.width, resolved_bounds.height * (float)visible_count};
+    popup_bounds = menu_bounds;
+    popup_bounds.height += hint_height;
+    if(config.hint != NULL)
+        popup_bounds.width = fmaxf(popup_bounds.width, config.hint->size.x + 12.0f);
     if(config.fit_window) {
         WindowPresentationDescription window = graphics_window_presentation_description_get();
         float height = (float)window.logical_height;
         float width = (float)window.logical_width;
         if(height > 0.0f && width > 0.0f) {
             float above = fmaxf(0.0f, fminf(height, resolved_bounds.y));
-            float below = fmaxf(0.0f, fminf(height, height - menu_bounds.y));
-            bool open_above = menu_bounds.height > below && above > below;
+            float below = fmaxf(0.0f, fminf(height, height - popup_bounds.y));
+            bool open_above = popup_bounds.height > below && above > below;
             float available = open_above ? above : below;
-            size_t fitting_rows = (size_t)floorf(available / bounds.height);
+            hint_height = fminf(hint_height, fmaxf(0.0f, height - bounds.height));
+            size_t fitting_rows = (size_t)floorf(fmaxf(0.0f, available - hint_height) / bounds.height);
             /* An exceptionally small window still offers one usable row. */
             if(fitting_rows == 0) fitting_rows = 1;
             if(visible_count > fitting_rows) visible_count = fitting_rows;
-            menu_bounds.height = fminf(height, bounds.height * (float)visible_count);
-            menu_bounds.width = fminf(width, menu_bounds.width);
-            menu_bounds.x = fmaxf(0.0f, fminf(menu_bounds.x, width - menu_bounds.width));
-            menu_bounds.y = open_above ? resolved_bounds.y - menu_bounds.height : menu_bounds.y;
-            menu_bounds.y = fmaxf(0.0f, fminf(menu_bounds.y, height - menu_bounds.height));
+            popup_bounds.height = fminf(height, hint_height + bounds.height * (float)visible_count);
+            popup_bounds.width = fminf(width, popup_bounds.width);
+            popup_bounds.x = fmaxf(0.0f, fminf(popup_bounds.x, width - popup_bounds.width));
+            popup_bounds.y = open_above ? resolved_bounds.y - popup_bounds.height : popup_bounds.y;
+            popup_bounds.y = fmaxf(0.0f, fminf(popup_bounds.y, height - popup_bounds.height));
         }
     }
+    menu_bounds = popup_bounds;
+    menu_bounds.y += hint_height;
+    menu_bounds.height -= hint_height;
     if(visible_count > UI_DROPDOWN_OPTION_MAX) {
         ui_warning(ERROR_ENGINE_UI_CAPACITY_EXCEEDED, UI_REPORT_DROPDOWN,
             "UI dropdown visible options exceed capacity");
@@ -1285,6 +1298,7 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
             ui_context.dropdown_id = 0;
         } else {
             ui_context.dropdown_id = dropdown_id;
+            ui_context.dropdown_pick_pressed = -1;
             ui_context.dropdown_first_option = selected_index >= visible_count ?
                 selected_index - visible_count + 1 : 0;
         }
@@ -1292,6 +1306,14 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     result.open = ui_context.dropdown_id == dropdown_id;
     if(!result.open) return result;
     ui_context.dropdown_seen = true;
+    if(config.pick != NULL && (ui_key_pressed_check(SDLK_ESCAPE) ||
+            config.pick_bounds.width <= 0 || config.pick_bounds.height <= 0)) {
+        ui_context.dropdown_id = 0;
+        ui_context.dropdown_pick_pressed = -1;
+        result.open = false;
+        ui_context.pointer_consumed = true;
+        return result;
+    }
     if(ui_context.dropdown_first_option > option_count - visible_count)
         ui_context.dropdown_first_option = option_count - visible_count;
     {
@@ -1299,7 +1321,7 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
             (float)visible_count, (float)option_count,
             (float)ui_context.dropdown_first_option, true);
         ui_context.dropdown_first_option = (size_t)lroundf(first_option);
-        if(ui_point_in_rect(ui_context.input.pointer, menu_bounds) &&
+        if(ui_point_in_rect(ui_context.input.pointer, popup_bounds) &&
                 ui_context.wheel_y != 0.0f && option_count > visible_count) {
             int direction = ui_context.wheel_y < 0.0f ? 1 : -1;
             int first = (int)ui_context.dropdown_first_option + direction;
@@ -1321,6 +1343,8 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
     }
     ui_context.dropdown_bounds = resolved_bounds;
     ui_context.dropdown_menu_bounds = menu_bounds;
+    ui_context.dropdown_popup_bounds = popup_bounds;
+    ui_context.dropdown_hint = config.hint;
     ui_context.dropdown_style = style == NULL ? ui_button_style_default_get() : *style;
     for(size_t i = 0; i < ui_context.dropdown_option_count; i += 1) {
         ui_context.dropdown_options[i] = options[ui_context.dropdown_first_option + i];
@@ -1370,14 +1394,39 @@ static UIDropdownResult ui_dropdown_draw(const char *id, const TextAsset *label,
             ui_context.dropdown_id = 0;
         }
     }
-    ui_border_raw(menu_bounds, 2.0f, (Color){0, 0, 0, 255});
+    ui_border_raw(popup_bounds, 2.0f, (Color){0, 0, 0, 255});
     ui_scrollbar_raw(menu_bounds,
         (float)ui_context.dropdown_option_count,
         (float)ui_context.dropdown_total_option_count,
         (float)ui_context.dropdown_first_option);
-    if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED &&
+    bool picking = config.pick != NULL &&
+        ui_point_in_rect(ui_context.input.pointer, config.pick_bounds) &&
+        !ui_point_in_rect(ui_context.input.pointer, config.pick_exclusion) &&
+        !ui_point_in_rect(ui_context.input.pointer, popup_bounds) &&
+        !ui_point_in_rect(ui_context.input.pointer, resolved_bounds) &&
+        (!ui_context.modal_active || ui_context.modal_controls);
+    if(picking) {
+        int picked = config.pick(ui_context.input.pointer, config.pick_context);
+        if(picked < 0 || (size_t)picked >= option_count) picked = -1;
+        result.hovered_index = picked;
+        ui_context.pointer_consumed = true;
+        if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED)
+            ui_context.dropdown_pick_pressed = picked;
+        if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_RELEASED &&
+                picked >= 0 && picked == ui_context.dropdown_pick_pressed) {
+            result.selected_index = (size_t)picked;
+            result.changed = result.selected_index != selected_index;
+            result.open = false;
+            ui_context.dropdown_id = 0;
+            ui_context.navigation_focus_id = dropdown_id;
+        }
+    } else if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED)
+        ui_context.dropdown_pick_pressed = -1;
+    if(ui_context.input.primary_button == MOUSE_BUTTON_STATE_RELEASED)
+        ui_context.dropdown_pick_pressed = -1;
+    if(!picking && ui_context.input.primary_button == MOUSE_BUTTON_STATE_PRESSED &&
             !ui_point_in_rect(ui_context.input.pointer, resolved_bounds) &&
-            !ui_point_in_rect(ui_context.input.pointer, menu_bounds)) {
+            !ui_point_in_rect(ui_context.input.pointer, popup_bounds)) {
         ui_context.dropdown_id = 0;
         result.open = false;
     }
@@ -1437,7 +1486,7 @@ UIScrollRegionResult ui_scroll_region_begin(const char *id, UIRect bounds,
         }
     }
     if(ui_context.dropdown_id != 0 && ui_context.dropdown_option_count > 0) {
-        UIRect menu = ui_context.dropdown_menu_bounds;
+        UIRect menu = ui_context.dropdown_popup_bounds;
         dropdown_over_pointer = ui_point_in_rect(ui_context.input.pointer, menu);
         if(dropdown_over_pointer) wheel_target = UINT64_MAX;
     }
@@ -1749,6 +1798,12 @@ Report ui_update(void) {
     }
     if(ui_context.dropdown_id != 0 &&
             ui_context.dropdown_render_id == ui_context.dropdown_id) {
+        if(ui_context.dropdown_hint != NULL) {
+            UIRect hint = ui_context.dropdown_popup_bounds;
+            hint.height = ui_context.dropdown_menu_bounds.y - hint.y;
+            ui_surface_raw(hint, ui_context.dropdown_style.idle);
+            ui_label_raw(ui_context.dropdown_hint, hint);
+        }
         for(size_t i = 0; i < ui_context.dropdown_option_count; i += 1) {
             float row_height = ui_context.dropdown_menu_bounds.height /
                 (float)ui_context.dropdown_option_count;
@@ -1783,7 +1838,7 @@ Report ui_update(void) {
             ui_label_raw(ui_context.dropdown_options[i], bounds);
             ui_dropdown_divider_raw(bounds);
         }
-        ui_border_raw(ui_context.dropdown_menu_bounds,
+        ui_border_raw(ui_context.dropdown_popup_bounds,
             2.0f, (Color){0, 0, 0, 255});
         ui_scrollbar_raw(ui_context.dropdown_menu_bounds,
             (float)ui_context.dropdown_option_count,
@@ -1832,7 +1887,7 @@ Report ui_update(void) {
     ui_context.dropdown_render_id = 0;
     ui_context.dropdown_capture_id = ui_context.dropdown_id;
     ui_context.dropdown_capture_bounds = ui_context.dropdown_bounds;
-    ui_context.dropdown_capture_menu_bounds = ui_context.dropdown_menu_bounds;
+    ui_context.dropdown_capture_menu_bounds = ui_context.dropdown_popup_bounds;
     ui_context.translation_y = 0.0f;
     ui_context.scoped_translation_depth = 0;
     ui_context.scroll_depth = 0;

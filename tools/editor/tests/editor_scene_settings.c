@@ -17,7 +17,7 @@ static void frame(EditorSceneSettingsPanel *panel, EditorProject *project, Edito
     rohr_ui_input_set((UIInput){.pointer=pointer,.primary_button=button});
     rohr_ui_modal_set(bounds);
     assert(!rohr_ui_button("underlying", &panel->all_label, (UIRect){0,0,80,80},NULL).clicked);
-    editor_scene_settings_panel_draw(panel,project,history,bounds); rohr_ui_update();
+    editor_scene_settings_panel_draw(panel,project,history,NULL,bounds); rohr_ui_update();
 }
 static void click(EditorSceneSettingsPanel *panel, EditorProject *project, EditorHistory *history, Position at) {
     frame(panel,project,history,at,MOUSE_BUTTON_STATE_PRESSED);

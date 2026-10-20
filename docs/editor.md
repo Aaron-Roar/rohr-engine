@@ -327,6 +327,21 @@ the rows they need, while longer lists provide wheel and scrollbar navigation.
 Popups open above the field or show fewer rows when needed to fit the logical
 window. File, Build, View, and the other top menu-bar menus are unchanged.
 
+Scene-reference dropdowns show **Choose below or click in the viewport** with an
+**Esc to cancel** hint above the options. While one is open, hovering a compatible
+visible item highlights it and shows a crosshair. Press and release on that item
+to fill the field and close the dropdown. Overlaps use the frontmost compatible
+item in draw order; incompatible items are skipped. Empty or incompatible clicks
+leave the picker open, and Escape cancels without changing the field or editor.
+The hint does not consume any of the ten option rows.
+
+Picking uses the dropdown's existing choices and validation for force/torque
+references, camera and sprite attachments, parents, anchors, beam endpoints, and
+active hitboxes. A screen's camera source can also be selected through another
+visible screen using that camera. Scene Settings can pick a visible viewport
+outline in the project overview; the settings dialog itself blocks picking
+through its surface. Ordinary mode, font, and numeric controls remain unchanged.
+
 Controllers are top-level resources beside Objects and Viewports. **Add
 Controller** creates a named logical controller. Opening that element edits only
 that controller and presents **Add Action** plus one selectable element per

@@ -23,7 +23,7 @@ add_executable(rohr_editor_gui
     src/panels/editor_error_notifications.c
     src/states/editor_app_state.c
     src/states/editor_project_launcher_state.c
-    src/editors/editor_mode_controls.c
+    src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
     src/editors/editor_collision_controls.c
     src/editors/geometry/editor_vertex.c
     src/editors/geometry/editor_line.c
@@ -91,7 +91,8 @@ if(ROHR_BUILD_TESTS)
     add_test(NAME editor_scene_panel COMMAND editor_scene_panel_test $<TARGET_FILE:scene_child_test>)
     set_tests_properties(editor_scene_panel PROPERTIES TIMEOUT 30 ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_executable(editor_scene_settings_test tests/editor_scene_settings.c
-        src/editor_history.c src/editors/editor_mode_controls.c src/panels/editor_scene_settings_panel.c)
+        src/editor_history.c src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c src/panels/editor_scene_settings_panel.c
+        src/editor_viewport.c src/viewport/controls/editor_rotation_control.c)
     target_include_directories(editor_scene_settings_test PRIVATE src ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/lib)
     target_link_libraries(editor_scene_settings_test PRIVATE rohr_editor_core)
     set_target_properties(editor_scene_settings_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
@@ -163,7 +164,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/viewport/controls/editor_rotation_control.c
@@ -185,7 +186,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/geometry/editor_hitbox.c
@@ -209,7 +210,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/soft_body/editor_soft_node.c
@@ -229,7 +230,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/physics/editor_center_of_mass.c
@@ -248,7 +249,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/physics/editor_center_of_mass.c
@@ -269,7 +270,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/physics/editor_center_of_mass.c
@@ -289,7 +290,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/physics/editor_center_of_mass.c
@@ -310,7 +311,7 @@ if(ROHR_BUILD_TESTS)
         src/editor_history.c
         src/editor_navigation.c
         src/editor_viewport.c
-        src/editors/editor_mode_controls.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editors/editor_collision_controls.c
         src/editors/geometry/editor_auto_shape.c
         src/editors/multi/editor_bulk_panel.c
@@ -347,7 +348,7 @@ if(ROHR_BUILD_TESTS)
 
     add_executable(editor_visibility_test
         tests/editor_visibility.c src/editor_history.c src/editor_navigation.c
-        src/editors/render/editor_camera.c src/editors/editor_mode_controls.c
+        src/editors/render/editor_camera.c src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editor_viewport.c src/viewport/controls/editor_rotation_control.c)
     target_include_directories(editor_visibility_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_visibility_test PRIVATE rohr_engine rohr_editor_core)
@@ -356,7 +357,7 @@ if(ROHR_BUILD_TESTS)
     set_tests_properties(editor_visibility PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
 
     add_executable(editor_force_test
-        tests/editor_force.c src/editors/physics/editor_force.c src/editors/editor_mode_controls.c
+        tests/editor_force.c src/editors/physics/editor_force.c src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editor_history.c src/editor_navigation.c src/editor_viewport.c
         src/viewport/controls/editor_rotation_control.c)
     target_include_directories(editor_force_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
@@ -364,8 +365,20 @@ if(ROHR_BUILD_TESTS)
     set_target_properties(editor_force_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     add_test(NAME editor_force COMMAND editor_force_test)
     set_tests_properties(editor_force PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    add_executable(editor_reference_picker_test
+        tests/editor_reference_picker.c src/editors/physics/editor_force.c
+        src/panels/editor_scene_settings_panel.c
+        src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
+        src/editor_history.c src/editor_navigation.c src/editor_viewport.c
+        src/viewport/controls/editor_rotation_control.c)
+    target_include_directories(editor_reference_picker_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(editor_reference_picker_test PRIVATE rohr_engine rohr_editor_core)
+    set_target_properties(editor_reference_picker_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    add_test(NAME editor_reference_picker COMMAND editor_reference_picker_test)
+    set_tests_properties(editor_reference_picker PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+
     add_executable(editor_torque_test
-        tests/editor_torque.c src/editors/physics/editor_force.c src/editors/editor_mode_controls.c
+        tests/editor_torque.c src/editors/physics/editor_force.c src/editors/editor_mode_controls.c src/editors/editor_reference_picker.c
         src/editor_history.c src/editor_navigation.c src/editor_viewport.c
         src/viewport/controls/editor_rotation_control.c)
     target_include_directories(editor_torque_test PRIVATE src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
@@ -401,7 +414,7 @@ if(ROHR_BUILD_TESTS)
 endif()
 
 if(ROHR_BUILD_TESTS AND ROHR_ENABLE_SANITIZERS)
-    foreach(area_editor_target editor_visibility_test editor_torque_test editor_force_test editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test)
+    foreach(area_editor_target editor_visibility_test editor_torque_test editor_force_test editor_reference_picker_test editor_project_test editor_navigation_test editor_history_test editor_area_authoring_test editor_auto_shape_test editor_collision_controls_test editor_com_authoring_test editor_particle_authoring_test editor_beam_materials_test)
         target_compile_options(${area_editor_target} PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
     endforeach()
 endif()

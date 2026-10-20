@@ -5881,6 +5881,8 @@ Set config.visible_row_limit to zero to display every option; limited lists scro
 
 Set config.fit_window to fit the logical window by opening above or showing fewer scrollable rows.
 
+Optional config.hint and config.pick add a heading and external selection; Escape cancels picking.
+
 ### `rohr_ui_menu`
 
 ```c

@@ -163,6 +163,8 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
         EditorSoftBodyId parent_ids[EDITOR_RIGID_BODY_MAX +
             EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
+        EditorSelectionRef references[EDITOR_RIGID_BODY_MAX +
+            EDITOR_SOFT_BODY_MAX * EDITOR_SOFT_NODE_MAX + 1] = {0};
         size_t selected = 0, count = 1, node_index = 0;
         (void)maximum;
         options[0] = &editor->none_label;
@@ -174,6 +176,9 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
             options[count] = &editor->body_names[i];
             kinds[count] = EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY;
             target_ids[count] = object->rigid_bodies[i].id;
+            references[count] = (EditorSelectionRef){object->rigid_bodies[i].standalone_particle ?
+                EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, target_ids[count]};
             if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY &&
                     object->rigid_bodies[i].id == anchor->rigid_body) selected = count;
             count += 1;
@@ -189,6 +194,8 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
                 kinds[count] = EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE;
                 target_ids[count] = soft->nodes[n].id;
                 parent_ids[count] = soft->id;
+                references[count] = (EditorSelectionRef){EDITOR_SELECTION_SOFT_NODE,
+                    object->id, soft->id, 0, soft->nodes[n].id};
                 if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE &&
                         anchor->attachment_soft_body == soft->id &&
                         anchor->attachment_soft_node == soft->nodes[n].id)
@@ -196,10 +203,10 @@ bool editor_anchor_editor_draw(EditorAnchorEditor *editor,
                 count += 1;
             }
         }
-        UIDropdownResult result = editor_mode_dropdown("editor.anchor.attachment",
+        UIDropdownResult result = editor_mode_reference_dropdown("editor.anchor.attachment",
             options, count, selected,
             (UIRect){context->x + 100.0f, attachment_y,
-                context->width - 110.0f, 28.0f}, NULL);
+                context->width - 110.0f, 28.0f}, NULL, context, references);
         if(result.hovered_index >= 0) {
             size_t option = (size_t)result.hovered_index;
             if(option < count && kinds[option] == EDITOR_ANCHOR_ATTACHMENT_RIGID_BODY)

@@ -17,7 +17,8 @@ bool editor_force_editor_create(EditorForceEditor *e, FontAsset *font) {
     e->references=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->references));
     e->options=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->options));
     e->indices=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->indices));
-    if(!e->references || !e->options || !e->indices) goto fail;
+    e->pick_references=calloc(EDITOR_FORCE_REFERENCE_MAX,sizeof(*e->pick_references));
+    if(!e->references || !e->options || !e->indices || !e->pick_references) goto fail;
     for(size_t i=0;i<16;++i) if(!editor_mode_text_create(font,choices[i],&e->choices[i])) goto fail;
     for(size_t i=0;i<EDITOR_FORCE_FIELD_MAX;++i)
         if(!editor_mode_text_create(font,"",&e->fields[i])) goto fail;
@@ -36,7 +37,7 @@ void editor_force_editor_destroy(EditorForceEditor *e) {
         rohr_graphics_text_destroy(&e->labels[i]); rohr_graphics_text_destroy(&e->fields[i]);
     }
     if(e->references) for(size_t i=0;i<EDITOR_FORCE_REFERENCE_MAX;++i) rohr_graphics_text_destroy(&e->references[i].text);
-    free(e->references); free(e->options); free(e->indices);
+    free(e->references); free(e->options); free(e->indices); free(e->pick_references);
     rohr_graphics_text_destroy(&e->name); rohr_graphics_text_destroy(&e->delete_label); rohr_graphics_text_destroy(&e->torque_delete_label);
     editor_mode_accordion_section_destroy(&e->source_section);
     editor_mode_accordion_section_destroy(&e->location_section);
@@ -106,11 +107,18 @@ static bool reference(EditorForceEditor *e,const EditorModeContext *c,float *y,c
         ObjectSourceReference r=e->references[i].reference;
         if(!(mask & (1u<<r.kind))) continue;
         if(r.kind==ref->kind && r.id==ref->id && r.soft_body==ref->soft_body) { selected=count; resolved=true; }
+        EditorHierarchySelection kind = r.kind == OBJECT_SOURCE_BODY ? EDITOR_SELECTION_RIGID_BODY :
+            r.kind == OBJECT_SOURCE_PARTICLE ? EDITOR_SELECTION_PARTICLE :
+            r.kind == OBJECT_SOURCE_SOFT_BODY ? EDITOR_SELECTION_SOFT_BODY :
+            r.kind == OBJECT_SOURCE_NODE ? EDITOR_SELECTION_SOFT_NODE :
+            r.kind == OBJECT_SOURCE_BEAM ? EDITOR_SELECTION_SOFT_BEAM : EDITOR_SELECTION_NONE;
+        e->pick_references[count] = (EditorSelectionRef){kind, c->project->selected, r.soft_body, 0, r.id};
         e->indices[count]=i; e->options[count++]=&e->references[i].text;
     }
     char id[64]; UIRect bounds=row(e,c,y,label,id);
     if(!count) { rohr_ui_label(&e->choices[15],bounds); return false; }
-    UIDropdownResult result=editor_mode_dropdown(id,e->options,count,selected,bounds,NULL);
+    UIDropdownResult result=editor_mode_reference_dropdown(id,e->options,count,selected,
+        bounds,NULL,c,e->pick_references);
     int hovered=result.hovered_index;
     if(hovered<0 && result.button_hovered && resolved) hovered=(int)selected;
     if(hovered>=0 && (size_t)hovered<count) {

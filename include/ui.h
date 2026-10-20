@@ -96,6 +96,15 @@ typedef struct UIDropdownConfig {
     size_t visible_row_limit;
     /** Fit the popup to the logical window, opening above when needed. */
     bool fit_window;
+    /** Optional popup heading, borrowed until ui_update; does not count as a row. */
+    const TextAsset *hint;
+    /** Optional external picking region in logical window coordinates. */
+    UIRect pick_bounds;
+    /** Optional dialog rectangle excluded from external picking. */
+    UIRect pick_exclusion;
+    /** Synchronous hover query: return an option index, or -1 for no compatible hit. */
+    int (*pick)(Position pointer, void *context);
+    void *pick_context;
 } UIDropdownConfig;
 
 typedef struct UIDropdownResult {

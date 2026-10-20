@@ -129,6 +129,12 @@ UIFieldResult editor_mode_field(const char *id, UIFieldBinding binding,
 UIDropdownResult editor_mode_dropdown(const char *id,
     const TextAsset *const *options, size_t option_count,
     size_t selected_index, UIRect bounds, const UIButtonStyle *style);
+/* References are borrowed only for this draw, in the same order as options. */
+UIDropdownResult editor_mode_reference_dropdown(const char *id,
+    const TextAsset *const *options, size_t option_count, size_t selected_index,
+    UIRect bounds, const UIButtonStyle *style, const EditorModeContext *context,
+    const EditorSelectionRef *references);
+void editor_mode_reference_frame_begin(EditorViewportState *state, bool blocked);
 void editor_mode_numeric_disabled_draw(TextAsset *display, float value,
     UIRect bounds);
 bool editor_mode_checkbox_left(const char *id, const TextAsset *label,

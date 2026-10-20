@@ -517,6 +517,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
     if(parenting_open) {
         const TextAsset *options[EDITOR_RIGID_BODY_MAX + 1];
         EditorRigidBodyId ids[EDITOR_RIGID_BODY_MAX + 1] = {0};
+        EditorSelectionRef references[EDITOR_RIGID_BODY_MAX + 1] = {0};
         size_t count = 1, selected = 0;
         options[0] = &editor->none_label;
         for(size_t i = 0; i < object->rigid_body_count &&
@@ -529,16 +530,19 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                 return field_active;
             options[count] = &editor->parent_names[count - 1];
             ids[count] = candidate->id;
+            references[count] = (EditorSelectionRef){candidate->standalone_particle ?
+                EDITOR_SELECTION_PARTICLE : EDITOR_SELECTION_RIGID_BODY,
+                object->id, 0, 0, candidate->id};
             if(candidate->id == body->parent) selected = count;
             count += 1;
         }
         rohr_ui_label(&editor->parent_label,
             (UIRect){x + 8.0f, parenting_y, 70.0f, 28.0f});
         UIButtonStyle field_style = editor_mode_section_field_style_get();
-        UIDropdownResult result = editor_mode_dropdown("editor.rigid_body.parent",
+        UIDropdownResult result = editor_mode_reference_dropdown("editor.rigid_body.parent",
             options, count, selected,
             (UIRect){x + 80.0f, parenting_y, width - 90.0f, 28.0f},
-            &field_style);
+            &field_style, context, references);
         if(result.button_hovered || result.hovered_index >= 0) {
             size_t preview = result.hovered_index >= 0 ?
                 (size_t)result.hovered_index : selected;
@@ -615,6 +619,7 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
             }
             if(body->hitbox_count > 0) {
                 const TextAsset *options[EDITOR_BODY_HITBOX_MAX];
+                EditorSelectionRef references[EDITOR_BODY_HITBOX_MAX] = {0};
                 size_t option_count = body->hitbox_count < EDITOR_BODY_HITBOX_MAX ?
                     body->hitbox_count : EDITOR_BODY_HITBOX_MAX;
                 rohr_ui_label(&editor->active_hitbox_label,
@@ -626,14 +631,16 @@ bool editor_rigid_body_editor_draw(EditorRigidBodyEditor *editor,
                             editor->hitbox_cache[i], EDITOR_OBJECT_NAME_MAX))
                         return field_active;
                     options[i] = &editor->hitbox_names[i];
+                    references[i] = (EditorSelectionRef){EDITOR_SELECTION_HITBOX,
+                        object->id, body->id, 0, body->hitboxes[i].id};
                 }
                 {
-                    UIDropdownResult active = editor_mode_dropdown(
+                    UIDropdownResult active = editor_mode_reference_dropdown(
                         "editor.rigid_body.active_hitbox", options, option_count,
                         body->active_hitbox_index < option_count ?
                             body->active_hitbox_index : 0,
                         (UIRect){row_x, geometry_active_field_y,
-                            row_width, 28.0f}, NULL);
+                            row_width, 28.0f}, NULL, context, references);
                     if(active.changed) property_uint_set(context->project,
                         object->id, body->id, EDITOR_PROPERTY_ACTIVE_HITBOX,
                         (uint32_t)active.selected_index);

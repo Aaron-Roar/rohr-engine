@@ -189,6 +189,12 @@ typedef struct EditorViewportState {
     EditorCameraId preview_camera;
     EditorObjectId preview_reference_object;
     ObjectSourceReference preview_reference;
+    TextAsset reference_hint;
+    bool reference_picker_open;
+    bool reference_picker_hovered;
+    bool reference_picker_blocked;
+    UIRect reference_pick_overlay;
+    EditorSelectionRef reference_preview;
     EditorSelectionRef *selected_items;
     size_t selected_item_count;
     size_t selected_item_capacity;
@@ -212,6 +218,10 @@ bool editor_viewport_selection_ref_get(const EditorProject *project,
 bool editor_viewport_selection_at_get(EditorProject *project,
     const EditorViewportState *state, Position pointer,
     EditorSelectionRef *selection);
+/* Returns the frontmost compatible option, independently of editing selection. */
+int editor_viewport_reference_at_get(EditorProject *project,
+    const EditorViewportState *state, Position pointer,
+    const EditorSelectionRef *references, size_t count);
 bool editor_viewport_selection_contains(const EditorViewportState *state,
     EditorSelectionRef selection);
 bool editor_viewport_selection_homogeneous_check(const EditorViewportState *state);
