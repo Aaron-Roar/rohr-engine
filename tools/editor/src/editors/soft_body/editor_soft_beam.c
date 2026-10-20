@@ -59,6 +59,8 @@ bool editor_soft_beam_editor_create(EditorSoftBeamEditor *editor,
     CREATE("Name", name_label); CREATE("Node A", node_a_label);
     CREATE("Node B", node_b_label); CREATE("Stiffness", stiffness_label);
     CREATE("Damping", damping_label);
+    CREATE("Rest Length", rest_length_label); CREATE("", rest_length_field);
+    CREATE("Explicit Rest Length", rest_explicit_label);
     CREATE("Thickness", thickness_label);
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
     CREATE("", friction_field); CREATE("", restitution_field);
@@ -92,6 +94,7 @@ void editor_soft_beam_editor_destroy(EditorSoftBeamEditor *editor) {
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
     DESTROY(name_label); DESTROY(node_a_label); DESTROY(node_b_label);
     DESTROY(stiffness_label); DESTROY(damping_label);
+    DESTROY(rest_length_label); DESTROY(rest_length_field); DESTROY(rest_explicit_label);
     DESTROY(thickness_label);
 
     DESTROY(color_label);
@@ -227,9 +230,28 @@ bool editor_soft_beam_editor_draw(EditorSoftBeamEditor *editor,
     if(thickness_result.changed) float_set(context->project, object->id,
         body->id, beam->id, EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS,
         fmaxf(ROHR_SOFT_BODY_BEAM_COLLISION_THICKNESS_MIN, thickness));
+    bool rest_explicit = beam->rest_length_explicit;
+    if(editor_mode_checkbox_left("editor.soft_beam.rest_explicit", &editor->rest_explicit_label,
+            (UIRect){context->x + 10, 304, context->width - 20, 28}, &rest_explicit))
+        bool_set(context->project, object->id, body->id, beam->id,
+            EDITOR_PROPERTY_REST_LENGTH_EXPLICIT, rest_explicit);
+    float rest_bottom = 340;
+    if(rest_explicit) {
+        float length = beam->rest_length;
+        rohr_ui_label(&editor->rest_length_label,
+            (UIRect){context->x + 8, 340, 90, 26});
+        UIFieldResult rest = editor_mode_field("editor.soft_beam.rest_length",
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &length},
+            &editor->rest_length_field,
+            (UIRect){context->x + 100, 340, context->width - 110, 26}, NULL);
+        if(rest.changed) float_set(context->project, object->id, body->id,
+            beam->id, EDITOR_PROPERTY_REST_LENGTH, length);
+        field_active |= rest.active;
+        rest_bottom = 376;
+    }
     const float material_rows[] = {26, 26};
     EditorModeAccordionLayoutCursor cursor = editor_mode_accordion_layout_cursor_get(
-        context->x, context->width, 304);
+        context->x, context->width, rest_bottom);
     EditorModeAccordionLayoutResult material = editor_mode_accordion_layout_section(
         &cursor, &editor->material_section, "editor.soft_beam.section.material",
         material_rows, 2, 6);

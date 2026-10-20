@@ -705,14 +705,16 @@ below. Numeric constants, typedefs, struct fields, extern storage, and callback
 type declarations are not callable API entries; configuration types are covered
 in the family table and exemptions above.
 
-The current inventory contains **1602** classified declaration/macro entries.
+The current inventory contains **1604** classified declaration/macro entries.
+The two additions after the milestone-4 inventory freeze are the direct and
+public-wrapper joint placement operations; the frozen baseline remains 1,602.
 
 | Classification | Meaning | Owning goal | Entries |
 | --- | --- | --- | --- |
 | C: Compliant | Existing description interface | — | 342 |
 | EV: Intentionally exempt | Focused/basic-value mutation or lookup | — | 275 |
 | EQ: Intentionally exempt | Query, validation, snapshot, or result access | — | 400 |
-| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 456 |
+| EO: Intentionally exempt | Operation, lifecycle, execution, or drawing | — | 458 |
 | EM: Intentionally exempt | Pure math or utility calculation | — | 77 |
 | ES: Intentionally exempt | Internal storage, reporting, or macro machinery | — | 48 |
 | ET: Intentionally exempt | Build-time tooling | — | 4 |
@@ -1096,7 +1098,7 @@ Source: [object.h](../include/object.h).
 </details>
 
 <details>
-<summary>physics.h: 231 entries</summary>
+<summary>physics.h: 232 entries</summary>
 
 Source: [physics.h](../include/physics.h).
 
@@ -1178,6 +1180,7 @@ Source: [physics.h](../include/physics.h).
 - `physics_hitbox_at_remove`, `physics_hitbox_autoshape_circle_set`, `physics_hitbox_autoshape_rectangle_set`.
 - `physics_hitbox_autoshape_triangle_set`, `physics_hitbox_by_id_remove`, `physics_hitbox_remove`.
 - `physics_impulse_apply`, `physics_joint_anchor_remove`, `physics_kinematic_driven_remove`.
+- `physics_joint_place`.
 - `physics_mass_remove`, `physics_pipeline_accelerations_clear`, `physics_pipeline_constraints_solve`.
 - `physics_pipeline_contacts_gather`, `physics_pipeline_forces_apply`, `physics_pipeline_gravity_apply`.
 - `physics_pipeline_integrate`, `physics_pipeline_joints_gather`, `physics_pipeline_step_begin`.
@@ -1214,7 +1217,7 @@ Source: [report.h](../include/report.h).
 </details>
 
 <details>
-<summary>rohr.h: 789 entries</summary>
+<summary>rohr.h: 790 entries</summary>
 
 Source: [rohr.h](../include/rohr.h).
 
@@ -1452,6 +1455,7 @@ Source: [rohr.h](../include/rohr.h).
 - `rohr_physics_hitbox_animation_binding_remove`, `rohr_physics_hitbox_at_remove`, `rohr_physics_hitbox_autoshape_circle_set`.
 - `rohr_physics_hitbox_autoshape_rectangle_set`, `rohr_physics_hitbox_autoshape_triangle_set`, `rohr_physics_hitbox_by_id_remove`.
 - `rohr_physics_hitbox_remove`, `rohr_physics_impulse_apply`, `rohr_physics_joint_anchor_remove`.
+- `rohr_physics_joint_place`.
 - `rohr_physics_kinematic_driven_remove`, `rohr_physics_mass_remove`, `rohr_physics_pipeline_accelerations_clear`.
 - `rohr_physics_pipeline_constraints_solve`, `rohr_physics_pipeline_contacts_gather`, `rohr_physics_pipeline_forces_apply`.
 - `rohr_physics_pipeline_gravity_apply`, `rohr_physics_pipeline_integrate`, `rohr_physics_pipeline_joints_gather`.
@@ -1635,3 +1639,115 @@ per-header/classification/global totals and documented Config/Descriptor types.
 It checks local file links but does not validate anchor fragments or C signatures.
 Compilation and native execution of the installed-SDK consumers provide the
 complementary interface and runtime checks. See the [workflow](README.md#api-inventory-check).
+
+## Authored configuration and explicit placement
+
+Milestone 4 goal 2 adds initial configuration to `ObjectDescription` without
+changing full-replacement runtime setters: omitted description members still
+receive their documented zero/default values; focused setters change only their
+property. `ObjectEntitySettings` is copied independently for each spawn.
+
+- Lifetimes have independent seconds/tick enable flags. Authored values default
+  to durations after spawn; each can instead use the absolute engine clock.
+  A spawn captures its starting time/tick once for all members. Enabled zero or
+  past deadlines expire on the next lifecycle update. Tick addition overflow
+  rejects and rolls back the spawn. Initial forces/torques still expire no later
+  than the next engine tick.
+- Gameplay targets and transform drivers are non-owning references within one
+  top-level authored object. Nested node/beam/area references also identify their
+  soft body. Catalog compilation remaps these identities to description IDs;
+  spawning resolves them only after all members exist. Removing a referenced
+  record clears references; undo restores them. Duplicating an object remaps its
+  self-reference. Cross-instance connections and ownership reassignment remain
+  explicit gameplay C operations, independent of joint/beam endpoints.
+- Axis locks default to top-level object coordinates and may instead be world
+  fixed. Transform offsets are driver-local. Angles, angular acceleration, and
+  angular-velocity limits use degrees. A transform driver does not become owner.
+  The editor exposes initial angular configuration on rotational rigid bodies.
+- Static nodes are explicit. Beams default to automatic measured rest length;
+  enabling Explicit freezes the current endpoint distance, and editing the
+  length enables Explicit. Switching back to Auto measures at construction.
+- Cameras independently follow position and orientation and optionally pause
+  with the engine. When position following is disabled, the authored position
+  remains in object coordinates, independent of target motion. World setters
+  continue to edit offsets while preserving attachments.
+- Camera mounts optionally specify a render resolution separate from their
+  viewport placement size. The default remains the camera dimensions. Custom
+  fonts default to 12 points; text defaults to wrap width 0 and rotation 0.
+  Text rotation composes with the existing mount/content transforms.
+- Negative static-sprite width/height flip the corresponding image axis. Width
+  and height must be finite and nonzero. A negative width with the generated
+  `DIRECTION_RIGHT` is visually equivalent to positive width with
+  `DIRECTION_LEFT`; both flips compose with rotation and attachment offsets.
+  Editor picking and bounds use absolute dimensions.
+
+The shared entity accordions follow each item's existing controls. Settings →
+Application configures the generated application's window and named audio
+recipes separately from editor-window preferences. Applying window settings is
+opt-in for legacy projects. Recipes expose `project_audio.sounds.<name>` as
+`SoundDescription` and `project_audio.music.<name>` as `MusicDescription`;
+volume defaults to 0 and playback rate to 1. They load nothing, own no player,
+and never autoplay. Gameplay passes a recipe to the existing audio APIs.
+Names must be valid non-keyword generated identifiers, unique within sound or
+music definitions. Generation preserves developer-owned `main.c`.
+
+Project format 11 stores these settings. Readers retain formats 8–10 and supply
+legacy defaults when new fields are absent. Old saved joint rest values remain
+explicit. Configured objects use the canonical catalog spawning path even from
+legacy generated `<object>_create` convenience functions; the latter's position
+argument remains the requested absolute object origin. Existing catalog spawn
+options retain their relative-offset semantics.
+
+### Joint placement
+
+Creating/reconfiguring a joint, changing its type, or selecting endpoints does
+not place bodies. Use the joint editor's **Place A Relative to B**, the CLI
+`joint place <project-file> <object-id> <joint-id>`, or
+`rohr_physics_joint_place(joint)` explicitly.
+
+Placement translates the first anchor's pin/weld-connected group toward the
+second. Welds also satisfy the stored rest angle; springs use their rest distance
+along B-to-A (world +Y when coincident). A soft body moves as a whole. The selected
+joint is excluded from graph expansion; a second path back to B, a fixed world
+anchor, a static/held member, or an incompatible lock rejects the entire change.
+An already satisfied placement succeeds without mutation. Owned attachment
+helpers follow their driver; unrelated locked entities cannot be displaced by
+this action. B stays fixed. Geometry, rest values, motion, ownership, and
+connections are preserved. Scratch allocation and all validation precede commit.
+Editor placement is one undoable object edit. World-anchor proxies are explicitly
+static in both catalog and legacy generated construction.
+
+A node-attached anchor with zero local offset plus a pin joint expresses
+`SoftBodyNodeAnchorPinDescription`: the node owns its anchor, and the selected
+owner owns the joint. A separate editor item is unnecessary.
+
+### CLI configuration examples
+
+The existing selector form accepts shared entity properties, for example:
+
+```sh
+rohr-cli --project objects/project.rohr.json --object-id 1 --body-id 1 --property lifetime-time-enabled true
+rohr-cli --project objects/project.rohr.json --object-id 1 --body-id 1 --property lifetime-time 2.5
+```
+
+The command log can also emit the positional form. References use `none`,
+`object:1`, `body:2`, or `node:3:4` (node ID 3 in soft body ID 4), with analogous
+kind names for other records. Tick values use exact unsigned 64-bit parsing.
+New project-level commands use these positional forms:
+
+```sh
+rohr-cli audio add objects/project.rohr.json false impact assets/impact.wav
+rohr-cli application-window set objects/project.rohr.json true 0 1280 720 640 360 true
+rohr-cli ui-font set objects/project.rohr.json 0 1 point-size 24
+rohr-cli ui-definition set objects/project.rohr.json 0 1 wrap-width 160
+rohr-cli viewport-camera set objects/project.rohr.json 1 1 render-width 320
+rohr-cli viewport-camera set objects/project.rohr.json 1 1 render-height 200
+rohr-cli viewport-camera set objects/project.rohr.json 1 1 render-size-explicit true
+```
+
+For UI definitions/fonts the object slot is unused (0); camera mounts use viewport
+ID then mount ID. Audio `set` replaces the complete recipe in the order
+`id name path music volume pan loop playback-rate`; removal takes its ID.
+Use the shared property definitions in `editor_entity_settings.h` for the full
+entity-property spelling list. Audio triggers, runtime snapshot extensions, and
+named-layer registry restoration remain separate roadmap work.

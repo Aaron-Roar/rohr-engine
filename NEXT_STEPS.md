@@ -10,7 +10,7 @@ retain their scope; the later-features list has no priority order.
 | 1 | Audio | Complete |
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
-| 4 | Cross-path feature parity | Largely implemented; remaining-gap verification |
+| 4 | Cross-path feature parity | Configuration/reference parity verified; persistence/generation next |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; incomplete |
 | 6 | Physics robustness | Partially implemented |
 | 7 | Editor implementation scalability | Partially implemented |
@@ -102,13 +102,18 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    evidence, explicit exclusions, comparison fixtures, and concrete gaps assigned
    to goals 2–5. Inventory checks pass; behavioral and platform acceptance remain
    with those goals.
-2. [ ] **Verify configuration and references.** Close confirmed configuration,
+2. [x] **Verify configuration and references.** Close confirmed configuration,
    ownership, attachment, and reference gaps in the inventory. Full descriptions
    and focused setters must retain their documented semantics. Resolve explicit
    pin/weld/spring placement: when requested, move the first anchor's object
    toward the second; low-level connection creation must not move objects
    implicitly. Cover reversed arguments, world/shared anchors, locks, and
    connected groups, plus remaining camera/attachment/viewport editing gaps.
+   Completed configuration gaps and evidence are recorded in the
+   [goal 2 closure](docs/cross_path_feature_inventory.md#goal-2-configuration-closure):
+   109 Linux tests, eight focused sanitizer tests, Linux/Windows installed SDK
+   consumers, and seven independently built examples on both platforms.
+   Interactive visual/audio acceptance remains goal 5.
 3. [ ] **Verify persistence and generation.** For every applicable inventory
    entry, project/runtime round trips, loading, and generated C preserve supported
    values, references, and behavior. Generation is deterministic; independent

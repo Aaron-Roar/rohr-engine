@@ -70,6 +70,7 @@ bool editor_soft_node_editor_create(EditorSoftNodeEditor *editor,
     CREATE("Mass", mass_label); CREATE("Radius", radius_label);
     CREATE("Friction", friction_label); CREATE("Restitution", restitution_label);
     CREATE("Gravity", gravity_label);
+    CREATE("Static", static_label);
 
     CREATE("Node Color", color_label);
     CREATE("Inherit", inherit_label); CREATE("Visible in App", visibility_label);
@@ -113,6 +114,7 @@ void editor_soft_node_editor_destroy(EditorSoftNodeEditor *editor) {
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(mass_label);
     DESTROY(radius_label); DESTROY(friction_label); DESTROY(restitution_label);
     DESTROY(gravity_label);
+    DESTROY(static_label);
 
     DESTROY(color_label); DESTROY(inherit_label); DESTROY(visibility_label);
     DESTROY(motion_inherit_label); DESTROY(velocity_x_label);
@@ -152,7 +154,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
     bool transform_open, initial_motion_open, physics_open, material_open, collision_open,
         appearance_open;
     float collision_y, appearance_y;
-    float transform_row_y[3] = {0}, physics_row_y[3] = {0};
+    float transform_row_y[3] = {0}, physics_row_y[4] = {0};
     float initial_motion_row_y[5] = {0};
     float material_row_y[2] = {0};
     float section_y = 118.0f;
@@ -205,7 +207,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             {.row_count = 2, .row_height = 26.0f, .row_gap = 6.0f},
             {.row_count = 1, .row_height = layer_height,
                 .gap_before = 6.0f}};
-        const float physics_rows[] = {26.0f, 26.0f, 28.0f};
+        const float physics_rows[] = {26.0f, 26.0f, 28.0f, 28.0f};
         const float initial_motion_rows[] = {
             28.0f, 26.0f, 26.0f, 26.0f, 26.0f};
         size_t initial_motion_row_count =
@@ -235,7 +237,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
         physics =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->physics_section, "editor.soft_node.section.physics",
-                physics_rows, 3, 6.0f);
+                physics_rows, 4, 6.0f);
         EditorModeAccordionLayoutResult material =
             editor_mode_accordion_layout_section(&accordion,
                 &editor->material_section, "editor.soft_node.section.material",
@@ -263,7 +265,7 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
             &transform, transform_groups, 2, 0, 1);
         transform_row_y[2] = editor_mode_accordion_layout_group_row_y(
             &transform, transform_groups, 2, 1, 0);
-        for(size_t row = 0; row < 3; row += 1)
+        for(size_t row = 0; row < 4; row += 1)
             physics_row_y[row] = editor_mode_accordion_layout_row_y(
                 &physics, physics_rows, row, 6.0f);
         for(size_t row = 0; row < 2; row += 1)
@@ -367,6 +369,12 @@ bool editor_soft_node_editor_draw(EditorSoftNodeEditor *editor,
                     context->width - 20.0f, 28.0f}, &gravity))
             bool_set(context->project, object->id, body->id, node->id,
                 EDITOR_PROPERTY_GRAVITY, gravity);
+        bool static_body = node->static_body;
+        if(checkbox("editor.soft_node.static", &editor->static_label,
+                (UIRect){context->x + 10.0f, physics_row_y[3],
+                    context->width - 20.0f, 28.0f}, &static_body))
+            bool_set(context->project, object->id, body->id, node->id,
+                EDITOR_PROPERTY_STATIC, static_body);
     }
     }
     friction_value = node->friction;

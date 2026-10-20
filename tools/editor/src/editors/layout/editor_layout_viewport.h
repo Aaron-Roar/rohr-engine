@@ -33,6 +33,10 @@ typedef struct EditorLayoutViewportEditor {
     TextAsset hover_thumb_color_label, pressed_thumb_color_label;
     TextAsset text_label, font_file_label, font_color_label;
     TextAsset default_font_label, load_font_label;
+    TextAsset point_size_label, point_size_field, wrap_label, wrap_field;
+    TextAsset text_rotation_label, text_rotation_field;
+    TextAsset render_size_label, render_width_label, render_height_label;
+    TextAsset render_width_field, render_height_field;
     TextAsset add_vertex_label, length_label;
     TextAsset width_scale_label, height_scale_label;
     TextAsset content_x_label, content_y_label, content_rotation_label;

@@ -17,6 +17,7 @@ typedef struct EditorJointEditor {
     TextAsset damping_label, rest_length_label, stiffness_label;
     TextAsset visibility_label, visible_label, hidden_label, delete_label;
     TextAsset damping_field, rest_length_field, stiffness_field;
+    TextAsset place_label, rest_angle_label, rest_angle_field, explicit_label;
     TextAsset joint_names[EDITOR_JOINT_MAX];
     TextAsset anchor_names[EDITOR_ANCHOR_MAX];
     char joint_cache[EDITOR_JOINT_MAX][EDITOR_OBJECT_NAME_MAX];

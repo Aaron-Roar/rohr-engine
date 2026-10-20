@@ -16,6 +16,7 @@ bool editor_camera_editor_create(EditorCameraEditor *editor, FontAsset *font) {
     CREATE("Height", height_label); CREATE("Attachment", attachment_label);
     CREATE("Zoom", zoom_label);
     CREATE("Follow Orientation", inherit_label);
+    CREATE("Follow Position", follow_position_label); CREATE("Pause With Engine", pause_label);
     CREATE("Visible in App", visibility_label);
     CREATE("[X]", visible_label); CREATE("[ ]", hidden_label);
     CREATE("None", none_label); CREATE("Delete Camera", delete_label);
@@ -42,6 +43,7 @@ void editor_camera_editor_destroy(EditorCameraEditor *editor) {
     DESTROY(width_label); DESTROY(height_label); DESTROY(attachment_label);
     DESTROY(zoom_label);
     DESTROY(inherit_label); DESTROY(visibility_label); DESTROY(visible_label);
+    DESTROY(follow_position_label); DESTROY(pause_label);
     DESTROY(hidden_label);
     DESTROY(none_label);
     DESTROY(delete_label); DESTROY(x_field); DESTROY(y_field); DESTROY(angle_field);
@@ -110,8 +112,8 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     y = 118.0f;
     const float transform_rows[] = {
         28.0f, 28.0f, 28.0f, 28.0f, 28.0f};
-    const float view_rows[] = {28.0f};
-    const float attachment_rows[] = {28.0f, 28.0f};
+    const float view_rows[] = {28.0f, 28.0f};
+    const float attachment_rows[] = {28.0f, 28.0f, 28.0f};
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
     EditorModeAccordionLayoutResult transform =
@@ -121,11 +123,11 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
     EditorModeAccordionLayoutResult view =
         editor_mode_accordion_layout_section(&accordion,
             &editor->view_section, "editor.camera.section.view",
-            view_rows, 1, 10.0f);
+            view_rows, 2, 10.0f);
     EditorModeAccordionLayoutResult attachment_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->attachment_section, "editor.camera.section.attachment",
-            attachment_rows, 2, 10.0f);
+            attachment_rows, 3, 10.0f);
     if(transform.expanded) {
         y = transform.content_y;
         camera_label_field(&editor->x_label, &editor->x_field, "editor.camera.x",
@@ -147,6 +149,15 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         camera_label_field(&editor->zoom_label, &editor->zoom_field,
             "editor.camera.zoom", context->x, y, context->width, &zoom,
             &zoom_result); y += 38.0f;
+        bool pause = camera->pause_with_engine;
+        if(editor_mode_checkbox_left("editor.camera.pause", &editor->pause_label,
+                (UIRect){context->x + 10, y, context->width - 20, 28}, &pause)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                .data.property_set = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
+                    .item = camera->id, .property = EDITOR_PROPERTY_PAUSE_WITH_ENGINE,
+                    .value_kind = EDITOR_PROPERTY_VALUE_BOOL, .value.boolean = pause}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     options[0] = &editor->none_label;
 #define ADD_TARGET(kind_value, id_value, parent_value, source_name) do { \
@@ -210,6 +221,17 @@ bool editor_camera_editor_draw(EditorCameraEditor *editor,
         inherit_changed = editor_mode_checkbox_left("editor.camera.inherit",
             &editor->inherit_label, (UIRect){context->x + 10.0f, y,
                 context->width - 20.0f, 28.0f}, &inherit);
+        y += 38;
+        bool follow = !camera->position_follow_disabled;
+        if(editor_mode_checkbox_left("editor.camera.follow_position",
+                &editor->follow_position_label,
+                (UIRect){context->x + 10, y, context->width - 20, 28}, &follow)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET,
+                .data.property_set = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,
+                    .item = camera->id, .property = EDITOR_PROPERTY_FOLLOW_POSITION,
+                    .value_kind = EDITOR_PROPERTY_VALUE_BOOL, .value.boolean = follow}};
+            (void)editor_command_execute(context->project, &command);
+        }
     }
     if(name_result.changed) { EditorCommand command = {.type = EDITOR_COMMAND_ITEM_RENAME,
         .data.item_rename = {.kind = EDITOR_ITEM_CAMERA, .object = object->id,

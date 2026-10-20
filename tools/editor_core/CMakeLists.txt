@@ -36,11 +36,13 @@ if(ROHR_ENABLE_SANITIZERS)
 endif()
 
 if(ROHR_BUILD_TESTS)
+    add_executable(editor_configuration_parity_test tests/editor_configuration_parity.c
+        ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
     add_executable(scene_child_test tests/scene_child.c)
     add_executable(editor_scene_session_test tests/editor_scene_session.c)
     add_executable(editor_build_test tests/editor_build.c)
     add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
-    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test)
+    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -54,6 +56,19 @@ if(ROHR_BUILD_TESTS)
         endif()
         set_target_properties(${scene_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     endforeach()
+    add_test(NAME editor_configuration_parity COMMAND editor_configuration_parity_test)
+    set_tests_properties(editor_configuration_parity PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    if(ROHR_BUILD_SDK_CONSUMER_TESTS AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME editor_configuration_generated COMMAND ${CMAKE_COMMAND}
+            -DTEST_EXECUTABLE=$<TARGET_FILE:editor_configuration_parity_test>
+            "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/configuration generated project"
+            "-DFONT=${PROJECT_SOURCE_DIR}/examples/user-interface/assets/jetbrains_mono_bold_italic.ttf"
+            "-DCONSUMER_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/tests/configuration_generated_consumer.c"
+            "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/configuration_generation.cmake")
+        set_tests_properties(editor_configuration_generated PROPERTIES LABELS "sdk;linux")
+    endif()
     add_test(NAME editor_scene_generation COMMAND ${CMAKE_COMMAND}
         -DTEST_EXECUTABLE=$<TARGET_FILE:editor_scene_generation_test>
         "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/scene generation project"

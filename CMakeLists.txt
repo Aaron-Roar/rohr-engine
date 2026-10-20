@@ -196,10 +196,14 @@ set(ROHR_ENGINE_SOURCES
     src/entity/object_description.c
     src/entity/object_document.c
     src/entity/object_spawn.c
+    src/entity/object_settings.c
     src/entity/object_visuals.c
     src/graphics/marker_geometry.c
     # Shared checked editor-document model used by runtime object loading.
     tools/editor/src/editor_project.c
+    tools/editor/src/editor_entity_settings.c
+    tools/editor/src/editor_presentation.c
+    tools/editor/src/editor_joint_placement.c
     tools/editor/src/editor_project_json.c
     tools/editor/src/editor_error.c
     tools/editor/src/editor_log.c
@@ -240,6 +244,7 @@ set(ROHR_ENGINE_SOURCES
     src/physics/constraints/transform_lock.c
     src/physics/joints/joint_constraint.c
     src/physics/joints/joint.c
+    src/physics/joints/joint_placement.c
     src/physics/joints/joint_solver.c
     src/physics/particles/particle.c
     src/physics/physics.c

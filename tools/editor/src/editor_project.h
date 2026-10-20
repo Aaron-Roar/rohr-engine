@@ -31,9 +31,9 @@
     (EDITOR_RIGID_BODY_MAX + EDITOR_JOINT_MAX + EDITOR_SOFT_BODY_MAX + \
         EDITOR_CAMERA_MAX + EDITOR_ANCHOR_MAX + 2 * EDITOR_SOURCE_MAX)
 #define EDITOR_COLLISION_MASK_MAX 64
-/* Version 10 adds torque editor visibility, marker offsets, and hierarchy rows.
- * Versions 8 (authored sources) and 9 (app visibility) remain readable. */
-#define EDITOR_PROJECT_FORMAT_VERSION 10
+/* Version 11 adds authored configuration and reference parity.
+ * Versions 8–10 remain readable with the documented defaults. */
+#define EDITOR_PROJECT_FORMAT_VERSION 11
 #define EDITOR_NAVIGATION_MODE_MAX 33
 #define EDITOR_NAVIGATION_SELECTION_MAX 30
 
@@ -99,7 +99,20 @@ typedef struct EditorUiFont {
     EditorUiFontId id;
     char name[EDITOR_OBJECT_NAME_MAX];
     char path[EDITOR_ASSET_PATH_MAX];
+    float point_size;
 } EditorUiFont;
+
+/* Immutable recipes only: generated games explicitly own playback instances. */
+typedef struct EditorAudioDefinition {
+    uint32_t id;
+    char name[EDITOR_OBJECT_NAME_MAX];
+    char path[EDITOR_ASSET_PATH_MAX];
+    bool music;
+    float volume;
+    float pan;
+    bool loop;
+    float playback_rate;
+} EditorAudioDefinition;
 
 typedef enum EditorHierarchyItemKind {
     EDITOR_HIERARCHY_RIGID_BODY,
@@ -195,6 +208,7 @@ typedef struct EditorRigidBody {
     size_t hitbox_animation_binding_capacity;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorRigidBody;
 
 typedef struct EditorCollisionMask {
@@ -225,6 +239,7 @@ typedef struct EditorAnchor {
     bool position_follows_body;
     bool rotation_follows_body;
     bool visible;
+    ObjectEntitySettings entity_settings;
 } EditorAnchor;
 
 typedef struct EditorJoint {
@@ -238,11 +253,13 @@ typedef struct EditorJoint {
     float stiffness;
     float damping;
     float rest_angle;
+    bool rest_length_explicit, rest_angle_explicit;
     float visual_size;
     bool visible;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
     ObjectVisuals visuals;
+    ObjectEntitySettings entity_settings;
 } EditorJoint;
 
 EditorRigidBody editor_project_rigid_body_default_get(void);
@@ -257,6 +274,7 @@ typedef struct EditorSoftNode {
     Velocity initial_velocity;
     Acceleration initial_acceleration;
     bool initial_motion_inherited;
+    bool static_body;
     float node_mass;
     float radius;
     float friction;
@@ -270,6 +288,7 @@ typedef struct EditorSoftNode {
     bool color_overridden;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorSoftNode;
 
 typedef struct EditorSoftBeam {
@@ -283,6 +302,9 @@ typedef struct EditorSoftBeam {
     float restitution;
     float stiffness;
     float damping;
+    /** Auto follows authored endpoint distance; explicit values survive edits. */
+    bool rest_length_explicit;
+    float rest_length;
     bool collision_enabled;
     float collision_thickness;
     RohrCollisionCategoryMask collision_category;
@@ -292,6 +314,7 @@ typedef struct EditorSoftBeam {
     bool color_overridden;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorSoftBeam;
 
 #define EDITOR_SOFT_BODY_HIERARCHY_MAX \
@@ -334,6 +357,7 @@ typedef struct EditorSoftArea {
     EditorSoftAreaCache *cache;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorSoftArea;
 
 typedef struct EditorSoftBody {
@@ -363,6 +387,7 @@ typedef struct EditorSoftBody {
     size_t hierarchy_capacity;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorSoftBody;
 
 typedef struct EditorSprite {
@@ -378,6 +403,7 @@ typedef struct EditorSprite {
     bool visible;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorSprite;
 
 typedef struct EditorAnimationFrame {
@@ -409,6 +435,7 @@ typedef struct EditorAnimatedSprite {
     bool playing;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorAnimatedSprite;
 
 typedef enum EditorCameraAttachmentKind {
@@ -430,9 +457,12 @@ typedef struct EditorCamera {
     uint32_t attachment;
     EditorSoftBodyId attachment_soft_body;
     bool inherit_orientation;
+    bool position_follow_disabled;
+    bool pause_with_engine;
     bool visible;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorCamera;
 
 #define EDITOR_SOURCE_MAX 256
@@ -444,6 +474,7 @@ typedef struct EditorForce {
     bool visible;
     bool app_hidden;
     ObjectVisuals visuals;
+    ObjectEntitySettings entity_settings;
 } EditorForce;
 typedef struct EditorTorque {
     uint32_t id;
@@ -453,6 +484,7 @@ typedef struct EditorTorque {
     Position marker_offset;
     bool app_hidden;
     ObjectVisuals visuals;
+    ObjectEntitySettings entity_settings;
 } EditorTorque;
 
 typedef struct EditorObject {
@@ -493,6 +525,7 @@ typedef struct EditorObject {
     size_t hierarchy_capacity;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    ObjectEntitySettings entity_settings;
 } EditorObject;
 
 typedef struct EditorViewportCameraItem {
@@ -508,6 +541,8 @@ typedef struct EditorViewportCameraItem {
     Orientation content_rotation;
     /** Runtime rendering only; zero initialization means visible in app. */
     bool app_hidden;
+    bool render_size_explicit;
+    int render_width, render_height;
 } EditorViewportCameraItem;
 
 typedef enum EditorViewportUiKind {
@@ -530,6 +565,8 @@ typedef struct EditorViewportUiText {
     float box_height;
     float width_scale;
     float height_scale;
+    int wrap_width;
+    Orientation rotation;
 } EditorViewportUiText;
 
 typedef struct EditorViewportUiShape {
@@ -667,6 +704,11 @@ typedef struct EditorNavigationState {
 } EditorNavigationState;
 
 typedef struct EditorProject {
+    bool application_window_enabled;
+    WindowPresentationDescription application_window;
+    EditorAudioDefinition *audio_definitions;
+    size_t audio_definition_count, audio_definition_capacity;
+    uint32_t next_audio_definition_id;
     /* Editor simulation only. Zero deliberately selects no viewport. */
     EditorLayoutViewportId simulation_viewport;
     Time engine_time_per_tick;
@@ -727,6 +769,14 @@ typedef struct EditorProject {
     EditorInputBindingId next_input_binding_id;
     EditorObjectId selected;
 } EditorProject;
+
+bool editor_project_presentation_check(const EditorProject *project);
+bool editor_audio_definition_check(const EditorAudioDefinition *value);
+EditorAudioDefinition *editor_project_audio_get(EditorProject *project, uint32_t id);
+EditorAudioDefinition *editor_project_audio_add(EditorProject *project, bool music,
+    const char *name, const char *path);
+bool editor_project_audio_set(EditorProject *project, EditorAudioDefinition value);
+bool editor_project_audio_remove(EditorProject *project, uint32_t id);
 
 /** Validate authored COM configuration before saving or generating. */
 bool editor_project_center_of_mass_check(const EditorProject *project);
@@ -816,6 +866,12 @@ void editor_project_property_name_format(char *output, size_t capacity,
     const char *input);
 bool editor_project_collision_mask_add(EditorProject *project, const char *name,
     size_t *index);
+ObjectEntitySettings *editor_project_entity_settings_get(EditorObject *object, ObjectEntityReference reference);
+bool editor_project_entity_settings_check(EditorObject *object);
+void editor_project_entity_reference_remove(EditorObject *object, ObjectEntityReference reference);
+void editor_project_entity_references_prune(EditorObject *object);
+void editor_project_entity_reference_remap(EditorObject *object,
+    ObjectEntityReference before, ObjectEntityReference after);
 bool editor_project_save(const EditorProject *project, const char *path);
 EditorResult editor_project_load(EditorProject *project, const char *path);
 EditorObject *editor_project_object_add(EditorProject *project, Position position);
@@ -882,6 +938,7 @@ bool editor_project_joint_constraints_apply(EditorObject *object, EditorJoint *j
 void editor_project_anchor_constraints_apply(EditorObject *object, EditorAnchorId anchor);
 void editor_project_rigid_body_constraints_apply(EditorObject *object,
     EditorRigidBodyId rigid_body);
+bool editor_project_joint_place(EditorObject *object, EditorJoint *joint);
 bool editor_project_joint_remove(EditorObject *object, EditorJointId id);
 EditorAnchor *editor_project_anchor_add(EditorProject *project, EditorObject *object,
     Position position, EditorRigidBodyId rigid_body);

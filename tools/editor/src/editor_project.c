@@ -152,6 +152,10 @@ static void editor_hitbox_regular_set(EditorProject *project, EditorHitbox *hitb
 void editor_project_init(EditorProject *project) {
     if(project == NULL) return;
     *project = (EditorProject){
+        .application_window = {.window_width = WINDOW_WIDTH,
+            .window_height = WINDOW_HEIGHT, .logical_width = WINDOW_WIDTH,
+            .logical_height = WINDOW_HEIGHT, .aspect_ratio_auto = true},
+        .next_audio_definition_id = 1,
         .engine_time_per_tick = 1.0 / 60.0,
         .physics_dt_per_tick = 1.0 / 60.0,
         .physics_substeps = PHYSICS_SUBSTEPS_DEFAULT,
@@ -715,6 +719,7 @@ bool editor_project_object_copy_set(EditorObject *destination,
 
 void editor_project_destroy(EditorProject *project) {
     if(project == NULL) return;
+    free(project->audio_definitions);
     for(size_t i = 0; i < project->object_count; i += 1)
         editor_project_object_destroy(&project->objects[i]);
     for(size_t i = 0; i < project->layout_viewport_count; i += 1)
@@ -738,6 +743,9 @@ bool editor_project_clone(EditorProject *destination,
         const EditorProject *source) {
     if(destination == NULL || source == NULL) return false;
     *destination = *source;
+    destination->audio_definitions = NULL;
+    destination->audio_definition_count = 0;
+    destination->audio_definition_capacity = 0;
     destination->collision_masks = NULL;
     destination->objects = NULL;
     destination->layout_viewports = NULL;
@@ -762,7 +770,9 @@ bool editor_project_clone(EditorProject *destination,
     destination->ui_definition_capacity = 0;
     destination->input_controller_count = 0;
     destination->input_controller_capacity = 0;
-    if(!EDITOR_ARRAY_RESERVE(destination->collision_masks,
+    if(!EDITOR_ARRAY_RESERVE(destination->audio_definitions,
+            destination->audio_definition_capacity, source->audio_definition_count) ||
+            !EDITOR_ARRAY_RESERVE(destination->collision_masks,
             destination->collision_mask_capacity, source->collision_mask_count) ||
             !EDITOR_ARRAY_RESERVE(destination->objects,
                 destination->object_capacity, source->object_count) ||
@@ -782,6 +792,10 @@ bool editor_project_clone(EditorProject *destination,
             !EDITOR_ARRAY_RESERVE(destination->input_controllers,
                 destination->input_controller_capacity,
                 source->input_controller_count)) goto fail;
+    if(source->audio_definition_count > 0)
+        memcpy(destination->audio_definitions, source->audio_definitions,
+            source->audio_definition_count * sizeof(*source->audio_definitions));
+    destination->audio_definition_count = source->audio_definition_count;
     if(source->ui_font_count > 0) memcpy(destination->ui_fonts, source->ui_fonts,
         source->ui_font_count * sizeof(*source->ui_fonts));
     destination->ui_font_count = source->ui_font_count;
@@ -1323,7 +1337,7 @@ EditorUiFont *editor_project_ui_font_add(EditorProject *project,
     for(size_t i = 0; i < project->ui_font_count; i += 1)
         if(strcmp(project->ui_fonts[i].path, path) == 0) return &project->ui_fonts[i];
     font = &project->ui_fonts[project->ui_font_count++];
-    *font = (EditorUiFont){.id = project->next_ui_font_id++};
+    *font = (EditorUiFont){.id = project->next_ui_font_id++, .point_size = 12};
     snprintf(font->path, sizeof(font->path), "%s", path);
     slash = strrchr(path, '/');
     name = slash == NULL ? path : slash + 1;
@@ -2099,6 +2113,7 @@ bool editor_project_rigid_body_remove(EditorObject *object, EditorRigidBodyId id
         object->rigid_body_count -= 1;
         object->rigid_bodies[object->rigid_body_count] = (EditorRigidBody){0};
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;
@@ -2261,6 +2276,7 @@ bool editor_project_anchor_remove(EditorObject *object, EditorAnchorId id) {
         object->anchor_count -= 1;
         object->anchors[object->anchor_count] = (EditorAnchor){0};
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;
@@ -2482,8 +2498,9 @@ bool editor_project_hitbox_line_length_set(EditorHitbox *hitbox,
 
 static Position editor_anchor_world_position_get(EditorObject *object,
     EditorAnchor *anchor) {
+    if(!object || !anchor) return (Position){0};
     EditorRigidBody *body = editor_project_rigid_body_get(object, anchor->rigid_body);
-    if(anchor != NULL && anchor->attachment_kind ==
+    if(anchor->position_follows_body && anchor->attachment_kind ==
             EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
         for(size_t i = 0; i < object->soft_body_count; i += 1) {
             EditorSoftBody *soft = &object->soft_body_items[i];
@@ -2492,11 +2509,12 @@ static Position editor_anchor_world_position_get(EditorObject *object,
                 EditorSoftNode *node = &soft->nodes[n];
                 if(node->id != anchor->attachment_soft_node) continue;
                 float cosine = cosf(math_degrees_to_radians(soft->rotation)), sine = (-sinf(math_degrees_to_radians(soft->rotation)));
+                Position offset = editor_position_rotate(anchor->position, soft->rotation);
                 return (Position){soft->position.x +
                     node->position.x * cosine - node->position.y * sine +
-                    anchor->position.x,
+                    offset.x,
                     soft->position.y + node->position.x * sine +
-                    node->position.y * cosine + anchor->position.y};
+                    node->position.y * cosine + offset.y};
             }
         }
     }
@@ -2505,6 +2523,20 @@ static Position editor_anchor_world_position_get(EditorObject *object,
         return (Position){body->position.x + offset.x, body->position.y + offset.y};
     }
     return anchor->position;
+}
+
+static Orientation editor_anchor_owner_rotation_get(EditorObject *object, EditorAnchor *anchor) {
+    if(!anchor) return 0;
+    if(anchor->position_follows_body) {
+        if(anchor->attachment_kind == EDITOR_ANCHOR_ATTACHMENT_SOFT_NODE) {
+            for(size_t i = 0; i < object->soft_body_count; ++i)
+                if(object->soft_body_items[i].id == anchor->attachment_soft_body)
+                    return object->soft_body_items[i].rotation;
+        }
+        EditorRigidBody *body = editor_project_rigid_body_get(object, anchor->rigid_body);
+        if(body) return body->standalone_particle ? 0 : body->rotation;
+    }
+    return anchor->rotation;
 }
 
 static bool editor_project_joint_constraint_from_endpoint_apply(
@@ -2561,19 +2593,9 @@ bool editor_project_joint_kind_set(EditorObject *object, EditorJoint *joint,
     if(object == NULL || joint == NULL || kind < EDITOR_JOINT_REVOLUTE ||
             kind > EDITOR_JOINT_SPRING) return false;
     joint->kind = kind;
-    if(kind == EDITOR_JOINT_WELD && joint->anchor_a != 0 && joint->anchor_b != 0) {
-        EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
-        EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
-        EditorRigidBody *body_a = a == NULL ? NULL :
-            editor_project_rigid_body_get(object, a->rigid_body);
-        EditorRigidBody *body_b = b == NULL ? NULL :
-            editor_project_rigid_body_get(object, b->rigid_body);
-
-        if(body_a != NULL && body_b != NULL) {
-            joint->rest_angle = body_b->rotation - body_a->rotation;
-        }
-    }
-    return editor_project_joint_constraints_apply(object, joint);
+    /* Configuration never places bodies. Reuse endpoint configuration only to
+     * derive an unset rest value, preserving explicit user values. */
+    return editor_project_joint_anchor_set(object, joint, 0, joint->anchor_a);
 }
 
 void editor_project_anchor_constraints_apply(EditorObject *object, EditorAnchorId anchor) {
@@ -2674,6 +2696,7 @@ bool editor_project_joint_remove(EditorObject *object, EditorJointId id) {
         object->joint_count -= 1;
         object->joint_items[object->joint_count] = (EditorJoint){0};
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;
@@ -2685,25 +2708,21 @@ bool editor_project_joint_anchor_set(EditorObject *object, EditorJoint *joint,
             (anchor != 0 && editor_project_anchor_get(object, anchor) == NULL)) return false;
     if(endpoint == 0) joint->anchor_a = anchor;
     else joint->anchor_b = anchor;
-    if(joint->kind == EDITOR_JOINT_SPRING && joint->anchor_a != 0 &&
+    if(joint->kind == EDITOR_JOINT_SPRING && !joint->rest_length_explicit && joint->anchor_a != 0 &&
             joint->anchor_b != 0) {
         EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
         EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
         Position world_a = editor_anchor_world_position_get(object, a);
         Position world_b = editor_anchor_world_position_get(object, b);
         joint->rest_length = hypotf(world_b.x - world_a.x, world_b.y - world_a.y);
-    } else if(joint->kind == EDITOR_JOINT_WELD && joint->anchor_a != 0 &&
+    } else if(joint->kind == EDITOR_JOINT_WELD && !joint->rest_angle_explicit && joint->anchor_a != 0 &&
             joint->anchor_b != 0) {
         EditorAnchor *a = editor_project_anchor_get(object, joint->anchor_a);
         EditorAnchor *b = editor_project_anchor_get(object, joint->anchor_b);
-        EditorRigidBody *body_a = editor_project_rigid_body_get(object, a->rigid_body);
-        EditorRigidBody *body_b = editor_project_rigid_body_get(object, b->rigid_body);
-
-        if(body_a != NULL && body_b != NULL) {
-            joint->rest_angle = body_b->rotation - body_a->rotation;
-        }
+        joint->rest_angle = editor_anchor_owner_rotation_get(object, b) -
+            editor_anchor_owner_rotation_get(object, a);
     }
-    return editor_project_joint_constraints_apply(object, joint);
+    return true;
 }
 
 EditorSoftBody *editor_project_soft_body_add(EditorProject *project, EditorObject *object) {
@@ -2750,6 +2769,7 @@ bool editor_project_soft_body_remove(EditorObject *object, EditorSoftBodyId id) 
         object->soft_body_count -= 1;
         object->soft_body_items[object->soft_body_count] = (EditorSoftBody){0};
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;
@@ -2894,6 +2914,8 @@ bool editor_project_soft_node_remove(EditorProject *project, EditorSoftBody *bod
         body->node_count -= 1;
         body->nodes[body->node_count] = (EditorSoftNode){0};
         editor_project_soft_body_hierarchy_sync(body);
+        for(size_t o = 0; o < project->object_count; ++o)
+            editor_project_entity_references_prune(&project->objects[o]);
         return true;
     }
     return false;
@@ -2954,6 +2976,8 @@ bool editor_project_soft_beam_remove(EditorProject *project, EditorSoftBody *bod
         body->beam_count -= 1;
         body->beams[body->beam_count] = (EditorSoftBeam){0};
         editor_project_soft_body_hierarchy_sync(body);
+        for(size_t o = 0; o < project->object_count; ++o)
+            editor_project_entity_references_prune(&project->objects[o]);
         return true;
     }
     return false;
@@ -2991,6 +3015,7 @@ bool editor_project_sprite_remove(EditorObject *object, EditorSpriteId id) {
         object->sprites[i - 1] = object->sprites[i];
     object->sprite_count -= 1;
     editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
     return true;
 }
 
@@ -3055,6 +3080,7 @@ bool editor_project_animated_sprite_remove(EditorObject *object,
         object->animated_sprite_items[object->animated_sprite_count] =
             (EditorAnimatedSprite){0};
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;
@@ -3089,6 +3115,7 @@ bool editor_project_camera_remove(EditorObject *object, EditorCameraId id) {
             object->cameras[j - 1] = object->cameras[j];
         object->camera_count -= 1;
         editor_project_object_hierarchy_sync(object);
+        editor_project_entity_references_prune(object);
         return true;
     }
     return false;

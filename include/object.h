@@ -26,6 +26,42 @@ typedef enum ObjectKind {
     OBJECT_SPRITE, OBJECT_ANIMATION, OBJECT_CAMERA, OBJECT_FORCE, OBJECT_TORQUE
 } ObjectKind;
 
+/** Stable authored identity. A zero id disconnects the reference. In compiled
+ * catalogs id is the catalog description id; soft_body is then zero. */
+typedef struct ObjectEntityReference {
+    ObjectKind kind;
+    uint64_t id;
+    uint64_t soft_body;
+} ObjectEntityReference;
+
+/** Enabled deadlines default to durations after spawn. Absolute mode uses the
+ * same clock as EntityLifetimeDescription; neither mode starts a private clock. */
+typedef struct ObjectLifetimeDescription {
+    EntityLifetimeDescription deadline;
+    bool time_absolute;
+    bool tick_absolute;
+} ObjectLifetimeDescription;
+
+/** Optional initial entity configuration, copied independently per spawn.
+ * Axis points default to top-level object coordinates. Transform offsets are
+ * driver-local; angles use clockwise degrees. References never own entities. */
+typedef struct ObjectEntitySettings {
+    ObjectLifetimeDescription lifetime;
+    AngularAcceleration angular_acceleration;
+    AngularVelocity angular_velocity_maximum;
+    bool angular_velocity_maximum_enabled;
+    ObjectEntityReference gameplay_target;
+    bool axis_lock_enabled;
+    bool axis_lock_world_fixed;
+    AxisLockDescription axis_lock;
+    ObjectEntityReference transform_driver;
+    Vec2D transform_offset;
+    Orientation transform_angle;
+    bool transform_position;
+    bool transform_orientation;
+    bool transform_inherit_velocity;
+} ObjectEntitySettings;
+
 /** Authored source references are stable document/description IDs, never entities. */
 typedef enum ObjectSourceReferenceKind {
     OBJECT_SOURCE_NONE, OBJECT_SOURCE_BODY, OBJECT_SOURCE_PARTICLE,
@@ -111,6 +147,7 @@ typedef struct ObjectDescription ObjectDescription;
     Velocity velocity; \
     Acceleration acceleration; \
     AngularVelocity angular_velocity; \
+    ObjectEntitySettings entity_settings; \
     Mass mass; \
     float radius; \
     float friction; \
@@ -156,6 +193,7 @@ typedef struct ObjectDescription ObjectDescription;
     bool playing; \
     bool follow_position; \
     bool follow_orientation; \
+    bool pause_with_engine; \
     float zoom; \
     ObjectForceDescription force; \
     ObjectTorqueDescription torque; \

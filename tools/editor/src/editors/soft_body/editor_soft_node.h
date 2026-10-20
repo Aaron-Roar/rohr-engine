@@ -12,7 +12,7 @@
 typedef struct EditorSoftNodeEditor {
     FontAsset *font;
     TextAsset name_label, x_label, y_label, mass_label, radius_label;
-    TextAsset friction_label, restitution_label, gravity_label;
+    TextAsset friction_label, restitution_label, gravity_label, static_label;
     TextAsset color_label, inherit_label, visibility_label;
     TextAsset velocity_x_label, velocity_y_label, acceleration_x_label;
     TextAsset acceleration_y_label, motion_inherit_label;

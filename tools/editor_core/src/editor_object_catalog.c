@@ -14,13 +14,13 @@ static const char *path_get(const Catalog *c, const ObjectDescription *d) {
 }
 static bool reserved(const char *name) {
     static const char *fields[] = {"_description", "id", "name", "kind", "categories", "parent", "children", "child_count",
-        "position", "orientation", "velocity", "acceleration", "angular_velocity", "mass", "radius", "friction", "restitution",
+        "position", "orientation", "velocity", "acceleration", "angular_velocity", "entity_settings", "mass", "radius", "friction", "restitution",
         "static_body", "gravity_enabled", "collision_enabled", "rotation_locked", "visible", "center_of_mass_explicit",
         "center_of_mass", "particle_origin", "particle_vertices", "collision_filter", "geometry", "geometry_count",
         "active_geometry", "hitbox_bindings", "hitbox_binding_count", "color", "border_color", "color_overridden", "layer",
         "target", "endpoint_a", "endpoint_b", "joint_type", "rest_length", "stiffness", "damping", "rest_angle", "thickness",
         "area", "asset_path", "size", "scale", "frames", "frame_count", "ticks_per_frame", "time_per_frame", "starting_frame",
-        "direction", "playing", "follow_position", "follow_orientation", "zoom", "force", "torque", "visuals", "source_instance"};
+        "direction", "playing", "follow_position", "follow_orientation", "pause_with_engine", "zoom", "force", "torque", "visuals", "source_instance"};
     for(size_t i = 0; i < sizeof(fields)/sizeof(fields[0]); ++i) if(!strcmp(name, fields[i])) return true;
     return false;
 }
@@ -30,6 +30,29 @@ static void visual_style_write(FILE *f,const char *name,ObjectVisualStyle v) {
         ".border_thickness=%.9ef,.scale={%.9ef,%.9ef},.offset={%.9ef,%.9ef},.rotation=%.9ef}",
         name,v.specified,v.fill_color,v.border_color,(double)v.border_thickness,
         (double)v.scale.x,(double)v.scale.y,(double)v.offset.x,(double)v.offset.y,(double)v.rotation);
+}
+static void entity_settings_write(FILE *f, ObjectEntitySettings s) {
+    fprintf(f, ",.entity_settings={.lifetime={.deadline={"
+        ".expiry_time=%.17g,.expiry_tick=UINT64_C(%llu),.time_enabled=%u,.tick_enabled=%u},"
+        ".time_absolute=%u,.tick_absolute=%u},"
+        ".angular_acceleration=%.9ef,.angular_velocity_maximum=%.9ef,.angular_velocity_maximum_enabled=%u,"
+        ".gameplay_target={.kind=%u,.id=UINT64_C(%llu)},"
+        ".axis_lock_enabled=%u,.axis_lock_world_fixed=%u,"
+        ".axis_lock={.axis={%.9ef,%.9ef},.point_on_axis={%.9ef,%.9ef}},"
+        ".transform_driver={.kind=%u,.id=UINT64_C(%llu)},"
+        ".transform_offset={%.9ef,%.9ef},.transform_angle=%.9ef,"
+        ".transform_position=%u,.transform_orientation=%u,.transform_inherit_velocity=%u}",
+        s.lifetime.deadline.expiry_time, (unsigned long long)s.lifetime.deadline.expiry_tick,
+        s.lifetime.deadline.time_enabled, s.lifetime.deadline.tick_enabled,
+        s.lifetime.time_absolute, s.lifetime.tick_absolute,
+        (double)s.angular_acceleration, (double)s.angular_velocity_maximum,
+        s.angular_velocity_maximum_enabled, s.gameplay_target.kind,
+        (unsigned long long)s.gameplay_target.id, s.axis_lock_enabled, s.axis_lock_world_fixed,
+        (double)s.axis_lock.axis.x, (double)s.axis_lock.axis.y,
+        (double)s.axis_lock.point_on_axis.x, (double)s.axis_lock.point_on_axis.y,
+        s.transform_driver.kind, (unsigned long long)s.transform_driver.id,
+        (double)s.transform_offset.x, (double)s.transform_offset.y, (double)s.transform_angle,
+        s.transform_position, s.transform_orientation, s.transform_inherit_velocity);
 }
 static bool collect(Catalog *c, const ObjectDescription *d, const char *path, unsigned depth) {
     if(c->count >= MAX_ENTITIES || depth > OBJECT_DEPTH_MAX) return false;
@@ -200,6 +223,8 @@ static void value_write(FILE *f, const Catalog *c, const ObjectDescription *d) {
     U(ticks_per_frame); fprintf(f, ",.time_per_frame=%.17g", d->time_per_frame);
     U(starting_frame); fprintf(f, ",.direction=%d", (int)d->direction);
     U(playing); U(follow_position); U(follow_orientation); F(zoom);
+    U(pause_with_engine);
+    entity_settings_write(f, d->entity_settings);
     source_write(f, d);
 #undef U
 #undef F

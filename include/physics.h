@@ -1074,6 +1074,14 @@ EngineResult physics_joint_description_set(Entity entity, JointDescription descr
 /** Return current owner and resolved rest values with both explicit flags true. */
 JointDescriptionResult physics_joint_description_get(Entity entity);
 
+/** Explicitly place endpoint A's pin/weld-connected set relative to B.
+ * Soft bodies move as whole bodies. B stays fixed; incompatible connections,
+ * static members, holds or locks reject the operation without changing poses.
+ * Springs use their rest length (world +Y when coincident); welds also use
+ * their rest angle. Ownership, velocities and joint configuration are preserved.
+ * Uses temporary heap scratch storage, released before returning. */
+EngineResult physics_joint_place(Entity entity);
+
 /** Full replacements are atomic; ownership never follows connections. */
 SoftBodyDescription physics_soft_body_description_default_get(void);
 /** Atomically replace soft body configuration. */

@@ -109,6 +109,49 @@ static bool body_read(ImportContext *c, ObjectDescription *root, const EditorObj
     }
     return true;
 }
+
+static const ObjectEntitySettings *entry_settings_get(const ImportEntry *entry) {
+    const EditorObject *o = entry->object;
+    const EditorSoftBody *soft = entry->soft_body;
+    if(!o) return NULL;
+#define SETTINGS(array, count) do { \
+    for(size_t i = 0; i < (count); ++i) \
+        if((array)[i].id == entry->source_id) return &(array)[i].entity_settings; \
+    return NULL; \
+} while(0)
+    switch(entry->description->kind) {
+        case OBJECT_CONTAINER: return &o->entity_settings;
+        case OBJECT_BODY: case OBJECT_PARTICLE: SETTINGS(o->rigid_bodies, o->rigid_body_count);
+        case OBJECT_SOFT_BODY: SETTINGS(o->soft_body_items, o->soft_body_count);
+        case OBJECT_NODE: if(soft) SETTINGS(soft->nodes, soft->node_count); return NULL;
+        case OBJECT_BEAM: if(soft) SETTINGS(soft->beams, soft->beam_count); return NULL;
+        case OBJECT_AREA: if(soft) SETTINGS(soft->areas, soft->area_count); return NULL;
+        case OBJECT_ANCHOR: SETTINGS(o->anchors, o->anchor_count);
+        case OBJECT_JOINT: SETTINGS(o->joint_items, o->joint_count);
+        case OBJECT_SPRITE: SETTINGS(o->sprites, o->sprite_count);
+        case OBJECT_ANIMATION: SETTINGS(o->animated_sprite_items, o->animated_sprite_count);
+        case OBJECT_CAMERA: SETTINGS(o->cameras, o->camera_count);
+        case OBJECT_FORCE: SETTINGS(o->force_items, o->force_count);
+        case OBJECT_TORQUE: SETTINGS(o->torque_items, o->torque_count);
+    }
+#undef SETTINGS
+    return NULL;
+}
+
+static bool settings_reference_resolve(ImportContext *c, const EditorObject *o,
+        ObjectEntityReference *reference) {
+    if(!reference->id) { *reference = (ObjectEntityReference){0}; return true; }
+    const EditorSoftBody *soft = NULL;
+    if(reference->soft_body) {
+        for(size_t i = 0; i < o->soft_body_count; ++i)
+            if(o->soft_body_items[i].id == reference->soft_body) soft = &o->soft_body_items[i];
+        if(!soft) return false;
+    }
+    ObjectDescription *target = find(c, o, soft, reference->kind, (uint32_t)reference->id);
+    if(!target || reference->id > UINT32_MAX) return false;
+    reference->id = target->id; reference->soft_body = 0;
+    return true;
+}
 static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObject *o, const EditorSoftBody *s) {
     ObjectDescription *d = add(c, root, o, NULL, OBJECT_SOFT_BODY, s->id, s->name);
     if(!d) return false;
@@ -132,6 +175,7 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         v->velocity = n->initial_motion_inherited ? motion_values[i] : n->initial_velocity;
         v->acceleration = n->initial_motion_inherited ? s->initial_acceleration : n->initial_acceleration;
         v->friction = n->friction; v->restitution = n->restitution;
+        v->static_body = n->static_body;
         v->gravity_enabled = n->gravity_enabled; v->collision_enabled = n->collision_enabled;
         v->collision_filter = (CollisionFilterDescription){n->collision_category, n->collision_with};
         v->visible = !n->app_hidden; v->color = graphics_color_hex_create(n->color_overridden ? n->color : s->node_color);
@@ -144,7 +188,8 @@ static bool soft_read(ImportContext *c, ObjectDescription *root, const EditorObj
         ObjectDescription *a = find(c, o, s, OBJECT_NODE, b->node_a), *z = find(c, o, s, OBJECT_NODE, b->node_b);
         if(!v || !a || !z) return false;
         v->endpoint_a = a->id; v->endpoint_b = z->id;
-        v->rest_length = math_vector_magnitude(math_vector_subtract(a->position, z->position));
+        v->rest_length = b->rest_length_explicit ? b->rest_length :
+            math_vector_magnitude(math_vector_subtract(a->position, z->position));
         v->stiffness = b->stiffness; v->damping = b->damping;
         v->friction = b->friction; v->restitution = b->restitution; v->thickness = b->collision_thickness;
         v->collision_enabled = b->collision_enabled;
@@ -287,7 +332,9 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         if(s->attachment_kind == EDITOR_CAMERA_ATTACHMENT_ANCHOR) target = find(c, o, NULL, OBJECT_ANCHOR, s->attachment);
         d->target = target ? target->id : 0; d->position = s->position; d->orientation = s->rotation;
         d->size = s->dimensions; d->zoom = s->zoom; d->visible = !s->app_hidden;
-        d->follow_position = target != NULL; d->follow_orientation = s->inherit_orientation;
+        d->follow_position = target != NULL && !s->position_follow_disabled;
+        d->follow_orientation = s->inherit_orientation;
+        d->pause_with_engine = s->pause_with_engine;
     }
     return true;
 }
@@ -334,6 +381,14 @@ ObjectDescriptionResult object_description_project_read(const EditorProject *pro
     }
     for(size_t i = 0; i < c.count; ++i) {
         ObjectDescription *d = c.entries[i].description;
+        const ObjectEntitySettings *settings = entry_settings_get(&c.entries[i]);
+        if(settings) {
+            d->entity_settings = *settings;
+            if(!object_entity_settings_check(d->entity_settings) ||
+                    !settings_reference_resolve(&c, c.entries[i].object, &d->entity_settings.gameplay_target) ||
+                    !settings_reference_resolve(&c, c.entries[i].object, &d->entity_settings.transform_driver))
+                goto fail;
+        }
         Position p; Orientation a;
         if(error_check(object_description_world_pose_get(d, &p, &a))) goto fail;
         if(!d->parent) continue;

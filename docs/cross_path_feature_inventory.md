@@ -202,6 +202,72 @@ Common verification gaps apply to the finite field ledger, not future APIs:
 | V4 | Execute equivalent direct construction and authored/generated instances; compare supported configuration, topology, local/world transforms, visual properties and observable behavior. Spawn twice, mutate/delete one, and verify the survivor. Cover the starter's whole-object spawn plus extra direct API content. | 4 |
 | V5 | Execute affected installed-SDK consumers/examples on Linux from outside source directories, cross-build for Windows, and review graphics/audio/input on Linux where headless assertions cannot establish behavior. No native Windows execution gate. | 5 |
 
+## Goal 2 configuration closure
+
+The matrix and field ledgers above/below remain the frozen goal-1 baseline.
+This section records the goal-2 delta; it does not mark V3–V5 complete. The
+[current authored configuration contract](description_api_contract.md#authored-configuration-and-explicit-placement)
+defines defaults, ownership boundaries, placement, migration, and CLI syntax.
+
+| Gap | Configuration outcome and evidence |
+|---|---|
+| G01 | References remain within one authored object; independent spawned instances resolve their own members. Generic targets/drivers never transfer ownership. Removal/undo and duplicate self-references are covered by `editor_configuration_parity`; existing `object_instances`, `soft_body`, `joints`, `forces`, and `torques` retain direct ownership/connection coverage. Cross-instance gameplay wiring remains direct C. |
+| G02 | Shared lifetime settings reach editor/CLI/JSON/catalog/generated spawning. Relative/absolute modes, exact 64-bit ticks, expiry and overflow rollback are covered by `editor_configuration_parity`. Initial source expiry retains its one-tick bound. |
+| G03, G17 (configuration) | Axis/transform locks, gameplay target, initial angular acceleration and enabled angular maximum are authored with shared properties. Every shared field is exercised through CLI mutation and exact JSON round trip. Runtime reference resolution, world/object axis space, limits and independent spawning are asserted. Runtime angular-maximum snapshot restoration remains G17/V3. |
+| G04–G05 | Static nodes and Auto/Explicit beam lengths reach all construction paths. Tests freeze measured length on opt-in, preserve explicit lengths during endpoint edits, and verify generated runtime values. |
+| G06 | Connection configuration no longer places bodies. Explicit editor/CLI/direct/wrapper placement validates before mutation. `joints` and `editor_configuration_parity` cover all joint kinds, reversed arguments, world/static anchors, shared paths, connected groups, locks, owned helpers, soft bodies, particle nonrotation, idempotence and undo. World anchors are static in catalog and generated paths. |
+| G07 | A zero-offset node anchor plus a pin is equivalent to the direct node-to-anchor helper. The fixture compares endpoint entity/offset, joint type/owner and whole-soft-body placement; no extra authored item is needed. |
+| G08 | Signed sprite dimensions were supported by rendering but rejected by authoring. CLI/JSON now accept finite nonzero signed dimensions; bounds/picking use absolute sizes. The generated SDK fixture retains both flips, rotation and position. Direction/size rendering equivalence follows the same flip-bit calculation in `graphics_sprite_draw`/`graphics_texture_draw_flipped`; visual review remains V5. |
+| G09–G10 | Independent camera following and pause settings reach preview, commands, JSON, catalog and generated runtime. Non-following positions retain object coordinates; the generated consumer checks attachment flags and initial pose. |
+| G12–G13 | Mount render resolution, font point size, text wrap and text rotation are exposed and preserved. The installed generated fixture checks two render resolutions, rotated/clipped placements, custom font size, wrapping and repeated UI mounts. |
+| G14–G15 | Settings → Application authors independent application-window configuration and named sound/music recipes. No playback is created. Generated getters/recipes verify non-default values, muted defaults and window configuration; command/UI tests cover validation and undo/redo. Audible/desktop acceptance remains V5. |
+| G11, G16 | Unchanged: runtime named-layer registry and stored kinematic/hold snapshot semantics belong to goal 3. |
+
+New public declarations are `physics_joint_place` and its `rohr_` wrapper:
+1,604 current API entries versus the frozen 1,602. The field delta consists of
+`ObjectEntityReference`, `ObjectLifetimeDescription`, `ObjectEntitySettings`,
+shared entity settings on authored records/catalog descriptions, joint rest-mode
+flags, node static state, beam rest-mode/value, camera follow/pause choices,
+mount resolution, font point size, text wrap/rotation, and project window/audio
+records. The original 456/507 field counts remain historical, not current counts.
+
+Configuration verification uses existing description suites for replacement,
+focused setters and invalid-input preservation (physics/body, particles,
+soft-body descriptions, joints, force/torque, camera/viewport, assets, audio,
+input, lifetime and object descriptions). New `editor_configuration_parity`,
+`editor_configuration_controls` and `editor_configuration_generated` cover the
+added paths. UI input tests exercise lifetime and application controls and
+undo/redo; the 27-case placement matrix compares editor and runtime results and
+checks unchanged poses on rejection. Runtime persistence and exhaustive
+construction equivalence continue in goals 3 and 4; this does not replace those
+goals with a configuration smoke test.
+
+Verification on Linux, 2026-10-20:
+
+- Full native build and CTest: 109/109 pass, including both API inventory checks,
+  the installed SDK consumer, and generated configuration consumer.
+- ASan/UBSan with leak checking: eight focused suites pass (`joints`,
+  `editor_configuration_parity`, `editor_configuration_controls`, `editor_sources`,
+  `editor_history`, `editor_project`, `editor_navigation`, `editor_beam_materials`).
+  LeakSanitizer requires execution outside the process-inspection sandbox.
+- Windows cross-build: engine/editor/tests and both standard/generated installed
+  SDK consumers build. Native Windows execution was not performed.
+- Independently installed-SDK examples: `center_of_mass`, `joints`, `soft-body`,
+  `view-port`, `user-interface`, `audio`, and `player_controller` build for Linux
+  and Windows. Each Linux example starts from `/tmp` with staged assets using
+  dummy SDL video/audio and a bounded two-second startup run. These are startup
+  checks, not interactive visual/audio acceptance.
+- No compiler warnings in the native, cross, or sanitizer builds; Nix's dirty
+  worktree notice is expected. `git diff --check` passes.
+
+Reproduction: build with `nix develop -c cmake --build build --parallel 4`;
+install into a fresh prefix and set `ROHR_SDK_INSTALL_PREFIX` when configuring
+the consumer tests. Run `nix develop -c ctest --test-dir build --output-on-failure`.
+`tools/editor_core/tests/configuration_generation.cmake` accepts the test
+generator, font, consumer source, fixture directory and SDK prefix; adding
+`TOOLCHAIN` performs the Windows build without execution. The verification used
+fresh `/tmp/parity_goal2_sdk` and `/tmp/parity_goal2_sdk_windows` installations.
+
 ## Frozen fixture plan
 
 These are comparison cases for this inventory, not tests implemented in goal 1.

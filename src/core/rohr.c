@@ -560,6 +560,9 @@ EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription 
 JointDescriptionResult rohr_physics_joint_description_get(Entity entity) {
     return physics_joint_description_get(entity);
 }
+EngineResult rohr_physics_joint_place(Entity entity) {
+    return physics_joint_place(entity);
+}
 JointAnchorIdResult rohr_physics_joint_anchor_add(JointAnchorDescription description) { return physics_joint_anchor_add(description); }
 JointAnchorListResult rohr_physics_joint_anchors_get(Entity entity) { return physics_joint_anchors_get(entity); }
 JointAnchorPositionResult rohr_physics_joint_anchor_local_position_get(JointAnchorId anchor) { return physics_joint_anchor_local_position_get(anchor); }

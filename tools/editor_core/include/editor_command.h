@@ -82,7 +82,12 @@ typedef enum EditorCommandType {
     EDITOR_COMMAND_SOFT_AREA_LAYER_SET,
     EDITOR_COMMAND_SOURCE,
     EDITOR_COMMAND_OBJECT_DUPLICATE,
-    EDITOR_COMMAND_APP_VISIBILITY
+    EDITOR_COMMAND_APP_VISIBILITY,
+    EDITOR_COMMAND_APPLICATION_WINDOW_SET,
+    EDITOR_COMMAND_AUDIO_ADD,
+    EDITOR_COMMAND_AUDIO_SET,
+    EDITOR_COMMAND_AUDIO_REMOVE,
+    EDITOR_COMMAND_JOINT_PLACE
 } EditorCommandType;
 
 typedef enum EditorItemKind {
@@ -107,7 +112,8 @@ typedef enum EditorItemKind {
     EDITOR_ITEM_ANIMATION_FRAME,
     EDITOR_ITEM_SOFT_AREA,
     EDITOR_ITEM_SOFT_HOLE,
-    EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE, EDITOR_ITEM_VIEWPORT_UI
+    EDITOR_ITEM_FORCE, EDITOR_ITEM_TORQUE, EDITOR_ITEM_VIEWPORT_UI,
+    EDITOR_ITEM_UI_FONT, EDITOR_ITEM_UI_DEFINITION
 } EditorItemKind;
 
 typedef struct EditorInputControllerCommand {
@@ -163,6 +169,7 @@ typedef struct EditorItemRenameCommand {
     char name[EDITOR_OBJECT_NAME_MAX];
 } EditorItemRenameCommand;
 
+#include "editor_entity_settings.h"
 typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_CENTER_OF_MASS,
     EDITOR_PROPERTY_MASS,
@@ -185,6 +192,11 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_VISUAL_SIZE,
     EDITOR_PROPERTY_JOINT_KIND,
     EDITOR_PROPERTY_REST_LENGTH,
+    EDITOR_PROPERTY_REST_LENGTH_EXPLICIT,
+    EDITOR_PROPERTY_REST_ANGLE,
+    EDITOR_PROPERTY_REST_ANGLE_EXPLICIT,
+    EDITOR_PROPERTY_FOLLOW_POSITION,
+    EDITOR_PROPERTY_PAUSE_WITH_ENGINE,
     EDITOR_PROPERTY_STIFFNESS,
     EDITOR_PROPERTY_DAMPING,
     EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS,
@@ -227,14 +239,26 @@ typedef enum EditorPropertyKind {
     EDITOR_PROPERTY_VISUAL_B_SCALE_Y,
     EDITOR_PROPERTY_VISUAL_B_OFFSET_X,
     EDITOR_PROPERTY_VISUAL_B_OFFSET_Y,
-    EDITOR_PROPERTY_VISUAL_B_ROTATION
+    EDITOR_PROPERTY_VISUAL_B_ROTATION,
+#define ENTITY_SETTING_ENUM(symbol, name, label, type, member) EDITOR_PROPERTY_##symbol,
+    EDITOR_ENTITY_SETTING_PROPERTIES(ENTITY_SETTING_ENUM)
+#undef ENTITY_SETTING_ENUM
+    EDITOR_PROPERTY_FONT_POINT_SIZE,
+    EDITOR_PROPERTY_TEXT_WRAP_WIDTH,
+    EDITOR_PROPERTY_TEXT_ROTATION,
+    EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT,
+    EDITOR_PROPERTY_RENDER_WIDTH,
+    EDITOR_PROPERTY_RENDER_HEIGHT
 } EditorPropertyKind;
 
 typedef enum EditorPropertyValueKind {
     EDITOR_PROPERTY_VALUE_CENTER_OF_MASS,
     EDITOR_PROPERTY_VALUE_FLOAT,
     EDITOR_PROPERTY_VALUE_BOOL,
-    EDITOR_PROPERTY_VALUE_UINT
+    EDITOR_PROPERTY_VALUE_UINT,
+    EDITOR_PROPERTY_VALUE_DOUBLE,
+    EDITOR_PROPERTY_VALUE_UINT64,
+    EDITOR_PROPERTY_VALUE_REFERENCE
 } EditorPropertyValueKind;
 
 typedef struct EditorPropertySetCommand {
@@ -250,8 +274,14 @@ typedef struct EditorPropertySetCommand {
         float number;
         bool boolean;
         uint32_t integer;
+        double real;
+        uint64_t wide_integer;
+        ObjectEntityReference reference;
     } value;
 } EditorPropertySetCommand;
+ObjectEntitySettings *editor_command_entity_settings_get(EditorProject *project,
+    EditorItemKind kind, EditorObjectId object, uint32_t parent, uint32_t item);
+bool editor_command_entity_setting_value_parse(const char *text, EditorPropertySetCommand *set);
 
 typedef enum EditorRelationshipKind {
     EDITOR_RELATIONSHIP_JOINT_ANCHOR,
@@ -405,6 +435,10 @@ typedef struct EditorCommand {
             Acceleration physics_gravity;
             uint32_t physics_solver_iterations;
         } project_physics_settings_set;
+        struct { bool enabled; WindowPresentationDescription description; }
+            application_window;
+        EditorAudioDefinition audio;
+        struct { EditorObjectId object; EditorJointId joint; } joint_place;
         struct { EditorObjectId object; bool included; } simulation_object;
         struct { EditorLayoutViewportId viewport; } simulation_viewport;
         struct {

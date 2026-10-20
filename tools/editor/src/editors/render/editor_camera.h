@@ -13,6 +13,7 @@ typedef struct EditorCameraEditor {
     TextAsset name_label, x_label, y_label, angle_label, width_label, height_label,
         zoom_label;
     TextAsset attachment_label, inherit_label, visibility_label;
+    TextAsset follow_position_label, pause_label;
     TextAsset visible_label, hidden_label;
     TextAsset none_label, delete_label;
     TextAsset name_values[EDITOR_CAMERA_MAX], target_names[256];

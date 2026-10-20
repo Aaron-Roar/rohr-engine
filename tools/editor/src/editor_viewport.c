@@ -40,12 +40,15 @@ static EditorViewportUiItemId editor_viewport_ui_text_ids[
 static char editor_viewport_ui_text_values[EDITOR_LAYOUT_VIEWPORT_UI_MAX][UI_LABEL_MAX];
 static uint32_t editor_viewport_ui_text_colors[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
 static EditorUiFontId editor_viewport_ui_text_fonts[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
+static FontAsset editor_viewport_ui_text_font_assets[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
+static int editor_viewport_ui_text_wraps[EDITOR_LAYOUT_VIEWPORT_UI_MAX];
 
 typedef struct EditorPreviewFont {
     EditorUiFontId id;
     char path[EDITOR_ASSET_PATH_MAX * 2];
     FontAsset font;
     bool failed;
+    float point_size;
 } EditorPreviewFont;
 
 static EditorPreviewFont editor_preview_fonts[EDITOR_UI_FONT_MAX];
@@ -540,8 +543,8 @@ static Position editor_anchor_world_get(const EditorObject *object,
                 if(soft->nodes[n].id == anchor->attachment_soft_node) {
                     Position node = editor_soft_node_world_get(object, soft,
                         &soft->nodes[n]);
-                    return (Position){node.x + anchor->position.x,
-                        node.y + anchor->position.y};
+                    Position offset = math_vector_rotate(anchor->position, soft->rotation);
+                    return (Position){node.x + offset.x, node.y + offset.y};
                 }
         }
     }
@@ -573,7 +576,7 @@ static Position editor_anchor_world_local_get(const EditorObject *object,
                 if(soft->nodes[n].id == anchor->attachment_soft_node) {
                     Position node = editor_soft_node_world_get(object, soft,
                         &soft->nodes[n]);
-                    return (Position){world.x - node.x, world.y - node.y};
+                    return math_vector_rotate((Position){world.x - node.x, world.y - node.y}, -soft->rotation);
                 }
         }
     }
@@ -1653,11 +1656,11 @@ static EditorMarqueeBounds editor_marquee_object_bounds_get(
         if(!sprite->visible) continue;
         world = editor_sprite_world_get(object, sprite);
         editor_marquee_bounds_point_add(&bounds, (Position){
-            world.x - sprite->size.x * 0.5f,
-            world.y - sprite->size.y * 0.5f});
+            world.x - fabsf(sprite->size.x) * 0.5f,
+            world.y - fabsf(sprite->size.y) * 0.5f});
         editor_marquee_bounds_point_add(&bounds, (Position){
-            world.x + sprite->size.x * 0.5f,
-            world.y + sprite->size.y * 0.5f});
+            world.x + fabsf(sprite->size.x) * 0.5f,
+            world.y + fabsf(sprite->size.y) * 0.5f});
     }
     return bounds;
 }
@@ -1739,10 +1742,10 @@ static void editor_marquee_body_children_add(EditorViewportState *state,
     for(size_t i = 0; i < object->sprite_count; i += 1) {
         const EditorSprite *sprite = &object->sprites[i];
         Position world = editor_sprite_world_get(object, sprite);
-        EditorMarqueeBounds bounds = {world.x - sprite->size.x * 0.5f,
-            world.x + sprite->size.x * 0.5f,
-            world.y - sprite->size.y * 0.5f,
-            world.y + sprite->size.y * 0.5f, true};
+        EditorMarqueeBounds bounds = {world.x - fabsf(sprite->size.x) * 0.5f,
+            world.x + fabsf(sprite->size.x) * 0.5f,
+            world.y - fabsf(sprite->size.y) * 0.5f,
+            world.y + fabsf(sprite->size.y) * 0.5f, true};
         if(sprite->visible && editor_marquee_bounds_overlap(marquee, bounds))
             (void)editor_marquee_selection_add(state,
                 (EditorSelectionRef){EDITOR_SELECTION_SPRITE,
@@ -2341,8 +2344,8 @@ static bool editor_object_visual_point_contains(const EditorObject *object,
         Position center;
         if(!sprite->visible) continue;
         center = editor_sprite_world_get(object, sprite);
-        if(fabsf(point.x - center.x) <= sprite->size.x * 0.5f &&
-                fabsf(point.y - center.y) <= sprite->size.y * 0.5f) return true;
+        if(fabsf(point.x - center.x) <= fabsf(sprite->size.x) * 0.5f &&
+                fabsf(point.y - center.y) <= fabsf(sprite->size.y) * 0.5f) return true;
     }
     for(size_t i = 0; i < object->animated_sprite_count; i += 1) {
         const EditorAnimatedSprite *sprite = &object->animated_sprite_items[i];
@@ -2928,15 +2931,23 @@ static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
     EditorPreviewFont *preview;
     FontAssetResult loaded;
     if(id == 0) return editor_viewport_ui_font;
-    for(size_t i = 0; i < editor_preview_font_count; i += 1)
-        if(editor_preview_fonts[i].id == id)
-            return editor_preview_fonts[i].failed ? NULL :
-                &editor_preview_fonts[i].font;
-    if(project == NULL || editor_preview_font_count >= EDITOR_UI_FONT_MAX ||
+    if(project == NULL ||
             (registered = editor_project_ui_font_get((EditorProject *)project, id)) == NULL)
         return NULL;
-    preview = &editor_preview_fonts[editor_preview_font_count++];
+    preview = NULL;
+    for(size_t i = 0; i < editor_preview_font_count; i += 1)
+        if(editor_preview_fonts[i].id == id) {
+            preview = &editor_preview_fonts[i];
+            if(preview->point_size == registered->point_size)
+                return preview->failed ? NULL : &preview->font;
+            break;
+        }
+    if(!preview) {
+        if(editor_preview_font_count >= EDITOR_UI_FONT_MAX) return NULL;
+        preview = &editor_preview_fonts[editor_preview_font_count++];
+    }
     preview->id = id;
+    preview->point_size = registered->point_size;
     if(editor_asset_root[0] != '\0' && registered->path[0] != '/' &&
             !(strlen(registered->path) > 2 && registered->path[1] == ':'))
         snprintf(resolved, sizeof(resolved), "%s/%s", editor_asset_root,
@@ -2944,11 +2955,13 @@ static FontAsset *editor_viewport_ui_font_get(const EditorProject *project,
     else snprintf(resolved, sizeof(resolved), "%s", registered->path);
     snprintf(preview->path, sizeof(preview->path), "%s", resolved);
     loaded = rohr_graphics_font_load((FontDescription){.file = preview->path,
-        .point_size = 12.0f});
+        .point_size = registered->point_size});
+    (void)rohr_graphics_font_release(&preview->font);
     if(rohr_error_check(loaded)) {
         preview->failed = true;
         return NULL;
     }
+    preview->failed = false;
     preview->font = loaded.result.value;
     return &preview->font;
 }
@@ -2982,20 +2995,27 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
     font = editor_viewport_ui_font_get(project, font_id);
     if(font == NULL) return;
     if(value[0] == '\0') return;
+    const EditorViewportUiText *text_settings = item->kind == EDITOR_VIEWPORT_UI_SHAPE ?
+        &item->value.shape.text : &item->value.text;
     if(editor_viewport_ui_text_ids[slot] != item->id ||
             editor_viewport_ui_text_colors[slot] != color ||
-            editor_viewport_ui_text_fonts[slot] != font_id) {
+            editor_viewport_ui_text_fonts[slot] != font_id ||
+            editor_viewport_ui_text_font_assets[slot].handle != font->handle ||
+            editor_viewport_ui_text_wraps[slot] != text_settings->wrap_width) {
         TextAssetResult created;
         rohr_graphics_text_destroy(&editor_viewport_ui_text_assets[slot]);
         created = rohr_graphics_text_create(
             (TextDescription){.font = font != NULL ? *font : (FontAsset){0},
                 .value = value,
+                .wrap_width = text_settings->wrap_width,
                 .color = rohr_graphics_color_hex_create(color)});
         if(rohr_error_check(created)) return;
         editor_viewport_ui_text_assets[slot] = created.result.value;
         editor_viewport_ui_text_ids[slot] = item->id;
         editor_viewport_ui_text_colors[slot] = color;
         editor_viewport_ui_text_fonts[slot] = font_id;
+        editor_viewport_ui_text_font_assets[slot] = *font;
+        editor_viewport_ui_text_wraps[slot] = text_settings->wrap_width;
         snprintf(editor_viewport_ui_text_values[slot], UI_LABEL_MAX, "%s", value);
     } else if(strcmp(editor_viewport_ui_text_values[slot], value) != 0) {
         if(!rohr_graphics_text_value_set(&editor_viewport_ui_text_assets[slot], value))
@@ -3033,35 +3053,26 @@ static void editor_viewport_ui_text_draw(const EditorProject *project,
         screen_anchor = (Position){viewport.x + anchor.x * zoom,
             viewport.y + anchor.y * zoom};
     }
-    if(item->kind == EDITOR_VIEWPORT_UI_SHAPE)
-        (void)rohr_graphics_screen_text_scaled_rotated_draw(
-            &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
-            item->value.shape.rotation);
-    else (void)rohr_graphics_screen_text_scaled_rotated_draw(
+    float text_rotation = text_settings->rotation +
+        (item->kind == EDITOR_VIEWPORT_UI_SHAPE ? item->value.shape.rotation : item->rotation);
+    (void)rohr_graphics_screen_text_scaled_rotated_draw(
         &editor_viewport_ui_text_assets[slot], screen_anchor, text_scale,
-        item->rotation);
+        text_rotation);
     if(selected) {
         float width = editor_viewport_ui_text_assets[slot].size.x * text_scale.x;
         float height = editor_viewport_ui_text_assets[slot].size.y * text_scale.y;
         Position corners[4] = {position, {position.x + width, position.y},
             {position.x + width, position.y + height},
             {position.x, position.y + height}};
-        if(item->kind == EDITOR_VIEWPORT_UI_SHAPE)
+        if(text_rotation != 0)
             for(size_t corner = 0; corner < 4; corner += 1) {
                 Vec2D relative = {corners[corner].x - screen_anchor.x,
                     corners[corner].y - screen_anchor.y};
                 Vec2D rotated = editor_screen_vector_rotate(relative,
-                    item->value.shape.rotation);
+                    text_rotation);
                 corners[corner] = (Position){screen_anchor.x + rotated.x,
                     screen_anchor.y + rotated.y};
             }
-        else for(size_t corner = 0; corner < 4; corner += 1) {
-            Vec2D relative = {corners[corner].x - screen_anchor.x,
-                corners[corner].y - screen_anchor.y};
-            Vec2D rotated = editor_screen_vector_rotate(relative, item->rotation);
-            corners[corner] = (Position){screen_anchor.x + rotated.x,
-                screen_anchor.y + rotated.y};
-        }
         for(size_t edge = 0; edge < 4; edge += 1)
             editor_viewport_screen_dotted_line_draw(corners[edge],
                 corners[(edge + 1) % 4], (Color){255, 210, 70, 255}, 2.0f, 2.0f);
@@ -3348,8 +3359,8 @@ static bool editor_group_point_hit(EditorProject *project,
         } else if(ref.kind == EDITOR_SELECTION_SPRITE) {
             EditorSprite *sprite = editor_project_sprite_get(object, ref.item);
             if(sprite != NULL && editor_group_point_get(project, ref, &point) &&
-                    fabsf(pointer.x - point.x) <= sprite->size.x * 0.5f &&
-                    fabsf(pointer.y - point.y) <= sprite->size.y * 0.5f) return true;
+                    fabsf(pointer.x - point.x) <= fabsf(sprite->size.x) * 0.5f &&
+                    fabsf(pointer.y - point.y) <= fabsf(sprite->size.y) * 0.5f) return true;
         } else if(ref.kind == EDITOR_SELECTION_ANIMATED_SPRITE) {
             EditorAnimatedSprite *animation = editor_project_animated_sprite_get(
                 object, ref.item);
@@ -5034,7 +5045,8 @@ bool editor_viewport_update(EditorViewportState *state, EditorProject *project,
             Vec2D delta = {pointer.x - state->drag_offset.x,
                 pointer.y - state->drag_offset.y};
             Orientation attachment_rotation =
-                editor_camera_attachment_rotation_get(object, camera);
+                !camera->position_follow_disabled && camera->inherit_orientation ?
+                editor_camera_attachment_rotation_get(object, camera) : 0;
             Vec2D local_delta = math_vector_rotate(delta, -attachment_rotation);
             Position desired = {camera->position.x + local_delta.x,
                 camera->position.y + local_delta.y};
@@ -6353,13 +6365,15 @@ static Position editor_camera_world_get(const EditorObject *object,
             inherited = anchor->rotation; }
     }
     Position offset = camera->position;
-    if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE) {
+    if(camera->attachment_kind != EDITOR_CAMERA_ATTACHMENT_NONE &&
+            !camera->position_follow_disabled && camera->inherit_orientation) {
         float cosine = cosf(math_degrees_to_radians(inherited)), sine = (-sinf(math_degrees_to_radians(inherited)));
         offset = (Position){offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
     }
     if(rotation != NULL) *rotation = camera->rotation +
         (camera->inherit_orientation ? inherited : 0.0f);
+    if(camera->position_follow_disabled) base = object->position;
     return (Position){base.x + offset.x, base.y + offset.y};
 }
 
@@ -7173,10 +7187,11 @@ static void editor_viewport_screen_camera_preview_draw(
             camera->dimensions.y <= 0.0f) return;
     camera_world = editor_camera_world_get(camera_object, camera,
         &camera_rotation);
-    fit_x = bounds.width * (camera->zoom > 0.0f ? camera->zoom : 1.0f) /
-        camera->dimensions.x;
-    fit_y = bounds.height * (camera->zoom > 0.0f ? camera->zoom : 1.0f) /
-        camera->dimensions.y;
+    float render_width = screen->render_size_explicit ? screen->render_width : camera->dimensions.x;
+    float render_height = screen->render_size_explicit ? screen->render_height : camera->dimensions.y;
+    if(render_width <= 0 || render_height <= 0) return;
+    fit_x = bounds.width / render_width;
+    fit_y = bounds.height / render_height;
     if(screen->placement.fit == SCREEN_FIT_NONE) {
         fit_x = editor_zoom;
         fit_y = editor_zoom;
@@ -7185,6 +7200,8 @@ static void editor_viewport_screen_camera_preview_draw(
     } else if(screen->placement.fit == SCREEN_FIT_COVER) {
         fit_x = fit_y = fmaxf(fit_x, fit_y);
     }
+    fit_x *= (camera->zoom > 0 ? camera->zoom : 1) * render_width / camera->dimensions.x;
+    fit_y *= (camera->zoom > 0 ? camera->zoom : 1) * render_height / camera->dimensions.y;
     editor_view_preview_camera = camera_world;
     editor_view_preview_camera_rotation = camera_rotation;
     editor_view_preview_content_rotation = screen->placement.orientation +

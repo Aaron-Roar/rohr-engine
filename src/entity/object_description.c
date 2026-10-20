@@ -127,8 +127,21 @@ EngineResult object_description_world_pose_get(const ObjectDescription *d,
         if(target && target->kind != OBJECT_CAMERA) {
             EngineResult result=object_description_world_pose_get(target,position,orientation);
             if(error_check(result)) return result;
-            Position offset=math_vector_rotate(d->position,*orientation);
-            position->x+=offset.x; position->y+=offset.y;
+            Position offset = d->position;
+            if(d->follow_position && d->follow_orientation)
+                offset = math_vector_rotate(offset, *orientation);
+            if(d->follow_position) {
+                position->x += offset.x; position->y += offset.y;
+            } else {
+                *position = offset;
+                unsigned parent_depth = 0;
+                for(const ObjectDescription *p = d->parent; p; p = p->parent) {
+                    if(++parent_depth > OBJECT_DEPTH_MAX)
+                        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+                    Position rotated = math_vector_rotate(*position, p->orientation);
+                    *position = (Position){p->position.x + rotated.x, p->position.y + rotated.y};
+                }
+            }
             *orientation=d->orientation+(d->follow_orientation ? *orientation : 0);
             if(!isfinite(position->x) || !isfinite(position->y) || !isfinite(*orientation))
                 return error_result_error(ERROR_ENGINE_STATE_INVALID);

@@ -119,6 +119,132 @@ static void description_tests(void) {
     assert(remove("joint_descriptions.json") == 0 && remove("joint_legacy.json") == 0 && remove("joint_disconnected.json") == 0);
 }
 
+static Entity placement_body(Entity owner, Position position) {
+    EntityResult created = rohr_entity_add(); OK(created);
+    Entity entity = created.result.value;
+    OK(rohr_entity_owner_set(entity, owner));
+    OK(rohr_physics_position_set(entity, position));
+    OK(rohr_physics_orientation_set(entity, 0));
+    return entity;
+}
+static Entity placement_joint(Entity owner, Entity a, Entity b, JointType type,
+        float length, float angle) {
+    JointAnchorIdResult aa = rohr_physics_joint_anchor_add(
+        (JointAnchorDescription){.entity = a}); OK(aa);
+    JointAnchorIdResult bb = rohr_physics_joint_anchor_add(
+        (JointAnchorDescription){.entity = b}); OK(bb);
+    EntityResult joint = rohr_physics_joint_add((JointDescription){
+        .owner = owner, .type = type, .anchor_a = aa.result.value,
+        .anchor_b = bb.result.value, .rest_length = length, .rest_angle = angle,
+        .rest_length_explicit = true, .rest_angle_explicit = true});
+    OK(joint); return joint.result.value;
+}
+static void placement_position_expect(Entity entity, Position expected) {
+    PositionResult result = rohr_physics_position_get(entity); OK(result);
+    assert(fabsf(result.result.value.x - expected.x) < 0.0001f);
+    assert(fabsf(result.result.value.y - expected.y) < 0.0001f);
+}
+static void placement_tests(void) {
+    for(JointType type = JOINT_SPRING; type <= JOINT_PIN; ++type) {
+        Entity root = named_entity("placement_root");
+        Entity a = placement_body(root, (Position){0, 0});
+        Entity b = placement_body(root, (Position){3, 4});
+        Entity joint = placement_joint(root, a, b, type, 2, 30);
+        OK(rohr_physics_velocity_set(a, (Velocity){1, 2}));
+        OK(rohr_physics_orientation_set(b, 90));
+        placement_position_expect(a, (Position){0, 0}); /* Creation does not place. */
+        OK(rohr_physics_joint_place(joint));
+        placement_position_expect(a, type == JOINT_SPRING ?
+            (Position){1.8f, 2.4f} : (Position){3, 4});
+        placement_position_expect(b, (Position){3, 4});
+        EntityIndex index;
+        assert(entity_index_get(a, &index));
+        assert(orientations[index] == (type == JOINT_WELD ? 60 : 0));
+        assert(velocities[index].x == 1);
+        assert(rohr_entity_owner_get(a).result.value == root);
+        assert(description_get(joint).rest_angle == 30);
+        OK(physics_joint_place(joint)); /* Idempotent. */
+        JointDescription swapped = description_get(joint);
+        JointAnchorId old = swapped.anchor_a;
+        swapped.anchor_a = swapped.anchor_b; swapped.anchor_b = old;
+        swapped.rest_angle = -swapped.rest_angle;
+        OK(rohr_physics_joint_description_set(joint, swapped));
+        OK(rohr_physics_position_set(b, (Position){8, 4}));
+        Position before = rohr_physics_position_get(a).result.value;
+        OK(physics_joint_place(joint)); /* Reversed arguments move B. */
+        placement_position_expect(a, before);
+        OK(rohr_entity_delete(root));
+    }
+    Entity root = named_entity("placement_group");
+    Entity a = placement_body(root, (Position){0, 0});
+    Entity b = placement_body(root, (Position){10, 0});
+    Entity c = placement_body(root, (Position){0, 0});
+    Entity connection = placement_joint(root, a, c, JOINT_PIN, 0, 0);
+    Entity joint = placement_joint(root, a, b, JOINT_PIN, 0, 0);
+    OK(rohr_physics_static_set(c));
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    placement_position_expect(a, (Position){0, 0});
+    placement_position_expect(c, (Position){0, 0});
+    OK(rohr_physics_dynamic_set(c));
+    OK(rohr_physics_joint_place(joint));
+    placement_position_expect(a, (Position){10, 0});
+    placement_position_expect(c, (Position){10, 0});
+    OK(rohr_physics_position_set(b, (Position){20, 0}));
+    OK(rohr_physics_axis_lock_description_set(a,
+        (AxisLockDescription){.axis = {0, 1}, .point_on_axis = {10, 0}}));
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    placement_position_expect(a, (Position){10, 0});
+    placement_position_expect(c, (Position){10, 0});
+    OK(rohr_physics_axis_lock_remove(a));
+    Entity follower = placement_body(root, (Position){10, 0});
+    OK(rohr_physics_transform_lock_description_set(follower,
+        (TransformLockDescription){.driver = a, .lock_position = true}));
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    OK(rohr_physics_transform_lock_remove(follower));
+    Entity shared = placement_joint(root, c, b, JOINT_WELD, 0, 0);
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    placement_position_expect(a, (Position){10, 0});
+    OK(rohr_entity_delete(shared));
+    OK(rohr_entity_delete(connection));
+    OK(rohr_physics_joint_place(joint));
+    /* Coincident spring placement chooses world +Y. */
+    JointDescription spring = description_get(joint);
+    spring.type = JOINT_SPRING; spring.rest_length = 4;
+    OK(rohr_physics_joint_description_set(joint, spring));
+    OK(rohr_physics_joint_place(joint));
+    placement_position_expect(a, (Position){20, 4});
+    OK(rohr_entity_delete(root));
+
+    root = named_entity("placement_soft");
+    EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){.owner = root}); OK(soft);
+    EntityResult n1 = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value, .position = {0, 0}, .mass = 1, .radius = 0.5f}); OK(n1);
+    EntityResult n2 = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+        .owner = soft.result.value, .position = {2, 0}, .mass = 1, .radius = 0.5f}); OK(n2);
+    b = placement_body(root, (Position){10, 3});
+    joint = placement_joint(root, n1.result.value, b, JOINT_PIN, 0, 0);
+    OK(rohr_physics_joint_place(joint));
+    placement_position_expect(n1.result.value, (Position){10, 3});
+    placement_position_expect(n2.result.value, (Position){12, 3});
+    placement_position_expect(soft.result.value, (Position){10, 3});
+    assert(rohr_error_check(rohr_physics_joint_place(b)));
+    OK(rohr_entity_delete(root));
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    root = named_entity("placement_particle");
+    EntityResult particle = rohr_physics_particle_add((ParticleDescription){
+        .owner = root, .radius = 1, .mass_value = 1}); OK(particle);
+    b = placement_body(root, (Position){10, 0});
+    OK(rohr_physics_orientation_set(b, 60));
+    joint = placement_joint(root, particle.result.value, b, JOINT_WELD, 0, 0);
+    assert(rohr_error_check(rohr_physics_joint_place(joint)));
+    placement_position_expect(particle.result.value, (Position){0});
+    JointDescription pin = description_get(joint); pin.type = JOINT_PIN;
+    OK(rohr_physics_joint_description_set(joint, pin));
+    OK(rohr_physics_joint_place(joint));
+    placement_position_expect(particle.result.value, (Position){10, 0});
+    OK(rohr_entity_delete(root));
+}
+
 int main(void) {
     EntityResult body_a;
     EntityResult body_b;
@@ -131,6 +257,7 @@ int main(void) {
 
     if(rohr_error_check(rohr_engine_start())) return 1;
     description_tests();
+    placement_tests();
 
     /* Anchor placement is body-origin-relative and must not depend on hitbox geometry. */
     {

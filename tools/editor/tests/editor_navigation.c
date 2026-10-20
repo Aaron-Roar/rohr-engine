@@ -1295,6 +1295,7 @@ int main(void) {
         camera->dimensions = (Scale){100.0f, 100.0f};
         camera->attachment_kind = EDITOR_CAMERA_ATTACHMENT_RIGID_BODY;
         camera->attachment = camera_body->id;
+        camera->inherit_orientation = true;
         camera_state.mode = EDITOR_VIEWPORT_OBJECT;
         grab = (Position){center.x + 5.0f, center.y - 20.0f};
         camera_state.object_elements_hidden = true;

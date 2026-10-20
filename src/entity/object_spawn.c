@@ -22,6 +22,8 @@ typedef struct SpawnContext {
     SpawnEntry *entries;
     size_t count;
     ObjectSpawnDescription options;
+    Time spawn_time;
+    Tick spawn_tick;
 } SpawnContext;
 static bool object_description_visible_check(const ObjectDescription *description) {
     for(const ObjectDescription *item = description; item; item = item->parent)
@@ -285,7 +287,12 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     Entity target = target_get(c, d->target);
     bool attached_visual = visual && (d->kind == OBJECT_SPRITE || d->kind == OBJECT_ANIMATION) && target;
     RohrComponentMask visual_component = d->kind == OBJECT_SPRITE ? ROHR_SPRITE : ROHR_ANIMATED_SPRITE;
-    if(attached_visual && !entity_components_check(target, visual_component)) {
+    ObjectEntitySettings settings = d->entity_settings;
+    bool independent_settings = settings.lifetime.deadline.time_enabled ||
+        settings.lifetime.deadline.tick_enabled || settings.gameplay_target.id ||
+        settings.transform_driver.id || settings.axis_lock_enabled ||
+        settings.angular_acceleration || settings.angular_velocity_maximum_enabled;
+    if(attached_visual && !independent_settings && !entity_components_check(target, visual_component)) {
         entry->entity = target; entry->alias = true;
         result = visuals_apply(target, d, true);
         if(error_check(result)) return result;
@@ -359,6 +366,7 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
     }
     if(physics && d->kind == OBJECT_NODE) APPLY(body_apply(e, d, true));
     if(physics && d->kind == OBJECT_ANCHOR) {
+        if(!target) APPLY(physics_static_set(e));
         JointAnchorIdResult anchor = physics_joint_anchor_add((JointAnchorDescription){.entity = target ? target : e, .local_offset = target ? d->position : (Position){0}});
         if(error_check(anchor)) return error_result_error(anchor.result.error);
         entry->anchor = anchor.result.value;
@@ -387,10 +395,18 @@ static EngineResult spawn_entry(SpawnContext *c, size_t i, unsigned pass) {
             CameraIdResult camera = graphics_camera_create((CameraDescription){
                 .position = position, .orientation = orientation,
                 .dimensions = {d->size.x, d->size.y}, .zoom = d->zoom,
+                .pause_with_engine = d->pause_with_engine,
                 .enabled = object_description_visible_check(d)});
             if(error_check(camera)) return error_result_error(camera.result.error);
             EntityIndex index; entity_index_get(e, &index); instance_cameras[index] = camera.result.value;
-            if(target) APPLY(graphics_camera_attachment_description_set(camera.result.value, (CameraAttachmentDescription){.entity = target, .position_offset = d->position, .orientation_offset = d->orientation, .follow_position = d->follow_position, .follow_orientation = d->follow_orientation}));
+            if(target) {
+                Position offset = d->position;
+                if(!d->follow_position) offset = position;
+                APPLY(graphics_camera_attachment_description_set(camera.result.value,
+                    (CameraAttachmentDescription){.entity = target,
+                        .position_offset = offset, .orientation_offset = d->orientation,
+                        .follow_position = d->follow_position, .follow_orientation = d->follow_orientation}));
+            }
         }
     }
     return error_result_value(true);
@@ -459,14 +475,88 @@ static EngineResult source_spawn(SpawnContext *c, SpawnEntry *entry) {
     if(!error_check(result)) result = entity_object_member_restore(parent, entry->entity, d->name);
     if(!error_check(result) && mode == OBJECT_SOURCE_INITIAL)
         result = entity_lifetime_description_set(entry->entity, (EntityLifetimeDescription){
-            .expiry_tick = engine_tick_get() + 1, .tick_enabled = true});
+            .expiry_tick = c->spawn_tick == UINT64_MAX ? UINT64_MAX : c->spawn_tick + 1,
+            .tick_enabled = true});
     return result;
+}
+
+static EngineResult entity_settings_apply(SpawnContext *c, SpawnEntry *entry) {
+    const ObjectDescription *d = entry->description;
+    ObjectEntitySettings s = d->entity_settings;
+    if(!object_entity_settings_check(s))
+        return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    if(entry->alias || !entry->entity) return error_result_value(true);
+    EngineResult result;
+#define APPLY(call) do { result = (call); if(error_check(result)) return result; } while(0)
+    EntityLifetimeDescription deadline = s.lifetime.deadline;
+    if(deadline.time_enabled && !s.lifetime.time_absolute) {
+        deadline.expiry_time += c->spawn_time;
+        if(!isfinite(deadline.expiry_time))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    }
+    if(deadline.tick_enabled && !s.lifetime.tick_absolute) {
+        if(UINT64_MAX - c->spawn_tick < deadline.expiry_tick)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        deadline.expiry_tick += c->spawn_tick;
+    }
+    bool initial = (d->kind == OBJECT_FORCE && d->force.mode == OBJECT_SOURCE_INITIAL) ||
+        (d->kind == OBJECT_TORQUE && d->torque.mode == OBJECT_SOURCE_INITIAL);
+    if(initial) {
+        if(c->spawn_tick == UINT64_MAX) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        Tick initial_tick = c->spawn_tick + 1;
+        if(!deadline.tick_enabled || deadline.expiry_tick > initial_tick)
+            deadline.expiry_tick = initial_tick;
+        deadline.tick_enabled = true;
+    }
+    if(deadline.time_enabled || deadline.tick_enabled)
+        APPLY(entity_lifetime_description_set(entry->entity, deadline));
+    /* Category filtering selects entities; spawn flags select whether to install
+     * their optional physics settings, including settings on visual proxies. */
+    bool physics = (c->options.flags & ROHR_ENTITY_OBJECT_PHYSICS) != 0;
+    if(physics && s.angular_acceleration) {
+        if(d->kind == OBJECT_PARTICLE || d->kind == OBJECT_NODE)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        APPLY(physics_angular_acceleration_set(entry->entity, s.angular_acceleration));
+        if(d->static_body) APPLY(physics_static_set(entry->entity));
+    }
+    if(physics && s.angular_velocity_maximum_enabled)
+        APPLY(physics_angular_velocity_maximum_set(entry->entity, s.angular_velocity_maximum));
+    if(s.gameplay_target.id) {
+        if(d->kind == OBJECT_FORCE || d->kind == OBJECT_TORQUE)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        Entity target = target_get(c, s.gameplay_target.id);
+        if(!target) return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+        APPLY(physics_target_set(entry->entity, target));
+    }
+    if(physics && s.axis_lock_enabled) {
+        AxisLockDescription axis = s.axis_lock;
+        if(!s.axis_lock_world_fixed) {
+            const ObjectDescription *root = d;
+            while(root->parent && root->parent->parent) root = root->parent;
+            Vec2D point = math_vector_rotate(axis.point_on_axis, root->orientation);
+            axis.point_on_axis = (Position){root->position.x + c->options.offset.x + point.x,
+                root->position.y + c->options.offset.y + point.y};
+            axis.axis = math_vector_rotate(axis.axis, root->orientation);
+        }
+        APPLY(physics_axis_lock_description_set(entry->entity, axis));
+    }
+    if(physics && s.transform_driver.id) {
+        Entity driver = target_get(c, s.transform_driver.id);
+        if(!driver) return error_result_error(ERROR_ENGINE_ENTITY_NOT_FOUND);
+        APPLY(physics_transform_lock_description_set(entry->entity, (TransformLockDescription){
+            .driver = driver, .local_offset = s.transform_offset,
+            .local_angle = s.transform_angle, .lock_position = s.transform_position,
+            .lock_orientation = s.transform_orientation, .inherit_velocity = s.transform_inherit_velocity}));
+    }
+    return error_result_value(true);
+#undef APPLY
 }
 EntityResult entity_object_description_add(const ObjectDescription *description, ObjectSpawnDescription options) {
     if(!description || (!(description->categories & options.flags) && !description->child_count) ||
             !object_flags_check(options.flags) || !isfinite(options.offset.x) || !isfinite(options.offset.y))
         return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_ENGINE_STATE_INVALID);
-    SpawnContext c = {.options = options};
+    SpawnContext c = {.options = options, .spawn_time = engine_time_get(),
+        .spawn_tick = engine_tick_get()};
     c.entries = calloc(MAX_ENTITIES, sizeof(*c.entries));
     if(!c.entries) return ERROR_RESULT_MAKE_ERROR(EntityResult, ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     EngineResult result = error_result_error(ERROR_ENGINE_STATE_INVALID);
@@ -504,6 +594,10 @@ EntityResult entity_object_description_add(const ObjectDescription *description,
     /* All bodies, topology, and joint bindings exist before source validation. */
     for(size_t i = 0; i < c.count; ++i) {
         result = source_spawn(&c, &c.entries[i]);
+        if(error_check(result)) goto fail;
+    }
+    for(size_t i = 0; i < c.count; ++i) {
+        result = entity_settings_apply(&c, &c.entries[i]);
         if(error_check(result)) goto fail;
     }
     Entity root = c.entries[0].entity;

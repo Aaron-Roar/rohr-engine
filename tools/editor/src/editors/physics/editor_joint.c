@@ -70,6 +70,8 @@ bool editor_joint_editor_create(EditorJointEditor *editor, FontAsset *font) {
     CREATE("Spring", spring_label); CREATE("Anchor A", anchor_a_label);
     CREATE("Anchor B", anchor_b_label); CREATE("None", none_label);
     CREATE("Add Anchor", add_anchor_label); CREATE("Damping", damping_label);
+    CREATE("Place A Relative to B", place_label); CREATE("Rest Angle", rest_angle_label);
+    CREATE("", rest_angle_field); CREATE("Explicit Rest Value", explicit_label);
     CREATE("Rest Length", rest_length_label); CREATE("Stiffness", stiffness_label);
     CREATE("Visible in App", visibility_label); CREATE("[X]", visible_label);
     CREATE("[ ]", hidden_label);
@@ -98,6 +100,7 @@ void editor_joint_editor_destroy(EditorJointEditor *editor) {
     DESTROY(damping_label); DESTROY(rest_length_label); DESTROY(stiffness_label);
     DESTROY(visibility_label); DESTROY(visible_label); DESTROY(hidden_label);
     DESTROY(delete_label);
+    DESTROY(place_label); DESTROY(rest_angle_label); DESTROY(rest_angle_field); DESTROY(explicit_label);
     DESTROY(damping_field); DESTROY(rest_length_field); DESTROY(stiffness_field);
 #undef DESTROY
     editor_mode_accordion_section_destroy(&editor->configuration_section);
@@ -183,11 +186,12 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     field_active|=editor_visual_controls_draw(&editor->visuals,context,&accordion,EDITOR_ITEM_JOINT,object->id,joint->id,joint->kind==EDITOR_JOINT_SPRING);
     const float configuration_rows[] = {38.0f, 30.0f};
     size_t shown_anchors = object->anchor_count < 6 ? object->anchor_count : 6;
-    float connection_rows[EDITOR_ANCHOR_MAX + 3] = {30.0f, 32.0f, 32.0f};
+    float connection_rows[EDITOR_ANCHOR_MAX + 4] = {30.0f, 32.0f, 32.0f, 32.0f};
     for(size_t i = 0; i < shown_anchors; i += 1)
-        connection_rows[i + 3] = i + 1 == shown_anchors ? 23.0f : 21.0f;
+        connection_rows[i + 4] = i + 1 == shown_anchors ? 23.0f : 21.0f;
     const float revolute_rows[] = {26.0f};
-    const float spring_rows[] = {26.0f, 26.0f, 26.0f};
+    const float spring_rows[] = {26.0f, 26.0f, 26.0f, 26.0f};
+    const float weld_rows[] = {26, 26};
     EditorModeAccordionLayoutResult configuration =
         editor_mode_accordion_layout_section(&accordion,
             &editor->configuration_section,
@@ -195,12 +199,12 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     EditorModeAccordionLayoutResult connections =
         editor_mode_accordion_layout_section(&accordion,
             &editor->connections_section, "editor.joint.section.connections",
-            connection_rows, shown_anchors + 3, 6.0f);
+            connection_rows, shown_anchors + 4, 6.0f);
     EditorModeAccordionLayoutResult parameters =
         editor_mode_accordion_layout_section(&accordion,
             &editor->parameters_section, "editor.joint.section.parameters",
-            joint->kind == EDITOR_JOINT_SPRING ? spring_rows : revolute_rows,
-            joint->kind == EDITOR_JOINT_SPRING ? 3 : 1, 6.0f);
+            joint->kind == EDITOR_JOINT_SPRING ? spring_rows : joint->kind == EDITOR_JOINT_WELD ? weld_rows : revolute_rows,
+            joint->kind == EDITOR_JOINT_SPRING ? 4 : joint->kind == EDITOR_JOINT_WELD ? 2 : 1, 6.0f);
     configuration_open = configuration.expanded;
     configuration_y = configuration.content_y;
     connections_open = connections.expanded; connections_y = connections.content_y;
@@ -271,8 +275,13 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
         if(b.changed) relationship_set(context->project, object->id, joint->id, 1,
             b.selected_index == 0 ? 0 : object->anchors[b.selected_index - 1].id);
     }
+    if(rohr_ui_button("editor.joint.place", &editor->place_label,
+            (UIRect){context->x + 10, connections_y + 74, context->width - 20, 30}, NULL).clicked) {
+        EditorCommand command = {.type = EDITOR_COMMAND_JOINT_PLACE, .data.joint_place = {object->id, joint->id}};
+        (void)editor_command_execute(context->project, &command);
+    }
     if(rohr_ui_button("editor.joint.add_anchor", &editor->add_anchor_label,
-            (UIRect){context->x + 10.0f, connections_y + 74.0f,
+            (UIRect){context->x + 10.0f, connections_y + 110.0f,
                 context->width - 20.0f, 30.0f}, NULL).clicked) {
         EditorCommand command = {.type = EDITOR_COMMAND_ITEM_ADD,
             .data.item_add = {.kind = EDITOR_ITEM_ANCHOR, .object = object->id,
@@ -297,7 +306,7 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
             EditorAnchor *anchor = &object->anchors[i];
             UIButtonStyle style = selected_style_get();
             char id[64], visibility_id[72];
-            float y = connections_y + 112.0f + (float)(i - start) * 27.0f;
+            float y = connections_y + 148.0f + (float)(i - start) * 27.0f;
             if(!editor_mode_named_text_sync(editor->font, anchor->name,
                     &editor->anchor_names[i], editor->anchor_cache[i],
                     EDITOR_OBJECT_NAME_MAX)) return field_active;
@@ -338,6 +347,32 @@ bool editor_joint_editor_draw(EditorJointEditor *editor,
     }
     }
     if(parameters_open) {
+    if(joint->kind != EDITOR_JOINT_REVOLUTE) {
+        bool explicit_value = joint->kind == EDITOR_JOINT_WELD ? joint->rest_angle_explicit : joint->rest_length_explicit;
+        if(editor_mode_checkbox_left("editor.joint.rest_explicit", &editor->explicit_label,
+                (UIRect){context->x + 10, parameters_y, context->width - 20, 26}, &explicit_value)) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET, .data.property_set = {
+                .kind = EDITOR_ITEM_JOINT, .object = object->id, .item = joint->id,
+                .property = joint->kind == EDITOR_JOINT_WELD ? EDITOR_PROPERTY_REST_ANGLE_EXPLICIT : EDITOR_PROPERTY_REST_LENGTH_EXPLICIT,
+                .value_kind = EDITOR_PROPERTY_VALUE_BOOL, .value.boolean = explicit_value}};
+            (void)editor_command_execute(context->project, &command);
+        }
+        parameters_y += 32;
+    }
+    if(joint->kind == EDITOR_JOINT_WELD) {
+        float angle = joint->rest_angle;
+        rohr_ui_label(&editor->rest_angle_label, (UIRect){context->x + 8, parameters_y, 96, 26});
+        UIFieldResult value = editor_mode_field("editor.joint.rest_angle",
+            (UIFieldBinding){.kind = UI_FIELD_FLOAT, .number = &angle}, &editor->rest_angle_field,
+            (UIRect){context->x + 108, parameters_y, context->width - 118, 26}, NULL);
+        field_active |= value.active;
+        if(value.changed) {
+            EditorCommand command = {.type = EDITOR_COMMAND_PROPERTY_SET, .data.property_set = {
+                .kind = EDITOR_ITEM_JOINT, .object = object->id, .item = joint->id,
+                .property = EDITOR_PROPERTY_REST_ANGLE, .value_kind = EDITOR_PROPERTY_VALUE_FLOAT, .value.number = angle}};
+            (void)editor_command_execute(context->project, &command);
+        }
+    }
     if(joint->kind == EDITOR_JOINT_REVOLUTE)
         field_active = nonnegative_field(editor, context, object->id, joint->id,
             "editor.joint.revolute.damping", &editor->damping_label,

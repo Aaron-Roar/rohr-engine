@@ -26,6 +26,7 @@
 #include "editor_command.h"
 #include "editor_object_commands.h"
 #include "editors/editor_mode_controls.h"
+#include "editors/editor_entity_settings_panel.h"
 #include "editors/geometry/editor_origin_panel.h"
 #include "editors/multi/editor_bulk_panel.h"
 #include "panels/editor_build_settings_panel.h"
@@ -34,6 +35,7 @@
 #include "panels/editor_notification_panel.h"
 #include "panels/editor_physics_settings_panel.h"
 #include "panels/editor_scene_settings_panel.h"
+#include "panels/editor_application_settings_panel.h"
 #include "panels/editor_input_settings_panel.h"
 #include "panels/editor_terminal_panel.h"
 #include "panels/editor_visual_settings_panel.h"
@@ -128,7 +130,7 @@ static EditorResult editor_project_fonts_validate(const EditorWorkspace *workspa
             snprintf(path, sizeof(path), "%s", font->path);
         else snprintf(path, sizeof(path), "%s/%s", workspace->directory, font->path);
         loaded = rohr_graphics_font_load((FontDescription){.file = path,
-            .point_size = 12.0f});
+            .point_size = font->point_size});
         if(rohr_error_check(loaded)) {
             for(size_t viewport_index = 0;
                     viewport_index < project->layout_viewport_count;
@@ -746,6 +748,10 @@ static uint64_t editor_project_hash_get(const EditorProject *project) {
     for(size_t i = 0; i < sizeof(*project); i += 1) {
         hash ^= bytes[i];
         hash *= UINT64_C(1099511628211);
+    }
+    bytes = (const unsigned char *)project->audio_definitions;
+    for(size_t i = 0; i < project->audio_definition_count * sizeof(*project->audio_definitions); ++i) {
+        hash ^= bytes[i]; hash *= UINT64_C(1099511628211);
     }
     for(size_t i = 0; i < project->object_count; ++i) {
         hash ^= project->objects[i].simulation_excluded;
@@ -2305,6 +2311,7 @@ int main(int argc, char **argv) {
     EditorSpriteEditor sprite_editor = {0};
     EditorAnimatedSpriteEditor animated_sprite_editor = {0};
     EditorCameraEditor camera_editor = {0};
+    EditorEntitySettingsPanel entity_settings_panel = {0};
     EditorObjectEditor object_editor = {0};
     EditorHierarchyEditor hierarchy_editor = {0};
     EditorLayoutViewportEditor layout_viewport_editor = {0};
@@ -2322,6 +2329,7 @@ int main(int argc, char **argv) {
     EditorVisualSettingsPanel visual_settings_panel = {0};
     EditorPhysicsSettingsPanel physics_settings_panel = {0};
     EditorSceneSettingsPanel scene_settings_panel = {0};
+    EditorApplicationSettingsPanel application_settings_panel = {0};
     EditorInputSettingsPanel input_settings_panel = {0};
     EditorGuiState gui_state = {0};
     char gui_state_path[EDITOR_WORKSPACE_PATH_MAX * 2] = {0};
@@ -2508,6 +2516,7 @@ int main(int argc, char **argv) {
             !editor_sprite_editor_create(&sprite_editor, &font) ||
             !editor_animated_sprite_editor_create(&animated_sprite_editor, &font) ||
             !editor_camera_editor_create(&camera_editor, &font) ||
+            !editor_entity_settings_panel_create(&entity_settings_panel, &font) ||
             !editor_object_editor_create(&object_editor, &font) ||
             !editor_hierarchy_editor_create(&hierarchy_editor, &font) ||
             !editor_layout_viewport_editor_create(&layout_viewport_editor, &font) ||
@@ -2521,6 +2530,7 @@ int main(int argc, char **argv) {
             !editor_build_settings_panel_create(&build_settings_panel, &font) ||
             !editor_visual_settings_panel_create(&visual_settings_panel, &font) ||
             !editor_physics_settings_panel_create(&physics_settings_panel, &font) ||
+            !editor_application_settings_panel_create(&application_settings_panel, &font) ||
             !editor_scene_settings_panel_create(&scene_settings_panel, &font) ||
             !editor_input_settings_panel_create(&input_settings_panel, &font) ||
             !editor_notification_panel_create(&notification_panel, &font,
@@ -2575,7 +2585,7 @@ int main(int argc, char **argv) {
             bool scene_blocked = viewport_state.reference_picker_open || !workspace.open || file_browser.active || scene_menu_open ||
                 editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
                 build_settings_panel.open || visual_settings_panel.open || color_picker.open ||
-                physics_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
+                physics_settings_panel.open || application_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
                 notification_panel.log_open || input_settings_panel.key_capture_active ||
                 close_action != EDITOR_CLOSE_NONE;
             /* Notifications and the resize grips are editor-owned overlays. */
@@ -2614,7 +2624,7 @@ int main(int argc, char **argv) {
             bool terminal_input_blocked = viewport_state.reference_picker_open || file_browser.active ||
                 editor_viewport_context_menu_modal_check(&viewport_context_menu) ||
                 build_settings_panel.open || visual_settings_panel.open ||
-                physics_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
+                physics_settings_panel.open || application_settings_panel.open || scene_settings_panel.open || notification_panel.report_open ||
                 notification_panel.log_open || input_settings_panel.key_capture_active;
             if(!terminal_input_blocked && terminal_panel.focused &&
                     event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_C &&
@@ -2692,6 +2702,10 @@ int main(int argc, char **argv) {
         } else if(visual_settings_panel.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             visual_settings_panel.open = false;
+        } else if(application_settings_panel.open &&
+                rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
+            application_settings_panel.open = false;
+            rohr_ui_field_focus_clear();
         } else if(scene_settings_panel.open &&
                 rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) {
             scene_settings_panel.open = false;
@@ -2773,7 +2787,7 @@ int main(int argc, char **argv) {
             }
         }
         if(workspace.open && !viewport_state.reference_picker_open && !build_settings_panel.open &&
-                !visual_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open &&
+                !visual_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open &&
                 !input_settings_panel.key_capture_active &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
@@ -2786,7 +2800,7 @@ int main(int argc, char **argv) {
             (void)editor_selected_delete(&project, &viewport_state);
         }
         if(workspace.open && !viewport_state.reference_picker_open && !build_settings_panel.open &&
-                !visual_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open &&
+                !visual_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open &&
                 !input_settings_panel.key_capture_active &&
                 !field_editing &&
                 !viewport_context_menu.renaming &&
@@ -2865,7 +2879,7 @@ int main(int argc, char **argv) {
             MouseButtonState primary = pointer_state.button_states[MOUSE_BUTTON_LEFT];
 
             if(viewport_state.reference_picker_open || file_browser.active || build_settings_panel.open ||
-                    visual_settings_panel.open || physics_settings_panel.open || scene_settings_panel.open) {
+                    visual_settings_panel.open || physics_settings_panel.open || application_settings_panel.open || scene_settings_panel.open) {
                 panel_resizing = false;
             } else if(!panel_resizing && primary == MOUSE_BUTTON_STATE_PRESSED &&
                     fabsf(pointer.x - EDITOR_VIEWPORT_WIDTH) <=
@@ -2892,7 +2906,7 @@ int main(int argc, char **argv) {
                     primary == MOUSE_BUTTON_STATE_DOWN)) {
                 bool large_overlay = !workspace.open || file_browser.active ||
                     build_settings_panel.open || visual_settings_panel.open ||
-                    physics_settings_panel.open || scene_settings_panel.open ||
+                    physics_settings_panel.open || application_settings_panel.open || scene_settings_panel.open ||
                     notification_panel.log_open || notification_panel.report_open ||
                     close_action != EDITOR_CLOSE_NONE || color_picker.open;
                 float minimum_bottom = EDITOR_MENU_HEIGHT +
@@ -2939,7 +2953,7 @@ int main(int argc, char **argv) {
             rohr_ui_modal_set((UIRect){0.0f, 0.0f,
                 editor_window_width, EDITOR_WINDOW_HEIGHT});
         else if(build_settings_panel.open || visual_settings_panel.open ||
-                physics_settings_panel.open || scene_settings_panel.open ||
+                physics_settings_panel.open || application_settings_panel.open || scene_settings_panel.open ||
                 notification_panel.report_open ||
                 notification_panel.log_open)
             rohr_ui_modal_set(build_settings_bounds);
@@ -2965,8 +2979,10 @@ int main(int argc, char **argv) {
                 mode_measured_heights[viewport_state.mode] > 0.0f)
             panel_content_height = panel_content_offset +
                 mode_measured_heights[viewport_state.mode];
-        if(viewport_state.mode==EDITOR_VIEWPORT_FORCE) panel_content_height=panel_content_offset+force_editor.content_height;
-        if(viewport_state.mode==EDITOR_VIEWPORT_TORQUE) panel_content_height=panel_content_offset+torque_editor.content_height;
+        if(viewport_state.mode==EDITOR_VIEWPORT_FORCE && mode_measured_heights[viewport_state.mode] == 0)
+            panel_content_height=panel_content_offset+force_editor.content_height;
+        if(viewport_state.mode==EDITOR_VIEWPORT_TORQUE && mode_measured_heights[viewport_state.mode] == 0)
+            panel_content_height=panel_content_offset+torque_editor.content_height;
         if(mode_accordion_applies &&
                 !mode_accordions[viewport_state.mode].expanded)
             panel_content_height = panel_content_offset + 76.0f;
@@ -3018,7 +3034,7 @@ int main(int argc, char **argv) {
             !workspace.open || build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR ||
             file_browser.active || context_menu_modal || color_picker.open ||
             build_settings_panel.open || visual_settings_panel.open || physics_settings_panel.open ||
-            scene_settings_panel.open || notification_panel.log_open || notification_panel.report_open ||
+            application_settings_panel.open || scene_settings_panel.open || notification_panel.log_open || notification_panel.report_open ||
             close_action != EDITOR_CLOSE_NONE);
         viewport_state.reference_pick_overlay = (UIRect){14,
             EDITOR_ACTION_BAR_TOP - 40.0f * notification_panel.store.toast_count,
@@ -3562,6 +3578,14 @@ int main(int argc, char **argv) {
                     .hierarchy_context = &hierarchy_context,
                     .primary_button = hierarchy_primary});
         }
+        if(mode_properties_open && viewport_state.selected_item_count <= 1 &&
+                viewport_state.mode != EDITOR_VIEWPORT_HIERARCHY) {
+            float settings_y = fmaxf(118, editor_mode_accordion_layout_measure_get());
+            field_editing |= editor_entity_settings_panel_draw(&entity_settings_panel,
+                &(EditorModeContext){.history = &history, .project = &project,
+                    .viewport = &viewport_state, .x = EDITOR_VIEWPORT_WIDTH,
+                    .width = EDITOR_TOOLS_WIDTH}, settings_y);
+        }
         rohr_ui_translation_y_pop();
         if(editor_hierarchy_drag_update(&hierarchy_drag, &project,
                 &viewport_state, &history, hierarchy_primary))
@@ -3854,7 +3878,7 @@ int main(int argc, char **argv) {
             const TextAsset *edit_options[] = {&undo_label, &redo_label};
             const TextAsset *settings_options[] = {
                 &preferences_label, &physics_settings_panel.menu_label,
-                &visual_settings_panel.menu_label
+                &visual_settings_panel.menu_label, &application_settings_panel.menu_label
             };
             const TextAsset *file_texts[] = {
                 &file_label, &new_label, &open_label, &save_label, &close_label,
@@ -3876,7 +3900,7 @@ int main(int argc, char **argv) {
             };
             const TextAsset *settings_texts[] = {&settings_label, &preferences_label,
                 &physics_settings_panel.menu_label,
-                &visual_settings_panel.menu_label};
+                &visual_settings_panel.menu_label, &application_settings_panel.menu_label};
             UIComponentConfig menu_components = {
                 .components = UI_COMPONENT_SIZE_TO_TEXT,
                 .text_padding_x = 12.0f,
@@ -3957,6 +3981,7 @@ int main(int argc, char **argv) {
                     build_settings_panel.build_requested = false;
                     visual_settings_panel.open = false;
                     physics_settings_panel.open = false;
+                    application_settings_panel.open = false;
                     scene_settings_panel.open = false;
                     input_settings_panel.open = false;
                     notification_panel.log_open = false;
@@ -4111,6 +4136,9 @@ int main(int argc, char **argv) {
                 editor_physics_settings_panel_open(&physics_settings_panel);
             } else if(settings_menu.changed && settings_menu.selected_index == 2) {
                 editor_visual_settings_panel_open(&visual_settings_panel);
+            } else if(settings_menu.changed && settings_menu.selected_index == 3 && workspace.open) {
+                application_settings_panel.open = true;
+                application_settings_panel.scroll = 0;
             }
             rohr_ui_modal_controls_end();
         }
@@ -4135,21 +4163,25 @@ int main(int argc, char **argv) {
         }
         rohr_graphics_layer_active_set(EDITOR_GRAPHICS_LAYER_MODAL);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !visual_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open)
+                !visual_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open)
             editor_build_settings_panel_draw(&build_settings_panel,
                 &notification_panel, workspace.directory, build_settings_bounds);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !physics_settings_panel.open && !scene_settings_panel.open)
+                !build_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open)
             editor_visual_settings_panel_draw(&visual_settings_panel,
                 build_settings_bounds);
         if(!notification_panel.report_open && !notification_panel.log_open &&
-                !build_settings_panel.open && !visual_settings_panel.open && !scene_settings_panel.open)
+                !build_settings_panel.open && !visual_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open)
             editor_physics_settings_panel_draw(&physics_settings_panel,
                 &project, build_settings_bounds);
-        if(!workspace.open) scene_settings_panel.open = false;
+        if(!workspace.open) { scene_settings_panel.open = false; application_settings_panel.open = false; }
         if(!notification_panel.report_open && !notification_panel.log_open &&
                 !build_settings_panel.open && !visual_settings_panel.open && !physics_settings_panel.open &&
-                scene_settings_panel.open) {
+                !scene_settings_panel.open)
+            editor_application_settings_panel_draw(&application_settings_panel, &project, build_settings_bounds);
+        if(!notification_panel.report_open && !notification_panel.log_open &&
+                !build_settings_panel.open && !visual_settings_panel.open && !physics_settings_panel.open &&
+                !application_settings_panel.open && scene_settings_panel.open) {
             /* The scene dialog owns this picker; its body is excluded from picking. */
             viewport_state.reference_picker_blocked =
                 build_runtime.panel.active_tab != EDITOR_SCENE_TAB_EDITOR;
@@ -4719,7 +4751,7 @@ int main(int argc, char **argv) {
         rohr_ui_update();
         if(scene_menu_open || file_browser.active || color_picker.open ||
                 build_settings_panel.open || visual_settings_panel.open || physics_settings_panel.open ||
-                scene_settings_panel.open || notification_panel.report_open || notification_panel.log_open ||
+                application_settings_panel.open || scene_settings_panel.open || notification_panel.report_open || notification_panel.log_open ||
                 close_action != EDITOR_CLOSE_NONE)
             editor_scene_panel_focus_set(&build_runtime.panel, false);
         editor_scene_panel_input_mode_apply(&build_runtime.panel, editor_scene_bounds_get());
@@ -4751,6 +4783,7 @@ int main(int argc, char **argv) {
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);
     editor_physics_settings_panel_destroy(&physics_settings_panel);
+    editor_application_settings_panel_destroy(&application_settings_panel);
     editor_scene_settings_panel_destroy(&scene_settings_panel);
     editor_input_settings_panel_destroy(&input_settings_panel);
     editor_notification_panel_destroy(&notification_panel);
@@ -4770,6 +4803,7 @@ int main(int argc, char **argv) {
     editor_sprite_editor_destroy(&sprite_editor);
     editor_animated_sprite_editor_destroy(&animated_sprite_editor);
     editor_camera_editor_destroy(&camera_editor);
+    editor_entity_settings_panel_destroy(&entity_settings_panel);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
     editor_layout_viewport_editor_destroy(&layout_viewport_editor);
@@ -4857,6 +4891,7 @@ fail:
     editor_build_settings_panel_destroy(&build_settings_panel);
     editor_visual_settings_panel_destroy(&visual_settings_panel);
     editor_physics_settings_panel_destroy(&physics_settings_panel);
+    editor_application_settings_panel_destroy(&application_settings_panel);
     editor_scene_settings_panel_destroy(&scene_settings_panel);
     editor_input_settings_panel_destroy(&input_settings_panel);
     editor_notification_panel_destroy(&notification_panel);
@@ -4876,6 +4911,7 @@ fail:
     editor_sprite_editor_destroy(&sprite_editor);
     editor_animated_sprite_editor_destroy(&animated_sprite_editor);
     editor_camera_editor_destroy(&camera_editor);
+    editor_entity_settings_panel_destroy(&entity_settings_panel);
     editor_object_editor_destroy(&object_editor);
     editor_hierarchy_editor_destroy(&hierarchy_editor);
     editor_layout_viewport_editor_destroy(&layout_viewport_editor);

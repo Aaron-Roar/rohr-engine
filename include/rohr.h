@@ -1476,6 +1476,8 @@ EngineResult rohr_physics_joint_description_set(Entity entity, JointDescription 
 /** Return the current owner and resolved rest values with explicit flags true.
  * Get-modify-set preserves the resting pose even after the bodies have moved. */
 JointDescriptionResult rohr_physics_joint_description_get(Entity entity);
+/** Explicit, transactional placement; see physics_joint_place. */
+EngineResult rohr_physics_joint_place(Entity entity);
 
 /** Full replacements are atomic; ownership never follows connections. */
 SoftBodyDescription rohr_physics_soft_body_description_default_get(void);

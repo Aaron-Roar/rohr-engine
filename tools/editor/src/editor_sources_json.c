@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: LGPL-3.0-only
  */
 #include "entity/object_visuals.h"
+#include "entity/object_internal.h"
 #include "editor_sources_json.h"
 #include "editor_array.h"
 #include <math.h>
@@ -111,6 +112,7 @@ bool editor_sources_json_write(yyjson_mut_doc *d, yyjson_mut_val *v, const Edito
         size_t count=torque?o->torque_count:o->force_count;
         for(size_t i=0;i<count;++i) {
             yyjson_mut_val *source=torque?editor_torque_json_write(d,o->torque_items[i].description):editor_force_json_write(d,o->force_items[i].description);
+            editor_entity_settings_json_write(d, source, torque ? o->torque_items[i].entity_settings : o->force_items[i].entity_settings);
             if(source && !yyjson_mut_obj_add_bool(d,source,"visible",torque?o->torque_items[i].visible:o->force_items[i].visible)) return false;
             if(torque && source && (!yyjson_mut_obj_add_real(d,source,"marker_offset_x",o->torque_items[i].marker_offset.x) ||
                     !yyjson_mut_obj_add_real(d,source,"marker_offset_y",o->torque_items[i].marker_offset.y))) return false;
@@ -133,7 +135,8 @@ bool editor_sources_json_read(yyjson_val *v, EditorObject *o, EditorProject *p) 
         if(torque) { if(!EDITOR_ARRAY_RESERVE(o->torque_items,o->torque_capacity,count)) return false; o->torque_count=count; if(count) memset(o->torque_items,0,count*sizeof(*o->torque_items)); }
         else { if(!EDITOR_ARRAY_RESERVE(o->force_items,o->force_capacity,count)) return false; o->force_count=count; if(count) memset(o->force_items,0,count*sizeof(*o->force_items)); }
         for(size_t i=0;i<count;++i) {
-            yyjson_val *source=yyjson_arr_get(arr,i); uint64_t id;
+            yyjson_val *source=yyjson_arr_get(arr,i);
+            if(!editor_entity_settings_json_read(source, torque ? &o->torque_items[i].entity_settings : &o->force_items[i].entity_settings)) return false; uint64_t id;
             yyjson_val *name=yyjson_obj_get(source,"name");
             if(!uint_value(source,"id",&id) || !id || id>=UINT32_MAX || !yyjson_is_str(name) || !yyjson_get_len(name) ||
                     yyjson_get_len(name)>=EDITOR_OBJECT_NAME_MAX || strlen(yyjson_get_str(name))!=yyjson_get_len(name)) return false;
@@ -154,4 +157,64 @@ bool editor_sources_json_read(yyjson_val *v, EditorObject *o, EditorProject *p) 
         }
     }
     return editor_sources_check(o);
+}
+
+void editor_entity_settings_json_write(yyjson_mut_doc *d, yyjson_mut_val *parent,
+        ObjectEntitySettings s) {
+    yyjson_mut_val *v = yyjson_mut_obj(d);
+#define B(field) yyjson_mut_obj_add_bool(d, v, #field, s.field)
+#define F(field) yyjson_mut_obj_add_real(d, v, #field, s.field)
+#define U(field) yyjson_mut_obj_add_uint(d, v, #field, s.field)
+    F(lifetime.deadline.expiry_time); U(lifetime.deadline.expiry_tick);
+    B(lifetime.deadline.time_enabled); B(lifetime.deadline.tick_enabled);
+    B(lifetime.time_absolute); B(lifetime.tick_absolute);
+    F(angular_acceleration); F(angular_velocity_maximum); B(angular_velocity_maximum_enabled);
+    U(gameplay_target.kind); U(gameplay_target.id); U(gameplay_target.soft_body);
+    B(axis_lock_enabled); B(axis_lock_world_fixed);
+    F(axis_lock.axis.x); F(axis_lock.axis.y);
+    F(axis_lock.point_on_axis.x); F(axis_lock.point_on_axis.y);
+    U(transform_driver.kind); U(transform_driver.id); U(transform_driver.soft_body);
+    F(transform_offset.x); F(transform_offset.y); F(transform_angle);
+    B(transform_position); B(transform_orientation); B(transform_inherit_velocity);
+#undef B
+#undef F
+#undef U
+    yyjson_mut_obj_add_val(d, parent, "entity_settings", v);
+}
+
+bool editor_entity_settings_json_read(yyjson_val *parent, ObjectEntitySettings *value) {
+    yyjson_val *v = yyjson_obj_get(parent, "entity_settings");
+    ObjectEntitySettings s = {0};
+    if(!v) { *value = s; return true; }
+    if(!yyjson_is_obj(v)) return false;
+#define B(field) do { yyjson_val *p = yyjson_obj_get(v, #field); \
+    if(!yyjson_is_bool(p)) return false; s.field = yyjson_get_bool(p); } while(0)
+#define F(field) do { if(!number(v, #field, &s.field)) return false; } while(0)
+#define U(field) do { if(!uint_value(v, #field, &s.field)) return false; } while(0)
+    yyjson_val *time = yyjson_obj_get(v, "lifetime.deadline.expiry_time");
+    if(!yyjson_is_num(time)) return false;
+    s.lifetime.deadline.expiry_time = yyjson_get_num(time);
+    U(lifetime.deadline.expiry_tick);
+    B(lifetime.deadline.time_enabled); B(lifetime.deadline.tick_enabled);
+    B(lifetime.time_absolute); B(lifetime.tick_absolute);
+    F(angular_acceleration); F(angular_velocity_maximum); B(angular_velocity_maximum_enabled);
+    uint64_t target_kind, driver_kind;
+    if(!uint_value(v, "gameplay_target.kind", &target_kind) || target_kind > OBJECT_TORQUE ||
+            !uint_value(v, "transform_driver.kind", &driver_kind) || driver_kind > OBJECT_TORQUE)
+        return false;
+    s.gameplay_target.kind = (ObjectKind)target_kind;
+    s.transform_driver.kind = (ObjectKind)driver_kind;
+    U(gameplay_target.id); U(gameplay_target.soft_body);
+    B(axis_lock_enabled); B(axis_lock_world_fixed);
+    F(axis_lock.axis.x); F(axis_lock.axis.y);
+    F(axis_lock.point_on_axis.x); F(axis_lock.point_on_axis.y);
+    U(transform_driver.id); U(transform_driver.soft_body);
+    F(transform_offset.x); F(transform_offset.y); F(transform_angle);
+    B(transform_position); B(transform_orientation); B(transform_inherit_velocity);
+#undef B
+#undef F
+#undef U
+    if(!object_entity_settings_check(s)) return false;
+    *value = s;
+    return true;
 }

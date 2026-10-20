@@ -488,6 +488,13 @@ static EditorResult cli_area_command_write(const EditorProject *project, const E
 EditorResult editor_command_cli_standard_write(const EditorProject *project,
         const EditorCommand *command, const EditorCommandResult *result,
         const char *path, char *output, size_t capacity) {
+    if(command && (command->type >= EDITOR_COMMAND_APPLICATION_WINDOW_SET ||
+            (command->type == EDITOR_COMMAND_PROPERTY_SET &&
+                (command->data.property_set.property >= EDITOR_PROPERTY_LIFETIME_TIME_ENABLED ||
+                 command->data.property_set.kind == EDITOR_ITEM_CAMERA ||
+                 command->data.property_set.property == EDITOR_PROPERTY_REST_ANGLE ||
+                 command->data.property_set.property == EDITOR_PROPERTY_REST_ANGLE_EXPLICIT))))
+        return editor_command_cli_write(command, path, output, capacity);
     if(command && command->type==EDITOR_COMMAND_PROPERTY_SET &&
             editor_visual_property_check(command->data.property_set.property)) {
         const EditorPropertySetCommand *set=&command->data.property_set;

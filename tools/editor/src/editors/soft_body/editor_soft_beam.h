@@ -16,6 +16,7 @@ typedef struct EditorSoftBeamEditor {
     TextAsset color_label, inherit_label;
     TextAsset none_label, visibility_label, visible_label, hidden_label, delete_label;
     TextAsset stiffness_field, damping_field, thickness_field;
+    TextAsset rest_length_label, rest_length_field, rest_explicit_label;
     TextAsset beam_names[EDITOR_SOFT_BEAM_MAX];
     TextAsset node_names[EDITOR_SOFT_NODE_MAX];
     char beam_cache[EDITOR_SOFT_BEAM_MAX][EDITOR_OBJECT_NAME_MAX];

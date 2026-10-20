@@ -8,6 +8,9 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <limits.h>
 
 static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
         const char *id, float x, float y, float width, float *value) {
@@ -23,12 +26,34 @@ static UIFieldResult layout_number(TextAsset *label, TextAsset *field,
 static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
     const EditorModeContext *context);
 
+static UIFieldResult layout_integer(TextAsset *label, TextAsset *field,
+        const char *id, float x, float y, float width, int *value, int minimum) {
+    char text[32]; snprintf(text, sizeof(text), "%d", *value);
+    rohr_ui_label(label, (UIRect){x + 8, y, 136, 28});
+    UIFieldResult result = editor_mode_field(id,
+        (UIFieldBinding){.kind = UI_FIELD_STRING, .string = text, .string_capacity = sizeof(text)},
+        field, (UIRect){x + 148, y, width - 158, 28}, NULL);
+    if(result.changed) {
+        char *end; errno = 0;
+        long parsed = strtol(text, &end, 10);
+        if(*text && !*end && !errno && parsed >= minimum && parsed <= INT_MAX)
+            *value = (int)parsed;
+    }
+    return result;
+}
+
 bool editor_layout_viewport_editor_create(EditorLayoutViewportEditor *editor,
         FontAsset *font) {
     if(editor == NULL || font == NULL) return false;
     *editor = (EditorLayoutViewportEditor){.font = font};
 #define CREATE(text, member) if(!editor_mode_text_create(font, text, &editor->member)) goto fail
     CREATE("Name", name_label); CREATE("X", x_label); CREATE("Y", y_label);
+    CREATE("Font Point Size", point_size_label); CREATE("", point_size_field);
+    CREATE("Wrap Width (px)", wrap_label); CREATE("", wrap_field);
+    CREATE("Text Rotation (deg)", text_rotation_label); CREATE("", text_rotation_field);
+    CREATE("Custom Render Size", render_size_label);
+    CREATE("Render Width", render_width_label); CREATE("", render_width_field);
+    CREATE("Render Height", render_height_label); CREATE("", render_height_field);
     CREATE("Width", width_label); CREATE("Height", height_label);
     CREATE("Enabled", enabled_label); CREATE("Background", background_color_label);
     CREATE("Elements", cameras_label);
@@ -122,6 +147,10 @@ fail:
 void editor_layout_viewport_editor_destroy(EditorLayoutViewportEditor *editor) {
     if(editor == NULL) return;
 #define DESTROY(member) rohr_graphics_text_destroy(&editor->member)
+    DESTROY(point_size_label); DESTROY(point_size_field); DESTROY(wrap_label); DESTROY(wrap_field);
+    DESTROY(text_rotation_label); DESTROY(text_rotation_field);
+    DESTROY(render_size_label); DESTROY(render_width_label); DESTROY(render_height_label);
+    DESTROY(render_width_field); DESTROY(render_height_field);
     DESTROY(name_label); DESTROY(x_label); DESTROY(y_label); DESTROY(width_label);
     DESTROY(height_label); DESTROY(enabled_label); DESTROY(background_color_label);
     DESTROY(cameras_label);
@@ -611,7 +640,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         (context->layer_control != NULL &&
             (context->layer_control->adding ||
                 context->layer_control->edited_layer != 0)) ? 86.0f : 48.0f;
-    const float source_rows[] = {28.0f};
+    const float source_rows[] = {28.0f, 28.0f, 28.0f, 28.0f};
     const float placement_rows[] = {
         28.0f, 28.0f, 28.0f, 28.0f, 28.0f, layer_height};
     const float interaction_rows[] = {28.0f, 28.0f};
@@ -624,7 +653,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
     EditorModeAccordionLayoutResult source_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->source_section, "editor.layout.screen.section.source",
-            source_rows, 1, 10.0f);
+            source_rows, item->render_size_explicit ? 4 : 2, 10.0f);
     EditorModeAccordionLayoutResult placement_section =
         editor_mode_accordion_layout_section(&accordion,
             &editor->placement_section,
@@ -658,6 +687,34 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         if(source.changed && source.selected_index < camera_count) {
             item->object = camera_objects[source.selected_index];
             item->camera = camera_ids[source.selected_index];
+        }
+    }
+    bool render_active = false;
+    if(source_section.expanded) {
+        y = source_section.content_y + 38;
+        bool explicit_size = item->render_size_explicit;
+        if(editor_mode_checkbox_left("editor.layout.screen.render_size", &editor->render_size_label,
+                (UIRect){context->x + 10, y, context->width - 20, 28}, &explicit_size)) {
+            item->render_size_explicit = explicit_size;
+            if(explicit_size && (item->render_width <= 0 || item->render_height <= 0)) {
+                EditorObject *owner = editor_object_query_get(context->project, item->object);
+                EditorCamera *camera = editor_project_camera_get(owner, item->camera);
+                item->render_width = camera && isfinite(camera->dimensions.x) &&
+                    (double)camera->dimensions.x < INT_MAX ? (int)camera->dimensions.x : 640;
+                item->render_height = camera && isfinite(camera->dimensions.y) &&
+                    (double)camera->dimensions.y < INT_MAX ? (int)camera->dimensions.y : 360;
+                if(item->render_width < 1) item->render_width = 1;
+                if(item->render_height < 1) item->render_height = 1;
+            }
+            return true;
+        }
+        if(item->render_size_explicit) {
+            y += 38;
+            render_active |= layout_integer(&editor->render_width_label, &editor->render_width_field,
+                "editor.layout.screen.render_width", context->x, y, context->width, &item->render_width, 1).active;
+            y += 38;
+            render_active |= layout_integer(&editor->render_height_label, &editor->render_height_field,
+                "editor.layout.screen.render_height", context->x, y, context->width, &item->render_height, 1).active;
         }
     }
     if(placement_section.expanded) {
@@ -752,7 +809,7 @@ bool editor_layout_camera_editor_draw(EditorLayoutViewportEditor *editor,
         height_result.active || rotation_result.active || layer_active ||
         content_x_result.active || content_y_result.active ||
         content_width_result.active || content_height_result.active ||
-        content_rotation_result.active;
+        content_rotation_result.active || render_active;
 }
 
 static bool layout_local_swatch(const char *id, uint32_t *color, UIRect bounds,
@@ -1015,15 +1072,14 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         layout_ui_common_draw(editor, context, item, &y) : false;
     EditorModeAccordionLayoutCursor accordion =
         editor_mode_accordion_layout_cursor_get(context->x, context->width, y);
-    const float content_rows[] = {28.0f, 28.0f, 28.0f, 28.0f, 28.0f,
-        28.0f, 28.0f, 28.0f, 28.0f};
+    const float content_rows[] = {28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28};
     EditorModeAccordionLayoutResult content =
         editor_mode_accordion_layout_section(&accordion,
             &editor->ui_content_section,
             item->kind == EDITOR_VIEWPORT_UI_TEXT ?
                 "editor.ui_text.section.content" :
                 "editor.ui_text_child.section.content",
-            content_rows, 9, 10.0f);
+            content_rows, text->font ? 12 : 11, 10.0f);
     if(!content.expanded) return active;
     y = content.content_y;
     rohr_ui_label(&editor->text_label,
@@ -1089,6 +1145,27 @@ bool editor_ui_text_editor_draw(EditorLayoutViewportEditor *editor,
         &editor->height_scale_field, "editor.ui_text.height_scale", context->x,
         y, context->width, &text->height_scale);
     if(text->height_scale <= 0.0f) text->height_scale = 0.01f;
+    y += 38;
+    active |= layout_integer(&editor->wrap_label, &editor->wrap_field,
+        "editor.ui_text.wrap", context->x, y, context->width, &text->wrap_width, 0).active;
+    y += 38;
+    float text_rotation = text->rotation;
+    UIFieldResult text_rotation_result = layout_number(&editor->text_rotation_label,
+        &editor->text_rotation_field, "editor.ui_text.rotation", context->x, y,
+        context->width, &text_rotation);
+    if(text_rotation_result.changed && isfinite(text_rotation)) text->rotation = text_rotation;
+    active |= text_rotation_result.active;
+    if(text->font) {
+        y += 38;
+        EditorUiFont *font = editor_project_ui_font_get(context->project, text->font);
+        if(font) {
+            float size = font->point_size;
+            UIFieldResult size_result = layout_number(&editor->point_size_label, &editor->point_size_field,
+                "editor.ui_text.point_size", context->x, y, context->width, &size);
+            if(size_result.changed && isfinite(size) && size > 0) font->point_size = size;
+            active |= size_result.active;
+        }
+    }
     y += 42.0f;
     return active || text_result.active ||
         box_width_result.active || box_height_result.active ||

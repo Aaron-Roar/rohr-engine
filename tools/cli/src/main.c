@@ -245,6 +245,13 @@ static void cli_usage_print(void) {
         "  Scene defaults: all objects and the first viewport\n"
         "  Example: rohr-cli --object car --body chassis --property mass 5\n"
         "  Example: rohr-cli --body chassis --property position 10 20\n"
+        "  Entity settings: lifetime-time-enabled, lifetime-time, lifetime-tick,\n"
+        "    angular-acceleration, angular-maximum, gameplay-target, axis-lock-enabled,\n"
+        "    transform-driver and transform-position (see docs/description_api_contract.md)\n"
+        "  Explicit placement: rohr-cli joint place <project-file> <object-id> <joint-id>\n"
+        "  Audio recipe: rohr-cli audio add <project-file> <music-bool> <name> <asset-path>\n"
+        "  Application window: rohr-cli application-window set <project-file>\n"
+        "    <enabled> <mode> <width> <height> <logical-width> <logical-height> <auto-aspect>\n"
         "  Example: rohr-cli --project ./game validate\n"
         "  Example: rohr-cli --project ./game create");
 }

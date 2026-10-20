@@ -50,6 +50,11 @@ struct EditorHistorySpriteChange {
 };
 
 struct EditorHistoryUiChange {
+    bool application_window_enabled;
+    WindowPresentationDescription application_window;
+    EditorAudioDefinition *audio;
+    size_t audio_count;
+    uint32_t next_audio_id;
     EditorLayoutViewportId simulation_viewport;
     EditorLayoutViewport *viewports;
     size_t viewport_count;
@@ -147,6 +152,7 @@ static void editor_history_ui_destroy(EditorHistoryUiChange *change) {
     free(change->viewports);
     free(change->definitions);
     free(change->fonts);
+    free(change->audio);
     free(change);
 }
 
@@ -156,6 +162,15 @@ static EditorHistoryUiChange *editor_history_ui_capture(
     if(project == NULL) return NULL;
     change = calloc(1, sizeof(*change));
     if(change == NULL) return NULL;
+    change->application_window_enabled = project->application_window_enabled;
+    change->application_window = project->application_window;
+    change->audio_count = project->audio_definition_count;
+    change->next_audio_id = project->next_audio_definition_id;
+    if(change->audio_count) {
+        change->audio = malloc(change->audio_count * sizeof(*change->audio));
+        if(!change->audio) goto fail;
+        memcpy(change->audio, project->audio_definitions, change->audio_count * sizeof(*change->audio));
+    }
     change->viewport_count = project->layout_viewport_count;
     change->simulation_viewport = project->simulation_viewport;
     change->definition_count = project->ui_definition_count;
@@ -215,6 +230,9 @@ fail:
 static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
         const EditorHistoryUiChange *second) {
     if(first == NULL || second == NULL ||
+            first->application_window_enabled != second->application_window_enabled ||
+            memcmp(&first->application_window, &second->application_window, sizeof(first->application_window)) ||
+            first->audio_count != second->audio_count || first->next_audio_id != second->next_audio_id ||
             first->simulation_viewport != second->simulation_viewport ||
             first->viewport_count != second->viewport_count ||
             first->definition_count != second->definition_count ||
@@ -224,6 +242,8 @@ static bool editor_history_ui_equal(const EditorHistoryUiChange *first,
             first->next_ui_item_id != second->next_ui_item_id ||
             first->next_definition_id != second->next_definition_id ||
             first->next_font_id != second->next_font_id) return false;
+    if(first->audio_count && memcmp(first->audio, second->audio,
+            first->audio_count * sizeof(*first->audio))) return false;
     if(first->definition_count > 0 && memcmp(first->definitions,
             second->definitions, first->definition_count *
                 sizeof(*first->definitions)) != 0) return false;
@@ -446,6 +466,8 @@ static EditorHistoryAggregateChange *editor_history_command_aggregate_capture(
             object = command->data.item_rename.object;
             parent = command->data.item_rename.parent;
             break;
+        case EDITOR_COMMAND_JOINT_PLACE:
+            return editor_history_aggregate_capture(project, EDITOR_ITEM_OBJECT, command->data.joint_place.object, 0);
         case EDITOR_COMMAND_PROPERTY_SET:
             kind = command->data.property_set.kind;
             object = command->data.property_set.object;
@@ -727,6 +749,7 @@ static void editor_history_action_apply(EditorProject *project,
         EditorLayoutViewport *viewports = NULL;
         EditorViewportUiDefinition *definitions = NULL;
         EditorUiFont *fonts = NULL;
+        EditorAudioDefinition *audio = NULL;
         if(change == NULL) return;
         if(change->viewport_count > 0) {
             viewports = calloc(change->viewport_count, sizeof(*viewports));
@@ -767,6 +790,17 @@ static void editor_history_action_apply(EditorProject *project,
             if(fonts == NULL) goto ui_fail;
             memcpy(fonts, change->fonts, change->font_count * sizeof(*fonts));
         }
+        if(change->audio_count) {
+            audio = malloc(change->audio_count * sizeof(*audio));
+            if(!audio) goto ui_fail;
+            memcpy(audio, change->audio, change->audio_count * sizeof(*audio));
+        }
+        free(project->audio_definitions);
+        project->audio_definitions = audio;
+        project->audio_definition_count = project->audio_definition_capacity = change->audio_count;
+        project->next_audio_definition_id = change->next_audio_id;
+        project->application_window_enabled = change->application_window_enabled;
+        project->application_window = change->application_window;
         for(size_t i = 0; i < project->layout_viewport_count; i += 1) {
             free(project->layout_viewports[i].camera_items);
             free(project->layout_viewports[i].ui_items);
@@ -795,7 +829,7 @@ ui_fail:
             free(viewports[i].camera_items);
             free(viewports[i].ui_items);
         }
-        free(viewports); free(definitions); free(fonts);
+        free(viewports); free(definitions); free(fonts); free(audio);
         return;
     }
     if(action->kind == EDITOR_HISTORY_ACTION_INPUT) {
@@ -1458,6 +1492,14 @@ void editor_history_reset(EditorHistory *history) {
     history->restoring = false;
 }
 
+static bool editor_history_presentation_command_check(const EditorCommand *command) {
+    if(!command) return false;
+    if(command->type >= EDITOR_COMMAND_APPLICATION_WINDOW_SET && command->type <= EDITOR_COMMAND_AUDIO_REMOVE) return true;
+    if(command->type != EDITOR_COMMAND_PROPERTY_SET) return false;
+    EditorItemKind kind = command->data.property_set.kind;
+    return kind == EDITOR_ITEM_UI_FONT || kind == EDITOR_ITEM_UI_DEFINITION || kind == EDITOR_ITEM_VIEWPORT_CAMERA;
+}
+
 void editor_history_command_begin(EditorHistory *history,
         const EditorProject *project, const EditorCommand *command) {
     if(history == NULL || history->restoring) return;
@@ -1475,6 +1517,10 @@ void editor_history_command_begin(EditorHistory *history,
     if(history->transaction_active &&
             history->transaction_commands_suppressed) return;
     if(project == NULL || !editor_history_command_record_check(command)) return;
+    if(editor_history_presentation_command_check(command)) {
+        history->command_ui_owned = editor_history_ui_change_begin(history);
+        return;
+    }
     if(command->type >= EDITOR_COMMAND_INPUT_CONTROLLER_ADD &&
             command->type <= EDITOR_COMMAND_INPUT_BINDING_SET) {
         history->pending_input = editor_history_input_capture(project);
@@ -1482,6 +1528,12 @@ void editor_history_command_begin(EditorHistory *history,
     }
     if(command->type == EDITOR_COMMAND_COLLISION_MASK_ADD) {
         history->pending_collision = editor_history_collision_capture(project);
+        return;
+    }
+    if(command->type == EDITOR_COMMAND_SPRITE_REMOVE) {
+        /* Removing a sprite also clears same-object entity references. */
+        history->pending_aggregate = editor_history_aggregate_capture(
+            history->project, EDITOR_ITEM_OBJECT, command->data.sprite_remove.object, 0);
         return;
     }
     if(command->type >= EDITOR_COMMAND_SPRITE_ADD &&
@@ -1553,6 +1605,11 @@ void editor_history_command_finish(EditorHistory *history,
         const EditorCommand *command, const EditorCommandResult *result) {
     EditorHistoryEntry *entry = NULL;
     if(history == NULL || history->project == NULL || history->restoring) return;
+    if(editor_history_presentation_command_check(command)) {
+        if(history->command_ui_owned) (void)editor_history_ui_change_finish(history);
+        history->command_ui_owned = false;
+        return;
+    }
     if(history->transaction_active) {
         if(history->pending_object != NULL && command != NULL && result != NULL &&
                 result->kind == ERROR_RESULT_VALUE) {
@@ -1796,6 +1853,19 @@ bool editor_history_ui_change_finish(EditorHistory *history) {
             history->recorded_since_continuous_update = true;
             return true;
         }
+    }
+    if(history->transaction_active) {
+        entry = history->transaction_commands;
+        EditorHistoryCommandPair *commands = realloc(entry->commands,
+            (entry->command_count + 1) * sizeof(*commands));
+        if(commands == NULL) goto fail;
+        entry->commands = commands;
+        entry->commands[entry->command_count++] = (EditorHistoryCommandPair){
+            .forward = {.kind = EDITOR_HISTORY_ACTION_UI, .data.ui = after},
+            .inverse = {.kind = EDITOR_HISTORY_ACTION_UI, .data.ui = history->pending_ui}};
+        entry->memory += sizeof(*commands);
+        history->pending_ui = NULL;
+        return true;
     }
     entry = calloc(1, sizeof(*entry));
     if(entry == NULL) goto fail;

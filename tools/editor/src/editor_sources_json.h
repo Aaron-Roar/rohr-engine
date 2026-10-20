@@ -11,4 +11,7 @@ bool editor_force_json_read(yyjson_val *json, ObjectForceDescription *value);
 bool editor_torque_json_read(yyjson_val *json, ObjectTorqueDescription *value);
 bool editor_sources_json_write(yyjson_mut_doc *doc, yyjson_mut_val *json, const EditorObject *object);
 bool editor_sources_json_read(yyjson_val *json, EditorObject *object, EditorProject *project);
+void editor_entity_settings_json_write(yyjson_mut_doc *doc, yyjson_mut_val *json,
+    ObjectEntitySettings value);
+bool editor_entity_settings_json_read(yyjson_val *json, ObjectEntitySettings *value);
 #endif

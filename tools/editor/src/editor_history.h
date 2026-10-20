@@ -30,6 +30,7 @@ typedef struct EditorHistory {
     bool transaction_active;
     bool transaction_commands_suppressed;
     bool pending_command_valid;
+    bool command_ui_owned;
     bool restoring;
     bool last_restore_ui;
     EditorCommand pending_forward;

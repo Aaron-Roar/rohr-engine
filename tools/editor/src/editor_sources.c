@@ -88,11 +88,11 @@ bool editor_project_source_remove(EditorObject *o, bool torque, uint32_t id) {
     if(torque) {
         for(size_t i = 0; i < o->torque_count; ++i) if(o->torque_items[i].id == id) {
             memmove(&o->torque_items[i], &o->torque_items[i+1], (--o->torque_count-i)*sizeof(*o->torque_items));
-            editor_project_object_hierarchy_sync(o); return true;
+            editor_project_object_hierarchy_sync(o); editor_project_entity_references_prune(o); return true;
         }
     } else for(size_t i = 0; i < o->force_count; ++i) if(o->force_items[i].id == id) {
         memmove(&o->force_items[i], &o->force_items[i+1], (--o->force_count-i)*sizeof(*o->force_items));
-        editor_project_object_hierarchy_sync(o); return true;
+        editor_project_object_hierarchy_sync(o); editor_project_entity_references_prune(o); return true;
     }
     return false;
 }
@@ -137,11 +137,16 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
     uint32_t new_id=added->id; char name[EDITOR_OBJECT_NAME_MAX]; strcpy(name,added->name);
     editor_project_object_destroy(added); *added=copy; added->id=new_id; strcpy(added->name,name);
     added->simulation_excluded = false;
+    editor_project_entity_reference_remap(added,
+        (ObjectEntityReference){OBJECT_CONTAINER, copy.id, 0},
+        (ObjectEntityReference){OBJECT_CONTAINER, new_id, 0});
     /* Element references are object-local. Retaining element IDs remaps every
      * connection into this independent copy; source identities remain unique. */
     for(size_t i=0;i<added->force_count;++i) {
         uint32_t old=added->force_items[i].id, id=p->next_force_id++;
         added->force_items[i].id=id;
+        editor_project_entity_reference_remap(added,
+            (ObjectEntityReference){OBJECT_FORCE, old, 0}, (ObjectEntityReference){OBJECT_FORCE, id, 0});
         for(size_t h=0;h<added->hierarchy_count;++h)
             if(added->hierarchy[h].kind==EDITOR_HIERARCHY_FORCE && added->hierarchy[h].id==old)
                 added->hierarchy[h].id=id;
@@ -149,6 +154,8 @@ EditorObject *editor_project_object_duplicate(EditorProject *p, uint32_t id) {
     for(size_t i=0;i<added->torque_count;++i) {
         uint32_t old=added->torque_items[i].id, id=p->next_torque_id++;
         added->torque_items[i].id=id;
+        editor_project_entity_reference_remap(added,
+            (ObjectEntityReference){OBJECT_TORQUE, old, 0}, (ObjectEntityReference){OBJECT_TORQUE, id, 0});
         for(size_t h=0;h<added->hierarchy_count;++h)
             if(added->hierarchy[h].kind==EDITOR_HIERARCHY_TORQUE && added->hierarchy[h].id==old)
                 added->hierarchy[h].id=id;

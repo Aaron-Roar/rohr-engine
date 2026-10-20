@@ -7,6 +7,7 @@
 
 #define OBJECT_DEPTH_MAX 128
 bool object_flags_check(EntityObjectFlags flags);
+bool object_entity_settings_check(ObjectEntitySettings value);
 void object_instance_resources_clear(EntityIndex index);
 EngineResult object_instance_camera_restore(Entity entity, CameraId camera);
 Entity object_instance_anchor_owner_get(Entity entity);

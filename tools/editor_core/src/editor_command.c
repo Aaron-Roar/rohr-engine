@@ -3,6 +3,7 @@
  */
 
 #include "entity/object_visuals.h"
+#include "entity/object_internal.h"
 #include "editor_command.h"
 #include "editor_mass_properties.h"
 #include "editor_soft_area.h"
@@ -12,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 static EditorCommandExecuted editor_command_executed_callback;
 static void *editor_command_executed_context;
@@ -182,6 +184,84 @@ static bool editor_command_collision_mask_find(const EditorProject *project,
 }
 
 static bool visual_property_set(EditorProject *p,const EditorPropertySetCommand *set);
+ObjectEntitySettings *editor_command_entity_settings_get(EditorProject *project,
+        EditorItemKind kind, EditorObjectId object, uint32_t parent, uint32_t item) {
+    EditorObject *o = editor_object_query_get(project, object);
+    if(!o) return NULL;
+    EditorSoftBody *soft = editor_command_soft_body_get(o, parent);
+#define SETTINGS(array, count) do { \
+    for(size_t i = 0; i < (count); ++i) \
+        if((array)[i].id == item) return &(array)[i].entity_settings; \
+    return NULL; \
+} while(0)
+    switch(kind) {
+        case EDITOR_ITEM_OBJECT: return &o->entity_settings;
+        case EDITOR_ITEM_RIGID_BODY: SETTINGS(o->rigid_bodies, o->rigid_body_count);
+        case EDITOR_ITEM_SOFT_BODY: SETTINGS(o->soft_body_items, o->soft_body_count);
+        case EDITOR_ITEM_SOFT_NODE: if(soft) SETTINGS(soft->nodes, soft->node_count); return NULL;
+        case EDITOR_ITEM_SOFT_BEAM: if(soft) SETTINGS(soft->beams, soft->beam_count); return NULL;
+        case EDITOR_ITEM_SOFT_AREA: if(soft) SETTINGS(soft->areas, soft->area_count); return NULL;
+        case EDITOR_ITEM_ANCHOR: SETTINGS(o->anchors, o->anchor_count);
+        case EDITOR_ITEM_JOINT: SETTINGS(o->joint_items, o->joint_count);
+        case EDITOR_ITEM_SPRITE: SETTINGS(o->sprites, o->sprite_count);
+        case EDITOR_ITEM_ANIMATED_SPRITE: SETTINGS(o->animated_sprite_items, o->animated_sprite_count);
+        case EDITOR_ITEM_CAMERA: SETTINGS(o->cameras, o->camera_count);
+        case EDITOR_ITEM_FORCE: SETTINGS(o->force_items, o->force_count);
+        case EDITOR_ITEM_TORQUE: SETTINGS(o->torque_items, o->torque_count);
+        default: return NULL;
+    }
+#undef SETTINGS
+}
+
+static bool settings_reference_check(EditorProject *project, EditorObjectId object,
+        ObjectEntityReference reference) {
+    if(!reference.id) return true;
+    return editor_project_entity_settings_get(editor_object_query_get(project, object), reference) != NULL;
+}
+
+static bool entity_setting_property_set(EditorProject *project,
+        const EditorPropertySetCommand *set) {
+    ObjectEntitySettings *stored = editor_command_entity_settings_get(project,
+        set->kind, set->object, set->parent, set->item);
+    if(!stored) return false;
+    ObjectEntitySettings next = *stored;
+#define SETTING_FLOAT number
+#define SETTING_BOOL boolean
+#define SETTING_DOUBLE real
+#define SETTING_UINT64 wide_integer
+#define SETTING_REFERENCE reference
+#define SETTING(symbol, name, label, type, member) \
+    case EDITOR_PROPERTY_##symbol: \
+        if(set->value_kind != EDITOR_PROPERTY_VALUE_##type) return false; \
+        next.member = set->value.SETTING_##type; break;
+    switch(set->property) {
+        EDITOR_ENTITY_SETTING_PROPERTIES(SETTING)
+        default: return false;
+    }
+#undef SETTING
+#undef SETTING_FLOAT
+#undef SETTING_BOOL
+#undef SETTING_DOUBLE
+#undef SETTING_UINT64
+#undef SETTING_REFERENCE
+    if(set->property == EDITOR_PROPERTY_AXIS_LOCK_ENABLED && next.axis_lock_enabled &&
+            next.axis_lock.axis.x == 0 && next.axis_lock.axis.y == 0)
+        next.axis_lock.axis.y = 1;
+    if(!object_entity_settings_check(next) ||
+            !settings_reference_check(project, set->object, next.gameplay_target) ||
+            !settings_reference_check(project, set->object, next.transform_driver)) return false;
+    if(next.gameplay_target.id && (set->kind == EDITOR_ITEM_FORCE || set->kind == EDITOR_ITEM_TORQUE))
+        return false;
+    if(next.angular_acceleration || next.angular_velocity_maximum_enabled) {
+        EditorObject *o = editor_object_query_get(project, set->object);
+        EditorRigidBody *body = set->kind == EDITOR_ITEM_RIGID_BODY ?
+            editor_project_rigid_body_get(o, set->item) : NULL;
+        if(!body || body->standalone_particle) return false;
+    }
+    *stored = next;
+    return true;
+}
+
 static EditorCommandResult editor_command_execute_internal(EditorProject *project,
         const EditorCommand *command) {
     Position position;
@@ -515,6 +595,50 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                     "Simulation viewport was not found").result.error);
             project->simulation_viewport = command->data.simulation_viewport.viewport;
             return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        case EDITOR_COMMAND_JOINT_PLACE: {
+            EditorObject *object = editor_object_query_get(project, command->data.joint_place.object);
+            EditorJoint *joint = editor_command_joint_get(object, command->data.joint_place.joint);
+            if(!joint) return editor_command_not_found("joint", command->data.joint_place.joint);
+            if(!editor_project_joint_place(object, joint))
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Placement conflicts with a fixed endpoint, lock, or connected group").result.error);
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_APPLICATION_WINDOW_SET: {
+            WindowPresentationDescription value = command->data.application_window.description;
+            if(value.mode < GRAPHICS_WINDOW_MODE_WINDOWED ||
+                    value.mode > GRAPHICS_WINDOW_MODE_FULLSCREEN ||
+                    value.window_width <= 0 || value.window_height <= 0 ||
+                    value.logical_width <= 0 || value.logical_height <= 0)
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Application window dimensions must be positive and mode valid").result.error);
+            project->application_window_enabled = command->data.application_window.enabled;
+            project->application_window = value;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+        }
+        case EDITOR_COMMAND_AUDIO_ADD: {
+            const EditorAudioDefinition *value = &command->data.audio;
+            EditorAudioDefinition candidate = *value;
+            candidate.id = project->next_audio_definition_id;
+            if(!editor_audio_definition_check(&candidate))
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "Invalid audio name, path, or playback configuration").result.error);
+            EditorAudioDefinition *added = editor_project_audio_add(project, value->music,
+                value->name, value->path);
+            if(!added) return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Audio name must be a unique identifier and path must be nonempty").result.error);
+            *added = candidate;
+            return (EditorCommandResult){.kind = ERROR_RESULT_VALUE, .result.object = added->id};
+        }
+        case EDITOR_COMMAND_AUDIO_SET:
+            if(editor_project_audio_set(project, command->data.audio))
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                "Invalid audio definition, name, or reference").result.error);
+        case EDITOR_COMMAND_AUDIO_REMOVE:
+            if(editor_project_audio_remove(project, command->data.audio.id))
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            return editor_command_not_found("audio definition", command->data.audio.id);
         case EDITOR_COMMAND_PROJECT_PHYSICS_SETTINGS_SET:
             if(!isfinite((double)command->data.project_physics_settings_set.
                         engine_time_per_tick) ||
@@ -1103,6 +1227,58 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
         }
         case EDITOR_COMMAND_PROPERTY_SET: {
             const EditorPropertySetCommand *set = &command->data.property_set;
+            if(set->kind == EDITOR_ITEM_UI_FONT) {
+                EditorUiFont *font = editor_project_ui_font_get(project, set->item);
+                if(!font || set->property != EDITOR_PROPERTY_FONT_POINT_SIZE ||
+                        set->value_kind != EDITOR_PROPERTY_VALUE_FLOAT ||
+                        !isfinite(set->value.number) || set->value.number <= 0) goto property_invalid;
+                font->point_size = set->value.number;
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            }
+            if(set->kind == EDITOR_ITEM_UI_DEFINITION) {
+                EditorViewportUiDefinition *definition = editor_project_ui_definition_get(project, set->item);
+                EditorViewportUiText *text = !definition ? NULL :
+                    definition->kind == EDITOR_VIEWPORT_UI_TEXT ? &definition->value.text :
+                    definition->kind == EDITOR_VIEWPORT_UI_SHAPE ? &definition->value.shape.text : NULL;
+                if(!text) goto property_invalid;
+                if(set->property == EDITOR_PROPERTY_TEXT_ROTATION &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT && isfinite(set->value.number))
+                    text->rotation = set->value.number;
+                else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_UINT && set->value.integer <= INT_MAX)
+                    text->wrap_width = (int)set->value.integer;
+                else goto property_invalid;
+                (void)editor_project_ui_definitions_refresh(project);
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            }
+            if(set->kind == EDITOR_ITEM_VIEWPORT_CAMERA &&
+                    set->property >= EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT &&
+                    set->property <= EDITOR_PROPERTY_RENDER_HEIGHT) {
+                EditorLayoutViewport *viewport = editor_project_layout_viewport_get(project, set->object);
+                EditorViewportCameraItem *item = NULL;
+                if(viewport) for(size_t i = 0; i < viewport->camera_item_count; ++i)
+                    if(viewport->camera_items[i].id == set->item) item = &viewport->camera_items[i];
+                if(!item) goto property_invalid;
+                if(set->property == EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    if(set->value.boolean && (item->render_width <= 0 || item->render_height <= 0))
+                        goto property_invalid;
+                    item->render_size_explicit = set->value.boolean;
+                } else if(set->value_kind == EDITOR_PROPERTY_VALUE_UINT &&
+                        set->value.integer > 0 && set->value.integer <= INT_MAX) {
+                    if(set->property == EDITOR_PROPERTY_RENDER_WIDTH) item->render_width = (int)set->value.integer;
+                    else if(set->property == EDITOR_PROPERTY_RENDER_HEIGHT) item->render_height = (int)set->value.integer;
+                    else goto property_invalid;
+                } else goto property_invalid;
+                return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+            }
+            if(set->property >= EDITOR_PROPERTY_LIFETIME_TIME_ENABLED &&
+                    set->property <= EDITOR_PROPERTY_TRANSFORM_VELOCITY) {
+                if(entity_setting_property_set(project, set))
+                    return (EditorCommandResult){.kind = ERROR_RESULT_VALUE};
+                return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+                    "invalid entity configuration or reference").result.error);
+            }
             if(editor_visual_property_check(set->property)) {
                 if(visual_property_set(project,set)) return (EditorCommandResult){.kind=ERROR_RESULT_VALUE};
                 return editor_command_error(editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,"Invalid visual property").result.error);
@@ -1299,13 +1475,32 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                             (EditorJointKind)set->value.integer)) goto property_invalid;
                 } else if(set->property == EDITOR_PROPERTY_REST_LENGTH &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
-                        set->value.number >= 0.0f) joint->rest_length = set->value.number;
+                        isfinite(set->value.number) && set->value.number >= 0.0f) {
+                    joint->rest_length = set->value.number; joint->rest_length_explicit = true;
+                } else if(set->property == EDITOR_PROPERTY_REST_ANGLE &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT && isfinite(set->value.number)) {
+                    joint->rest_angle = set->value.number; joint->rest_angle_explicit = true;
+                } else if((set->property == EDITOR_PROPERTY_REST_LENGTH_EXPLICIT ||
+                        set->property == EDITOR_PROPERTY_REST_ANGLE_EXPLICIT) && set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    if(set->property == EDITOR_PROPERTY_REST_LENGTH_EXPLICIT) joint->rest_length_explicit = set->value.boolean;
+                    else joint->rest_angle_explicit = set->value.boolean;
+                    if(!set->value.boolean) (void)editor_project_joint_anchor_set(object, joint, 0, joint->anchor_a);
+                }
                 else if(set->property == EDITOR_PROPERTY_STIFFNESS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) joint->stiffness = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_DAMPING &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) joint->damping = set->value.number;
+                else goto property_invalid;
+            } else if(set->kind == EDITOR_ITEM_CAMERA) {
+                EditorCamera *camera = editor_project_camera_get(object, set->item);
+                if(!camera) return editor_command_not_found("camera", set->item);
+                if(set->value_kind != EDITOR_PROPERTY_VALUE_BOOL) goto property_invalid;
+                if(set->property == EDITOR_PROPERTY_FOLLOW_POSITION)
+                    camera->position_follow_disabled = !set->value.boolean;
+                else if(set->property == EDITOR_PROPERTY_PAUSE_WITH_ENGINE)
+                    camera->pause_with_engine = set->value.boolean;
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_ANCHOR) {
                 EditorAnchor *anchor = editor_project_anchor_get(object, set->item);
@@ -1372,12 +1567,29 @@ static EditorCommandResult editor_command_execute_internal(EditorProject *projec
                 else if(set->property == EDITOR_PROPERTY_INITIAL_MOTION_INHERITED &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
                     node->initial_motion_inherited = set->value.boolean;
+                else if(set->property == EDITOR_PROPERTY_STATIC &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL)
+                    node->static_body = set->value.boolean;
                 else goto property_invalid;
             } else if(set->kind == EDITOR_ITEM_SOFT_BEAM) {
                 EditorSoftBody *body = editor_command_soft_body_get(object, set->parent);
                 EditorSoftBeam *beam = editor_command_soft_beam_get(body, set->item);
                 if(beam == NULL) return editor_command_not_found("soft beam", set->item);
-                if(set->property == EDITOR_PROPERTY_STIFFNESS &&
+                if(set->property == EDITOR_PROPERTY_REST_LENGTH_EXPLICIT &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
+                    if(set->value.boolean && !beam->rest_length_explicit) {
+                        EditorSoftNode *a = editor_command_soft_node_get(body, beam->node_a);
+                        EditorSoftNode *b = editor_command_soft_node_get(body, beam->node_b);
+                        if(a && b) beam->rest_length = hypotf(a->position.x - b->position.x,
+                            a->position.y - b->position.y);
+                    }
+                    beam->rest_length_explicit = set->value.boolean;
+                } else if(set->property == EDITOR_PROPERTY_REST_LENGTH &&
+                        set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
+                        isfinite(set->value.number) && set->value.number >= 0) {
+                    beam->rest_length = set->value.number;
+                    beam->rest_length_explicit = true;
+                } else if(set->property == EDITOR_PROPERTY_STIFFNESS &&
                         set->value_kind == EDITOR_PROPERTY_VALUE_FLOAT &&
                         set->value.number >= 0.0f) beam->stiffness = set->value.number;
                 else if(set->property == EDITOR_PROPERTY_DAMPING &&
@@ -1802,11 +2014,13 @@ property_invalid:
             } else if(command->type == EDITOR_COMMAND_SPRITE_ROTATION_SET) {
                 sprite->rotation = command->data.sprite_rotation_set.rotation;
             } else if(command->type == EDITOR_COMMAND_SPRITE_SIZE_SET) {
-                if(command->data.sprite_size_set.size.x <= 0.0f ||
-                        command->data.sprite_size_set.size.y <= 0.0f)
+                if(!isfinite(command->data.sprite_size_set.size.x) ||
+                        !isfinite(command->data.sprite_size_set.size.y) ||
+                        command->data.sprite_size_set.size.x == 0.0f ||
+                        command->data.sprite_size_set.size.y == 0.0f)
                     return editor_command_error(editor_result_error(
                         EDITOR_ERROR_INVALID_ARGUMENT,
-                        "sprite size must be positive").result.error);
+                        "sprite size must be finite and nonzero; negative values flip the image").result.error);
                 sprite->size = command->data.sprite_size_set.size;
             } else if(command->type == EDITOR_COMMAND_SPRITE_BODY_SET) {
                 EditorObject *object = editor_object_query_get(project, object_id);
@@ -2231,6 +2445,10 @@ EditorCommandResult editor_command_execute(EditorProject *project,
         editor_command_executing_callback(project, command,
             editor_command_executing_context);
     EditorCommandResult result = editor_command_execute_internal(project, command);
+    if(result.kind == ERROR_RESULT_VALUE && command && project &&
+            command->type == EDITOR_COMMAND_ITEM_REMOVE)
+        for(size_t i = 0; i < project->object_count; ++i)
+            editor_project_entity_references_prune(&project->objects[i]);
     if(result.kind == ERROR_RESULT_VALUE && editor_command_executed_callback != NULL)
         editor_command_executed_callback(command, &result,
             editor_command_executed_context);
@@ -2266,6 +2484,49 @@ static bool editor_command_uint_parse(const char *text, uint32_t *value) {
     parsed = strtoul(text, &end, 10);
     if(errno != 0 || *end != '\0' || parsed > UINT32_MAX) return false;
     *value = (uint32_t)parsed;
+    return true;
+}
+
+static const char *entity_reference_names[] = {"object", "body", "particle", "soft-body",
+    "node", "beam", "area", "anchor", "joint", "sprite", "animation", "camera", "force", "torque"};
+
+bool editor_command_entity_setting_value_parse(const char *text, EditorPropertySetCommand *set) {
+    if(!text || !*text || !set) return false;
+    char *end;
+    errno = 0;
+    if(set->value_kind == EDITOR_PROPERTY_VALUE_DOUBLE) {
+        double value = strtod(text, &end);
+        if(errno || *end || !isfinite(value)) return false;
+        set->value.real = value;
+        return true;
+    }
+    if(set->value_kind == EDITOR_PROPERTY_VALUE_UINT64) {
+        if(*text < '0' || *text > '9') return false;
+        unsigned long long value = strtoull(text, &end, 10);
+        if(errno || *end || value > UINT64_MAX) return false;
+        set->value.wide_integer = (uint64_t)value;
+        return true;
+    }
+    if(set->value_kind != EDITOR_PROPERTY_VALUE_REFERENCE) return false;
+    if(!strcmp(text, "none")) { set->value.reference = (ObjectEntityReference){0}; return true; }
+    const char *colon = strchr(text, ':');
+    if(!colon) return false;
+    ObjectEntityReference reference = {0};
+    size_t kind;
+    for(kind = 0; kind < sizeof(entity_reference_names) / sizeof(entity_reference_names[0]); ++kind)
+        if(strlen(entity_reference_names[kind]) == (size_t)(colon - text) &&
+                !strncmp(text, entity_reference_names[kind], (size_t)(colon - text))) break;
+    if(kind > OBJECT_TORQUE || colon[1] < '0' || colon[1] > '9') return false;
+    reference.kind = (ObjectKind)kind;
+    reference.id = strtoull(colon + 1, &end, 10);
+    if(errno || reference.id > UINT32_MAX) return false;
+    if(*end == ':') {
+        if(end[1] < '0' || end[1] > '9') return false;
+        reference.soft_body = strtoull(end + 1, &end, 10);
+        if(errno || reference.soft_body > UINT32_MAX) return false;
+    }
+    if(*end) return false;
+    set->value.reference = reference;
     return true;
 }
 
@@ -2357,6 +2618,9 @@ static bool editor_command_item_kind_parse(const char *domain, EditorItemKind *k
     else if(strcmp(domain, "rigid-body") == 0) *kind = EDITOR_ITEM_RIGID_BODY;
     else if(strcmp(domain, "hitbox") == 0) *kind = EDITOR_ITEM_HITBOX;
     else if(strcmp(domain, "joint") == 0) *kind = EDITOR_ITEM_JOINT;
+    else if(strcmp(domain, "camera") == 0) *kind = EDITOR_ITEM_CAMERA;
+    else if(strcmp(domain, "ui-font") == 0) *kind = EDITOR_ITEM_UI_FONT;
+    else if(strcmp(domain, "ui-definition") == 0) *kind = EDITOR_ITEM_UI_DEFINITION;
     else if(strcmp(domain, "anchor") == 0) *kind = EDITOR_ITEM_ANCHOR;
     else if(strcmp(domain, "soft-body") == 0) *kind = EDITOR_ITEM_SOFT_BODY;
     else if(strcmp(domain, "soft-node") == 0) *kind = EDITOR_ITEM_SOFT_NODE;
@@ -2377,6 +2641,9 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
         case EDITOR_ITEM_RIGID_BODY: return "rigid-body";
         case EDITOR_ITEM_HITBOX: return "hitbox";
         case EDITOR_ITEM_JOINT: return "joint";
+        case EDITOR_ITEM_CAMERA: return "camera";
+        case EDITOR_ITEM_UI_FONT: return "ui-font";
+        case EDITOR_ITEM_UI_DEFINITION: return "ui-definition";
         case EDITOR_ITEM_FORCE: return "force";
         case EDITOR_ITEM_TORQUE: return "torque";
         case EDITOR_ITEM_ANCHOR: return "anchor";
@@ -2394,6 +2661,11 @@ static const char *editor_command_item_domain_get(EditorItemKind kind) {
 static bool editor_command_property_parse(const char *name,
         EditorPropertyKind *property, EditorPropertyValueKind *value_kind) {
     if(name == NULL || property == NULL || value_kind == NULL) return false;
+#define SETTING(symbol, text, label, type, member) \
+    if(!strcmp(name, text)) { *property = EDITOR_PROPERTY_##symbol; \
+        *value_kind = EDITOR_PROPERTY_VALUE_##type; return true; }
+    EDITOR_ENTITY_SETTING_PROPERTIES(SETTING)
+#undef SETTING
     if(editor_visual_property_parse(name,property,value_kind)) return true;
 #define EDITOR_FLOAT_PROPERTY(text, value) \
     if(strcmp(name, text) == 0) { *property = value; \
@@ -2408,7 +2680,15 @@ static bool editor_command_property_parse(const char *name,
     EDITOR_FLOAT_PROPERTY("friction", EDITOR_PROPERTY_FRICTION)
     EDITOR_FLOAT_PROPERTY("restitution", EDITOR_PROPERTY_RESTITUTION)
     EDITOR_FLOAT_PROPERTY("visual-size", EDITOR_PROPERTY_VISUAL_SIZE)
+    EDITOR_FLOAT_PROPERTY("rest-angle", EDITOR_PROPERTY_REST_ANGLE)
+    EDITOR_BOOL_PROPERTY("rest-angle-explicit", EDITOR_PROPERTY_REST_ANGLE_EXPLICIT)
     EDITOR_FLOAT_PROPERTY("rest-length", EDITOR_PROPERTY_REST_LENGTH)
+    EDITOR_FLOAT_PROPERTY("point-size", EDITOR_PROPERTY_FONT_POINT_SIZE)
+    EDITOR_FLOAT_PROPERTY("text-rotation", EDITOR_PROPERTY_TEXT_ROTATION)
+    EDITOR_UINT_PROPERTY("wrap-width", EDITOR_PROPERTY_TEXT_WRAP_WIDTH)
+    EDITOR_UINT_PROPERTY("render-width", EDITOR_PROPERTY_RENDER_WIDTH)
+    EDITOR_UINT_PROPERTY("render-height", EDITOR_PROPERTY_RENDER_HEIGHT)
+    EDITOR_BOOL_PROPERTY("render-size-explicit", EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT)
     EDITOR_FLOAT_PROPERTY("stiffness", EDITOR_PROPERTY_STIFFNESS)
     EDITOR_FLOAT_PROPERTY("damping", EDITOR_PROPERTY_DAMPING)
     EDITOR_FLOAT_PROPERTY("collision-thickness",
@@ -2430,6 +2710,9 @@ static bool editor_command_property_parse(const char *name,
         EDITOR_PROPERTY_INITIAL_ANGULAR_VELOCITY)
     EDITOR_BOOL_PROPERTY("gravity", EDITOR_PROPERTY_GRAVITY)
     EDITOR_BOOL_PROPERTY("static", EDITOR_PROPERTY_STATIC)
+    EDITOR_BOOL_PROPERTY("rest-length-explicit", EDITOR_PROPERTY_REST_LENGTH_EXPLICIT)
+    EDITOR_BOOL_PROPERTY("follow-position", EDITOR_PROPERTY_FOLLOW_POSITION)
+    EDITOR_BOOL_PROPERTY("pause-with-engine", EDITOR_PROPERTY_PAUSE_WITH_ENGINE)
     EDITOR_BOOL_PROPERTY("rotation-locked", EDITOR_PROPERTY_ROTATION_LOCKED)
     EDITOR_BOOL_PROPERTY("collision", EDITOR_PROPERTY_COLLISION)
     EDITOR_BOOL_PROPERTY("particle", EDITOR_PROPERTY_PARTICLE)
@@ -2471,6 +2754,9 @@ static bool editor_command_property_parse(const char *name,
 static const char *editor_command_property_name_get(EditorPropertyKind property) {
     if(editor_visual_property_check(property)) return editor_visual_property_name_get(property);
     switch(property) {
+#define SETTING(symbol, name, label, type, member) case EDITOR_PROPERTY_##symbol: return name;
+        EDITOR_ENTITY_SETTING_PROPERTIES(SETTING)
+#undef SETTING
         case EDITOR_PROPERTY_CENTER_OF_MASS: return "center-of-mass";
         case EDITOR_PROPERTY_MASS: return "mass";
         case EDITOR_PROPERTY_FRICTION: return "friction";
@@ -2493,7 +2779,18 @@ static const char *editor_command_property_name_get(EditorPropertyKind property)
         case EDITOR_PROPERTY_POSITION_LOCKED: return "position-locked";
         case EDITOR_PROPERTY_VISUAL_SIZE: return "visual-size";
         case EDITOR_PROPERTY_JOINT_KIND: return "kind";
+        case EDITOR_PROPERTY_REST_ANGLE: return "rest-angle";
+        case EDITOR_PROPERTY_REST_ANGLE_EXPLICIT: return "rest-angle-explicit";
         case EDITOR_PROPERTY_REST_LENGTH: return "rest-length";
+        case EDITOR_PROPERTY_FONT_POINT_SIZE: return "point-size";
+        case EDITOR_PROPERTY_TEXT_ROTATION: return "text-rotation";
+        case EDITOR_PROPERTY_TEXT_WRAP_WIDTH: return "wrap-width";
+        case EDITOR_PROPERTY_RENDER_WIDTH: return "render-width";
+        case EDITOR_PROPERTY_RENDER_HEIGHT: return "render-height";
+        case EDITOR_PROPERTY_RENDER_SIZE_EXPLICIT: return "render-size-explicit";
+        case EDITOR_PROPERTY_REST_LENGTH_EXPLICIT: return "rest-length-explicit";
+        case EDITOR_PROPERTY_FOLLOW_POSITION: return "follow-position";
+        case EDITOR_PROPERTY_PAUSE_WITH_ENGINE: return "pause-with-engine";
         case EDITOR_PROPERTY_STIFFNESS: return "stiffness";
         case EDITOR_PROPERTY_DAMPING: return "damping";
         case EDITOR_PROPERTY_BEAM_COLLISION_THICKNESS:
@@ -2531,6 +2828,59 @@ EditorResult editor_command_cli_parse(int count, char **arguments,
             "expected an editor mutation command");
     domain = arguments[1];
     action = arguments[2];
+    if(!strcmp(domain, "joint") && !strcmp(action, "place")) {
+        *document_path = arguments[3];
+        if(count == 6 && editor_command_uint_parse(arguments[4], &command->data.joint_place.object) &&
+                editor_command_uint_parse(arguments[5], &command->data.joint_place.joint)) {
+            command->type = EDITOR_COMMAND_JOINT_PLACE;
+            return editor_result_value(true);
+        }
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "joint place requires object and joint IDs");
+    }
+    if(strcmp(domain, "application-window") == 0) {
+        uint32_t mode, width, height, logical_width, logical_height;
+        *document_path = arguments[3];
+        command->type = EDITOR_COMMAND_APPLICATION_WINDOW_SET;
+        if(count == 11 && !strcmp(action, "set") &&
+                editor_command_bool_parse(arguments[4], &command->data.application_window.enabled) &&
+                editor_command_uint_parse(arguments[5], &mode) && mode <= GRAPHICS_WINDOW_MODE_FULLSCREEN &&
+                editor_command_uint_parse(arguments[6], &width) && width && width <= INT_MAX &&
+                editor_command_uint_parse(arguments[7], &height) && height && height <= INT_MAX &&
+                editor_command_uint_parse(arguments[8], &logical_width) && logical_width && logical_width <= INT_MAX &&
+                editor_command_uint_parse(arguments[9], &logical_height) && logical_height && logical_height <= INT_MAX &&
+                editor_command_bool_parse(arguments[10], &command->data.application_window.description.aspect_ratio_auto)) {
+            WindowPresentationDescription *w = &command->data.application_window.description;
+            w->mode = (GraphicsWindowMode)mode; w->window_width = (int)width; w->window_height = (int)height;
+            w->logical_width = (int)logical_width; w->logical_height = (int)logical_height;
+            return editor_result_value(true);
+        }
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "application-window set requires enabled mode width height logical-width logical-height auto-aspect");
+    }
+    if(strcmp(domain, "audio") == 0) {
+        *document_path = arguments[3];
+        command->data.audio = (EditorAudioDefinition){.playback_rate = 1};
+        EditorAudioDefinition *a = &command->data.audio;
+        if(count == 5 && !strcmp(action, "remove") && editor_command_uint_parse(arguments[4], &a->id)) {
+            command->type = EDITOR_COMMAND_AUDIO_REMOVE;
+            return editor_result_value(true);
+        }
+        if(count == 7 && !strcmp(action, "add") && editor_command_bool_parse(arguments[4], &a->music) &&
+                strlen(arguments[5]) < sizeof(a->name) && strlen(arguments[6]) < sizeof(a->path)) {
+            command->type = EDITOR_COMMAND_AUDIO_ADD;
+            strcpy(a->name, arguments[5]); strcpy(a->path, arguments[6]);
+            return editor_result_value(true);
+        }
+        if(count == 12 && (!strcmp(action, "set") || !strcmp(action, "add")) && editor_command_uint_parse(arguments[4], &a->id) &&
+                strlen(arguments[5]) < sizeof(a->name) && strlen(arguments[6]) < sizeof(a->path) &&
+                editor_command_bool_parse(arguments[7], &a->music) &&
+                editor_command_float_parse(arguments[8], &a->volume) && editor_command_float_parse(arguments[9], &a->pan) &&
+                editor_command_bool_parse(arguments[10], &a->loop) && editor_command_float_parse(arguments[11], &a->playback_rate)) {
+            command->type = !strcmp(action, "add") ? EDITOR_COMMAND_AUDIO_ADD : EDITOR_COMMAND_AUDIO_SET;
+            strcpy(a->name, arguments[5]); strcpy(a->path, arguments[6]);
+            return editor_result_value(true);
+        }
+        return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "audio: add music name path; set id name path music volume pan loop rate; remove id");
+    }
     if(strcmp(domain, "app-visibility") == 0) {
         uint32_t kind;
         *document_path = arguments[3];
@@ -3058,11 +3408,18 @@ collision_filter_invalid:
         } else if(set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
             if(!editor_command_bool_parse(arguments[value_index], &set->value.boolean))
                 goto property_parse_invalid;
+        } else if(set->value_kind == EDITOR_PROPERTY_VALUE_DOUBLE ||
+                set->value_kind == EDITOR_PROPERTY_VALUE_UINT64 ||
+                set->value_kind == EDITOR_PROPERTY_VALUE_REFERENCE) {
+            if(!editor_command_entity_setting_value_parse(arguments[value_index], set))
+                goto property_parse_invalid;
         } else {
             if(editor_command_property_color_check(set->property)) {
                 if(!editor_command_color_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
-            } else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+            } else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH ||
+                    set->property == EDITOR_PROPERTY_RENDER_WIDTH || set->property == EDITOR_PROPERTY_RENDER_HEIGHT ||
+                    set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
                     set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES) {
                 if(!editor_command_uint_parse(arguments[value_index],
                         &set->value.integer)) goto property_parse_invalid;
@@ -3535,6 +3892,42 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             command->type <= EDITOR_COMMAND_ANIMATION_FRAME_TRANSFORM_SET) {
         if(!editor_command_text_append(output, output_capacity, &used,
                 "rohr-cli animated-sprite ")) goto capacity_error;
+    }
+    if(command->type == EDITOR_COMMAND_JOINT_PLACE) {
+        if(!editor_command_text_append(output, output_capacity, &used, "rohr-cli joint place ") ||
+                !editor_command_shell_text_append(output, output_capacity, &used, document_path)) goto capacity_error;
+        snprintf(values, sizeof(values), " %u %u", command->data.joint_place.object, command->data.joint_place.joint);
+        if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+        return editor_result_value(true);
+    }
+    if(command->type >= EDITOR_COMMAND_APPLICATION_WINDOW_SET && command->type <= EDITOR_COMMAND_AUDIO_REMOVE) {
+        const EditorAudioDefinition *a = &command->data.audio;
+        const char *prefix = command->type == EDITOR_COMMAND_APPLICATION_WINDOW_SET ? "rohr-cli application-window set " :
+            command->type == EDITOR_COMMAND_AUDIO_ADD ? "rohr-cli audio add " :
+            command->type == EDITOR_COMMAND_AUDIO_SET ? "rohr-cli audio set " : "rohr-cli audio remove ";
+        if(!editor_command_text_append(output, output_capacity, &used, prefix) ||
+                !editor_command_shell_text_append(output, output_capacity, &used, document_path)) goto capacity_error;
+        if(command->type == EDITOR_COMMAND_APPLICATION_WINDOW_SET) {
+            const WindowPresentationDescription *w = &command->data.application_window.description;
+            snprintf(values, sizeof(values), " %s %u %d %d %d %d %s", command->data.application_window.enabled ? "true" : "false",
+                (unsigned)w->mode, w->window_width, w->window_height, w->logical_width, w->logical_height,
+                w->aspect_ratio_auto ? "true" : "false");
+            if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+            return editor_result_value(true);
+        }
+        snprintf(values, sizeof(values), " %u%s", a->id, command->type == EDITOR_COMMAND_AUDIO_REMOVE ? "" : " ");
+        if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+        if(command->type != EDITOR_COMMAND_AUDIO_REMOVE) {
+            if(!editor_command_shell_text_append(output, output_capacity, &used, a->name) ||
+                    !editor_command_text_append(output, output_capacity, &used, " ") ||
+                    !editor_command_shell_text_append(output, output_capacity, &used, a->path)) goto capacity_error;
+            {
+                snprintf(values, sizeof(values), " %s %.9g %.9g %s %.9g", a->music ? "true" : "false",
+                    a->volume, a->pan, a->loop ? "true" : "false", a->playback_rate);
+                if(!editor_command_text_append(output, output_capacity, &used, values)) goto capacity_error;
+            }
+        }
+        return editor_result_value(true);
     }
     switch(command->type) {
         case EDITOR_COMMAND_APP_VISIBILITY:
@@ -4166,10 +4559,23 @@ EditorResult editor_command_cli_write(const EditorCommand *command,
             else if(set->value_kind == EDITOR_PROPERTY_VALUE_BOOL) {
                 boolean = set->value.boolean ? "true" : "false";
                 snprintf(value, sizeof(value), "%s", boolean);
+            } else if(set->value_kind == EDITOR_PROPERTY_VALUE_DOUBLE) {
+                snprintf(value, sizeof(value), "%.17g", set->value.real);
+            } else if(set->value_kind == EDITOR_PROPERTY_VALUE_UINT64) {
+                snprintf(value, sizeof(value), "%llu", (unsigned long long)set->value.wide_integer);
+            } else if(set->value_kind == EDITOR_PROPERTY_VALUE_REFERENCE) {
+                ObjectEntityReference ref = set->value.reference;
+                if(!ref.id) snprintf(value, sizeof(value), "none");
+                else if(ref.kind >= OBJECT_CONTAINER && ref.kind <= OBJECT_TORQUE)
+                    snprintf(value, sizeof(value), "%s:%llu:%llu", entity_reference_names[ref.kind],
+                        (unsigned long long)ref.id, (unsigned long long)ref.soft_body);
+                else goto capacity_error;
             } else {
                 if(editor_command_property_color_check(set->property))
                     snprintf(value, sizeof(value), "#%08X", set->value.integer);
-                else if(set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
+                else if(set->property == EDITOR_PROPERTY_TEXT_WRAP_WIDTH ||
+                        set->property == EDITOR_PROPERTY_RENDER_WIDTH || set->property == EDITOR_PROPERTY_RENDER_HEIGHT ||
+                        set->property == EDITOR_PROPERTY_ACTIVE_HITBOX ||
                         set->property == EDITOR_PROPERTY_PARTICLE_RIGID_VERTICES)
                     snprintf(value, sizeof(value), "%u", set->value.integer);
                 else {
