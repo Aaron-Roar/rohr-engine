@@ -322,8 +322,10 @@ The editor defaults to **Auto**, matching the current window or fullscreen
 output without letterboxing. Fixed 16:9, 16:10, 4:3, and 21:9 options are also
 available at 720p, 1080p, and 1440p logical heights.
 
-Editor dropdowns show at most three option rows. Shorter lists use only the
-rows they need, while longer lists provide wheel and scrollbar navigation.
+Editor selection dropdowns show at most ten option rows. Shorter lists use only
+the rows they need, while longer lists provide wheel and scrollbar navigation.
+Popups open above the field or show fewer rows when needed to fit the logical
+window. File, Build, View, and the other top menu-bar menus are unchanged.
 
 Controllers are top-level resources beside Objects and Viewports. **Add
 Controller** creates a named logical controller. Opening that element edits only

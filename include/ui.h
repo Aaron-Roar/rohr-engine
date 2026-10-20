@@ -94,6 +94,8 @@ typedef enum UINavigationDirection {
 typedef struct UIDropdownConfig {
     /** Zero shows every option; positive values limit the visible rows. */
     size_t visible_row_limit;
+    /** Fit the popup to the logical window, opening above when needed. */
+    bool fit_window;
 } UIDropdownConfig;
 
 typedef struct UIDropdownResult {

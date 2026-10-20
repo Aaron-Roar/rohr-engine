@@ -54,6 +54,36 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Editor Selection Menus and Viewport Picking
+
+Make selection dropdowns easier to browse and allow scene references to be picked
+directly in the viewport. File, Build, View, and the other top menu-bar menus stay
+unchanged. This user-selected milestone precedes the proposed soft-body example
+cleanup (whole-object car spawning alongside direct API scenery construction).
+
+1. [x] **Expand selection dropdowns** — Editor selection dropdowns now show at
+   most ten option rows, shrink for shorter lists, and scroll longer lists.
+   Opt-in window fitting opens popups above or reduces their rows when needed;
+   overlay rendering, hover, click capture, row actions, and scrolling share the
+   popup bounds, including inside translated scrolling panels. Engine UI defaults
+   and top menu-bar presentation remain unchanged. Verified 41 UI/editor/API
+   checks and six ASan/UBSan/leak checks, full Linux and Windows cross-builds,
+   and independent installed-SDK UI example builds for both platforms with a
+   Linux launch outside the source tree. Builds introduce no compiler warnings.
+   Native Windows execution and real desktop visual review remain unverified.
+2. [ ] **Pick scene references through the viewport** — While a compatible
+   selection dropdown is open, allow clicking a compatible viewport item to
+   update its field and close the popup, regardless of the highlighted option.
+   Show “Choose below or click in the viewport” and “Esc to cancel” in a hint
+   above the scrollable options, outside the ten-row allowance. Highlight valid
+   hovered targets and use a picking cursor; incompatible clicks leave the value
+   unchanged and Escape cancels. A dedicated “Select from Viewport…” entry is
+   only a fallback if the popup interaction prevents the preferred approach.
+   Clarify overlapping-target handling before beginning this goal.
+
+Goal 1 is complete. Stop for review and a user-created commit.
+Do not begin Goal 2 without explicit user instruction.
+
 ### Consistent Description APIs
 
 Standardize creation and complete configuration set/get across the public

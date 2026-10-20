@@ -171,8 +171,7 @@ static void reference_hover_check(void) {
     ObjectForceDescription before=f->description;
     panel_click(&ui,&context,(Position){200,232});
     for(size_t i=0;i<7;++i) {
-        if(i>=3) { SDL_Event wheel={.type=SDL_EVENT_MOUSE_WHEEL}; wheel.wheel.y=-1; rohr_ui_field_event_add(&wheel); }
-        panel(&ui,&context,(Position){200,260+28*(i<3?i:2)},MOUSE_BUTTON_STATE_UP);
+        panel(&ui,&context,(Position){200,260+28*i},MOUSE_BUTTON_STATE_UP);
         reference_check(&state,o->id,refs[i]);
         assert(state.selected_force==f->id && state.selection==EDITOR_SELECTION_FORCE);
         assert(memcmp(&before,&f->description,sizeof(before))==0);

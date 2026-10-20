@@ -36,6 +36,24 @@ static void click(EditorCenterOfMassEditor *ui, EditorModeContext *context,
 int main(void) {
     assert(!rohr_error_check(rohr_engine_start()));
     assert(!rohr_error_check(rohr_graphics_start()));
+    /* Exercise the shared editor dropdown policy through the real wrapper. */
+    const TextAsset *choices[12] = {0};
+    UIRect choice_bounds = {10, 10, 100, 20};
+    rohr_ui_input_set((UIInput){{15, 15}, MOUSE_BUTTON_STATE_PRESSED});
+    (void)editor_mode_dropdown("editor.row_limit", choices, 12, 0, choice_bounds, NULL);
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){{15, 15}, MOUSE_BUTTON_STATE_RELEASED});
+    assert(editor_mode_dropdown("editor.row_limit", choices, 12, 0, choice_bounds, NULL).open);
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){{15, 215}, MOUSE_BUTTON_STATE_UP});
+    assert(editor_mode_dropdown("editor.row_limit", choices, 12, 0,
+        choice_bounds, NULL).hovered_index == 9);
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){{15, 235}, MOUSE_BUTTON_STATE_PRESSED});
+    assert(!editor_mode_dropdown("editor.row_limit", choices, 12, 0, choice_bounds, NULL).open);
+    rohr_ui_update();
+    rohr_ui_input_set((UIInput){{15, 235}, MOUSE_BUTTON_STATE_RELEASED});
+    rohr_ui_update();
     FontAsset font = rohr_graphics_font_default_get();
     EditorCenterOfMassEditor ui;
     assert(editor_center_of_mass_editor_create(&ui,&font));

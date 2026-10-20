@@ -2666,6 +2666,7 @@ UIButtonResult rohr_ui_button(
  * @brief Draws a dropdown and returns selection and hover-preview state.
  *
  * Set config.visible_row_limit to zero to display every option; limited lists scroll.
+ * Set config.fit_window to fit the logical window by opening above or showing fewer scrollable rows.
  */
 UIDropdownResult rohr_ui_dropdown(const char *id, const TextAsset *const *options,
     size_t option_count, size_t selected_index, UIDropdownConfig config,

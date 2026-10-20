@@ -161,7 +161,8 @@ void editor_visual_settings_panel_draw(EditorVisualSettingsPanel *panel,
     result = rohr_ui_dropdown("editor.settings.visual.window_mode",
         window_mode_options, 3, panel->window_mode_index,
         (UIDropdownConfig){
-            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT
+            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT,
+            .fit_window = true
         },
         (UIRect){bounds.x + 220.0f, bounds.y + 76.0f, 220.0f, 34.0f}, NULL);
     if(result.changed) {
@@ -173,7 +174,8 @@ void editor_visual_settings_panel_draw(EditorVisualSettingsPanel *panel,
     result = rohr_ui_dropdown("editor.settings.visual.aspect",
         aspect_options, 5, panel->aspect_index,
         (UIDropdownConfig){
-            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT
+            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT,
+            .fit_window = true
         },
         (UIRect){bounds.x + 220.0f, bounds.y + 128.0f, 220.0f, 34.0f}, NULL);
     if(result.changed) {
@@ -186,7 +188,8 @@ void editor_visual_settings_panel_draw(EditorVisualSettingsPanel *panel,
     result = rohr_ui_dropdown("editor.settings.visual.resolution",
         resolution_options, 3, panel->resolution_index,
         (UIDropdownConfig){
-            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT
+            .visible_row_limit = EDITOR_DROPDOWN_VISIBLE_ROW_LIMIT,
+            .fit_window = true
         },
         (UIRect){bounds.x + 220.0f, bounds.y + 180.0f, 220.0f, 34.0f}, NULL);
     if(result.changed) {
