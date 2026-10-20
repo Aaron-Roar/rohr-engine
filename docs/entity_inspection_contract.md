@@ -2,8 +2,7 @@
 
 This is the implemented contract for the **Entity Inspection** milestone. Public
 APIs are declared in [rohr.h](../include/rohr.h); types and direct APIs are in
-[entity_info.h](../include/entity_info.h). The
-[roadmap](../NEXT_STEPS.md#milestone-entity-inspection) records verification. Force/torque sources use this
+[entity_info.h](../include/entity_info.h). Force/torque sources use this
 API under the [force/torque contract](force_torque_contract.md).
 
 ## Purpose and boundaries

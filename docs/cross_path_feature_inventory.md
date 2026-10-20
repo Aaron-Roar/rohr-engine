@@ -1,0 +1,1574 @@
+# Cross-path feature inventory
+
+This is the frozen acceptance inventory for [roadmap milestone 4](../NEXT_STEPS.md#4-cross-path-feature-parity).
+Goal 1 records coverage and remaining work; it does not certify runtime parity or
+implement the missing paths. Goals 2–5 own the closures below.
+
+## Baseline and interpretation
+
+Audit begun 2026-10-19, completed 2026-10-20 at commit `e078695808112b41af7384bb902b7d619ffac759`.
+The starting worktree also contained documentation edits in `NEXT_STEPS.md`,
+`docs/audio_reporting_contract.md`, `docs/entity_inspection_contract.md`, and
+`docs/force_torque_contract.md`. Those edits are part of the reviewed baseline;
+there were no starting source changes. This goal adds this inventory and updates
+only the roadmap's goal 1 entry. Later features do not automatically expand it.
+
+The [existing exact API inventory](description_api_contract.md#exact-header-inventory)
+is the declaration baseline, not semantic evidence. The appendices reconcile
+all 1,602 declaration/macro occurrences in 20 installed headers and list every
+field of the public description/configuration/definition types, their nested
+configuration payloads, and editor project/workspace/configuration records.
+Array members represent all elements; nested payloads link through their named
+types. Stable property identities are `Type.member`; F/X identifiers group only
+the applicable path assessment. Polymorphic object fields use the kind-specific
+rules below. Constants/enums supply domains for these fields, not extra features.
+
+Columns: **D** direct API, **W** public wrapper, **E** editor interaction,
+**C** CLI authoring, **J** project JSON save/load, **G** generated C/object catalog
+conversion and loading, **S** runtime snapshot/template persistence, **R** runtime
+behavior. Tool-only rows use their direct editor-core interfaces for D; no public
+runtime API is implied. Legacy state JSON is S, not J.
+
+- **I**: a source implementation route was located. This is not a passing
+  behavioral result or proof that every value/combination survives every path.
+- **V**: a concrete verification task remains; source evidence does not establish
+  the whole property's path. Its gap IDs describe what to resolve.
+- **G**: a specific missing representation or authoring route was found.
+- **N**: intentionally not applicable for the stated reason; never inferred merely
+  because an implementation is absent. Dynamic gameplay remains developer-owned C.
+
+Test links identify existing fixtures to inspect/extend. Only the checks recorded
+in the verification section were executed for this goal. Every I/V cell remains
+subject to its row's V2–V5 obligations; no cell claims full behavioral acceptance.
+Defaults, zero values, signed degrees, reference ownership, atomic replacement,
+focused mutation, deletion, and errors follow the existing contracts.
+
+## Property and behavior matrix
+
+| ID | Property/behavior group | D | W | E | C | J | G | S | R | Evidence | Open work / N reason |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| <a id="f01"></a>F01 | Entity names, ownership, child membership, deletion and independent connections | I | I | V | V | I | I | I | I | [entity](#evidence-entity) | V2,V3,V4,V5; G01 |
+| <a id="f02"></a>F02 | Generic groups and hierarchy parenting, independent of ownership | I | I | N | N | N | N | I | I | [entity](#evidence-entity) | V2,V3; N1 |
+| <a id="f03"></a>F03 | Lifetime deadlines and explicit enable flags | I | I | G | G | G | G | I | I | [entity](#evidence-entity) | G02,V2,V3 |
+| <a id="f04"></a>F04 | Engine/physics tick duration, override, substeps, gravity and solver iterations | I | I | I | I | I | I | N | I | [settings](#evidence-settings) | V2,V3,V4,V5; N2 |
+| <a id="f05"></a>F05 | Rigid hitbox vertices, variants, stable IDs, active hitbox and auto-shapes | I | I | I | I | I | I | I | I | [geometry](#evidence-geometry) | V2,V3,V4,V5 |
+| <a id="f06"></a>F06 | Initial position, degree orientation, velocity, acceleration and angular velocity | I | I | I | I | I | I | I | I | [motion](#evidence-motion) | V2,V3,V4,V5 |
+| <a id="f07"></a>F07 | Mass, automatic/explicit COM and derived inertia | I | I | I | I | I | I | I | I | [mass](#evidence-mass) | V2,V3,V4,V5 |
+| <a id="f08"></a>F08 | Friction and restitution on bodies, particles, nodes and beams | I | I | I | I | I | I | I | I | [material](#evidence-material) | V2,V3,V4,V5 |
+| <a id="f09"></a>F09 | Body/particle static, gravity and collision flags; category/with masks | I | I | I | I | I | I | I | I | [collision](#evidence-collision) | V2,V3,V4,V5 |
+| <a id="f10"></a>F10 | Body rotation lock at authored orientation | I | I | I | I | I | I | I | I | [motion](#evidence-motion) | V2,V3,V4,V5 |
+| <a id="f11"></a>F11 | Axis and full transform locks, driver/offsets/flags | I | I | G | G | G | G | I | I | [motion](#evidence-motion) | G03,V2,V3 |
+| <a id="f12"></a>F12 | Standalone particle radius, origin, rigid vertex count and nonrotation | I | I | I | I | I | I | I | I | [particle](#evidence-particle) | V2,V3,V4,V5 |
+| <a id="f13"></a>F13 | Soft-body usable origin, node-average frame, angular motion and membership | I | I | I | I | I | I | I | I | [soft](#evidence-soft) | V2,V3,V4,V5 |
+| <a id="f14"></a>F14 | Node position, mass, radius, initial motion, gravity, collision and inherited color | I | I | I | I | I | I | I | I | [soft](#evidence-soft) | V2,V3,V4,V5 |
+| <a id="f15"></a>F15 | Static soft-body node configuration | I | I | G | G | G | G | I | I | [soft](#evidence-soft) | G04,V2,V3 |
+| <a id="f16"></a>F16 | Beam endpoints, stiffness, damping, inherited color and connection independence | I | I | I | I | I | I | I | I | [beam](#evidence-beam) | V2,V3,V4,V5 |
+| <a id="f17"></a>F17 | Explicit beam rest length versus measured creation length | I | I | G | G | G | G | I | I | [beam](#evidence-beam) | G05,V2,V3 |
+| <a id="f18"></a>F18 | Beam collision opt-in, thickness and independent category/with masks | I | I | I | I | I | I | I | I | [beam](#evidence-beam) | V2,V3,V4,V5 |
+| <a id="f19"></a>F19 | Node-loop area outer boundary, holes, ordering, fill/color and incomplete topology | I | I | I | I | I | I | I | I | [area](#evidence-area) | V2,V3,V4,V5 |
+| <a id="f20"></a>F20 | World/body/node anchors and local offsets | I | I | I | I | I | I | I | I | [joint](#evidence-joint) | V2,V3,V4,V5 |
+| <a id="f21"></a>F21 | Pin/weld/spring endpoints, stiffness, damping, rest length/angle and explicit flags | I | I | I | I | I | I | I | I | [joint](#evidence-joint) | V2,V3,V4,V5 |
+| <a id="f22"></a>F22 | Explicit joint placement versus connection-only creation | V | V | V | V | N | N | N | V | [joint](#evidence-joint) | G06; N3 |
+| <a id="f23"></a>F23 | Node-to-anchor pin helper and ownership | I | I | V | V | V | V | V | I | [joint](#evidence-joint) | G07,V2,V3,V4 |
+| <a id="f24"></a>F24 | Force owner/target/magnitude; persistent versus initial application | I | I | I | I | I | I | I | I | [source](#evidence-source) | V2,V3,V4,V5 |
+| <a id="f25"></a>F25 | Force location/orientation references, offsets, beam anchor/fraction and between-locations direction | I | I | I | I | I | I | I | I | [source](#evidence-source) | V2,V3,V4,V5 |
+| <a id="f26"></a>F26 | Torque owner/target/magnitude; persistent versus initial application | I | I | I | I | I | I | I | I | [source](#evidence-source) | V2,V3,V4,V5 |
+| <a id="f27"></a>F27 | Force/torque/joint marker fill, border, thickness, scale, offset, rotation; separate spring endpoints | I | I | I | I | I | I | I | I | [visual](#evidence-visual) | V2,V3,V4,V5 |
+| <a id="f28"></a>F28 | App visibility, body colors/borders, hierarchy suppression and stored child visibility | I | I | I | I | I | I | I | I | [visual](#evidence-visual) | V2,V3,V4,V5 |
+| <a id="f29"></a>F29 | Editor-only eyes and persisted navigation | N | N | I | I | I | N | N | N | [editing](#evidence-editing) | V2,V3,V5; N4 |
+| <a id="f30"></a>F30 | Texture path/logical size and explicit retain/release lifetime | I | I | I | I | I | I | I | I | [texture](#evidence-texture) | V2,V3,V4,V5 |
+| <a id="f31"></a>F31 | Sprite image, direction, scale, offsets, rotation inheritance and visibility | I | I | V | V | I | I | I | I | [sprite](#evidence-sprite) | G08,V2,V3,V4,V5 |
+| <a id="f32"></a>F32 | Animation/frame IDs, paths, transforms, count and empty animations | I | I | I | I | I | I | I | I | [animation](#evidence-animation) | V2,V3,V4,V5 |
+| <a id="f33"></a>F33 | Animation timing, starting frame, playback and hitbox-frame bindings | I | I | I | I | I | I | I | I | [animation](#evidence-animation) | V2,V3,V4,V5 |
+| <a id="f34"></a>F34 | Camera position, orientation, dimensions, zoom and enablement | I | I | I | I | I | I | I | I | [camera](#evidence-camera) | V2,V3,V4,V5 |
+| <a id="f35"></a>F35 | Camera target and position/orientation offsets and follow flags | I | I | V | V | I | I | I | I | [camera](#evidence-camera) | G09,V2,V3,V4,V5 |
+| <a id="f36"></a>F36 | Camera pause-with-engine configuration | I | I | G | G | G | G | I | I | [camera](#evidence-camera) | G10,V2,V3 |
+| <a id="f37"></a>F37 | Camera callback/context and application-owned render scheduling | I | I | N | N | N | N | N | I | [camera](#evidence-camera) | V2,V5; N5 |
+| <a id="f38"></a>F38 | Named/numeric render layers, item assignments and explicit draw overrides | I | I | I | I | I | I | V | I | [layers](#evidence-layers) | V2,V3,V4,V5; G11 |
+| <a id="f39"></a>F39 | Screen source camera and render dimensions | I | I | V | V | V | V | N | I | [viewport](#evidence-viewport) | G12,V2,V3,V4,V5; N5 |
+| <a id="f40"></a>F40 | Viewport rectangle/fit/background/enabled; item placement, content transforms, clip, drag and layering | I | I | I | I | I | I | N | I | [viewport](#evidence-viewport) | V2,V3,V4,V5; N5 |
+| <a id="f41"></a>F41 | Persistent UI shape geometry, border styles, interaction colors and button enablement | I | I | I | I | I | I | N | I | [ui](#evidence-ui) | V2,V3,V4,V5; N5 |
+| <a id="f42"></a>F42 | Persistent UI text/font/value/color/wrap and text transforms | I | I | V | V | V | V | N | I | [ui](#evidence-ui) | G13,V2,V3,V4,V5; N5 |
+| <a id="f43"></a>F43 | Persistent sliders: range, value, step, geometry, thumb shape/offset, colors and enabled | I | I | I | I | I | I | N | I | [ui](#evidence-ui) | V2,V3,V4,V5; N5 |
+| <a id="f44"></a>F44 | Legacy JSON button/font/label/slider definitions | I | I | N | N | N | N | I | I | [immediate](#evidence-immediate) | V2,V3,V5; N6 |
+| <a id="f45"></a>F45 | Font path/point size, built-in default; text replacement and ownership | I | I | V | V | V | V | V | I | [font](#evidence-font) | G13,V2,V3,V4,V5 |
+| <a id="f46"></a>F46 | Sound/music paths, muted default volume, pan, loop and playback rate | I | I | G | G | G | G | N | I | [audio](#evidence-audio) | G14,V2,V5; N2 |
+| <a id="f47"></a>F47 | Audio lifecycle, playback requests, callback-applied state and reports | I | I | N | N | N | N | N | I | [audio](#evidence-audio) | V2,V5; N1 |
+| <a id="f48"></a>F48 | Controller/action names, enabled/type/mode/initial state and default bindings | I | I | I | I | I | I | N | I | [input](#evidence-input) | V2,V3,V4,V5; N2 |
+| <a id="f49"></a>F49 | Input override bindings, live button/axis state, keyboard/mouse/text snapshots | I | I | N | N | N | N | N | I | [input](#evidence-input) | V2,V5; N1 |
+| <a id="f50"></a>F50 | Application window mode, window/logical size and automatic aspect ratio | I | I | G | G | G | G | N | I | [window](#evidence-window) | G15,V2,V5; N2 |
+| <a id="f51"></a>F51 | Object catalogs: stable references, editable copies, category flags, spawn offset and member access | I | I | I | I | I | I | I | I | [object](#evidence-object) | V2,V3,V4,V5 |
+| <a id="f52"></a>F52 | Runtime save/load, multi-file references, templates, rollback and topology restoration | I | I | N | N | N | N | I | I | [state](#evidence-state) | V2,V3,V4; N7 |
+| <a id="f53"></a>F53 | Physics queries, overlap/contact transitions, impulses and transient steering | I | I | N | N | N | N | N | I | [operations](#evidence-operations) | V2; N1 |
+| <a id="f54"></a>F54 | Initial angular acceleration and generic target configuration | I | I | G | G | G | G | I | I | [motion](#evidence-motion) | G17,V2,V3 |
+| <a id="f55"></a>F55 | Scene simulation object inclusion, viewport choice, regenerated scene source and session lifecycle | I | N | I | I | I | I | N | I | [scene](#evidence-scene) | V2,V3,V4,V5; N9 |
+| <a id="f56"></a>F56 | Workspace creation/loading, generated file ownership, SDK builds and external launches | N | N | I | I | I | I | N | I | [build](#evidence-build) | V3,V4,V5; N9 |
+| <a id="f57"></a>F57 | Editor selection/picking, drag transactions, undo/redo, context menus and tabs | N | N | I | V | N | N | N | N | [editing](#evidence-editing) | V2,V5; N4 |
+| <a id="f58"></a>F58 | Kinematic flags, holds and simulation participation state | I | I | N | N | N | N | V | I | [operations](#evidence-operations) | G16,V2,V3; N1 |
+| <a id="f59"></a>F59 | Immediate-mode UI interaction, styles, fields, menus and callbacks | I | I | N | N | N | N | N | I | [immediate](#evidence-immediate) | V2,V5; N6 |
+| <a id="f60"></a>F60 | Angular-velocity maximum configuration and snapshot preservation | I | I | G | G | G | G | G | I | [motion](#evidence-motion) | G17,V2,V3 |
+| <a id="f61"></a>F61 | Custom font point-size selection for generated viewport UI | I | I | G | G | G | G | N | I | [font](#evidence-font) | G13,V2,V3,V4,V5; N5 |
+| <a id="x01"></a>X01 | Pure math/value construction and temporary geometry helpers | I | I | N | N | N | N | N | I | [math](#evidence-math) | V2; N8 |
+| <a id="x02"></a>X02 | Result/report machinery, entity inspection, console and diagnostic output | I | I | N | N | N | N | N | I | [report](#evidence-report) | V2,V5; N8 |
+| <a id="x03"></a>X03 | Pool storage macros and generated component registration/code generation | I | V | N | N | N | N | N | I | [storage](#evidence-storage) | V2; N8 |
+| <a id="x04"></a>X04 | Engine/system/scene lifecycle, clocks, callbacks and standalone pipeline execution | I | I | N | N | N | N | N | I | [lifecycle](#evidence-lifecycle) | V2,V5; N1 |
+| <a id="x05"></a>X05 | Immediate draw commands, renderer controls and transient graphics state | I | I | N | N | N | N | N | I | [draw](#evidence-draw) | V2,V5; N1 |
+| <a id="x06"></a>X06 | Platform/directory/random/string/size utilities | I | I | N | N | N | N | N | I | [tools](#evidence-tools) | V2,V5; N8 |
+| <a id="x07"></a>X07 | Editor-only hierarchy IDs, names, overview/navigation state and tool preferences | N | N | I | V | I | N | N | N | [editing](#evidence-editing) | V2,V3,V5; N4 |
+
+## Applicability boundaries
+
+- **N1 — Runtime operations:** groups/parenting used by gameplay, live input,
+  transient loads, steering, queries, callbacks, and subsystem update calls do
+  not become editor controls or serialized execution. Stored configurations
+  reachable through those operations are assessed separately. Generic runtime
+  groups are not graphics layers or soft-body owners.
+- **N2 — Application services:** the current entity snapshot contract does not
+  promise restoration of engine clocks/solver settings, audio devices/streams,
+  logical input controllers, or window presentation. Project authoring of their
+  static settings remains applicable, including the gaps below. Saving runtime
+  input overrides or playback position is not added by this audit.
+- **N3 — Placement operation:** explicit joint placement changes a pose; save the
+  resulting pose, not a historical placement action. Low-level connection creation
+  must stay free of implicit movement.
+- **N4 — Editor state:** eyes, names of editor sub-items, overview placement,
+  selection, undo, tabs and navigation are editor-only. They must not affect app
+  visibility or physics. Storage capacity, caches and next-ID bookkeeping are
+  implementation data, not authorable runtime properties.
+- **N5 — Presentation ownership:** camera callbacks/context and viewport mounts
+  remain application-owned under the [runtime topology contract](game_state.md#version-8-runtime-topology-contract).
+  Persistent viewport UI is reconstructed from authored/generated definitions;
+  it is distinct from legacy state-file UI definitions. Object-owned cameras and
+  their attachments are persisted and remain in scope.
+- **N6 — Immediate UI:** immediate-mode controls are C operations. Legacy JSON
+  definitions load through the state API; the editor authors persistent viewport
+  UI instead. Do not require identical structs or editor controls for every
+  immediate-mode interaction parameter. Equivalent supported visible properties
+  still require V4 checks between authored UI and direct persistent-UI APIs.
+- **N7 — Runtime state files:** the editor loads project documents, not arbitrary
+  live-world snapshots into its authoring model. Snapshot file operations remain
+  directly callable from C, with multi-file merge/rollback verification.
+- **N8 — Support APIs:** math, value constructors, storage pools, report/result
+  helpers, code generation, file-directory and string utilities have no scene
+  authoring equivalent. Public/direct behavior still matters where both exist.
+- **N9 — Tool workflows:** generation/build selection is a tool operation, not an
+  ECS component. Generated source is refreshed, developer-owned `main.c` is
+  preserved, and selecting a viewport does not author a new camera.
+
+The `ObjectDescription` union-like record must be interpreted by `kind`:
+`endpoint_a/b`, `stiffness`, `damping`, and `rest_length` route to F16/F17 for beams
+and F21 for joints; `target` routes to F20/F31/F35 for anchors/visuals/cameras;
+`size`, `scale`, `asset_path`, and `direction` route to F30–F35 as appropriate.
+`follow_position`, `follow_orientation`, and `zoom` use F34/F35 for cameras;
+`position`/`orientation` may be attachment offsets, not world poses. The ledger's
+primary assignment does not make every field applicable to every object kind.
+`Shape` concave caches/preparation flags and editor capacities/caches are X03
+implementation storage; only vertices/count are authored geometry.
+
+## Concrete gaps and owning goals
+
+Each entry below is an observed omission or a bounded verification question.
+A verification gap is not a confirmed bug. Goal 2 closes configuration/reference
+issues; goal 3 carries corresponding JSON, conversion, generation and load work.
+If applicability requires a product decision, resolve it before that goal rather
+than silently treating the gap as N or adding an unrelated feature.
+
+| ID | Finding and required closure | Owner |
+|---|---|---|
+| G01 | Runtime `entity_owner_set` permits ownership independent of connections. The authoring model nests children under objects/soft bodies. Verify expressible cross-owner connections, deletion and reassignment separately; record exactly which relationships require direct C. Inspect `EditorObject`, `EditorSoftBody`, source references and `object_spawn.c`. | 2; round trips 3 |
+| G02 | `EntityLifetimeDescription` and state loading/saving support deadlines and enable flags. `EditorProject`/`ObjectDescription` have no lifetime fields. Resolve authored initial lifetime configuration and generated application of its semantics; absolute runtime deadlines must not be confused with authored durations. | 2, 3 |
+| G03 | General axis/transform lock descriptions have no matching editor/catalog fields. Generated anchor attachment uses transform locks internally, which does not expose arbitrary driver/axis/flags. Verify and close the general configuration gap without changing attachment ownership. | 2, 3 |
+| G04 | `SoftBodyNodeDescription.static_body` exists; `EditorSoftNode` has no static flag and `object_document.c` does not transfer one. Authoring cannot currently express that runtime setting. | 2, 3 |
+| G05 | `SoftBodyBeamDescription` supports explicit rest length; `EditorSoftBeam` stores no rest length. `object_document.c` computes it from endpoint distance, although the catalog/runtime can store an explicit value. Close editor/CLI/project-to-catalog conversion without losing measured-default creation. | 2, 3 |
+| G06 | `editor_project.c` contains placement/connected-body movement while `joint.c` provides connection APIs. Freeze cases for first-to-second placement, reversed endpoints, world/shared anchors, locks and connected groups; distinguish intentional placement from implicit movement. Source presence alone does not establish the requested semantics. | 2 |
+| G07 | The public node-to-anchor pin helper has no obviously corresponding dedicated editor item. Determine and verify whether existing node-attached anchors plus pin joints express it, including ownership and save/load; add a gap only for behavior that cannot be represented. | 2, 3, 4 |
+| G08 | Runtime sprites have a `direction`; `EditorSprite` has size and follow-rotation but no direction field. Verify signed size/scale equivalence for flips and transforms before declaring a missing feature. Animation direction is represented separately. | 2, 3, 4 |
+| G09 | Runtime camera attachments have independent follow-position/follow-orientation flags. Editor attachments expose `inherit_orientation`; generated attachment code sets follow-position true. Verify/close the position-follow choice and preserve world setters' offset semantics. | 2, 3 |
+| G10 | `CameraDescription.pause_with_engine` and runtime camera snapshots support pause flags. `EditorCamera` has no pause field and generated/catalog creation omits that choice. | 2, 3 |
+| G11 | Numeric assignments for entity/sprite/animation layers are captured by runtime visuals. Verify whether named layer identity and assignment survive restore; do not confuse saved numeric output with an independently restored named registry. | 3 |
+| G12 | Direct `ScreenDescription` supplies camera and width/height. Editor camera mounts generate screens through viewport helpers. Verify which dimensions are derived and whether direct equivalent composition can be reproduced; independent application-owned screen instances need not become authored objects. | 2, 3, 4 |
+| G13 | Generated custom fonts are explicitly loaded at `point_size=12.0f` in `editor_workspace.c`; `EditorUiFont` has no point-size field (F61). Text wrap width and nested text orientation also do not map one-to-one to editor text box/scales. Trace generation and compare layout for built-in/custom fonts, wrapping, independent text rotation and repeated mounts. Record semantic omissions rather than demanding identical field names. | 2, 3, 4 |
+| G14 | Sound/music configuration exists in `audio.h`; there are no sound/music collections in `EditorProject`, object kinds, or workspace generation. Static audio authoring is missing; playback triggers remain developer-owned. Existing audio tests do not prove authoring parity. | 2, 3; audible check 5 |
+| G15 | Window presentation descriptions configure the application. The editor Visual settings panel saves GUI preferences through `EditorGuiState`; `EditorProject`/workspace config do not carry application window settings. Do not count changing the editor's own window as application authoring support. | 2, 3; desktop check 5 |
+| G16 | Interaction/broad-phase state is deliberately derived. Check stored kinematic/hold-related flags against snapshot semantics individually; do not require serializing transient contacts or impulses. | 3 |
+| G17 | Angular acceleration, angular-velocity maximum and target setters are public. The rigid-body authoring record exposes initial angular velocity but not these independent fields. Angular acceleration and target have explicit state load/save routes; `angular_velocity_maximums` has no value load/save route in the state modules (F60). Close that persistence omission and distinguish it from ordinary angular velocity. | 2, 3 |
+
+Common verification gaps apply to the finite field ledger, not future APIs:
+
+| ID | Required evidence before closure | Owner |
+|---|---|---|
+| V2 | For each applicable property/behavior, compare direct and wrapper behavior, defaults/full replacement/focused mutation, invalid references and state preservation. Exercise editor controls and CLI with non-default values, undo/redo and unsupported-value diagnostics. Existing fixture names are starting evidence, not per-field assertions. | 2 |
+| V3 | Trace each applicable field through JSON write/read, catalog conversion, generated C and runtime restoration; compare values, stable references and observable behavior. Cover incomplete topology, empty animations, rejected input rollback and repeated save/load without template accumulation. Explicitly retain N boundaries. | 3 |
+| V4 | Execute equivalent direct construction and authored/generated instances; compare supported configuration, topology, local/world transforms, visual properties and observable behavior. Spawn twice, mutate/delete one, and verify the survivor. Cover the starter's whole-object spawn plus extra direct API content. | 4 |
+| V5 | Execute affected installed-SDK consumers/examples on Linux from outside source directories, cross-build for Windows, and review graphics/audio/input on Linux where headless assertions cannot establish behavior. No native Windows execution gate. | 5 |
+
+## Frozen fixture plan
+
+These are comparison cases for this inventory, not tests implemented in goal 1.
+Existing fixture links are listed in the evidence index. Goals 2–5 may extend
+those fixtures or add focused fixtures to exercise the listed properties; they
+must not substitute one broad smoke test for the field comparisons.
+
+| Case | Properties/behaviors and expected comparison |
+|---|---|
+| P1 Entity/physics configuration | F01–F18, F53–F54, F58/F60: non-default motion, mass/material/filter, COM/origin, locks, standalone particle restrictions, node motion and beam rest/collision settings. Compare description/getter values and applicable post-update behavior. Include ownership separate from connections and deletion. |
+| P2 Topology and sources | F19–F28: area outer/holes and disconnected slots; world/body/node anchors; pin/weld/spring; force location/orientation modes and initial/persistent force/torque. Compare references, offsets, order, application and independent instances. Use G06's placement cases. |
+| P3 Assets and animation | F30–F33, F45/F61: shared textures/fonts, per-instance transforms, signed scale, frame IDs/timing/hitbox bindings, empty animation and replacement/destruction. Compare owned lifetimes and restored configuration. |
+| P4 Composition and UI | F27–F29, F34–F44, F57: at least two screens with different placement/rotation/size/layer, partial clipping, UI between/above screens, independent screen/UI/app/editor visibility, camera attachment, text and sliders, repeated mounts and legacy migration. Check state assertions plus Linux visual review. |
+| P5 Services and input | F04, F46–F50, X04: default/non-default settings, muted versus explicit audible volume, queued versus applied audio state, controller/action defaults and overrides, keyboard/mouse/text routing, window presentation. Runtime-only triggers remain C. |
+| P6 Loading and tools | F51–F56: direct/catalog/file-loaded objects, repeated spawns, runtime snapshots versus retained templates, invalid-reference rollback, generation determinism, simulation object/viewport selection, preserved developer entry point, external-directory launch and SDK packaging. |
+| P7 Support APIs | X01–X03, X05–X07, F02/F44/F59 runtime-only portions: reconcile public/direct entry points and their existing fixtures. Do not manufacture editor equivalents for pure utilities, reports, storage or immediate drawing. |
+
+Use exact equality for IDs/enums/flags/strings and retained discrete configuration.
+For floating-point conversions and simulated results, use the existing feature
+contract and fixture tolerances, recording any missing tolerance as a pre-goal
+clarification. Match elapsed simulation time and configuration between paths;
+physics robustness/performance targets belong to milestone 6. Compare degree
+angles with the contract's unwrapped semantics, not arbitrary modulo equivalence.
+Fixture payloads and expected assertions are frozen against this field inventory;
+any additional numeric choices are settled before their owning implementation goal.
+
+## Source and existing-test evidence
+
+Shared authoring routes are [project types](../tools/editor/src/editor_project.h),
+[project mutations](../tools/editor/src/editor_project.c),
+[command definitions](../tools/editor_core/include/editor_command.h),
+[CLI parsing/writing](../tools/editor_core/src/editor_cli_standard.c),
+[project JSON](../tools/editor/src/editor_project_json.c),
+[project-to-catalog conversion](../src/entity/object_document.c),
+[catalog writing](../tools/editor_core/src/editor_object_catalog.c),
+[workspace generation](../tools/editor/src/editor_workspace.c),
+[object spawning](../src/entity/object_spawn.c), and
+[public wrappers](../src/core/rohr.c).
+For each matrix row, combine these applicable routes with its evidence bundle.
+A test file's presence is not a claim that it asserts every property in the row.
+Missing assertions are V2/V3/V4 work, with exact property IDs from the ledgers.
+
+| Bundle | Source routes | Existing fixtures; not executed in this goal |
+|---|---|---|
+| <a id="evidence-entity"></a>entity | [src/entity/entity_components.c](../src/entity/entity_components.c); [src/entity/entity_info.c](../src/entity/entity_info.c); [src/state/game_state.c](../src/state/game_state.c) | [tests/object_instances.c](../tests/object_instances.c); [tests/entity_info_adversarial.c](../tests/entity_info_adversarial.c); [tests/runtime_persistence.c](../tests/runtime_persistence.c) |
+| <a id="evidence-settings"></a>settings | [src/physics/pipeline/physics_config.c](../src/physics/pipeline/physics_config.c); [src/core/engine.c](../src/core/engine.c); [tools/editor/src/panels/editor_physics_settings_panel.c](../tools/editor/src/panels/editor_physics_settings_panel.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/timing.c](../tests/timing.c); [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c) |
+| <a id="evidence-geometry"></a>geometry | [src/physics/collision/hitbox.c](../src/physics/collision/hitbox.c); [src/physics/auto_shape.c](../src/physics/auto_shape.c); [tools/editor/src/editors/geometry/editor_hitbox.c](../tools/editor/src/editors/geometry/editor_hitbox.c) | [tests/hitbox_animation_binding.c](../tests/hitbox_animation_binding.c); [tests/auto_shape.c](../tests/auto_shape.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-motion"></a>motion | [src/physics/body/motion_state.c](../src/physics/body/motion_state.c); [src/physics/body/body_state.c](../src/physics/body/body_state.c); [tools/editor/src/editors/physics/editor_rigid_body.c](../tools/editor/src/editors/physics/editor_rigid_body.c); [src/state/game_state.c](../src/state/game_state.c) | [tests/angles.c](../tests/angles.c); [tests/constraint_solver.c](../tests/constraint_solver.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-mass"></a>mass | [src/physics/body/mass_properties.c](../src/physics/body/mass_properties.c); [tools/editor/src/editors/physics/editor_center_of_mass.c](../tools/editor/src/editors/physics/editor_center_of_mass.c) | [tests/center_of_mass.c](../tests/center_of_mass.c); [tests/origin_offsets.c](../tests/origin_offsets.c); [tools/editor_core/tests/center_of_mass_persistence.c](../tools/editor_core/tests/center_of_mass_persistence.c) |
+| <a id="evidence-material"></a>material | [src/physics/collision/collision_material.c](../src/physics/collision/collision_material.c); [tools/editor_core/src/editor_object_commands.c](../tools/editor_core/src/editor_object_commands.c) | [tests/beam_materials.c](../tests/beam_materials.c); [tools/editor/tests/editor_beam_materials.c](../tools/editor/tests/editor_beam_materials.c) |
+| <a id="evidence-collision"></a>collision | [src/physics/collision/collision_filter.c](../src/physics/collision/collision_filter.c); [tools/editor/src/editors/editor_collision_controls.c](../tools/editor/src/editors/editor_collision_controls.c) | [tests/collision_sensor.c](../tests/collision_sensor.c); [tools/editor/tests/editor_collision_controls.c](../tools/editor/tests/editor_collision_controls.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-particle"></a>particle | [src/physics/particles/particle.c](../src/physics/particles/particle.c); [tools/editor/src/editors/physics/editor_particle.c](../tools/editor/src/editors/physics/editor_particle.c) | [tests/particle_collision_mode.c](../tests/particle_collision_mode.c); [tools/editor/tests/editor_particle_authoring.c](../tools/editor/tests/editor_particle_authoring.c) |
+| <a id="evidence-soft"></a>soft | [src/physics/soft_body/soft_body_state.c](../src/physics/soft_body/soft_body_state.c); [src/physics/soft_body/soft_body_frame.c](../src/physics/soft_body/soft_body_frame.c); [src/entity/object_document.c](../src/entity/object_document.c); [tools/editor/src/editors/soft_body/editor_soft_node.c](../tools/editor/src/editors/soft_body/editor_soft_node.c) | [tests/soft_body_frame.c](../tests/soft_body_frame.c); [tests/soft_body_mass.c](../tests/soft_body_mass.c); [tests/soft_body_angular_velocity.c](../tests/soft_body_angular_velocity.c); [tools/editor/tests/editor_soft_mass_authoring.c](../tools/editor/tests/editor_soft_mass_authoring.c) |
+| <a id="evidence-beam"></a>beam | [src/physics/soft_body/soft_body_state.c](../src/physics/soft_body/soft_body_state.c); [src/entity/object_document.c](../src/entity/object_document.c); [tools/editor/src/editors/soft_body/editor_soft_beam.c](../tools/editor/src/editors/soft_body/editor_soft_beam.c) | [tests/beam_contacts.c](../tests/beam_contacts.c); [tests/beam_materials.c](../tests/beam_materials.c); [tests/soft_body.c](../tests/soft_body.c) |
+| <a id="evidence-area"></a>area | [src/physics/soft_body/soft_body_area.c](../src/physics/soft_body/soft_body_area.c); [tools/editor_core/src/editor_soft_area.c](../tools/editor_core/src/editor_soft_area.c); [tools/editor/src/editors/soft_body/editor_soft_area.c](../tools/editor/src/editors/soft_body/editor_soft_area.c) | [tests/node_loop_geometry.c](../tests/node_loop_geometry.c); [tests/soft_body_areas.c](../tests/soft_body_areas.c); [tools/editor/tests/editor_area_authoring.c](../tools/editor/tests/editor_area_authoring.c); [tools/editor_core/tests/editor_soft_areas.c](../tools/editor_core/tests/editor_soft_areas.c) |
+| <a id="evidence-joint"></a>joint | [src/physics/joints/joint.c](../src/physics/joints/joint.c); [tools/editor/src/editor_project.c](../tools/editor/src/editor_project.c); [tools/editor/src/editors/physics/editor_joint.c](../tools/editor/src/editors/physics/editor_joint.c); [src/entity/object_spawn.c](../src/entity/object_spawn.c) | [tests/joints.c](../tests/joints.c); [tests/constraint_solver.c](../tests/constraint_solver.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-source"></a>source | [src/physics/body/force_state.c](../src/physics/body/force_state.c); [src/entity/object_source.c](../src/entity/object_source.c); [tools/editor_core/src/editor_source_commands.c](../tools/editor_core/src/editor_source_commands.c); [tools/editor/src/editor_sources_json.c](../tools/editor/src/editor_sources_json.c); [tools/editor/src/editors/physics/editor_force.c](../tools/editor/src/editors/physics/editor_force.c) | [tests/forces.c](../tests/forces.c); [tools/editor_core/tests/editor_sources.c](../tools/editor_core/tests/editor_sources.c); [tools/editor/tests/editor_force.c](../tools/editor/tests/editor_force.c); [tools/editor/tests/editor_torque.c](../tools/editor/tests/editor_torque.c) |
+| <a id="evidence-visual"></a>visual | [src/entity/object_visuals.c](../src/entity/object_visuals.c); [src/state/runtime_visuals.c](../src/state/runtime_visuals.c); [tools/editor/src/editor_sources_json.c](../tools/editor/src/editor_sources_json.c) | [tools/editor/tests/editor_visibility.c](../tools/editor/tests/editor_visibility.c); [tools/editor/tests/editor_force.c](../tools/editor/tests/editor_force.c); [tools/editor/tests/editor_torque.c](../tools/editor/tests/editor_torque.c); [tests/runtime_persistence.c](../tests/runtime_persistence.c) |
+| <a id="evidence-editing"></a>editing | [tools/editor/src/editor_history.c](../tools/editor/src/editor_history.c); [tools/editor/src/editors/editor_reference_picker.c](../tools/editor/src/editors/editor_reference_picker.c); [tools/editor/src/editor_navigation.c](../tools/editor/src/editor_navigation.c) | [tools/editor/tests/editor_history.c](../tools/editor/tests/editor_history.c); [tools/editor/tests/editor_reference_picker.c](../tools/editor/tests/editor_reference_picker.c); [tools/editor/tests/editor_navigation.c](../tools/editor/tests/editor_navigation.c) |
+| <a id="evidence-texture"></a>texture | [src/graphics/texture_assets.c](../src/graphics/texture_assets.c); [src/entity/object_spawn.c](../src/entity/object_spawn.c) | [tests/texture_assets.c](../tests/texture_assets.c); [tests/installed_sdk_consumer/asset_descriptions.c](../tests/installed_sdk_consumer/asset_descriptions.c) |
+| <a id="evidence-sprite"></a>sprite | [src/graphics/graphics.c](../src/graphics/graphics.c); [src/entity/object_document.c](../src/entity/object_document.c); [tools/editor/src/editors/render/editor_sprite.c](../tools/editor/src/editors/render/editor_sprite.c); [src/state/runtime_visuals.c](../src/state/runtime_visuals.c) | [tests/texture_assets.c](../tests/texture_assets.c); [tests/runtime_persistence.c](../tests/runtime_persistence.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-animation"></a>animation | [src/graphics/animation_assets.c](../src/graphics/animation_assets.c); [src/graphics/graphics.c](../src/graphics/graphics.c); [tools/editor/src/editors/render/editor_animated_sprite.c](../tools/editor/src/editors/render/editor_animated_sprite.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/animation_assets.c](../tests/animation_assets.c); [tests/empty_animations.c](../tests/empty_animations.c); [tests/hitbox_animation_binding.c](../tests/hitbox_animation_binding.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c) |
+| <a id="evidence-camera"></a>camera | [src/graphics/graphics.c](../src/graphics/graphics.c); [src/graphics/camera_state.h](../src/graphics/camera_state.h); [tools/editor/src/editors/render/editor_camera.c](../tools/editor/src/editors/render/editor_camera.c); [src/entity/object_spawn.c](../src/entity/object_spawn.c) | [tests/cameras.c](../tests/cameras.c); [tests/camera_descriptions.c](../tests/camera_descriptions.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c); [tests/runtime_persistence.c](../tests/runtime_persistence.c) |
+| <a id="evidence-layers"></a>layers | [src/graphics/graphics_layer_order.c](../src/graphics/graphics_layer_order.c); [src/graphics/graphics.c](../src/graphics/graphics.c); [tools/editor/src/editor_project_json.c](../tools/editor/src/editor_project_json.c) | [tests/graphics_layer_order.c](../tests/graphics_layer_order.c); [tools/editor/tests/editor_layers.c](../tools/editor/tests/editor_layers.c) |
+| <a id="evidence-viewport"></a>viewport | [src/graphics/graphics.c](../src/graphics/graphics.c); [tools/editor/src/editors/layout/editor_layout_viewport.c](../tools/editor/src/editors/layout/editor_layout_viewport.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/viewport_descriptions.c](../tests/viewport_descriptions.c); [tests/graphics_layer_order.c](../tests/graphics_layer_order.c); [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c) |
+| <a id="evidence-ui"></a>ui | [src/graphics/graphics.c](../src/graphics/graphics.c); [tools/editor/src/editors/layout/editor_layout_viewport.c](../tools/editor/src/editors/layout/editor_layout_viewport.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/viewport_descriptions.c](../tests/viewport_descriptions.c); [tests/ui_instance_isolation.c](../tests/ui_instance_isolation.c); [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c) |
+| <a id="evidence-immediate"></a>immediate | [src/graphics/ui.c](../src/graphics/ui.c); [src/state/game_state.c](../src/state/game_state.c) | [tests/ui_dropdown.c](../tests/ui_dropdown.c); [tests/ui_field.c](../tests/ui_field.c); [tests/ui_field_selection.c](../tests/ui_field_selection.c); [tests/runtime_persistence.c](../tests/runtime_persistence.c) |
+| <a id="evidence-font"></a>font | [src/graphics/font_assets.c](../src/graphics/font_assets.c); [src/graphics/text_assets.c](../src/graphics/text_assets.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/font_assets.c](../tests/font_assets.c); [tests/text_assets.c](../tests/text_assets.c); [tests/installed_sdk_consumer/asset_descriptions.c](../tests/installed_sdk_consumer/asset_descriptions.c) |
+| <a id="evidence-audio"></a>audio | [src/audio/audio.c](../src/audio/audio.c); [include/audio.h](../include/audio.h) | [tests/audio.c](../tests/audio.c); [tests/audio_reports.c](../tests/audio_reports.c); [tests/installed_sdk_consumer/audio_descriptions.c](../tests/installed_sdk_consumer/audio_descriptions.c) |
+| <a id="evidence-input"></a>input | [src/input/input.c](../src/input/input.c); [include/input.h](../include/input.h); [src/scene/scene_input.c](../src/scene/scene_input.c); [tools/editor/src/panels/editor_input_settings_panel.c](../tools/editor/src/panels/editor_input_settings_panel.c); [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c) | [tests/input_actions.c](../tests/input_actions.c); [tools/editor_core/tests/editor_core.c](../tools/editor_core/tests/editor_core.c); [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c) |
+| <a id="evidence-window"></a>window | [src/graphics/window_presentation.c](../src/graphics/window_presentation.c); [tools/editor/src/panels/editor_visual_settings_panel.c](../tools/editor/src/panels/editor_visual_settings_panel.c); [tools/editor_core/src/editor_config.c](../tools/editor_core/src/editor_config.c) | [tests/window_presentation.c](../tests/window_presentation.c); [tools/editor_core/tests/editor_config.c](../tools/editor_core/tests/editor_config.c) |
+| <a id="evidence-object"></a>object | [src/entity/object_description.c](../src/entity/object_description.c); [src/entity/object_document.c](../src/entity/object_document.c); [src/entity/object_spawn.c](../src/entity/object_spawn.c); [tools/editor_core/src/editor_object_catalog.c](../tools/editor_core/src/editor_object_catalog.c) | [tests/object_instances.c](../tests/object_instances.c); [tests/installed_sdk_consumer/object_descriptions.c](../tests/installed_sdk_consumer/object_descriptions.c); [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c) |
+| <a id="evidence-state"></a>state | [src/state/game_state.c](../src/state/game_state.c); [src/state/runtime_topology.c](../src/state/runtime_topology.c); [src/state/runtime_visuals.c](../src/state/runtime_visuals.c) | [tests/runtime_persistence.c](../tests/runtime_persistence.c); [tests/installed_sdk_consumer/runtime_persistence.c](../tests/installed_sdk_consumer/runtime_persistence.c) |
+| <a id="evidence-operations"></a>operations | [src/physics/physics_operation.c](../src/physics/physics_operation.c); [src/physics/collision/interaction_query.c](../src/physics/collision/interaction_query.c); [src/physics/collision/contact_query.c](../src/physics/collision/contact_query.c); [src/physics/collision/overlap_query.c](../src/physics/collision/overlap_query.c) | [tests/physics_interaction_set.c](../tests/physics_interaction_set.c); [tests/contact_manifold.c](../tests/contact_manifold.c); [tests/collision_sensor.c](../tests/collision_sensor.c) |
+| <a id="evidence-math"></a>math | [src/math/math2d.c](../src/math/math2d.c) | [tests/angles.c](../tests/angles.c); [tests/auto_shape.c](../tests/auto_shape.c) |
+| <a id="evidence-report"></a>report | [src/core/report.c](../src/core/report.c); [src/core/report_output.c](../src/core/report_output.c); [src/entity/entity_info.c](../src/entity/entity_info.c); [src/core/error.c](../src/core/error.c) | [tests/system_reports.c](../tests/system_reports.c); [tests/report.c](../tests/report.c); [tests/report_output.c](../tests/report_output.c); [tests/entity_info.c](../tests/entity_info.c) |
+| <a id="evidence-storage"></a>storage | [include/memory.h](../include/memory.h); [src/tools/component_codegen.c](../src/tools/component_codegen.c) | [tests/component_registry.c](../tests/component_registry.c); [tests/generated_components_runtime.c](../tests/generated_components_runtime.c); [tests/memory_pool_example.c](../tests/memory_pool_example.c) |
+| <a id="evidence-lifecycle"></a>lifecycle | [src/core/engine.c](../src/core/engine.c); [src/scene/scene.c](../src/scene/scene.c); [src/physics/pipeline/physics_pipeline.c](../src/physics/pipeline/physics_pipeline.c) | [tests/engine_lifecycle.c](../tests/engine_lifecycle.c); [tests/scene_runner.c](../tests/scene_runner.c); [tests/system_reports.c](../tests/system_reports.c) |
+| <a id="evidence-draw"></a>draw | [src/graphics/graphics.c](../src/graphics/graphics.c) | [tests/graphics_reports.c](../tests/graphics_reports.c); [tests/graphics_layer_order.c](../tests/graphics_layer_order.c) |
+| <a id="evidence-tools"></a>tools | [src/tools/tools.c](../src/tools/tools.c); [src/core/rohr.c](../src/core/rohr.c) | [tests/directory.c](../tests/directory.c); [tests/installed_sdk_consumer/main.c](../tests/installed_sdk_consumer/main.c) |
+| <a id="evidence-scene"></a>scene | [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c); [tools/editor_core/src/editor_scene_session.c](../tools/editor_core/src/editor_scene_session.c); [tools/editor/src/panels/editor_scene_settings_panel.c](../tools/editor/src/panels/editor_scene_settings_panel.c) | [tools/editor_core/tests/editor_scene_session.c](../tools/editor_core/tests/editor_scene_session.c); [tools/editor_core/tests/editor_scene_generation.c](../tools/editor_core/tests/editor_scene_generation.c); [tools/cli/tests/scene_selection.cmake](../tools/cli/tests/scene_selection.cmake) |
+| <a id="evidence-build"></a>build | [tools/editor/src/editor_workspace.c](../tools/editor/src/editor_workspace.c); [tools/editor_core/src/editor_build.c](../tools/editor_core/src/editor_build.c); [tools/editor_core/src/editor_build_process.c](../tools/editor_core/src/editor_build_process.c) | [tools/editor/tests/editor_project.c](../tools/editor/tests/editor_project.c); [tools/editor_core/tests/editor_build.c](../tools/editor_core/tests/editor_build.c); [tests/run_installed_sdk_consumer.cmake](../tests/run_installed_sdk_consumer.cmake) |
+
+## Exact configuration-field ledger
+
+The public ledger covers **80 types and 456 field paths**; the editor ledger
+covers **44 types and 507 field paths**. Counts include nested union alternatives
+but not array expansion. Each field occurs once per type; multiple fields share a
+row only when they inherit the same path assessment. A referenced nested type
+has its own ledger entry. Explicit exceptions in G01–G17 override broad groups.
+
+Value types (`Color`, `Scale`, `UIRect`, `ViewportRectangle`) describe numbers used
+by their containing property; they do not independently require authored objects.
+Legacy and persistent UI structs remain distinct. `UIButtonStyle` and
+`UISliderStyle`/`UISliderConfig` serve both legacy definitions (F44/S) and live
+immediate calls (F59/N for persistence of interaction state). Editor item caches
+mirror reusable definitions; those caches are not separate stored settings.
+
+<details>
+<summary>Public configuration and nested values</summary>
+
+| Type / source | Exact fields | Primary feature group |
+|---|---|---|
+| [AnimatedSpriteDescription](../include/graphics.h) | `AnimatedSpriteDescription.frames`, `AnimatedSpriteDescription.frame_count`, `AnimatedSpriteDescription.direction`, `AnimatedSpriteDescription.scale`, `AnimatedSpriteDescription.body_offset`, `AnimatedSpriteDescription.orientation_offset`, `AnimatedSpriteDescription.follow_entity_rotation`, `AnimatedSpriteDescription.visible` | [F32](#f32) |
+| [AnimatedSpriteDescription](../include/graphics.h) | `AnimatedSpriteDescription.player` | [F33](#f33) |
+| [AnimationDescription](../include/graphics.h) | `AnimationDescription.id`, `AnimationDescription.frame_files`, `AnimationDescription.frame_ids`, `AnimationDescription.frame_count`, `AnimationDescription.ticks_per_frame`, `AnimationDescription.time_per_frame` | [F32](#f32) |
+| [AnimationFrameDescription](../include/graphics.h) | `AnimationFrameDescription.id`, `AnimationFrameDescription.texture`, `AnimationFrameDescription.scale`, `AnimationFrameDescription.offset`, `AnimationFrameDescription.rotation` | [F32](#f32) |
+| [AnimationPlayerDescription](../include/graphics.h) | `AnimationPlayerDescription.animation`, `AnimationPlayerDescription.ticks_per_frame`, `AnimationPlayerDescription.time_per_frame` | [F33](#f33) |
+| [AxisLockDescription](../include/physics.h) | `AxisLockDescription.axis`, `AxisLockDescription.point_on_axis` | [F11](#f11) |
+| [CameraAttachmentDescription](../include/graphics.h) | `CameraAttachmentDescription.entity`, `CameraAttachmentDescription.position_offset`, `CameraAttachmentDescription.orientation_offset`, `CameraAttachmentDescription.follow_position`, `CameraAttachmentDescription.follow_orientation` | [F35](#f35) |
+| [CameraDescription](../include/graphics.h) | `CameraDescription.position`, `CameraDescription.orientation`, `CameraDescription.dimensions`, `CameraDescription.zoom`, `CameraDescription.enabled` | [F34](#f34) |
+| [CameraDescription](../include/graphics.h) | `CameraDescription.pause_with_engine` | [F36](#f36) |
+| [CameraDescription](../include/graphics.h) | `CameraDescription.render_callback`, `CameraDescription.render_context` | [F37](#f37) |
+| [CollisionFilterDescription](../include/physics.h) | `CollisionFilterDescription.category`, `CollisionFilterDescription.collides_with` | [F09](#f09) |
+| [Color](../include/math2d.h) | `Color.red`, `Color.green`, `Color.blue`, `Color.alpha` | [X01](#x01) |
+| [EntityDescription](../include/entity_components.h) | `EntityDescription.name`, `EntityDescription.owner` | [F01](#f01) |
+| [EntityLifetimeDescription](../include/entity_components.h) | `EntityLifetimeDescription.expiry_time`, `EntityLifetimeDescription.expiry_tick`, `EntityLifetimeDescription.time_enabled`, `EntityLifetimeDescription.tick_enabled` | [F03](#f03) |
+| [FontDescription](../include/graphics.h) | `FontDescription.file` | [F45](#f45) |
+| [FontDescription](../include/graphics.h) | `FontDescription.point_size` | [F61](#f61) |
+| [ForceDescription](../include/physics.h) | `ForceDescription.owner` | [F01](#f01) |
+| [ForceDescription](../include/physics.h) | `ForceDescription.target`, `ForceDescription.magnitude` | [F24](#f24) |
+| [ForceDescription](../include/physics.h) | `ForceDescription.location`, `ForceDescription.orientation` | [F25](#f25) |
+| [ForceLocation](../include/physics.h) | `ForceLocation.offset`, `ForceLocation.reference` | [F25](#f25) |
+| [ForceOrientation](../include/physics.h) | `ForceOrientation.offset`, `ForceOrientation.reference` | [F25](#f25) |
+| [ForceOrientationReference](../include/physics.h) | `ForceOrientationReference.kind`, `ForceOrientationReference.entity`, `ForceOrientationReference.between.from`, `ForceOrientationReference.between.to` | [F25](#f25) |
+| [ForcePositionReference](../include/physics.h) | `ForcePositionReference.kind`, `ForcePositionReference.entity`, `ForcePositionReference.beam.entity`, `ForcePositionReference.beam.anchor`, `ForcePositionReference.beam.fraction` | [F25](#f25) |
+| [HitboxAnimationBinding](../include/physics.h) | `HitboxAnimationBinding.animation_id`, `HitboxAnimationBinding.frame_id`, `HitboxAnimationBinding.hitbox_id` | [F33](#f33) |
+| [InputActionDescription](../include/input.h) | `InputActionDescription.controller`, `InputActionDescription.name`, `InputActionDescription.type`, `InputActionDescription.button_mode`, `InputActionDescription.button_initial_state`, `InputActionDescription.bindings_default` | [F48](#f48) |
+| [InputBinding](../include/input.h) | `InputBinding.name`, `InputBinding.source`, `InputBinding.input.key`, `InputBinding.input.mouse_button`, `InputBinding.input.axis_component`, `InputBinding.modifiers`, `InputBinding.affects_x`, `InputBinding.affects_y`, `InputBinding.scale`, `InputBinding.inverted_x`, `InputBinding.inverted_y`, `InputBinding.direction` | [F48](#f48) |
+| [InputBindingList](../include/input.h) | `InputBindingList.values`, `InputBindingList.count` | [F48](#f48) |
+| [InputControllerDescription](../include/input.h) | `InputControllerDescription.name`, `InputControllerDescription.enabled` | [F48](#f48) |
+| [JointAnchorDescription](../include/physics.h) | `JointAnchorDescription.entity`, `JointAnchorDescription.local_offset` | [F20](#f20) |
+| [JointDescription](../include/physics.h) | `JointDescription.owner` | [F01](#f01) |
+| [JointDescription](../include/physics.h) | `JointDescription.type`, `JointDescription.anchor_a`, `JointDescription.anchor_b`, `JointDescription.rest_length`, `JointDescription.stiffness`, `JointDescription.damping`, `JointDescription.rest_angle`, `JointDescription.rest_length_explicit`, `JointDescription.rest_angle_explicit` | [F21](#f21) |
+| [LayerDescription](../include/graphics.h) | `LayerDescription.name`, `LayerDescription.value` | [F38](#f38) |
+| [MusicDescription](../include/audio.h) | `MusicDescription.path`, `MusicDescription.volume`, `MusicDescription.loop`, `MusicDescription.playback_rate` | [F46](#f46) |
+| [ObjectAreaGeometry](../include/object.h) | `ObjectAreaGeometry.outer`, `ObjectAreaGeometry.holes`, `ObjectAreaGeometry.hole_count` | [F19](#f19) |
+| [ObjectAreaLoop](../include/object.h) | `ObjectAreaLoop.nodes`, `ObjectAreaLoop.node_count` | [F19](#f19) |
+| [ObjectCollisionDescription](../include/object.h) | `ObjectCollisionDescription.enabled`, `ObjectCollisionDescription.filter` | [F09](#f09) |
+| [ObjectColorDescription](../include/object.h) | `ObjectColorDescription.color`, `ObjectColorDescription.border_color`, `ObjectColorDescription.overridden` | [F28](#f28) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.geometry`, `ObjectDescription.geometry_count`, `ObjectDescription.active_geometry` | [F05](#f05) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.position`, `ObjectDescription.orientation`, `ObjectDescription.velocity`, `ObjectDescription.acceleration`, `ObjectDescription.angular_velocity` | [F06](#f06) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.mass`, `ObjectDescription.center_of_mass_explicit`, `ObjectDescription.center_of_mass` | [F07](#f07) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.friction`, `ObjectDescription.restitution` | [F08](#f08) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.static_body`, `ObjectDescription.gravity_enabled`, `ObjectDescription.collision_enabled`, `ObjectDescription.collision_filter` | [F09](#f09) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.rotation_locked` | [F10](#f10) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.radius`, `ObjectDescription.particle_origin`, `ObjectDescription.particle_vertices` | [F12](#f12) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.thickness` | [F18](#f18) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.area` | [F19](#f19) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.endpoint_a`, `ObjectDescription.endpoint_b`, `ObjectDescription.joint_type`, `ObjectDescription.rest_length`, `ObjectDescription.stiffness`, `ObjectDescription.damping`, `ObjectDescription.rest_angle` | [F21](#f21) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.force` | [F24](#f24) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.torque` | [F26](#f26) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.visuals` | [F27](#f27) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.visible`, `ObjectDescription.color`, `ObjectDescription.border_color`, `ObjectDescription.color_overridden` | [F28](#f28) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.asset_path`, `ObjectDescription.size`, `ObjectDescription.scale` | [F31](#f31) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.frames`, `ObjectDescription.frame_count` | [F32](#f32) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.hitbox_bindings`, `ObjectDescription.hitbox_binding_count`, `ObjectDescription.ticks_per_frame`, `ObjectDescription.time_per_frame`, `ObjectDescription.starting_frame`, `ObjectDescription.direction`, `ObjectDescription.playing` | [F33](#f33) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.follow_position`, `ObjectDescription.follow_orientation`, `ObjectDescription.zoom` | [F35](#f35) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.layer` | [F38](#f38) |
+| [ObjectDescription](../include/object.h) | `ObjectDescription.id`, `ObjectDescription.name`, `ObjectDescription.kind`, `ObjectDescription.categories`, `ObjectDescription.parent`, `ObjectDescription.children`, `ObjectDescription.child_count`, `ObjectDescription.target` | [F51](#f51) |
+| [ObjectForceDescription](../include/object.h) | `ObjectForceDescription.mode`, `ObjectForceDescription.target`, `ObjectForceDescription.magnitude` | [F24](#f24) |
+| [ObjectForceDescription](../include/object.h) | `ObjectForceDescription.location`, `ObjectForceDescription.orientation` | [F25](#f25) |
+| [ObjectForceLocation](../include/object.h) | `ObjectForceLocation.kind`, `ObjectForceLocation.offset`, `ObjectForceLocation.reference`, `ObjectForceLocation.anchor`, `ObjectForceLocation.fraction` | [F25](#f25) |
+| [ObjectForceOrientation](../include/object.h) | `ObjectForceOrientation.kind`, `ObjectForceOrientation.offset`, `ObjectForceOrientation.reference`, `ObjectForceOrientation.from`, `ObjectForceOrientation.to` | [F25](#f25) |
+| [ObjectFrame](../include/object.h) | `ObjectFrame.id`, `ObjectFrame.path`, `ObjectFrame.scale`, `ObjectFrame.offset`, `ObjectFrame.rotation` | [F32](#f32) |
+| [ObjectHitbox](../include/object.h) | `ObjectHitbox.id`, `ObjectHitbox.shape` | [F05](#f05) |
+| [ObjectMaterialDescription](../include/object.h) | `ObjectMaterialDescription.friction`, `ObjectMaterialDescription.restitution` | [F08](#f08) |
+| [ObjectSourceReference](../include/object.h) | `ObjectSourceReference.kind`, `ObjectSourceReference.id`, `ObjectSourceReference.soft_body` | [F25](#f25) |
+| [ObjectSpawnDescription](../include/object.h) | `ObjectSpawnDescription.flags`, `ObjectSpawnDescription.offset` | [F51](#f51) |
+| [ObjectTorqueDescription](../include/object.h) | `ObjectTorqueDescription.mode`, `ObjectTorqueDescription.target`, `ObjectTorqueDescription.magnitude` | [F26](#f26) |
+| [ObjectVisualStyle](../include/object.h) | `ObjectVisualStyle.specified`, `ObjectVisualStyle.fill_color`, `ObjectVisualStyle.border_color`, `ObjectVisualStyle.border_thickness`, `ObjectVisualStyle.scale`, `ObjectVisualStyle.offset`, `ObjectVisualStyle.rotation` | [F27](#f27) |
+| [ObjectVisuals](../include/object.h) | `ObjectVisuals.main`, `ObjectVisuals.endpoint_a`, `ObjectVisuals.endpoint_b` | [F27](#f27) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.owner` | [F01](#f01) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.position`, `ParticleDescription.velocity`, `ParticleDescription.acceleration` | [F06](#f06) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.mass_value` | [F07](#f07) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.friction`, `ParticleDescription.restitution` | [F08](#f08) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.collision_filter`, `ParticleDescription.static_body`, `ParticleDescription.gravity_enabled`, `ParticleDescription.collision_enabled` | [F09](#f09) |
+| [ParticleDescription](../include/physics.h) | `ParticleDescription.local_origin`, `ParticleDescription.radius`, `ParticleDescription.rigid_vertices` | [F12](#f12) |
+| [RohrToolsComponentDefinition](../include/rohr_tools.h) | `RohrToolsComponentDefinition.name`, `RohrToolsComponentDefinition.type_name`, `RohrToolsComponentDefinition.type_declaration`, `RohrToolsComponentDefinition.default_value` | [X03](#x03) |
+| [Scale](../include/graphics.h) | `Scale.x`, `Scale.y` | [X01](#x01) |
+| [SceneCallbacks](../include/scene.h) | `SceneCallbacks.context`, `SceneCallbacks.initialize`, `SceneCallbacks.update`, `SceneCallbacks.shutdown` | [X04](#x04) |
+| [ScreenDescription](../include/graphics.h) | `ScreenDescription.camera`, `ScreenDescription.width`, `ScreenDescription.height` | [F39](#f39) |
+| [Shape](../include/math2d.h) | `Shape.amount_of_vertices`, `Shape.vertices` | [F05](#f05) |
+| [Shape](../include/math2d.h) | `Shape.concave_pieces`, `Shape.concave_piece_count`, `Shape.collision_geometry_prepared` | [X03](#x03) |
+| [SoftBodyAreaDescription](../include/physics.h) | `SoftBodyAreaDescription.owner` | [F01](#f01) |
+| [SoftBodyAreaDescription](../include/physics.h) | `SoftBodyAreaDescription.geometry`, `SoftBodyAreaDescription.draw_color`, `SoftBodyAreaDescription.draw_color_overridden`, `SoftBodyAreaDescription.visible` | [F19](#f19) |
+| [SoftBodyAreaGeometry](../include/physics.h) | `SoftBodyAreaGeometry.outer`, `SoftBodyAreaGeometry.holes`, `SoftBodyAreaGeometry.hole_count` | [F19](#f19) |
+| [SoftBodyAreaLoop](../include/physics.h) | `SoftBodyAreaLoop.nodes`, `SoftBodyAreaLoop.node_count` | [F19](#f19) |
+| [SoftBodyBeamCollisionDescription](../include/physics.h) | `SoftBodyBeamCollisionDescription.enabled`, `SoftBodyBeamCollisionDescription.thickness`, `SoftBodyBeamCollisionDescription.filter` | [F18](#f18) |
+| [SoftBodyBeamDescription](../include/physics.h) | `SoftBodyBeamDescription.owner` | [F01](#f01) |
+| [SoftBodyBeamDescription](../include/physics.h) | `SoftBodyBeamDescription.friction`, `SoftBodyBeamDescription.restitution` | [F08](#f08) |
+| [SoftBodyBeamDescription](../include/physics.h) | `SoftBodyBeamDescription.node_a`, `SoftBodyBeamDescription.node_b`, `SoftBodyBeamDescription.stiffness`, `SoftBodyBeamDescription.damping`, `SoftBodyBeamDescription.draw_color`, `SoftBodyBeamDescription.draw_color_overridden` | [F16](#f16) |
+| [SoftBodyBeamDescription](../include/physics.h) | `SoftBodyBeamDescription.rest_length`, `SoftBodyBeamDescription.rest_length_explicit` | [F17](#f17) |
+| [SoftBodyBeamDescription](../include/physics.h) | `SoftBodyBeamDescription.collision` | [F18](#f18) |
+| [SoftBodyDescription](../include/physics.h) | `SoftBodyDescription.owner` | [F01](#f01) |
+| [SoftBodyDescription](../include/physics.h) | `SoftBodyDescription.position`, `SoftBodyDescription.orientation` | [F13](#f13) |
+| [SoftBodyNodeAnchorPinDescription](../include/physics.h) | `SoftBodyNodeAnchorPinDescription.owner` | [F01](#f01) |
+| [SoftBodyNodeAnchorPinDescription](../include/physics.h) | `SoftBodyNodeAnchorPinDescription.node`, `SoftBodyNodeAnchorPinDescription.anchor` | [F23](#f23) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.owner` | [F01](#f01) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.position`, `SoftBodyNodeDescription.velocity`, `SoftBodyNodeDescription.acceleration` | [F06](#f06) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.mass` | [F07](#f07) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.friction`, `SoftBodyNodeDescription.restitution` | [F08](#f08) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.collision_filter`, `SoftBodyNodeDescription.gravity_enabled`, `SoftBodyNodeDescription.collision_enabled` | [F09](#f09) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.radius`, `SoftBodyNodeDescription.draw_color`, `SoftBodyNodeDescription.draw_color_overridden` | [F14](#f14) |
+| [SoftBodyNodeDescription](../include/physics.h) | `SoftBodyNodeDescription.static_body` | [F15](#f15) |
+| [SoundDescription](../include/audio.h) | `SoundDescription.path`, `SoundDescription.volume`, `SoundDescription.pan`, `SoundDescription.loop`, `SoundDescription.playback_rate` | [F46](#f46) |
+| [SpriteDescription](../include/graphics.h) | `SpriteDescription.texture`, `SpriteDescription.direction`, `SpriteDescription.scale`, `SpriteDescription.body_offset`, `SpriteDescription.orientation_offset`, `SpriteDescription.follow_entity_rotation`, `SpriteDescription.visible` | [F31](#f31) |
+| [TextDescription](../include/graphics.h) | `TextDescription.font`, `TextDescription.value`, `TextDescription.color`, `TextDescription.wrap_width` | [F45](#f45) |
+| [TextureDescription](../include/graphics.h) | `TextureDescription.file`, `TextureDescription.size` | [F30](#f30) |
+| [TorqueDescription](../include/physics.h) | `TorqueDescription.owner` | [F01](#f01) |
+| [TorqueDescription](../include/physics.h) | `TorqueDescription.target`, `TorqueDescription.magnitude` | [F26](#f26) |
+| [TransformLockDescription](../include/physics.h) | `TransformLockDescription.driver`, `TransformLockDescription.local_offset`, `TransformLockDescription.local_angle`, `TransformLockDescription.lock_position`, `TransformLockDescription.lock_orientation`, `TransformLockDescription.inherit_velocity` | [F11](#f11) |
+| [UIButtonDefinition](../include/ui.h) | `UIButtonDefinition.name`, `UIButtonDefinition.label`, `UIButtonDefinition.font`, `UIButtonDefinition.text_color`, `UIButtonDefinition.bounds`, `UIButtonDefinition.style` | [F44](#f44) |
+| [UIButtonStyle](../include/ui.h) | `UIButtonStyle.idle`, `UIButtonStyle.hovered`, `UIButtonStyle.pressed`, `UIButtonStyle.disabled` | [F44](#f44) |
+| [UIComponentConfig](../include/ui.h) | `UIComponentConfig.components`, `UIComponentConfig.text_padding_x`, `UIComponentConfig.text_padding_y` | [F59](#f59) |
+| [UIDropdownConfig](../include/ui.h) | `UIDropdownConfig.visible_row_limit`, `UIDropdownConfig.fit_window`, `UIDropdownConfig.hint`, `UIDropdownConfig.pick_bounds`, `UIDropdownConfig.pick_exclusion`, `UIDropdownConfig.pick`, `UIDropdownConfig.pick_context` | [F59](#f59) |
+| [UIFieldBinding](../include/ui.h) | `UIFieldBinding.kind`, `UIFieldBinding.string`, `UIFieldBinding.string_capacity`, `UIFieldBinding.number` | [F59](#f59) |
+| [UIFontDefinition](../include/ui.h) | `UIFontDefinition.name`, `UIFontDefinition.file`, `UIFontDefinition.point_size` | [F44](#f44) |
+| [UILabelDefinition](../include/ui.h) | `UILabelDefinition.name`, `UILabelDefinition.text`, `UILabelDefinition.font`, `UILabelDefinition.color`, `UILabelDefinition.bounds` | [F44](#f44) |
+| [UIRect](../include/ui.h) | `UIRect.x`, `UIRect.y`, `UIRect.width`, `UIRect.height` | [X01](#x01) |
+| [UISliderConfig](../include/ui.h) | `UISliderConfig.center`, `UISliderConfig.length`, `UISliderConfig.angle`, `UISliderConfig.min_value`, `UISliderConfig.max_value`, `UISliderConfig.step`, `UISliderConfig.style` | [F44](#f44) |
+| [UISliderDefinition](../include/ui.h) | `UISliderDefinition.name`, `UISliderDefinition.label`, `UISliderDefinition.font`, `UISliderDefinition.value_format`, `UISliderDefinition.text_color`, `UISliderDefinition.config`, `UISliderDefinition.initial_value` | [F44](#f44) |
+| [UISliderStyle](../include/ui.h) | `UISliderStyle.track`, `UISliderStyle.fill`, `UISliderStyle.handle`, `UISliderStyle.handle_hovered`, `UISliderStyle.handle_pressed`, `UISliderStyle.track_thickness`, `UISliderStyle.handle_width`, `UISliderStyle.handle_height`, `UISliderStyle.step_button_size`, `UISliderStyle.step_button_gap` | [F44](#f44) |
+| [ViewportDescription](../include/graphics.h) | `ViewportDescription.rectangle`, `ViewportDescription.fit`, `ViewportDescription.background_color`, `ViewportDescription.enabled` | [F40](#f40) |
+| [ViewportItemDescription](../include/graphics.h) | `ViewportItemDescription.screen`, `ViewportItemDescription.ui`, `ViewportItemDescription.rectangle`, `ViewportItemDescription.fit`, `ViewportItemDescription.orientation`, `ViewportItemDescription.content_offset`, `ViewportItemDescription.content_scale`, `ViewportItemDescription.content_orientation`, `ViewportItemDescription.layer`, `ViewportItemDescription.layer_id`, `ViewportItemDescription.visible`, `ViewportItemDescription.drag_mode`, `ViewportItemDescription.clip_enabled`, `ViewportItemDescription.clip_rectangle` | [F40](#f40) |
+| [ViewportRectangle](../include/graphics.h) | `ViewportRectangle.x`, `ViewportRectangle.y`, `ViewportRectangle.width`, `ViewportRectangle.height` | [F40](#f40) |
+| [ViewportUiShapeDescription](../include/graphics.h) | `ViewportUiShapeDescription.shape`, `ViewportUiShapeDescription.position`, `ViewportUiShapeDescription.orientation`, `ViewportUiShapeDescription.border_enabled`, `ViewportUiShapeDescription.border_type`, `ViewportUiShapeDescription.border_thickness`, `ViewportUiShapeDescription.border_hash_spacing`, `ViewportUiShapeDescription.border_corner_radius`, `ViewportUiShapeDescription.border_color`, `ViewportUiShapeDescription.fill_color`, `ViewportUiShapeDescription.button_enabled`, `ViewportUiShapeDescription.hover_border_color`, `ViewportUiShapeDescription.hover_fill_color`, `ViewportUiShapeDescription.click_border_color`, `ViewportUiShapeDescription.click_fill_color` | [F41](#f41) |
+| [ViewportUiShapeDescription](../include/graphics.h) | `ViewportUiShapeDescription.text` | [F42](#f42) |
+| [ViewportUiSliderDescription](../include/graphics.h) | `ViewportUiSliderDescription.minimum`, `ViewportUiSliderDescription.maximum`, `ViewportUiSliderDescription.value`, `ViewportUiSliderDescription.step`, `ViewportUiSliderDescription.length`, `ViewportUiSliderDescription.track_thickness`, `ViewportUiSliderDescription.thumb_width`, `ViewportUiSliderDescription.thumb_height`, `ViewportUiSliderDescription.thumb_radius`, `ViewportUiSliderDescription.thumb_offset`, `ViewportUiSliderDescription.thumb_shape`, `ViewportUiSliderDescription.track_color`, `ViewportUiSliderDescription.filled_track_color`, `ViewportUiSliderDescription.thumb_color`, `ViewportUiSliderDescription.hover_thumb_color`, `ViewportUiSliderDescription.pressed_thumb_color`, `ViewportUiSliderDescription.enabled` | [F43](#f43) |
+| [ViewportUiTextDescription](../include/graphics.h) | `ViewportUiTextDescription.text`, `ViewportUiTextDescription.position`, `ViewportUiTextDescription.offset`, `ViewportUiTextDescription.scale`, `ViewportUiTextDescription.orientation` | [F42](#f42) |
+| [WindowPresentationDescription](../include/graphics.h) | `WindowPresentationDescription.mode`, `WindowPresentationDescription.window_width`, `WindowPresentationDescription.window_height`, `WindowPresentationDescription.logical_width`, `WindowPresentationDescription.logical_height`, `WindowPresentationDescription.aspect_ratio_auto` | [F50](#f50) |
+
+</details>
+
+<details>
+<summary>Editor project, workspace and tool configuration</summary>
+
+| Type / source | Exact fields | Primary feature group |
+|---|---|---|
+| [EditorAnchor](../tools/editor/src/editor_project.h) | `EditorAnchor.position`, `EditorAnchor.rotation`, `EditorAnchor.rigid_body`, `EditorAnchor.attachment_kind`, `EditorAnchor.attachment_soft_body`, `EditorAnchor.attachment_soft_node`, `EditorAnchor.position_follows_body`, `EditorAnchor.rotation_follows_body` | [F20](#f20) |
+| [EditorAnchor](../tools/editor/src/editor_project.h) | `EditorAnchor.visible` | [F29](#f29) |
+| [EditorAnchor](../tools/editor/src/editor_project.h) | `EditorAnchor.id`, `EditorAnchor.name` | [X07](#x07) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.app_hidden` | [F28](#f28) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.visible` | [F29](#f29) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.editor_position`, `EditorAnimatedSprite.editor_rotation`, `EditorAnimatedSprite.rigid_body`, `EditorAnimatedSprite.frames`, `EditorAnimatedSprite.frame_count`, `EditorAnimatedSprite.ticks_per_frame`, `EditorAnimatedSprite.time_per_frame`, `EditorAnimatedSprite.starting_frame`, `EditorAnimatedSprite.scale`, `EditorAnimatedSprite.direction`, `EditorAnimatedSprite.follow_body_rotation`, `EditorAnimatedSprite.playing` | [F33](#f33) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.graphics_layer` | [F38](#f38) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.frame_capacity` | [X03](#x03) |
+| [EditorAnimatedSprite](../tools/editor/src/editor_project.h) | `EditorAnimatedSprite.id`, `EditorAnimatedSprite.name` | [X07](#x07) |
+| [EditorAnimationFrame](../tools/editor/src/editor_project.h) | `EditorAnimationFrame.path`, `EditorAnimationFrame.scale`, `EditorAnimationFrame.offset`, `EditorAnimationFrame.rotation` | [F32](#f32) |
+| [EditorAnimationFrame](../tools/editor/src/editor_project.h) | `EditorAnimationFrame.id`, `EditorAnimationFrame.name` | [X07](#x07) |
+| [EditorCamera](../tools/editor/src/editor_project.h) | `EditorCamera.app_hidden` | [F28](#f28) |
+| [EditorCamera](../tools/editor/src/editor_project.h) | `EditorCamera.visible` | [F29](#f29) |
+| [EditorCamera](../tools/editor/src/editor_project.h) | `EditorCamera.position`, `EditorCamera.rotation`, `EditorCamera.dimensions`, `EditorCamera.zoom`, `EditorCamera.attachment_kind`, `EditorCamera.attachment`, `EditorCamera.attachment_soft_body`, `EditorCamera.inherit_orientation` | [F35](#f35) |
+| [EditorCamera](../tools/editor/src/editor_project.h) | `EditorCamera.id`, `EditorCamera.name` | [X07](#x07) |
+| [EditorCollisionMask](../tools/editor/src/editor_project.h) | `EditorCollisionMask.name` | [X07](#x07) |
+| [EditorConfig](../tools/editor_core/include/editor_config.h) | `EditorConfig.font`, `EditorConfig.font_set`, `EditorConfig.config_path_override`, `EditorConfig.config_path_override_set`, `EditorConfig.gui_state_path`, `EditorConfig.gui_state_path_set`, `EditorConfig.gui_state_path_override`, `EditorConfig.gui_state_path_override_set`, `EditorConfig.project_configure`, `EditorConfig.project_compile`, `EditorConfig.cli_configure`, `EditorConfig.cli_compile`, `EditorConfig.gui_configure`, `EditorConfig.gui_compile` | [F56](#f56) |
+| [EditorConfigCommand](../tools/editor_core/include/editor_config.h) | `EditorConfigCommand.arguments`, `EditorConfigCommand.count`, `EditorConfigCommand.set` | [F56](#f56) |
+| [EditorForce](../tools/editor/src/editor_project.h) | `EditorForce.description` | [F24](#f24) |
+| [EditorForce](../tools/editor/src/editor_project.h) | `EditorForce.visuals` | [F27](#f27) |
+| [EditorForce](../tools/editor/src/editor_project.h) | `EditorForce.app_hidden` | [F28](#f28) |
+| [EditorForce](../tools/editor/src/editor_project.h) | `EditorForce.visible` | [F29](#f29) |
+| [EditorForce](../tools/editor/src/editor_project.h) | `EditorForce.id`, `EditorForce.name` | [X07](#x07) |
+| [EditorGraphicsLayer](../tools/editor/src/editor_project.h) | `EditorGraphicsLayer.value` | [F38](#f38) |
+| [EditorGraphicsLayer](../tools/editor/src/editor_project.h) | `EditorGraphicsLayer.id`, `EditorGraphicsLayer.name` | [X07](#x07) |
+| [EditorGraphicsLayerBinding](../tools/editor/src/editor_project.h) | `EditorGraphicsLayerBinding.value`, `EditorGraphicsLayerBinding.layer` | [F38](#f38) |
+| [EditorGuiState](../tools/editor_core/include/editor_config.h) | `EditorGuiState.logical_width`, `EditorGuiState.logical_height`, `EditorGuiState.aspect_ratio`, `EditorGuiState.window_mode`, `EditorGuiState.grid_visible` | [X07](#x07) |
+| [EditorHierarchyItem](../tools/editor/src/editor_project.h) | `EditorHierarchyItem.kind`, `EditorHierarchyItem.id` | [X07](#x07) |
+| [EditorHitbox](../tools/editor/src/editor_project.h) | `EditorHitbox.vertices`, `EditorHitbox.line_names`, `EditorHitbox.vertex_count` | [F05](#f05) |
+| [EditorHitbox](../tools/editor/src/editor_project.h) | `EditorHitbox.visible` | [F29](#f29) |
+| [EditorHitbox](../tools/editor/src/editor_project.h) | `EditorHitbox.vertex_capacity` | [X03](#x03) |
+| [EditorHitbox](../tools/editor/src/editor_project.h) | `EditorHitbox.id`, `EditorHitbox.name` | [X07](#x07) |
+| [EditorHitboxAnimationBinding](../tools/editor/src/editor_project.h) | `EditorHitboxAnimationBinding.animation`, `EditorHitboxAnimationBinding.frame`, `EditorHitboxAnimationBinding.hitbox` | [F33](#f33) |
+| [EditorInputAction](../tools/editor/src/editor_project.h) | `EditorInputAction.type`, `EditorInputAction.button_mode`, `EditorInputAction.button_initial_state`, `EditorInputAction.binding_ids`, `EditorInputAction.bindings`, `EditorInputAction.binding_count` | [F48](#f48) |
+| [EditorInputAction](../tools/editor/src/editor_project.h) | `EditorInputAction.id`, `EditorInputAction.name` | [X07](#x07) |
+| [EditorInputController](../tools/editor/src/editor_project.h) | `EditorInputController.enabled`, `EditorInputController.actions`, `EditorInputController.action_count` | [F48](#f48) |
+| [EditorInputController](../tools/editor/src/editor_project.h) | `EditorInputController.action_capacity` | [X03](#x03) |
+| [EditorInputController](../tools/editor/src/editor_project.h) | `EditorInputController.id`, `EditorInputController.name` | [X07](#x07) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.kind`, `EditorJoint.anchor_a`, `EditorJoint.anchor_b`, `EditorJoint.rest_length`, `EditorJoint.stiffness`, `EditorJoint.damping`, `EditorJoint.rest_angle` | [F21](#f21) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.visual_size`, `EditorJoint.visuals` | [F27](#f27) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.app_hidden` | [F28](#f28) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.visible` | [F29](#f29) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.graphics_layer` | [F38](#f38) |
+| [EditorJoint](../tools/editor/src/editor_project.h) | `EditorJoint.id`, `EditorJoint.name` | [X07](#x07) |
+| [EditorLayoutViewport](../tools/editor/src/editor_project.h) | `EditorLayoutViewport.app_hidden` | [F28](#f28) |
+| [EditorLayoutViewport](../tools/editor/src/editor_project.h) | `EditorLayoutViewport.config`, `EditorLayoutViewport.background_color`, `EditorLayoutViewport.enabled`, `EditorLayoutViewport.camera_items`, `EditorLayoutViewport.camera_item_count`, `EditorLayoutViewport.ui_items`, `EditorLayoutViewport.ui_item_count` | [F40](#f40) |
+| [EditorLayoutViewport](../tools/editor/src/editor_project.h) | `EditorLayoutViewport.camera_item_capacity`, `EditorLayoutViewport.ui_item_capacity` | [X03](#x03) |
+| [EditorLayoutViewport](../tools/editor/src/editor_project.h) | `EditorLayoutViewport.id`, `EditorLayoutViewport.name`, `EditorLayoutViewport.overview_position` | [X07](#x07) |
+| [EditorNavigationState](../tools/editor/src/editor_project.h) | `EditorNavigationState.mode`, `EditorNavigationState.selection`, `EditorNavigationState.object`, `EditorNavigationState.selected_line`, `EditorNavigationState.selected_vertex`, `EditorNavigationState.rigid_body`, `EditorNavigationState.hitbox`, `EditorNavigationState.joint`, `EditorNavigationState.force`, `EditorNavigationState.torque`, `EditorNavigationState.anchor`, `EditorNavigationState.soft_body`, `EditorNavigationState.soft_node`, `EditorNavigationState.soft_beam`, `EditorNavigationState.soft_area`, `EditorNavigationState.soft_hole`, `EditorNavigationState.sprite`, `EditorNavigationState.animated_sprite`, `EditorNavigationState.camera`, `EditorNavigationState.animation_frame`, `EditorNavigationState.input_controller`, `EditorNavigationState.input_action`, `EditorNavigationState.input_binding`, `EditorNavigationState.origin_kind` | [X07](#x07) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.app_hidden` | [F28](#f28) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.visible` | [F29](#f29) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.position`, `EditorObject.rigid_bodies`, `EditorObject.rigid_body_count`, `EditorObject.force_items`, `EditorObject.force_count`, `EditorObject.torque_items`, `EditorObject.torque_count`, `EditorObject.joint_items`, `EditorObject.joint_count`, `EditorObject.anchors`, `EditorObject.anchor_count`, `EditorObject.soft_body_items`, `EditorObject.soft_body_count`, `EditorObject.sprites`, `EditorObject.sprite_count`, `EditorObject.animated_sprite_items`, `EditorObject.animated_sprite_count`, `EditorObject.cameras`, `EditorObject.camera_count`, `EditorObject.hierarchy`, `EditorObject.hierarchy_count` | [F51](#f51) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.simulation_excluded` | [F55](#f55) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.rigid_body_capacity`, `EditorObject.force_capacity`, `EditorObject.torque_capacity`, `EditorObject.joint_capacity`, `EditorObject.anchor_capacity`, `EditorObject.soft_body_capacity`, `EditorObject.sprite_capacity`, `EditorObject.animated_sprite_capacity`, `EditorObject.camera_capacity`, `EditorObject.hierarchy_capacity` | [X03](#x03) |
+| [EditorObject](../tools/editor/src/editor_project.h) | `EditorObject.id`, `EditorObject.name`, `EditorObject.overview_position` | [X07](#x07) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.engine_time_per_tick`, `EditorProject.physics_timestep_override`, `EditorProject.physics_dt_per_tick`, `EditorProject.physics_substeps`, `EditorProject.physics_gravity`, `EditorProject.physics_solver_iterations` | [F04](#f04) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.viewport_camera_offset`, `EditorProject.viewport_camera_zoom`, `EditorProject.viewport_local_view`, `EditorProject.navigation`, `EditorProject.selected` | [F29](#f29) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.graphics_layers`, `EditorProject.graphics_layer_count` | [F38](#f38) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.layout_viewports`, `EditorProject.layout_viewport_count` | [F40](#f40) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.ui_definitions`, `EditorProject.ui_definition_count` | [F41](#f41) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.ui_fonts`, `EditorProject.ui_font_count` | [F45](#f45) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.input_controllers`, `EditorProject.input_controller_count` | [F48](#f48) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.collision_masks`, `EditorProject.collision_mask_count`, `EditorProject.objects`, `EditorProject.object_count`, `EditorProject.hierarchy`, `EditorProject.hierarchy_count` | [F51](#f51) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.simulation_viewport` | [F55](#f55) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.collision_mask_capacity`, `EditorProject.object_capacity`, `EditorProject.layout_viewport_capacity`, `EditorProject.hierarchy_capacity`, `EditorProject.ui_font_capacity`, `EditorProject.graphics_layer_capacity`, `EditorProject.ui_definition_capacity`, `EditorProject.input_controller_capacity` | [X03](#x03) |
+| [EditorProject](../tools/editor/src/editor_project.h) | `EditorProject.next_id`, `EditorProject.next_vertex_id`, `EditorProject.next_rigid_body_id`, `EditorProject.next_hitbox_id`, `EditorProject.next_force_id`, `EditorProject.next_torque_id`, `EditorProject.next_joint_id`, `EditorProject.next_anchor_id`, `EditorProject.next_soft_body_id`, `EditorProject.next_soft_node_id`, `EditorProject.next_soft_beam_id`, `EditorProject.next_sprite_id`, `EditorProject.next_animated_sprite_id`, `EditorProject.next_camera_id`, `EditorProject.next_layout_viewport_id`, `EditorProject.next_viewport_camera_item_id`, `EditorProject.next_viewport_ui_item_id`, `EditorProject.next_ui_font_id`, `EditorProject.next_graphics_layer_id`, `EditorProject.next_ui_definition_id`, `EditorProject.next_input_controller_id`, `EditorProject.next_input_action_id`, `EditorProject.next_input_binding_id` | [X07](#x07) |
+| [EditorProjectHierarchyItem](../tools/editor/src/editor_project.h) | `EditorProjectHierarchyItem.kind`, `EditorProjectHierarchyItem.id` | [X07](#x07) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.hitboxes`, `EditorRigidBody.hitbox_count`, `EditorRigidBody.active_hitbox_index` | [F05](#f05) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.parent`, `EditorRigidBody.position`, `EditorRigidBody.rotation`, `EditorRigidBody.initial_velocity`, `EditorRigidBody.initial_acceleration`, `EditorRigidBody.initial_angular_velocity` | [F06](#f06) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.mass_value`, `EditorRigidBody.center_of_mass_explicit`, `EditorRigidBody.center_of_mass_offset` | [F07](#f07) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.friction`, `EditorRigidBody.restitution` | [F08](#f08) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.static_body`, `EditorRigidBody.gravity_enabled`, `EditorRigidBody.collision_enabled`, `EditorRigidBody.collision_category`, `EditorRigidBody.collision_with` | [F09](#f09) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.rotation_locked` | [F10](#f10) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.particle`, `EditorRigidBody.standalone_particle`, `EditorRigidBody.particle_auto_fit`, `EditorRigidBody.particle_radius`, `EditorRigidBody.particle_rigid_vertices`, `EditorRigidBody.particle_origin`, `EditorRigidBody.particle_ring_color`, `EditorRigidBody.particle_fill_color` | [F12](#f12) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.border_color`, `EditorRigidBody.surface_color`, `EditorRigidBody.app_hidden` | [F28](#f28) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.visible` | [F29](#f29) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.hitbox_animation_bindings`, `EditorRigidBody.hitbox_animation_binding_count` | [F33](#f33) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.graphics_layer` | [F38](#f38) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.hitbox_capacity`, `EditorRigidBody.hitbox_animation_binding_capacity` | [X03](#x03) |
+| [EditorRigidBody](../tools/editor/src/editor_project.h) | `EditorRigidBody.id`, `EditorRigidBody.name` | [X07](#x07) |
+| [EditorSceneSelection](../tools/editor/src/editor_workspace.h) | `EditorSceneSelection.objects`, `EditorSceneSelection.object_count`, `EditorSceneSelection.objects_selected`, `EditorSceneSelection.viewport`, `EditorSceneSelection.viewport_selected` | [F55](#f55) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.color`, `EditorSoftArea.outer`, `EditorSoftArea.holes`, `EditorSoftArea.hole_count` | [F19](#f19) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.app_hidden` | [F28](#f28) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.visible` | [F29](#f29) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.graphics_layer`, `EditorSoftArea.graphics_layer_inherited` | [F38](#f38) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.cache` | [X03](#x03) |
+| [EditorSoftArea](../tools/editor/src/editor_project.h) | `EditorSoftArea.id`, `EditorSoftArea.name`, `EditorSoftArea.next_hole_id` | [X07](#x07) |
+| [EditorSoftAreaLoop](../tools/editor/src/editor_project.h) | `EditorSoftAreaLoop.nodes`, `EditorSoftAreaLoop.node_count` | [F19](#f19) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.node_a`, `EditorSoftBeam.node_b`, `EditorSoftBeam.friction`, `EditorSoftBeam.restitution`, `EditorSoftBeam.stiffness`, `EditorSoftBeam.damping`, `EditorSoftBeam.color`, `EditorSoftBeam.color_overridden` | [F16](#f16) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.collision_enabled`, `EditorSoftBeam.collision_thickness`, `EditorSoftBeam.collision_category`, `EditorSoftBeam.collision_with` | [F18](#f18) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.app_hidden` | [F28](#f28) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.visible` | [F29](#f29) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.graphics_layer`, `EditorSoftBeam.graphics_layer_inherited` | [F38](#f38) |
+| [EditorSoftBeam](../tools/editor/src/editor_project.h) | `EditorSoftBeam.id`, `EditorSoftBeam.name` | [X07](#x07) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.position`, `EditorSoftBody.rotation`, `EditorSoftBody.initial_velocity`, `EditorSoftBody.initial_acceleration`, `EditorSoftBody.initial_angular_velocity`, `EditorSoftBody.node_color`, `EditorSoftBody.beam_color`, `EditorSoftBody.nodes`, `EditorSoftBody.node_count`, `EditorSoftBody.beams`, `EditorSoftBody.beam_count`, `EditorSoftBody.areas`, `EditorSoftBody.area_count`, `EditorSoftBody.hierarchy`, `EditorSoftBody.hierarchy_count` | [F13](#f13) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.app_hidden` | [F28](#f28) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.visible` | [F29](#f29) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.graphics_layer` | [F38](#f38) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.node_capacity`, `EditorSoftBody.beam_capacity`, `EditorSoftBody.area_capacity`, `EditorSoftBody.hierarchy_capacity` | [X03](#x03) |
+| [EditorSoftBody](../tools/editor/src/editor_project.h) | `EditorSoftBody.id`, `EditorSoftBody.name`, `EditorSoftBody.next_area_id` | [X07](#x07) |
+| [EditorSoftHierarchyItem](../tools/editor/src/editor_project.h) | `EditorSoftHierarchyItem.kind`, `EditorSoftHierarchyItem.id` | [X07](#x07) |
+| [EditorSoftHole](../tools/editor/src/editor_project.h) | `EditorSoftHole.loop` | [F19](#f19) |
+| [EditorSoftHole](../tools/editor/src/editor_project.h) | `EditorSoftHole.id`, `EditorSoftHole.name` | [X07](#x07) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.position`, `EditorSoftNode.initial_velocity`, `EditorSoftNode.initial_acceleration`, `EditorSoftNode.initial_motion_inherited`, `EditorSoftNode.node_mass`, `EditorSoftNode.radius`, `EditorSoftNode.friction`, `EditorSoftNode.restitution`, `EditorSoftNode.gravity_enabled`, `EditorSoftNode.collision_enabled`, `EditorSoftNode.collision_category`, `EditorSoftNode.collision_with`, `EditorSoftNode.color`, `EditorSoftNode.color_overridden` | [F14](#f14) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.app_hidden` | [F28](#f28) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.visible` | [F29](#f29) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.graphics_layer`, `EditorSoftNode.graphics_layer_inherited` | [F38](#f38) |
+| [EditorSoftNode](../tools/editor/src/editor_project.h) | `EditorSoftNode.id`, `EditorSoftNode.name` | [X07](#x07) |
+| [EditorSprite](../tools/editor/src/editor_project.h) | `EditorSprite.app_hidden` | [F28](#f28) |
+| [EditorSprite](../tools/editor/src/editor_project.h) | `EditorSprite.visible` | [F29](#f29) |
+| [EditorSprite](../tools/editor/src/editor_project.h) | `EditorSprite.path`, `EditorSprite.position`, `EditorSprite.rotation`, `EditorSprite.rigid_body`, `EditorSprite.size`, `EditorSprite.follow_body_rotation` | [F31](#f31) |
+| [EditorSprite](../tools/editor/src/editor_project.h) | `EditorSprite.graphics_layer` | [F38](#f38) |
+| [EditorSprite](../tools/editor/src/editor_project.h) | `EditorSprite.id`, `EditorSprite.name` | [X07](#x07) |
+| [EditorTorque](../tools/editor/src/editor_project.h) | `EditorTorque.description` | [F26](#f26) |
+| [EditorTorque](../tools/editor/src/editor_project.h) | `EditorTorque.marker_offset`, `EditorTorque.visuals` | [F27](#f27) |
+| [EditorTorque](../tools/editor/src/editor_project.h) | `EditorTorque.app_hidden` | [F28](#f28) |
+| [EditorTorque](../tools/editor/src/editor_project.h) | `EditorTorque.visible` | [F29](#f29) |
+| [EditorTorque](../tools/editor/src/editor_project.h) | `EditorTorque.id`, `EditorTorque.name` | [X07](#x07) |
+| [EditorUiFont](../tools/editor/src/editor_project.h) | `EditorUiFont.path` | [F45](#f45) |
+| [EditorUiFont](../tools/editor/src/editor_project.h) | `EditorUiFont.id`, `EditorUiFont.name` | [X07](#x07) |
+| [EditorVertex](../tools/editor/src/editor_project.h) | `EditorVertex.position` | [F05](#f05) |
+| [EditorVertex](../tools/editor/src/editor_project.h) | `EditorVertex.position_locked` | [F29](#f29) |
+| [EditorVertex](../tools/editor/src/editor_project.h) | `EditorVertex.id`, `EditorVertex.name` | [X07](#x07) |
+| [EditorViewportCameraItem](../tools/editor/src/editor_project.h) | `EditorViewportCameraItem.app_hidden` | [F28](#f28) |
+| [EditorViewportCameraItem](../tools/editor/src/editor_project.h) | `EditorViewportCameraItem.graphics_layer` | [F38](#f38) |
+| [EditorViewportCameraItem](../tools/editor/src/editor_project.h) | `EditorViewportCameraItem.object`, `EditorViewportCameraItem.camera`, `EditorViewportCameraItem.placement`, `EditorViewportCameraItem.content_offset`, `EditorViewportCameraItem.content_scale`, `EditorViewportCameraItem.content_rotation` | [F40](#f40) |
+| [EditorViewportCameraItem](../tools/editor/src/editor_project.h) | `EditorViewportCameraItem.id`, `EditorViewportCameraItem.name` | [X07](#x07) |
+| [EditorViewportUiDefinition](../tools/editor/src/editor_project.h) | `EditorViewportUiDefinition.kind`, `EditorViewportUiDefinition.border_enabled`, `EditorViewportUiDefinition.border_type`, `EditorViewportUiDefinition.border_thickness`, `EditorViewportUiDefinition.border_hash_spacing`, `EditorViewportUiDefinition.border_corner_radius`, `EditorViewportUiDefinition.border_color`, `EditorViewportUiDefinition.fill_color`, `EditorViewportUiDefinition.hover_border_color`, `EditorViewportUiDefinition.hover_fill_color`, `EditorViewportUiDefinition.click_border_color`, `EditorViewportUiDefinition.click_fill_color`, `EditorViewportUiDefinition.value.shape`, `EditorViewportUiDefinition.value.text`, `EditorViewportUiDefinition.value.slider` | [F41](#f41) |
+| [EditorViewportUiDefinition](../tools/editor/src/editor_project.h) | `EditorViewportUiDefinition.id`, `EditorViewportUiDefinition.name` | [X07](#x07) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.app_hidden` | [F28](#f28) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.visible` | [F29](#f29) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.graphics_layer` | [F38](#f38) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.definition`, `EditorViewportUiItem.position`, `EditorViewportUiItem.scale`, `EditorViewportUiItem.rotation`, `EditorViewportUiItem.clip_rectangle`, `EditorViewportUiItem.layer`, `EditorViewportUiItem.drag_mode`, `EditorViewportUiItem.clip_enabled`, `EditorViewportUiItem.kind`, `EditorViewportUiItem.border_enabled`, `EditorViewportUiItem.border_type`, `EditorViewportUiItem.border_thickness`, `EditorViewportUiItem.border_hash_spacing`, `EditorViewportUiItem.border_corner_radius`, `EditorViewportUiItem.border_color`, `EditorViewportUiItem.fill_color`, `EditorViewportUiItem.hover_border_color`, `EditorViewportUiItem.hover_fill_color`, `EditorViewportUiItem.click_border_color`, `EditorViewportUiItem.click_fill_color` | [F40](#f40) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.value.shape`, `EditorViewportUiItem.value.text`, `EditorViewportUiItem.value.slider` | [X03](#x03) |
+| [EditorViewportUiItem](../tools/editor/src/editor_project.h) | `EditorViewportUiItem.id`, `EditorViewportUiItem.name` | [X07](#x07) |
+| [EditorViewportUiShape](../tools/editor/src/editor_project.h) | `EditorViewportUiShape.vertices`, `EditorViewportUiShape.vertex_count`, `EditorViewportUiShape.rotation`, `EditorViewportUiShape.outline_color`, `EditorViewportUiShape.fill_color`, `EditorViewportUiShape.button_enabled`, `EditorViewportUiShape.text` | [F41](#f41) |
+| [EditorViewportUiSlider](../tools/editor/src/editor_project.h) | `EditorViewportUiSlider.minimum`, `EditorViewportUiSlider.maximum`, `EditorViewportUiSlider.value`, `EditorViewportUiSlider.step`, `EditorViewportUiSlider.length`, `EditorViewportUiSlider.track_thickness`, `EditorViewportUiSlider.thumb_width`, `EditorViewportUiSlider.thumb_height`, `EditorViewportUiSlider.thumb_radius`, `EditorViewportUiSlider.thumb_offset`, `EditorViewportUiSlider.legacy_vertical`, `EditorViewportUiSlider.thumb_shape`, `EditorViewportUiSlider.track_color`, `EditorViewportUiSlider.filled_track_color`, `EditorViewportUiSlider.thumb_color`, `EditorViewportUiSlider.hover_thumb_color`, `EditorViewportUiSlider.pressed_thumb_color`, `EditorViewportUiSlider.enabled` | [F43](#f43) |
+| [EditorViewportUiText](../tools/editor/src/editor_project.h) | `EditorViewportUiText.text`, `EditorViewportUiText.offset`, `EditorViewportUiText.font`, `EditorViewportUiText.color`, `EditorViewportUiText.box_width`, `EditorViewportUiText.box_height`, `EditorViewportUiText.width_scale`, `EditorViewportUiText.height_scale` | [F42](#f42) |
+| [EditorWorkspace](../tools/editor/src/editor_workspace.h) | `EditorWorkspace.config`, `EditorWorkspace.directory`, `EditorWorkspace.open` | [F56](#f56) |
+| [EditorWorkspaceCommand](../tools/editor/src/editor_workspace.h) | `EditorWorkspaceCommand.type`, `EditorWorkspaceCommand.directory` | [F56](#f56) |
+| [EditorWorkspaceConfig](../tools/editor/src/editor_workspace.h) | `EditorWorkspaceConfig.format_version`, `EditorWorkspaceConfig.source_directory`, `EditorWorkspaceConfig.generated_directory`, `EditorWorkspaceConfig.asset_directory`, `EditorWorkspaceConfig.object_directory`, `EditorWorkspaceConfig.editor_state_file` | [F56](#f56) |
+| [EditorWorkspaceConfig](../tools/editor/src/editor_workspace.h) | `EditorWorkspaceConfig.name` | [X07](#x07) |
+
+</details>
+
+## Exact callable reconciliation
+
+All **1,602** `(header, symbol)` occurrences below map to one primary feature
+group or an explicit X exclusion. Shared operations (for example full object
+configuration) also use the field ledger above; a primary group does not erase
+their property-specific obligations. The existing API checker independently
+reconciles these declarations with installed headers. The partition below was
+checked against that inventory, including duplicate/missing entries and totals.
+
+| Header | Mapped occurrences |
+|---|---|
+| [audio.h](../include/audio.h) | 41 |
+| [console.h](../include/console.h) | 8 |
+| [engine.h](../include/engine.h) | 16 |
+| [entity_components.h](../include/entity_components.h) | 42 |
+| [entity_info.h](../include/entity_info.h) | 6 |
+| [error.h](../include/error.h) | 10 |
+| [game_state.h](../include/game_state.h) | 8 |
+| [graphics.h](../include/graphics.h) | 263 |
+| [input.h](../include/input.h) | 53 |
+| [math2d.h](../include/math2d.h) | 29 |
+| [memory.h](../include/memory.h) | 4 |
+| [object.h](../include/object.h) | 37 |
+| [physics.h](../include/physics.h) | 231 |
+| [report.h](../include/report.h) | 12 |
+| [rohr.h](../include/rohr.h) | 789 |
+| [rohr_tools.h](../include/rohr_tools.h) | 4 |
+| [scene.h](../include/scene.h) | 2 |
+| [systems.h](../include/systems.h) | 1 |
+| [tools.h](../include/tools.h) | 6 |
+| [ui.h](../include/ui.h) | 40 |
+
+<details>
+<summary>audio.h: 41 mapped entries</summary>
+
+[F46](#f46) (24):
+
+- `audio_music_create`, `audio_music_description_default_get`, `audio_music_description_get`, `audio_music_description_set`.
+- `audio_music_loop_check`, `audio_music_loop_set`, `audio_music_playback_rate_get`, `audio_music_playback_rate_set`.
+- `audio_music_volume_get`, `audio_music_volume_set`, `audio_sound_create`, `audio_sound_description_default_get`.
+- `audio_sound_description_get`, `audio_sound_description_set`, `audio_sound_loop_check`, `audio_sound_loop_set`.
+- `audio_sound_pan_get`, `audio_sound_pan_set`, `audio_sound_playback_rate_get`, `audio_sound_playback_rate_set`.
+- `audio_sound_volume_get`, `audio_sound_volume_set`, `audio_volume_get`, `audio_volume_set`.
+
+[F47](#f47) (17):
+
+- `audio_music_destroy`, `audio_music_pause`, `audio_music_paused_check`, `audio_music_play`.
+- `audio_music_playing_check`, `audio_music_resume`, `audio_music_stop`, `audio_music_valid_check`.
+- `audio_sound_destroy`, `audio_sound_play`, `audio_sound_playing_check`, `audio_sound_stop`.
+- `audio_sound_valid_check`, `audio_start`, `audio_started_check`, `audio_stop`.
+- `audio_update`.
+
+</details>
+
+<details>
+<summary>console.h: 8 mapped entries</summary>
+
+[X02](#x02) (8):
+
+- `console_active_get`, `console_debug_set`, `console_debug_write`, `console_logs_print`.
+- `console_read`, `console_start`, `console_stop`, `console_write`.
+
+</details>
+
+<details>
+<summary>engine.h: 16 mapped entries</summary>
+
+[F04](#f04) (2):
+
+- `engine_time_per_tick_get`, `engine_time_per_tick_set`.
+
+[X04](#x04) (14):
+
+- `engine_clock_reset`, `engine_event_poll`, `engine_lifecycle_update`, `engine_pause`.
+- `engine_paused_get`, `engine_resume`, `engine_start`, `engine_stop`.
+- `engine_tick_delta_get`, `engine_tick_get`, `engine_tick_update`, `engine_time_get`.
+- `engine_time_update`, `engine_update`.
+
+</details>
+
+<details>
+<summary>entity_components.h: 42 mapped entries</summary>
+
+[F01](#f01) (21):
+
+- `entity_add`, `entity_alive_at_get`, `entity_alive_check`, `entity_alive_count_get`.
+- `entity_by_name_get`, `entity_children_get`, `entity_components_add`, `entity_components_check`.
+- `entity_components_delete`, `entity_delete`, `entity_description_add`, `entity_description_get`.
+- `entity_description_set`, `entity_from_index_get`, `entity_index_alive_check`, `entity_index_components_check`.
+- `entity_index_get`, `entity_name_get`, `entity_name_set`, `entity_owner_get`.
+- `entity_owner_set`.
+
+[F02](#f02) (15):
+
+- `entity_child_remove`, `entity_child_set`, `entity_group_add`, `entity_group_by_name_get`.
+- `entity_group_create`, `entity_group_destroy`, `entity_group_entity_check`, `entity_group_get`.
+- `entity_group_name_get`, `entity_group_name_set`, `entity_group_remove`, `entity_groups_get`.
+- `entity_parent_get`, `entity_parent_remove`, `entity_parent_set`.
+
+[F03](#f03) (3):
+
+- `entity_life_time_remove`, `entity_lifetime_description_get`, `entity_lifetime_description_set`.
+
+[F51](#f51) (3):
+
+- `entity_object_member_by_name_get`, `entity_object_member_name_get`, `entity_object_members_get`.
+
+</details>
+
+<details>
+<summary>entity_info.h: 6 mapped entries</summary>
+
+[X02](#x02) (6):
+
+- `entity_info_check`, `entity_info_get`, `entity_info_issues_count_get`, `entity_info_issues_get`.
+- `entity_info_release`, `entity_info_retain`.
+
+</details>
+
+<details>
+<summary>error.h: 10 mapped entries</summary>
+
+[X02](#x02) (10):
+
+- `ERROR_DECLARE_RESULT_TYPE`, `ERROR_RESULT_MAKE_ERROR`, `ERROR_RESULT_MAKE_VALUE`, `error_check`.
+- `error_code_message_get`, `error_detail_set`, `error_result_error`, `error_result_error_detail`.
+- `error_result_message_get`, `error_result_value`.
+
+</details>
+
+<details>
+<summary>game_state.h: 8 mapped entries</summary>
+
+[F44](#f44) (4):
+
+- `ui_button_by_name_get`, `ui_font_by_name_get`, `ui_label_by_name_get`, `ui_slider_by_name_get`.
+
+[F52](#f52) (4):
+
+- `game_state_file_load`, `game_state_file_save`, `game_state_files_load`, `game_state_template_file_save`.
+
+</details>
+
+<details>
+<summary>graphics.h: 263 mapped entries</summary>
+
+[F14](#f14) (1):
+
+- `graphics_soft_body_node_color_set`.
+
+[F16](#f16) (1):
+
+- `graphics_soft_body_beam_color_set`.
+
+[F19](#f19) (3):
+
+- `graphics_soft_body_area_color_clear`, `graphics_soft_body_area_color_set`, `graphics_soft_body_area_visibility_set`.
+
+[F30](#f30) (7):
+
+- `graphics_texture_description_default_get`, `graphics_texture_description_get`, `graphics_texture_load`, `graphics_texture_release`.
+- `graphics_texture_retain`, `graphics_texture_size_get`, `graphics_texture_valid_check`.
+
+[F31](#f31) (13):
+
+- `graphics_sprite_add`, `graphics_sprite_body_offset_get`, `graphics_sprite_body_offset_set`, `graphics_sprite_create`.
+- `graphics_sprite_description_default_get`, `graphics_sprite_description_get`, `graphics_sprite_description_set`, `graphics_sprite_draw`.
+- `graphics_sprite_frames_update`, `graphics_sprite_orientation_offset_get`, `graphics_sprite_orientation_offset_radians_get`, `graphics_sprite_orientation_offset_radians_set`.
+- `graphics_sprite_orientation_offset_set`.
+
+[F32](#f32) (39):
+
+- `graphics_animated_sprite_add`, `graphics_animated_sprite_body_offset_get`, `graphics_animated_sprite_body_offset_set`, `graphics_animated_sprite_create`.
+- `graphics_animated_sprite_description_default_get`, `graphics_animated_sprite_description_from_animation_get`, `graphics_animated_sprite_description_get`, `graphics_animated_sprite_description_set`.
+- `graphics_animated_sprite_draw`, `graphics_animated_sprite_frame_add`, `graphics_animated_sprite_frame_description_get`, `graphics_animated_sprite_frame_description_set`.
+- `graphics_animated_sprite_frame_offset_get`, `graphics_animated_sprite_frame_offset_set`, `graphics_animated_sprite_frame_rotation_get`, `graphics_animated_sprite_frame_rotation_radians_get`.
+- `graphics_animated_sprite_frame_rotation_radians_set`, `graphics_animated_sprite_frame_rotation_set`, `graphics_animated_sprite_frame_scale_get`, `graphics_animated_sprite_frame_scale_set`.
+- `graphics_animated_sprite_orientation_offset_get`, `graphics_animated_sprite_orientation_offset_radians_get`, `graphics_animated_sprite_orientation_offset_radians_set`, `graphics_animated_sprite_orientation_offset_set`.
+- `graphics_animated_sprite_value_description_get`, `graphics_animated_sprite_value_description_set`, `graphics_animated_sprite_value_frame_add`, `graphics_animated_sprite_value_frame_description_set`.
+- `graphics_animated_sprites_draw`, `graphics_animation_description_default_get`, `graphics_animation_description_get`, `graphics_animation_frame_create`.
+- `graphics_animation_frame_description_default_get`, `graphics_animation_frame_description_get`, `graphics_animation_info_get`, `graphics_animation_load`.
+- `graphics_animation_release`, `graphics_animation_retain`, `graphics_animation_valid_check`.
+
+[F33](#f33) (9):
+
+- `graphics_animated_sprite_frame_index_get`, `graphics_animated_sprite_frame_index_set`, `graphics_animated_sprite_update`, `graphics_animation_player_create`.
+- `graphics_animation_player_description_default_get`, `graphics_animation_player_description_from_animation_get`, `graphics_animation_player_description_get`, `graphics_animation_player_description_set`.
+- `graphics_animation_player_update`.
+
+[F34](#f34) (16):
+
+- `graphics_camera_create`, `graphics_camera_description_default_get`, `graphics_camera_description_get`, `graphics_camera_description_set`.
+- `graphics_camera_destroy`, `graphics_camera_disable_set`, `graphics_camera_enable_set`, `graphics_camera_get`.
+- `graphics_camera_move`, `graphics_camera_moving_get`, `graphics_camera_position_move`, `graphics_camera_position_set`.
+- `graphics_camera_radians_rotate`, `graphics_camera_rotate`, `graphics_camera_zoom_get`, `graphics_camera_zoom_set`.
+
+[F35](#f35) (9):
+
+- `graphics_camera_attach`, `graphics_camera_attached_get`, `graphics_camera_attachment_description_default_get`, `graphics_camera_attachment_description_get`.
+- `graphics_camera_attachment_description_set`, `graphics_camera_attachment_remove`, `graphics_camera_detach`, `graphics_camera_entity_attachment_set`.
+- `graphics_camera_position_from_entity_set`.
+
+[F36](#f36) (2):
+
+- `graphics_camera_pause_with_engine_set`, `graphics_camera_render_when_paused_set`.
+
+[F37](#f37) (3):
+
+- `graphics_camera_active_get`, `graphics_camera_active_set`, `graphics_camera_render_callback_set`.
+
+[F38](#f38) (38):
+
+- `graphics_layer_active_get`, `graphics_layer_active_id_set`, `graphics_layer_active_name_set`, `graphics_layer_active_set`.
+- `graphics_layer_animation_clear`, `graphics_layer_animation_get`, `graphics_layer_animation_id_get`, `graphics_layer_animation_id_set`.
+- `graphics_layer_animation_name_set`, `graphics_layer_animation_set`, `graphics_layer_create`, `graphics_layer_description_default_get`.
+- `graphics_layer_description_get`, `graphics_layer_description_set`, `graphics_layer_destroy`, `graphics_layer_entity_clear`.
+- `graphics_layer_entity_get`, `graphics_layer_entity_id_get`, `graphics_layer_entity_id_set`, `graphics_layer_entity_name_set`.
+- `graphics_layer_entity_set`, `graphics_layer_get`, `graphics_layer_name_get`, `graphics_layer_name_id_get`.
+- `graphics_layer_name_set`, `graphics_layer_set`, `graphics_layer_sprite_clear`, `graphics_layer_sprite_get`.
+- `graphics_layer_sprite_id_get`, `graphics_layer_sprite_id_set`, `graphics_layer_sprite_name_set`, `graphics_layer_sprite_set`.
+- `graphics_layer_ui_clear`, `graphics_layer_ui_get`, `graphics_layer_ui_id_get`, `graphics_layer_ui_id_set`.
+- `graphics_layer_ui_name_set`, `graphics_layer_ui_set`.
+
+[F39](#f39) (6):
+
+- `graphics_screen_camera_set`, `graphics_screen_create`, `graphics_screen_description_default_get`, `graphics_screen_description_get`.
+- `graphics_screen_description_set`, `graphics_screen_destroy`.
+
+[F40](#f40) (27):
+
+- `graphics_viewport_camera_add`, `graphics_viewport_camera_clear`, `graphics_viewport_camera_set`, `graphics_viewport_create`.
+- `graphics_viewport_description_default_get`, `graphics_viewport_description_get`, `graphics_viewport_description_set`, `graphics_viewport_destroy`.
+- `graphics_viewport_disable_set`, `graphics_viewport_enable_set`, `graphics_viewport_item_add`, `graphics_viewport_item_description_default_get`.
+- `graphics_viewport_item_description_get`, `graphics_viewport_item_description_set`, `graphics_viewport_item_drag_mode_get`, `graphics_viewport_item_drag_mode_set`.
+- `graphics_viewport_item_dragging_check`, `graphics_viewport_item_remove`, `graphics_viewport_item_viewport_get`, `graphics_viewport_screen_add`.
+- `graphics_viewport_ui_add`, `graphics_viewport_ui_hovered_check`, `graphics_viewport_ui_pressed_check`, `graphics_viewport_ui_shape_add`.
+- `graphics_viewport_ui_slider_add`, `graphics_viewport_ui_slider_changed_check`, `graphics_viewport_ui_text_add`.
+
+[F41](#f41) (5):
+
+- `graphics_ui_destroy`, `graphics_ui_shape_create`, `graphics_ui_shape_description_default_get`, `graphics_ui_shape_description_get`.
+- `graphics_ui_shape_description_set`.
+
+[F42](#f42) (4):
+
+- `graphics_ui_text_create`, `graphics_ui_text_description_default_get`, `graphics_ui_text_description_get`, `graphics_ui_text_description_set`.
+
+[F43](#f43) (6):
+
+- `graphics_ui_slider_create`, `graphics_ui_slider_description_default_get`, `graphics_ui_slider_description_get`, `graphics_ui_slider_description_set`.
+- `graphics_ui_slider_value_get`, `graphics_ui_slider_value_set`.
+
+[F45](#f45) (15):
+
+- `graphics_font_default_get`, `graphics_font_description_default_get`, `graphics_font_description_get`, `graphics_font_load`.
+- `graphics_font_release`, `graphics_font_retain`, `graphics_font_valid_check`, `graphics_text_create`.
+- `graphics_text_description_default_get`, `graphics_text_description_get`, `graphics_text_description_set`, `graphics_text_destroy`.
+- `graphics_text_valid_check`, `graphics_text_value_set`, `graphics_text_wrap_width_set`.
+
+[F50](#f50) (6):
+
+- `graphics_aspect_ratio_auto_set`, `graphics_aspect_ratio_set`, `graphics_logical_size_set`, `graphics_window_presentation_description_default_get`.
+- `graphics_window_presentation_description_get`, `graphics_window_presentation_description_set`.
+
+[X05](#x05) (53):
+
+- `graphics_aabb_tree_debug_check`, `graphics_aabb_tree_debug_set`, `graphics_aabb_tree_draw`, `graphics_background_draw`.
+- `graphics_color_hex_create`, `graphics_contacts_debug_check`, `graphics_contacts_debug_set`, `graphics_contacts_draw`.
+- `graphics_events_poll`, `graphics_frame_limit_set`, `graphics_hit_box_colored_draw`, `graphics_hit_box_draw`.
+- `graphics_hit_boxes_draw`, `graphics_joint_draw`, `graphics_joints_draw`, `graphics_local_origins_draw`.
+- `graphics_mouse_screen_position_get`, `graphics_particle_draw`, `graphics_particles_draw`, `graphics_pipeline_cameras_update`.
+- `graphics_pipeline_commands_execute`, `graphics_pipeline_present`, `graphics_pipeline_recording_update`, `graphics_pipeline_viewports_draw`.
+- `graphics_recording_start`, `graphics_recording_stop`, `graphics_render_output_size_get`, `graphics_screen_clip_clear`.
+- `graphics_screen_clip_pop`, `graphics_screen_clip_push`, `graphics_screen_clip_set`, `graphics_screen_quad_draw`.
+- `graphics_screen_quad_radians_draw`, `graphics_screen_rect_draw`, `graphics_screen_shape_filled_draw`, `graphics_screen_text_scaled_rotated_draw`.
+- `graphics_screen_text_scaled_rotated_radians_draw`, `graphics_screen_texture_draw`, `graphics_screen_texture_radians_draw`, `graphics_screen_to_world_get`.
+- `graphics_show`, `graphics_soft_body_draw`, `graphics_sprites_draw`, `graphics_start`.
+- `graphics_stop`, `graphics_text_draw`, `graphics_text_scaled_draw`, `graphics_texture_draw`.
+- `graphics_texture_radians_draw`, `graphics_textures_scale`, `graphics_vsync_set`, `graphics_window_to_screen_get`.
+- `graphics_world_to_screen_get`.
+
+</details>
+
+<details>
+<summary>input.h: 53 mapped entries</summary>
+
+[F48](#f48) (24):
+
+- `input_action_bindings_default_get`, `input_action_bindings_default_set`, `input_action_button_initial_state_check`, `input_action_button_initial_state_set`.
+- `input_action_button_mode_get`, `input_action_button_mode_set`, `input_action_by_name_get`, `input_action_create`.
+- `input_action_description_default_get`, `input_action_description_get`, `input_action_description_set`, `input_action_destroy`.
+- `input_action_type_get`, `input_binding_key_create`, `input_binding_scancode_create`, `input_binding_valid_check`.
+- `input_controller_by_name_get`, `input_controller_create`, `input_controller_description_default_get`, `input_controller_description_get`.
+- `input_controller_description_set`, `input_controller_destroy`, `input_controller_enabled_check`, `input_controller_enabled_set`.
+
+[F49](#f49) (29):
+
+- `input_action_axis_1d_get`, `input_action_axis_2d_get`, `input_action_bindings_effective_get`, `input_action_bindings_override_check`.
+- `input_action_bindings_override_clear`, `input_action_bindings_override_get`, `input_action_bindings_override_set`, `input_action_button_down_check`.
+- `input_action_button_pressed_check`, `input_action_button_released_check`, `input_action_button_state_reset`, `input_action_button_state_set`.
+- `input_frame_begin`, `input_key_down_check`, `input_key_pressed_check`, `input_key_released_check`.
+- `input_modifiers_get`, `input_mouse_button_down_check`, `input_mouse_button_pressed_check`, `input_mouse_button_released_check`.
+- `input_mouse_delta_get`, `input_mouse_position_get`, `input_mouse_relative_mode_check`, `input_mouse_relative_mode_set`.
+- `input_mouse_wheel_get`, `input_text_area_set`, `input_text_start`, `input_text_state_get`.
+- `input_text_stop`.
+
+</details>
+
+<details>
+<summary>math2d.h: 29 mapped entries</summary>
+
+[X01](#x01) (29):
+
+- `math_aabb_create`, `math_aabb_overlap`, `math_angular_velocity_cross_vec`, `math_angular_velocity_radians_cross_vec`.
+- `math_axis_magnitude`, `math_circle_create`, `math_circle_overlap_depth`, `math_circle_radius`.
+- `math_cross_2d`, `math_degrees_to_radians`, `math_dot_product`, `math_normals_create`.
+- `math_polygon_centroid`, `math_project_onto_axis`, `math_project_shape_on_axis`, `math_projection_overlap`.
+- `math_radians_to_degrees`, `math_shape_scale`, `math_shape_x_scale`, `math_shape_y_scale`.
+- `math_square_create`, `math_vector_magnitude`, `math_vector_normalize`, `math_vector_radians_rotate`.
+- `math_vector_rotate`, `math_vector_subtract`, `math_vectors_normalize`, `math_vertex_add`.
+- `math_vertex_delete`.
+
+</details>
+
+<details>
+<summary>memory.h: 4 mapped entries</summary>
+
+[X03](#x03) (4):
+
+- `MEMORY_DECLARE_OBJECT_POOL`, `MEMORY_DEFINE_OBJECT_POOL`, `MEMORY_POOL_ERROR`, `MEMORY_POOL_VALUE`.
+
+</details>
+
+<details>
+<summary>object.h: 37 mapped entries</summary>
+
+[F51](#f51) (37):
+
+- `entity_object_add`, `entity_object_add_with_options`, `entity_object_anchor_get`, `entity_object_by_name_add`.
+- `entity_object_by_name_add_with_options`, `entity_object_camera_get`, `entity_object_description_add`, `entity_object_description_by_name_add`.
+- `entity_object_draw`, `object_acceleration_set`, `object_angular_velocity_set`, `object_collision_description_get`.
+- `object_collision_description_set`, `object_color_description_get`, `object_color_description_set`, `object_copy`.
+- `object_copy_with_options`, `object_description_by_name_get`, `object_description_copy`, `object_description_get`.
+- `object_description_name_get`, `object_description_ref`, `object_destroy`, `object_force_description_set`.
+- `object_get`, `object_load`, `object_mass_set`, `object_material_description_get`.
+- `object_material_description_set`, `object_orientation_set`, `object_position_set`, `object_radius_set`.
+- `object_scale_set`, `object_spawn_description_default_get`, `object_torque_description_set`, `object_velocity_set`.
+- `object_visibility_set`.
+
+</details>
+
+<details>
+<summary>physics.h: 231 mapped entries</summary>
+
+[F04](#f04) (10):
+
+- `physics_dt_per_tick_get`, `physics_dt_per_tick_set`, `physics_dt_update`, `physics_engine_time_per_tick_use`.
+- `physics_gravity_get`, `physics_gravity_set`, `physics_solver_iterations_get`, `physics_solver_iterations_set`.
+- `physics_substeps_get`, `physics_substeps_set`.
+
+[F05](#f05) (21):
+
+- `physics_global_hit_box_get`, `physics_hitbox_active_id_get`, `physics_hitbox_active_id_set`, `physics_hitbox_active_index_get`.
+- `physics_hitbox_active_index_set`, `physics_hitbox_add`, `physics_hitbox_at_get`, `physics_hitbox_at_remove`.
+- `physics_hitbox_at_set`, `physics_hitbox_autoshape_circle_set`, `physics_hitbox_autoshape_rectangle_set`, `physics_hitbox_autoshape_triangle_set`.
+- `physics_hitbox_by_id_get`, `physics_hitbox_by_id_remove`, `physics_hitbox_by_id_set`, `physics_hitbox_count_get`.
+- `physics_hitbox_get`, `physics_hitbox_id_at_get`, `physics_hitbox_id_at_set`, `physics_hitbox_remove`.
+- `physics_hitbox_set`.
+
+[F06](#f06) (10):
+
+- `physics_acceleration_set`, `physics_angular_velocity_get`, `physics_angular_velocity_radians_get`, `physics_angular_velocity_radians_set`.
+- `physics_angular_velocity_set`, `physics_orientation_radians_set`, `physics_orientation_set`, `physics_position_get`.
+- `physics_position_set`, `physics_velocity_set`.
+
+[F07](#f07) (12):
+
+- `physics_center_of_mass_automatic_check`, `physics_center_of_mass_automatic_set`, `physics_center_of_mass_local_position_get`, `physics_center_of_mass_local_position_set`.
+- `physics_center_of_mass_world_position_get`, `physics_circle_moment_of_inertia`, `physics_mass_check`, `physics_mass_get`.
+- `physics_mass_remove`, `physics_mass_set`, `physics_moment_of_inertia_get`, `physics_polygon_moment_of_inertia`.
+
+[F08](#f08) (2):
+
+- `physics_friction_set`, `physics_restitution_set`.
+
+[F09](#f09) (13):
+
+- `physics_collision_between_check`, `physics_collision_category_set`, `physics_collision_filter_description_default_get`, `physics_collision_filter_description_get`.
+- `physics_collision_filter_description_set`, `physics_collision_with_all_set`, `physics_collision_with_none_set`, `physics_collision_with_set`.
+- `physics_dynamic_set`, `physics_gravity_check`, `physics_gravity_disable`, `physics_gravity_enable`.
+- `physics_static_set`.
+
+[F10](#f10) (2):
+
+- `physics_angle_lock_radians_set`, `physics_angle_lock_set`.
+
+[F11](#f11) (7):
+
+- `physics_axis_lock_description_get`, `physics_axis_lock_description_set`, `physics_axis_lock_remove`, `physics_transform_lock_current_transform_set`.
+- `physics_transform_lock_description_get`, `physics_transform_lock_description_set`, `physics_transform_lock_remove`.
+
+[F12](#f12) (8):
+
+- `physics_particle_add`, `physics_particle_description_default_get`, `physics_particle_description_get`, `physics_particle_description_set`.
+- `physics_particle_origin_get`, `physics_particle_origin_set`, `physics_particle_radius_get`, `physics_particle_radius_set`.
+
+[F13](#f13) (8):
+
+- `physics_soft_body_add`, `physics_soft_body_autoshape_circle_set`, `physics_soft_body_autoshape_rectangle_set`, `physics_soft_body_autoshape_triangle_set`.
+- `physics_soft_body_description_default_get`, `physics_soft_body_description_get`, `physics_soft_body_description_set`, `physics_soft_body_get`.
+
+[F14](#f14) (11):
+
+- `physics_soft_body_node_add`, `physics_soft_body_node_collision_filter_description_get`, `physics_soft_body_node_collision_filter_description_set`, `physics_soft_body_node_description_default_get`.
+- `physics_soft_body_node_description_get`, `physics_soft_body_node_description_set`, `physics_soft_body_node_get`, `physics_soft_body_node_impulse_apply`.
+- `physics_soft_body_node_local_add`, `physics_soft_body_node_local_position_get`, `physics_soft_body_node_local_position_set`.
+
+[F16](#f16) (6):
+
+- `physics_soft_body_beam_add`, `physics_soft_body_beam_description_default_get`, `physics_soft_body_beam_description_get`, `physics_soft_body_beam_description_set`.
+- `physics_soft_body_beam_endpoints_set`, `physics_soft_body_beam_get`.
+
+[F18](#f18) (8):
+
+- `physics_soft_body_beam_collision_description_default_get`, `physics_soft_body_beam_collision_description_get`, `physics_soft_body_beam_collision_description_set`, `physics_soft_body_beam_collision_disable`.
+- `physics_soft_body_beam_collision_enable`, `physics_soft_body_beam_collision_filter_description_get`, `physics_soft_body_beam_collision_filter_description_set`, `physics_soft_body_beam_collision_thickness_set`.
+
+[F19](#f19) (7):
+
+- `physics_soft_body_area_add`, `physics_soft_body_area_description_default_get`, `physics_soft_body_area_description_get`, `physics_soft_body_area_description_set`.
+- `physics_soft_body_area_geometry_set`, `physics_soft_body_area_get`, `physics_soft_body_area_order_set`.
+
+[F20](#f20) (8):
+
+- `physics_joint_anchor_add`, `physics_joint_anchor_description_get`, `physics_joint_anchor_description_set`, `physics_joint_anchor_local_position_get`.
+- `physics_joint_anchor_local_position_set`, `physics_joint_anchor_remove`, `physics_joint_anchor_world_position_get`, `physics_joint_anchors_get`.
+
+[F21](#f21) (3):
+
+- `physics_joint_add`, `physics_joint_description_get`, `physics_joint_description_set`.
+
+[F23](#f23) (1):
+
+- `physics_soft_body_node_to_anchor_pin_add`.
+
+[F24](#f24) (8):
+
+- `physics_force_add`, `physics_force_apply`, `physics_force_description_get`, `physics_force_description_set`.
+- `physics_force_magnitude_get`, `physics_force_magnitude_set`, `physics_force_target_get`, `physics_force_target_set`.
+
+[F25](#f25) (4):
+
+- `physics_force_location_get`, `physics_force_location_set`, `physics_force_orientation_get`, `physics_force_orientation_set`.
+
+[F26](#f26) (8):
+
+- `physics_torque_add`, `physics_torque_apply`, `physics_torque_description_get`, `physics_torque_description_set`.
+- `physics_torque_magnitude_get`, `physics_torque_magnitude_set`, `physics_torque_target_get`, `physics_torque_target_set`.
+
+[F33](#f33) (9):
+
+- `physics_hitbox_animation_binding_at_get`, `physics_hitbox_animation_binding_at_remove`, `physics_hitbox_animation_binding_at_set`, `physics_hitbox_animation_binding_get`.
+- `physics_hitbox_animation_binding_hitbox_remove`, `physics_hitbox_animation_binding_remove`, `physics_hitbox_animation_binding_set`, `physics_hitbox_animation_bindings_entity_clear`.
+- `physics_hitbox_animation_bindings_update`.
+
+[F53](#f53) (34):
+
+- `physics_acceleration_away_from_entity_set`, `physics_acceleration_away_from_position_set`, `physics_acceleration_toward_entity_set`, `physics_acceleration_toward_position_set`.
+- `physics_angular_impulse_apply`, `physics_contact_check`, `physics_contact_count_get`, `physics_contact_entered_check`.
+- `physics_contact_exited_check`, `physics_contact_get`, `physics_contact_stayed_check`, `physics_contact_total_impulse_get`.
+- `physics_contacts_get`, `physics_entity_stop`, `physics_group_acceleration_away_from_entity_set`, `physics_group_acceleration_toward_entity_set`.
+- `physics_group_entities_stop`, `physics_group_velocity_away_from_entity_set`, `physics_group_velocity_toward_entity_set`, `physics_impulse_apply`.
+- `physics_overlap_check`, `physics_overlap_count_get`, `physics_overlap_entered_check`, `physics_overlap_exited_check`.
+- `physics_overlap_get`, `physics_overlap_stayed_check`, `physics_overlaps_get`, `physics_particle_overlap_get`.
+- `physics_sat_overlap_get`, `physics_update`, `physics_velocity_away_from_entity_set`, `physics_velocity_away_from_position_set`.
+- `physics_velocity_toward_entity_set`, `physics_velocity_toward_position_set`.
+
+[F54](#f54) (3):
+
+- `physics_angular_acceleration_radians_set`, `physics_angular_acceleration_set`, `physics_target_set`.
+
+[F58](#f58) (10):
+
+- `physics_entity_held_get`, `physics_entity_hold`, `physics_entity_movable_get`, `physics_entity_simulated_get`.
+- `physics_entity_unhold`, `physics_group_entities_hold`, `physics_group_entities_unhold`, `physics_kinematic_driven_check`.
+- `physics_kinematic_driven_remove`, `physics_kinematic_driven_set`.
+
+[F60](#f60) (4):
+
+- `physics_angular_velocity_maximum_get`, `physics_angular_velocity_maximum_radians_get`, `physics_angular_velocity_maximum_radians_set`, `physics_angular_velocity_maximum_set`.
+
+[X01](#x01) (3):
+
+- `physics_shape_world_radians_translate`, `physics_shape_world_translate`, `physics_world_position_check`.
+
+[X04](#x04) (11):
+
+- `physics_pipeline_accelerations_clear`, `physics_pipeline_constraints_solve`, `physics_pipeline_contacts_gather`, `physics_pipeline_forces_apply`.
+- `physics_pipeline_gravity_apply`, `physics_pipeline_integrate`, `physics_pipeline_joints_gather`, `physics_pipeline_step_begin`.
+- `physics_pipeline_substep`, `physics_pipeline_substep_begin`, `physics_pipeline_update`.
+
+</details>
+
+<details>
+<summary>report.h: 12 mapped entries</summary>
+
+[X02](#x02) (12):
+
+- `report_console_write`, `report_create`, `report_diagnostic_add`, `report_diagnostic_detail_set`.
+- `report_entry_add`, `report_get`, `report_header_set`, `report_json_write`.
+- `report_merge`, `report_statistic_add`, `report_text_write`, `report_valid_check`.
+
+</details>
+
+<details>
+<summary>rohr.h: 789 mapped entries</summary>
+
+[F01](#f01) (21):
+
+- `rohr_entity_add`, `rohr_entity_alive_at_get`, `rohr_entity_alive_check`, `rohr_entity_alive_count_get`.
+- `rohr_entity_by_name_get`, `rohr_entity_children_get`, `rohr_entity_components_add`, `rohr_entity_components_check`.
+- `rohr_entity_components_delete`, `rohr_entity_delete`, `rohr_entity_description_add`, `rohr_entity_description_get`.
+- `rohr_entity_description_set`, `rohr_entity_from_index_get`, `rohr_entity_index_alive_check`, `rohr_entity_index_components_check`.
+- `rohr_entity_index_get`, `rohr_entity_name_get`, `rohr_entity_name_set`, `rohr_entity_owner_get`.
+- `rohr_entity_owner_set`.
+
+[F02](#f02) (15):
+
+- `rohr_entity_child_remove`, `rohr_entity_child_set`, `rohr_entity_group_add`, `rohr_entity_group_by_name_get`.
+- `rohr_entity_group_create`, `rohr_entity_group_destroy`, `rohr_entity_group_entity_check`, `rohr_entity_group_get`.
+- `rohr_entity_group_name_get`, `rohr_entity_group_name_set`, `rohr_entity_group_remove`, `rohr_entity_groups_get`.
+- `rohr_entity_parent_get`, `rohr_entity_parent_remove`, `rohr_entity_parent_set`.
+
+[F03](#f03) (3):
+
+- `rohr_entity_life_time_remove`, `rohr_entity_lifetime_description_get`, `rohr_entity_lifetime_description_set`.
+
+[F04](#f04) (12):
+
+- `rohr_engine_time_per_tick_get`, `rohr_engine_time_per_tick_set`, `rohr_physics_dt_per_tick_get`, `rohr_physics_dt_per_tick_set`.
+- `rohr_physics_dt_update`, `rohr_physics_engine_time_per_tick_use`, `rohr_physics_gravity_get`, `rohr_physics_gravity_set`.
+- `rohr_physics_solver_iterations_get`, `rohr_physics_solver_iterations_set`, `rohr_physics_substeps_get`, `rohr_physics_substeps_set`.
+
+[F05](#f05) (21):
+
+- `rohr_physics_global_hit_box_get`, `rohr_physics_hitbox_active_id_get`, `rohr_physics_hitbox_active_id_set`, `rohr_physics_hitbox_active_index_get`.
+- `rohr_physics_hitbox_active_index_set`, `rohr_physics_hitbox_add`, `rohr_physics_hitbox_at_get`, `rohr_physics_hitbox_at_remove`.
+- `rohr_physics_hitbox_at_set`, `rohr_physics_hitbox_autoshape_circle_set`, `rohr_physics_hitbox_autoshape_rectangle_set`, `rohr_physics_hitbox_autoshape_triangle_set`.
+- `rohr_physics_hitbox_by_id_get`, `rohr_physics_hitbox_by_id_remove`, `rohr_physics_hitbox_by_id_set`, `rohr_physics_hitbox_count_get`.
+- `rohr_physics_hitbox_get`, `rohr_physics_hitbox_id_at_get`, `rohr_physics_hitbox_id_at_set`, `rohr_physics_hitbox_remove`.
+- `rohr_physics_hitbox_set`.
+
+[F06](#f06) (10):
+
+- `rohr_physics_acceleration_set`, `rohr_physics_angular_velocity_get`, `rohr_physics_angular_velocity_radians_get`, `rohr_physics_angular_velocity_radians_set`.
+- `rohr_physics_angular_velocity_set`, `rohr_physics_orientation_radians_set`, `rohr_physics_orientation_set`, `rohr_physics_position_get`.
+- `rohr_physics_position_set`, `rohr_physics_velocity_set`.
+
+[F07](#f07) (12):
+
+- `rohr_physics_center_of_mass_automatic_check`, `rohr_physics_center_of_mass_automatic_set`, `rohr_physics_center_of_mass_local_position_get`, `rohr_physics_center_of_mass_local_position_set`.
+- `rohr_physics_center_of_mass_world_position_get`, `rohr_physics_circle_moment_of_inertia`, `rohr_physics_mass_check`, `rohr_physics_mass_get`.
+- `rohr_physics_mass_remove`, `rohr_physics_mass_set`, `rohr_physics_moment_of_inertia_get`, `rohr_physics_polygon_moment_of_inertia`.
+
+[F08](#f08) (2):
+
+- `rohr_physics_friction_set`, `rohr_physics_restitution_set`.
+
+[F09](#f09) (13):
+
+- `rohr_physics_collision_between_check`, `rohr_physics_collision_category_set`, `rohr_physics_collision_filter_description_default_get`, `rohr_physics_collision_filter_description_get`.
+- `rohr_physics_collision_filter_description_set`, `rohr_physics_collision_with_all_set`, `rohr_physics_collision_with_none_set`, `rohr_physics_collision_with_set`.
+- `rohr_physics_dynamic_set`, `rohr_physics_gravity_check`, `rohr_physics_gravity_disable`, `rohr_physics_gravity_enable`.
+- `rohr_physics_static_set`.
+
+[F10](#f10) (2):
+
+- `rohr_physics_angle_lock_radians_set`, `rohr_physics_angle_lock_set`.
+
+[F11](#f11) (7):
+
+- `rohr_physics_axis_lock_description_get`, `rohr_physics_axis_lock_description_set`, `rohr_physics_axis_lock_remove`, `rohr_physics_transform_lock_current_transform_set`.
+- `rohr_physics_transform_lock_description_get`, `rohr_physics_transform_lock_description_set`, `rohr_physics_transform_lock_remove`.
+
+[F12](#f12) (8):
+
+- `rohr_physics_particle_add`, `rohr_physics_particle_description_default_get`, `rohr_physics_particle_description_get`, `rohr_physics_particle_description_set`.
+- `rohr_physics_particle_origin_get`, `rohr_physics_particle_origin_set`, `rohr_physics_particle_radius_get`, `rohr_physics_particle_radius_set`.
+
+[F13](#f13) (8):
+
+- `rohr_physics_soft_body_add`, `rohr_physics_soft_body_autoshape_circle_set`, `rohr_physics_soft_body_autoshape_rectangle_set`, `rohr_physics_soft_body_autoshape_triangle_set`.
+- `rohr_physics_soft_body_description_default_get`, `rohr_physics_soft_body_description_get`, `rohr_physics_soft_body_description_set`, `rohr_physics_soft_body_get`.
+
+[F14](#f14) (12):
+
+- `rohr_graphics_soft_body_node_color_set`, `rohr_physics_soft_body_node_add`, `rohr_physics_soft_body_node_collision_filter_description_get`, `rohr_physics_soft_body_node_collision_filter_description_set`.
+- `rohr_physics_soft_body_node_description_default_get`, `rohr_physics_soft_body_node_description_get`, `rohr_physics_soft_body_node_description_set`, `rohr_physics_soft_body_node_get`.
+- `rohr_physics_soft_body_node_impulse_apply`, `rohr_physics_soft_body_node_local_add`, `rohr_physics_soft_body_node_local_position_get`, `rohr_physics_soft_body_node_local_position_set`.
+
+[F16](#f16) (7):
+
+- `rohr_graphics_soft_body_beam_color_set`, `rohr_physics_soft_body_beam_add`, `rohr_physics_soft_body_beam_description_default_get`, `rohr_physics_soft_body_beam_description_get`.
+- `rohr_physics_soft_body_beam_description_set`, `rohr_physics_soft_body_beam_endpoints_set`, `rohr_physics_soft_body_beam_get`.
+
+[F18](#f18) (8):
+
+- `rohr_physics_soft_body_beam_collision_description_default_get`, `rohr_physics_soft_body_beam_collision_description_get`, `rohr_physics_soft_body_beam_collision_description_set`, `rohr_physics_soft_body_beam_collision_disable`.
+- `rohr_physics_soft_body_beam_collision_enable`, `rohr_physics_soft_body_beam_collision_filter_description_get`, `rohr_physics_soft_body_beam_collision_filter_description_set`, `rohr_physics_soft_body_beam_collision_thickness_set`.
+
+[F19](#f19) (10):
+
+- `rohr_graphics_soft_body_area_color_clear`, `rohr_graphics_soft_body_area_color_set`, `rohr_graphics_soft_body_area_visibility_set`, `rohr_physics_soft_body_area_add`.
+- `rohr_physics_soft_body_area_description_default_get`, `rohr_physics_soft_body_area_description_get`, `rohr_physics_soft_body_area_description_set`, `rohr_physics_soft_body_area_geometry_set`.
+- `rohr_physics_soft_body_area_get`, `rohr_physics_soft_body_area_order_set`.
+
+[F20](#f20) (8):
+
+- `rohr_physics_joint_anchor_add`, `rohr_physics_joint_anchor_description_get`, `rohr_physics_joint_anchor_description_set`, `rohr_physics_joint_anchor_local_position_get`.
+- `rohr_physics_joint_anchor_local_position_set`, `rohr_physics_joint_anchor_remove`, `rohr_physics_joint_anchor_world_position_get`, `rohr_physics_joint_anchors_get`.
+
+[F21](#f21) (3):
+
+- `rohr_physics_joint_add`, `rohr_physics_joint_description_get`, `rohr_physics_joint_description_set`.
+
+[F23](#f23) (1):
+
+- `rohr_physics_soft_body_node_to_anchor_pin_add`.
+
+[F24](#f24) (8):
+
+- `rohr_physics_force_add`, `rohr_physics_force_apply`, `rohr_physics_force_description_get`, `rohr_physics_force_description_set`.
+- `rohr_physics_force_magnitude_get`, `rohr_physics_force_magnitude_set`, `rohr_physics_force_target_get`, `rohr_physics_force_target_set`.
+
+[F25](#f25) (4):
+
+- `rohr_physics_force_location_get`, `rohr_physics_force_location_set`, `rohr_physics_force_orientation_get`, `rohr_physics_force_orientation_set`.
+
+[F26](#f26) (8):
+
+- `rohr_physics_torque_add`, `rohr_physics_torque_apply`, `rohr_physics_torque_description_get`, `rohr_physics_torque_description_set`.
+- `rohr_physics_torque_magnitude_get`, `rohr_physics_torque_magnitude_set`, `rohr_physics_torque_target_get`, `rohr_physics_torque_target_set`.
+
+[F30](#f30) (7):
+
+- `rohr_graphics_texture_description_default_get`, `rohr_graphics_texture_description_get`, `rohr_graphics_texture_load`, `rohr_graphics_texture_release`.
+- `rohr_graphics_texture_retain`, `rohr_graphics_texture_size_get`, `rohr_graphics_texture_valid_check`.
+
+[F31](#f31) (13):
+
+- `rohr_graphics_sprite_add`, `rohr_graphics_sprite_body_offset_get`, `rohr_graphics_sprite_body_offset_set`, `rohr_graphics_sprite_create`.
+- `rohr_graphics_sprite_description_default_get`, `rohr_graphics_sprite_description_get`, `rohr_graphics_sprite_description_set`, `rohr_graphics_sprite_draw`.
+- `rohr_graphics_sprite_frames_update`, `rohr_graphics_sprite_orientation_offset_get`, `rohr_graphics_sprite_orientation_offset_radians_get`, `rohr_graphics_sprite_orientation_offset_radians_set`.
+- `rohr_graphics_sprite_orientation_offset_set`.
+
+[F32](#f32) (39):
+
+- `rohr_graphics_animated_sprite_add`, `rohr_graphics_animated_sprite_body_offset_get`, `rohr_graphics_animated_sprite_body_offset_set`, `rohr_graphics_animated_sprite_create`.
+- `rohr_graphics_animated_sprite_description_default_get`, `rohr_graphics_animated_sprite_description_from_animation_get`, `rohr_graphics_animated_sprite_description_get`, `rohr_graphics_animated_sprite_description_set`.
+- `rohr_graphics_animated_sprite_draw`, `rohr_graphics_animated_sprite_frame_add`, `rohr_graphics_animated_sprite_frame_description_get`, `rohr_graphics_animated_sprite_frame_description_set`.
+- `rohr_graphics_animated_sprite_frame_offset_get`, `rohr_graphics_animated_sprite_frame_offset_set`, `rohr_graphics_animated_sprite_frame_rotation_get`, `rohr_graphics_animated_sprite_frame_rotation_radians_get`.
+- `rohr_graphics_animated_sprite_frame_rotation_radians_set`, `rohr_graphics_animated_sprite_frame_rotation_set`, `rohr_graphics_animated_sprite_frame_scale_get`, `rohr_graphics_animated_sprite_frame_scale_set`.
+- `rohr_graphics_animated_sprite_orientation_offset_get`, `rohr_graphics_animated_sprite_orientation_offset_radians_get`, `rohr_graphics_animated_sprite_orientation_offset_radians_set`, `rohr_graphics_animated_sprite_orientation_offset_set`.
+- `rohr_graphics_animated_sprite_value_description_get`, `rohr_graphics_animated_sprite_value_description_set`, `rohr_graphics_animated_sprite_value_frame_add`, `rohr_graphics_animated_sprite_value_frame_description_set`.
+- `rohr_graphics_animated_sprites_draw`, `rohr_graphics_animation_description_default_get`, `rohr_graphics_animation_description_get`, `rohr_graphics_animation_frame_create`.
+- `rohr_graphics_animation_frame_description_default_get`, `rohr_graphics_animation_frame_description_get`, `rohr_graphics_animation_info_get`, `rohr_graphics_animation_load`.
+- `rohr_graphics_animation_release`, `rohr_graphics_animation_retain`, `rohr_graphics_animation_valid_check`.
+
+[F33](#f33) (16):
+
+- `rohr_graphics_animated_sprite_frame_index_get`, `rohr_graphics_animated_sprite_frame_index_set`, `rohr_graphics_animated_sprite_update`, `rohr_graphics_animation_player_create`.
+- `rohr_graphics_animation_player_description_default_get`, `rohr_graphics_animation_player_description_from_animation_get`, `rohr_graphics_animation_player_description_get`, `rohr_graphics_animation_player_description_set`.
+- `rohr_graphics_animation_player_update`, `rohr_physics_hitbox_animation_binding_at_get`, `rohr_physics_hitbox_animation_binding_at_remove`, `rohr_physics_hitbox_animation_binding_at_set`.
+- `rohr_physics_hitbox_animation_binding_get`, `rohr_physics_hitbox_animation_binding_remove`, `rohr_physics_hitbox_animation_binding_set`, `rohr_physics_hitbox_animation_bindings_update`.
+
+[F34](#f34) (16):
+
+- `rohr_camera_create`, `rohr_camera_description_default_get`, `rohr_camera_description_get`, `rohr_camera_description_set`.
+- `rohr_camera_destroy`, `rohr_camera_disable_set`, `rohr_camera_enable_set`, `rohr_camera_get`.
+- `rohr_camera_moving_get`, `rohr_camera_position_move`, `rohr_camera_position_set`, `rohr_camera_zoom_get`.
+- `rohr_camera_zoom_set`, `rohr_graphics_camera_move`, `rohr_graphics_camera_radians_rotate`, `rohr_graphics_camera_rotate`.
+
+[F35](#f35) (9):
+
+- `rohr_camera_attachment_description_default_get`, `rohr_camera_attachment_description_get`, `rohr_camera_attachment_description_set`, `rohr_camera_detach`.
+- `rohr_camera_entity_attachment_set`, `rohr_camera_position_from_entity_set`, `rohr_graphics_camera_attach`, `rohr_graphics_camera_attached_get`.
+- `rohr_graphics_camera_detach`.
+
+[F36](#f36) (2):
+
+- `rohr_camera_pause_with_engine_set`, `rohr_camera_render_when_paused_set`.
+
+[F37](#f37) (3):
+
+- `rohr_camera_active_get`, `rohr_camera_active_set`, `rohr_camera_render_callback_set`.
+
+[F38](#f38) (38):
+
+- `rohr_graphics_layer_active_get`, `rohr_graphics_layer_active_id_set`, `rohr_graphics_layer_active_name_set`, `rohr_graphics_layer_active_set`.
+- `rohr_graphics_layer_animation_clear`, `rohr_graphics_layer_animation_get`, `rohr_graphics_layer_animation_id_get`, `rohr_graphics_layer_animation_id_set`.
+- `rohr_graphics_layer_animation_name_set`, `rohr_graphics_layer_animation_set`, `rohr_graphics_layer_create`, `rohr_graphics_layer_description_default_get`.
+- `rohr_graphics_layer_description_get`, `rohr_graphics_layer_description_set`, `rohr_graphics_layer_destroy`, `rohr_graphics_layer_entity_clear`.
+- `rohr_graphics_layer_entity_get`, `rohr_graphics_layer_entity_id_get`, `rohr_graphics_layer_entity_id_set`, `rohr_graphics_layer_entity_name_set`.
+- `rohr_graphics_layer_entity_set`, `rohr_graphics_layer_get`, `rohr_graphics_layer_name_get`, `rohr_graphics_layer_name_id_get`.
+- `rohr_graphics_layer_name_set`, `rohr_graphics_layer_set`, `rohr_graphics_layer_sprite_clear`, `rohr_graphics_layer_sprite_get`.
+- `rohr_graphics_layer_sprite_id_get`, `rohr_graphics_layer_sprite_id_set`, `rohr_graphics_layer_sprite_name_set`, `rohr_graphics_layer_sprite_set`.
+- `rohr_graphics_layer_ui_clear`, `rohr_graphics_layer_ui_get`, `rohr_graphics_layer_ui_id_get`, `rohr_graphics_layer_ui_id_set`.
+- `rohr_graphics_layer_ui_name_set`, `rohr_graphics_layer_ui_set`.
+
+[F39](#f39) (6):
+
+- `rohr_screen_camera_set`, `rohr_screen_create`, `rohr_screen_description_default_get`, `rohr_screen_description_get`.
+- `rohr_screen_description_set`, `rohr_screen_destroy`.
+
+[F40](#f40) (27):
+
+- `rohr_viewport_camera_add`, `rohr_viewport_camera_clear`, `rohr_viewport_camera_set`, `rohr_viewport_create`.
+- `rohr_viewport_description_default_get`, `rohr_viewport_description_get`, `rohr_viewport_description_set`, `rohr_viewport_destroy`.
+- `rohr_viewport_disable_set`, `rohr_viewport_enable_set`, `rohr_viewport_item_add`, `rohr_viewport_item_description_default_get`.
+- `rohr_viewport_item_description_get`, `rohr_viewport_item_description_set`, `rohr_viewport_item_drag_mode_get`, `rohr_viewport_item_drag_mode_set`.
+- `rohr_viewport_item_dragging_check`, `rohr_viewport_item_remove`, `rohr_viewport_item_viewport_get`, `rohr_viewport_screen_add`.
+- `rohr_viewport_ui_add`, `rohr_viewport_ui_hovered_check`, `rohr_viewport_ui_pressed_check`, `rohr_viewport_ui_shape_add`.
+- `rohr_viewport_ui_slider_add`, `rohr_viewport_ui_slider_changed_check`, `rohr_viewport_ui_text_add`.
+
+[F41](#f41) (5):
+
+- `rohr_graphics_ui_destroy`, `rohr_graphics_ui_shape_create`, `rohr_graphics_ui_shape_description_default_get`, `rohr_graphics_ui_shape_description_get`.
+- `rohr_graphics_ui_shape_description_set`.
+
+[F42](#f42) (4):
+
+- `rohr_graphics_ui_text_create`, `rohr_graphics_ui_text_description_default_get`, `rohr_graphics_ui_text_description_get`, `rohr_graphics_ui_text_description_set`.
+
+[F43](#f43) (6):
+
+- `rohr_graphics_ui_slider_create`, `rohr_graphics_ui_slider_description_default_get`, `rohr_graphics_ui_slider_description_get`, `rohr_graphics_ui_slider_description_set`.
+- `rohr_graphics_ui_slider_value_get`, `rohr_graphics_ui_slider_value_set`.
+
+[F44](#f44) (4):
+
+- `rohr_ui_button_by_name_get`, `rohr_ui_font_by_name_get`, `rohr_ui_label_by_name_get`, `rohr_ui_slider_by_name_get`.
+
+[F45](#f45) (15):
+
+- `rohr_graphics_font_default_get`, `rohr_graphics_font_description_default_get`, `rohr_graphics_font_description_get`, `rohr_graphics_font_load`.
+- `rohr_graphics_font_release`, `rohr_graphics_font_retain`, `rohr_graphics_font_valid_check`, `rohr_graphics_text_create`.
+- `rohr_graphics_text_description_default_get`, `rohr_graphics_text_description_get`, `rohr_graphics_text_description_set`, `rohr_graphics_text_destroy`.
+- `rohr_graphics_text_valid_check`, `rohr_graphics_text_value_set`, `rohr_graphics_text_wrap_width_set`.
+
+[F46](#f46) (24):
+
+- `rohr_audio_music_create`, `rohr_audio_music_description_default_get`, `rohr_audio_music_description_get`, `rohr_audio_music_description_set`.
+- `rohr_audio_music_loop_check`, `rohr_audio_music_loop_set`, `rohr_audio_music_playback_rate_get`, `rohr_audio_music_playback_rate_set`.
+- `rohr_audio_music_volume_get`, `rohr_audio_music_volume_set`, `rohr_audio_sound_create`, `rohr_audio_sound_description_default_get`.
+- `rohr_audio_sound_description_get`, `rohr_audio_sound_description_set`, `rohr_audio_sound_loop_check`, `rohr_audio_sound_loop_set`.
+- `rohr_audio_sound_pan_get`, `rohr_audio_sound_pan_set`, `rohr_audio_sound_playback_rate_get`, `rohr_audio_sound_playback_rate_set`.
+- `rohr_audio_sound_volume_get`, `rohr_audio_sound_volume_set`, `rohr_audio_volume_get`, `rohr_audio_volume_set`.
+
+[F47](#f47) (17):
+
+- `rohr_audio_music_destroy`, `rohr_audio_music_pause`, `rohr_audio_music_paused_check`, `rohr_audio_music_play`.
+- `rohr_audio_music_playing_check`, `rohr_audio_music_resume`, `rohr_audio_music_stop`, `rohr_audio_music_valid_check`.
+- `rohr_audio_sound_destroy`, `rohr_audio_sound_play`, `rohr_audio_sound_playing_check`, `rohr_audio_sound_stop`.
+- `rohr_audio_sound_valid_check`, `rohr_audio_start`, `rohr_audio_started_check`, `rohr_audio_stop`.
+- `rohr_audio_update`.
+
+[F48](#f48) (24):
+
+- `rohr_input_action_bindings_default_get`, `rohr_input_action_bindings_default_set`, `rohr_input_action_button_initial_state_check`, `rohr_input_action_button_initial_state_set`.
+- `rohr_input_action_button_mode_get`, `rohr_input_action_button_mode_set`, `rohr_input_action_by_name_get`, `rohr_input_action_create`.
+- `rohr_input_action_description_default_get`, `rohr_input_action_description_get`, `rohr_input_action_description_set`, `rohr_input_action_destroy`.
+- `rohr_input_action_type_get`, `rohr_input_binding_key_create`, `rohr_input_binding_scancode_create`, `rohr_input_binding_valid_check`.
+- `rohr_input_controller_by_name_get`, `rohr_input_controller_create`, `rohr_input_controller_description_default_get`, `rohr_input_controller_description_get`.
+- `rohr_input_controller_description_set`, `rohr_input_controller_destroy`, `rohr_input_controller_enabled_check`, `rohr_input_controller_enabled_set`.
+
+[F49](#f49) (29):
+
+- `rohr_input_action_axis_1d_get`, `rohr_input_action_axis_2d_get`, `rohr_input_action_bindings_effective_get`, `rohr_input_action_bindings_override_check`.
+- `rohr_input_action_bindings_override_clear`, `rohr_input_action_bindings_override_get`, `rohr_input_action_bindings_override_set`, `rohr_input_action_button_down_check`.
+- `rohr_input_action_button_pressed_check`, `rohr_input_action_button_released_check`, `rohr_input_action_button_state_reset`, `rohr_input_action_button_state_set`.
+- `rohr_input_frame_begin`, `rohr_input_key_down_check`, `rohr_input_key_pressed_check`, `rohr_input_key_released_check`.
+- `rohr_input_modifiers_get`, `rohr_input_mouse_button_down_check`, `rohr_input_mouse_button_pressed_check`, `rohr_input_mouse_button_released_check`.
+- `rohr_input_mouse_delta_get`, `rohr_input_mouse_position_get`, `rohr_input_mouse_relative_mode_check`, `rohr_input_mouse_relative_mode_set`.
+- `rohr_input_mouse_wheel_get`, `rohr_input_text_area_set`, `rohr_input_text_start`, `rohr_input_text_state_get`.
+- `rohr_input_text_stop`.
+
+[F50](#f50) (6):
+
+- `rohr_graphics_aspect_ratio_auto_set`, `rohr_graphics_aspect_ratio_set`, `rohr_graphics_logical_size_set`, `rohr_graphics_window_presentation_description_default_get`.
+- `rohr_graphics_window_presentation_description_get`, `rohr_graphics_window_presentation_description_set`.
+
+[F51](#f51) (36):
+
+- `rohr_entity_object_add`, `rohr_entity_object_add_with_options`, `rohr_entity_object_anchor_get`, `rohr_entity_object_by_name_add`.
+- `rohr_entity_object_by_name_add_with_options`, `rohr_entity_object_camera_get`, `rohr_entity_object_description_add`, `rohr_entity_object_description_by_name_add`.
+- `rohr_entity_object_draw`, `rohr_entity_object_member_by_name_get`, `rohr_entity_object_member_name_get`, `rohr_entity_object_members_get`.
+- `rohr_object_acceleration_set`, `rohr_object_angular_velocity_set`, `rohr_object_collision_description_get`, `rohr_object_collision_description_set`.
+- `rohr_object_color_description_get`, `rohr_object_color_description_set`, `rohr_object_copy`, `rohr_object_copy_with_options`.
+- `rohr_object_description_by_name_get`, `rohr_object_destroy`, `rohr_object_force_description_set`, `rohr_object_get`.
+- `rohr_object_load`, `rohr_object_mass_set`, `rohr_object_material_description_get`, `rohr_object_material_description_set`.
+- `rohr_object_orientation_set`, `rohr_object_position_set`, `rohr_object_radius_set`, `rohr_object_scale_set`.
+- `rohr_object_spawn_description_default_get`, `rohr_object_torque_description_set`, `rohr_object_velocity_set`, `rohr_object_visibility_set`.
+
+[F52](#f52) (4):
+
+- `rohr_game_state_file_load`, `rohr_game_state_file_save`, `rohr_game_state_files_load`, `rohr_game_state_template_file_save`.
+
+[F53](#f53) (34):
+
+- `rohr_physics_acceleration_away_from_entity_set`, `rohr_physics_acceleration_away_from_position_set`, `rohr_physics_acceleration_toward_entity_set`, `rohr_physics_acceleration_toward_position_set`.
+- `rohr_physics_angular_impulse_apply`, `rohr_physics_contact_check`, `rohr_physics_contact_count_get`, `rohr_physics_contact_entered_check`.
+- `rohr_physics_contact_exited_check`, `rohr_physics_contact_get`, `rohr_physics_contact_stayed_check`, `rohr_physics_contact_total_impulse_get`.
+- `rohr_physics_contacts_get`, `rohr_physics_entity_stop`, `rohr_physics_group_acceleration_away_from_entity_set`, `rohr_physics_group_acceleration_toward_entity_set`.
+- `rohr_physics_group_entities_stop`, `rohr_physics_group_velocity_away_from_entity_set`, `rohr_physics_group_velocity_toward_entity_set`, `rohr_physics_impulse_apply`.
+- `rohr_physics_overlap_check`, `rohr_physics_overlap_count_get`, `rohr_physics_overlap_entered_check`, `rohr_physics_overlap_exited_check`.
+- `rohr_physics_overlap_get`, `rohr_physics_overlap_stayed_check`, `rohr_physics_overlaps_get`, `rohr_physics_particle_overlap_get`.
+- `rohr_physics_sat_overlap_get`, `rohr_physics_update`, `rohr_physics_velocity_away_from_entity_set`, `rohr_physics_velocity_away_from_position_set`.
+- `rohr_physics_velocity_toward_entity_set`, `rohr_physics_velocity_toward_position_set`.
+
+[F54](#f54) (3):
+
+- `rohr_physics_angular_acceleration_radians_set`, `rohr_physics_angular_acceleration_set`, `rohr_physics_target_set`.
+
+[F58](#f58) (8):
+
+- `rohr_physics_entity_held_get`, `rohr_physics_entity_hold`, `rohr_physics_entity_unhold`, `rohr_physics_group_entities_hold`.
+- `rohr_physics_group_entities_unhold`, `rohr_physics_kinematic_driven_check`, `rohr_physics_kinematic_driven_remove`, `rohr_physics_kinematic_driven_set`.
+
+[F59](#f59) (39):
+
+- `rohr_ui_border`, `rohr_ui_button`, `rohr_ui_button_disabled`, `rohr_ui_button_style_default_get`.
+- `rohr_ui_clip_begin`, `rohr_ui_clip_end`, `rohr_ui_component_bounds_get`, `rohr_ui_content`.
+- `rohr_ui_dropdown`, `rohr_ui_dropdown_actions`, `rohr_ui_event_add`, `rohr_ui_field`.
+- `rohr_ui_field_event_add`, `rohr_ui_field_focus_clear`, `rohr_ui_input_set`, `rohr_ui_interaction`.
+- `rohr_ui_key_pressed_check`, `rohr_ui_label`, `rohr_ui_menu`, `rohr_ui_modal_controls_begin`.
+- `rohr_ui_modal_controls_end`, `rohr_ui_modal_set`, `rohr_ui_multiline_field`, `rohr_ui_navigation_activate`.
+- `rohr_ui_navigation_focus_bounds_get`, `rohr_ui_navigation_move`, `rohr_ui_pointer_consumed_get`, `rohr_ui_primary_pressed_check`.
+- `rohr_ui_quad`, `rohr_ui_radians_quad`, `rohr_ui_scroll_region_begin`, `rohr_ui_scroll_region_end`.
+- `rohr_ui_slider`, `rohr_ui_slider_config_default_get`, `rohr_ui_slider_with_text`, `rohr_ui_surface`.
+- `rohr_ui_translation_y_pop`, `rohr_ui_translation_y_push`, `rohr_ui_update`.
+
+[F60](#f60) (4):
+
+- `rohr_physics_angular_velocity_maximum_get`, `rohr_physics_angular_velocity_maximum_radians_get`, `rohr_physics_angular_velocity_maximum_radians_set`, `rohr_physics_angular_velocity_maximum_set`.
+
+[X01](#x01) (31):
+
+- `rohr_math_aabb_create`, `rohr_math_angular_velocity_cross_vec`, `rohr_math_angular_velocity_radians_cross_vec`, `rohr_math_axis_magnitude`.
+- `rohr_math_circle_create`, `rohr_math_circle_overlap_depth`, `rohr_math_circle_radius`, `rohr_math_cross_2d`.
+- `rohr_math_degrees_to_radians`, `rohr_math_dot_product`, `rohr_math_normals_create`, `rohr_math_polygon_centroid`.
+- `rohr_math_project_onto_axis`, `rohr_math_project_shape_on_axis`, `rohr_math_projection_overlap`, `rohr_math_radians_to_degrees`.
+- `rohr_math_shape_scale`, `rohr_math_shape_x_scale`, `rohr_math_shape_y_scale`, `rohr_math_square_create`.
+- `rohr_math_vector_magnitude`, `rohr_math_vector_normalize`, `rohr_math_vector_radians_rotate`, `rohr_math_vector_rotate`.
+- `rohr_math_vector_subtract`, `rohr_math_vectors_normalize`, `rohr_math_vertex_add`, `rohr_math_vertex_delete`.
+- `rohr_physics_shape_world_radians_translate`, `rohr_physics_shape_world_translate`, `rohr_physics_world_position_check`.
+
+[X02](#x02) (31):
+
+- `rohr_console_active_get`, `rohr_console_debug_set`, `rohr_console_debug_write`, `rohr_console_logs_print`.
+- `rohr_console_read`, `rohr_console_start`, `rohr_console_stop`, `rohr_console_write`.
+- `rohr_entity_info_check`, `rohr_entity_info_get`, `rohr_entity_info_issues_count_get`, `rohr_entity_info_issues_get`.
+- `rohr_entity_info_release`, `rohr_entity_info_retain`, `rohr_error_check`, `rohr_error_code_message_get`.
+- `rohr_error_message_get`, `rohr_error_result_error`, `rohr_error_result_value`, `rohr_report_console_write`.
+- `rohr_report_create`, `rohr_report_diagnostic_add`, `rohr_report_diagnostic_detail_set`, `rohr_report_entry_add`.
+- `rohr_report_get`, `rohr_report_header_set`, `rohr_report_json_write`, `rohr_report_merge`.
+- `rohr_report_statistic_add`, `rohr_report_text_write`, `rohr_report_valid_check`.
+
+[X04](#x04) (26):
+
+- `rohr_engine_clock_reset`, `rohr_engine_event_poll`, `rohr_engine_lifecycle_update`, `rohr_engine_pause`.
+- `rohr_engine_paused_get`, `rohr_engine_resume`, `rohr_engine_start`, `rohr_engine_stop`.
+- `rohr_engine_tick_delta_get`, `rohr_engine_tick_get`, `rohr_engine_tick_update`, `rohr_engine_time_get`.
+- `rohr_engine_time_update`, `rohr_engine_update`, `rohr_physics_pipeline_accelerations_clear`, `rohr_physics_pipeline_constraints_solve`.
+- `rohr_physics_pipeline_contacts_gather`, `rohr_physics_pipeline_forces_apply`, `rohr_physics_pipeline_gravity_apply`, `rohr_physics_pipeline_integrate`.
+- `rohr_physics_pipeline_joints_gather`, `rohr_physics_pipeline_step_begin`, `rohr_physics_pipeline_substep`, `rohr_physics_pipeline_substep_begin`.
+- `rohr_physics_pipeline_update`, `rohr_system_physics_update`.
+
+[X05](#x05) (52):
+
+- `rohr_graphics_aabb_tree_debug_check`, `rohr_graphics_aabb_tree_debug_set`, `rohr_graphics_aabb_tree_draw`, `rohr_graphics_background_draw`.
+- `rohr_graphics_color_hex_create`, `rohr_graphics_contacts_debug_check`, `rohr_graphics_contacts_debug_set`, `rohr_graphics_contacts_draw`.
+- `rohr_graphics_events_poll`, `rohr_graphics_frame_limit_set`, `rohr_graphics_hit_box_colored_draw`, `rohr_graphics_hit_box_draw`.
+- `rohr_graphics_hit_boxes_draw`, `rohr_graphics_joint_draw`, `rohr_graphics_joints_draw`, `rohr_graphics_local_origins_draw`.
+- `rohr_graphics_mouse_screen_position_get`, `rohr_graphics_particle_draw`, `rohr_graphics_particles_draw`, `rohr_graphics_pipeline_cameras_update`.
+- `rohr_graphics_pipeline_commands_execute`, `rohr_graphics_pipeline_present`, `rohr_graphics_pipeline_recording_update`, `rohr_graphics_pipeline_viewports_draw`.
+- `rohr_graphics_recording_start`, `rohr_graphics_recording_stop`, `rohr_graphics_render_output_size_get`, `rohr_graphics_screen_clip_clear`.
+- `rohr_graphics_screen_clip_pop`, `rohr_graphics_screen_clip_push`, `rohr_graphics_screen_clip_set`, `rohr_graphics_screen_quad_draw`.
+- `rohr_graphics_screen_quad_radians_draw`, `rohr_graphics_screen_rect_draw`, `rohr_graphics_screen_shape_filled_draw`, `rohr_graphics_screen_text_scaled_rotated_draw`.
+- `rohr_graphics_screen_text_scaled_rotated_radians_draw`, `rohr_graphics_screen_texture_draw`, `rohr_graphics_screen_texture_radians_draw`, `rohr_graphics_screen_to_world_get`.
+- `rohr_graphics_show`, `rohr_graphics_soft_body_draw`, `rohr_graphics_sprites_draw`, `rohr_graphics_start`.
+- `rohr_graphics_stop`, `rohr_graphics_text_draw`, `rohr_graphics_text_scaled_draw`, `rohr_graphics_texture_draw`.
+- `rohr_graphics_texture_radians_draw`, `rohr_graphics_textures_scale`, `rohr_graphics_vsync_set`, `rohr_graphics_world_to_screen_get`.
+
+[X06](#x06) (8):
+
+- `rohr_directory_base_get`, `rohr_directory_working_set`, `rohr_tools_append_string`, `rohr_tools_binary_to_string`.
+- `rohr_tools_delay`, `rohr_tools_random_range`, `rohr_tools_random_range_float`, `rohr_tools_sizeof_string`.
+
+</details>
+
+<details>
+<summary>rohr_tools.h: 4 mapped entries</summary>
+
+[X03](#x03) (4):
+
+- `rohr_tools_component_registry_component_add`, `rohr_tools_component_registry_generate`, `rohr_tools_component_registry_init`, `rohr_tools_component_registry_tag_add`.
+
+</details>
+
+<details>
+<summary>scene.h: 2 mapped entries</summary>
+
+[X04](#x04) (2):
+
+- `rohr_scene_run`, `scene_run`.
+
+</details>
+
+<details>
+<summary>systems.h: 1 mapped entries</summary>
+
+[X04](#x04) (1):
+
+- `system_physics_update`.
+
+</details>
+
+<details>
+<summary>tools.h: 6 mapped entries</summary>
+
+[X06](#x06) (6):
+
+- `binary_to_string`, `delay`, `tool_sizeof_string`, `tools_append_string`.
+- `tools_random_range`, `tools_random_range_float`.
+
+</details>
+
+<details>
+<summary>ui.h: 40 mapped entries</summary>
+
+[F59](#f59) (40):
+
+- `ui_border`, `ui_button`, `ui_button_disabled`, `ui_button_style_default_get`.
+- `ui_clip_begin`, `ui_clip_end`, `ui_component_bounds_get`, `ui_content`.
+- `ui_dropdown`, `ui_dropdown_actions`, `ui_event_add`, `ui_field`.
+- `ui_field_event_add`, `ui_field_focus_clear`, `ui_field_focus_set`, `ui_input_set`.
+- `ui_interaction`, `ui_key_pressed_check`, `ui_label`, `ui_menu`.
+- `ui_modal_controls_begin`, `ui_modal_controls_end`, `ui_modal_set`, `ui_multiline_field`.
+- `ui_navigation_activate`, `ui_navigation_focus_bounds_get`, `ui_navigation_move`, `ui_pointer_consumed_get`.
+- `ui_primary_pressed_check`, `ui_quad`, `ui_radians_quad`, `ui_scroll_region_begin`.
+- `ui_scroll_region_end`, `ui_slider`, `ui_slider_config_default_get`, `ui_slider_with_text`.
+- `ui_surface`, `ui_translation_y_pop`, `ui_translation_y_push`, `ui_update`.
+
+</details>
+
+### Macro-generated and non-configuration types
+
+The [storage interface inventory](description_api_contract.md#macro-generated-storage-interfaces)
+is included by reference: all eleven generated pool methods for each of its
+35 listed pool prefixes map to X03. Result-construction/token-pasting macros
+remain X02/X03 support machinery, not additional authorable fields. Public
+non-configuration records such as interaction/contact results, entity inspection
+snapshots, reports, asset handles, animation progress and pool backing storage
+are outputs or live/derived state. Their operations map through the callable
+ledger; they are not additional description schemas to serialize automatically.
+Enums/flags, scalar focused setters and non-description creation arguments are
+covered by the matrix/callable ledger even when no configuration struct exists
+(for example rigid hitbox geometry and F54 angular configuration).
+
+## Verification and completion boundary
+
+Goal 1 checks performed:
+
+- `nix develop -c sh -c 'perl scripts/verify_api_inventory.pl && perl tests/api_inventory.pl'`
+  passed: 20 installed headers, 1,602 entries, independent prototype comparison,
+  three legacy configuration names, totals/links, and 13 inventory-checker
+  validation cases.
+- Exact API partition, public/editor field extraction and assignment, referenced
+  feature/evidence/gap IDs, local files/anchors and roadmap checklist checked.
+- `git diff --check` passed. Existing unrelated edits preserved.
+
+No engine builds, runtime fixture execution, sanitizers, Windows cross-builds or
+interactive verification were performed for this documentation goal. Source and
+fixture presence do not imply those checks passed. Goal 1 is complete when this
+inventory is reconciled; milestone 4 remains incomplete until goals 2–5 close the
+applicable gaps with behavioral and platform evidence.

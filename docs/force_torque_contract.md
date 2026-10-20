@@ -1,16 +1,13 @@
 # Unified force and torque contract
 
 This is the approved contract for the **Unified Forces and Torques** milestone.
-The shared description APIs, references, and rigid-body/particle response are
-implemented in Goal 2; beam-target loads in Goal 3; whole-soft-body loads in
-Goal 4. Editor authoring remains in subsequent [roadmap](../NEXT_STEPS.md) goals.
+The shared description APIs, references, rigid-body/particle response,
+beam-target loads, whole-soft-body loads, and editor authoring are implemented.
 All targets use shared descriptions; obsolete whole-body vector/scalar helpers
 are removed without compatibility aliases. Impulse APIs remain separate.
-The Goal 5 authoring clarifications below are approved requirements, not shipped
-behavior. The separate [Runtime Soft-Body Persistence milestone](../NEXT_STEPS.md#single-goal-milestone-runtime-soft-body-persistence)
-is complete in runtime state version 6; see the
+The authoring clarifications below define the implemented behavior. Runtime
+soft-body persistence was introduced in state version 6; see the
 [runtime topology contract](game_state.md#version-6-runtime-topology-contract).
-Goal 5 implementation remains pending explicit user instruction.
 
 ## Types and defaults
 
@@ -250,8 +247,8 @@ Current configuration/eligibility inspection belongs to the separate entity-info
 API. It must not apply forces or change reports. The agreed direction is one
 errorable entity getter, section selectors combined with `|`, and
 `ROHR_ENTITY_INFO` for all sections, retaining individual component details.
-The exact result layout and section inventory remain in the
-[Entity Inspection milestone](../NEXT_STEPS.md#milestone-entity-inspection).
+The result layout and section inventory are defined by the
+[entity inspection contract](entity_inspection_contract.md).
 
 ## Target behavior and beam calculation
 

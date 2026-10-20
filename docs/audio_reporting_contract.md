@@ -1,8 +1,7 @@
 # Audio Update Reporting Contract
 
-Goal 5 of [System Update Reports](../NEXT_STEPS.md#prerequisite-milestone-system-update-reports)
-implements this contract. The user deferred manual sample generation/output;
-those APIs are not part of this goal. See [Audio](audio.md) for usage and
+The audio update/report implementation follows this contract. Manual sample
+generation/output remains deferred. See [Audio](audio.md) for usage and
 [Audio reports](reports.md#audio-reports) for metrics and collection boundaries.
 Follow the [reporting instructions](agent_instructions/system_reporting.md).
 
