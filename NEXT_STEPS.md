@@ -54,6 +54,29 @@ After Priority 0 is complete, this list is the authoritative priority order.
 The detailed sections below are supporting implementation notes and backlog
 items; when they conflict with this order, follow this list.
 
+### Generated Starter: Authored Objects and Direct API Construction
+
+Demonstrate both workflows in one starter application: keep the existing base
+scene editor-authored and spawn its complete objects at a high level, then build
+additional content explicitly in developer-owned `main.c`. Only the authored
+portion appears in the editor and Simulate Scene; the application combines both.
+
+1. [x] **Simplify authored spawning and demonstrate direct construction** — The
+   starter calls `starter_create` and `tug_create` once each without manual joint
+   reconnection, then constructs a platform, box, particle, and owned soft-body
+   nodes, beams, and area directly in `main`. A drawing callback combines them
+   with the authored objects through the existing viewport and UI. Regeneration
+   preserves developer-edited entry points. Two focused generation tests and
+   the project ASan/UBSan/leak check pass. Full Linux and Windows cross-builds
+   and fresh application builds against both installed SDKs pass without
+   compiler warnings. The Linux app launches outside its source tree; a runtime
+   probe verifies authored joints, direct construction, 600 physics ticks,
+   camera drawing, and owned-child deletion. Native Windows execution and
+   desktop visual review remain unverified.
+
+This milestone is complete. Stop for review and a user-created commit; the
+separate soft-body example cleanup remains unapproved.
+
 ### Editor Selection Menus and Viewport Picking
 
 Make selection dropdowns easier to browse and allow scene references to be picked

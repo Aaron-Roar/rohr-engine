@@ -224,7 +224,7 @@ static bool scene_scaffold_check(const EditorWorkspace *workspace,
     bool valid = false;
     if(!main_source || !scene_source || !cmake_source || SDL_GetPathInfo(legacy_path, NULL)) goto done;
     if(!strstr(scene_source, "scene/project_viewports.h") ||
-            !strstr(main_source, "entity_object_add(objects.tug)")) goto done;
+            !strstr(main_source, "tug_create(&scene.authored.tug, (Position){0, 0})")) goto done;
     const char *include = strstr(cmake_source, "\ninclude(src/generated/project_scene.cmake)\n");
     if(!include) goto done;
     edited = SDL_malloc(strlen(cmake_source) + 64);
@@ -643,10 +643,19 @@ int main(void) {
                 !file_contains(path, "rohr_directory_base_get()") ||
                 file_contains(path, "project_chdir") ||
                 file_contains(path, "SDL_GetBasePath()") ||
-                !file_contains(path, "entity_object_add(objects.starter.box)") ||
+                !file_contains(path, "starter_create(&scene.authored.starter, (Position){0, 0})") ||
+                file_contains(path, "create_tutorial") ||
+                file_contains(path, "entity_object_add(objects.starter.") ||
+                file_contains(path, "rohr_physics_joint_description_set") ||
+                !file_contains(path, "rohr_physics_hitbox_set(scene.box") ||
+                !file_contains(path, "rohr_physics_particle_add((ParticleDescription)") ||
+                !file_contains(path, "rohr_physics_soft_body_node_local_add((SoftBodyNodeDescription)") ||
+                !file_contains(path, "rohr_physics_soft_body_beam_add((SoftBodyBeamDescription)") ||
+                !file_contains(path, "rohr_physics_soft_body_area_add((SoftBodyAreaDescription)") ||
+                !file_contains(path, "rohr_camera_render_callback_set(scene.authored.starter.camera_main_camera") ||
                 !file_contains(path, "project_viewports_create(&viewports") ||
                 !file_contains(path, "project_viewports_destroy(&viewports") ||
-                !file_contains(path, "project_objects_destroy_all(&scene") ||
+                !file_contains(path, "project_objects_destroy_all(&scene.authored") ||
                 !file_contains(path, "rohr_input_frame_begin()") ||
                 !file_contains(path,
                     "rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)")) {

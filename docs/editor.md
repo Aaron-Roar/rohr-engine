@@ -105,7 +105,18 @@ and preview its contents; double-click it to enter it. `..` behaves the same way
 
 For a new project, navigate to the parent directory, enter the new directory
 name, and choose **Create Project**. The editor creates a working starter scene
-containing a static floor and a gravity-enabled box.
+containing the base physics, joint, soft-body, visual, and camera examples.
+The generated `src/main.c` spawns each complete authored object with one
+`starter_create` or `tug_create` call; internal connections are restored without
+manual joint wiring. It then constructs an additional platform, falling box,
+particle, and soft body directly through the engine API in `main`, demonstrating
+the workflow without editor definitions. The camera drawing callback renders
+both portions through the authored viewport alongside its UI.
+
+The editor and **Simulate Scene** show only the authored portion. Run the
+application to see the additional source-created entities. `main.c` is
+developer-owned after creation: regeneration preserves your changes, and this
+tutorial update applies to new projects rather than replacing existing mains.
 
 New rigid bodies and added hitboxes start as centered 140-by-140 squares.
 New UI shapes start as 180-by-180 squares. **Add Soft Body** (also the CLI
