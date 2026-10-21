@@ -148,6 +148,122 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    do not close this goal until the Linux visual, input and audio results are
    confirmed.
 
+#### Corrective milestone for goal 5
+
+Resolve the issues found during interactive acceptance, make project builds
+reliable, and complete the agreed directional collision-response design across
+all applicable paths. These correction goals belong to milestone 4 goal 5;
+they do not reorder the ten roadmap milestones or reopen verified goals 1–4.
+The five interactive acceptance cases remain the completion gate. The accepted
+camera-preview retest retains credit; rerun affected checks after corrections.
+
+This is an implementation plan, not completed work. Pursue one correction goal
+at a time only when requested, and settle its remaining clarifications before
+implementation. The [issue mapping](docs/cross_path_feature_inventory.md#goal-5-corrective-issue-mapping)
+accounts for every item in the user's review. Update the applicable inventory,
+contracts, and generated examples when a goal changes supported behavior.
+
+1. [ ] **C1 — Generation and build diagnostics.** Route Generate C,
+   configuration, compilation, and launch-preparation diagnostics to the editor
+   terminal, including failures before a subprocess starts. Retain notifications
+   and identify the failing stage and affected object/path. A deliberate
+   generation failure and a compiler failure must both expose their actual
+   reasons; disabling optional tree output must not suppress diagnostics.
+2. [ ] **C2 — Relocation and repeat builds.** Resolve project-owned paths from
+   the project's current root. Reuse valid CMake caches on repeated builds and
+   recover stale project/build-root metadata after relocation. Preserve source,
+   assets, and developer configuration. External engine/SDK paths remain explicit
+   external dependencies. Verify initial, unchanged, edited, and relocated
+   application/scene builds without a manual clean-build requirement.
+3. [ ] **C3 — Missing CMake regeneration.** Restore missing engine-generated
+   project CMake scaffolding during build preparation and let CMake regenerate
+   disposable build metadata. Preserve existing customized files and
+   developer-owned main.c. Verify rebuilding after removal of the root template,
+   generated scene CMake file, and CMake cache/build metadata separately.
+4. [ ] **C4 — Runtime setup with partially spawned projects.** Reproduce and
+   resolve the invalid-entity startup in /tmp/rohr-projects/rohr-project-1.
+   Generated presentation setup must handle objects that main.c has not spawned
+   without blindly using zero handles. Report genuinely required missing
+   objects/cameras clearly. Preserve developer-owned entry points and verify
+   both explicit partial spawning and complete generated scene spawning.
+5. [ ] **C5 — Incomplete joint parity.** Preserve otherwise valid joints with
+   unset endpoints in the editor, saved project, generated descriptions, and
+   runtime instances. Match the engine: retain the definition, skip only the
+   unavailable physics contribution, and expose diagnostics. Do not drop the
+   joint during generation or reject an entire scene merely for an unset
+   endpoint. Invalid numerical data and nonzero stale handles remain errors.
+   Verify zero/one/two endpoints, save/load, generation, execution, and later
+   completion of the same joint.
+6. [ ] **C6 — Shared panel lifecycle and scrolling.** Remove inactive child
+   controls when returning to object/top-level editors. Fix overlapping panels,
+   first-element activation glitches, stale input capture, and blocked scrolling
+   in object/joint editors. Cover all editor kinds through shared navigation,
+   including opening the first row, returning to a parent, switching siblings,
+   and scrolling without an off-column or viewport click to recover.
+7. [ ] **C7 — Build path settings.** Expose current project, engine/SDK, build,
+   asset, generated-source, application executable, and scene executable paths.
+   Make every listed path editable, with defaults and a way to reset overrides.
+   Use C2's path resolution and C6's panel behavior. Persist overrides and show
+   resolved paths accurately after relocation/reconfiguration. Verify default
+   and customized paths through generation, building, and launching, including
+   asset and generated-source locations.
+8. [ ] **C8 — Force and torque selection geometry.** Require direct hits on
+   visible force arrowhead/shaft geometry, including the app visual when shown;
+   remove oversized hit regions behind or around the arrow. Keep forgiving
+   picking around the curved rotation controls and tighten torque stroke
+   tolerance. Preserve visual sizes. Verify nearby body selection, hidden
+   visuals, zoom, overlapping visuals, and rotation dragging.
+9. [ ] **C9 — Appearance and visual layers.** Move render-layer controls from
+   Transform to Appearance and provide missing layer controls for editor
+   visuals, including anchors. Distinguish editor-only annotations from
+   application visuals; do not make anchors render in applications implicitly.
+   Keep drawing and picking order consistent, with persistence and undo/redo.
+   Resolve any missing editor-layer versus app-layer distinction before coding.
+10. [ ] **C10 — Directional collision response.** Rename Collides With to
+    Responds To across applicable API, editor, CLI, JSON, generation, and docs.
+    For each overlapping pair, independently decide which body responds: both
+    gives normal response; one gives one-sided response; neither gives no
+    physical response. Treat a nonresponding side as zero inverse mass/inertia
+    for that contact only, retaining its motion and both bodies' material
+    combination rules. Apply the same decision to penetration correction,
+    impulses, friction, and restitution across supported collider pairs.
+    Preserve overlap detection independently of these masks and respect
+    Static/Kinematic restrictions. Test all four mask combinations, reversed
+    arguments, moving nonresponders, and a third body with a different response
+    relationship. Existing data must not be silently reinterpreted while C11's
+    migration is unavailable.
+11. [ ] **C11 — Behavior-preserving mask migration.** Convert existing mutual
+    filters into the new directional system by adding/splitting categories and
+    rebuilding response masks as needed. Preserve every previously allowed or
+    excluded pair, including collider profiles sharing a category but having
+    different filters. Use deterministic remapping, retain usable named-mask
+    references, and verify equivalence before publishing migrated data. Check
+    available category-bit capacity; report an unrepresentable conversion
+    without partially modifying the project. No permanent legacy mode. Cover
+    save/reload, regeneration, supported stored-data paths, and explain effects
+    on developer-authored C that uses category constants.
+12. [ ] **C12 — Explicit kinematic authoring.** Expose Dynamic / Static /
+    Kinematic for supported physical entities using the engine's existing motion
+    semantics. Preserve explicit kinematic intent and mass through mode changes,
+    undo/redo, project persistence, CLI, generation, and spawning. Body-wide
+    Kinematic remains independent of per-category response masks. Verify driven
+    movement, immunity to contact impulses, and normal response after returning
+    to Dynamic with valid mass.
+13. [ ] **C13 — Soft-body Physics controls.** Expose collision, gravity, and
+    supported motion modes at soft-body level. Changing a body-level property
+    bulk-applies that property to all existing nodes and sets its default for
+    new nodes. Individual nodes can then be edited independently; a subsequent
+    body-level edit overwrites that property's node values again without
+    resetting unrelated properties. Apply this policy consistently to collision
+    settings and applicable flags. Keep beam collision explicitly opt-in.
+    Include mixed-state display, persistence, generation, and undo/redo.
+14. [ ] **C14 — Immediate joint clamping.** Apply editor joint placement without
+    requiring an unrelated subsequent movement. Respect world/fixed anchors,
+    locks, connected groups, incomplete joints, and a single undo transaction
+    per gesture. Update placement both when joint properties change and
+    continuously while dragging connected geometry. Keep runtime low-level
+    joint creation non-moving unless placement is explicitly requested.
+
 ### 5. Adversarial testing and hardening
 
 Expose malformed input, resource failures, lifecycle defects, and integration

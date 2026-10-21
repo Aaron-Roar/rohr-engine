@@ -401,7 +401,7 @@ and `UBSAN_OPTIONS=halt_on_error=1` outside the process-inspection sandbox.
 
 ## Goal 5 platform and interactive review
 
-**In progress: the runtime composition and Sway corrective retest passed.**
+**In progress: case 1 composition and presentation passed its corrective retests.**
 The user confirmed the two rotated screens and stable resizing, then reported
 PASS after retesting the corrected layering and window/workspace switching.
 The lower-left text's narrow wrapping, clockwise rotation and intentional
@@ -409,8 +409,15 @@ clipping were clarified before acceptance. Subsequent viewport-editor review
 passed camera zoom, but found an unrotated background leaking beyond rotated
 screens, misplaced simulation content and mismatched content-offset movement.
 The next review also failed camera-content clipping: objects were cropped against
-unrotated screen bounds. Corrections await retest; cases 2–5 remain pending and
-goal 5 stays open.
+unrotated screen bounds. The user subsequently confirmed PASS after the camera
+texture and rotated-clipping corrections. Cases 2–5 remain pending and goal 5
+stays open.
+
+Further review reported build/lifecycle, authoring-panel, selection, and physics
+control issues. The [corrective milestone](../NEXT_STEPS.md#corrective-milestone-for-goal-5)
+tracks their ordered implementation goals, including the explicitly agreed
+directional-response expansion. These findings do not revoke the accepted camera
+preview correction or imply that the remaining acceptance cases passed.
 
 The compositor now sorts numeric/named layers before content kinds, keeping UI
 above screens only at equal layers. Tick-based physics advances each elapsed
@@ -453,11 +460,11 @@ returning. The original failed fixture remains available for comparison.
 
 | Case | Actions and required observations | User-confirmed result |
 |---|---|---|
-| 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | Initial runtime retest PASS: rotated views, layering, intentional text wrapping/rotation/clipping, resizing and Sway stability. Camera zoom PASS. Subsequent screen-editor review FAIL: background orientation, editor/runtime content position, offset displacement and angle-dependent object clipping; corrections await retest. |
+| 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | PASS after corrective retests: runtime layering, text wrapping/rotation/clipping, resizing, Sway stability and camera zoom were accepted earlier. The user then confirmed PASS for the corrected camera preview and rotated clipping. Earlier screen-editor failures are resolved. |
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
-| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | Pending |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | Pending |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. Corrections C1–C5 and retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -482,7 +489,8 @@ consumer checks pass. The corrected application/scene and all nine examples
 using tick-based physics build against both updated SDKs; Linux application,
 scene and example startup/shutdown checks use dummy SDL outside source folders.
 The user subsequently confirmed PASS for the runtime visual and Sway
-workspace-switch retest. Viewport-editor checks and cases 2–5 remain required.
+workspace-switch retest. The later viewport-editor corrective retest also passed;
+cases 2–5 remain required.
 
 The subsequent screen-editor review reproduced an automatic-aspect bug using
 the saved review project: clearing a 480×320 camera target changed its logical
@@ -490,7 +498,7 @@ presentation to 1080×720, shrinking and shifting its contents. Automatic window
 aspect sizing now runs on the window target before camera rendering; background
 clears only queue a clear. The editor draws the empty-camera background as a
 rotated quad and clips stripe endpoints locally before rotation. Camera zoom
-has user-confirmed acceptance; these corrections require another visual retest.
+has user-confirmed acceptance; the subsequent corrective retest also passed.
 
 The angle-dependent clipping correction renders each editor camera's object into
 an explicitly owned, cached texture before fitting, scaling, offsetting and
@@ -512,8 +520,53 @@ offset/scale/rotation, image reuse/resizing and queued resource lifetime.
 The user's saved review application and scene were rebuilt without altering
 authored screen settings. Both also build against the updated installed SDKs,
 as does the viewport example; Linux artifacts pass startup/shutdown checks from
-outside their source folders. Restart the rebuilt editor at
-`build/tools/rohr-gui/rohr-gui` and reopen `/tmp/rohr_parity_review_fixed` to retest.
+outside their source folders. The user confirmed PASS on the rebuilt editor's
+camera-preview corrective retest. Continue the remaining review cases with
+`build/tools/rohr-gui/rohr-gui` and `/tmp/rohr_parity_review_fixed`.
+
+### Goal 5 corrective issue mapping
+
+The review's full issue list maps to the ordered correction goals in
+NEXT_STEPS.md. These entries record reported failures and approved scope, not
+implemented fixes. Existing automated evidence above predates these corrections;
+each pursued goal needs its own relevant checks and interactive retest.
+
+| Reported issue or agreed clarification | Correction goal |
+|---|---|
+| Moving the project leaves project-owned paths stale | C2 |
+| Missing project CMake files should regenerate during build | C3 |
+| Build Settings should expose executable, engine, and relevant paths | C7; every listed path is editable, with defaults and resettable overrides |
+| Building again fails instead of using the valid cache | C2 |
+| Force picking includes excessive space around/behind the arrow; rotation controls need padding | C8 |
+| Torque picking is slightly too large | C8 |
+| Soft-body controls remain after returning to the object editor | C6 |
+| Soft-body Physics lacks collision, gravity, and motion controls | C13; body edits bulk-apply the changed property to nodes and set new-node defaults; later per-node edits remain available |
+| Other child editors also remain after returning to top level | C6 |
+| Object joint editor does not scroll | C6 |
+| Joint clamping waits for a later movement | C14; update on property edits and continuously during dragging, with one undo step per gesture |
+| Render Layer belongs in Appearance, not Transform | C9 |
+| Anchors and other editor visuals lack a layer option | C9 |
+| Opening an element blocks object scrolling and leaves overlaying controls | C6 |
+| Opening the first object element glitches its editor over the object editor | C6 |
+| Generate C failures and all build-stage diagnostics must reach the terminal | C1 |
+| An incompletely defined joint breaks the build/run path | C5 |
+| Invalid entity at startup in /tmp/rohr-projects/rohr-project-1 | C4 |
+| Asymmetric masks should permit one-sided physical response | C10 |
+| Kinematic should be exposed as an explicit editor motion mode | C12 |
+| Preserve old pair behavior by remapping categories/masks into the new system | C11 |
+| Neither side responding must not suppress geometric overlap queries | C10 |
+| One-sided contacts use both bodies' materials | C10 |
+
+Read-only diagnosis reproduced `error 21: invalid entity` when launching the
+saved rohr-project-1 application with dummy SDL drivers. Its developer-owned
+main.c creates starter and tug, while generated viewport setup also assigns
+layers to unspawned pendulum entities. C4 must verify and fix the failing path
+without silently rewriting developer gameplay code.
+
+The engine already accepts joints with unset endpoints and retains their
+definitions when the physics pipeline skips unavailable contributions with a
+warning. The editor object-document conversion currently requires both anchors;
+C5 removes that parity gap while preserving validation of malformed data.
 
 ## Frozen fixture plan
 
