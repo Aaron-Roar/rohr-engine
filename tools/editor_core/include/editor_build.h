@@ -15,6 +15,10 @@ EditorResult editor_build_workspace_get(const EditorWorkspace *workspace, Editor
 EditorResult editor_build_cache_prepare(const EditorWorkspace *workspace, bool configure_enabled,
     EditorBuildOutput output, void *context);
 EditorResult editor_build_cache_configured(const EditorWorkspace *workspace);
+/* Shared configure-stage preparation, including missing CMake scaffolding.
+ * A null compile command means the default CMake build command. */
+EditorResult editor_build_prepare(const EditorWorkspace *workspace, bool configure_enabled,
+    const EditorConfigCommand *compile, EditorBuildOutput output, void *context);
 /* Explicit allocation. The session and output context are borrowed during a
  * build; cancel/destroy the build before destroying either borrowed owner. */
 EditorBuild *editor_build_create(void);

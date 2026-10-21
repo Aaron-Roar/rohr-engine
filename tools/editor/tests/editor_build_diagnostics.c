@@ -107,6 +107,25 @@ int main(int argc, char **argv) {
     begin_output(); action(EDITOR_BUILD_ACTION_COMPILE);
     contains("[Compile] SUCCESS"); contains("completed successfully");
 
+    /* Missing scaffolding is restored even with custom commands, with output
+     * retained in a hidden terminal. A path failure stops before the command. */
+    char root_cmake[4096], scene_cmake[4096];
+    snprintf(root_cmake, sizeof(root_cmake), "%s/CMakeLists.txt", workspace.directory);
+    snprintf(scene_cmake, sizeof(scene_cmake), "%s/src/generated/project_scene.cmake", workspace.directory);
+    assert(SDL_RemovePath(root_cmake) && SDL_RemovePath(scene_cmake));
+    OK(editor_config_command_expression_parse("{\"cmake\",\"-E\",\"echo\",\"recovery_custom_configure\"}", &configure));
+    OK(editor_config_command_expression_parse("{\"cmake\",\"-E\",\"echo\",\"{target}\"}", &compile));
+    OK(editor_config_gui_override_save(workspace.directory, &configure, &compile));
+    begin_output(); action(EDITOR_BUILD_ACTION_COMPILE);
+    contains("[Build preparation] Restored"); contains("CMakeLists.txt"); contains("project_scene.cmake");
+    contains("recovery_custom_configure"); contains("[Compile] SUCCESS");
+    assert(SDL_RemovePath(root_cmake) && SDL_CreateDirectory(root_cmake));
+    begin_output(); action(EDITOR_BUILD_ACTION_COMPILE);
+    contains("Expected a CMake file"); contains(root_cmake);
+    assert(!strstr(transcript(), "recovery_custom_configure"));
+    assert(SDL_RemovePath(root_cmake)); cmake_file("");
+    OK(editor_config_command_expression_parse("{\"cmake\",\"--build\",\"{build}\",\"--target\",\"{target}\"}", &compile));
+
     /* Settings parsing, command startup, and missing executable diagnostics. */
     save_file(".rohr/gui-overrides.lua", "this is not valid Lua !!\n");
     begin_output(); action(EDITOR_BUILD_ACTION_COMPILE); contains("[Build configuration] FAIL");

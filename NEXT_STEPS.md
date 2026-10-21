@@ -189,12 +189,21 @@ contracts, and generated examples when a goal changes supported behavior.
    fixtures cover unchanged/edited/moved/copied app and scene builds and launches,
    preserved developer files/assets, and cache reuse. Linux regressions, focused
    ASan/UBSan, and Windows editor/CLI/test cross-builds passed; verification is
-   recorded in the corrective issue mapping. C3 scaffolding recovery remains open.
-3. [ ] **C3 — Missing CMake regeneration.** Restore missing engine-generated
+   recorded in the corrective issue mapping.
+3. [x] **C3 — Missing CMake regeneration.** Restore missing engine-generated
    project CMake scaffolding during build preparation and let CMake regenerate
    disposable build metadata. Preserve existing customized files and
    developer-owned main.c. Verify rebuilding after removal of the root template,
    generated scene CMake file, and CMake cache/build metadata separately.
+   Complete: shared editor/CLI build preparation restores missing root and scene
+   CMake files, including custom-command and compile-only builds. Existing CMake
+   customizations are preserved through generation/build; source, assets, and
+   settings remain untouched by recovery. Configuration stays explicitly
+   controllable, and restoration/errors reach the terminal without changing
+   visibility. Installed-SDK checks cover separate scaffolding/cache/build-file
+   deletions, unchanged rebuilds, and application/scene launches. All 114 Linux
+   tests, focused ASan/UBSan, and Windows editor/CLI/test cross-builds passed;
+   see the corrective issue mapping for details.
 4. [ ] **C4 — Runtime setup with partially spawned projects.** Reproduce and
    resolve the invalid-entity startup in /tmp/rohr-projects/rohr-project-1.
    Generated presentation setup must handle objects that main.c has not spawned

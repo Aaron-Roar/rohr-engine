@@ -54,6 +54,10 @@ EditorResult editor_workspace_scene_generate(const EditorWorkspace *workspace,
 EditorResult editor_workspace_editor_generate(const EditorWorkspace *workspace,
     const EditorProject *project);
 
+/* Restore only missing build scaffolding; never generate C sources. Output flags
+ * also describe successfully restored files when a later restoration fails. */
+EditorResult editor_workspace_cmake_restore(const EditorWorkspace *workspace,
+    bool *root_restored, bool *scene_restored);
 EditorWorkspaceConfig editor_workspace_config_default_get(void);
 EditorResult editor_workspace_create(EditorWorkspace *workspace, EditorProject *project,
     const char *directory);

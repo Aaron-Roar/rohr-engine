@@ -72,6 +72,12 @@ if(ROHR_BUILD_TESTS)
                 "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_relocation.cmake")
             set_tests_properties(editor_build_relocation PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
+            add_test(NAME editor_build_scaffolding COMMAND ${CMAKE_COMMAND}
+                -DCLI=$<TARGET_FILE:rohr_editor_cli> -DPROBE=$<TARGET_FILE:editor_build_test>
+                "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/scaffolding fixtures"
+                "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_scaffolding.cmake")
+            set_tests_properties(editor_build_scaffolding PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
         endif()
         add_test(NAME editor_construction_generated COMMAND ${CMAKE_COMMAND}
             -DTEST_EXECUTABLE=$<TARGET_FILE:editor_construction_parity_test>

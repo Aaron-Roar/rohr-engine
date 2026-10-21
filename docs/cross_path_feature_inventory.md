@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics and C2 relocation/repeat builds complete with automated verification below; C3–C5 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, and C3 missing CMake recovery complete with automated verification below; C4–C5 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -534,7 +534,7 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Reported issue or agreed clarification | Correction goal |
 |---|---|
 | Moving the project leaves project-owned paths stale | C2 complete; shared root resolution and stale cache/output recovery |
-| Missing project CMake files should regenerate during build | C3 |
+| Missing project CMake files should regenerate during build | C3 complete; missing root/scene scaffolding restored and disposable build metadata regenerated |
 | Build Settings should expose executable, engine, and relevant paths | C7; every listed path is editable, with defaults and resettable overrides |
 | Building again fails instead of using the valid cache | C2 complete; unchanged/edited builds retain valid caches |
 | Force picking includes excessive space around/behind the arrow; rotation controls need padding | C8 |
@@ -604,7 +604,33 @@ reapplying saved options. The original copy's cache remains unchanged. Unit test
 cover disabled configuration, interrupted recovery, and linked-build protection.
 All 113 Linux tests passed, including this SDK fixture; focused ASan/UBSan checks
 and Windows editor/CLI/test cross-compilation passed. Windows execution was not
-performed. C3–C14 and broader interactive acceptance remain open.
+performed.
+
+**C3 verification:** shared editor/CLI build preparation restores missing root
+and scene CMake files from the same templates used for new projects. It preserves
+existing files, including customized scene CMake integration during generation.
+Compile-only recovery does not regenerate C sources or modify developer inputs.
+Custom commands receive recovery; disabled configure commands stay disabled.
+Default-directory CMake builds report missing metadata with instructions to
+re-enable configuration, while custom builders validate their own metadata.
+Standalone Generate C still leaves a missing root CMake file absent.
+
+The installed-SDK `editor_build_scaffolding` fixture removes root CMake, scene
+CMake, cache, CMakeFiles, native build files, and the full build directory in
+separate cases. Editor-core and CLI builds recover successfully, retain valid
+cache-only settings, preserve file hashes, and avoid recompiling unchanged
+applications. Both application and scene targets launch outside their source
+directories. Unit tests cover unreadable files, failed writes, invalid path
+types, dangling links, partial restoration diagnostics, and custom/disabled
+commands. The actual GUI controller verifies recovery and pre-command failures
+in a hidden terminal without changing visibility or focus.
+
+All 114 Linux tests passed. The full Linux build includes examples; the SDK
+fixture independently compiles and runs generated application/scene examples.
+Focused ASan/UBSan build/diagnostics tests passed. Windows editor, CLI, and both
+build test executables cross-compiled without compiler warnings; Windows
+execution was not performed. C4–C14 and broader interactive acceptance remain
+open.
 
 ## Frozen fixture plan
 

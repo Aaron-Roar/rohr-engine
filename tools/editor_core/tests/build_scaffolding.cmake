@@ -1,0 +1,126 @@
+# Copyright 2026 Aaron Rohrer
+# SPDX-License-Identifier: LGPL-3.0-only
+foreach(required CLI PROBE FIXTURE SDK_PREFIX)
+    if(NOT DEFINED ${required})
+        message(FATAL_ERROR "Missing ${required}")
+    endif()
+endforeach()
+function(run)
+    execute_process(COMMAND ${ARGV} RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+    if(NOT result EQUAL 0)
+        message(FATAL_ERROR "${ARGV}\n${result}\n${output}\n${error}")
+    endif()
+endfunction()
+function(fails expected)
+    execute_process(COMMAND ${ARGN} RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+    if(result EQUAL 0 OR NOT "${output}${error}" MATCHES "${expected}")
+        message(FATAL_ERROR "Expected ${expected}: ${ARGN}\n${result}\n${output}\n${error}")
+    endif()
+endfunction()
+file(REMOVE_RECURSE "${FIXTURE}")
+run("${CLI}" --project "${FIXTURE}" create)
+file(WRITE "${FIXTURE}/src/main.c" [=[
+#include "rohr.h"
+#include "project_objects.h"
+#include <assert.h>
+int main(void) {
+    assert(!rohr_error_check(rohr_engine_start()));
+    assert(!rohr_error_check(rohr_graphics_start()));
+    assert(!rohr_error_check(rohr_directory_working_set(rohr_directory_base_get())));
+    Starter starter = {0};
+    assert(!rohr_error_check(starter_create(&starter, (Position){0})));
+    starter_destroy(&starter);
+    rohr_engine_stop();
+    return 0;
+}
+]=])
+set(config "return {build={project={configure={'cmake','-S','{project}','-B','{build}','-DCMAKE_BUILD_TYPE=Debug','-DCMAKE_PREFIX_PATH=${SDK_PREFIX}'}}}}\n")
+file(WRITE "${FIXTURE}/editor.lua" "${config}")
+file(APPEND "${FIXTURE}/.gitignore" "\n# developer ignore\n")
+run("${CLI}" --project "${FIXTURE}" compile)
+# Compile recovery must preserve all developer inputs and every generated C file.
+file(GLOB_RECURSE preserved RELATIVE "${FIXTURE}" "${FIXTURE}/src/*" "${FIXTURE}/assets/*" "${FIXTURE}/objects/*")
+list(REMOVE_ITEM preserved src/generated/project_scene.cmake)
+list(APPEND preserved .gitignore editor.lua)
+foreach(name IN LISTS preserved)
+    file(SHA256 "${FIXTURE}/${name}" "hash_${name}")
+endforeach()
+file(APPEND "${FIXTURE}/build/CMakeCache.txt" "\nC3_CACHE_ONLY:STRING=retained\n")
+file(REMOVE "${FIXTURE}/CMakeLists.txt")
+run("${PROBE}" project "${FIXTURE}" app "${SDK_PREFIX}")
+file(READ "${FIXTURE}/CMakeLists.txt" root)
+if(NOT root MATCHES "include\\(src/generated/project_scene.cmake\\)")
+    message(FATAL_ERROR "Restored root did not include scene integration")
+endif()
+file(REMOVE "${FIXTURE}/src/generated/project_scene.cmake")
+run("${CLI}" --project "${FIXTURE}" compile)
+run("${PROBE}" project "${FIXTURE}" scene "${SDK_PREFIX}")
+file(READ "${FIXTURE}/build/CMakeCache.txt" cache)
+if(NOT cache MATCHES "C3_CACHE_ONLY")
+    message(FATAL_ERROR "Scaffolding restoration discarded a valid cache")
+endif()
+file(APPEND "${FIXTURE}/CMakeLists.txt" "\n# custom root must survive\n")
+file(APPEND "${FIXTURE}/src/generated/project_scene.cmake" "\n# custom scene must survive\n")
+foreach(name CMakeLists.txt src/generated/project_scene.cmake)
+    list(APPEND preserved "${name}")
+    file(SHA256 "${FIXTURE}/${name}" "hash_${name}")
+endforeach()
+# Separate deletion cases exercise both cache and generator-owned metadata.
+file(REMOVE "${FIXTURE}/build/CMakeCache.txt")
+run("${CLI}" --project "${FIXTURE}" compile)
+file(REMOVE_RECURSE "${FIXTURE}/build/CMakeFiles")
+run("${PROBE}" project "${FIXTURE}" app "${SDK_PREFIX}")
+file(REMOVE "${FIXTURE}/build/Makefile" "${FIXTURE}/build/build.ninja")
+run("${CLI}" --project "${FIXTURE}" compile)
+file(REMOVE_RECURSE "${FIXTURE}/build")
+run("${PROBE}" project "${FIXTURE}" project "${SDK_PREFIX}")
+file(READ "${FIXTURE}/build/rohr_application_Debug.path" executable)
+file(TIMESTAMP "${executable}" before "%s")
+run("${CMAKE_COMMAND}" -E sleep 1)
+run("${CLI}" --project "${FIXTURE}" compile)
+file(TIMESTAMP "${executable}" after "%s")
+if(NOT before STREQUAL after)
+    message(FATAL_ERROR "Repeat build recompiled unchanged application")
+endif()
+foreach(name IN LISTS preserved)
+    file(SHA256 "${FIXTURE}/${name}" actual)
+    if(NOT "${hash_${name}}" STREQUAL actual)
+        message(FATAL_ERROR "Build preparation changed ${name}")
+    endif()
+endforeach()
+# A full generation/build also preserves customized CMake integration.
+run("${CLI}" --project "${FIXTURE}" build)
+foreach(name CMakeLists.txt src/generated/project_scene.cmake)
+    file(SHA256 "${FIXTURE}/${name}" actual)
+    if(NOT "${hash_${name}}" STREQUAL actual)
+        message(FATAL_ERROR "Generation/build changed custom ${name}")
+    endif()
+endforeach()
+foreach(target app scene)
+    run("${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+        "${PROBE}" launch "${FIXTURE}" "${target}" "${SDK_PREFIX}")
+endforeach()
+# Disabling configure does not silently re-enable it, even after restoration.
+file(WRITE "${FIXTURE}/editor.lua" "return {build={project={configure={}}}}\n")
+run("${CLI}" --project "${FIXTURE}" compile)
+file(REMOVE "${FIXTURE}/CMakeLists.txt" "${FIXTURE}/build/CMakeCache.txt")
+fails("enable configuration" "${CLI}" --project "${FIXTURE}" compile)
+if(NOT EXISTS "${FIXTURE}/CMakeLists.txt" OR EXISTS "${FIXTURE}/build/CMakeCache.txt")
+    message(FATAL_ERROR "Disabled configure did not preserve recovery semantics")
+endif()
+# Custom commands still receive recovery and need no CMake cache.
+file(WRITE "${FIXTURE}/editor.lua" "return {build={project={configure={},compile={'cmake','-E','echo','custom build'}}}}\n")
+file(REMOVE "${FIXTURE}/CMakeLists.txt" "${FIXTURE}/src/generated/project_scene.cmake")
+run("${CLI}" --project "${FIXTURE}" compile)
+if(NOT EXISTS "${FIXTURE}/CMakeLists.txt" OR NOT EXISTS "${FIXTURE}/src/generated/project_scene.cmake")
+    message(FATAL_ERROR "Custom command did not receive scaffolding recovery")
+endif()
+# Standalone code generation does not impose root scaffolding on external builds.
+file(REMOVE "${FIXTURE}/CMakeLists.txt")
+run("${CLI}" --project "${FIXTURE}" generate-c)
+if(EXISTS "${FIXTURE}/CMakeLists.txt")
+    message(FATAL_ERROR "Generate C unexpectedly restored root scaffolding")
+endif()
+# Path errors fail before either custom command runs.
+file(MAKE_DIRECTORY "${FIXTURE}/CMakeLists.txt")
+fails("Expected a CMake file" "${CLI}" --project "${FIXTURE}" compile)

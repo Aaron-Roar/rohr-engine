@@ -209,6 +209,48 @@ EditorResult editor_build_cache_prepare(const EditorWorkspace *workspace, bool c
     }
     return result;
 }
+static bool build_default_cmake_compile_check(const EditorConfigCommand *compile) {
+    if(!compile) return true; /* Default compile command. */
+    if(compile->count < 3 || strcmp(compile->arguments[2], "{build}")) return false;
+    const char *name = compile->arguments[0];
+    for(const char *at = name; *at; ++at)
+        if(*at == '/' || *at == '\\') name = at + 1;
+    return (!SDL_strcasecmp(name, "cmake") || !SDL_strcasecmp(name, "cmake.exe")) &&
+        !strcmp(compile->arguments[1], "--build");
+}
+EditorResult editor_build_prepare(const EditorWorkspace *workspace, bool configure_enabled,
+        const EditorConfigCommand *compile, EditorBuildOutput output, void *context) {
+    EditorWorkspace absolute;
+    EditorResult result = editor_build_workspace_get(workspace, &absolute);
+    if(editor_result_check(result)) return result;
+    /* Check relocation/link safety before creating project scaffolding. */
+    result = editor_build_cache_prepare(&absolute, configure_enabled, output, context);
+    if(editor_result_check(result)) return result;
+    bool root_restored = false, scene_restored = false;
+    result = editor_workspace_cmake_restore(&absolute, &root_restored, &scene_restored);
+    const char *names[] = {"CMakeLists.txt", "src/generated/project_scene.cmake"};
+    bool restored[] = {root_restored, scene_restored};
+    for(size_t i = 0; output && i < SDL_arraysize(names); ++i) {
+        if(!restored[i]) continue;
+        char message[EDITOR_WORKSPACE_PATH_MAX * 2];
+        SDL_snprintf(message, sizeof(message), "\r\n[Build preparation] Restored %s/%s\r\n", absolute.directory, names[i]);
+        output(context, message, strlen(message));
+    }
+    if(editor_result_check(result) || configure_enabled || !build_default_cmake_compile_check(compile)) return result;
+    /* Custom non-CMake workflows do not require CMake's disposable metadata.
+     * Default-directory CMake builds with configuration disabled need a prepared
+     * tree. An explicit alternate build path is validated by its custom command. */
+    const char *required[] = {"CMakeCache.txt", "CMakeFiles"};
+    for(size_t i = 0; i < SDL_arraysize(required); ++i) {
+        char path[EDITOR_WORKSPACE_PATH_MAX * 2]; SDL_PathInfo info;
+        SDL_snprintf(path, sizeof(path), "%s/build/%s", absolute.directory, required[i]);
+        SDL_PathType expected = i == 0 ? SDL_PATHTYPE_FILE : SDL_PATHTYPE_DIRECTORY;
+        if(!SDL_GetPathInfo(path, &info) || info.type != expected)
+            return editor_result_error(EDITOR_ERROR_FILE_IO,
+                "Missing CMake build metadata %s; enable configuration before rebuilding", path);
+    }
+    return editor_result_value(true);
+}
 EditorResult editor_build_cache_configured(const EditorWorkspace *workspace) {
     EditorWorkspace absolute;
     EditorResult result = editor_build_workspace_get(workspace, &absolute);
@@ -348,8 +390,8 @@ static EditorResult stage_start(EditorBuild *build, bool configure) {
     build->stage = configure ? EDITOR_BUILD_CONFIGURING : EDITOR_BUILD_COMPILING;
     stage_output(build, "START");
     if(configure) {
-        EditorResult prepared = editor_build_cache_prepare(&build->workspace,
-            build->configure.count != 0, build->output, build->context);
+        EditorResult prepared = editor_build_prepare(&build->workspace,
+            build->configure.count != 0, &build->compile, build->output, build->context);
         if(editor_result_check(prepared)) return prepared;
     }
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];

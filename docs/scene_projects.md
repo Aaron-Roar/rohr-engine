@@ -182,8 +182,22 @@ Run refuses stale metadata even if the original project still exists. An
 interrupted or failed relocation recovery stays blocked until configuration
 creates a valid cache for the new location. If configuration is disabled, the
 tools explain that it must be enabled before recovery. A linked default `build`
-directory is rejected rather than modifying another project's files. Missing
-project CMake scaffolding is a separate recovery concern.
+directory is rejected rather than modifying another project's files.
+
+Before configuration, all editor and CLI builds restore a missing
+`CMakeLists.txt` or `src/generated/project_scene.cmake` from the engine templates,
+including builds with custom commands. Existing CMake files are preserved;
+unreadable files and invalid path types produce diagnostics rather than being
+replaced. A deleted customized file can only be restored as the standard
+template. Recovery leaves `.gitignore`, developer source, assets, and settings
+alone. Compile App and CLI `compile` do not regenerate C sources.
+
+The configured CMake command regenerates missing caches and build metadata;
+valid caches remain reusable. An explicitly disabled configure command stays
+disabled. Default-directory CMake builds with missing metadata explain that
+configuration must be enabled; custom builders remain responsible for their own
+metadata and any alternate build directory. Standalone Generate C does not
+restore a missing root CMake file, preserving externally managed workflows.
 
 Generation, configuration, compilation, and launch-preparation diagnostics always
 reach the embedded terminal, including failures before a subprocess starts.
@@ -218,7 +232,9 @@ versa).
 ## Source ownership and regeneration
 
 `src/generated/` remains editor-owned. Generating C refreshes descriptions,
-settings, binding helpers, viewport composition, and `project_scene.cmake`.
+settings, binding helpers, and viewport composition. The
+`project_scene.cmake` integration file is created when missing and preserved
+when present, including during generation.
 The simulation entry point and its private modules are always overwritten.
 Missing generated files are recreated. Exact legacy `src/scene.c` scaffolds are
 removed; customized legacy files remain untouched but are unused by the scene

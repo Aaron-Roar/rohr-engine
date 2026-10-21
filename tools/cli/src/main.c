@@ -359,8 +359,10 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
         EDITOR_CONFIG_FRONTEND_CLI, configure ? EDITOR_CONFIG_OPERATION_CONFIGURE :
         EDITOR_CONFIG_OPERATION_COMPILE);
     if(configure) {
-        EditorResult prepared = editor_build_cache_prepare(workspace,
-            !configured_command || configured_command->count != 0, cli_build_output, NULL);
+        const EditorConfigCommand *compile = editor_config_command_get(config,
+            EDITOR_CONFIG_FRONTEND_CLI, EDITOR_CONFIG_OPERATION_COMPILE);
+        EditorResult prepared = editor_build_prepare(workspace,
+            !configured_command || configured_command->count != 0, compile, cli_build_output, NULL);
         if(editor_result_check(prepared)) return cli_error(prepared);
     }
     if(configured_command != NULL && configured_command->count == 0) return 0;

@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #else
 #include <windows.h>
 #endif
@@ -149,6 +150,67 @@ static void relocation_checks(const EditorWorkspace *parent) {
     kept = SDL_LoadFile(cache, NULL); assert(kept && !strcmp(kept, text)); SDL_free(kept);
     assert(!unlink(path));
 #endif
+}
+
+static void scaffolding_checks(const EditorWorkspace *parent) {
+    EditorWorkspace workspace = {.open = true, .config = editor_workspace_config_default_get()};
+    SDL_snprintf(workspace.directory, sizeof(workspace.directory), "%s/scaffold_%llu",
+        parent->directory, (unsigned long long)SDL_GetPerformanceCounter());
+    assert(SDL_CreateDirectory(workspace.directory));
+    SDL_strlcpy(workspace.config.name, "Recovery", sizeof(workspace.config.name));
+    char root[2048], scene[2048], path[2048];
+    SDL_snprintf(root, sizeof(root), "%s/CMakeLists.txt", workspace.directory);
+    SDL_snprintf(scene, sizeof(scene), "%s/src/generated/project_scene.cmake", workspace.directory);
+    SDL_snprintf(path, sizeof(path), "%s/.gitignore", workspace.directory); save(path, "custom ignore");
+    reset_output(); OK(editor_build_prepare(&workspace, true, NULL, capture, NULL));
+    assert(strstr(captured, "Restored") && strstr(captured, "CMakeLists.txt") && strstr(captured, "project_scene.cmake"));
+    char *text = SDL_LoadFile(root, NULL); assert(text && strstr(text, "project(Recovery") && strstr(text, "include(src/generated/project_scene.cmake)")); SDL_free(text);
+    text = SDL_LoadFile(scene, NULL); assert(text && strstr(text, "add_executable(${PROJECT_NAME}_scene")); SDL_free(text);
+    text = SDL_LoadFile(path, NULL); assert(text && !strcmp(text, "custom ignore")); SDL_free(text);
+    SDL_snprintf(path, sizeof(path), "%s/src/main.c", workspace.directory);
+    SDL_PathInfo info; assert(!SDL_GetPathInfo(path, &info));
+    save(root, "# custom root"); save(scene, "# custom scene");
+    reset_output(); OK(editor_build_prepare(&workspace, true, NULL, capture, NULL)); assert(!used);
+    text = SDL_LoadFile(root, NULL); assert(text && !strcmp(text, "# custom root")); SDL_free(text);
+    text = SDL_LoadFile(scene, NULL); assert(text && !strcmp(text, "# custom scene")); SDL_free(text);
+    EditorResult result = editor_build_prepare(&workspace, false, NULL, capture, NULL);
+    assert(editor_result_check(result) && strstr(result.result.error.message, "enable configuration"));
+    /* Custom commands and fully disabled builds need no CMake cache. */
+    EditorConfigCommand custom = {.set = true, .count = 1};
+    SDL_strlcpy(custom.arguments[0], "custom_builder", sizeof(custom.arguments[0]));
+    assert(SDL_RemovePath(root));
+    OK(editor_build_prepare(&workspace, false, &custom, capture, NULL));
+    assert(SDL_GetPathInfo(root, &info));
+    OK(editor_config_command_expression_parse("{\"cmake\",\"--build\",\"/custom/build\"}", &custom));
+    OK(editor_build_prepare(&workspace, false, &custom, capture, NULL));
+    custom.count = 0; OK(editor_build_prepare(&workspace, false, &custom, capture, NULL));
+    assert(SDL_RemovePath(root)); assert(SDL_CreateDirectory(root));
+    result = editor_build_prepare(&workspace, true, NULL, capture, NULL);
+    assert(editor_result_check(result) && strstr(result.result.error.message, "CMakeLists.txt"));
+    assert(SDL_GetPathInfo(root, &info) && info.type == SDL_PATHTYPE_DIRECTORY);
+    assert(SDL_RemovePath(root));
+#ifndef _WIN32
+    /* A dangling link is not a missing file that we own. */
+    assert(!symlink("missing_custom_file", root));
+    result = editor_build_prepare(&workspace, true, NULL, capture, NULL);
+    assert(editor_result_check(result) && strstr(result.result.error.message, "CMakeLists.txt"));
+    assert(!unlink(root));
+    /* Also exercise an existing but unreadable file, where privileges permit. */
+    if(geteuid() != 0) {
+        save(root, "unreadable customization"); assert(!chmod(root, 0000));
+        result = editor_build_prepare(&workspace, true, NULL, capture, NULL);
+        assert(editor_result_check(result) && strstr(result.result.error.message, "Could not read"));
+        assert(!chmod(root, 0600)); assert(SDL_RemovePath(root));
+        assert(!chmod(workspace.directory, 0500));
+        result = editor_build_prepare(&workspace, true, NULL, capture, NULL);
+        assert(editor_result_check(result) && strstr(result.result.error.message, "Could not restore"));
+        assert(!chmod(workspace.directory, 0700));
+    }
+#endif
+    assert(SDL_RemovePath(scene)); assert(SDL_CreateDirectory(scene));
+    reset_output(); result = editor_build_prepare(&workspace, true, NULL, capture, NULL);
+    assert(editor_result_check(result) && strstr(result.result.error.message, "project_scene.cmake"));
+    assert(strstr(captured, "CMakeLists.txt")); /* A successful first restoration remains reported. */
 }
 
 static void controller_checks(const char *self, const char *child, EditorWorkspace *workspace) {
@@ -303,6 +365,6 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < SDL_arraysize(fixtures); ++i) {
         char path[2048]; SDL_snprintf(path, sizeof(path), "%s/%s", workspace.directory, fixtures[i]); (void)SDL_RemovePath(path);
     }
-    arguments_checks(); process_checks(argv[1], workspace.directory); executable_checks(&workspace); controller_checks(argv[1], argv[2], &workspace); relocation_checks(&workspace);
+    arguments_checks(); process_checks(argv[1], workspace.directory); executable_checks(&workspace); controller_checks(argv[1], argv[2], &workspace); relocation_checks(&workspace); scaffolding_checks(&workspace);
     return 0;
 }
