@@ -150,7 +150,7 @@ static EditorResult editor_build_settings_validate(
 }
 
 void editor_build_settings_panel_draw(EditorBuildSettingsPanel *panel,
-        EditorNotificationPanel *notifications, const char *project_directory,
+        EditorTerminalPanel *terminal, EditorNotificationPanel *notifications, const char *project_directory,
         UIRect bounds) {
     UIFieldResult configure_result;
     UIFieldResult compile_result;
@@ -218,7 +218,7 @@ void editor_build_settings_panel_draw(EditorBuildSettingsPanel *panel,
             panel->configure_override ? &configure : NULL,
             panel->compile_override ? &compile : NULL);
         if(editor_result_check(result)) {
-            editor_build_notification_configuration_failure(notifications,
+            editor_build_notification_configuration_failure(terminal, notifications,
                 result.result.error.message, lua_error);
         }
         editor_build_settings_error_set(panel, result);

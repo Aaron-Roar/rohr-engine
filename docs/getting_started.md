@@ -48,8 +48,9 @@ dist\windows\bin\rohr-gui.exe
 ```
 
 The first command builds the SDK. The second command starts the editor binary
-from that SDK. Keep the terminal open while the editor is running; build output
-and errors may appear there.
+from that SDK. Generation and build diagnostics are recorded in the editor's
+embedded terminal even while it is hidden. Open it through **View > Terminal**
+when needed; build failures also create notifications.
 
 ## 3. Create a project
 

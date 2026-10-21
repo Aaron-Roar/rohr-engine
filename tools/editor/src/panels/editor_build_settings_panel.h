@@ -7,6 +7,7 @@
 
 #include "editor_config.h"
 #include "editor_notification_panel.h"
+#include "editor_terminal_panel.h"
 #include "rohr.h"
 
 typedef struct EditorBuildSettingsPanel {
@@ -35,7 +36,7 @@ bool editor_build_settings_panel_create(EditorBuildSettingsPanel *panel,
 EditorResult editor_build_settings_panel_open(EditorBuildSettingsPanel *panel,
     const char *project_directory);
 void editor_build_settings_panel_draw(EditorBuildSettingsPanel *panel,
-    EditorNotificationPanel *notifications, const char *project_directory,
+    EditorTerminalPanel *terminal, EditorNotificationPanel *notifications, const char *project_directory,
     UIRect bounds);
 void editor_build_settings_panel_destroy(EditorBuildSettingsPanel *panel);
 

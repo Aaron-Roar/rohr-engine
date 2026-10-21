@@ -412,7 +412,6 @@ typedef struct EditorBuildRuntime {
     EditorSceneSession *scene;
     EditorBuildProcess *application;
     int pending; /* menu index + 1; zero means no queued build */
-    bool output_shown;
     bool prepare_scene;
     bool launch_scene;
     EditorScenePanel panel;
@@ -421,16 +420,6 @@ typedef struct EditorBuildRuntime {
 static volatile sig_atomic_t editor_interrupt_requested;
 static void editor_interrupt_handle(int signal_number) {
     editor_interrupt_requested = signal_number;
-}
-static void editor_build_output_write(void *context, const char *bytes, size_t count) {
-    EditorTerminalPanel *terminal = context;
-    char text[4097];
-    while(count) {
-        size_t length = SDL_min(count, sizeof(text) - 1);
-        memcpy(text, bytes, length); text[length] = 0;
-        (void)editor_terminal_panel_output_write(terminal, text);
-        bytes += length; count -= length;
-    }
 }
 static void editor_build_runtime_cancel(EditorBuildRuntime *runtime) {
     runtime->pending = 0;
@@ -445,9 +434,9 @@ static void editor_build_runtime_cancel(EditorBuildRuntime *runtime) {
     runtime->prepared_scene[0] = 0;
 }
 static void editor_build_request(EditorBuildRuntime *runtime, int index,
-        EditorNotificationPanel *notifications) {
+        EditorTerminalPanel *terminal, EditorNotificationPanel *notifications) {
     if(runtime->pending || editor_build_active_check(runtime->build)) {
-        editor_build_notification_start_failure(notifications, "Build",
+        editor_build_notification_start_failure(terminal, notifications, "Build",
             "A build is already active. Wait for it to finish or interrupt it in the terminal.");
         return;
     }
@@ -464,7 +453,7 @@ static void editor_build_request(EditorBuildRuntime *runtime, int index,
 static void editor_build_runtime_update(EditorBuildRuntime *runtime,
         EditorWorkspace *workspace, EditorProject *project,
         EditorTerminalPanel *terminal, EditorNotificationPanel *notifications,
-        bool show_output, bool show_tree) {
+        bool show_tree) {
     if(runtime->scene) {
         (void)editor_scene_session_update(runtime->scene);
         editor_scene_panel_update(&runtime->panel);
@@ -474,18 +463,18 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
         EditorResult result = editor_build_process_poll(runtime->application,
             editor_build_output_write, terminal, &finished, &code);
         if(editor_result_check(result)) {
-            editor_error_notification_failure(notifications, "Run Application", result);
+            editor_build_notification_result_failure(terminal, notifications, "Run Application", result);
             editor_build_process_destroy(runtime->application); runtime->application = NULL;
         } else if(finished && code && code != 130)
-            editor_build_notification_process_failure(notifications, "Application", code, true);
+            editor_build_notification_process_failure(terminal, notifications, "Application", code);
     }
     if(editor_build_active_check(runtime->build)) {
         bool finished; int code;
         EditorBuildStage stage = editor_build_stage_get(runtime->build);
         EditorResult result = editor_build_update(runtime->build, &finished, &code);
-        if(editor_result_check(result)) editor_error_notification_failure(notifications, "Build", result);
-        else if(finished && code) editor_build_notification_process_failure(notifications,
-            stage == EDITOR_BUILD_CONFIGURING ? "Configure" : "Compile", code, runtime->output_shown);
+        if(editor_result_check(result)) editor_build_notification_result_failure(terminal, notifications, "Build", result);
+        else if(finished && code) editor_build_notification_process_failure(terminal, notifications,
+            stage == EDITOR_BUILD_CONFIGURING ? "Configure" : "Compile", code);
         else if(finished) {
             char title[96], detail[EDITOR_WORKSPACE_PATH_MAX + 160];
             snprintf(title, sizeof(title), "Build %s - %s",
@@ -494,11 +483,13 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
             snprintf(detail, sizeof(detail), "%s\n\nProject: %s",
                 editor_build_compiled_check(runtime->build) ? "The selected build target completed successfully." :
                     "The compile command is disabled in the build configuration.", workspace->directory);
+            editor_build_status_write(terminal, title, "", detail);
             editor_notification_panel_push(notifications, title, detail);
             if(runtime->prepare_scene) {
+                editor_build_status_write(terminal, "Scene launch preparation", "START", workspace->directory);
                 result = editor_build_scene_prepared_get(runtime->build,
                     runtime->prepared_scene, sizeof(runtime->prepared_scene));
-                if(editor_result_check(result)) editor_error_notification_failure(notifications, "Simulate Scene", result);
+                if(editor_result_check(result)) editor_build_notification_result_failure(terminal, notifications, "Simulate Scene", result);
                 else if(runtime->launch_scene) {
                     if(!runtime->scene) runtime->scene = editor_scene_session_create();
                     editor_scene_panel_attach(&runtime->panel, runtime->scene);
@@ -506,10 +497,19 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
                     EngineResult launched = editor_scene_session_launch(runtime->scene, runtime->prepared_scene);
                     if(rohr_error_check(launched)) {
                         editor_scene_panel_stop(&runtime->panel);
-                        if(runtime->scene) (void)editor_scene_session_update(runtime->scene);
-                        else editor_build_notification_start_failure(notifications, "Run Scene", rohr_error_message_get(launched));
+                        bool reported = false;
+                        if(runtime->scene) {
+                            Report report = editor_scene_session_update(runtime->scene);
+                            reported = report.has_fatal;
+                        }
+                        /* The attached scene reporter already writes fatal diagnostics
+                         * to the terminal and notifications. Cover early rejection only. */
+                        if(!reported) editor_build_notification_start_failure(terminal, notifications, "Run Scene", rohr_error_message_get(launched));
                     }
-                } else editor_notification_panel_push(notifications, "Scene ready", runtime->prepared_scene);
+                } else {
+                    editor_build_status_write(terminal, "Scene ready", "SUCCESS", runtime->prepared_scene);
+                    editor_notification_panel_push(notifications, "Scene ready", runtime->prepared_scene);
+                }
             }
         }
         if(editor_result_check(result) || finished) runtime->prepare_scene = runtime->launch_scene = false;
@@ -519,62 +519,65 @@ static void editor_build_runtime_update(EditorBuildRuntime *runtime,
     if((index == EDITOR_BUILD_ACTION_SCENE || index == EDITOR_BUILD_ACTION_PROJECT || index == EDITOR_BUILD_ACTION_SIMULATE) && editor_scene_session_active_check(runtime->scene)) return;
     if((index == EDITOR_BUILD_ACTION_APPLICATION || index == EDITOR_BUILD_ACTION_PROJECT || index == EDITOR_BUILD_ACTION_COMPILE) && editor_build_process_active_check(runtime->application)) return;
     runtime->pending = 0;
+    editor_build_status_write(terminal, "Build preparation", "START", workspace->directory);
     EditorResult result = editor_project_fonts_validate(workspace, project);
-    if(editor_result_check(result)) { editor_error_notification_failure(notifications, "Build", result); return; }
+    if(editor_result_check(result)) { editor_build_notification_result_failure(terminal, notifications, "Validate fonts", result); return; }
     if(index != EDITOR_BUILD_ACTION_COMPILE) {
         EditorWorkspaceCommand command = {.type = EDITOR_WORKSPACE_COMMAND_GENERATE_C};
         SDL_strlcpy(command.directory, workspace->directory, sizeof(command.directory));
+        editor_build_status_write(terminal, "Generate App C", "START", workspace->directory);
         result = editor_workspace_operation_execute(workspace, project, &command);
-        if(editor_result_check(result)) { editor_error_notification_failure(notifications, "Generate App C", result); return; }
+        if(editor_result_check(result)) { editor_build_notification_result_failure(terminal, notifications, "Generate App C", result); return; }
         bool tree_shown = show_tree && editor_generation_report_write(terminal, project);
-        editor_build_notification_codegen_success(notifications, project, tree_shown);
+        editor_build_notification_codegen_success(terminal, notifications, project, tree_shown);
     }
     if(index == EDITOR_BUILD_ACTION_GENERATE) return;
     EditorConfig config;
     char sdk[EDITOR_WORKSPACE_PATH_MAX * 2] = {0}, option[EDITOR_WORKSPACE_PATH_MAX * 2];
     result = editor_gui_config_load(&config, workspace->directory);
-    if(editor_result_check(result)) { editor_error_notification_failure(notifications, "Build configuration", result); return; }
+    if(editor_result_check(result)) { editor_build_notification_result_failure(terminal, notifications, "Build configuration", result); return; }
     const EditorConfigCommand *compile = editor_config_command_get(&config,
         EDITOR_CONFIG_FRONTEND_GUI, EDITOR_CONFIG_OPERATION_COMPILE);
     if(index == EDITOR_BUILD_ACTION_SIMULATE && compile && !compile->count) {
-        editor_build_notification_start_failure(notifications, "Simulate Scene",
+        editor_build_notification_start_failure(terminal, notifications, "Simulate Scene",
             "Simulation requires compilation; the GUI compile command is disabled."); return;
     }
     (void)editor_sdk_root_get(sdk, sizeof(sdk));
     if(!editor_rohr_cmake_option_get(option, sizeof(option))) {
-        editor_build_notification_start_failure(notifications, "Build", "Could not locate the Rohr SDK or source tree."); return;
+        editor_build_notification_start_failure(terminal, notifications, "Build", "Could not locate the Rohr SDK or source tree."); return;
     }
     if(!runtime->build) runtime->build = editor_build_create();
-    runtime->output_shown = show_output;
     result = editor_build_start(runtime->build, workspace, &config, sdk, option,
         index == EDITOR_BUILD_ACTION_SCENE || index == EDITOR_BUILD_ACTION_SIMULATE ? EDITOR_BUILD_SCENE : index == EDITOR_BUILD_ACTION_PROJECT ? EDITOR_BUILD_PROJECT : EDITOR_BUILD_APPLICATION,
-        runtime->scene, show_output ? editor_build_output_write : NULL, terminal);
-    if(editor_result_check(result)) editor_error_notification_failure(notifications, "Build", result);
+        runtime->scene, editor_build_output_write, terminal);
+    if(editor_result_check(result)) editor_build_notification_result_failure(terminal, notifications, "Build", result);
     else runtime->prepare_scene = index == EDITOR_BUILD_ACTION_SIMULATE;
 }
 static void editor_run_request(EditorBuildRuntime *runtime, const EditorWorkspace *workspace,
-        bool scene, EditorNotificationPanel *notifications) {
+        bool scene, EditorTerminalPanel *terminal, EditorNotificationPanel *notifications) {
     const char *operation = scene ? "Simulate Scene" : "Run Application";
     if(runtime->pending || editor_build_active_check(runtime->build)) {
-        editor_build_notification_start_failure(notifications, operation, "Wait for the active build to finish before running."); return;
+        editor_build_notification_start_failure(terminal, notifications, operation, "Wait for the active build to finish before running."); return;
     }
     if(scene) {
         (void)editor_scene_panel_tab_visible_set(&runtime->panel, EDITOR_SCENE_TAB_SIMULATION, true);
         runtime->panel.active_tab = EDITOR_SCENE_TAB_SIMULATION;
-        editor_build_request(runtime, EDITOR_BUILD_ACTION_SIMULATE, notifications);
+        editor_build_request(runtime, EDITOR_BUILD_ACTION_SIMULATE, terminal, notifications);
         return;
     }
+    editor_build_status_write(terminal, operation, "START", workspace->directory);
     char executable[EDITOR_WORKSPACE_PATH_MAX * 2];
     EditorResult result = editor_build_executable_get(workspace,
         EDITOR_BUILD_APPLICATION, executable, sizeof(executable));
-    if(editor_result_check(result)) { editor_error_notification_failure(notifications, operation, result); return; }
+    if(editor_result_check(result)) { editor_build_notification_result_failure(terminal, notifications, operation, result); return; }
     if(editor_build_process_active_check(runtime->application)) {
-        editor_build_notification_start_failure(notifications, operation, "The application is already running."); return;
+        editor_build_notification_start_failure(terminal, notifications, operation, "The application is already running."); return;
     }
     if(!runtime->application) runtime->application = editor_build_process_create();
     const char *arguments[] = {executable, NULL};
     result = editor_build_process_start(runtime->application, workspace->directory, arguments);
-    if(editor_result_check(result)) editor_error_notification_failure(notifications, operation, result);
+    if(editor_result_check(result)) editor_build_notification_result_failure(terminal, notifications, operation, result);
+    else editor_build_status_write(terminal, operation, "STARTED", executable);
 }
 
 static void editor_scene_stop_request(EditorBuildRuntime *runtime) {
@@ -668,9 +671,6 @@ static EditorResult editor_workspace_operation_execute(EditorWorkspace *workspac
         editor_workspace_editor_generate(workspace, project) :
         editor_workspace_command_execute(workspace, project, workspace_command);
     char command[3072];
-    if(editor_result_check(result) &&
-            workspace_command->type == EDITOR_WORKSPACE_COMMAND_GENERATE_C)
-        editor_result_stderr_print(result);
     if(!editor_result_check(result) &&
             workspace_command->type != EDITOR_WORKSPACE_COMMAND_CREATE &&
             workspace_command->type != EDITOR_WORKSPACE_COMMAND_LOAD &&
@@ -2280,7 +2280,6 @@ int main(int argc, char **argv) {
     TextAsset terminal_visible_label = {0};
     TextAsset terminal_editor_operations_label = {0};
     TextAsset terminal_generated_code_label = {0};
-    TextAsset terminal_build_operations_label = {0};
     TextAsset preferences_label = {0};
     TextAsset file_browser_field = {0};
     TextAsset color_picker_hex_field = {0};
@@ -2350,7 +2349,6 @@ int main(int argc, char **argv) {
     bool terminal_resizing = false;
     bool terminal_editor_operations = true;
     bool terminal_generated_code = true;
-    bool terminal_build_operations = true;
     bool column_frame_multi_edit_open = false;
     EditorCloseAction close_action = EDITOR_CLOSE_NONE;
     float panel_scroll_offset = 0.0f;
@@ -2497,8 +2495,6 @@ int main(int argc, char **argv) {
                 &terminal_editor_operations_label) ||
             !editor_text_create(&font, "[ ] Show generated code",
                 &terminal_generated_code_label) ||
-            !editor_text_create(&font, "[ ] Show build operations",
-                &terminal_build_operations_label) ||
             !editor_text_create(&font, "Build", &preferences_label) ||
             !editor_text_create(&font, "", &file_browser_field) ||
             !editor_origin_panel_create(&origin_panel, &font) ||
@@ -2661,8 +2657,7 @@ int main(int argc, char **argv) {
             editor_pointer_button_state_get(INPUT_MOUSE_BUTTON_MIDDLE);
         editor_terminal_panel_update(&terminal_panel);
         editor_build_runtime_update(&build_runtime, &workspace, &project,
-            &terminal_panel, &notification_panel, terminal_build_operations,
-            terminal_generated_code);
+            &terminal_panel, &notification_panel, terminal_generated_code);
         if(editor_interrupt_requested) {
             editor_build_runtime_cancel(&build_runtime);
             running = false;
@@ -3779,7 +3774,7 @@ int main(int argc, char **argv) {
             if(action == EDITOR_SCENE_ACTION_EDITOR || action == EDITOR_SCENE_ACTION_STOP)
                 editor_scene_stop_request(&build_runtime);
             else if(action == EDITOR_SCENE_ACTION_RUN) {
-                editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_SIMULATE, &notification_panel);
+                editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_SIMULATE, &terminal_panel, &notification_panel);
                 if(build_runtime.pending == EDITOR_BUILD_ACTION_SIMULATE + 1) build_runtime.launch_scene = true;
             }
         }
@@ -3869,7 +3864,7 @@ int main(int argc, char **argv) {
             };
             const TextAsset *terminal_options[] = {
                 &terminal_visible_label, &terminal_editor_operations_label,
-                &terminal_generated_code_label, &terminal_build_operations_label
+                &terminal_generated_code_label
             };
             const TextAsset *build_options[] = {
                 &build_application_label, &build_scene_label, &build_project_label,
@@ -3895,8 +3890,7 @@ int main(int argc, char **argv) {
             };
             const TextAsset *terminal_texts[] = {
                 &terminal_menu_label, &terminal_visible_label,
-                &terminal_editor_operations_label, &terminal_generated_code_label,
-                &terminal_build_operations_label
+                &terminal_editor_operations_label, &terminal_generated_code_label
             };
             const TextAsset *settings_texts[] = {&settings_label, &preferences_label,
                 &physics_settings_panel.menu_label,
@@ -3934,9 +3928,6 @@ int main(int argc, char **argv) {
             (void)rohr_graphics_text_value_set(&terminal_generated_code_label,
                 terminal_generated_code ? "[x] Show generated code" :
                     "[ ] Show generated code");
-            (void)rohr_graphics_text_value_set(&terminal_build_operations_label,
-                terminal_build_operations ? "[x] Show build operations" :
-                    "[ ] Show build operations");
 
             menu_x += file_bounds.width + 4.0f;
             edit_bounds = rohr_ui_component_bounds_get(
@@ -4059,7 +4050,7 @@ int main(int argc, char **argv) {
                     scene_settings_panel.open = true;
                     scene_settings_panel.scroll = 0;
                 } else if(build_menu.changed && workspace.open)
-                    editor_build_request(&build_runtime, build_menu.selected_index, &notification_panel);
+                    editor_build_request(&build_runtime, build_menu.selected_index, &terminal_panel, &notification_panel);
             }
             {
                 UIDropdownResult run_menu = rohr_ui_menu("editor.menu.run", &run_label,
@@ -4067,7 +4058,7 @@ int main(int argc, char **argv) {
             scene_menu_open |= run_menu.open;
                 if(run_menu.changed && workspace.open)
                     editor_run_request(&build_runtime, &workspace,
-                        run_menu.selected_index == 1, &notification_panel);
+                        run_menu.selected_index == 1, &terminal_panel, &notification_panel);
             }
             {
                 UIDropdownResult view_menu = rohr_ui_menu(
@@ -4115,8 +4106,6 @@ int main(int argc, char **argv) {
                     terminal_editor_operations = !terminal_editor_operations;
                 else if(terminal_menu.changed && terminal_menu.selected_index == 2)
                     terminal_generated_code = !terminal_generated_code;
-                else if(terminal_menu.changed && terminal_menu.selected_index == 3)
-                    terminal_build_operations = !terminal_build_operations;
             }
             UIDropdownResult settings_menu = rohr_ui_menu("editor.menu.settings",
                 &settings_label,
@@ -4128,7 +4117,7 @@ int main(int argc, char **argv) {
                 EditorResult result = editor_build_settings_panel_open(
                     &build_settings_panel, workspace.directory);
                 if(editor_result_check(result)) {
-                    editor_error_notification_failure(&notification_panel,
+                    editor_build_notification_result_failure(&terminal_panel, &notification_panel,
                         "Build settings", result);
                 }
             } else if(settings_menu.changed && settings_menu.selected_index == 1 &&
@@ -4165,7 +4154,7 @@ int main(int argc, char **argv) {
         if(!notification_panel.report_open && !notification_panel.log_open &&
                 !visual_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open)
             editor_build_settings_panel_draw(&build_settings_panel,
-                &notification_panel, workspace.directory, build_settings_bounds);
+                &terminal_panel, &notification_panel, workspace.directory, build_settings_bounds);
         if(!notification_panel.report_open && !notification_panel.log_open &&
                 !build_settings_panel.open && !physics_settings_panel.open && !application_settings_panel.open && !scene_settings_panel.open)
             editor_visual_settings_panel_draw(&visual_settings_panel,
@@ -4190,7 +4179,7 @@ int main(int argc, char **argv) {
         }
         if(build_settings_panel.build_requested) {
             build_settings_panel.build_requested = false;
-            editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_COMPILE, &notification_panel);
+            editor_build_request(&build_runtime, EDITOR_BUILD_ACTION_COMPILE, &terminal_panel, &notification_panel);
         }
 
         /* Draw after property/dialog controls so reference previews use this frame's hover. */
@@ -4827,7 +4816,6 @@ int main(int argc, char **argv) {
     rohr_graphics_text_destroy(&terminal_visible_label);
     rohr_graphics_text_destroy(&terminal_editor_operations_label);
     rohr_graphics_text_destroy(&terminal_generated_code_label);
-    rohr_graphics_text_destroy(&terminal_build_operations_label);
     rohr_graphics_text_destroy(&reset_view_label);
     rohr_graphics_text_destroy(&save_label);
     rohr_graphics_text_destroy(&cancel_label);
@@ -4935,7 +4923,6 @@ fail:
     rohr_graphics_text_destroy(&terminal_visible_label);
     rohr_graphics_text_destroy(&terminal_editor_operations_label);
     rohr_graphics_text_destroy(&terminal_generated_code_label);
-    rohr_graphics_text_destroy(&terminal_build_operations_label);
     rohr_graphics_text_destroy(&reset_view_label);
     rohr_graphics_text_destroy(&save_label);
     rohr_graphics_text_destroy(&cancel_label);

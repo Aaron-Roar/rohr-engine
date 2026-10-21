@@ -77,6 +77,32 @@ install(TARGETS rohr_editor_gui RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(DIRECTORY assets/ DESTINATION ${CMAKE_INSTALL_BINDIR}/assets)
 
 if(ROHR_BUILD_TESTS)
+    # Compile the actual GUI controller into the regression test without exposing
+    # an application-internal API solely for testing.
+    get_target_property(editor_diagnostics_sources rohr_editor_gui SOURCES)
+    list(REMOVE_ITEM editor_diagnostics_sources src/main.c)
+    add_executable(editor_build_diagnostics_test tests/editor_build_diagnostics.c
+        ${editor_diagnostics_sources})
+    target_include_directories(editor_build_diagnostics_test PRIVATE
+        src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
+    target_compile_definitions(editor_build_diagnostics_test PRIVATE
+        ROHR_DEVELOPMENT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+    target_link_libraries(editor_build_diagnostics_test PRIVATE rohr_engine rohr_terminal rohr_editor_core)
+    set_target_properties(editor_build_diagnostics_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
+    if(NOT MSVC)
+        target_compile_options(editor_build_diagnostics_test PRIVATE -UNDEBUG)
+    endif()
+    if(ROHR_ENABLE_SANITIZERS)
+        target_compile_options(editor_build_diagnostics_test PRIVATE ${ROHR_SANITIZER_COMPILE_OPTIONS})
+        target_link_options(editor_build_diagnostics_test PRIVATE ${ROHR_SANITIZER_LINK_OPTIONS})
+    endif()
+    if(NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME editor_build_diagnostics COMMAND editor_build_diagnostics_test
+            ${CMAKE_CURRENT_BINARY_DIR}/diagnostics_project)
+        set_tests_properties(editor_build_diagnostics PROPERTIES TIMEOUT 90
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    endif()
     add_executable(editor_scene_panel_test tests/editor_scene_panel.c
         src/panels/editor_scene_panel.c src/panels/editor_notification_panel.c
         src/panels/editor_notification_store.c src/panels/editor_terminal_panel.c)

@@ -69,7 +69,7 @@ outside the image after a press inside. The editor owns native relative mouse an
 text-input mode and maps the child's IME rectangle into window coordinates.
 
 Combined stdout/stderr streams into the terminal, including cleanup output,
-independently of the build-output preference. Partial UTF-8 codepoints survive
+even while the terminal is hidden. Partial UTF-8 codepoints survive
 pipe-read boundaries; invalid bytes display as `?`. Plain log text does not create
 warning/error notifications. Structured report diagnostics create notifications
 with report/stage IDs, severity, code, recovery, source/target IDs, substeps,
@@ -168,8 +168,13 @@ application run can be active. Opening, closing, or exiting a project cancels it
 build and stops owned children, including when opening a replacement project
 fails. Asset imports do not cancel builds.
 
-Shown and hidden build output use the same argument-array process runner.
-**Terminal > Show build operations** controls display only. Ctrl+C in the focused
+Generation, configuration, compilation, and launch-preparation diagnostics always
+reach the embedded terminal, including failures before a subprocess starts.
+Stage messages identify starts, completion, failures, and cancellation; subprocess
+stdout/stderr is retained in the terminal's bounded scrollback. The optional
+generated-object tree is independent of these diagnostics. Terminal visibility
+and focus change only through user interaction, including when a build fails;
+failure notifications direct users to the terminal. Ctrl+C in the focused
 terminal cancels an active build; a console interrupt is forwarded before the
 editor or CLI exits. POSIX builds own a process group, with a two-second interrupt
 grace period before forced termination. Windows builds own a kill-on-close job;

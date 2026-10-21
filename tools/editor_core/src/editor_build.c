@@ -155,6 +155,13 @@ EditorResult editor_build_compile_arguments_get(const EditorConfigCommand *comma
     return editor_result_value(true);
 }
 EditorBuild *editor_build_create(void) { return SDL_calloc(1, sizeof(EditorBuild)); }
+static void stage_output(EditorBuild *build, const char *status) {
+    if(!build->output) return;
+    const char *stage = build->stage == EDITOR_BUILD_CONFIGURING ? "Configure" : "Compile";
+    char message[160];
+    SDL_snprintf(message, sizeof(message), "\r\n[%s] %s\r\n", stage, status);
+    build->output(build->context, message, strlen(message));
+}
 static void command_display(EditorBuild *build) {
     if(!build->output) return;
     build->output(build->context, "\r\n$", 3);
@@ -166,6 +173,8 @@ static void command_display(EditorBuild *build) {
     build->output(build->context, "\r\n", 2);
 }
 static EditorResult stage_start(EditorBuild *build, bool configure) {
+    build->stage = configure ? EDITOR_BUILD_CONFIGURING : EDITOR_BUILD_COMPILING;
+    stage_output(build, "START");
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
     SDL_snprintf(directory, sizeof(directory), "%s/build", build->workspace.directory);
     EditorResult result = editor_build_target_name_get(&build->workspace, build->target, target, sizeof(target));
@@ -175,8 +184,10 @@ static EditorResult stage_start(EditorBuild *build, bool configure) {
     else result = editor_build_compile_arguments_get(&build->compile,
         build->workspace.directory, directory, build->sdk, target, build->arguments, build->argv);
     if(editor_result_check(result)) return result;
-    build->stage = configure ? EDITOR_BUILD_CONFIGURING : EDITOR_BUILD_COMPILING;
-    if(!build->argv[0]) return editor_result_value(true);
+    if(!build->argv[0]) {
+        stage_output(build, "SKIPPED (command disabled)");
+        return editor_result_value(true);
+    }
     if(!build->process && !(build->process = editor_build_process_create()))
         return editor_result_error(EDITOR_ERROR_CAPACITY, "Could not allocate build process");
     command_display(build);
@@ -218,7 +229,10 @@ EditorResult editor_build_start(EditorBuild *build, const EditorWorkspace *works
         return editor_result_value(true);
     }
     result = stage_start(build, true);
-    if(editor_result_check(result)) build->stage = EDITOR_BUILD_IDLE;
+    if(editor_result_check(result)) {
+        stage_output(build, "FAIL (could not start command)");
+        build->stage = EDITOR_BUILD_IDLE;
+    }
     return result;
 }
 EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_code) {
@@ -233,6 +247,11 @@ EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_c
         bool done = true;
         if(editor_build_process_active_check(build->process)) result = editor_build_process_poll(build->process, build->output, build->context, &done, exit_code);
         if(!editor_result_check(result) && !done) return result;
+        if(!editor_result_check(result) && build->argv[0]) {
+            char status[80];
+            SDL_snprintf(status, sizeof(status), "%s (exit %d)", *exit_code ? "FAIL" : "SUCCESS", *exit_code);
+            stage_output(build, status);
+        }
         if(!editor_result_check(result) && *exit_code == 0 && build->stage == EDITOR_BUILD_CONFIGURING) {
             result = stage_start(build, false);
         } else {
@@ -241,12 +260,18 @@ EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_c
         }
     }
     if(editor_result_check(result)) {
+        stage_output(build, "FAIL (command setup or polling error)");
+        build->stage = EDITOR_BUILD_IDLE;
         editor_build_cancel(build); *finished = true; *exit_code = 1;
     }
     return result;
 }
 void editor_build_cancel(EditorBuild *build) {
     if(!build) return;
+    if(editor_build_active_check(build) && build->output) {
+        const char *message = "\r\n[Build] CANCELLED\r\n";
+        build->output(build->context, message, strlen(message));
+    }
     build->succeeded = false;
     editor_build_process_destroy(build->process); build->process = NULL; build->stage = EDITOR_BUILD_IDLE;
 }

@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. Corrections C1–C5 and retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics complete with automated verification below; C2–C5 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -527,8 +527,8 @@ camera-preview corrective retest. Continue the remaining review cases with
 ### Goal 5 corrective issue mapping
 
 The review's full issue list maps to the ordered correction goals in
-NEXT_STEPS.md. These entries record reported failures and approved scope, not
-implemented fixes. Existing automated evidence above predates these corrections;
+NEXT_STEPS.md. Entries remain pending unless explicitly marked complete below.
+Existing automated evidence above predates these corrections;
 each pursued goal needs its own relevant checks and interactive retest.
 
 | Reported issue or agreed clarification | Correction goal |
@@ -548,7 +548,7 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Anchors and other editor visuals lack a layer option | C9 |
 | Opening an element blocks object scrolling and leaves overlaying controls | C6 |
 | Opening the first object element glitches its editor over the object editor | C6 |
-| Generate C failures and all build-stage diagnostics must reach the terminal | C1 |
+| Generate C failures and all build-stage diagnostics must reach the terminal | C1 complete; output retained with manual-only terminal visibility |
 | An incompletely defined joint breaks the build/run path | C5 |
 | Invalid entity at startup in /tmp/rohr-projects/rohr-project-1 | C4 |
 | Asymmetric masks should permit one-sided physical response | C10 |
@@ -567,6 +567,26 @@ The engine already accepts joints with unset endpoints and retains their
 definitions when the physics pipeline skips unavailable contributions with a
 warning. The editor object-document conversion currently requires both anchors;
 C5 removes that parity gap while preserving validation of malformed data.
+
+**C1 verification:** generation/build diagnostics always reach the embedded
+terminal, regardless of visibility or optional generated-tree output. The build
+output toggle has been removed. Stage messages and original errors cover
+generation, configuration, compilation, process startup, and launch preparation;
+notifications are retained and direct users to terminal details. No operation
+automatically opens or focuses the terminal. Scrollback remains bounded by the
+existing terminal capacity.
+
+The `editor_build_diagnostics` regression invokes the actual GUI controller with
+temporary projects and real CMake/compiler subprocesses. It verifies generation
+failure before subprocess creation, successful generation with the tree disabled,
+configure/compiler failures, invalid Lua, missing commands/executables, and
+cancellation followed by a successful build. Output remains readable after the
+user opens the previously hidden terminal. All 111 existing Linux tests passed;
+the new regression passed twice after correcting its temporary-directory reuse.
+The full Linux build includes examples. Focused `editor_build` and
+`editor_build_diagnostics` ASan/UBSan tests passed, and the Windows editor and both
+test executables cross-compiled without compiler warnings. Windows execution was
+not performed. Broader interactive acceptance and C2–C14 remain open.
 
 ## Frozen fixture plan
 

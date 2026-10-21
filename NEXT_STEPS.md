@@ -157,18 +157,25 @@ they do not reorder the ten roadmap milestones or reopen verified goals 1–4.
 The five interactive acceptance cases remain the completion gate. The accepted
 camera-preview retest retains credit; rerun affected checks after corrections.
 
-This is an implementation plan, not completed work. Pursue one correction goal
+Unchecked entries are planned work. Pursue one correction goal
 at a time only when requested, and settle its remaining clarifications before
 implementation. The [issue mapping](docs/cross_path_feature_inventory.md#goal-5-corrective-issue-mapping)
 accounts for every item in the user's review. Update the applicable inventory,
 contracts, and generated examples when a goal changes supported behavior.
 
-1. [ ] **C1 — Generation and build diagnostics.** Route Generate C,
+1. [x] **C1 — Generation and build diagnostics.** Route Generate C,
    configuration, compilation, and launch-preparation diagnostics to the editor
    terminal, including failures before a subprocess starts. Retain notifications
    and identify the failing stage and affected object/path. A deliberate
    generation failure and a compiler failure must both expose their actual
    reasons; disabling optional tree output must not suppress diagnostics.
+   Complete: output is always captured in terminal scrollback; visibility and
+   focus remain manual-only. Removed the build-output toggle while retaining
+   optional tree output and notifications. Verified actual GUI controller
+   generation/configuration/compiler/startup failures, cancellation/recovery,
+   and successful builds with the terminal hidden. Linux regression checks,
+   focused ASan/UBSan, and Windows editor/test cross-compilation passed; see the
+   corrective issue mapping for verification details.
 2. [ ] **C2 — Relocation and repeat builds.** Resolve project-owned paths from
    the project's current root. Reuse valid CMake caches on repeated builds and
    recover stale project/build-root metadata after relocation. Preserve source,

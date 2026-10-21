@@ -395,11 +395,15 @@ or by clicking **Notification Log** again. Opening a report from the log keeps
 the log underneath it, so closing the report returns to the same log view.
 Detailed reports scroll when their wrapped text is taller than the
 report area. Asynchronous configure or compile failures also create a build
-failure notification; visible builds retain their complete output in the
-terminal. Successful C generation reports the generated files, object count,
+failure notification. All builds record output in the terminal's bounded
+scrollback, even while hidden. Generation, validation, configuration, and
+launch-preparation failures also record their original diagnostics there.
+Open the terminal manually to inspect them; a build never opens or focuses it.
+Successful C generation reports the generated files, object count,
 and whether the object tree was written to the terminal. Successful compilation
 is reported only after configure and compile both finish, with the project path
-and terminal-output state in its detailed report.
+in its detailed report. The generated-object tree remains optional; build
+diagnostics cannot be disabled.
 
 The executable name is the PascalCase project directory name (`my-game`
 becomes `MyGame`).
