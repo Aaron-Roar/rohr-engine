@@ -190,8 +190,17 @@ typedef enum GraphicsCommandType {
     GRAPHICS_COMMAND_TEXTURE
 } GraphicsCommandType;
 
+struct GraphicsSceneImage {
+    SDL_Texture *texture;
+    int width, height;
+    size_t references;
+    bool render_target;
+};
+static GraphicsSceneImage *graphics_image_target;
+
 typedef struct GraphicsCommand {
     uint32_t screen;
+    GraphicsSceneImage *image_target;
     GraphicsClipState clip;
     GraphicsCommandType type;
     ReportObjectRef source;
@@ -432,10 +441,12 @@ static GraphicsCommand *graphics_command_append(GraphicsCommandType type) {
     }
     command = &layer->commands[layer->count++];
     *command = (GraphicsCommand){
-        .screen = drawing_screen,
+        .screen = graphics_image_target ? SCREEN_INVALID : drawing_screen,
+        .image_target = graphics_image_target,
         .clip = graphics_clip_state,
         .type = type
     };
+    if(graphics_image_target) graphics_image_target->references++;
     graphics_report_count(&graphics_pending_commands, ROHR_REPORT_QUEUED_COMMAND_COUNT, 1);
     return command;
 }
@@ -3328,21 +3339,6 @@ bool graphics_events_poll(SDL_Event *event) {
 
 void graphics_background_draw(Color color) {
     GraphicsCommand *command;
-    if(graphics_aspect_ratio_auto) {
-        Scale output = graphics_render_output_size_get();
-        int width = output.y > 0.0f ? (int)roundf(
-            (float)graphics_logical_height * output.x / output.y) : 0;
-        if(width > 0 && width != graphics_logical_width) {
-            if(SDL_SetRenderLogicalPresentation(sdl_renderer, width,
-                    graphics_logical_height, SDL_LOGICAL_PRESENTATION_LETTERBOX))
-                graphics_logical_width = width;
-            else {
-                graphics_submission_issue(ERROR_ENGINE_GRAPHICS_STATE_FAILED,
-                    (ReportObjectRef){0}, SDL_GetError());
-                return;
-            }
-        }
-    }
     command = graphics_command_append(GRAPHICS_COMMAND_CLEAR);
     if(command != NULL) command->data.clear.color = color;
 }
@@ -4248,6 +4244,7 @@ static void graphics_commands_discard(void) {
                     command->data.texture.asset);
             if(command->type == GRAPHICS_COMMAND_TEXTURE && command->data.texture.scene_image)
                 graphics_scene_image_destroy(command->data.texture.scene_image);
+            graphics_scene_image_destroy(command->image_target);
         }
         layer->count = 0;
     }
@@ -4259,10 +4256,13 @@ static void graphics_commands_discard(void) {
 }
 
 static void graphics_commands_execute(void) {
-    ScreenId target = UINT32_MAX;
+    SDL_Texture *target = NULL;
+    bool target_known = false;
     GraphicsReportContext *context = graphics_report_context;
     GraphicsClipState clip = {0};
     bool clip_known = false;
+    SDL_BlendMode saved_blend = SDL_BLENDMODE_NONE;
+    (void)GRAPHICS_STATE(SDL_GetRenderDrawBlendMode(sdl_renderer, &saved_blend));
     if(graphics_layer_count > 1)
         qsort(graphics_layers, graphics_layer_count, sizeof(*graphics_layers),
               graphics_layer_order_compare);
@@ -4287,14 +4287,18 @@ static void graphics_commands_execute(void) {
                 context->skipped++;
                 continue;
             }
-            if(command->screen != target) {
-                size_t slot;
-                SDL_Texture *texture = graphics_screen_slot(command->screen, &slot)
-                                           ? screens[slot].texture
-                                           : NULL;
+            size_t slot;
+            SDL_Texture *texture = command->image_target ? command->image_target->texture :
+                (graphics_screen_slot(command->screen, &slot) ? screens[slot].texture : NULL);
+            if(!target_known || texture != target) {
                 (void)GRAPHICS_STATE(SDL_SetRenderTarget(sdl_renderer, texture));
                 (void)GRAPHICS_STATE(SDL_SetRenderViewport(sdl_renderer, NULL));
-                target = command->screen;
+                /* Transparent preview targets accumulate premultiplied color.
+                 * Ordinary targets retain the caller's primitive blend mode. */
+                (void)GRAPHICS_STATE(SDL_SetRenderDrawBlendMode(sdl_renderer,
+                    command->image_target ? SDL_BLENDMODE_BLEND : saved_blend));
+                target = texture;
+                target_known = true;
                 clip_known = false;
             }
             if(!clip_known || command->clip.active != clip.active ||
@@ -4437,6 +4441,8 @@ static void graphics_commands_execute(void) {
             else context->processed++;
         }
     }
+    (void)graphics_backend_check(SDL_SetRenderDrawBlendMode(sdl_renderer, saved_blend),
+        true, "restore command blend mode");
     graphics_render_state_restore();
     graphics_commands_discard();
 }
@@ -4449,8 +4455,22 @@ Report graphics_pipeline_cameras_update(void) {
         report_publish_internal(&report);
         return report;
     }
-    graphics_camera_motions_update();
-    graphics_render_viewport_cameras();
+    /* Window presentation belongs to the window, never a camera texture.
+     * Camera callbacks may clear targets with different sizes/aspect ratios. */
+    if(GRAPHICS_STATE(SDL_SetRenderTarget(sdl_renderer, NULL)) && graphics_aspect_ratio_auto) {
+        int width = 0, height = 0;
+        if(GRAPHICS_STATE(SDL_GetRenderOutputSize(sdl_renderer, &width, &height)) && height > 0) {
+            int logical_width = (int)roundf((float)graphics_logical_height * width / height);
+            if(logical_width > 0 && logical_width != graphics_logical_width &&
+                    GRAPHICS_STATE(SDL_SetRenderLogicalPresentation(sdl_renderer, logical_width,
+                        graphics_logical_height, SDL_LOGICAL_PRESENTATION_LETTERBOX)))
+                graphics_logical_width = logical_width;
+        }
+    }
+    if(!report.has_fatal) {
+        graphics_camera_motions_update();
+        graphics_render_viewport_cameras();
+    }
     graphics_render_state_restore();
     if(report.header.status == ROHR_REPORT_FAILED) {
         for(size_t i = 0; i < graphics_layer_count; i++)
@@ -5081,7 +5101,6 @@ void graphics_texture_draw(TextureAsset texture_asset, Position pos, Orientation
     graphics_texture_draw_flipped(texture_asset, pos, ort, SDL_FLIP_NONE);
 }
 
-struct GraphicsSceneImage { SDL_Texture *texture; int width, height; size_t references; };
 GraphicsSceneImage *graphics_scene_image_create(void) {
     GraphicsSceneImage *image=calloc(1,sizeof(*image));
     if(image) image->references=1;
@@ -5099,23 +5118,71 @@ EngineResult graphics_scene_image_update(GraphicsSceneImage *image, const void *
     if(!sdl_renderer || !image || !rgba || width<=0 || height<=0 || width>4096 || height>4096 ||
             pitch<width*4 || image->references!=1)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
-    if(image->width!=width || image->height!=height) {
+    if(image->width!=width || image->height!=height || image->render_target) {
         SDL_Texture *texture=SDL_CreateTexture(sdl_renderer,SDL_PIXELFORMAT_RGBA32,SDL_TEXTUREACCESS_STREAMING,width,height);
         if(!texture) return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED);
         if(!SDL_UpdateTexture(texture,NULL,rgba,pitch)) { SDL_DestroyTexture(texture); return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED); }
         SDL_DestroyTexture(image->texture); image->texture=texture; image->width=width; image->height=height;
+        image->render_target=false;
     } else if(!SDL_UpdateTexture(image->texture,NULL,rgba,pitch)) return error_result_error(ERROR_ENGINE_GRAPHICS_STATE_FAILED);
     return error_result_value(true);
 }
 EngineResult graphics_scene_image_draw(GraphicsSceneImage *image, SDL_FRect destination) {
+    return graphics_scene_image_draw_rotated(image, destination, 0);
+}
+EngineResult graphics_scene_image_render(GraphicsSceneImage *image, int width,
+        int height, void (*draw)(void *), void *context) {
+    EngineError failure = ERROR_ENGINE_STATE_INVALID;
+    if(!sdl_renderer || !image || !draw || graphics_image_target ||
+            width <= 0 || height <= 0 ||
+            image->references != 1) goto failed;
+    if(!image->render_target || image->width != width || image->height != height) {
+        SDL_Texture *texture = SDL_CreateTexture(sdl_renderer, SDL_PIXELFORMAT_RGBA32,
+            SDL_TEXTUREACCESS_TARGET, width, height);
+        failure = ERROR_ENGINE_GRAPHICS_STATE_FAILED;
+        if(!texture) goto failed;
+        if(!SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND_PREMULTIPLIED)) {
+            SDL_DestroyTexture(texture);
+            goto failed;
+        }
+        SDL_DestroyTexture(image->texture);
+        image->texture = texture;
+        image->width = width;
+        image->height = height;
+        image->render_target = true;
+    }
+    GraphicsClipState saved_clip = graphics_clip_state;
+    GraphicsClipState saved_stack[GRAPHICS_CLIP_STACK_MAX];
+    memcpy(saved_stack, graphics_clip_stack, sizeof(saved_stack));
+    size_t saved_count = graphics_clip_stack_count;
+    int saved_layer = graphics_active_layer;
+    graphics_image_target = image;
+    graphics_clip_state = (GraphicsClipState){0};
+    graphics_clip_stack_count = 0;
+    draw(context);
+    graphics_image_target = NULL;
+    graphics_clip_state = saved_clip;
+    memcpy(graphics_clip_stack, saved_stack, sizeof(saved_stack));
+    graphics_clip_stack_count = saved_count;
+    graphics_layer_active_set(saved_layer);
+    return error_result_value(true);
+failed:
+    graphics_submission_issue(failure, (ReportObjectRef){0}, "Unable to render editor camera image");
+    return error_result_error(failure);
+}
+EngineResult graphics_scene_image_draw_rotated(GraphicsSceneImage *image,
+        SDL_FRect destination, double degrees) {
     if(!image || !image->texture || !isfinite(destination.x) || !isfinite(destination.y) ||
-            !isfinite(destination.w) || !isfinite(destination.h) || destination.w<=0 || destination.h<=0)
+            !isfinite(destination.w) || !isfinite(destination.h) || !isfinite(degrees) ||
+            destination.w<=0 || destination.h<=0 || image == graphics_image_target)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
     GraphicsCommand *command=graphics_command_append(GRAPHICS_COMMAND_TEXTURE);
     if(!command) return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
     ++image->references;
     command->data.texture.scene_image=image; command->data.texture.unmanaged_texture=image->texture;
     command->data.texture.destination=destination;
+    command->data.texture.center=(SDL_FPoint){destination.w * .5f, destination.h * .5f};
+    command->data.texture.degrees=degrees;
     return error_result_value(true);
 }
 void graphics_screen_texture_draw(TextureAsset texture_asset, Position center,

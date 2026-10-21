@@ -4,11 +4,13 @@
 #include "rohr.h"
 #include "graphics/texture_assets.h"
 #include "graphics/text_assets.h"
+#include "graphics/scene_image.h"
 #include "test_png.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #define OK(call) assert(!rohr_error_check(call))
 static const Color white = {255,255,255,255};
@@ -22,11 +24,30 @@ static bool fake_recording, fail_write, fail_flush;
 static unsigned presents;
 static bool trace_composition;
 static double composition_angles[8];
+static SDL_FRect composition_rectangles[8];
 static size_t composition_count;
+static bool check_camera_targets;
+static bool trace_image_targets;
+static unsigned image_source_count, image_composite_count;
+static SDL_Texture *image_targets[2];
 void *__real_realloc(void *, size_t);
 void *__wrap_realloc(void *p, size_t n) { return fail_allocation ? NULL : __real_realloc(p,n); }
 bool __real_SDL_RenderFillRect(SDL_Renderer *, const SDL_FRect *);
 bool __wrap_SDL_RenderFillRect(SDL_Renderer *r, const SDL_FRect *rect) {
+    if(trace_image_targets && rect->x == -10) {
+        assert(image_source_count < 2);
+        SDL_Texture *target = SDL_GetRenderTarget(r);
+        float width = 0, height = 0;
+        assert(target && SDL_GetTextureSize(target, &width, &height));
+        assert(width == 80 + image_source_count * 20 && height == 60);
+        assert(!SDL_RenderClipEnabled(r));
+        SDL_BlendMode blend;
+        assert(SDL_GetRenderDrawBlendMode(r, &blend) && blend == SDL_BLENDMODE_BLEND);
+        int lw = 0, lh = 0; SDL_RendererLogicalPresentation presentation;
+        assert(SDL_GetRenderLogicalPresentation(r, &lw, &lh, &presentation));
+        assert(presentation == SDL_LOGICAL_PRESENTATION_DISABLED);
+        image_targets[image_source_count++] = target;
+    }
     if(fail_draw) { fail_draw=false; return SDL_SetError("injected draw failure"); }
     return __real_SDL_RenderFillRect(r,rect);
 }
@@ -34,8 +55,19 @@ bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FR
     const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
 bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *r, SDL_Texture *t, const SDL_FRect *src,
         const SDL_FRect *dst, double angle, const SDL_FPoint *center, SDL_FlipMode flip) {
+    if(trace_image_targets) {
+        assert(image_composite_count < 2);
+        assert(SDL_GetRenderTarget(r) == NULL && t == image_targets[image_composite_count]);
+        SDL_BlendMode blend;
+        assert(SDL_GetTextureBlendMode(t, &blend) && blend == SDL_BLENDMODE_BLEND_PREMULTIPLIED);
+        SDL_Rect clip = {0}; assert(SDL_GetRenderClipRect(r, &clip));
+        assert(SDL_RenderClipEnabled(r) && clip.x == 11 && clip.y == 12 && clip.w == 200 && clip.h == 160);
+        assert(angle == 35 + image_composite_count * 55);
+        image_composite_count++;
+    }
     if(trace_composition) {
         assert(composition_count < 8);
+        composition_rectangles[composition_count] = *dst;
         composition_angles[composition_count++] = angle;
     }
     if(fail_texture) { fail_texture=false; return SDL_SetError("injected sprite draw failure"); }
@@ -90,6 +122,47 @@ static const ReportEntry *entry(const Report *r,ReportId id) {
 static void complete(Report r) {
     assert(rohr_report_valid_check(&r) && r.header.status==ROHR_REPORT_COMPLETE && !r.has_fatal);
 }
+
+static void image_source_draw(void *context) {
+    (void)context;
+    rohr_graphics_layer_active_set(10);
+    rohr_graphics_background_draw((Color){0});
+    assert(rohr_graphics_screen_rect_draw(-10, -20, 130, 100, white));
+    /* Capture must isolate even a callback's unbalanced clip stack. */
+    assert(rohr_graphics_screen_clip_push(1,2,3,4));
+    rohr_graphics_layer_active_set(99);
+}
+
+static void image_target_lifetime(void) {
+    GraphicsSceneImage *images[2] = {graphics_scene_image_create(), graphics_scene_image_create()};
+    assert(images[0] && images[1]);
+    assert(rohr_graphics_screen_clip_push(11,12,200,160));
+    rohr_graphics_layer_active_set(20);
+    for(unsigned i = 0; i < 2; i++) {
+        OK(graphics_scene_image_render(images[i], 80 + i*20, 60, image_source_draw, NULL));
+        assert(rohr_graphics_layer_active_get() == 20);
+        OK(graphics_scene_image_draw_rotated(images[i], (SDL_FRect){30,40,80,60}, 35 + i*55));
+    }
+    rohr_graphics_screen_clip_pop();
+    /* The destination and source commands retain the resource independently. */
+    graphics_scene_image_destroy(images[0]);
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    trace_image_targets = true;
+#endif
+    complete(rohr_graphics_pipeline_commands_execute());
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    trace_image_targets = false;
+    assert(image_source_count == 2 && image_composite_count == 2);
+#endif
+    /* Reuse, resize, streaming upload and target conversion release prior images. */
+    OK(graphics_scene_image_render(images[1], 120, 70, image_source_draw, NULL));
+    complete(rohr_graphics_pipeline_commands_execute());
+    unsigned char pixels[16] = {0};
+    OK(graphics_scene_image_update(images[1], pixels, 2, 2, 8));
+    OK(graphics_scene_image_render(images[1], 2, 2, image_source_draw, NULL));
+    complete(rohr_graphics_pipeline_commands_execute());
+    graphics_scene_image_destroy(images[1]);
+}
 static void render(CameraId camera,void *context) {
     (void)camera; (void)context; callbacks++;
     if(recursive) {
@@ -103,6 +176,21 @@ static void render(CameraId camera,void *context) {
         complete(rohr_graphics_sprite_frames_update(0,0));
     }
     rohr_graphics_background_draw((Color){0,0,0,255});
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    if(check_camera_targets) {
+        int count = 0, width = 0, height = 0, logical_width = 0, logical_height = 0;
+        SDL_Window **windows = SDL_GetWindows(&count); assert(windows && count);
+        SDL_Renderer *renderer = SDL_GetRenderer(windows[0]); SDL_free(windows);
+        assert(SDL_GetRenderTarget(renderer));
+        SDL_RendererLogicalPresentation mode;
+        assert(SDL_GetCurrentRenderOutputSize(renderer, &width, &height));
+        assert(SDL_GetRenderLogicalPresentation(renderer, &logical_width, &logical_height, &mode));
+        assert(mode == SDL_LOGICAL_PRESENTATION_DISABLED);
+        CameraDescription description = rohr_camera_description_get(camera).result.value;
+        Position center = rohr_graphics_world_to_screen_get(description.position);
+        assert(fabsf(center.x - width * .5f) < .001f && fabsf(center.y - height * .5f) < .001f);
+    }
+#endif
     assert(rohr_graphics_screen_rect_draw(1,2,8,9,white));
     if(bad_submission) rohr_graphics_screen_texture_draw((TextureAsset){.handle=123,.size={1,1}},
         (Position){0},(Scale){2,2},0);
@@ -245,6 +333,9 @@ static void retained_assets(void) {
 
 #ifdef ROHR_TEST_GRAPHICS_WRAP
 static void viewport_layer_composition(ViewportId original, CameraId camera) {
+    WindowPresentationDescription saved = rohr_graphics_window_presentation_description_get();
+    WindowPresentationDescription presentation = saved; presentation.aspect_ratio_auto = true;
+    OK(rohr_graphics_window_presentation_description_set(presentation));
     OK(rohr_viewport_disable_set(original));
     ViewportDescription desc = rohr_viewport_description_default_get(); desc.enabled = true;
     ViewportIdResult viewport = rohr_viewport_create(desc); OK(viewport);
@@ -263,8 +354,15 @@ static void viewport_layer_composition(ViewportId original, CameraId camera) {
     OK(rohr_viewport_camera_add(viewport.result.value, camera, item));
     item.layer = 2; item.orientation = 30; item.rectangle = (ViewportRectangle){100,80,300,220};
     ViewportItemIdResult right = rohr_viewport_camera_add(viewport.result.value, camera, item); OK(right);
-    complete(rohr_graphics_pipeline_cameras_update());
-    complete(rohr_graphics_pipeline_commands_execute());
+    check_camera_targets = true;
+    for(unsigned frame = 0; frame < 2; frame++) {
+        complete(rohr_graphics_pipeline_cameras_update());
+        complete(rohr_graphics_pipeline_commands_execute());
+        WindowPresentationDescription current = rohr_graphics_window_presentation_description_get();
+        assert(current.logical_width == presentation.logical_width);
+        assert(current.logical_height == presentation.logical_height);
+    }
+    check_camera_targets = false;
     trace_composition = true; composition_count = 0;
     complete(rohr_graphics_pipeline_viewports_draw());
     assert(composition_count == 4);
@@ -277,6 +375,16 @@ static void viewport_layer_composition(ViewportId original, CameraId camera) {
     assert(composition_angles[0] == 10 && composition_angles[1] == 30 &&
         composition_angles[2] == 20 && composition_angles[3] == 40);
     item = rohr_viewport_item_description_get(right.result.value).result.value;
+    item.content_offset = (Vec2D){40,-20};
+    item.content_scale = (Scale){1.5f,.5f}; item.content_orientation = 15;
+    OK(rohr_viewport_item_description_set(right.result.value, item));
+    composition_count = 0;
+    complete(rohr_graphics_pipeline_viewports_draw());
+    SDL_FRect shifted = composition_rectangles[1];
+    Vec2D offset = rohr_math_vector_rotate(item.content_offset, -item.orientation);
+    assert(fabsf(shifted.x + shifted.w * .5f - (250 + offset.x)) < .001f);
+    assert(fabsf(shifted.y + shifted.h * .5f - (190 + offset.y)) < .001f);
+    assert(composition_angles[1] == 45);
     item.visible = false;
     OK(rohr_viewport_item_description_set(right.result.value, item));
     composition_count = 0;
@@ -293,6 +401,7 @@ static void viewport_layer_composition(ViewportId original, CameraId camera) {
     OK(rohr_graphics_text_destroy(&asset.result.value));
     OK(rohr_graphics_layer_destroy(middle.result.value));
     OK(rohr_viewport_enable_set(original));
+    OK(rohr_graphics_window_presentation_description_set(saved));
 }
 
 static void failures(void) {
@@ -396,6 +505,7 @@ int main(void) {
     OK(rohr_viewport_disable_set(viewport.result.value));
     r=rohr_graphics_show(); complete(r); assert(callbacks==before);
     assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==0);
+    image_target_lifetime();
     assert(!graphics_screen_shape_filled_draw((Shape){0},white));
     rohr_graphics_stop(); OK(rohr_graphics_start());
     r=rohr_graphics_pipeline_commands_execute(); complete(r); assert(r.diagnostic_count==0);

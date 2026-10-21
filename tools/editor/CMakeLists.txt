@@ -176,6 +176,12 @@ if(ROHR_BUILD_TESTS)
     target_include_directories(editor_navigation_test PRIVATE
         src ${PROJECT_SOURCE_DIR}/lib ${PROJECT_SOURCE_DIR}/src)
     target_link_libraries(editor_navigation_test PRIVATE rohr_engine rohr_editor_core)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_definitions(editor_navigation_test PRIVATE ROHR_TEST_PREVIEW_WRAP)
+        target_link_options(editor_navigation_test PRIVATE
+            -Wl,--wrap=rohr_graphics_screen_quad_draw
+            -Wl,--wrap=SDL_RenderFillRect -Wl,--wrap=SDL_RenderTextureRotated)
+    endif()
     set_target_properties(editor_navigation_test PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests
     )

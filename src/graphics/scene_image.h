@@ -14,6 +14,14 @@ void graphics_scene_image_destroy(GraphicsSceneImage *image);
 EngineResult graphics_scene_image_update(GraphicsSceneImage *image, const void *rgba,
     int width, int height, int pitch);
 EngineResult graphics_scene_image_draw(GraphicsSceneImage *image, SDL_FRect destination);
+/* Queue pixel-space drawing into an explicitly owned, reusable render target.
+ * The callback's layers must precede the layer used to composite the image.
+ * Nested captures and reuse while commands still reference the image fail.
+ * Clip/layer state is restored; failures join the graphics submission report. */
+EngineResult graphics_scene_image_render(GraphicsSceneImage *image, int width,
+    int height, void (*draw)(void *), void *context);
+EngineResult graphics_scene_image_draw_rotated(GraphicsSceneImage *image,
+    SDL_FRect destination, double degrees);
 /* Editor text-input placement uses SDL window coordinates. */
 SDL_FPoint graphics_scene_window_point_get(SDL_FPoint screen);
 #endif

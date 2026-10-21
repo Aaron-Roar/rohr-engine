@@ -401,12 +401,16 @@ and `UBSAN_OPTIONS=halt_on_error=1` outside the process-inspection sandbox.
 
 ## Goal 5 platform and interactive review
 
-**In progress: the first interactive review found defects; fixes await review.**
-The user confirmed the two rotated screens and stable resizing, but found the
-right screen incorrectly behind the red bar and a soft-body explosion after
-switching windows/workspaces on Sway Wayland. Clipped text was visible but
-overlapped the starter button, making that check ambiguous. Remaining checks
-are pending; dummy-SDL startup does not certify visible or audible behavior.
+**In progress: the runtime composition and Sway corrective retest passed.**
+The user confirmed the two rotated screens and stable resizing, then reported
+PASS after retesting the corrected layering and window/workspace switching.
+The lower-left text's narrow wrapping, clockwise rotation and intentional
+clipping were clarified before acceptance. Subsequent viewport-editor review
+passed camera zoom, but found an unrotated background leaking beyond rotated
+screens, misplaced simulation content and mismatched content-offset movement.
+The next review also failed camera-content clipping: objects were cropped against
+unrotated screen bounds. Corrections await retest; cases 2–5 remain pending and
+goal 5 stays open.
 
 The compositor now sorts numeric/named layers before content kinds, keeping UI
 above screens only at equal layers. Tick-based physics advances each elapsed
@@ -449,7 +453,7 @@ returning. The original failed fixture remains available for comparison.
 
 | Case | Actions and required observations | User-confirmed result |
 |---|---|---|
-| 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | First review failed layering and workspace-switch stability; fixes await retest. Rotated views/resizing passed. Text and editor checks remain pending. |
+| 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | Initial runtime retest PASS: rotated views, layering, intentional text wrapping/rotation/clipping, resizing and Sway stability. Camera zoom PASS. Subsequent screen-editor review FAIL: background orientation, editor/runtime content position, offset displacement and angle-dependent object clipping; corrections await retest. |
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | Pending |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
@@ -477,7 +481,39 @@ leak detection. Full Windows cross-build and fresh Linux/Windows installed-SDK
 consumer checks pass. The corrected application/scene and all nine examples
 using tick-based physics build against both updated SDKs; Linux application,
 scene and example startup/shutdown checks use dummy SDL outside source folders.
-Real Sway workspace-switch and visual retests remain required.
+The user subsequently confirmed PASS for the runtime visual and Sway
+workspace-switch retest. Viewport-editor checks and cases 2–5 remain required.
+
+The subsequent screen-editor review reproduced an automatic-aspect bug using
+the saved review project: clearing a 480×320 camera target changed its logical
+presentation to 1080×720, shrinking and shifting its contents. Automatic window
+aspect sizing now runs on the window target before camera rendering; background
+clears only queue a clear. The editor draws the empty-camera background as a
+rotated quad and clips stripe endpoints locally before rotation. Camera zoom
+has user-confirmed acceptance; these corrections require another visual retest.
+
+The angle-dependent clipping correction renders each editor camera's object into
+an explicitly owned, cached texture before fitting, scaling, offsetting and
+rotating the result. Source geometry clips at the camera texture edge; the final
+image clips only to its containing viewport, matching runtime composition.
+Body and particle scanline fills use source-target dimensions during capture.
+Queued source and composition commands retain their images, isolate clip/layer
+state, preserve translucent colors, and release references on execution or
+discard. The editor releases cached images on teardown or when no longer used;
+previews do not consume application camera/screen handles.
+
+Verification: 111/111 Linux tests, graphics/editor ASan/UBSan tests with leak
+detection, the full Windows cross-build, and fresh Linux/Windows SDK consumers
+pass. Regressions cover repeated camera clears at different target aspect ratios,
+center projection, content-offset displacement and rotated background geometry.
+Additional geometry/state checks cover camera-corner objects at five screen
+angles, all four fit modes, two render sizes, viewport clipping, content
+offset/scale/rotation, image reuse/resizing and queued resource lifetime.
+The user's saved review application and scene were rebuilt without altering
+authored screen settings. Both also build against the updated installed SDKs,
+as does the viewport example; Linux artifacts pass startup/shutdown checks from
+outside their source folders. Restart the rebuilt editor at
+`build/tools/rohr-gui/rohr-gui` and reopen `/tmp/rohr_parity_review_fixed` to retest.
 
 ## Frozen fixture plan
 

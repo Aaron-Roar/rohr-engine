@@ -11,6 +11,7 @@
 #include "editor_mass_properties.h"
 #include "editor_layout.h"
 #include "graphics/texture_draw.h"
+#include "graphics/scene_image.h"
 #include "viewport/controls/editor_rotation_control.h"
 
 #include <math.h>
@@ -53,6 +54,9 @@ typedef struct EditorPreviewFont {
 
 static EditorPreviewFont editor_preview_fonts[EDITOR_UI_FONT_MAX];
 static size_t editor_preview_font_count;
+static GraphicsSceneImage *editor_camera_images[
+    EDITOR_LAYOUT_VIEWPORT_MAX * EDITOR_LAYOUT_VIEWPORT_CAMERA_MAX];
+static size_t editor_camera_image_count;
 
 void editor_viewport_ui_font_set(FontAsset *font) {
     editor_viewport_ui_font = font;
@@ -64,6 +68,7 @@ static bool editor_view_camera_preview = false;
 static int editor_view_composition_layer_base = 0;
 static Position editor_view_preview_camera;
 static Scale editor_view_preview_scale = {1.0f, 1.0f};
+static Scale editor_view_preview_dimensions;
 static Orientation editor_view_preview_camera_rotation;
 static Orientation editor_view_preview_content_rotation;
 static char editor_asset_root[EDITOR_ASSET_PATH_MAX];
@@ -307,6 +312,11 @@ void editor_viewport_asset_root_set(const char *path) {
 }
 
 void editor_viewport_assets_destroy(void) {
+    for(size_t i = 0; i < sizeof(editor_camera_images) / sizeof(*editor_camera_images); i++) {
+        graphics_scene_image_destroy(editor_camera_images[i]);
+        editor_camera_images[i] = NULL;
+    }
+    editor_camera_image_count = 0;
     for(size_t i = 0; i < EDITOR_LAYOUT_VIEWPORT_UI_MAX; i += 1)
         rohr_graphics_text_destroy(&editor_viewport_ui_text_assets[i]);
     memset(editor_viewport_ui_text_ids, 0, sizeof(editor_viewport_ui_text_ids));
@@ -664,8 +674,11 @@ static void editor_hitbox_filled_draw(const EditorObject *object,
         maximum_y = fmaxf(maximum_y, points[i].y);
     }
 
-    int first_row = (int)floorf(fmaxf(minimum_y, EDITOR_VIEWPORT_TOP));
-    int last_row = (int)ceilf(fminf(maximum_y, EDITOR_WINDOW_HEIGHT - 1.0f));
+    float top = editor_view_camera_preview ? 0 : EDITOR_VIEWPORT_TOP;
+    float bottom = editor_view_camera_preview ? editor_view_preview_dimensions.y : EDITOR_WINDOW_HEIGHT;
+    float width = editor_view_camera_preview ? editor_view_preview_dimensions.x : EDITOR_VIEWPORT_WIDTH;
+    int first_row = (int)floorf(fmaxf(minimum_y, top));
+    int last_row = (int)ceilf(fminf(maximum_y, bottom - 1.0f));
     for(int row = first_row; row <= last_row; row += 1) {
         float scan_y = (float)row + 0.5f;
         uint32_t count = 0;
@@ -690,7 +703,7 @@ static void editor_hitbox_filled_draw(const EditorObject *object,
         }
         for(uint32_t i = 0; i + 1 < count; i += 2) {
             float left = fmaxf(intersections[i], 0.0f);
-            float right = fminf(intersections[i + 1], EDITOR_VIEWPORT_WIDTH);
+            float right = fminf(intersections[i + 1], width);
             if(right > left) (void)rohr_graphics_screen_rect_draw(
                 left, (float)row, right - left, 1.0f, color);
         }
@@ -723,16 +736,19 @@ static void editor_circle_draw(Position center, float radius, Color color) {
 static void editor_circle_filled_draw(Position center, float radius, Color color) {
     Position screen = editor_view_world_to_screen(center);
     float screen_radius = radius * editor_view_scale;
-    int first_row = (int)floorf(fmaxf(screen.y - screen_radius, EDITOR_VIEWPORT_TOP));
+    float top = editor_view_camera_preview ? 0 : EDITOR_VIEWPORT_TOP;
+    float bottom = editor_view_camera_preview ? editor_view_preview_dimensions.y : EDITOR_WINDOW_HEIGHT;
+    float width = editor_view_camera_preview ? editor_view_preview_dimensions.x : EDITOR_VIEWPORT_WIDTH;
+    int first_row = (int)floorf(fmaxf(screen.y - screen_radius, top));
     int last_row = (int)ceilf(fminf(screen.y + screen_radius,
-        EDITOR_WINDOW_HEIGHT - 1.0f));
+        bottom - 1.0f));
 
     if(screen_radius <= 0.0f) return;
     for(int row = first_row; row <= last_row; row += 1) {
         float y = ((float)row + 0.5f) - screen.y;
         float half_width = sqrtf(fmaxf(0.0f, screen_radius * screen_radius - y * y));
         float left = fmaxf(0.0f, screen.x - half_width);
-        float right = fminf(EDITOR_VIEWPORT_WIDTH, screen.x + half_width);
+        float right = fminf(width, screen.x + half_width);
         if(right > left) (void)rohr_graphics_screen_rect_draw(
             left, (float)row, right - left, 1.0f, color);
     }
@@ -7143,20 +7159,38 @@ static int editor_viewport_item_draw_base_get(const EditorProject *project,
 }
 
 static void editor_viewport_empty_camera_background_draw(
-        ViewportRectangle bounds) {
-    bool clip_pushed;
+        ViewportRectangle bounds, Orientation orientation) {
     Color background = {52, 54, 58, 255};
     Color stripe = {105, 88, 32, 255};
+    Position center = {bounds.x + bounds.width * 0.5f,
+        bounds.y + bounds.height * 0.5f};
     editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT - 2);
-    (void)rohr_graphics_screen_rect_draw(bounds.x, bounds.y, bounds.width,
-        bounds.height, background);
-    clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
-        bounds.width, bounds.height);
-    for(float x = -bounds.height; x < bounds.width; x += 24.0f)
+    (void)rohr_graphics_screen_quad_draw(center, bounds.width,
+        bounds.height, orientation, background);
+    /* Clip stripes in screen-local coordinates before rotating them. An
+     * axis-aligned scissor would leak outside the rotated screen corners. */
+    for(float x = -bounds.height; x < bounds.width; x += 24.0f) {
+        float diagonal = x + bounds.height;
+        Vec2D first = {fmaxf(0.0f, x) - bounds.width * 0.5f,
+            fminf(bounds.height, diagonal) - bounds.height * 0.5f};
+        Vec2D second = {fminf(bounds.width, diagonal) - bounds.width * 0.5f,
+            fmaxf(0.0f, diagonal - bounds.width) - bounds.height * 0.5f};
+        first = editor_screen_vector_rotate(first, orientation);
+        second = editor_screen_vector_rotate(second, orientation);
         editor_viewport_screen_line_draw(
-            (Position){bounds.x + x, bounds.y + bounds.height},
-            (Position){bounds.x + x + bounds.height, bounds.y}, stripe);
-    if(clip_pushed) rohr_graphics_screen_clip_pop();
+            (Position){center.x + first.x, center.y + first.y},
+            (Position){center.x + second.x, center.y + second.y}, stripe);
+    }
+}
+
+static void editor_viewport_camera_image_draw(void *context) {
+    EditorViewportState preview_state = {.mode = EDITOR_VIEWPORT_HIERARCHY,
+        .dragged_vertex = -1};
+    editor_view_content_layer_set(EDITOR_GRAPHICS_LAYER_CONTENT);
+    rohr_graphics_background_draw((Color){0});
+    /* Source clipping happens at the camera texture edge, before any screen
+     * placement/content transforms, just as in the runtime compositor. */
+    editor_viewport_camera_preview_object_draw(context, &preview_state);
 }
 
 static void editor_viewport_screen_camera_preview_draw(
@@ -7164,8 +7198,6 @@ static void editor_viewport_screen_camera_preview_draw(
         ViewportRectangle bounds, float editor_zoom) {
     const EditorObject *camera_object = NULL;
     const EditorCamera *camera = NULL;
-    EditorViewportState preview_state = {.mode = EDITOR_VIEWPORT_HIERARCHY,
-        .dragged_vertex = -1};
     Position camera_world;
     Orientation camera_rotation = 0.0f;
     Position saved_origin = editor_view_origin;
@@ -7173,10 +7205,9 @@ static void editor_viewport_screen_camera_preview_draw(
     float fit_x;
     float fit_y;
     Vec2D offset;
-    bool clip_pushed;
     if(project == NULL || screen == NULL || bounds.width <= 0.0f ||
             bounds.height <= 0.0f) return;
-    editor_viewport_empty_camera_background_draw(bounds);
+    editor_viewport_empty_camera_background_draw(bounds, screen->placement.orientation);
     for(size_t i = 0; i < project->object_count; i += 1)
         if(project->objects[i].id == screen->object) camera_object =
             &project->objects[i];
@@ -7187,8 +7218,8 @@ static void editor_viewport_screen_camera_preview_draw(
             camera->dimensions.y <= 0.0f) return;
     camera_world = editor_camera_world_get(camera_object, camera,
         &camera_rotation);
-    float render_width = screen->render_size_explicit ? screen->render_width : camera->dimensions.x;
-    float render_height = screen->render_size_explicit ? screen->render_height : camera->dimensions.y;
+    int render_width = screen->render_size_explicit ? screen->render_width : (int)camera->dimensions.x;
+    int render_height = screen->render_size_explicit ? screen->render_height : (int)camera->dimensions.y;
     if(render_width <= 0 || render_height <= 0) return;
     fit_x = bounds.width / render_width;
     fit_y = bounds.height / render_height;
@@ -7200,31 +7231,36 @@ static void editor_viewport_screen_camera_preview_draw(
     } else if(screen->placement.fit == SCREEN_FIT_COVER) {
         fit_x = fit_y = fmaxf(fit_x, fit_y);
     }
-    fit_x *= (camera->zoom > 0 ? camera->zoom : 1) * render_width / camera->dimensions.x;
-    fit_y *= (camera->zoom > 0 ? camera->zoom : 1) * render_height / camera->dimensions.y;
     editor_view_preview_camera = camera_world;
+    editor_view_preview_dimensions = (Scale){render_width, render_height};
     editor_view_preview_camera_rotation = camera_rotation;
-    editor_view_preview_content_rotation = screen->placement.orientation +
-        screen->content_rotation;
+    editor_view_preview_content_rotation = 0;
     editor_view_preview_scale = (Scale){
-        fit_x * fmaxf(0.01f, screen->content_scale.x),
-        fit_y * fmaxf(0.01f, screen->content_scale.y)};
+        (camera->zoom > 0 ? camera->zoom : 1) * render_width / camera->dimensions.x,
+        (camera->zoom > 0 ? camera->zoom : 1) * render_height / camera->dimensions.y};
     editor_view_scale = (editor_view_preview_scale.x +
         editor_view_preview_scale.y) * 0.5f;
-    offset = editor_screen_vector_rotate((Vec2D){screen->content_offset.x * editor_zoom,
-        screen->content_offset.y * editor_zoom}, screen->placement.orientation);
-    editor_view_origin = (Position){bounds.x + bounds.width * 0.5f + offset.x,
-        bounds.y + bounds.height * 0.5f + offset.y};
-    clip_pushed = rohr_graphics_screen_clip_push(bounds.x, bounds.y,
-        bounds.width, bounds.height);
+    editor_view_origin = (Position){render_width * .5f, render_height * .5f};
     editor_view_camera_preview = true;
     /* Editor screens preview an object's authored contents in isolation. The
      * runtime renderer intentionally remains world-wide. */
-    editor_viewport_camera_preview_object_draw(camera_object, &preview_state);
+    GraphicsSceneImage **image = &editor_camera_images[editor_camera_image_count++];
+    if(*image == NULL) *image = graphics_scene_image_create();
+    EngineResult rendered = graphics_scene_image_render(*image, render_width,
+        render_height, editor_viewport_camera_image_draw, (void *)camera_object);
     editor_view_camera_preview = false;
-    if(clip_pushed) rohr_graphics_screen_clip_pop();
     editor_view_origin = saved_origin;
     editor_view_scale = saved_scale;
+    if(rohr_error_check(rendered)) return;
+    offset = editor_screen_vector_rotate((Vec2D){screen->content_offset.x * editor_zoom,
+        screen->content_offset.y * editor_zoom}, screen->placement.orientation);
+    float width = render_width * fit_x * fmaxf(.01f, screen->content_scale.x);
+    float height = render_height * fit_y * fmaxf(.01f, screen->content_scale.y);
+    editor_view_content_layer_set(editor_scene_layer_span - 1);
+    (void)graphics_scene_image_draw_rotated(*image, (SDL_FRect){
+        bounds.x + bounds.width * .5f + offset.x - width * .5f,
+        bounds.y + bounds.height * .5f + offset.y - height * .5f, width, height},
+        screen->placement.orientation + screen->content_rotation);
 }
 
 static void editor_viewport_content_draw(const EditorProject *project,
@@ -7320,8 +7356,10 @@ static void editor_viewport_content_draw(const EditorProject *project,
                 camera.x = rectangle.x + camera.x * zoom;
                 camera.y = rectangle.y + camera.y * zoom;
                 camera.width *= zoom; camera.height *= zoom;
-                editor_viewport_screen_camera_preview_draw(project, item, camera,
-                    zoom);
+                bool clip_pushed = rohr_graphics_screen_clip_push(rectangle.x,
+                    rectangle.y, rectangle.width, rectangle.height);
+                editor_viewport_screen_camera_preview_draw(project, item, camera, zoom);
+                if(clip_pushed) rohr_graphics_screen_clip_pop();
                 editor_view_composition_layer_base = 0;
                 Position screen_center = {camera.x + camera.width * 0.5f,
                     camera.y + camera.height * 0.5f};
@@ -7818,8 +7856,14 @@ bool editor_viewport_selection_nudge(EditorViewportState *state,
 void editor_viewport_draw(const EditorProject *project,
         const EditorViewportState *state, bool grid_visible) {
     if(project == NULL || state == NULL || !editor_scene_layers_create(project)) return;
+    editor_camera_image_count = 0;
     editor_view_composition_layer_base = 0;
     editor_viewport_content_draw(project, state, grid_visible);
+    for(size_t i = editor_camera_image_count;
+            i < sizeof(editor_camera_images) / sizeof(*editor_camera_images); i++) {
+        graphics_scene_image_destroy(editor_camera_images[i]);
+        editor_camera_images[i] = NULL;
+    }
     free(editor_scene_layers);
     editor_scene_layers = NULL;
     editor_scene_layer_count = 0;

@@ -15,6 +15,200 @@
     __LINE__, #c); return false; } } while(0)
 #define OK(c) do { EngineResult result = (c); CHECK(!rohr_error_check(result)); } while(0)
 
+#ifdef ROHR_TEST_PREVIEW_WRAP
+static bool trace_preview, preview_geometry_valid;
+static unsigned preview_backgrounds, preview_stripes;
+static Position preview_centers[2];
+static Scale preview_sizes[2];
+static const float preview_angles[2] = {35,-60};
+static bool trace_camera_content;
+static unsigned camera_sources, camera_composites;
+static SDL_Texture *camera_targets[2];
+static SDL_FRect camera_destinations[2];
+static double camera_angles[2];
+static SDL_Rect camera_viewport_clip;
+static const Scale camera_render_sizes[2] = {{200,100},{320,240}};
+static const Position corner_vertices[3] = {{80,30},{120,30},{80,70}};
+bool __real_SDL_RenderFillRect(SDL_Renderer *, const SDL_FRect *);
+bool __wrap_SDL_RenderFillRect(SDL_Renderer *renderer, const SDL_FRect *rectangle) {
+    Uint8 red = 0, green = 0, blue = 0, alpha = 0;
+    if(trace_camera_content) SDL_GetRenderDrawColor(renderer, &red, &green, &blue, &alpha);
+    if(trace_camera_content && red == 171 && green == 61 && blue == 213) {
+        SDL_Texture *target = SDL_GetRenderTarget(renderer);
+        if(camera_sources == 0 || camera_sources > 2 || camera_targets[camera_sources - 1] != target) {
+            if(camera_sources < 2) camera_targets[camera_sources] = target;
+            camera_sources++;
+        }
+        unsigned i = camera_sources - 1;
+        preview_geometry_valid &= i < 2;
+        if(i < 2) {
+            float width = 0, height = 0;
+            preview_geometry_valid &= camera_targets[i] != NULL &&
+                SDL_GetTextureSize(camera_targets[i], &width, &height) &&
+                width == camera_render_sizes[i].x && height == camera_render_sizes[i].y &&
+                !SDL_RenderClipEnabled(renderer);
+            /* The triangle crosses the camera's top/right edges. Its visible
+             * scanlines must remain in this source corner at every screen angle. */
+            preview_geometry_valid &= fabsf(rectangle->x - .9f * width) < .001f &&
+                fabsf(rectangle->w - .1f * width) < .001f &&
+                rectangle->y >= 0 && rectangle->y < .2f * height && rectangle->h == 1;
+        }
+    }
+    return __real_SDL_RenderFillRect(renderer, rectangle);
+}
+bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FRect *,
+    const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
+bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *renderer, SDL_Texture *texture,
+        const SDL_FRect *source, const SDL_FRect *destination, double angle,
+        const SDL_FPoint *center, SDL_FlipMode flip) {
+    if(trace_camera_content) {
+        unsigned i = camera_composites++;
+        preview_geometry_valid &= i < 2;
+        if(i < 2) {
+            SDL_Rect clip = {0};
+            preview_geometry_valid &= SDL_GetRenderTarget(renderer) == NULL &&
+                texture == camera_targets[i] && SDL_GetRenderClipRect(renderer, &clip) &&
+                SDL_RenderClipEnabled(renderer) &&
+                clip.x == camera_viewport_clip.x && clip.y == camera_viewport_clip.y &&
+                clip.w == camera_viewport_clip.w && clip.h == camera_viewport_clip.h &&
+                fabs(angle - camera_angles[i]) < .001 &&
+                fabsf(destination->x - camera_destinations[i].x) < .001f &&
+                fabsf(destination->y - camera_destinations[i].y) < .001f &&
+                fabsf(destination->w - camera_destinations[i].w) < .001f &&
+                fabsf(destination->h - camera_destinations[i].h) < .001f;
+        }
+    }
+    return __real_SDL_RenderTextureRotated(renderer, texture, source, destination, angle, center, flip);
+}
+bool __real_rohr_graphics_screen_quad_draw(Position, float, float, float, Color);
+bool __wrap_rohr_graphics_screen_quad_draw(Position center, float width, float height,
+        float angle, Color color) {
+    if(trace_preview && color.red == 52 && color.green == 54 && color.blue == 58) {
+        unsigned index = preview_backgrounds++;
+        preview_geometry_valid &= index < 2;
+        if(index < 2) {
+            preview_geometry_valid &= fabsf(center.x - preview_centers[index].x) < .001f &&
+                fabsf(center.y - preview_centers[index].y) < .001f &&
+                fabsf(width - preview_sizes[index].x) < .001f &&
+                fabsf(height - preview_sizes[index].y) < .001f && angle == preview_angles[index];
+        }
+    } else if(trace_preview && color.red == 105 && color.green == 88 && color.blue == 32) {
+        preview_stripes++;
+        preview_geometry_valid &= preview_backgrounds > 0 && preview_backgrounds <= 2;
+        if(preview_backgrounds > 0 && preview_backgrounds <= 2) {
+            unsigned index = preview_backgrounds - 1;
+            const float signs[4][2] = {{-1,-1},{1,-1},{1,1},{-1,1}};
+            for(unsigned vertex = 0; vertex < 4; vertex++) {
+                Vec2D point = rohr_math_vector_rotate((Vec2D){
+                    signs[vertex][0] * width * .5f, signs[vertex][1] * height * .5f}, -angle);
+                point.x += center.x - preview_centers[index].x;
+                point.y += center.y - preview_centers[index].y;
+                point = rohr_math_vector_rotate(point, preview_angles[index]);
+                /* Two-pixel strokes may extend one pixel past their clipped endpoints. */
+                preview_geometry_valid &= fabsf(point.x) <= preview_sizes[index].x * .5f + 1.01f &&
+                    fabsf(point.y) <= preview_sizes[index].y * .5f + 1.01f;
+            }
+        }
+    }
+    return __real_rohr_graphics_screen_quad_draw(center, width, height, angle, color);
+}
+
+static bool rotated_preview_background_check(void) {
+    EditorProject project; EditorViewportState state;
+    editor_project_init(&project); editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0}); CHECK(object);
+    EditorCamera *camera = editor_project_camera_add(&project, object); CHECK(camera);
+    EditorLayoutViewport *viewport = editor_project_layout_viewport_add(&project); CHECK(viewport);
+    viewport->config.rectangle = (ViewportRectangle){0,0,600,400};
+    project.viewport_camera_zoom = .75f;
+    project.viewport_camera_offset = (Position){0};
+    const ViewportRectangle rectangles[2] = {{-120,-100,220,180},{150,-80,160,120}};
+    for(unsigned i = 0; i < 2; i++) {
+        EditorViewportCameraItem *screen = editor_viewport_camera_add(&project, viewport,
+            object->id, camera->id); CHECK(screen);
+        screen->placement.rectangle = rectangles[i]; screen->placement.orientation = preview_angles[i];
+        screen->content_offset = (Vec2D){80,40}; screen->content_rotation = 17;
+        preview_centers[i] = (Position){EDITOR_VIEWPORT_WIDTH * .5f +
+            (rectangles[i].x + rectangles[i].width * .5f) * .75f,
+            EDITOR_VIEWPORT_TOP + (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * .5f +
+            (rectangles[i].y + rectangles[i].height * .5f) * .75f};
+        preview_sizes[i] = (Scale){rectangles[i].width * .75f, rectangles[i].height * .75f};
+    }
+    state.mode = EDITOR_VIEWPORT_LAYOUT; state.selected_layout_viewport = viewport->id;
+    preview_geometry_valid = true; trace_preview = true;
+    editor_viewport_draw(&project, &state, false);
+    trace_preview = false;
+    CHECK(preview_geometry_valid && preview_backgrounds == 2 && preview_stripes > 2);
+    rohr_graphics_show();
+    editor_viewport_state_destroy(&state); editor_project_destroy(&project);
+    return true;
+}
+
+static bool rotated_preview_content_check(void) {
+    EditorProject project; EditorViewportState state;
+    editor_project_init(&project); editor_viewport_state_init(&state);
+    EditorObject *object = editor_project_object_add(&project, (Position){0}); CHECK(object);
+    EditorRigidBody *body = editor_project_rigid_body_add(&project, object); CHECK(body);
+    body->position = (Position){0}; body->surface_color = UINT32_C(0xab3dd5ff);
+    body->hitboxes[0].vertex_count = 3;
+    for(unsigned i = 0; i < 3; i++) body->hitboxes[0].vertices[i].position = corner_vertices[i];
+    EditorCamera *camera = editor_project_camera_add(&project, object); CHECK(camera);
+    camera->position = (Position){0}; camera->dimensions = (Scale){200,100}; camera->zoom = 1;
+    EditorLayoutViewport *viewport = editor_project_layout_viewport_add(&project); CHECK(viewport);
+    viewport->config.rectangle = (ViewportRectangle){-300,-200,600,400};
+    project.viewport_camera_zoom = .75f; project.viewport_camera_offset = (Position){0};
+    Position origin = {EDITOR_VIEWPORT_WIDTH * .5f - 225,
+        EDITOR_VIEWPORT_TOP + (EDITOR_VIEWPORT_BOTTOM - EDITOR_VIEWPORT_TOP) * .5f - 150};
+    camera_viewport_clip = (SDL_Rect){(int)ceilf(origin.x), (int)ceilf(origin.y),450,300};
+    const ViewportRectangle rectangles[2] = {{-40,70,220,180},{350,20,160,120}};
+    for(unsigned i = 0; i < 2; i++) {
+        EditorViewportCameraItem *screen = editor_viewport_camera_add(&project, viewport,
+            object->id, camera->id); CHECK(screen);
+        screen->placement.rectangle = rectangles[i];
+        screen->render_size_explicit = i != 0;
+        screen->render_width = (int)camera_render_sizes[i].x;
+        screen->render_height = (int)camera_render_sizes[i].y;
+        screen->content_offset = (Vec2D){80,40}; screen->content_rotation = 17;
+        screen->content_scale = (Scale){1.2f,.8f};
+    }
+    state.mode = EDITOR_VIEWPORT_LAYOUT; state.selected_layout_viewport = viewport->id;
+    const float angles[] = {0,35,90,135,-60};
+    const ScreenFit fits[] = {SCREEN_FIT_NONE, SCREEN_FIT_CONTAIN, SCREEN_FIT_COVER, SCREEN_FIT_STRETCH};
+    for(unsigned pass = 0; pass < sizeof(angles)/sizeof(*angles); pass++) {
+        for(unsigned i = 0; i < 2; i++) {
+            EditorViewportCameraItem *screen = &viewport->camera_items[i];
+            screen->placement.orientation = angles[pass] + i * 15;
+            screen->placement.fit = fits[(pass + i) % 4];
+            float x = rectangles[i].width * .75f / camera_render_sizes[i].x;
+            float y = rectangles[i].height * .75f / camera_render_sizes[i].y;
+            if(screen->placement.fit == SCREEN_FIT_NONE) x = y = .75f;
+            if(screen->placement.fit == SCREEN_FIT_CONTAIN) x = y = fminf(x,y);
+            if(screen->placement.fit == SCREEN_FIT_COVER) x = y = fmaxf(x,y);
+            float width = camera_render_sizes[i].x * x * 1.2f;
+            float height = camera_render_sizes[i].y * y * .8f;
+            Vec2D offset = rohr_math_vector_rotate((Vec2D){60,30}, -screen->placement.orientation);
+            camera_destinations[i] = (SDL_FRect){origin.x +
+                (rectangles[i].x + rectangles[i].width * .5f) * .75f + offset.x - width * .5f,
+                origin.y + (rectangles[i].y + rectangles[i].height * .5f) * .75f + offset.y - height * .5f,
+                width,height};
+            camera_angles[i] = screen->placement.orientation + 17;
+        }
+        camera_sources = camera_composites = 0;
+        preview_geometry_valid = true; trace_camera_content = true;
+        editor_viewport_draw(&project, &state, false);
+        Report report = rohr_graphics_show();
+        trace_camera_content = false;
+        CHECK(report.header.status == ROHR_REPORT_COMPLETE && report.diagnostic_count == 0);
+        if(!preview_geometry_valid || camera_sources != 2 || camera_composites != 2)
+            fprintf(stderr, "preview pass %u: valid %d sources %u composites %u\n",
+                pass, preview_geometry_valid, camera_sources, camera_composites);
+        CHECK(preview_geometry_valid && camera_sources == 2 && camera_composites == 2);
+    }
+    editor_viewport_state_destroy(&state); editor_project_destroy(&project);
+    return true;
+}
+#endif
+
 static bool pixel_check(Position point, Color color) {
     int count = 0;
     SDL_Window **windows = SDL_GetWindows(&count);
@@ -204,8 +398,8 @@ static bool body_layers_check(void) {
     return true;
 }
 
-static bool direction_pixels_check(Position center, float rotation,
-        Direction direction, unsigned allowed_frames, unsigned *seen) {
+static bool direction_pixels_at_distance_check(Position center, float rotation,
+        Direction direction, unsigned allowed_frames, unsigned *seen, float sample_distance) {
     const Color colors[2][2] = {{{255,0,0,255}, {0,0,255,255}},
         {{0,255,0,255}, {255,255,0,255}}};
     int count = 0;
@@ -219,7 +413,7 @@ static bool direction_pixels_check(Position center, float rotation,
     float angle = math_degrees_to_radians(rotation);
     bool read = true;
     for(size_t side = 0; side < 2; side += 1) {
-        float distance = side == 0 ? -16 : 16;
+        float distance = side == 0 ? -sample_distance : sample_distance;
         read = SDL_ReadSurfacePixel(surface,
             (int)roundf(center.x + cosf(angle) * distance),
             (int)roundf(center.y + sinf(angle) * distance),
@@ -242,6 +436,11 @@ static bool direction_pixels_check(Position center, float rotation,
         direction, center.x, center.y, rotation, found[0].red, found[0].green,
         found[0].blue, found[1].red, found[1].green, found[1].blue);
     return false;
+}
+
+static bool direction_pixels_check(Position center, float rotation,
+        Direction direction, unsigned allowed_frames, unsigned *seen) {
+    return direction_pixels_at_distance_check(center, rotation, direction, allowed_frames, seen, 16);
 }
 
 static bool animation_extent_check(Position center, float rotation, Scale size,
@@ -431,10 +630,12 @@ static bool animation_direction_check(void) {
         animation->direction = left ? DIRECTION_LEFT : DIRECTION_RIGHT;
         draw(&project, &state);
         unsigned seen = 0;
-        CHECK(direction_pixels_check((Position){center.x+120,center.y+72}, 90,
-            animation->direction, 1, &seen));
-        CHECK(direction_pixels_check((Position){center.x+320,center.y+138}, 180,
-            animation->direction, 1, &seen));
+        /* Camera-image stretching puts the smallest rotated sprite's edge at
+         * 16 pixels. Sample inside it rather than on its exclusive boundary. */
+        CHECK(direction_pixels_at_distance_check((Position){center.x+120,center.y+72}, 90,
+            animation->direction, 1, &seen, 12));
+        CHECK(direction_pixels_at_distance_check((Position){center.x+320,center.y+138}, 180,
+            animation->direction, 1, &seen, 12));
     }
     editor_viewport_assets_destroy();
     editor_viewport_state_destroy(&state);
@@ -620,6 +821,10 @@ bool editor_layers_check(void) {
     OK(rohr_viewport_disable_set(viewport.result.value));
     CHECK(SDL_SaveFile("editor_layers_frame.png", test_png, sizeof(test_png)));
     bool passed = body_layers_check();
+#ifdef ROHR_TEST_PREVIEW_WRAP
+    if(passed) passed = rotated_preview_background_check();
+    if(passed) passed = rotated_preview_content_check();
+#endif
     editor_viewport_assets_destroy();
     (void)SDL_RemovePath("editor_layers_frame.png");
     if(passed) passed = animation_direction_check();
