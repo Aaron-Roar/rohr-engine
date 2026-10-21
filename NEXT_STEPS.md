@@ -176,12 +176,20 @@ contracts, and generated examples when a goal changes supported behavior.
    and successful builds with the terminal hidden. Linux regression checks,
    focused ASan/UBSan, and Windows editor/test cross-compilation passed; see the
    corrective issue mapping for verification details.
-2. [ ] **C2 — Relocation and repeat builds.** Resolve project-owned paths from
+2. [x] **C2 — Relocation and repeat builds.** Resolve project-owned paths from
    the project's current root. Reuse valid CMake caches on repeated builds and
    recover stale project/build-root metadata after relocation. Preserve source,
    assets, and developer configuration. External engine/SDK paths remain explicit
    external dependencies. Verify initial, unchanged, edited, and relocated
    application/scene builds without a manual clean-build requirement.
+   Complete: editor/CLI share root resolution and CMake relocation recovery.
+   Valid caches are retained; relocated metadata is archived and regenerated
+   from saved settings without migrating cache-only options. Stale launches
+   are blocked, including copies whose original still exists. Installed-SDK
+   fixtures cover unchanged/edited/moved/copied app and scene builds and launches,
+   preserved developer files/assets, and cache reuse. Linux regressions, focused
+   ASan/UBSan, and Windows editor/CLI/test cross-builds passed; verification is
+   recorded in the corrective issue mapping. C3 scaffolding recovery remains open.
 3. [ ] **C3 — Missing CMake regeneration.** Restore missing engine-generated
    project CMake scaffolding during build preparation and let CMake regenerate
    disposable build metadata. Preserve existing customized files and

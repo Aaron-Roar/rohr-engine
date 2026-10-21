@@ -9,6 +9,12 @@
 typedef enum EditorBuildTarget { EDITOR_BUILD_APPLICATION, EDITOR_BUILD_SCENE, EDITOR_BUILD_PROJECT } EditorBuildTarget;
 typedef enum EditorBuildStage { EDITOR_BUILD_IDLE, EDITOR_BUILD_STOPPING_SCENE, EDITOR_BUILD_CONFIGURING, EDITOR_BUILD_COMPILING } EditorBuildStage;
 typedef struct EditorBuild EditorBuild;
+/* Shared editor/CLI paths and relocation recovery. Only stale CMake metadata
+ * is archived; saved configuration, project files, and valid caches are retained. */
+EditorResult editor_build_workspace_get(const EditorWorkspace *workspace, EditorWorkspace *absolute);
+EditorResult editor_build_cache_prepare(const EditorWorkspace *workspace, bool configure_enabled,
+    EditorBuildOutput output, void *context);
+EditorResult editor_build_cache_configured(const EditorWorkspace *workspace);
 /* Explicit allocation. The session and output context are borrowed during a
  * build; cancel/destroy the build before destroying either borrowed owner. */
 EditorBuild *editor_build_create(void);

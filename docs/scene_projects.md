@@ -168,6 +168,23 @@ application run can be active. Opening, closing, or exiting a project cancels it
 build and stops owned children, including when opening a replacement project
 fails. Asset imports do not cancel builds.
 
+Normal editor and CLI builds reuse a valid CMake cache. Moving or copying a built
+project is detected from CMake's recorded source/build directories. Before
+reconfiguration, the tools set aside `CMakeCache.txt`, `CMakeFiles`, and generated
+target/executable records under `build/rohr_relocated_cache_*`; unrelated build
+files, source, assets, and developer configuration remain in place. These
+archives are not reused automatically. Saved project/editor configuration is
+reapplied, but options stored only in the old cache are not migrated. Use
+`{project}` and `{build}` in saved commands for project-local paths; explicit
+external engine/SDK paths remain external dependencies.
+
+Run refuses stale metadata even if the original project still exists. An
+interrupted or failed relocation recovery stays blocked until configuration
+creates a valid cache for the new location. If configuration is disabled, the
+tools explain that it must be enabled before recovery. A linked default `build`
+directory is rejected rather than modifying another project's files. Missing
+project CMake scaffolding is a separate recovery concern.
+
 Generation, configuration, compilation, and launch-preparation diagnostics always
 reach the embedded terminal, including failures before a subprocess starts.
 Stage messages identify starts, completion, failures, and cancellation; subprocess

@@ -256,27 +256,6 @@ static void cli_usage_print(void) {
         "  Example: rohr-cli --project ./game create");
 }
 
-static bool cli_absolute_path_get(char *output, size_t capacity,
-        const char *path) {
-#if defined(_WIN32)
-    return output != NULL && path != NULL &&
-        _fullpath(output, path, capacity) != NULL;
-#else
-    char *resolved;
-    size_t length;
-    if(output == NULL || path == NULL) return false;
-    resolved = realpath(path, NULL);
-    if(resolved == NULL) return false;
-    length = strlen(resolved);
-    if(length >= capacity) {
-        free(resolved);
-        return false;
-    }
-    memcpy(output, resolved, length + 1);
-    free(resolved);
-    return true;
-#endif
-}
 
 static bool cli_sdk_root_get(char *output, size_t capacity) {
     const char *base = SDL_GetBasePath();
@@ -367,11 +346,11 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     const EditorConfigCommand *configured_command;
     char sdk[EDITOR_WORKSPACE_PATH_MAX * 2] = {0};
     int count;
-    if(workspace == NULL || !cli_absolute_path_get(root, sizeof(root),
-            workspace->directory))
-        return cli_error(editor_result_error(
-                EDITOR_ERROR_FILE_IO, "Could not resolve project path: %s",
-                workspace == NULL ? "" : workspace->directory));
+    EditorWorkspace absolute;
+    EditorResult resolved = editor_build_workspace_get(workspace, &absolute);
+    if(editor_result_check(resolved)) return cli_error(resolved);
+    workspace = &absolute;
+    SDL_strlcpy(root, workspace->directory, sizeof(root));
     count = snprintf(build, sizeof(build), "%s/build", root);
     if(count < 0 || (size_t)count >= sizeof(build)) return cli_error(
         editor_result_error(EDITOR_ERROR_CAPACITY,
@@ -379,6 +358,11 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
     configured_command = editor_config_command_get(config,
         EDITOR_CONFIG_FRONTEND_CLI, configure ? EDITOR_CONFIG_OPERATION_CONFIGURE :
         EDITOR_CONFIG_OPERATION_COMPILE);
+    if(configure) {
+        EditorResult prepared = editor_build_cache_prepare(workspace,
+            !configured_command || configured_command->count != 0, cli_build_output, NULL);
+        if(editor_result_check(prepared)) return cli_error(prepared);
+    }
     if(configured_command != NULL && configured_command->count == 0) return 0;
     if(configured_command != NULL || (!configure && scene_only)) {
         EditorResult result;
@@ -397,7 +381,12 @@ static int cli_project_cmake_run(const EditorWorkspace *workspace,
             EDITOR_ERROR_FILE_IO, "Could not locate the Rohr SDK or source tree"));
         process_arguments = configure ? configure_arguments : compile_arguments;
     }
-    return cli_process_run(root, process_arguments);
+    int code = cli_process_run(root, process_arguments);
+    if(!code && configure) {
+        EditorResult completed = editor_build_cache_configured(workspace);
+        if(editor_result_check(completed)) return cli_error(completed);
+    }
+    return code;
 }
 
 static int cli_project_compile(const EditorWorkspace *workspace,

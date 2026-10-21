@@ -9,6 +9,11 @@
 #include <SDL3/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#endif
 
 struct EditorBuild {
     EditorWorkspace workspace;
@@ -44,7 +49,8 @@ static EditorResult path_copy(char *output, size_t capacity, const char *text) {
         return editor_result_error(EDITOR_ERROR_CAPACITY, "Build path or target is too long");
     memcpy(output, text, strlen(text) + 1); return editor_result_value(true);
 }
-static EditorResult workspace_absolute_get(const EditorWorkspace *workspace, EditorWorkspace *absolute) {
+EditorResult editor_build_workspace_get(const EditorWorkspace *workspace, EditorWorkspace *absolute) {
+    if(!workspace || !workspace->open || !absolute) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Build needs an open project");
     *absolute = *workspace;
 #ifdef _WIN32
     char *resolved = _fullpath(NULL, workspace->directory, 0);
@@ -63,6 +69,162 @@ static char *metadata_read(const char *path) {
     if(text && memchr(text, 0, size)) { SDL_free(text); return NULL; }
     return text;
 }
+/* CMake caches are local build state, not portable project configuration. */
+static bool build_separator_check(char value) {
+#ifdef _WIN32
+    return value == '/' || value == '\\';
+#else
+    return value == '/';
+#endif
+}
+static bool build_path_same_check(const char *a, const char *b) {
+    size_t na = strlen(a), nb = strlen(b);
+    while(na > 1 && build_separator_check(a[na - 1])) --na;
+    while(nb > 1 && build_separator_check(b[nb - 1])) --nb;
+    if(na != nb) return false;
+    for(size_t i = 0; i < na; ++i) {
+        char ca = a[i], cb = b[i];
+#ifdef _WIN32
+        if(ca == '\\') ca = '/';
+        if(cb == '\\') cb = '/';
+        ca = (char)SDL_tolower(ca); cb = (char)SDL_tolower(cb);
+#endif
+        if(ca != cb) return false;
+    }
+    return true;
+}
+static bool build_file_check(const char *path) {
+    SDL_PathInfo info;
+    return SDL_GetPathInfo(path, &info);
+}
+static bool build_project_path_check(const char *path, const char *root) {
+    size_t length = strlen(root);
+    while(length > 1 && build_separator_check(root[length - 1])) --length;
+    if(strlen(path) <= length) return false;
+    char prefix[EDITOR_WORKSPACE_PATH_MAX * 2];
+    if(length >= sizeof(prefix)) return false;
+    memcpy(prefix, path, length); prefix[length] = 0;
+    return build_path_same_check(prefix, root) &&
+        ((length == 1 && root[0] == '/') || build_separator_check(path[length]));
+}
+static EditorResult build_location_get(const EditorWorkspace *workspace,
+        bool *stale, bool *cached, bool *pending) {
+    char directory[EDITOR_WORKSPACE_PATH_MAX * 2], path[EDITOR_WORKSPACE_PATH_MAX * 2];
+    *stale = *cached = *pending = false;
+    SDL_snprintf(directory, sizeof(directory), "%s/build", workspace->directory);
+    /* Never recover a copied project by modifying a build-directory link into
+     * its original project (or another external directory). */
+    bool linked = false;
+#ifdef _WIN32
+    wchar_t *wide = (wchar_t *)SDL_iconv_string("UTF-16LE", "UTF-8", directory, strlen(directory) + 1);
+    if(!wide) return editor_result_error(EDITOR_ERROR_CAPACITY, "Could not inspect build directory");
+    DWORD attributes = GetFileAttributesW(wide); SDL_free(wide);
+    linked = attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+#else
+    struct stat info;
+    linked = lstat(directory, &info) == 0 && S_ISLNK(info.st_mode);
+#endif
+    if(linked) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Build directory is a link; use a project-owned build directory: %s", directory);
+    SDL_snprintf(path, sizeof(path), "%s/rohr_reconfigure_required.txt", directory);
+    *pending = build_file_check(path);
+    SDL_snprintf(path, sizeof(path), "%s/CMakeCache.txt", directory);
+    if(!build_file_check(path)) return editor_result_value(true);
+    size_t size = 0; char *text = SDL_LoadFile(path, &size);
+    if(!text || memchr(text, 0, size)) {
+        SDL_free(text);
+        return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not read CMake cache: %s", path);
+    }
+    const char *keys[] = {"CMAKE_HOME_DIRECTORY:INTERNAL=", "CMAKE_CACHEFILE_DIR:INTERNAL="};
+    const char *expected[] = {workspace->directory, directory};
+    bool found[2] = {false, false};
+    for(char *line = text; line && *line;) {
+        char *next = strchr(line, '\n'); if(next) *next++ = 0;
+        size_t length = strlen(line); if(length && line[length - 1] == '\r') line[length - 1] = 0;
+        for(size_t i = 0; i < SDL_arraysize(keys); ++i) {
+            size_t prefix = strlen(keys[i]);
+            if(!strncmp(line, keys[i], prefix)) {
+                found[i] = true;
+                *stale |= !build_path_same_check(line + prefix, expected[i]);
+            }
+        }
+        line = next;
+    }
+    *cached = found[0] && found[1];
+    SDL_free(text); return editor_result_value(true);
+}
+static EditorResult build_metadata_archive(const char *directory, const char *archive, const char *name) {
+    char source[EDITOR_WORKSPACE_PATH_MAX * 2], target[EDITOR_WORKSPACE_PATH_MAX * 2];
+    if(SDL_snprintf(source, sizeof(source), "%s/%s", directory, name) >= (int)sizeof(source) ||
+            SDL_snprintf(target, sizeof(target), "%s/%s", archive, name) >= (int)sizeof(target))
+        return editor_result_error(EDITOR_ERROR_CAPACITY, "Relocated build metadata path is too long");
+    if(build_file_check(source) && !SDL_RenamePath(source, target))
+        return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not set aside relocated metadata %s: %s", source, SDL_GetError());
+    return editor_result_value(true);
+}
+EditorResult editor_build_cache_prepare(const EditorWorkspace *workspace, bool configure_enabled,
+        EditorBuildOutput output, void *context) {
+    EditorWorkspace absolute;
+    EditorResult result = editor_build_workspace_get(workspace, &absolute);
+    if(editor_result_check(result)) return result;
+    bool stale, cached, pending;
+    result = build_location_get(&absolute, &stale, &cached, &pending);
+    if(editor_result_check(result) || (!stale && !pending)) return result;
+    if(!configure_enabled) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Project moved; enable configuration before rebuilding %s", absolute.directory);
+    if(output) {
+        const char *message = "\r\n[Build relocation] Reconfiguring at the current project location using saved settings. Cache-only options are not migrated.\r\n";
+        output(context, message, strlen(message));
+    }
+    if(!stale) return editor_result_value(true); /* Retry an interrupted reconfiguration. */
+    char directory[EDITOR_WORKSPACE_PATH_MAX * 2], archive[EDITOR_WORKSPACE_PATH_MAX * 2], marker[EDITOR_WORKSPACE_PATH_MAX * 2];
+    SDL_snprintf(directory, sizeof(directory), "%s/build", absolute.directory);
+    if(SDL_snprintf(archive, sizeof(archive), "%s/rohr_relocated_cache_%llu", directory,
+            (unsigned long long)SDL_GetPerformanceCounter()) >= (int)sizeof(archive))
+        return editor_result_error(EDITOR_ERROR_CAPACITY, "Relocated cache archive path is too long");
+    if(!SDL_CreateDirectory(archive)) return editor_result_error(EDITOR_ERROR_FILE_IO,
+        "Could not create cache archive %s: %s", archive, SDL_GetError());
+    SDL_snprintf(marker, sizeof(marker), "%s/rohr_reconfigure_required.txt", directory);
+    FILE *file = fopen(marker, "wb");
+    if(!file) return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not record relocation: %s", marker);
+    bool written = fputs("Reconfigure before running this relocated project.\n", file) >= 0;
+    bool closed = fclose(file) == 0;
+    if(!written || !closed) return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not write relocation marker: %s", marker);
+    result = build_metadata_archive(directory, archive, "CMakeFiles");
+    if(editor_result_check(result)) return result;
+    const char *patterns[] = {"rohr_application_*.path", "rohr_scene_*.path", "rohr_target_*.txt"};
+    for(size_t i = 0; i < SDL_arraysize(patterns); ++i) {
+        int count = 0; char **files = SDL_GlobDirectory(directory, patterns[i], 0, &count);
+        if(!files) return editor_result_error(EDITOR_ERROR_FILE_IO, "Could not list build metadata: %s", directory);
+        for(int j = 0; j < count; ++j) {
+            result = build_metadata_archive(directory, archive, files[j]);
+            if(editor_result_check(result)) break;
+        }
+        SDL_free(files); if(editor_result_check(result)) return result;
+    }
+    /* Keep the stale cache until all other moves succeed so recovery is retryable. */
+    result = build_metadata_archive(directory, archive, "CMakeCache.txt");
+    if(!editor_result_check(result) && output) {
+        output(context, archive, strlen(archive)); output(context, "\r\n", 2);
+    }
+    return result;
+}
+EditorResult editor_build_cache_configured(const EditorWorkspace *workspace) {
+    EditorWorkspace absolute;
+    EditorResult result = editor_build_workspace_get(workspace, &absolute);
+    if(editor_result_check(result)) return result;
+    bool stale, cached, pending;
+    result = build_location_get(&absolute, &stale, &cached, &pending);
+    if(editor_result_check(result) || !pending) return result;
+    if(stale || !cached) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Configure did not recreate a valid CMake cache for relocated project %s", absolute.directory);
+    char marker[EDITOR_WORKSPACE_PATH_MAX * 2];
+    SDL_snprintf(marker, sizeof(marker), "%s/build/rohr_reconfigure_required.txt", absolute.directory);
+    if(!SDL_RemovePath(marker)) return editor_result_error(EDITOR_ERROR_FILE_IO,
+        "Could not finish relocation recovery: %s", marker);
+    return editor_result_value(true);
+}
+
 EditorResult editor_build_target_name_get(const EditorWorkspace *workspace,
         EditorBuildTarget target, char *output, size_t capacity) {
     if(!workspace || !workspace->open || !target_valid_check(target))
@@ -90,9 +252,14 @@ EditorResult editor_build_executable_get(const EditorWorkspace *workspace,
             (target != EDITOR_BUILD_APPLICATION && target != EDITOR_BUILD_SCENE))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Run needs an open project and application or scene target");
     EditorWorkspace absolute;
-    EditorResult resolved = workspace_absolute_get(workspace, &absolute);
+    EditorResult resolved = editor_build_workspace_get(workspace, &absolute);
     if(editor_result_check(resolved)) return resolved;
     workspace = &absolute;
+    bool stale, cached, pending;
+    resolved = build_location_get(workspace, &stale, &cached, &pending);
+    if(editor_result_check(resolved)) return resolved;
+    if(stale || pending) return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,
+        "Project moved; rebuild %s before running from %s", editor_build_target_label_get(target), workspace->directory);
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], pattern[80], path[EDITOR_WORKSPACE_PATH_MAX * 2];
     char chosen[EDITOR_WORKSPACE_PATH_MAX * 2] = {0}; SDL_Time newest = 0;
     if(SDL_snprintf(directory, sizeof(directory), "%s/build", workspace->directory) >= (int)sizeof(directory))
@@ -101,7 +268,12 @@ EditorResult editor_build_executable_get(const EditorWorkspace *workspace,
     int count = 0; char **files = SDL_GlobDirectory(directory, pattern, 0, &count);
     for(int i = 0; files && i < count; ++i) {
         if(SDL_snprintf(path, sizeof(path), "%s/%s", directory, files[i]) >= (int)sizeof(path)) continue;
-        char *candidate = metadata_read(path); newest_executable(candidate, chosen, sizeof(chosen), &newest); SDL_free(candidate);
+        char *candidate = metadata_read(path);
+        /* Without cache provenance, never follow an absolute record outside the
+         * current project: it may belong to the still-existing original copy. */
+        if(candidate && (cached || build_project_path_check(candidate, workspace->directory)))
+            newest_executable(candidate, chosen, sizeof(chosen), &newest);
+        SDL_free(candidate);
     }
     SDL_free(files);
     /* A project last configured before output metadata was introduced still runs. */
@@ -175,6 +347,11 @@ static void command_display(EditorBuild *build) {
 static EditorResult stage_start(EditorBuild *build, bool configure) {
     build->stage = configure ? EDITOR_BUILD_CONFIGURING : EDITOR_BUILD_COMPILING;
     stage_output(build, "START");
+    if(configure) {
+        EditorResult prepared = editor_build_cache_prepare(&build->workspace,
+            build->configure.count != 0, build->output, build->context);
+        if(editor_result_check(prepared)) return prepared;
+    }
     char directory[EDITOR_WORKSPACE_PATH_MAX * 2], target[EDITOR_CONFIG_ARGUMENT_LENGTH_MAX];
     SDL_snprintf(directory, sizeof(directory), "%s/build", build->workspace.directory);
     EditorResult result = editor_build_target_name_get(&build->workspace, build->target, target, sizeof(target));
@@ -201,7 +378,7 @@ EditorResult editor_build_start(EditorBuild *build, const EditorWorkspace *works
     if(!build || !workspace || !workspace->open || !config || !target_valid_check(target) || editor_build_active_check(build))
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "A build is already active or no project is open");
     build->succeeded = false;
-    EditorResult resolved = workspace_absolute_get(workspace, &build->workspace);
+    EditorResult resolved = editor_build_workspace_get(workspace, &build->workspace);
     if(editor_result_check(resolved)) return resolved;
     build->target = target; build->scene = scene; build->compiled = false;
     build->output = output; build->context = context;
@@ -253,7 +430,8 @@ EditorResult editor_build_update(EditorBuild *build, bool *finished, int *exit_c
             stage_output(build, status);
         }
         if(!editor_result_check(result) && *exit_code == 0 && build->stage == EDITOR_BUILD_CONFIGURING) {
-            result = stage_start(build, false);
+            result = editor_build_cache_configured(&build->workspace);
+            if(!editor_result_check(result)) result = stage_start(build, false);
         } else {
             build->succeeded = !editor_result_check(result) && *exit_code == 0 && build->compiled;
             build->stage = EDITOR_BUILD_IDLE; *finished = true;

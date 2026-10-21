@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics complete with automated verification below; C2–C5 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics and C2 relocation/repeat builds complete with automated verification below; C3–C5 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -533,10 +533,10 @@ each pursued goal needs its own relevant checks and interactive retest.
 
 | Reported issue or agreed clarification | Correction goal |
 |---|---|
-| Moving the project leaves project-owned paths stale | C2 |
+| Moving the project leaves project-owned paths stale | C2 complete; shared root resolution and stale cache/output recovery |
 | Missing project CMake files should regenerate during build | C3 |
 | Build Settings should expose executable, engine, and relevant paths | C7; every listed path is editable, with defaults and resettable overrides |
-| Building again fails instead of using the valid cache | C2 |
+| Building again fails instead of using the valid cache | C2 complete; unchanged/edited builds retain valid caches |
 | Force picking includes excessive space around/behind the arrow; rotation controls need padding | C8 |
 | Torque picking is slightly too large | C8 |
 | Soft-body controls remain after returning to the object editor | C6 |
@@ -586,7 +586,25 @@ the new regression passed twice after correcting its temporary-directory reuse.
 The full Linux build includes examples. Focused `editor_build` and
 `editor_build_diagnostics` ASan/UBSan tests passed, and the Windows editor and both
 test executables cross-compiled without compiler warnings. Windows execution was
-not performed. Broader interactive acceptance and C2–C14 remain open.
+not performed. Broader interactive acceptance remains open.
+
+**C2 verification:** an isolated copy of rohr-project-1 reproduced CMake's old
+source/build-directory errors. Shared editor/CLI recovery now archives stale
+cache/output metadata, reconfigures using saved settings, and prevents resolving
+executables in the original project. The affected copy compiled successfully
+after recovery and on repeated builds; a final unchanged build compiled no C
+objects. No separate same-location build failure was reproduced.
+
+The installed-SDK `editor_build_relocation` fixture verifies initial, unchanged,
+source-edited, copied, and moved builds through editor-core and CLI paths. It
+launches application and scene targets outside their source directories, preserves
+developer source/CMake/configuration/assets and unrelated build files, retains
+cache-only options on normal builds, and discards them only on relocation while
+reapplying saved options. The original copy's cache remains unchanged. Unit tests
+cover disabled configuration, interrupted recovery, and linked-build protection.
+All 113 Linux tests passed, including this SDK fixture; focused ASan/UBSan checks
+and Windows editor/CLI/test cross-compilation passed. Windows execution was not
+performed. C3–C14 and broader interactive acceptance remain open.
 
 ## Frozen fixture plan
 

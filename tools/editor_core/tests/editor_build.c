@@ -110,6 +110,47 @@ static void executable_checks(EditorWorkspace *workspace) {
     SDL_snprintf(path, sizeof(path), "%s/build/rohr_target_scene.txt", workspace->directory); save(path, "Custom_scene");
     OK(editor_build_target_name_get(workspace, EDITOR_BUILD_SCENE, selected, sizeof(selected))); assert(!strcmp(selected, "Custom_scene"));
 }
+static void relocation_checks(const EditorWorkspace *parent) {
+    EditorWorkspace workspace = {.open = true};
+    SDL_snprintf(workspace.directory, sizeof(workspace.directory), "%s/cache_%llu",
+        parent->directory, (unsigned long long)SDL_GetPerformanceCounter());
+    SDL_strlcpy(workspace.config.name, "Recovery", sizeof(workspace.config.name));
+    char build[2048], cache[2048], path[2048], text[4096], executable[2048];
+    SDL_snprintf(build, sizeof(build), "%s/build", workspace.directory);
+    assert(SDL_CreateDirectory(build));
+    SDL_snprintf(cache, sizeof(cache), "%s/CMakeCache.txt", build);
+    save(cache, "CMAKE_HOME_DIRECTORY:INTERNAL=/old/project\nCMAKE_CACHEFILE_DIR:INTERNAL=/old/project/build\nCACHE_ONLY:STRING=old\n");
+    SDL_snprintf(path, sizeof(path), "%s/CMakeFiles", build); assert(SDL_CreateDirectory(path));
+    SDL_snprintf(path, sizeof(path), "%s/keep_user_file.txt", build); save(path, "preserved");
+    SDL_snprintf(path, sizeof(path), "%s/rohr_application_Debug.path", build); save(path, "/old/project/build/Recovery");
+    reset_output();
+    assert(editor_result_check(editor_build_cache_prepare(&workspace, false, capture, NULL)));
+    char *before = SDL_LoadFile(cache, NULL); assert(before && strstr(before, "CACHE_ONLY")); SDL_free(before);
+    OK(editor_build_cache_prepare(&workspace, true, capture, NULL));
+    assert(strstr(captured, "Cache-only options are not migrated"));
+    assert(!SDL_LoadFile(cache, NULL));
+    assert(editor_result_check(editor_build_executable_get(&workspace, EDITOR_BUILD_APPLICATION, executable, sizeof(executable))));
+    /* An interrupted configure must remain blocked until a valid cache exists. */
+    OK(editor_build_cache_prepare(&workspace, true, capture, NULL));
+    assert(editor_result_check(editor_build_cache_configured(&workspace)));
+    SDL_snprintf(text, sizeof(text), "CMAKE_HOME_DIRECTORY:INTERNAL=%s\nCMAKE_CACHEFILE_DIR:INTERNAL=%s\n", workspace.directory, build);
+    save(cache, text); OK(editor_build_cache_configured(&workspace));
+    reset_output(); OK(editor_build_cache_prepare(&workspace, false, capture, NULL)); assert(!used);
+    SDL_snprintf(path, sizeof(path), "%s/keep_user_file.txt", build);
+    char *kept = SDL_LoadFile(path, NULL); assert(kept && !strcmp(kept, "preserved")); SDL_free(kept);
+#ifndef _WIN32
+    /* A copied build-directory symlink must not mutate the original's files. */
+    EditorWorkspace linked = {.open = true};
+    SDL_snprintf(linked.directory, sizeof(linked.directory), "%s/linked", workspace.directory);
+    assert(SDL_CreateDirectory(linked.directory));
+    SDL_snprintf(path, sizeof(path), "%s/build", linked.directory);
+    assert(!symlink(build, path));
+    assert(editor_result_check(editor_build_cache_prepare(&linked, true, capture, NULL)));
+    kept = SDL_LoadFile(cache, NULL); assert(kept && !strcmp(kept, text)); SDL_free(kept);
+    assert(!unlink(path));
+#endif
+}
+
 static void controller_checks(const char *self, const char *child, EditorWorkspace *workspace) {
     static EditorConfig config; editor_config_init(&config);
     config.gui_configure = (EditorConfigCommand){.set = true, .count = 3};
@@ -182,10 +223,15 @@ static int project_probe(char **argv) {
     EditorBuildTarget target = !strcmp(argv[3], "app") ? EDITOR_BUILD_APPLICATION :
         (!strcmp(argv[3], "scene") || !strcmp(argv[3], "editor")) ? EDITOR_BUILD_SCENE : EDITOR_BUILD_PROJECT;
     int code = 0;
-    if(strcmp(argv[1], "resolve")) {
+    if(!strcmp(argv[1], "project")) {
         if(!strcmp(argv[3], "editor")) OK(editor_workspace_editor_generate(&workspace, &project));
         char option[2048]; SDL_snprintf(option, sizeof(option), "-DCMAKE_PREFIX_PATH=%s", argv[4]);
-        editor_config_init(&config); EditorBuild *build = editor_build_create(); assert(build);
+        editor_config_init(&config);
+        char settings[2048]; SDL_snprintf(settings, sizeof(settings), "%s/editor.lua", workspace.directory);
+        OK(editor_config_file_merge(&config, settings, false));
+        SDL_snprintf(settings, sizeof(settings), "%s/.rohr/gui-overrides.lua", workspace.directory);
+        OK(editor_config_file_merge(&config, settings, false));
+        EditorBuild *build = editor_build_create(); assert(build);
         OK(editor_build_start(build, &workspace, &config, argv[4], option, target, NULL, NULL, NULL));
         /* Compiling a fresh SDK project can exceed the short unit-test deadline. */
         bool done = false; Uint64 deadline = SDL_GetTicks() + 120000;
@@ -199,11 +245,31 @@ static int project_probe(char **argv) {
     if(!code && target != EDITOR_BUILD_PROJECT) {
         char executable[2048]; OK(editor_build_executable_get(&workspace, target, executable, sizeof(executable)));
         puts(executable);
+        if(!strcmp(argv[1], "launch")) {
+            if(target == EDITOR_BUILD_SCENE) {
+                EditorSceneSession *scene = editor_scene_session_create(); assert(scene);
+                assert(!error_check(editor_scene_session_launch(scene, executable)));
+                Uint64 deadline = SDL_GetTicks() + 15000;
+                while(editor_scene_session_state_get(scene) != EDITOR_SCENE_RUNNING && SDL_GetTicks() < deadline) {
+                    Report report = editor_scene_session_update(scene);
+                    if(report.has_fatal) fprintf(stderr, "%s\n", report.first_fatal.detail);
+                    assert(!report.has_fatal); SDL_Delay(1);
+                }
+                assert(editor_scene_session_state_get(scene) == EDITOR_SCENE_RUNNING);
+                editor_scene_session_destroy(scene);
+            } else {
+                EditorBuildProcess *process = editor_build_process_create(); assert(process);
+                const char *args[] = {executable, NULL};
+                OK(editor_build_process_start(process, SDL_GetBasePath(), args));
+                reset_output(); assert(wait_process(process) == 0);
+                editor_build_process_destroy(process);
+            }
+        }
     }
     editor_project_destroy(&project); return code;
 }
 int main(int argc, char **argv) {
-    if(argc == 5 && (!strcmp(argv[1], "project") || !strcmp(argv[1], "resolve"))) return project_probe(argv);
+    if(argc == 5 && (!strcmp(argv[1], "project") || !strcmp(argv[1], "resolve") || !strcmp(argv[1], "launch"))) return project_probe(argv);
     if(argc > 1 && !strcmp(argv[1], "echo")) { for(int i = 2; i < argc; ++i) printf("[%s]", argv[i]); return 0; }
     if(argc > 1 && !strcmp(argv[1], "exit")) return atoi(argv[2]);
     if(argc > 1 && !strcmp(argv[1], "fail")) return 23;
@@ -237,6 +303,6 @@ int main(int argc, char **argv) {
     for(size_t i = 0; i < SDL_arraysize(fixtures); ++i) {
         char path[2048]; SDL_snprintf(path, sizeof(path), "%s/%s", workspace.directory, fixtures[i]); (void)SDL_RemovePath(path);
     }
-    arguments_checks(); process_checks(argv[1], workspace.directory); executable_checks(&workspace); controller_checks(argv[1], argv[2], &workspace);
+    arguments_checks(); process_checks(argv[1], workspace.directory); executable_checks(&workspace); controller_checks(argv[1], argv[2], &workspace); relocation_checks(&workspace);
     return 0;
 }
