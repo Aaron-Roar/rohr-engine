@@ -19,6 +19,41 @@ static unsigned callbacks;
 static bool recursive, bad_submission;
 
 #ifdef ROHR_TEST_GRAPHICS_WRAP
+static bool trace_missing;
+static unsigned missing_quads, missing_lines, missing_textures;
+bool __real_SDL_RenderGeometry(SDL_Renderer *, SDL_Texture *, const SDL_Vertex *, int, const int *, int);
+bool __wrap_SDL_RenderGeometry(SDL_Renderer *renderer, SDL_Texture *texture,
+        const SDL_Vertex *vertices, int count, const int *indices, int index_count) {
+    if(trace_missing && !texture && count == 4 && fabsf(vertices[0].color.r - 52.0f/255.0f) < .001f) {
+        assert(missing_quads < 2 && index_count == 6);
+        SDL_Rect clip; assert(SDL_GetRenderClipRect(renderer, &clip));
+        assert(clip.x == 40 && clip.y == 40 && clip.w == 600 && clip.h == 420);
+        float cx = 0, cy = 0;
+        for(int i = 0; i < 4; ++i) { cx += vertices[i].position.x / 4; cy += vertices[i].position.y / 4; }
+        assert(fabsf(cx - (missing_quads ? 595 : 135)) < .01f);
+        assert(fabsf(cy - (missing_quads ? 380 : 190)) < .01f);
+        missing_quads++;
+    }
+    return __real_SDL_RenderGeometry(renderer, texture, vertices, count, indices, index_count);
+}
+bool __real_SDL_RenderLine(SDL_Renderer *, float, float, float, float);
+bool __wrap_SDL_RenderLine(SDL_Renderer *renderer, float x1, float y1, float x2, float y2) {
+    if(trace_missing) {
+        assert(missing_quads == 1 || missing_quads == 2);
+        bool second = missing_quads == 2;
+        float angle = (second ? 15.0f : 30.0f) * 0.017453292519943295f;
+        float cx = second ? 595 : 135, cy = second ? 380 : 190;
+        float width = second ? 170 : 280, height = second ? 100 : 240;
+        float xs[] = {x1, x2}, ys[] = {y1, y2};
+        for(int i = 0; i < 2; ++i) {
+            float x = (xs[i]-cx)*cosf(angle) + (ys[i]-cy)*sinf(angle);
+            float y = -(xs[i]-cx)*sinf(angle) + (ys[i]-cy)*cosf(angle);
+            assert(fabsf(x) <= width/2 + .01f && fabsf(y) <= height/2 + .01f);
+        }
+        missing_lines++;
+    }
+    return __real_SDL_RenderLine(renderer, x1, y1, x2, y2);
+}
 static bool fail_allocation, fail_draw, fail_texture, fail_target, fail_present, fail_capture;
 static bool fake_recording, fail_write, fail_flush;
 static unsigned presents;
@@ -55,6 +90,7 @@ bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FR
     const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
 bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *r, SDL_Texture *t, const SDL_FRect *src,
         const SDL_FRect *dst, double angle, const SDL_FPoint *center, SDL_FlipMode flip) {
+    if(trace_missing) missing_textures++;
     if(trace_image_targets) {
         assert(image_composite_count < 2);
         assert(SDL_GetRenderTarget(r) == NULL && t == image_targets[image_composite_count]);
@@ -483,11 +519,94 @@ static void failures(void) {
 }
 #endif
 
-int main(void) {
+static void missing_camera_checks(bool visual) {
+    CameraId original = rohr_camera_active_get();
+    CameraDescription camera = rohr_camera_description_default_get();
+    camera.render_callback = render;
+    CameraIdResult live = rohr_camera_create(camera); OK(live);
+    ViewportDescription description = rohr_viewport_description_default_get();
+    description.rectangle = (ViewportRectangle){40, 40, 600, 420};
+    description.fit = SCREEN_FIT_NONE; description.enabled = true;
+    ViewportIdResult viewport = rohr_viewport_create(description); OK(viewport);
+    ScreenIdResult missing = rohr_screen_create((ScreenDescription){.camera = CAMERA_INVALID, .width = 320, .height = 240}); OK(missing);
+    ScreenIdResult healthy = rohr_screen_create((ScreenDescription){.camera = live.result.value, .width = 320, .height = 240}); OK(healthy);
+    ViewportItemDescription item = rohr_viewport_item_description_default_get();
+    item.rectangle = (ViewportRectangle){-45, 30, 280, 240}; item.orientation = 30; item.layer = 0;
+    ViewportItemIdResult first = rohr_viewport_screen_add(viewport.result.value, missing.result.value, item); OK(first);
+    item.rectangle = (ViewportRectangle){190, 100, 320, 220}; item.orientation = -20; item.layer = 2;
+    OK(rohr_viewport_screen_add(viewport.result.value, healthy.result.value, item));
+    /* A second placement of the same missing screen produces one warning. */
+    item.rectangle = (ViewportRectangle){470, 290, 170, 100}; item.orientation = 15;
+    ViewportItemIdResult shared = rohr_viewport_screen_add(viewport.result.value, missing.result.value, item); OK(shared);
+    TextAssetResult text = rohr_graphics_text_create((TextDescription){.value = "UI between screens", .color = white}); OK(text);
+    ViewportUiTextDescription label = rohr_graphics_ui_text_description_default_get();
+    label.text = text.result.value; label.position = (Position){100, 150};
+    item = rohr_viewport_item_description_default_get(); item.layer = 1;
+    OK(rohr_viewport_ui_text_add(viewport.result.value, label, item));
+    item.layer = 3; label.position = (Position){140, 210};
+    label.text = text.result.value;
+    OK(rohr_viewport_ui_text_add(viewport.result.value, label, item));
+    if(visual) {
+        OK(rohr_graphics_frame_limit_set(60));
+        puts("Missing-camera demo: stripes at left and lower right; live camera at right; UI between/above. Escape closes.");
+        for(bool running = true; running;) {
+            SDL_Event event;
+            rohr_input_frame_begin();
+            while((event = rohr_engine_event_poll()).type != 0)
+                if(event.type == SDL_EVENT_QUIT) running = false;
+            if(rohr_input_key_pressed_check(SDL_SCANCODE_ESCAPE)) running = false;
+            complete(rohr_graphics_show());
+        }
+    }
+    complete(rohr_graphics_pipeline_cameras_update());
+    complete(rohr_graphics_pipeline_commands_execute());
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    trace_missing = true; missing_quads = missing_lines = missing_textures = 0;
+#endif
+    Report report = graphics_pipeline_viewports_draw(); complete(report);
+#ifdef ROHR_TEST_GRAPHICS_WRAP
+    trace_missing = false;
+    assert(missing_quads == 2 && missing_lines > 0 && missing_textures == 3);
+#endif
+    assert(report.diagnostic_count == 1);
+    ReportDiagnostic retained = report.diagnostics[0];
+    assert(retained.report_id == ROHR_GRAPHICS_VIEWPORTS_REPORT_ID && retained.severity == ROHR_REPORT_SEVERITY_WARNING);
+    assert(retained.source.kind == ROHR_REPORT_OBJECT_SCREEN && retained.source.id == missing.result.value);
+    assert(retained.target.kind == ROHR_REPORT_OBJECT_CAMERA && retained.target.id == CAMERA_INVALID);
+    assert(retained.occurrence_count == 1 && strstr(retained.detail, "construction placeholder"));
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 1);
+    item = rohr_viewport_item_description_get(first.result.value).result.value; item.visible = false;
+    OK(rohr_viewport_item_description_set(first.result.value, item));
+    item = rohr_viewport_item_description_get(shared.result.value).result.value; item.visible = false;
+    OK(rohr_viewport_item_description_set(shared.result.value, item));
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 0);
+    item.visible = true; OK(rohr_viewport_item_description_set(shared.result.value, item));
+    OK(graphics_screen_camera_set(missing.result.value, live.result.value));
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 0);
+    OK(rohr_camera_active_set(original)); OK(rohr_camera_destroy(live.result.value));
+    OK(rohr_screen_description_get(healthy.result.value)); OK(rohr_viewport_item_description_get(shared.result.value));
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 2);
+    assert(report.diagnostics[0].target.id == live.result.value);
+    CameraIdResult replacement = rohr_camera_create(camera); OK(replacement);
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 2); /* No implicit rebinding. */
+    OK(rohr_screen_camera_set(healthy.result.value, replacement.result.value));
+    ScreenDescription screen = rohr_screen_description_get(missing.result.value).result.value;
+    screen.camera = replacement.result.value; OK(rohr_screen_description_set(missing.result.value, screen));
+    report = rohr_graphics_show(); complete(report); assert(report.diagnostic_count == 0);
+    assert(retained.target.id == CAMERA_INVALID); /* Retained report evidence is independent. */
+    OK(rohr_viewport_destroy(viewport.result.value));
+    OK(rohr_screen_destroy(missing.result.value)); OK(rohr_screen_destroy(healthy.result.value));
+    OK(rohr_camera_destroy(replacement.result.value)); OK(rohr_graphics_text_destroy(&text.result.value));
+}
+
+int main(int argc, char **argv) {
     Report r=rohr_graphics_show();
     assert(r.header.status==ROHR_REPORT_FAILED && rohr_report_valid_check(&r));
     OK(rohr_engine_start()); OK(rohr_graphics_start());
     OK(rohr_graphics_vsync_set(false)); OK(rohr_graphics_frame_limit_set(1000));
+    if(argc == 2 && !strcmp(argv[1], "--missing-camera-demo")) {
+        missing_camera_checks(true); rohr_graphics_stop(); rohr_engine_stop(); return 0;
+    }
     CameraId camera=rohr_camera_active_get();
     ViewportIdResult viewport=rohr_viewport_create(rohr_viewport_description_default_get()); OK(viewport);
     OK(rohr_viewport_camera_set(viewport.result.value,camera));
@@ -505,6 +624,7 @@ int main(void) {
     OK(rohr_viewport_disable_set(viewport.result.value));
     r=rohr_graphics_show(); complete(r); assert(callbacks==before);
     assert(metric(&r,ROHR_GRAPHICS_VIEWPORTS_REPORT_ID,ROHR_REPORT_PROCESSED_COUNT)==0);
+    missing_camera_checks(false);
     image_target_lifetime();
     assert(!graphics_screen_shape_filled_draw((Shape){0},white));
     rohr_graphics_stop(); OK(rohr_graphics_start());

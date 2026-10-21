@@ -122,12 +122,27 @@ viewport names also accepted. Unknown, ambiguous, repeated, or invalid selectors
 fail before generation. CLI defaults ignore the saved editor selections. CLI requests neither save selections nor alter authored
 project data, application `main.c`, or the complete application catalog.
 
-A selected viewport retains its authored placement, clipping, screens, UI, and
-visibility. A screen whose camera is absent contributes no drawing, leaving the
-underlying viewport composition visible; other screens and UI continue normally.
+A selected viewport retains its authored placement, clipping, UI, and visibility.
+Scene selection omits screens owned by explicitly excluded objects.
 No object is automatically included and no replacement camera is created. A
 project with no viewport has no viewport visuals. The generation API also allows
 an explicit empty object list.
+
+Generation rejects screen references to objects or cameras missing from the
+authored project before writing generated files. Diagnostics identify the
+viewport, screen, and missing reference. This differs from choosing not to spawn
+an existing authored object in developer-owned `main.c`: generated layer setup
+and drawing skip zero entity handles, while nonzero stale entities remain errors.
+
+A screen whose camera is unavailable at runtime stays in its viewport and shows
+the editor-style dark construction-stripe pattern. Placement, rotation, layers,
+visibility, and viewport clipping still apply; stale camera imagery is never
+displayed. Composition reports one warning per visible screen per invocation,
+including the screen and camera IDs, while other screens and UI continue.
+Camera destruction preserves screens and their references. Creating another
+camera does not rebind them automatically; assign it explicitly. For generated
+presentation, recreating presentation after spawning the missing object also
+installs its generated rendering callback.
 
 `editor_workspace_scene_generate` takes a borrowed `EditorSceneSelection`.
 Zero initialization means all objects/first viewport; `objects_selected=true`

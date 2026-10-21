@@ -45,6 +45,23 @@ int main(int argc, char **argv) {
         EditorViewportUiItem *ui = editor_viewport_ui_add(&project, viewport, EDITOR_VIEWPORT_UI_SHAPE); assert(ui);
         ui->position = (Position){40.0f + 80.0f * i, 40}; ui->layer = 1 + i * 2;
     }
+    /* Invalid authored references must fail before replacing any generated file. */
+    char *before_objects = read_file(&workspace, "src/generated/project_objects.c");
+    char *before_viewports = read_file(&workspace, "src/generated/project_viewports.c");
+    EditorObjectId saved_object = screen->object; EditorCameraId saved_camera = screen->camera;
+    screen->object = UINT32_MAX;
+    EditorResult invalid_reference = editor_workspace_scene_generate(&workspace, &project, NULL);
+    assert(editor_result_check(invalid_reference) && strstr(invalid_reference.result.error.message, "missing object"));
+    assert(strstr(invalid_reference.result.error.message, "simulation_viewport"));
+    screen->object = saved_object; screen->camera = UINT32_MAX;
+    EditorWorkspaceCommand generate = {.type = EDITOR_WORKSPACE_COMMAND_GENERATE_C};
+    invalid_reference = editor_workspace_command_execute(&workspace, &project, &generate);
+    assert(editor_result_check(invalid_reference) && strstr(invalid_reference.result.error.message, "missing camera"));
+    screen->camera = saved_camera;
+    char *unchanged = read_file(&workspace, "src/generated/project_objects.c");
+    assert(!strcmp(before_objects, unchanged)); SDL_free(unchanged); SDL_free(before_objects);
+    unchanged = read_file(&workspace, "src/generated/project_viewports.c");
+    assert(!strcmp(before_viewports, unchanged)); SDL_free(unchanged); SDL_free(before_viewports);
     assert(editor_workspace_save(&workspace, &project));
     OK(editor_workspace_scene_generate(&workspace, &project, NULL));
     check_generated(&workspace, 2, 1, 1); /* Default uses the first, not both, viewports. */

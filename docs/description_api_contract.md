@@ -607,7 +607,10 @@ changed or destroyed. Existing keyed numeric setters remain focused operations.
 `ScreenDescription` contains a camera and texture dimensions. Resize prepares the
 replacement texture before publishing, retaining the screen handle and every
 mount; backend failure preserves the previous resource. Zero dimensions use the
-window defaults, while negative dimensions and invalid camera references fail.
+window defaults, while negative dimensions fail. Camera references are borrowed
+and may be unavailable: viewport composition draws a construction-stripe
+placeholder and reports a warning instead of showing stale imagery. Camera
+destruction preserves screens; replacing the camera requires explicit assignment.
 An unchanged description avoids backend work. Mutation while actively drawing
 that screen is rejected. `ViewportDescription` includes rectangle, fitting,
 background, and `enabled`; its default remains disabled. Viewport edits preserve

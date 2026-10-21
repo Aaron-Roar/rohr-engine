@@ -204,12 +204,24 @@ contracts, and generated examples when a goal changes supported behavior.
    deletions, unchanged rebuilds, and application/scene launches. All 114 Linux
    tests, focused ASan/UBSan, and Windows editor/CLI/test cross-builds passed;
    see the corrective issue mapping for details.
-4. [ ] **C4 — Runtime setup with partially spawned projects.** Reproduce and
+4. [x] **C4 — Runtime setup with partially spawned projects.** Reproduce and
    resolve the invalid-entity startup in /tmp/rohr-projects/rohr-project-1.
    Generated presentation setup must handle objects that main.c has not spawned
-   without blindly using zero handles. Report genuinely required missing
-   objects/cameras clearly. Preserve developer-owned entry points and verify
-   both explicit partial spawning and complete generated scene spawning.
+   without blindly using zero handles. Missing authored object/camera screen
+   references fail generation before file writes. Unavailable runtime cameras
+   retain their screens and show the editor-style construction-stripe pattern,
+   with a viewport-composition report warning instead of a startup failure.
+   Camera destruction preserves screens; replacement requires explicit binding.
+   Preserve developer-owned entry points. Verify partial/full spawning, invalid
+   authored references, missing-camera composition, and camera replacement.
+   Complete: the copied affected project starts without rewriting main.c;
+   generated setup/drawing skip unspawned entities. Runtime missing-camera
+   screens retain placement and draw construction stripes with report warnings.
+   Authored reference validation runs before generation writes. Linux regression
+   checks pass after refreshing the committed generated example; installed-SDK
+   partial/full/missing-camera applications and scene startup, focused ASan/UBSan,
+   and Windows cross-builds passed. User visual verification: PASS. See the
+   corrective issue mapping for evidence and platform limitations.
 5. [ ] **C5 — Incomplete joint parity.** Preserve otherwise valid joints with
    unset endpoints in the editor, saved project, generated descriptions, and
    runtime instances. Match the engine: retain the definition, skip only the

@@ -1506,32 +1506,14 @@ EngineResult graphics_camera_description_set(CameraId id, CameraDescription desc
 
 EngineResult graphics_camera_destroy(CameraId id) {
     size_t slot;
-    size_t screen_slot;
-    size_t viewport_slot;
     if(!graphics_camera_slot(id, &slot)) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
     if(id == active_camera) {
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     }
-    for(viewport_slot = 0; viewport_slot < MAX_VIEWPORTS; viewport_slot += 1) {
-        if(!viewports_used[viewport_slot]) continue;
-        for(size_t item = 0; item < MAX_VIEWPORT_ITEMS; item += 1) {
-            if(viewports[viewport_slot].items[item].used &&
-                    viewports[viewport_slot].items[item].kind ==
-                        GRAPHICS_VIEWPORT_ITEM_SCREEN &&
-                    graphics_screen_slot(
-                        viewports[viewport_slot].items[item].value.screen,
-                        &screen_slot) && screens[screen_slot].camera == id)
-                viewports[viewport_slot].items[item].used = false;
-        }
-    }
-    for(screen_slot = 0; screen_slot < MAX_SCREENS; screen_slot += 1)
-        if(screens_used[screen_slot] && screens[screen_slot].camera == id) {
-            EngineResult result = graphics_screen_destroy(graphics_resource_id(
-                screen_generations[screen_slot], screen_slot));
-            if(result.kind == ERROR_RESULT_ERROR) return result;
-        }
+    /* Screens borrow camera IDs. Keep their placement and stale generation so
+     * composition can show a diagnostic placeholder until explicitly rebound. */
     cameras_used[slot] = false;
     cameras[slot] = (Camera){0};
     camera_attachments[slot] = (ActiveCameraAttachment){0};
@@ -1633,9 +1615,6 @@ ScreenIdResult graphics_screen_create(ScreenDescription config) {
     if(sdl_renderer == NULL) {
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_GRAPHICS_INIT_FAILED);
     }
-    if(!graphics_camera_slot(config.camera, &slot)) {
-        return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_COMPONENT_MISSING);
-    }
     if(config.width < 0 || config.height < 0)
         return ERROR_RESULT_MAKE_ERROR(ScreenIdResult, ERROR_ENGINE_STATE_INVALID);
     if(config.width == 0) config.width = WINDOW_WIDTH;
@@ -1684,8 +1663,8 @@ ScreenDescriptionResult graphics_screen_description_get(ScreenId id) {
 }
 
 EngineResult graphics_screen_description_set(ScreenId id, ScreenDescription description) {
-    size_t slot, camera_slot;
-    if(!graphics_screen_slot(id, &slot) || !graphics_camera_slot(description.camera, &camera_slot))
+    size_t slot;
+    if(!graphics_screen_slot(id, &slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     if(description.width < 0 || description.height < 0)
         return error_result_error(ERROR_ENGINE_STATE_INVALID);
@@ -1733,9 +1712,7 @@ EngineResult graphics_screen_destroy(ScreenId id) {
 
 EngineResult graphics_screen_camera_set(ScreenId id, CameraId camera_id) {
     size_t screen_slot;
-    size_t camera_slot;
-    if(!graphics_screen_slot(id, &screen_slot) ||
-            !graphics_camera_slot(camera_id, &camera_slot))
+    if(!graphics_screen_slot(id, &screen_slot))
         return error_result_error(ERROR_ENGINE_COMPONENT_MISSING);
     screens[screen_slot].camera = camera_id;
     return error_result_value(true);
@@ -3997,7 +3974,44 @@ static void graphics_viewport_ui_slider_draw(const GraphicsViewport *viewport,
     if(pressed_result != NULL) *pressed_result = active && mouse_down;
 }
 
+/* The same construction pattern used by the editor's empty camera preview.
+ * Clip in screen-local coordinates before rotating; viewport scissoring alone
+ * cannot contain stripes at a rotated screen's corners. */
+static void graphics_missing_camera_draw(const GraphicsViewport *viewport,
+        const ViewportItemDescription *item) {
+    const Color background = {52, 54, 58, 255}, stripe = {105, 88, 32, 255};
+    float width = item->rectangle.width, height = item->rectangle.height;
+    Position center = {viewport->rectangle.x + item->rectangle.x + width * 0.5f,
+        viewport->rectangle.y + item->rectangle.y + height * 0.5f};
+    SDL_Vertex vertices[4];
+    const int indices[] = {0, 1, 2, 0, 2, 3};
+    const Vec2D corners[] = {{-0.5f,-0.5f}, {0.5f,-0.5f}, {0.5f,0.5f}, {-0.5f,0.5f}};
+    for(size_t i = 0; i < 4; ++i) {
+        Vec2D point = graphics_screen_vector_rotate(
+            (Vec2D){corners[i].x * width, corners[i].y * height}, item->orientation);
+        vertices[i] = (SDL_Vertex){.position = {center.x + point.x, center.y + point.y},
+            .color = {background.red / 255.0f, background.green / 255.0f,
+                background.blue / 255.0f, 1.0f}};
+    }
+    (void)GRAPHICS_DRAW(SDL_RenderGeometry(sdl_renderer, NULL, vertices, 4, indices, 6));
+    GRAPHICS_STATE(SDL_SetRenderDrawColor(sdl_renderer, stripe.red, stripe.green, stripe.blue, stripe.alpha));
+    /* Bound work for extreme authored dimensions while retaining normal spacing. */
+    float spacing = fmaxf(24.0f, (width + height) / 4096.0f);
+    for(float x = -height; x < width; x += spacing) {
+        float diagonal = x + height;
+        Vec2D first = {fmaxf(0.0f, x) - width * 0.5f,
+            fminf(height, diagonal) - height * 0.5f};
+        Vec2D second = {fminf(width, diagonal) - width * 0.5f,
+            fmaxf(0.0f, diagonal - width) - height * 0.5f};
+        first = graphics_screen_vector_rotate(first, item->orientation);
+        second = graphics_screen_vector_rotate(second, item->orientation);
+        (void)GRAPHICS_DRAW(SDL_RenderLine(sdl_renderer, center.x + first.x,
+            center.y + first.y, center.x + second.x, center.y + second.y));
+    }
+}
+
 static void graphics_viewports_draw(void) {
+    bool missing_camera_reported[MAX_SCREENS] = {0};
     GraphicsReportContext *context = graphics_report_context;
     size_t viewport_slot;
     bool has_viewport = false;
@@ -4183,6 +4197,21 @@ static void graphics_viewports_draw(void) {
                 viewport->items[item].hovered && mouse_down;
             if(viewport->items[item].hovered)
                 drag_candidate = viewport->items[item].id;
+            size_t camera_slot;
+            if(!graphics_camera_slot(screen->camera, &camera_slot)) {
+                if(!missing_camera_reported[screen_slot]) {
+                    graphics_report_issue(context->report, context->stage,
+                        ERROR_ENGINE_STATE_REFERENCE_NOT_FOUND, false,
+                        (ReportObjectRef){ROHR_REPORT_OBJECT_SCREEN, viewport->items[item].value.screen},
+                        (ReportObjectRef){ROHR_REPORT_OBJECT_CAMERA, screen->camera},
+                        "Screen camera is unavailable; displaying construction placeholder");
+                    missing_camera_reported[screen_slot] = true;
+                }
+                graphics_missing_camera_draw(viewport, config);
+                if(context->item_failed) context->skipped++;
+                else context->processed++;
+                continue;
+            }
             destination = (SDL_FRect){
                 viewport->rectangle.x + config->rectangle.x,
                 viewport->rectangle.y + config->rectangle.y,

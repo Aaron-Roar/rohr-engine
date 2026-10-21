@@ -831,7 +831,7 @@ static void catalog_constructor_write(FILE *f, const EditorObject *o, const char
     fprintf(f, "    result = %s_instance_bind(object, added.result.value);\n"
         "    if(rohr_error_check(result)) goto fail;\n", variable);
     fprintf(f,"    return result;\nfail:\n    %s_destroy(object);\n    return result;\n}\n\n"
-        "void %s_draw(const %s *object) {\n    if(object) (void)rohr_entity_object_draw(object->source_instance);\n}\n\n"
+        "void %s_draw(const %s *object) {\n    if(object && object->source_instance != ENTITY_INVALID) (void)rohr_entity_object_draw(object->source_instance);\n}\n\n"
         "void %s_destroy(%s *object) {\n    if(!object) return;\n"
         "    if(rohr_entity_alive_check(object->source_instance)) (void)rohr_entity_delete(object->source_instance);\n"
         "    *object = (%s){0};\n}\n\n",variable,variable,o->name,variable,o->name,o->name);
@@ -1715,10 +1715,11 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             function_name, function_name, object->name);
         for(size_t body_index = 0; body_index < object->rigid_body_count; body_index += 1) {
             const EditorRigidBody *body = &object->rigid_bodies[body_index];
+            fprintf(source, "    if(object->%s != ENTITY_INVALID) {\n", body->name);
             fprintf(source,
-                "    (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_FILLED, "
+                "        (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_FILLED, "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n"
-                "    (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_OUTLINE, "
+                "        (void)rohr_graphics_hit_box_colored_draw(object->%s, GRAPHICS_OUTLINE, "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
                 body->name,
                 body->standalone_particle ? body->particle_fill_color :
@@ -1726,12 +1727,14 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
                 body->name,
                 body->standalone_particle ? body->particle_ring_color :
                     body->border_color);
+            fprintf(source, "    }\n");
         }
         for(size_t soft_body_index = 0; soft_body_index < object->soft_body_count;
                 soft_body_index += 1) {
             const EditorSoftBody *body = &object->soft_body_items[soft_body_index];
+            fprintf(source, "    if(object->%s != ENTITY_INVALID)\n", body->name);
             fprintf(source,
-                "    (void)rohr_graphics_soft_body_draw(object->%s, "
+                "        (void)rohr_graphics_soft_body_draw(object->%s, "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)), "
                 "rohr_graphics_color_hex_create(UINT32_C(0x%08x)));\n",
@@ -1746,7 +1749,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t prior = 0; body != NULL && prior < i; ++prior)
                 already_drawn |= object->sprites[prior].rigid_body == body->id;
             if(already_drawn) continue;
-            fprintf(source, "    (void)rohr_graphics_sprite_draw(object->%s%s);\n",
+            fprintf(source, "    if(object->%s%s != ENTITY_INVALID)\n",
+                body ? "" : "sprite_", body ? body->name : sprite->name);
+            fprintf(source, "        (void)rohr_graphics_sprite_draw(object->%s%s);\n",
                 body ? "" : "sprite_", body ? body->name : sprite->name);
         }
         for(size_t i = 0; i < object->animated_sprite_count; ++i) {
@@ -1756,7 +1761,9 @@ static bool editor_workspace_generated_objects_write(const EditorWorkspace *work
             for(size_t prior = 0; body != NULL && prior < i; ++prior)
                 already_drawn |= object->animated_sprite_items[prior].rigid_body == body->id;
             if(already_drawn) continue;
-            fprintf(source, "    (void)rohr_graphics_animated_sprite_draw(object->%s%s);\n",
+            fprintf(source, "    if(object->%s%s != ENTITY_INVALID)\n",
+                body ? "" : "animation_", body ? body->name : animation->name);
+            fprintf(source, "        (void)rohr_graphics_animated_sprite_draw(object->%s%s);\n",
                 body ? "" : "animation_", body ? body->name : animation->name);
         }
         fprintf(source,
@@ -2141,13 +2148,14 @@ static bool editor_workspace_generated_viewports_write(
         editor_project_property_name_format(object_variable,
             sizeof(object_variable), object->name);
 #define WRITE_ENTITY_LAYER(Binding, Prefix, Name) do { \
+    fprintf(source, "    if(objects->%s.%s%s != ENTITY_INVALID)\n", object_variable, Prefix, Name); \
     has_failure_path = true; \
     bool found = false; \
     if((Binding).layer != 0) { \
         for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
                 layer_index += 1) if(project->graphics_layers[layer_index].id == \
                     (Binding).layer) { \
-            fprintf(source, "    if(rohr_error_check(result = " \
+            fprintf(source, "        if(rohr_error_check(result = " \
                 "rohr_graphics_layer_entity_id_set(objects->%s.%s%s, " \
                 "resources->layers[%zu]))) goto fail;\n", object_variable, \
                 Prefix, Name, layer_index); \
@@ -2155,18 +2163,19 @@ static bool editor_workspace_generated_viewports_write(
             break; \
         } \
     } \
-    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
         "rohr_graphics_layer_entity_set(objects->%s.%s%s, %d))) goto fail;\n", \
         object_variable, Prefix, Name, (Binding).value); \
 } while(0)
 #define WRITE_AREA_LAYER(Binding, Name, Index) do { \
+    fprintf(source, "    if(objects->%s.%s_areas[%zu] != ENTITY_INVALID)\n", object_variable, Name, Index); \
     has_failure_path = true; \
     bool found = false; \
     if((Binding).layer != 0) { \
         for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
                 layer_index += 1) if(project->graphics_layers[layer_index].id == \
                     (Binding).layer) { \
-            fprintf(source, "    if(rohr_error_check(result = " \
+            fprintf(source, "        if(rohr_error_check(result = " \
                 "rohr_graphics_layer_entity_id_set(objects->%s.%s_areas[%zu], " \
                 "resources->layers[%zu]))) goto fail;\n", object_variable, \
                 Name, Index, layer_index); \
@@ -2174,18 +2183,19 @@ static bool editor_workspace_generated_viewports_write(
             break; \
         } \
     } \
-    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
         "rohr_graphics_layer_entity_set(objects->%s.%s_areas[%zu], %d))) goto fail;\n", \
         object_variable, Name, Index, (Binding).value); \
 } while(0)
 #define WRITE_COMPONENT_LAYER(Binding, Component, Prefix, Name) do { \
+    fprintf(source, "    if(objects->%s.%s%s != ENTITY_INVALID)\n", object_variable, Prefix, Name); \
     has_failure_path = true; \
     bool found = false; \
     if((Binding).layer != 0) { \
         for(size_t layer_index = 0; layer_index < project->graphics_layer_count; \
                 layer_index += 1) if(project->graphics_layers[layer_index].id == \
                     (Binding).layer) { \
-            fprintf(source, "    if(rohr_error_check(result = " \
+            fprintf(source, "        if(rohr_error_check(result = " \
                 "rohr_graphics_layer_%s_id_set(objects->%s.%s%s, " \
                 "resources->layers[%zu]))) goto fail;\n", Component, object_variable, \
                 Prefix, Name, layer_index); \
@@ -2193,7 +2203,7 @@ static bool editor_workspace_generated_viewports_write(
             break; \
         } \
     } \
-    if(!found) fprintf(source, "    if(rohr_error_check(result = " \
+    if(!found) fprintf(source, "        if(rohr_error_check(result = " \
         "rohr_graphics_layer_%s_set(objects->%s.%s%s, %d))) goto fail;\n", \
         Component, object_variable, Prefix, Name, (Binding).value); \
 } while(0)
@@ -2276,8 +2286,10 @@ static bool editor_workspace_generated_viewports_write(
             if(object == NULL || camera == NULL) goto write_fail;
             editor_project_property_name_format(object_name, sizeof(object_name),
                 object->name);
+            fprintf(source, "      if(!rohr_error_check(rohr_camera_get(objects->%s.camera_%s)))\n",
+                object_name, camera->name);
             fprintf(source,
-                "      if(rohr_error_check(result = rohr_camera_render_callback_set("
+                "        if(rohr_error_check(result = rohr_camera_render_callback_set("
                     "objects->%s.camera_%s, render_scene, objects))) goto fail;\n"
                 "      { ScreenIdResult screen = rohr_screen_create((ScreenDescription){"
                     "objects->%s.camera_%s, %d, %d});\n"
@@ -2982,10 +2994,32 @@ static bool editor_workspace_c_generate_selected(const EditorWorkspace *workspac
         editor_workspace_scene_write(workspace, project, selection);
 }
 
+static EditorResult editor_workspace_screen_references_validate(const EditorProject *project) {
+    for(size_t v = 0; v < project->layout_viewport_count; ++v) {
+        const EditorLayoutViewport *viewport = &project->layout_viewports[v];
+        for(size_t i = 0; i < viewport->camera_item_count; ++i) {
+            const EditorViewportCameraItem *screen = &viewport->camera_items[i];
+            const EditorObject *object = NULL;
+            for(size_t o = 0; o < project->object_count; ++o)
+                if(project->objects[o].id == screen->object) object = &project->objects[o];
+            if(!object) return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                "Viewport '%s' screen %u references missing object %u (camera %u)",
+                viewport->name, screen->id, screen->object, screen->camera);
+            if(!editor_project_camera_get((EditorObject *)object, screen->camera))
+                return editor_result_error(EDITOR_ERROR_NOT_FOUND,
+                    "Viewport '%s' screen %u references missing camera %u in object '%s' (%u)",
+                    viewport->name, screen->id, screen->camera, object->name, object->id);
+        }
+    }
+    return editor_result_value(true);
+}
+
 EditorResult editor_workspace_scene_generate(const EditorWorkspace *workspace,
         const EditorProject *project, const EditorSceneSelection *selection) {
     if(!workspace || !workspace->open || !project)
         return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Scene generation needs an open project");
+    EditorResult references = editor_workspace_screen_references_validate(project);
+    if(editor_result_check(references)) return references;
     if(selection) {
         if(selection->object_count && (!selection->objects_selected || !selection->objects))
             return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT, "Invalid scene object selection");
@@ -3128,10 +3162,7 @@ EditorResult editor_workspace_command_execute(EditorWorkspace *workspace,
         case EDITOR_WORKSPACE_COMMAND_GENERATE_C: {
             EditorResult validation = editor_soft_areas_generation_validate(project);
             if(validation.kind == ERROR_RESULT_ERROR) return validation;
-            if(!editor_workspace_c_generate(workspace, project))
-                return editor_result_error(EDITOR_ERROR_FILE_IO,
-                    "Could not generate project C source: %s", workspace->directory);
-            return editor_result_value(true);
+            return editor_workspace_scene_generate(workspace, project, NULL);
         }
     }
     return editor_result_error(EDITOR_ERROR_INVALID_ARGUMENT,

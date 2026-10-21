@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, and C3 missing CMake recovery complete with automated verification below; C4–C5 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, and C4 partial-spawn startup complete with verification below; C5 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -550,7 +550,7 @@ each pursued goal needs its own relevant checks and interactive retest.
 | Opening the first object element glitches its editor over the object editor | C6 |
 | Generate C failures and all build-stage diagnostics must reach the terminal | C1 complete; output retained with manual-only terminal visibility |
 | An incompletely defined joint breaks the build/run path | C5 |
-| Invalid entity at startup in /tmp/rohr-projects/rohr-project-1 | C4 |
+| Invalid entity at startup in /tmp/rohr-projects/rohr-project-1 | C4 complete; generated presentation tolerates unspawned objects and runtime missing cameras |
 | Asymmetric masks should permit one-sided physical response | C10 |
 | Kinematic should be exposed as an explicit editor motion mode | C12 |
 | Preserve old pair behavior by remapping categories/masks into the new system | C11 |
@@ -560,8 +560,8 @@ each pursued goal needs its own relevant checks and interactive retest.
 Read-only diagnosis reproduced `error 21: invalid entity` when launching the
 saved rohr-project-1 application with dummy SDL drivers. Its developer-owned
 main.c creates starter and tug, while generated viewport setup also assigns
-layers to unspawned pendulum entities. C4 must verify and fix the failing path
-without silently rewriting developer gameplay code.
+layers to unspawned pendulum entities. C4 addresses this path without rewriting
+developer gameplay code; verification is recorded below.
 
 The engine already accepts joints with unset endpoints and retains their
 definitions when the physics pipeline skips unavailable contributions with a
@@ -629,8 +629,42 @@ All 114 Linux tests passed. The full Linux build includes examples; the SDK
 fixture independently compiles and runs generated application/scene examples.
 Focused ASan/UBSan build/diagnostics tests passed. Windows editor, CLI, and both
 build test executables cross-compiled without compiler warnings; Windows
-execution was not performed. C4–C14 and broader interactive acceptance remain
-open.
+execution was not performed.
+
+**C4 verification:** an isolated copy of rohr-project-1 reproduced startup error
+21 before regeneration. After regeneration/build against the updated SDK it
+entered and sustained its application loop without the startup error. Its
+main.c hash remained identical to the original; the original project was not
+modified. Generated layer setup and drawing skip zero entity handles, while
+nonzero stale entities still fail. Screen references missing from authored data
+fail generation with viewport/screen/object/camera context before file writes.
+
+`editor_partial_spawning` builds the default generated project against the
+installed SDK and runs partial spawning, complete spawning, and an unspawned
+camera owner. It verifies warning-only presentation for the missing camera,
+recovery after creating its owner, invalid nonzero entity rejection, preserved
+main.c, and complete scene startup outside the source directory. Generation
+tests verify missing-object/missing-camera diagnostics and unchanged output on
+failure. Graphics tests cover zero/stale camera references, camera deletion,
+screen lifetime, explicit replacement, hidden mounts, shared-screen warning
+deduplication, direct/public pipeline parity, and retained report evidence.
+
+Geometry interception verifies rotated stripe endpoints stay inside screen
+bounds, viewport clipping is active, and missing screens do not sample old
+camera textures. The user passed the real-window visual check for rotated and
+partially clipped construction placeholders, a live-camera screen, and UI
+between and above the screen layers. The repeatable visual fixture is
+`build/tests/graphics_reports_test --missing-camera-demo`.
+
+The full Linux suite passed 114/115 checks; its only failure identified the
+committed center-of-mass example's outdated generated files. After refreshing
+those files, the example comparison, generation, and SDK partial-spawn checks
+all passed. The full Linux build includes examples; the center-of-mass example
+also built independently against the SDK and ran from outside its source tree
+until the intentional smoke-test timeout. Focused ASan/UBSan checks passed.
+Windows editor/CLI, graphics/reporting, viewport, and generation tests
+cross-compiled without compiler warnings; native Windows execution was not
+performed. C5–C14 and broader interactive acceptance remain open.
 
 ## Frozen fixture plan
 

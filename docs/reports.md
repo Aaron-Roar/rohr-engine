@@ -726,8 +726,19 @@ remains single-threaded; callbacks must not destroy the renderer mid-pipeline.
 
 ### Failure policy and measurements
 
-A failed item draw produces a warning and independent drawing continues. Missing
-queued resources and invalid submission geometry retain available asset/entity
+A failed item draw produces a warning and independent drawing continues.
+Missing runtime screen cameras produce a construction-stripe placeholder and a
+`GRAPHICS_VIEWPORTS_REPORT` warning with screen source and camera target IDs.
+The warning occurs once per visible screen per composition invocation, even
+when that screen is mounted more than once. Hidden screens and disabled
+viewports produce no missing-camera warning. A successfully drawn placeholder
+counts as processed; unavailable camera content is the skipped contribution.
+The camera stage does not duplicate this warning, and full-frame reporting
+merges the composition evidence once. Screen creation and camera setters retain
+unavailable references without an immediate error; no pipeline report is
+fabricated before composition attempts to use them.
+
+Missing queued resources and invalid submission geometry retain available asset/entity
 and screen evidence. Backend diagnostic text is copied before cleanup or later
 backend calls can overwrite it. `GraphicsReportStage` identifies submission,
 camera callback/setup, command execution, viewport composition, recording capture

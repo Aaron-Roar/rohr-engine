@@ -2276,7 +2276,9 @@ ViewportUiSliderDescription rohr_graphics_ui_slider_description_default_get(void
 ViewportDescription rohr_viewport_description_default_get(void);
 ViewportItemDescription rohr_viewport_item_description_default_get(void);
 /** Defaults use the active camera and window dimensions. Zero dimensions normalize;
- * negative dimensions and unavailable cameras fail without mutation. */
+ * negative dimensions fail without mutation. Camera IDs are borrowed: missing
+ * cameras show a construction placeholder and warn during viewport composition.
+ * Destroying a camera preserves screens; reassign their camera explicitly. */
 ScreenDescription rohr_screen_description_default_get(void);
 ScreenIdResult rohr_screen_create(ScreenDescription config);
 EngineResult rohr_screen_destroy(ScreenId screen);

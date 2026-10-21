@@ -85,8 +85,8 @@ static bool descriptions(void) {
     CHECK(rohr_screen_description_get(screen.result.value).result.value.width == 320);
     OK(rohr_viewport_item_description_get(mount.result.value));
     screen_desc.camera = CAMERA_INVALID;
-    BAD(rohr_screen_description_set(screen.result.value, screen_desc));
-    CHECK(rohr_screen_description_get(screen.result.value).result.value.width == 320);
+    OK(rohr_screen_description_set(screen.result.value, screen_desc));
+    CHECK(rohr_screen_description_get(screen.result.value).result.value.camera == CAMERA_INVALID);
 
     ViewportUiSliderDescription slider = rohr_graphics_ui_slider_description_default_get();
     slider.maximum = 10; slider.value = 4; slider.enabled = true;

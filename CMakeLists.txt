@@ -656,6 +656,7 @@ if(ROHR_BUILD_TESTS)
         target_link_options(graphics_reports_test PRIVATE
             -Wl,--wrap=realloc -Wl,--wrap=SDL_RenderFillRect -Wl,--wrap=SDL_RenderTextureRotated -Wl,--wrap=SDL_SetRenderTarget
             -Wl,--wrap=SDL_RenderPresent -Wl,--wrap=SDL_RenderReadPixels
+            -Wl,--wrap=SDL_RenderGeometry -Wl,--wrap=SDL_RenderLine
             -Wl,--wrap=platform_process_command_check -Wl,--wrap=platform_process_open_write
             -Wl,--wrap=platform_process_close -Wl,--wrap=fwrite -Wl,--wrap=fflush)
     endif()

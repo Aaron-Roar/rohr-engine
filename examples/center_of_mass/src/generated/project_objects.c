@@ -190,10 +190,14 @@ void mass_demo_draw(const MassDemo *object) {
         (void)rohr_entity_object_draw(object->source_instance);
         return;
     }
-    (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x477fbfff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0xd29f37ff)));
-    (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
+    if(object->automatic_body != ENTITY_INVALID) {
+        (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0x477fbfff)));
+        (void)rohr_graphics_hit_box_colored_draw(object->automatic_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
+    }
+    if(object->explicit_body != ENTITY_INVALID) {
+        (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_FILLED, rohr_graphics_color_hex_create(UINT32_C(0xd29f37ff)));
+        (void)rohr_graphics_hit_box_colored_draw(object->explicit_body, GRAPHICS_OUTLINE, rohr_graphics_color_hex_create(UINT32_C(0xffffffff)));
+    }
 }
 
 void mass_demo_destroy(MassDemo *object) {

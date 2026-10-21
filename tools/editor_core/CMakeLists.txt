@@ -78,6 +78,12 @@ if(ROHR_BUILD_TESTS)
                 "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
                 -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/build_scaffolding.cmake")
             set_tests_properties(editor_build_scaffolding PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
+            add_test(NAME editor_partial_spawning COMMAND ${CMAKE_COMMAND}
+                -DCLI=$<TARGET_FILE:rohr_editor_cli> -DPROBE=$<TARGET_FILE:editor_build_test>
+                "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/partial spawning fixture"
+                "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/partial_spawning.cmake")
+            set_tests_properties(editor_partial_spawning PROPERTIES LABELS "sdk;linux" TIMEOUT 180)
         endif()
         add_test(NAME editor_construction_generated COMMAND ${CMAKE_COMMAND}
             -DTEST_EXECUTABLE=$<TARGET_FILE:editor_construction_parity_test>

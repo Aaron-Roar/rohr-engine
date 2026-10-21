@@ -970,7 +970,9 @@ CameraZoomResult graphics_camera_zoom_get(CameraId camera);
 ViewportDescription graphics_viewport_description_default_get(void);
 ViewportItemDescription graphics_viewport_item_description_default_get(void);
 /** Defaults use the active camera and window dimensions. Zero dimensions normalize;
- * negative dimensions and unavailable cameras fail without mutation. */
+ * negative dimensions fail without mutation. Camera IDs are borrowed: missing
+ * cameras show a construction placeholder and warn during viewport composition.
+ * Destroying a camera preserves screens; reassign their camera explicitly. */
 ScreenDescription graphics_screen_description_default_get(void);
 ScreenIdResult graphics_screen_create(ScreenDescription config);
 EngineResult graphics_screen_description_set(ScreenId screen, ScreenDescription description);
