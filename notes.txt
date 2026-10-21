@@ -19,6 +19,15 @@ project dir.
 - Once an editor is open cant scroll in object editor. Other editor menus seam
   to overlay the object editor and persist until viewport or off column click
   but still not scroll
+- When first element in object editor clicked menu bugs out and editor for
+  element glitches on top of object editor.
 - Generate C fail not shown in terminal. Output should always be redirected to
   terminal for any building like this
 - One big failure was making a not fully defined joint
+- Invalid entity when running test project in /tmp/rohr-projects/rohr-project-1
+- If one rigid body A and B has collision catagory (1), and only A has collides
+  with (1). Shouldnt A collide with B but B not be effected in collision by A
+  colliding with it and A take all movement on collision? Rn it doesnt, not sure
+  if is expected. Like it would be felt as KINEMATIC no?
+- Is KINEMATIC an alternative to STATIC and DYNAMIC? If Yes it should be exposed
+  in editor

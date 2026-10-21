@@ -10,7 +10,7 @@ retain their scope; the later-features list has no priority order.
 | 1 | Audio | Complete |
 | 2 | Asset and resource ownership | Complete |
 | 3 | COM, inertia, and origin semantics | Complete |
-| 4 | Cross-path feature parity | Configuration/reference parity verified; persistence/generation next |
+| 4 | Cross-path feature parity | Goals 1–4 verified; platform and interactive acceptance in progress |
 | 5 | Adversarial testing and hardening | Substantial coverage implemented; incomplete |
 | 6 | Physics robustness | Partially implemented |
 | 7 | Editor implementation scalability | Partially implemented |
@@ -143,6 +143,10 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    and cross-build for Windows. Launch examples outside their source directories.
    Complete interactive Linux checks for remaining composition and editing
    behavior; every applicable inventory entry must have passing evidence.
+   The [guided review](docs/cross_path_feature_inventory.md#goal-5-platform-and-interactive-review)
+   provides a reproducible project and five acceptance cases. Automated passes
+   do not close this goal until the Linux visual, input and audio results are
+   confirmed.
 
 ### 5. Adversarial testing and hardening
 

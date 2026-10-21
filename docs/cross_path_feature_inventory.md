@@ -399,6 +399,86 @@ consumers, use an SDK installed from `ROHR_ENABLE_SANITIZERS=ON` and matching
 consumer compile/link sanitizer flags; run with `ASAN_OPTIONS=detect_leaks=1`
 and `UBSAN_OPTIONS=halt_on_error=1` outside the process-inspection sandbox.
 
+## Goal 5 platform and interactive review
+
+**In progress: the first interactive review found defects; fixes await review.**
+The user confirmed the two rotated screens and stable resizing, but found the
+right screen incorrectly behind the red bar and a soft-body explosion after
+switching windows/workspaces on Sway Wayland. Clipped text was visible but
+overlapped the starter button, making that check ambiguous. Remaining checks
+are pending; dummy-SDL startup does not certify visible or audible behavior.
+
+The compositor now sorts numeric/named layers before content kinds, keeping UI
+above screens only at equal layers. Tick-based physics advances each elapsed
+tick separately with the configured substeps, rather than using one enlarged
+duration after delayed rendering. It retains elapsed time, aggregates reports,
+and stops on fatal errors; interaction queries describe the most recent tick,
+possibly partial after a fatal error. Explicit-delta updates retain their existing
+semantics. The review text
+has moved below the button, with intentional clipping in its own rectangle.
+
+Build `editor_interaction_fixture` and run it with a new/empty destination:
+
+```sh
+build/tests/editor_interaction_fixture /tmp/rohr_parity_review \
+  examples/user-interface/assets/jetbrains_mono_bold_italic.ttf \
+  third_party_licenses/jetbrains_mono_ofl.txt
+```
+
+The generator refuses an occupied destination through the workspace creation
+API. It preserves the normal starter entry point, adds two overlapping rotated
+screens and distinguishable UI layers, a slider, clipped custom-font text,
+force/torque markers, independent spring endpoint styles, a mirrored sprite and
+an empty animation. It stages the font license/attribution, saves and reloads
+the project, and regenerates application and scene modules. The original
+starter and existing user projects are unchanged.
+
+Configure the review project's CMake build against an installed SDK, then launch
+`/tmp/rohr_parity_review/build/RohrParityReview` from `/tmp`. For editor checks,
+start `rohr-gui`, choose File → Open Project and select
+`/tmp/rohr_parity_review`. Use real Linux graphics/audio backends for this review.
+Reset between cases by reopening without saving edits, or generate a new
+destination; never overwrite an existing user project to reset a test.
+
+For the corrective retest, use the rebuilt project at
+`/tmp/rohr_parity_review_fixed`, executable
+`/tmp/rohr_parity_review_fixed/build/RohrParityReviewFixed`. Check red/green
+layering, the separate lower-left clipped text, and several switches to a
+browser and another Sway workspace, waiting at least two seconds before
+returning. The original failed fixture remains available for comparison.
+
+| Case | Actions and required observations | User-confirmed result |
+|---|---|---|
+| 1. Composition and presentation | The left/right screens have different rotation, placement and resolution. The left screen extends past the viewport edge and clips. The red bar draws over the left screen but under the right; the green panel stays above both. Text wraps, rotates and clips. Resize wider/taller without losing content or distorting aspect. In the viewport editor, move/rotate a screen and change camera zoom/content transforms; placement and content remain independent after rebuilding. | First review failed layering and workspace-switch stability; fixes await retest. Rotated views/resizing passed. Text and editor checks remain pending. |
+| 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
+| 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | Pending |
+| 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | Pending |
+
+Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
+pass**, including the installed-SDK comparisons and scene/build lifecycle
+regressions. The review application and scene compile against both the Linux
+and Windows installed SDKs; both Linux executables pass external-directory
+dummy-SDL startup and clean interrupt shutdown. Goal 4's independently built
+eight examples and starter remain valid unchanged. Windows runtime execution is
+not required. The new generator also cross-builds for Windows and passes
+ASan/UBSan with leak detection while creating, saving, reloading and generating
+the complete review project. Record manual observations per case before closing goal 5 or
+marking milestone 4 complete; fix confirmed discrepancies and repeat affected
+checks first.
+
+Corrective verification (2026-10-21): all 111 Linux tests pass, with three
+scene-session/lifecycle tests rerun outside the sandbox to allow their local
+sockets. New regressions check actual compositor submission order, named-layer
+changes, equal-layer screen/UI ordering, independent visibility, delayed-frame
+soft-body equivalence, aggregated tick reports and fatal catch-up termination.
+Both focused suites and the corrected fixture generator pass ASan/UBSan with
+leak detection. Full Windows cross-build and fresh Linux/Windows installed-SDK
+consumer checks pass. The corrected application/scene and all nine examples
+using tick-based physics build against both updated SDKs; Linux application,
+scene and example startup/shutdown checks use dummy SDL outside source folders.
+Real Sway workspace-switch and visual retests remain required.
+
 ## Frozen fixture plan
 
 These are comparison cases for this inventory, not tests implemented in goal 1.

@@ -3568,10 +3568,11 @@ static size_t graphics_viewport_next_item_get(const GraphicsViewport *viewport,
             ? selected_layer.result.value : (selected == MAX_VIEWPORT_ITEMS ? 0 :
                 viewport->items[selected].config.layer);
         if(selected == MAX_VIEWPORT_ITEMS ||
-                viewport->items[item].kind < viewport->items[selected].kind ||
-                (viewport->items[item].kind == viewport->items[selected].kind &&
-                    (item_value < selected_value ||
-                     (item_value == selected_value && item < selected))))
+                item_value < selected_value ||
+                (item_value == selected_value &&
+                    (viewport->items[item].kind < viewport->items[selected].kind ||
+                     (viewport->items[item].kind == viewport->items[selected].kind &&
+                      item < selected))))
             selected = item;
     }
     return selected;

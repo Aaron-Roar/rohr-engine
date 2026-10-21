@@ -65,7 +65,19 @@ Report physics_update(Tick ticks) {
         report_publish_internal(&report);
         return report;
     }
-    return system_physics_update(physics_dt_per_tick_get() * (Time)ticks);
+    Time dt = physics_dt_per_tick_get();
+    if(ticks == 1) return system_physics_update(dt);
+    uint64_t started = SDL_GetPerformanceCounter();
+    Report report = physics_report_create(ROHR_PHYSICS_REPORT_ID);
+    /* Catch up using the same fixed steps as uninterrupted simulation. A
+     * delayed frame must not enlarge the integration step for stiff springs. */
+    for(Tick tick = 0; tick < ticks; tick += 1) {
+        Report child = system_physics_update(dt);
+        (void)report_merge(&report, &child);
+        if(report.has_fatal) break;
+    }
+    physics_report_finish(&report, started);
+    return report;
 }
 
 Report physics_dt_update(Time dt) {

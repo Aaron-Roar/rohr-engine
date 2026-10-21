@@ -115,6 +115,11 @@ static void composition_and_joints(void) {
     OK(rohr_physics_dt_per_tick_set(.1));
     Report tick = rohr_physics_update(3);
     assert(tick.header.status == ROHR_REPORT_COMPLETE && fabsf(position(a).x - .6f) < .0001f);
+    assert(rohr_report_valid_check(&tick));
+    assert(metric(&tick, ROHR_PHYSICS_REPORT_ID, ROHR_REPORT_SUBSTEPS_COMPLETED_COUNT) == 9);
+    assert(entry(&tick, ROHR_PHYSICS_INTEGRATION_REPORT_ID)->invocation_count == 9);
+    ReportResult latest = rohr_report_get(ROHR_PHYSICS_REPORT); OK(latest);
+    assert(memcmp(&latest.result.value, &tick, sizeof(tick)) == 0);
     Entity b = body(4, false);
     (void)joint_make(a, b, false);
     rohr_physics_pipeline_substep_begin();
@@ -127,6 +132,41 @@ static void composition_and_joints(void) {
     assert(joint_report.entry_count == 0 && solved.entry_count == 0);
     rohr_engine_stop();
     assert(rohr_report_valid_check(&full) && rohr_report_valid_check(&joint_report));
+}
+
+static void delayed_frame_soft_body(void) {
+    Position expected[2];
+    for(unsigned batched = 0; batched < 2; batched++) {
+        OK(rohr_engine_start());
+        OK(rohr_physics_dt_per_tick_set(1.0 / 120.0));
+        EntityResult soft = rohr_physics_soft_body_add((SoftBodyDescription){0}); OK(soft);
+        Entity nodes[2];
+        for(unsigned i = 0; i < 2; i++) {
+            EntityResult node = rohr_physics_soft_body_node_add((SoftBodyNodeDescription){
+                .owner = soft.result.value, .position = {20.0f * i, 0}, .mass = 1, .radius = 1});
+            OK(node); nodes[i] = node.result.value;
+        }
+        OK(rohr_physics_soft_body_beam_add((SoftBodyBeamDescription){
+            .owner = soft.result.value, .node_a = nodes[0], .node_b = nodes[1],
+            .stiffness = 800, .damping = 15}));
+        OK(rohr_physics_velocity_set(nodes[1], (Velocity){10, 0}));
+        /* Two seconds without rendering, as when a compositor suspends frames. */
+        for(unsigned i = 0; i < (batched ? 1u : 240u); i++) {
+            Report report = rohr_physics_update(batched ? 240 : 1);
+            assert(report.header.status == ROHR_REPORT_COMPLETE && !report.has_fatal);
+            assert(report.diagnostic_count == 0 && rohr_report_valid_check(&report));
+        }
+        for(unsigned i = 0; i < 2; i++) {
+            Position actual = position(nodes[i]);
+            assert(isfinite(actual.x) && isfinite(actual.y) && fabsf(actual.x) < 100);
+            if(batched) {
+                assert(fabsf(actual.x - expected[i].x) < .0001f);
+                assert(fabsf(actual.y - expected[i].y) < .0001f);
+            } else expected[i] = actual;
+        }
+        assert(fabsf(position(nodes[1]).x - position(nodes[0]).x - 20) < .1f);
+        rohr_engine_stop();
+    }
 }
 
 static void warning_and_fatal(void) {
@@ -203,15 +243,16 @@ static void contact_metrics(void) {
 }
 
 #ifdef ROHR_TEST_ALLOCATION_WRAP
-static void aborted_update_state(void) {
+static void aborted_update_state(bool batched) {
     OK(rohr_engine_start());
     Entity a = body(0, true), b = body(1, true), healthy = body(100, false);
     OK(rohr_physics_velocity_set(healthy, (Velocity){2, 0}));
     OK(rohr_physics_substeps_set(3));
+    OK(rohr_physics_dt_per_tick_set(3));
     EntityInfoFlags fields = ROHR_ENTITY_INFO_PHYSICS_POSITION | ROHR_ENTITY_INFO_PHYSICS_CONTACTS;
     EntityInfoResult before = rohr_entity_info_get(healthy, fields); OK(before);
     fail_allocations = true;
-    Report failed = rohr_physics_dt_update(3);
+    Report failed = batched ? rohr_physics_update(3) : rohr_physics_dt_update(3);
     fail_allocations = false;
     assert(failed.has_fatal && failed.header.status == ROHR_REPORT_FAILED);
     assert(failed.first_fatal.report_id == ROHR_PHYSICS_CONTACTS_REPORT_ID);
@@ -341,11 +382,13 @@ static void allocation_failures(void) {
 int main(void) {
     no_work_and_arguments();
     composition_and_joints();
+    delayed_frame_soft_body();
     warning_and_fatal();
     contact_metrics();
     diagnostic_overflow();
 #ifdef ROHR_TEST_ALLOCATION_WRAP
-    aborted_update_state();
+    aborted_update_state(false);
+    aborted_update_state(true);
     allocation_failures();
 #endif
     OK(rohr_engine_start());

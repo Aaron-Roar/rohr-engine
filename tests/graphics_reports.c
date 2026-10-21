@@ -20,6 +20,9 @@ static bool recursive, bad_submission;
 static bool fail_allocation, fail_draw, fail_texture, fail_target, fail_present, fail_capture;
 static bool fake_recording, fail_write, fail_flush;
 static unsigned presents;
+static bool trace_composition;
+static double composition_angles[8];
+static size_t composition_count;
 void *__real_realloc(void *, size_t);
 void *__wrap_realloc(void *p, size_t n) { return fail_allocation ? NULL : __real_realloc(p,n); }
 bool __real_SDL_RenderFillRect(SDL_Renderer *, const SDL_FRect *);
@@ -31,6 +34,10 @@ bool __real_SDL_RenderTextureRotated(SDL_Renderer *, SDL_Texture *, const SDL_FR
     const SDL_FRect *, double, const SDL_FPoint *, SDL_FlipMode);
 bool __wrap_SDL_RenderTextureRotated(SDL_Renderer *r, SDL_Texture *t, const SDL_FRect *src,
         const SDL_FRect *dst, double angle, const SDL_FPoint *center, SDL_FlipMode flip) {
+    if(trace_composition) {
+        assert(composition_count < 8);
+        composition_angles[composition_count++] = angle;
+    }
     if(fail_texture) { fail_texture=false; return SDL_SetError("injected sprite draw failure"); }
     return __real_SDL_RenderTextureRotated(r,t,src,dst,angle,center,flip);
 }
@@ -237,6 +244,57 @@ static void retained_assets(void) {
 }
 
 #ifdef ROHR_TEST_GRAPHICS_WRAP
+static void viewport_layer_composition(ViewportId original, CameraId camera) {
+    OK(rohr_viewport_disable_set(original));
+    ViewportDescription desc = rohr_viewport_description_default_get(); desc.enabled = true;
+    ViewportIdResult viewport = rohr_viewport_create(desc); OK(viewport);
+    GraphicsLayerIdResult middle = rohr_graphics_layer_create((LayerDescription){
+        .name = "composition_middle", .value = 1}); OK(middle);
+    TextAssetResult asset = rohr_graphics_text_create((TextDescription){.value = "layer"}); OK(asset);
+    ViewportUiTextDescription text = rohr_graphics_ui_text_description_default_get();
+    text.text = asset.result.value; text.position = (Position){100,100};
+    ViewportItemDescription item = rohr_viewport_item_description_default_get();
+    item.layer_id = middle.result.value; item.orientation = 20;
+    /* Create UI first so equal-layer ordering cannot accidentally pass by slot. */
+    OK(rohr_viewport_ui_text_add(viewport.result.value, text, item));
+    item.layer_id = 0; item.layer = 3; item.orientation = 40;
+    ViewportItemIdResult upper = rohr_viewport_ui_text_add(viewport.result.value, text, item); OK(upper);
+    item.layer = 0; item.orientation = 10; item.rectangle = (ViewportRectangle){-40,40,200,160};
+    OK(rohr_viewport_camera_add(viewport.result.value, camera, item));
+    item.layer = 2; item.orientation = 30; item.rectangle = (ViewportRectangle){100,80,300,220};
+    ViewportItemIdResult right = rohr_viewport_camera_add(viewport.result.value, camera, item); OK(right);
+    complete(rohr_graphics_pipeline_cameras_update());
+    complete(rohr_graphics_pipeline_commands_execute());
+    trace_composition = true; composition_count = 0;
+    complete(rohr_graphics_pipeline_viewports_draw());
+    assert(composition_count == 4);
+    assert(composition_angles[0] == 10 && composition_angles[1] == 20 &&
+        composition_angles[2] == 30 && composition_angles[3] == 40);
+    OK(rohr_graphics_layer_name_set("composition_middle", 2));
+    composition_count = 0;
+    complete(rohr_graphics_pipeline_viewports_draw());
+    assert(composition_count == 4);
+    assert(composition_angles[0] == 10 && composition_angles[1] == 30 &&
+        composition_angles[2] == 20 && composition_angles[3] == 40);
+    item = rohr_viewport_item_description_get(right.result.value).result.value;
+    item.visible = false;
+    OK(rohr_viewport_item_description_set(right.result.value, item));
+    composition_count = 0;
+    complete(rohr_graphics_pipeline_viewports_draw());
+    assert(composition_count == 3 && composition_angles[1] == 20 && composition_angles[2] == 40);
+    ViewportItemDescription hidden = rohr_viewport_item_description_get(upper.result.value).result.value;
+    hidden.visible = false;
+    OK(rohr_viewport_item_description_set(upper.result.value, hidden));
+    composition_count = 0;
+    complete(rohr_graphics_pipeline_viewports_draw());
+    assert(composition_count == 2 && composition_angles[0] == 10 && composition_angles[1] == 20);
+    trace_composition = false;
+    OK(rohr_viewport_destroy(viewport.result.value));
+    OK(rohr_graphics_text_destroy(&asset.result.value));
+    OK(rohr_graphics_layer_destroy(middle.result.value));
+    OK(rohr_viewport_enable_set(original));
+}
+
 static void failures(void) {
     /* A new layer forces queue growth without changing the allocator globally. */
     graphics_layer_active_set(4567);
@@ -329,6 +387,7 @@ int main(void) {
     reports_and_boundaries(); retained_assets();
 #ifdef ROHR_TEST_GRAPHICS_WRAP
     failures();
+    viewport_layer_composition(viewport.result.value, camera);
 #endif
     OK(rohr_camera_pause_with_engine_set(camera));
     rohr_engine_pause(); unsigned before=callbacks;

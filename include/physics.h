@@ -1234,7 +1234,10 @@ EngineResult physics_dt_per_tick_set(Time dt);
 Time physics_dt_per_tick_get(void);
 /** Return physics timing to the engine time-per-tick default. */
 void physics_engine_time_per_tick_use(void);
-/** Advance physics for a number of elapsed engine ticks. */
+/** Advance each elapsed engine tick separately, with configured substeps per
+ * tick. No elapsed ticks are discarded. Interaction queries describe the most
+ * recent tick (possibly partial after a fatal error); the report aggregates
+ * all attempted ticks. */
 Report physics_update(Tick ticks);
 /** Advance physics once using an explicit exceptional delta. */
 Report physics_dt_update(Time dt);
