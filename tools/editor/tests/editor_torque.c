@@ -28,29 +28,19 @@ static bool pointer(EditorProject *p,EditorViewportState *s,EditorHistory *h,Pos
 static void panel(EditorTorqueEditor *ui,EditorModeContext *c,Position at,MouseButtonState button) {
     rohr_ui_input_set((UIInput){at,button}); (void)editor_torque_editor_draw(ui,c); rohr_ui_update();
 }
-static void legacy_check(const char *path) {
+static void version_check(const char *path) {
     yyjson_doc *doc=yyjson_read_file(path,0,NULL,NULL); assert(doc);
-    for(unsigned version=8;version<=9;++version) {
+    const unsigned versions[]={0,8,9,10,EDITOR_PROJECT_FORMAT_VERSION+1};
+    for(size_t i=0;i<sizeof(versions)/sizeof(versions[0]);++i) {
         yyjson_mut_doc *copy=yyjson_doc_mut_copy(doc,NULL); assert(copy);
         yyjson_mut_val *root=yyjson_mut_doc_get_root(copy);
-        assert(yyjson_mut_obj_put(root,yyjson_mut_str(copy,"format_version"),yyjson_mut_uint(copy,version)));
-        yyjson_mut_val *objects=yyjson_mut_obj_get(root,"objects");
-        for(size_t i=0;i<yyjson_mut_arr_size(objects);++i) {
-            yyjson_mut_val *o=yyjson_mut_arr_get(objects,i),*items=yyjson_mut_obj_get(o,"torques");
-            for(size_t n=0;n<yyjson_mut_arr_size(items);++n) {
-                yyjson_mut_val *t=yyjson_mut_arr_get(items,n);
-                yyjson_mut_obj_remove_key(t,"visible"); yyjson_mut_obj_remove_key(t,"marker_offset_x"); yyjson_mut_obj_remove_key(t,"marker_offset_y");
-            }
-            yyjson_mut_val *hierarchy=yyjson_mut_obj_get(o,"hierarchy");
-            for(size_t n=yyjson_mut_arr_size(hierarchy);n>0;--n)
-                if(yyjson_mut_get_uint(yyjson_mut_obj_get(yyjson_mut_arr_get(hierarchy,n-1),"kind"))==EDITOR_HIERARCHY_TORQUE)
-                    yyjson_mut_arr_remove(hierarchy,n-1);
-        }
-        assert(yyjson_mut_write_file("/tmp/rohr_torque_legacy.json",copy,0,NULL,NULL));
+        assert(yyjson_mut_obj_put(root,yyjson_mut_str(copy,"format_version"),yyjson_mut_uint(copy,versions[i])));
+        assert(yyjson_mut_write_file("/tmp/rohr_torque_version.json",copy,0,NULL,NULL));
         EditorProject loaded={0}; editor_project_init(&loaded);
-        assert(!editor_result_check(editor_project_load(&loaded,"/tmp/rohr_torque_legacy.json")));
-        assert(loaded.objects[0].torque_items[0].visible);
-        point(loaded.objects[0].torque_items[0].marker_offset,(Position){0});
+        EditorObject *sentinel=editor_project_object_add(&loaded,(Position){12,34}); assert(sentinel);
+        assert(editor_result_check(editor_project_load(&loaded,"/tmp/rohr_torque_version.json")));
+        assert(loaded.object_count==1 && &loaded.objects[0]==sentinel);
+        point(sentinel->position,(Position){12,34});
         editor_project_destroy(&loaded); yyjson_mut_doc_free(copy);
     }
     yyjson_doc_free(doc);
@@ -172,7 +162,7 @@ int main(void) {
     assert(!editor_project_torque_get(&loaded.objects[0],copied)->visible);
     point(loaded.objects[0].torque_items[0].marker_offset,(Position){19,23}); editor_project_destroy(&loaded);
     editor_project_torque_get(o,copied)->visible=true;
-    legacy_check("/tmp/rohr_torque_editor.json");
+    version_check("/tmp/rohr_torque_editor.json");
     /* Invalid serialized offsets reject the load without replacing the project. */
     yyjson_doc *saved=yyjson_read_file("/tmp/rohr_torque_editor.json",0,NULL,NULL); assert(saved);
     yyjson_mut_doc *bad=yyjson_doc_mut_copy(saved,NULL); assert(bad);

@@ -6,9 +6,103 @@
 #include "entity/object_internal.h"
 #include "graphics/texture_assets.h"
 #include "graphics/camera_state.h"
+#include "graphics/layer_state.h"
 #include <float.h>
+#include <limits.h>
 #include <math.h>
 #include <string.h>
+
+static bool layer_value_read(yyjson_val *value, int *out) {
+    if(!yyjson_is_int(value) ||
+            (yyjson_is_uint(value) && yyjson_get_uint(value) > INT_MAX) ||
+            (yyjson_is_sint(value) && (yyjson_get_sint(value) < INT_MIN ||
+                yyjson_get_sint(value) > INT_MAX))) return false;
+    *out = (int)yyjson_get_sint(value);
+    return true;
+}
+
+EngineResult state_layers_load(yyjson_val *root, GraphicsLayerId *created, size_t *created_count) {
+    yyjson_val *layers = yyjson_obj_get(root, "graphics_layers"), *entry;
+    size_t i, count;
+    if(layers == NULL) return error_result_value(true);
+    if(!yyjson_is_arr(layers)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+    yyjson_arr_foreach(layers, i, count, entry) {
+        yyjson_val *name = yyjson_obj_get(entry, "name");
+        int value;
+        if(!yyjson_is_obj(entry) || !yyjson_is_str(name) || yyjson_get_len(name) == 0 ||
+                yyjson_get_len(name) >= GRAPHICS_LAYER_NAME_MAX ||
+                strlen(yyjson_get_str(name)) != yyjson_get_len(name) ||
+                !layer_value_read(yyjson_obj_get(entry, "value"), &value))
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        GraphicsLayerIdResult layer = graphics_layer_name_id_get(yyjson_get_str(name));
+        if(!error_check(layer)) {
+            LayerDescriptionResult existing = graphics_layer_description_get(layer.result.value);
+            if(error_check(existing) || existing.result.value.value != value)
+                return error_result_error(ERROR_ENGINE_DUPLICATE_GRAPHICS_LAYER_NAME);
+            continue;
+        }
+        layer = graphics_layer_create((LayerDescription){.name = yyjson_get_str(name), .value = value});
+        if(error_check(layer)) return error_result_error(layer.result.error);
+        created[(*created_count)++] = layer.result.value;
+    }
+    return error_result_value(true);
+}
+
+bool state_layers_write(yyjson_mut_doc *doc, yyjson_mut_val *root) {
+    LayerDescription layers[MAX_GRAPHICS_LAYERS];
+    size_t count = 0;
+    for(size_t slot = 0; slot < MAX_GRAPHICS_LAYERS; ++slot) {
+        LayerDescription layer;
+        if(!graphics_layer_registry_entry_get(slot, &layer)) continue;
+        /* Stable output independent of registry slot allocation. */
+        size_t at = count++;
+        while(at > 0 && strcmp(layers[at - 1].name, layer.name) > 0) {
+            layers[at] = layers[at - 1];
+            --at;
+        }
+        layers[at] = layer;
+    }
+    yyjson_mut_val *array = yyjson_mut_arr(doc);
+    if(!array || !yyjson_mut_obj_add_val(doc, root, "graphics_layers", array)) return false;
+    for(size_t i = 0; i < count; ++i) {
+        yyjson_mut_val *entry = yyjson_mut_obj(doc);
+        if(!entry || !yyjson_mut_obj_add_strcpy(doc, entry, "name", layers[i].name) ||
+                !yyjson_mut_obj_add_int(doc, entry, "value", layers[i].value) ||
+                !yyjson_mut_arr_add_val(array, entry)) return false;
+    }
+    return true;
+}
+
+bool state_layers_template_copy(yyjson_mut_doc *doc, yyjson_mut_val *layers, yyjson_val *root) {
+    yyjson_val *entry;
+    size_t i, count;
+    yyjson_arr_foreach(yyjson_obj_get(root, "graphics_layers"), i, count, entry) {
+        const char *name = yyjson_get_str(yyjson_obj_get(entry, "name"));
+        bool found = false;
+        for(size_t j = 0; j < yyjson_mut_arr_size(layers); ++j) {
+            yyjson_mut_val *existing = yyjson_mut_arr_get(layers, j);
+            if(strcmp(name, yyjson_mut_get_str(yyjson_mut_obj_get(existing, "name"))) != 0) continue;
+            if(yyjson_get_sint(yyjson_obj_get(entry, "value")) !=
+                    yyjson_mut_get_sint(yyjson_mut_obj_get(existing, "value"))) return false;
+            found = true;
+            break;
+        }
+        if(!found) {
+            yyjson_mut_val *copy = yyjson_val_mut_copy(doc, entry);
+            if(!copy || !yyjson_mut_arr_add_val(layers, copy)) return false;
+        }
+    }
+    return true;
+}
+
+static bool layer_binding_write(yyjson_mut_doc *doc, yyjson_mut_val *components,
+        const char *key, GraphicsLayerIdResult id, GraphicsLayerValueResult value) {
+    if(!error_check(id)) {
+        LayerDescriptionResult layer = graphics_layer_description_get(id.result.value);
+        return !error_check(layer) && yyjson_mut_obj_add_strcpy(doc, components, key, layer.result.value.name);
+    }
+    return error_check(value) || yyjson_mut_obj_add_int(doc, components, key, value.result.value);
+}
 
 static bool number(yyjson_val *v, const char *key, double *out) {
     yyjson_val *value = yyjson_obj_get(v,key);
@@ -146,12 +240,12 @@ bool state_visuals_write(yyjson_mut_doc *doc,yyjson_mut_val *components,Entity e
         }
         WRITE(yyjson_mut_obj_add_val(doc,components,"object_camera",v));
     }
-    GraphicsLayerValueResult layer=graphics_layer_entity_get(entity);
-    if(!error_check(layer)) WRITE(yyjson_mut_obj_add_int(doc,components,"graphics_layer",layer.result.value));
-    layer=graphics_layer_sprite_get(entity);
-    if(!error_check(layer)) WRITE(yyjson_mut_obj_add_int(doc,components,"sprite_layer",layer.result.value));
-    layer=graphics_layer_animation_get(entity);
-    if(!error_check(layer)) WRITE(yyjson_mut_obj_add_int(doc,components,"animation_layer",layer.result.value));
+    WRITE(layer_binding_write(doc,components,"graphics_layer",
+        graphics_layer_entity_id_get(entity),graphics_layer_entity_get(entity)));
+    WRITE(layer_binding_write(doc,components,"sprite_layer",
+        graphics_layer_sprite_id_get(entity),graphics_layer_sprite_get(entity)));
+    WRITE(layer_binding_write(doc,components,"animation_layer",
+        graphics_layer_animation_id_get(entity),graphics_layer_animation_get(entity)));
     return true;
 #undef WRITE
 }
@@ -263,11 +357,16 @@ EngineResult state_visuals_load(Entity entity,yyjson_val *components) {
     for(size_t i=0;i<3;++i) {
         v=yyjson_obj_get(components,layers[i]);
         if(!v) continue;
-        if(!yyjson_is_int(v) || yyjson_get_sint(v)<INT32_MIN || yyjson_get_sint(v)>INT32_MAX)
-            return error_result_error(ERROR_ENGINE_STATE_INVALID);
-        int layer=(int)yyjson_get_sint(v);
-        EngineResult result=i==0 ? graphics_layer_entity_set(entity,layer) :
-            i==1 ? graphics_layer_sprite_set(entity,layer) : graphics_layer_animation_set(entity,layer);
+        EngineResult result;
+        int layer;
+        if(yyjson_is_str(v) && strlen(yyjson_get_str(v)) == yyjson_get_len(v)) {
+            const char *name=yyjson_get_str(v);
+            result=i==0 ? graphics_layer_entity_name_set(entity,name) :
+                i==1 ? graphics_layer_sprite_name_set(entity,name) : graphics_layer_animation_name_set(entity,name);
+        } else if(layer_value_read(v,&layer)) {
+            result=i==0 ? graphics_layer_entity_set(entity,layer) :
+                i==1 ? graphics_layer_sprite_set(entity,layer) : graphics_layer_animation_set(entity,layer);
+        } else return error_result_error(ERROR_ENGINE_STATE_INVALID);
         if(error_check(result)) return result;
     }
     return error_result_value(true);

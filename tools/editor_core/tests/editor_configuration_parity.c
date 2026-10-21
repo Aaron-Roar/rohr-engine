@@ -76,11 +76,34 @@ static void settings_round_trip(void) {
     CameraId camera_id = entity_object_camera_get(member(first.result.value, "camera")).result.value;
     CameraDescription camera_value = graphics_camera_description_get(camera_id).result.value;
     assert(camera_value.pause_with_engine && camera_value.position.x == 17 && camera_value.position.y == 28);
+    EntityName first_name=entity_name_get(first.result.value).result.value;
+    EntityName second_name=entity_name_get(second.result.value).result.value;
+    OK(game_state_file_save("configuration_runtime.json"));
+    OK(entity_delete(first.result.value)); OK(entity_delete(second.result.value));
+    OK(game_state_file_load("configuration_runtime.json"));
+    first=entity_by_name_get(first_name.value); second=entity_by_name_get(second_name.value); OK(first); OK(second);
+    body=member(first.result.value,"body"); other=member(second.result.value,"body");
+    assert(entity_index_get(body,&index));
+    assert(angular_accelerations[index]==12 && angular_velocity_maximums[index]==30);
+    assert(targets[index]==member(first.result.value,"soft"));
+    assert(entity_lifetime_description_get(body).result.value.expiry_tick==tick+40);
+    assert(physics_axis_lock_description_get(body).result.value.point_on_axis.x==12);
+    first_soft=member(first.result.value,"soft");
+    assert(entity_components_check(member(first_soft,copy->soft_body_items[0].nodes[0].name),ROHR_STATIC));
+    assert(physics_soft_body_beam_description_get(member(first_soft,"beam")).result.value.rest_length==2.5f);
+    camera_id=entity_object_camera_get(member(first.result.value,"camera")).result.value;
+    camera_value=graphics_camera_description_get(camera_id).result.value;
+    assert(camera_value.pause_with_engine && camera_value.position.x==17 && camera_value.position.y==28);
+    CameraAttachmentDescription restored_attachment=graphics_camera_attachment_description_get(camera_id).result.value;
+    assert(restored_attachment.entity==body && !restored_attachment.follow_position && restored_attachment.follow_orientation);
+    OK(physics_angular_velocity_maximum_set(body,0));
+    assert(physics_angular_velocity_maximum_get(other).result.value==30);
     OK(entity_delete(first.result.value));
     assert(entity_alive_check(other));
     OK(entity_delete(second.result.value));
     object_description_tree_destroy((ObjectDescription *)catalog.result.value);
     assert(remove("configuration_parity.json") == 0);
+    assert(remove("configuration_runtime.json") == 0);
     editor_project_destroy(&loaded); editor_project_destroy(&project);
 }
 
@@ -489,6 +512,9 @@ static void generation_fixture(const char *directory, const char *font_path) {
     static EditorProject p; EditorWorkspace workspace = {0};
     OK(editor_workspace_create(&workspace, &p, directory));
     editor_project_destroy(&p); editor_project_init(&p);
+    p.engine_time_per_tick=1.0/73.0;
+    p.physics_timestep_override=true;
+    p.physics_dt_per_tick=1.0/137.0;
     p.application_window_enabled = true;
     p.application_window = (WindowPresentationDescription){.window_width = 900, .window_height = 600,
         .logical_width = 450, .logical_height = 300, .aspect_ratio_auto = true};
@@ -556,9 +582,41 @@ static void generation_fixture(const char *directory, const char *font_path) {
     static EditorProject loaded; editor_project_init(&loaded);
     EditorWorkspace loaded_workspace = {0};
     OK(editor_workspace_load(&loaded_workspace, &loaded, directory));
+    assert(loaded.engine_time_per_tick==p.engine_time_per_tick);
+    assert(loaded.physics_dt_per_tick==p.physics_dt_per_tick && loaded.physics_timestep_override);
     assert(loaded.objects[0].sprites[0].size.x == -20 && loaded.objects[0].sprites[0].size.y == -10);
-    editor_project_destroy(&loaded);
     assert(editor_workspace_c_generate(&workspace, &p));
+    /* Regenerate from the saved project, comparing every generated artifact
+     * and a developer-edited entry point byte for byte. */
+    snprintf(destination,sizeof(destination),"%s/src/main.c",directory);
+    FILE *main_file=fopen(destination,"wb"); assert(main_file);
+    assert(fputs("/* developer-owned main */\nint main(void) { return 42; }\n",main_file)>=0);
+    assert(fclose(main_file)==0);
+    const char *files[]={"main.c","generated/project_objects.c","generated/project_objects.h",
+        "generated/project_viewports.c","generated/project_viewports.h",
+        "generated/project_scene.c","generated/project_scene.cmake",
+        "generated/scene/project_objects.c","generated/scene/project_objects.h",
+        "generated/scene/project_viewports.c","generated/scene/project_viewports.h"};
+    void *contents[sizeof(files)/sizeof(files[0])];
+    size_t lengths[sizeof(files)/sizeof(files[0])];
+    for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
+        snprintf(destination,sizeof(destination),"%s/src/%s",directory,files[i]);
+        contents[i]=SDL_LoadFile(destination,&lengths[i]); assert(contents[i]);
+    }
+    for(unsigned pass=0;pass<2;++pass) {
+        assert(editor_workspace_c_generate(&loaded_workspace,&loaded));
+        for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) {
+            snprintf(destination,sizeof(destination),"%s/src/%s",directory,files[i]);
+            size_t length; void *content=SDL_LoadFile(destination,&length); assert(content);
+            if(length!=lengths[i] || memcmp(content,contents[i],length)!=0) {
+                fprintf(stderr,"Generation changed %s after reload (pass %u)\n",files[i],pass);
+                assert(false);
+            }
+            SDL_free(content);
+        }
+    }
+    for(size_t i=0;i<sizeof(files)/sizeof(files[0]);++i) SDL_free(contents[i]);
+    editor_project_destroy(&loaded);
     editor_project_destroy(&p);
 }
 

@@ -65,8 +65,18 @@ int main(void) {
     assert(info.result.value.target == independent.soft);
     rohr_entity_info_release(&info.result.value);
     assert(independent.body != instance->body);
+    OK(rohr_physics_angular_velocity_maximum_set(independent.body,0));
+    SoftBodyBeamDescription beam=rohr_physics_soft_body_beam_description_get(independent.beam).result.value;
+    beam.rest_length=9; beam.rest_length_explicit=true;
+    OK(rohr_physics_soft_body_beam_description_set(independent.beam,beam));
+    OK(rohr_physics_position_set(independent.body,(Position){300,400}));
+    assert(rohr_physics_angular_velocity_maximum_get(instance->body).result.value==3);
+    assert(rohr_physics_soft_body_beam_description_get(instance->beam).result.value.rest_length==2.5f);
+    assert(rohr_physics_position_get(instance->body).result.value.x==12);
     parity_destroy(&independent);
     assert(rohr_entity_alive_check(instance->body));
+    info=rohr_entity_info_get(instance->body,ROHR_ENTITY_INFO_CORE_TARGET); OK(info);
+    assert(info.result.value.target==instance->soft); rohr_entity_info_release(&info.result.value);
     project_viewports_destroy(&views); project_objects_destroy_all(&objects_in_scene);
     rohr_graphics_stop(); rohr_engine_stop();
     return 0;

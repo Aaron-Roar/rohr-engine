@@ -1,6 +1,6 @@
 # JSON game state
 
-Game state uses yyjson and schema version `8`. A state may be split across
+Game state uses yyjson and schema version `9`. A state may be split across
 multiple files. `game_state_load_files()` registers every entity name before
 loading component values, so a relationship may refer to an entity in any file
 in the same call.
@@ -8,7 +8,7 @@ in the same call.
 Angles and offsets use clockwise degrees; angular rates use degrees/second
 and degrees/second squared. Negative values and multiple turns are preserved.
 Zero keeps authored geometry unchanged, with local +Y as the world heading.
-Torque and inertia keep their physical units. Versions other than 8 are rejected
+Torque and inertia keep their physical units. Versions other than 9 are rejected
 without changing the currently loaded state.
 
 The [game-state example](../examples/game-state/src/main.c) loads an off-center
@@ -19,7 +19,7 @@ project with a visible rotation demonstration, see the
 
 ```json
 {
-  "version": 8,
+  "version": 9,
   "entities": [
     {
       "name": "player",
@@ -37,6 +37,32 @@ project with a visible rotation demonstration, see the
 
 Names are unique among live entities and may contain at most 63 bytes. The
 loader accepts JSON comments and trailing commas for handcrafted files.
+
+## Snapshot settings and layer identity
+
+Version 9 preserves optional `angular_velocity_maximum` in degrees/second.
+Omission means no configured limit; zero is an explicitly configured limit.
+Negative, non-finite, or out-of-range values fail the complete load.
+`kinematic_explicit` preserves a caller's explicit kinematic choice, including
+while static or inactive. The effective kinematic flag is derived again from
+that choice, mass and dynamic/static state. Hold, stored velocity, locks and
+their drivers survive restoration; contacts, broad-phase data and solver impulses
+remain derived. Loading does not reset application clocks or solver settings.
+
+The root `graphics_layers` array stores every registered `{ "name": "name",
+"value": 3 }` pair, including unassigned entries. Runtime snapshots sort these
+records by name. Entity component keys `graphics_layer`, `sprite_layer` and
+`animation_layer` accept a layer name or a numeric value. An absent key means
+unset; numeric zero is an explicit assignment. Runtime handles are never saved.
+Changing a named layer after restoration updates its restored bindings.
+
+Multi-file loading merges layers before resolving bindings. An existing name
+with the same numeric value is reused. Conflicting values, invalid bindings,
+capacity failures or later load failures roll back all new entities and layers,
+preserving existing definitions and bindings. Templates retain authored layer
+definitions and assignments, deduplicating identical records across documents;
+runtime edits are not captured. Conflicting retained definitions fail template
+saving without replacing the destination.
 
 ## User interface definitions
 
@@ -431,17 +457,15 @@ All ordinary components load before source descriptions, so referenced transform
 can appear later in the file. Invalid descriptions roll back newly loaded entities.
 Saving a named source requires its referenced entities to have names; unresolved
 or unnamed references cause an error rather than silently becoming no-target.
-Runtime topology is described below; authored source definitions remain a later
-milestone goal.
+Runtime topology is described below; authored source definitions use the object
+catalog and generated project paths.
 
-## Version 8 runtime topology contract
+## Runtime topology contract
 
-Version 8 makes entity ownership authoritative for lifetime and soft-body
-membership. The redundant `owner` fields in `soft_body_node`, `soft_body_beam`,
+Entity ownership is authoritative for lifetime and soft-body membership. The redundant `owner` fields in `soft_body_node`, `soft_body_beam`,
 and `soft_body_area` are removed and rejected on load. Exact-version validation
-remains in effect; earlier documents must be regenerated or migrated. Migration
-must reconcile old physics and object ownership into a single ownership forest;
-changing the version number alone is insufficient when those fields are present.
+remains in effect; only version 9 is accepted. Older documents must be regenerated; no migration
+is performed.
 
 `object` is an ordered array of `{ "entity": "runtime name", "name":
 "description member name" }` entries. Its presence identifies a `ROHR_OBJECT`
@@ -454,7 +478,7 @@ membership, without converting entity types. The ordered `soft_body` lists must
 exactly match that derived membership. Connections may reference nodes owned by
 other bodies; they never adopt those nodes.
 
-Force/torque description owners use the same version 8 ownership records; no
+Force/torque description owners use the same ownership records; no
 second owner is serialized in source components. Loading source descriptions
 preserves the ownership restored earlier in the load transaction. A source with
 both components retains one shared lifetime owner, independently of its targets.
@@ -472,7 +496,7 @@ callbacks and viewport mounts remain application-owned.
 An `animation_state` with an empty `frames` array is valid and restores an empty
 animated-sprite component without loading an animation asset. Its transform,
 visibility, timing, frame index, and layer are preserved; playback and drawing
-are skipped until frames exist. This uses the existing version 8 format.
+are skipped until frames exist. This is valid in the current format.
 
 Engine snapshots carry `"runtime_snapshot": true`. Loading them restores live
 state without adding to the retained authored-template documents. This permits

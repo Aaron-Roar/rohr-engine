@@ -8,6 +8,7 @@
 #include "scene/scene_runtime.h"
 #include "scene_image.h"
 #include "camera_state.h"
+#include "layer_state.h"
 #include "object_drawing.h"
 #include "marker_geometry.h"
 #include "core/report_internal.h"
@@ -540,6 +541,14 @@ GraphicsLayerIdResult graphics_layer_create(LayerDescription description) {
 
 LayerDescription graphics_layer_description_default_get(void) {
     return (LayerDescription){0};
+}
+
+bool graphics_layer_registry_entry_get(size_t slot, LayerDescription *description) {
+    if(slot >= MAX_GRAPHICS_LAYERS || description == NULL ||
+            !graphics_registered_layers[slot].used) return false;
+    *description = (LayerDescription){.name = graphics_registered_layers[slot].name,
+        .value = graphics_registered_layers[slot].value};
+    return true;
 }
 
 EngineResult graphics_layer_description_set(GraphicsLayerId layer, LayerDescription description) {

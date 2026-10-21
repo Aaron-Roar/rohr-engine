@@ -48,6 +48,8 @@ Vec2D physics_direction_between_positions(Position from, Position to);
 void physics_body_state_table_init(void);
 void physics_body_state_entity_clear(EntityIndex index);
 void physics_body_state_sync(EntityIndex index);
+/* Stored intent, distinct from the mass-dependent derived component flag. */
+bool physics_kinematic_explicit_check(EntityIndex index);
 void physics_force_state_init(void);
 /* Read-only marker geometry; never evaluates or applies a simulation load. */
 bool physics_source_geometry_get(Entity source, bool torque, Position *point,

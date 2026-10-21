@@ -233,7 +233,7 @@ const ProjectAudio project_audio = {
 
 EngineResult project_settings_apply(void) {
     EngineResult result;
-    result = rohr_engine_time_per_tick_set(0.0083333337679505348);
+    result = rohr_engine_time_per_tick_set(0.0083333333333333332);
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_substeps_set(2);
     if(rohr_error_check(result)) goto fail;
@@ -241,7 +241,7 @@ EngineResult project_settings_apply(void) {
     if(rohr_error_check(result)) goto fail;
     result = rohr_physics_solver_iterations_set(12);
     if(rohr_error_check(result)) goto fail;
-    result = rohr_physics_dt_per_tick_set(0.0083333337679505348);
+    result = rohr_physics_dt_per_tick_set(0.0083333333333333332);
     if(rohr_error_check(result)) goto fail;
     return rohr_error_result_value(true);
 fail:

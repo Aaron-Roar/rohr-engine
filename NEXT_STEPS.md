@@ -114,10 +114,18 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    109 Linux tests, eight focused sanitizer tests, Linux/Windows installed SDK
    consumers, and seven independently built examples on both platforms.
    Interactive visual/audio acceptance remains goal 5.
-3. [ ] **Verify persistence and generation.** For every applicable inventory
+3. [x] **Verify persistence and generation.** For every applicable inventory
    entry, project/runtime round trips, loading, and generated C preserve supported
    values, references, and behavior. Generation is deterministic; independent
    instances do not share mutable state. Add regressions for confirmed omissions.
+   Completed [goal 3 evidence](docs/cross_path_feature_inventory.md#goal-3-persistence-and-generation-closure)
+   covers named-layer identity/transactional merging, optional angular limits,
+   explicit kinematic intent, exact project timesteps, initialized camera
+   defaults, deterministic generation and independent restored instances.
+   Only current project format 11/runtime format 9 are accepted; bundled files
+   and generated modules are refreshed. Verification: 109 Linux tests, eight
+   sanitizer suites plus the generation fixture, Linux/Windows SDK consumers,
+   and eight independently built examples with Linux startup checks.
 4. [ ] **Verify authored and direct construction.** Equivalent authored-object
    and direct-C fixtures produce matching runtime configuration and behavior,
    including soft-body topology, UI layouts, and repeated spawning. Keep the

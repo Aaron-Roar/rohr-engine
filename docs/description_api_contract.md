@@ -1691,9 +1691,9 @@ and never autoplay. Gameplay passes a recipe to the existing audio APIs.
 Names must be valid non-keyword generated identifiers, unique within sound or
 music definitions. Generation preserves developer-owned `main.c`.
 
-Project format 11 stores these settings. Readers retain formats 8–10 and supply
-legacy defaults when new fields are absent. Old saved joint rest values remain
-explicit. Configured objects use the canonical catalog spawning path even from
+Project format 11 stores these settings. Only format 11 is accepted; older and
+future versions fail without replacing the current project. Optional fields keep
+their documented defaults. Saved joint rest values remain explicit. Configured objects use the canonical catalog spawning path even from
 legacy generated `<object>_create` convenience functions; the latter's position
 argument remains the requested absolute object origin. Existing catalog spawn
 options retain their relative-offset semantics.

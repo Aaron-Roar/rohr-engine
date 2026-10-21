@@ -1310,7 +1310,7 @@ static EngineResult state_components_load(
             return error_result_error(ERROR_ENGINE_STATE_INVALID);
         /* Geometry loading alone establishes the validated hitbox flag. */
         entity_mask[index] |= (RohrComponentMask)yyjson_get_uint(value) &
-            ~(ROHR_HIT_BOX | ROHR_SOFT_BODY | ROHR_SOFT_BODY_NODE | ROHR_SOFT_BODY_BEAM | ROHR_SOFT_BODY_AREA | ROHR_OBJECT);
+            ~(ROHR_HIT_BOX | ROHR_SOFT_BODY | ROHR_SOFT_BODY_NODE | ROHR_SOFT_BODY_BEAM | ROHR_SOFT_BODY_AREA | ROHR_OBJECT | ROHR_KINEMATIC_DRIVEN);
     }
 
     value = yyjson_obj_get(components, "flags");
@@ -1365,6 +1365,24 @@ static EngineResult state_components_load(
             (AngularAcceleration)yyjson_get_num(value)
         );
         if(result.kind == ERROR_RESULT_ERROR) return result;
+    }
+
+    value = yyjson_obj_get(components, "angular_velocity_maximum");
+    if(value != NULL) {
+        if(!state_number(components, "angular_velocity_maximum", &number) ||
+                number < 0 || number > FLT_MAX)
+            return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        result = physics_angular_velocity_maximum_set(entity, (AngularVelocity)number);
+        if(error_check(result)) return result;
+    }
+
+    value = yyjson_obj_get(components, "kinematic_explicit");
+    if(value != NULL) {
+        if(!yyjson_is_bool(value)) return error_result_error(ERROR_ENGINE_STATE_INVALID);
+        if(yyjson_get_bool(value)) {
+            result = physics_kinematic_driven_set(entity);
+            if(error_check(result)) return result;
+        }
     }
 
     value = yyjson_obj_get(components, "hit_box");
@@ -1792,6 +1810,8 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
     Entity *created;
     StateLoadedEntity *loaded;
     GroupId *created_groups;
+    GraphicsLayerId created_layers[MAX_GRAPHICS_LAYERS];
+    size_t created_layer_count = 0;
     size_t document_index;
     size_t created_count = 0;
     size_t total_created = 0;
@@ -1938,6 +1958,14 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
     if(definition_count > MAX_ENTITIES - entity_alive_count_get()) {
         result = error_result_error(ERROR_ENGINE_MAX_ENTITIES_EXCEEDED);
         goto cleanup;
+    }
+
+    /* Merge names before binding entities. Only new entries belong to this
+     * transaction; existing definitions and their bindings are never changed. */
+    for(document_index = 0; document_index < path_count; ++document_index) {
+        result = state_layers_load(yyjson_doc_get_root(documents[document_index].document),
+            created_layers, &created_layer_count);
+        if(error_check(result)) goto cleanup;
     }
 
     for(document_index = 0; document_index < path_count; document_index += 1) {
@@ -2107,6 +2135,11 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
         if(error_check(result)) goto cleanup;
     }
 
+    for(size_t i = 0; i < total_created; ++i) {
+        EntityIndex index;
+        if(entity_index_get(loaded[i].entity, &index)) physics_body_state_sync(index);
+    }
+
     for(document_index = 0; document_index < path_count; document_index += 1) {
         if(documents[document_index].camera == NULL) continue;
         result = state_camera_load(documents[document_index].camera);
@@ -2115,6 +2148,10 @@ EngineResult game_state_files_load(const char *const *paths, size_t path_count) 
 
 cleanup:
     if(result.kind == ERROR_RESULT_ERROR) state_rollback(created, total_created);
+    if(error_check(result)) {
+        while(created_layer_count > 0)
+            (void)graphics_layer_destroy(created_layers[--created_layer_count]);
+    }
     if(result.kind == ERROR_RESULT_ERROR) {
         while(created_group_count > 0) {
             created_group_count -= 1;
@@ -2438,6 +2475,10 @@ EngineResult game_state_file_save(const char *path) {
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "version", GAME_STATE_VERSION);
     yyjson_mut_obj_add_bool(document, root, "runtime_snapshot", true);
+    if(!state_layers_write(document, root)) {
+        yyjson_mut_doc_free(document);
+        return error_result_error(ERROR_MEMORY_POOL_ALLOCATION_FAILED);
+    }
     yyjson_mut_obj_add_val(document, root, "groups", group_array);
     yyjson_mut_obj_add_val(document, assets, "animations", animation_array);
     yyjson_mut_obj_add_val(document, root, "assets", assets);
@@ -2584,7 +2625,9 @@ EngineResult game_state_file_save(const char *path) {
         yyjson_mut_obj_add_strcpy(document, description, "name", name.result.value.value);
         yyjson_mut_obj_add_val(document, description, "components", components);
         yyjson_mut_arr_add_val(entity_array, description);
-        yyjson_mut_obj_add_uint(document, components, "mask", mask & ~ROHR_ENTITY_NAME);
+        yyjson_mut_obj_add_uint(document, components, "mask", mask & ~(ROHR_ENTITY_NAME | ROHR_KINEMATIC_DRIVEN));
+        if(physics_kinematic_explicit_check(index))
+            yyjson_mut_obj_add_bool(document, components, "kinematic_explicit", true);
         if(mask & ROHR_STATIC) yyjson_mut_arr_add_str(document, flags, "static");
         if(mask & ROHR_DYNAMIC) yyjson_mut_arr_add_str(document, flags, "dynamic");
         if(mask & ROHR_COLLISION) yyjson_mut_arr_add_str(document, flags, "collision");
@@ -2632,6 +2675,7 @@ EngineResult game_state_file_save(const char *path) {
         if(mass_pool.used[index]) yyjson_mut_obj_add_real(document, components, "mass", mass[index]);
         if(orientations_pool.used[index]) yyjson_mut_obj_add_real(document, components, "orientation", orientations[index]);
         if(angular_velocities_pool.used[index]) yyjson_mut_obj_add_real(document, components, "angular_velocity", angular_velocities[index]);
+        if(angular_velocity_maximums_pool.used[index]) yyjson_mut_obj_add_real(document, components, "angular_velocity_maximum", angular_velocity_maximums[index]);
         if(angular_accelerations_pool.used[index]) yyjson_mut_obj_add_real(document, components, "angular_acceleration", angular_accelerations[index]);
         if(frictions_pool.used[index]) yyjson_mut_obj_add_real(document, components, "friction", frictions[index]);
         if(restitutions_pool.used[index]) yyjson_mut_obj_add_real(document, components, "restitution", restitutions[index]);
@@ -2780,6 +2824,7 @@ EngineResult game_state_template_file_save(const char *path) {
     yyjson_mut_doc *document;
     yyjson_mut_val *root;
     yyjson_mut_val *groups;
+    yyjson_mut_val *layers;
     yyjson_mut_val *assets;
     yyjson_mut_val *animations;
     yyjson_mut_val *entities;
@@ -2803,6 +2848,7 @@ EngineResult game_state_template_file_save(const char *path) {
     }
     root = yyjson_mut_obj(document);
     groups = yyjson_mut_arr(document);
+    layers = yyjson_mut_arr(document);
     assets = yyjson_mut_obj(document);
     animations = yyjson_mut_arr(document);
     entities = yyjson_mut_arr(document);
@@ -2811,7 +2857,7 @@ EngineResult game_state_template_file_save(const char *path) {
     ui_fonts = yyjson_mut_arr(document);
     ui_labels = yyjson_mut_arr(document);
     ui_sliders = yyjson_mut_arr(document);
-    if(root == NULL || groups == NULL || assets == NULL
+    if(root == NULL || groups == NULL || layers == NULL || assets == NULL
             || animations == NULL || entities == NULL
             || ui == NULL || ui_buttons == NULL
             || ui_fonts == NULL || ui_labels == NULL || ui_sliders == NULL) {
@@ -2821,6 +2867,7 @@ EngineResult game_state_template_file_save(const char *path) {
     yyjson_mut_doc_set_root(document, root);
     yyjson_mut_obj_add_uint(document, root, "version", GAME_STATE_VERSION);
     yyjson_mut_obj_add_val(document, root, "groups", groups);
+    yyjson_mut_obj_add_val(document, root, "graphics_layers", layers);
     yyjson_mut_obj_add_val(document, assets, "animations", animations);
     yyjson_mut_obj_add_val(document, root, "assets", assets);
     yyjson_mut_obj_add_val(document, root, "entities", entities);
@@ -2839,7 +2886,8 @@ EngineResult game_state_template_file_save(const char *path) {
         yyjson_val *input_assets = yyjson_obj_get(input_root, "assets");
         yyjson_val *input_camera = yyjson_obj_get(input_root, "camera");
         yyjson_val *input_ui = yyjson_obj_get(input_root, "ui");
-        success = state_template_copy_array(
+        success = state_layers_template_copy(document, layers, input_root)
+            && state_template_copy_array(
                 document,
                 groups,
                 yyjson_obj_get(input_root, "groups")

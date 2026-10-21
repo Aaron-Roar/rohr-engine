@@ -606,10 +606,10 @@ int main(void) {
     const char *state_path = "animation_alignment_state.json";
     const char *saved_path = "animation_alignment_saved.json";
     const char *template_path = "animation_alignment_template.json";
-    const char *json = "{\"version\":8,\"assets\":{\"animations\":[{\"name\":\"aligned\",\"ticks_per_frame\":0,\"time_per_frame\":0,\"frames\":[{\"file\":\"animation_assets_first.png\"}]}]},\"entities\":[{\"name\":\"aligned_body\",\"components\":{\"animated_sprite\":{\"animation\":\"aligned\",\"scale\":{\"x\":2,\"y\":3},\"frames\":[{\"scale\":{\"x\":-32,\"y\":0},\"offset\":{\"x\":13,\"y\":-9},\"rotation\":450}]}}}]}";
+    const char *json = "{\"version\":9,\"assets\":{\"animations\":[{\"name\":\"aligned\",\"ticks_per_frame\":0,\"time_per_frame\":0,\"frames\":[{\"file\":\"animation_assets_first.png\"}]}]},\"entities\":[{\"name\":\"aligned_body\",\"components\":{\"animated_sprite\":{\"animation\":\"aligned\",\"scale\":{\"x\":2,\"y\":3},\"frames\":[{\"scale\":{\"x\":-32,\"y\":0},\"offset\":{\"x\":13,\"y\":-9},\"rotation\":450}]}}}]}";
     const char *legacy[] = {
         "{\"version\":3,\"entities\":[]}",
-        "{\"version\":8,\"assets\":{\"animations\":[{\"name\":\"old\",\"frames\":["
+        "{\"version\":9,\"assets\":{\"animations\":[{\"name\":\"old\",\"frames\":["
         "{\"file\":\"animation_assets_first.png\",\"size\":{\"x\":32,\"y\":24}}]}]},\"entities\":[]}"
     };
     for(size_t old = 0; old < sizeof(legacy) / sizeof(legacy[0]); old += 1) {

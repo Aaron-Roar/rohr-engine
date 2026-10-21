@@ -372,7 +372,7 @@ int main(void) {
     yyjson_doc *doc=yyjson_read_file("/tmp/rohr_visibility_test.json",0,NULL,NULL); assert(doc);
     yyjson_mut_doc *mutable=yyjson_doc_mut_copy(doc,NULL); assert(mutable); yyjson_doc_free(doc);
     legacy(yyjson_mut_doc_get_root(mutable));
-    yyjson_mut_obj_put(yyjson_mut_doc_get_root(mutable),yyjson_mut_str(mutable,"format_version"),yyjson_mut_uint(mutable,8));
+    yyjson_mut_obj_put(yyjson_mut_doc_get_root(mutable),yyjson_mut_str(mutable,"format_version"),yyjson_mut_uint(mutable,EDITOR_PROJECT_FORMAT_VERSION));
     assert(yyjson_mut_write_file("/tmp/rohr_visibility_legacy_test.json",mutable,0,NULL,NULL));
     editor_project_init(&loaded);
     assert(!editor_result_check(editor_project_load(&loaded,"/tmp/rohr_visibility_legacy_test.json")));

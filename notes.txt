@@ -7,3 +7,7 @@ project dir.
   arrows should have the buffer room but not the arrow or shaft or behind arrow.
   Those can require direct click on app or editor visual when present
 - Torque also slightly too large, but close to good size.
+- Exiting soft body editor to object editor leaves soft body buttons up.
+- Soft body collision and gravity is missing from physics accordian also
+  dynamic/static
+- 

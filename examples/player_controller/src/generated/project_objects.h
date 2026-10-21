@@ -45,6 +45,17 @@ EngineResult project_objects_create_all(ProjectObjects *objects);
 void project_objects_draw_all(const ProjectObjects *objects);
 void project_objects_destroy_all(ProjectObjects *objects);
 
+/* Recipes only; the game creates, controls, and destroys players. */
+typedef struct ProjectAudio {
+    struct {
+        unsigned char unused;
+    } sounds;
+    struct {
+        unsigned char unused;
+    } music;
+} ProjectAudio;
+extern const ProjectAudio project_audio;
+
 EngineResult project_settings_apply(void);
 
 typedef struct ObjectDescriptionView_3 {

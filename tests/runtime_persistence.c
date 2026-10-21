@@ -110,6 +110,11 @@ static void naming(void) {
 static void fixture(void) {
     /* Source created before topology: reconnection must be a separate pass. */
     Entity source=take(physics_force_add((ForceDescription){0}));
+    OK(graphics_layer_create((LayerDescription){.name="unused",.value=-17}));
+    OK(graphics_layer_create((LayerDescription){.name="sources",.value=3}));
+    OK(graphics_layer_entity_name_set(source,"sources"));
+    OK(graphics_layer_sprite_name_set(source,"sources"));
+    OK(graphics_layer_animation_name_set(source,"sources"));
     Entity body=take(physics_soft_body_add((SoftBodyDescription){0}));
     Entity nodes[8];
     const Position node_positions[8]={{0,0},{20,0},{20,20},{0,20},{5,5},{5,10},{10,10},{10,5}};
@@ -145,6 +150,8 @@ static void fixture(void) {
     OK(physics_position_set(body,(Position){100,-50})); OK(physics_orientation_set(body,35));
     Position p=physics_position_get(nodes[1]).result.value; p.x+=3; OK(physics_position_set(nodes[1],p));
     OK(physics_velocity_set(nodes[1],(Velocity){2,3})); OK(physics_acceleration_set(nodes[1],(Acceleration){4,5}));
+    OK(physics_angular_velocity_maximum_set(nodes[0], 0));
+    OK(physics_angular_velocity_maximum_set(nodes[1], 45));
     OK(physics_static_set(nodes[0])); OK(physics_entity_hold(nodes[2]));
     OK(physics_axis_lock_description_set(nodes[5], (AxisLockDescription){.axis = (Axis){1,0}, .point_on_axis = physics_position_get(nodes[5]).result.value}));
     OK(physics_angle_lock_set(nodes[5],-20,80));
@@ -194,6 +201,15 @@ static void round_trip(void) {
         Entity dummy=take(entity_add()); OK(entity_delete(dummy));
         OK(game_state_file_load("runtime_original.json")); assert(entity_alive_count_get()==count);
         OK(game_state_file_save("runtime_round_trip.json")); same_file("runtime_original.json","runtime_round_trip.json");
+        assert(angular_velocity_maximums_pool.used[idx(named("soft_body_1_node_1"))]);
+        assert(physics_angular_velocity_maximum_get(named("soft_body_1_node_1")).result.value==0);
+        assert(physics_angular_velocity_maximum_get(named("soft_body_1_node_2")).result.value==45);
+        assert(!angular_velocity_maximums_pool.used[idx(named("soft_body_1_node_3"))]);
+        assert(graphics_layer_name_get("unused").result.value==-17);
+        GraphicsLayerId layer=graphics_layer_name_id_get("sources").result.value;
+        assert(graphics_layer_entity_id_get(named("force_1")).result.value==layer);
+        assert(graphics_layer_sprite_id_get(named("force_1")).result.value==layer);
+        assert(graphics_layer_animation_id_get(named("force_1")).result.value==layer);
         Joint first=joints[idx(named("joint_1"))],second=joints[idx(named("joint_2"))];
         assert(first.anchor_b==second.anchor_b);
         assert(physics_joint_anchors_get(named("soft_body_1_node_1")).result.value.count==2);
@@ -227,9 +243,9 @@ static void malformed(void) {
     OK(physics_position_set(retained,(Position){7,9}));
     char *snapshot=read_text("runtime_original.json");
     const char *bad[]={
-        "{\"version\":8,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
-        "{\"version\":8,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
-        "{\"version\":8,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"retained\",\"components\":{}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"a\",\"count\":2,\"components\":{}},{\"name\":\"a_1\",\"components\":{}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"new\",\"components\":{\"position\":{\"x\":1e100,\"y\":0}}}]}",
         "{\"version\":5,\"entities\":[]}",
         "{\"version\":7,\"entities\":[]}"};
     for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
@@ -275,6 +291,8 @@ static void multiple_documents(void) {
         yyjson_mut_val *out=yyjson_mut_obj(doc), *array=yyjson_mut_arr(doc);
         yyjson_mut_doc_set_root(doc,out); assert(yyjson_mut_obj_add_uint(doc,out,"version",GAME_STATE_VERSION));
         assert(yyjson_mut_obj_add_val(doc,out,"entities",array));
+        assert(yyjson_mut_obj_add_val(doc,out,"graphics_layers",
+            yyjson_val_mut_copy(doc,yyjson_obj_get(root,"graphics_layers"))));
         for(size_t i=(size_t)part;i<yyjson_arr_size(entities);i+=2)
             assert(yyjson_mut_arr_add_val(array,yyjson_val_mut_copy(doc,yyjson_arr_get(entities,i))));
         assert(yyjson_mut_write_file(part ? "runtime_part_b.json" : "runtime_part_a.json",doc,0,NULL,NULL));
@@ -294,13 +312,13 @@ static void multiple_documents(void) {
     /* A clash in a later document must prevent creation from an earlier one. */
     const char *duplicates[]={"runtime_part_a.json","runtime_part_a.json"};
     BAD(game_state_files_load(duplicates,2)); assert(entity_alive_count_get()==0);
-    write_text("runtime_exact_names.json","{\"version\":8,\"entities\":["
+    write_text("runtime_exact_names.json","{\"version\":9,\"entities\":["
         "{\"name\":\"entity_2\",\"components\":{}},{\"name\":\"entity_1\",\"components\":{}}]}");
     OK(game_state_file_load("runtime_exact_names.json")); named("entity_1"); named("entity_2"); restart();
 }
 
 static void lifetime(void) {
-    write_text("runtime_lifetime.json","{\"version\":8,\"entities\":["
+    write_text("runtime_lifetime.json","{\"version\":9,\"entities\":["
         "{\"name\":\"due\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":true}}},"
         "{\"name\":\"disabled\",\"components\":{\"lifetime\":{\"time\":0,\"tick\":0,\"time_enabled\":false,\"tick_enabled\":false}}},"
         "{\"name\":\"later\",\"components\":{\"lifetime\":{\"time\":12.5,\"tick\":42,\"time_enabled\":true,\"tick_enabled\":true}}}]}");
@@ -418,6 +436,7 @@ static void allocation_failures(void) {
         fail_after=ordinal; EngineResult result=game_state_file_load("runtime_parent.json"); fail_after=-1;
         if(!error_check(result)) { restart(); break; }
         ++failures; assert(entity_alive_count_get()==1 && named("retained")==retained);
+        BAD(graphics_layer_name_id_get("sources")); BAD(graphics_layer_name_id_get("unused"));
         assert(!children_pool.used[idx(retained)] && !entity_components_check(retained,ROHR_CHILD));
         OK(game_state_file_load("runtime_original.json")); restart();
     }
@@ -432,7 +451,101 @@ static void allocation_failures(void) {
     assert(failures>5 && failures<1000); restart();
 #endif
 }
+
+static void layer_transactions(void) {
+    Entity sentinel=take(entity_add()); OK(entity_name_set(sentinel,"sentinel"));
+    GraphicsLayerIdResult existing=graphics_layer_create((LayerDescription){.name="shared",.value=7}); OK(existing);
+    OK(graphics_layer_entity_id_set(sentinel,existing.result.value));
+    write_text("runtime_layers_a.json","{\"version\":9,\"graphics_layers\":["
+        "{\"name\":\"new\",\"value\":-3},{\"name\":\"shared\",\"value\":7}],\"entities\":["
+        "{\"name\":\"bound\",\"components\":{\"graphics_layer\":\"shared\",\"sprite_layer\":0}},"
+        "{\"name\":\"unbound\",\"components\":{}}]}");
+    const char *bad[]={
+        "{\"version\":8,\"entities\":[]}", "{\"version\":10,\"entities\":[]}",
+        "{\"version\":9,\"graphics_layers\":{},\"entities\":[]}",
+        "{\"version\":9,\"graphics_layers\":[{\"name\":\"shared\",\"value\":8}],\"entities\":[]}",
+        "{\"version\":9,\"graphics_layers\":[{\"name\":\"new\",\"value\":2}],\"entities\":[]}",
+        "{\"version\":9,\"graphics_layers\":[{\"name\":\"overflow\",\"value\":18446744073709551615}],\"entities\":[]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"animation_layer\":\"missing\"}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"graphics_layer\":18446744073709551615}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":-1}}]}",
+        "{\"version\":9,\"entities\":[{\"name\":\"bad\",\"components\":{\"angular_velocity_maximum\":1e100}}]}"
+    };
+    const char *paths[]={"runtime_layers_a.json","runtime_layers_b.json"};
+    for(size_t i=0;i<sizeof(bad)/sizeof(bad[0]);++i) {
+        write_text(paths[1],bad[i]); BAD(game_state_files_load(paths,2));
+        assert(entity_alive_count_get()==1 && named("sentinel")==sentinel);
+        assert(graphics_layer_entity_id_get(sentinel).result.value==existing.result.value);
+        assert(graphics_layer_name_get("shared").result.value==7);
+        BAD(graphics_layer_name_id_get("new")); BAD(graphics_layer_name_id_get("overflow"));
+    }
+    write_text(paths[1],"{\"version\":9,\"graphics_layers\":[{\"name\":\"shared\",\"value\":7}],\"entities\":[]}");
+    OK(game_state_files_load(paths,2));
+    assert(graphics_layer_entity_id_get(named("bound")).result.value==existing.result.value);
+    BAD(graphics_layer_entity_get(named("unbound")));
+    BAD(graphics_layer_sprite_id_get(named("bound")));
+    assert(graphics_layer_sprite_get(named("bound")).result.value==0);
+    OK(graphics_layer_set(existing.result.value,19));
+    assert(graphics_layer_entity_get(named("bound")).result.value==19);
+    assert(graphics_layer_sprite_get(named("bound")).result.value==0);
+    OK(game_state_file_save("runtime_layers_saved.json"));
+    OK(game_state_template_file_save("runtime_layers_template.json"));
+    restart(); OK(game_state_file_load("runtime_layers_saved.json"));
+    assert(graphics_layer_name_get("shared").result.value==19);
+    OK(game_state_file_save("runtime_layers_saved_again.json"));
+    same_file("runtime_layers_saved.json","runtime_layers_saved_again.json");
+    restart(); OK(game_state_file_load("runtime_layers_template.json"));
+    assert(graphics_layer_name_get("shared").result.value==7);
+    assert(graphics_layer_name_get("new").result.value==-3);
+    BAD(entity_by_name_get("sentinel"));
+    restart();
+    /* Registry exhaustion must roll back the last available slot as well. */
+    for(size_t i=0;i<MAX_GRAPHICS_LAYERS-1;++i) {
+        char name[32]; snprintf(name,sizeof(name),"occupied_%zu",i);
+        OK(graphics_layer_create((LayerDescription){.name=name,.value=(int)i}));
+    }
+    BAD(game_state_file_load(paths[0]));
+    BAD(graphics_layer_name_id_get("new")); BAD(graphics_layer_name_id_get("shared"));
+    assert(graphics_layer_name_get("occupied_0").result.value==0 && entity_alive_count_get()==0);
+    restart();
+}
+
+static void body_state(void) {
+    const char *names[]={"explicit","inferred","held","static","inactive"};
+    for(size_t i=0;i<5;++i) {
+        Entity body=take(entity_add()); OK(entity_name_set(body,names[i]));
+        OK(physics_position_set(body,(Position){(float)i*10,0}));
+        OK(physics_velocity_set(body,(Velocity){2,0}));
+        OK(physics_mass_set(body,i==1 ? 0 : 3));
+        OK(physics_dynamic_set(body));
+        if(i==0 || i>=3) OK(physics_kinematic_driven_set(body));
+        if(i==2) OK(physics_entity_hold(body));
+        if(i==3) OK(physics_static_set(body));
+        if(i==4) OK(entity_components_delete(body,ROHR_DYNAMIC));
+    }
+    OK(game_state_file_save("runtime_body_state.json")); restart();
+    OK(game_state_file_load("runtime_body_state.json"));
+    OK(game_state_file_save("runtime_body_state_again.json"));
+    same_file("runtime_body_state.json","runtime_body_state_again.json");
+    assert(physics_kinematic_driven_check(named("explicit")));
+    assert(physics_kinematic_driven_check(named("inferred")));
+    OK(physics_mass_set(named("explicit"),4)); OK(physics_mass_set(named("inferred"),4));
+    assert(physics_kinematic_driven_check(named("explicit")));
+    assert(!physics_kinematic_driven_check(named("inferred")));
+    assert(!physics_kinematic_driven_check(named("static")));
+    assert(!physics_kinematic_driven_check(named("inactive")));
+    physics_dt_update(.1f);
+    assert(physics_position_get(named("held")).result.value.x==20);
+    assert(physics_position_get(named("static")).result.value.x==30);
+    assert(physics_position_get(named("inactive")).result.value.x==40);
+    OK(physics_dynamic_set(named("static"))); OK(physics_dynamic_set(named("inactive")));
+    assert(physics_kinematic_driven_check(named("static")));
+    assert(physics_kinematic_driven_check(named("inactive")));
+    OK(physics_kinematic_driven_remove(named("explicit")));
+    assert(!physics_kinematic_driven_check(named("explicit")));
+    restart();
+}
 int main(void) {
-    OK(rohr_engine_start()); naming(); round_trip(); malformed(); multiple_documents(); lifetime(); capacity(); allocation_failures();
+    OK(rohr_engine_start()); naming(); round_trip(); malformed(); multiple_documents(); lifetime(); capacity(); allocation_failures(); layer_transactions(); body_state();
     rohr_engine_stop(); puts("runtime persistence passed"); return 0;
 }

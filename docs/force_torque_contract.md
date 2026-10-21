@@ -462,19 +462,18 @@ the physical midpoint, and assembly offset moves the complete graphic. Pin and
 weld joints retain a single marker. Torque Properties exposes Visuals, Source,
 and Editor Marker accordions, with Visible in App first below the header/name.
 The editor eye, ordering, clipboard, multi-edit, history, navigation, and CLI
-replay follow the shared source interactions. Project format 10 stores torque
-editor visibility and marker offsets; formats 8 and 9 remain readable with
-visible/zero defaults. Editor metadata never enters runtime descriptions.
+replay follow the shared source interactions. Project format 11 stores torque
+editor visibility and marker offsets. Only the current project version is accepted. Editor metadata never enters runtime descriptions.
 
 ### Goal 5: authored definitions and persistence
 
 Goal 5 implements these authored-model requirements through object-owned
-collections, commands, document version 8, and loadable/editable object
+collections, commands, the current project document format, and loadable/editable object
 descriptions. New entries default to persistent, no target, and zero magnitude;
 forces default to world-origin application and world-zero orientation.
 Goal 6 enables runtime spawning and generated catalogs through the shared
 object spawner, including named persistent sources and expiring initial sources.
-Runtime source descriptions continue to serialize in game-state version 8.
+Runtime source descriptions continue to serialize in game-state version 9.
 
 **Ownership and reference scope.** Forces and torques are top-level items owned
 by an object. Their receiving targets and every entity used by location or

@@ -21,6 +21,10 @@ void physics_body_state_entity_clear(EntityIndex index) {
     if(index < MAX_ENTITIES) kinematic_explicit[index] = false;
 }
 
+bool physics_kinematic_explicit_check(EntityIndex index) {
+    return index < MAX_ENTITIES && kinematic_explicit[index];
+}
+
 void physics_body_state_sync(EntityIndex index) {
     bool dynamic;
     bool positive_mass;

@@ -29,13 +29,13 @@ unassigned torques or unresolved geometry have no marker. Zero sources use muted
 markers. Initial sources disappear when their one-tick entities expire. Torque
 app visibility is available in Torque Properties, JSON, and CLI:
 `--torque-id <id> --property visible_in_app set false`. Forces support the same
-property. Both default visible when older files omit it.
+property. Both default visible when the optional property is omitted.
 
-Project format 10 stores `visible_in_app` independently of the existing editor
-visibility fields. Version 8 projects load with app visibility on while keeping
-all eye states. Versions 8 and 9 load torque editor eyes as visible and marker
-offsets as zero when those fields are absent. Saving writes version 10. Both settings survive copying and
-undo/redo; generation and loaded runtime objects use only app visibility.
+Project format 11 stores `visible_in_app` independently of editor visibility,
+along with torque eyes and marker offsets. Only format 11 is accepted; older and
+future formats return a schema error without replacing the current project.
+Both visibility settings survive copying and undo/redo; generation and loaded
+runtime objects use only app visibility.
 
 ## Force, torque, and joint visuals
 
@@ -526,13 +526,12 @@ category from either list also assigns it to the selection in the same undo step
 
 ## Center of mass authoring and persistence
 
-Project data uses format version 10 and migrates versions 8 and 9 as described
-above. Older formats must be rewritten; loading them returns a schema error without replacing the current project. Beam-derived
-area data is no longer supported.
+Project data uses format version 11; other versions are rejected without
+replacing the current project. Beam-derived area data is no longer supported.
 All authored rotations use clockwise degrees, with zero heading up and no
 automatic wrapping. Angular velocity uses degrees/second. Rotation dragging
 preserves the grab offset and multiple turns in one undoable edit. CLI and
-generated C use the same units. Runtime state and templates use version 8;
+generated C use the same units. Runtime state and templates use version 9;
 unsupported project/state versions are rejected without replacing valid loaded data.
 The workspace manifest version is unchanged. Rigid-body records store
 `center_of_mass` as `{"mode": "automatic"}` or

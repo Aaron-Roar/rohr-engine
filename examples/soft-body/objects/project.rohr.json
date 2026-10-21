@@ -1,5 +1,5 @@
 {
-    "format_version": 8,
+    "format_version": 11,
     "physics_settings": {
         "engine_time_per_tick": 0.004166666666666667,
         "timestep_override": false,
@@ -14500,6 +14500,10 @@
                 {
                     "kind": 1,
                     "id": 25
+                },
+                {
+                    "kind": 8,
+                    "id": 1
                 }
             ]
         }

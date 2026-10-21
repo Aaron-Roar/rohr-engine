@@ -136,7 +136,7 @@ focused mutation, deletion, and errors follow the existing contracts.
   visibility or physics. Storage capacity, caches and next-ID bookkeeping are
   implementation data, not authorable runtime properties.
 - **N5 — Presentation ownership:** camera callbacks/context and viewport mounts
-  remain application-owned under the [runtime topology contract](game_state.md#version-8-runtime-topology-contract).
+  remain application-owned under the [runtime topology contract](game_state.md#runtime-topology-contract).
   Persistent viewport UI is reconstructed from authored/generated definitions;
   it is distinct from legacy state-file UI definitions. Object-owned cameras and
   their attachments are persisted and remain in scope.
@@ -267,6 +267,68 @@ the consumer tests. Run `nix develop -c ctest --test-dir build --output-on-failu
 generator, font, consumer source, fixture directory and SDK prefix; adding
 `TOOLCHAIN` performs the Windows build without execution. The verification used
 fresh `/tmp/parity_goal2_sdk` and `/tmp/parity_goal2_sdk_windows` installations.
+
+## Goal 3 persistence and generation closure
+
+This closes G11, G16, G17's snapshot omission and V3 within the frozen
+applicability boundaries. The earlier matrix and ledgers remain historical;
+construction-equivalence acceptance (V4) and interactive acceptance (V5) remain
+open. Current readers accept only project format 11 and runtime-state format 9;
+older and future versions fail transactionally. The frozen P4 migration case is
+replaced by current-version round trips and unsupported-version rejection.
+Public APIs and application-owned state boundaries are unchanged.
+
+| Inventory scope | Persistence/generation evidence and outcome |
+|---|---|
+| P1: F01–F18, F53–F54, F58/F60 | `runtime_persistence` compares repeated snapshots and continued simulation with the same settings; `object_instances` covers particle/soft-body descriptions and ownership; `center_of_mass_persistence` covers COM, origin, material/filter and angular values. `editor_configuration_parity` now carries loaded project/catalog instances through runtime save/delete/load and checks limits, acceleration, targets, lifetime, locks, static nodes, beam length and cameras again. |
+| G17: optional angular limit | Snapshot pool presence distinguishes absent, explicit zero and nonzero maximum. Negative/overflow input rejects the entire load. Public installed-SDK restoration is exercised too. |
+| G16: stored versus derived body state | The explicit kinematic choice survives static/inactive states and subsequent dynamic/mass transitions. The effective kinematic flag is recomputed after loading. Dedicated assertions distinguish explicit from zero-mass inferred kinematics and verify held/static/inactive bodies remain stationary. Existing hold, locks, velocity and lifetime round trips remain covered. No contacts, broad-phase caches or solver impulses are serialized. |
+| P2: F19–F28 | `runtime_persistence`, `object_instances`, `shared_sources`, `editor_sources`, `editor_core`, `editor_visibility` and `editor_torque` exercise references, independent ownership, anchors, joints, areas/holes, incomplete topology, source modes and marker styles through their applicable project/catalog/runtime routes. Multi-file rollback and continued simulation remain covered. |
+| P3: F30–F33, F45/F61 | `animation_assets`, `empty_animations`, `object_instances`, `hitbox_animation_binding`, asset-description consumers and generated configuration checks cover asset identity/lifetime, transforms, frames/timing, empty players, bindings, signed sprite dimensions, font point size and text configuration. Shared immutable assets retain independent mutable instance state. |
+| P4: F27–F44, F57 | Project/CLI round trips and generated consumers retain visibility, camera attachment/pause, screen resolution, text wrap/rotation, layer order and repeated mounts. `object_instances`, `camera_descriptions` and configuration runtime restoration cover object cameras. `editor_project`, `editor_core`, viewport, UI and layer suites retain existing configuration coverage. Persistent viewport mounts/UI remain reconstructed from generated definitions (N5); legacy state UI definitions keep their separate persistence path (N6). |
+| G11: layer identity | Snapshots retain all named definitions in sorted order, including unused entries. Entity/sprite/animation bindings distinguish named, numeric and unset. Matching existing definitions are reused; conflicting definitions, invalid references and full registries roll back the load. Templates deduplicate authored records without capturing runtime edits. Allocation-failure tests verify newly registered layers are removed. |
+| P5: F04, F46–F50, X04 | Project time values now read into `Time` without narrowing to float. Non-default engine and overridden physics timesteps remain exactly equal after reload and regenerate identical C. Configuration fixtures retain audio recipes, muted defaults and application presentation; existing input-generation and project tests retain controller/action configuration. Live audio/input/clocks remain outside snapshots (N2). |
+| P6: F51–F56 | Two regenerations from a reloaded project compare all ten generated application/scene files byte for byte and preserve edited `main.c`. Installed-SDK generated instances retain separate targets, poses, beam lengths and angular limits after mutation/deletion. Repeated runtime snapshots do not accumulate authored templates. Invalid project/runtime versions preserve existing state. |
+| P7: F02/F44/F59, X01–X03/X05–X07 | Existing group/template, legacy UI-definition and editor-state round trips remain applicable. Pure utilities, reports, storage helpers and live operations keep their N boundaries; this goal adds no serialized execution or new authoring API. |
+
+See [the runtime contract](game_state.md#snapshot-settings-and-layer-identity)
+for the version-9 layer/kinematic/angular-limit representation. Bundled runtime
+files use version 9; bundled editor projects use format 11, including the
+soft-body car's explicit torque hierarchy entry. Rejection tests replace old
+version-migration assertions; optional fields still retain documented defaults.
+Sanitizer verification also caught uninitialized optional camera follow/pause
+flags in the project reader. Camera records now initialize before parsing, so
+omitted fields retain false defaults. The bundled generated object modules were
+refreshed with the current generator; developer entry points were preserved.
+
+Verification completed 2026-10-21:
+
+- Full Linux build and CTest: 109/109 pass, including the API/inventory checks,
+  installed SDK consumers, generated configuration consumer and bundled COM
+  generation comparison.
+- ASan/UBSan with leak detection: 8/8 pass (`runtime_persistence`,
+  `object_instances`, `empty_animations`, `animation_assets`,
+  `center_of_mass_persistence`, `editor_configuration_parity`, `editor_torque`,
+  `editor_visibility`). The configuration generator also passes with assets,
+  reload/regeneration comparisons and edited-main preservation under sanitizers.
+- Windows engine/editor/tests and both standard/generated installed-SDK
+  consumers cross-build successfully. Native Windows execution was not performed.
+- Eight independently installed-SDK examples build for Linux and Windows:
+  `center_of_mass`, `soft-body`, `player_controller`, `game-state`, `pong`,
+  `user-interface`, `fly-to-finish`, `flies-in-pit`. Linux launches from `/tmp`
+  pass with staged assets; graphical examples use bounded two-second dummy-SDL
+  startup checks, and `game-state` exits successfully after its assertions.
+  These checks do not replace goal 5's interactive review.
+- No compiler warnings or sanitizer findings remain. Nix emitted expected
+  dirty-tree notices and occasional ignored concurrent-cache busy notices.
+  Whitespace checks pass for goal changes; unrelated user edits in `notes.txt`
+  were preserved.
+
+Reproduction follows goal 2's commands with fresh `/tmp/parity_goal3_sdk` and
+`/tmp/parity_goal3_sdk_windows` prefixes. The expanded
+`configuration_generation.cmake` fixture uses the same Linux/Windows invocation
+contract. Sanitizer tests use `ASAN_OPTIONS=detect_leaks=1` and
+`UBSAN_OPTIONS=halt_on_error=1`, outside the process-inspection sandbox.
 
 ## Frozen fixture plan
 

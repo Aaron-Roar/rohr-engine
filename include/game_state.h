@@ -10,8 +10,9 @@
 #include "ui.h"
 
 /** Current JSON game-state schema version. */
-/* Version 8 unifies lifetime ownership and permits cross-owner topology. */
-#define GAME_STATE_VERSION 8
+/* Version 9 preserves named layer bindings and optional angular speed limits.
+ * Only the current version is accepted. */
+#define GAME_STATE_VERSION 9
 
 /** Maximum source documents retained for compact template saving. */
 #define GAME_STATE_MAX_TEMPLATE_DOCUMENTS 64

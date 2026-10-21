@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Missing app visibility migrates legacy editor eyes to editor-only state. */
+/* Omitted app visibility defaults on, independently of editor eyes. */
 static bool editor_json_app_visibility_read(yyjson_val *value, bool *hidden) {
     yyjson_val *visible = yyjson_obj_get(value, "visible_in_app");
     if(visible && !yyjson_is_bool(visible)) return false;
@@ -64,6 +64,13 @@ static bool editor_json_real(yyjson_val *object, const char *key, float *value) 
     yyjson_val *item = yyjson_obj_get(object, key);
     if(!yyjson_is_num(item) || value == NULL) return false;
     *value = (float)yyjson_get_num(item);
+    return true;
+}
+
+static bool editor_json_time(yyjson_val *object, const char *key, Time *value) {
+    yyjson_val *item = yyjson_obj_get(object, key);
+    if(!yyjson_is_num(item) || value == NULL || !isfinite(yyjson_get_num(item))) return false;
+    *value = yyjson_get_num(item);
     return true;
 }
 
@@ -2173,8 +2180,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             path, EDITOR_PROJECT_FORMAT_VERSION);
         goto done;
     }
-    if(version != 8 && version != 9 && version != 10 &&
-            version != EDITOR_PROJECT_FORMAT_VERSION) {
+    if(version != EDITOR_PROJECT_FORMAT_VERSION) {
         result = editor_result_error(EDITOR_ERROR_SCHEMA_VERSION,
             "Project editor state '%s' uses format_version %u; this editor requires %u",
             path, version, EDITOR_PROJECT_FORMAT_VERSION);
@@ -2183,13 +2189,14 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
     {
         yyjson_val *physics = yyjson_obj_get(root, "physics_settings");
         if(physics != NULL) {
-            float engine_dt, physics_dt, gravity_x, gravity_y;
+            Time engine_dt, physics_dt;
+            float gravity_x, gravity_y;
             bool override;
             uint32_t substeps, iterations;
             if(!yyjson_is_obj(physics) ||
-                    !editor_json_real(physics, "engine_time_per_tick", &engine_dt) ||
+                    !editor_json_time(physics, "engine_time_per_tick", &engine_dt) ||
                     !editor_json_bool(physics, "timestep_override", &override) ||
-                    !editor_json_real(physics, "dt_per_tick", &physics_dt) ||
+                    !editor_json_time(physics, "dt_per_tick", &physics_dt) ||
                     !editor_json_uint(physics, "substeps", &substeps) ||
                     !editor_json_real(physics, "gravity_x", &gravity_x) ||
                     !editor_json_real(physics, "gravity_y", &gravity_y) ||
@@ -2683,6 +2690,7 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
             EditorCamera *camera = &object->cameras[j];
             uint32_t kind;
             yyjson_val *zoom;
+            *camera = (EditorCamera){0};
             if(!yyjson_is_obj(item) ||
                     !editor_json_uint(item, "id", &camera->id) || camera->id == 0 ||
                     !editor_json_name(item, camera->name) ||
@@ -2736,13 +2744,6 @@ EditorResult editor_project_load(EditorProject *project, const char *path) {
                 object->soft_body_count + object->sprite_count +
                 object->animated_sprite_count + object->camera_count +
                 object->anchor_count + object->force_count + object->torque_count;
-            if(version < 10) {
-                size_t existing_torques=0;
-                for(size_t j=0;j<object->hierarchy_count;++j)
-                    if(object->hierarchy[j].kind==EDITOR_HIERARCHY_TORQUE) ++existing_torques;
-                if(existing_torques>object->torque_count) goto done;
-                serialized_count += object->torque_count-existing_torques;
-            }
             editor_project_object_hierarchy_sync(object);
             if(hierarchy != NULL && (object->hierarchy_count != expected_count ||
                     (serialized_count != expected_count && serialized_count !=
