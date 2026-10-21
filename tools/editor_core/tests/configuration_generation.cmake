@@ -12,6 +12,7 @@ if(NOT result EQUAL 0)
     message(FATAL_ERROR "Configuration fixture generation failed: ${result}")
 endif()
 configure_file("${CONSUMER_SOURCE}" "${FIXTURE}/src/main.c" COPYONLY)
+configure_file("${CMAKE_CURRENT_LIST_DIR}/configuration_direct_checks.h" "${FIXTURE}/src/configuration_direct_checks.h" COPYONLY)
 file(WRITE "${FIXTURE}/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.20)
 project(configuration_parity LANGUAGES C)

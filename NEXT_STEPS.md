@@ -126,10 +126,18 @@ examples; installed-SDK Linux execution and Windows cross-build coverage.
    and generated modules are refreshed. Verification: 109 Linux tests, eight
    sanitizer suites plus the generation fixture, Linux/Windows SDK consumers,
    and eight independently built examples with Linux startup checks.
-4. [ ] **Verify authored and direct construction.** Equivalent authored-object
+4. [x] **Verify authored and direct construction.** Equivalent authored-object
    and direct-C fixtures produce matching runtime configuration and behavior,
    including soft-body topology, UI layouts, and repeated spawning. Keep the
    starter's high-level object spawn plus additional direct-API construction.
+   Completed [goal 4 evidence](docs/cross_path_feature_inventory.md#goal-4-authored-and-direct-construction-closure)
+   compares independent individual-API construction with project catalogs,
+   file loading, generated catalogs and convenience constructors. Physics,
+   topology, camera/UI, animation and ownership checks pass without engine/API
+   changes. Verification: 111 Linux tests, ten focused sanitizer suites plus
+   both generators and SDK consumers, Windows cross-builds, and independent
+   Linux/Windows builds of the starter and eight examples. Interactive review
+   remains goal 5.
 5. [ ] **Verify supported platforms and interaction.** Build affected generated
    applications and standalone examples against installed SDKs, execute on Linux,
    and cross-build for Windows. Launch examples outside their source directories.

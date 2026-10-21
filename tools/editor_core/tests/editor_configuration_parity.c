@@ -567,14 +567,30 @@ static void generation_fixture(const char *directory, const char *font_path) {
     size_command.data.sprite_size_set.size.x = NAN;
     assert(editor_command_execute(&p, &size_command).kind == ERROR_RESULT_ERROR);
     assert(sprite->size.x == -20);
+    EditorAnimatedSprite *animation=editor_project_animated_sprite_add(&p,o); assert(animation);
+    snprintf(animation->name,sizeof(animation->name),"moving");
+    animation->ticks_per_frame=3; animation->time_per_frame=.25; animation->playing=true;
+    animation->scale=(Scale){2,3}; animation->direction=DIRECTION_LEFT;
+    assert(editor_project_animation_frame_add(&p,animation,"first","assets/flip.png",(Scale){4,6}));
+    assert(editor_project_animation_frame_add(&p,animation,"second","assets/flip.png",(Scale){8,10}));
+    animation->frames[0].offset=(Position){1,2}; animation->frames[0].rotation=27;
+    animation->frames[1].offset=(Position){-3,4}; animation->frames[1].rotation=-19;
+    animation=editor_project_animated_sprite_add(&p,o); assert(animation);
+    snprintf(animation->name,sizeof(animation->name),"blank");
     EditorUiFont *font = editor_project_ui_font_add(&p, "assets/parity_font.ttf"); assert(font); font->point_size = 24;
     for(size_t i = 0; i < 2; ++i) {
         EditorViewportUiItem *ui = editor_viewport_ui_add(&p, viewport, EDITOR_VIEWPORT_UI_TEXT); assert(ui);
         ui->value.text.font = font->id; ui->value.text.wrap_width = 70; ui->value.text.rotation = 17;
         snprintf(ui->value.text.text, sizeof(ui->value.text.text), "Wrapped text");
         ui->layer = i ? 3 : 1;
+        ui->clip_enabled=true; ui->clip_rectangle=(ViewportRectangle){10,15,100,80};
         assert(editor_project_ui_definition_sync_from_item(&p, ui->id));
     }
+    EditorViewportUiItem *slider=editor_viewport_ui_add(&p,viewport,EDITOR_VIEWPORT_UI_SLIDER); assert(slider);
+    slider->value.slider.minimum=-2; slider->value.slider.maximum=6; slider->value.slider.value=3;
+    slider->value.slider.step=.5f; slider->value.slider.thumb_offset=4;
+    slider->rotation=35; slider->layer=4;
+    assert(editor_project_ui_definition_sync_from_item(&p,slider->id));
     EditorAudioDefinition *sound = editor_project_audio_add(&p, false, "impact", "assets/impact.wav"); assert(sound);
     sound->volume = .75f; sound->pan = -.5f; sound->loop = true; sound->playback_rate = 1.5f;
     assert(editor_project_audio_add(&p, true, "theme", "assets/theme.ogg"));

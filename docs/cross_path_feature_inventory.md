@@ -272,8 +272,9 @@ fresh `/tmp/parity_goal2_sdk` and `/tmp/parity_goal2_sdk_windows` installations.
 
 This closes G11, G16, G17's snapshot omission and V3 within the frozen
 applicability boundaries. The earlier matrix and ledgers remain historical;
-construction-equivalence acceptance (V4) and interactive acceptance (V5) remain
-open. Current readers accept only project format 11 and runtime-state format 9;
+construction-equivalence acceptance (V4) and interactive acceptance (V5) remained
+open at that boundary. V4 is closed in the goal 4 section below. Current readers
+accept only project format 11 and runtime-state format 9;
 older and future versions fail transactionally. The frozen P4 migration case is
 replaced by current-version round trips and unsupported-version rejection.
 Public APIs and application-owned state boundaries are unchanged.
@@ -329,6 +330,74 @@ Reproduction follows goal 2's commands with fresh `/tmp/parity_goal3_sdk` and
 `configuration_generation.cmake` fixture uses the same Linux/Windows invocation
 contract. Sanitizer tests use `ASAN_OPTIONS=detect_leaks=1` and
 `UBSAN_OPTIONS=halt_on_error=1`, outside the process-inspection sandbox.
+
+## Goal 4 authored and direct construction closure
+
+V4 is complete within the frozen applicability boundaries. The independent
+baseline uses individual entity, particle, soft-body, anchor, joint, force,
+torque, camera, screen, viewport and asset APIs. It neither copies spawned
+configuration nor builds a second `ObjectDescription` tree. The existing
+per-feature suites remain part of the evidence; the new fixtures supplement
+them with explicit cross-construction comparisons. No engine, public API,
+project format or simulation behavior changes were needed.
+
+The five acceptance cases are:
+
+| Case and inventory scope | Passing evidence |
+|---|---|
+| 1. Physics configuration and behavior: P1, F01–F18, F53–F54, F58/F60 | [`editor_construction_parity.c`](../tools/editor_core/tests/editor_construction_parity.c) independently authors a rigid body, standalone particle and rotated soft body. [`construction_checks.h`](../tools/editor_core/tests/construction_checks.h) constructs their counterparts through individual APIs and compares motion, geometry, COM/inertia, materials, filters, node radii/colors and angular limits. Fresh engine runs compare 120 updates at 1/120 second, two substeps and eight solver iterations. Existing COM, description, lock, hold, contact/filter and runtime-persistence suites retain the remaining feature cases. |
+| 2. Topology, sources and placement: P2, F19–F28 | The fixture compares ordered area/hole loops, measured/explicit beam lengths, world/node anchors, all three joint types, all 16 location/orientation combinations, persistent torque and initial-source expiry. References are normalized to logical roles instead of entity/anchor numbers. `editor_configuration_parity`, `editor_sources`, `shared_sources`, `editor_core`, `editor_visibility` and `editor_torque` retain body/shared anchors, source target modes, incomplete topology, placement/locks and marker geometry/style checks. |
+| 3. Assets and composition: P3–P4, F27–F45/F61 | [`configuration_direct_checks.h`](../tools/editor_core/tests/configuration_direct_checks.h) compares an independently created attached camera, two screen sizes, viewport settings, clipped/rotated text, custom font metrics, slider fields/placement, signed sprite dimensions and animation frame transforms/timing/advancement against generated instances. Empty animations remain valid. Repeated generated mounts have independent slider state. Existing viewport, UI, layer, visibility, asset, hitbox-binding and editor suites cover screen placement/clipping, interaction, style geometry and visibility variants. |
+| 4. Instance and resource independence: P1–P4/P6, F01/F16/F19/F30–F45/F51–F54 | [`construction_generated_consumer.c`](../tools/editor_core/tests/construction_generated_consumer.c) compares generated catalogs, convenience constructors and file-loaded instances against the same independent baseline. A translated convenience instance matches independently translated direct construction. Disconnecting endpoints, transferring a node, connecting different owners and deleting one owner preserve borrowed surviving nodes/beams/joints as specified. Mutation/deletion leaves a second instance unchanged. Asset/UI checks release original texture/font/animation owners, retain consumer dependencies, reject deletion of mounted UI, and preserve unrelated generated resources after teardown. |
+| 5. Starter and application settings: P5–P7, F04/F46–F56 and runtime-only boundaries | The generated starter still spawns complete authored objects at the high level, then adds a rigid platform/box, standalone particle and soft body through individual APIs in `main.c`. Existing `editor_project` assertions guard that structure and developer-file ownership. The unchanged starter builds against both installed SDKs and runs from `/tmp`. Configuration consumers and existing input/audio/settings suites retain timestep/window recipes, controller/action configuration, muted defaults and explicit sound settings. Gameplay triggers and live service state remain C-owned under N1/N2/N5. |
+
+Marker styling is retained `ObjectVisuals` metadata for object rendering, not a
+new low-level setter on arbitrary joint/force entities. Its existing literal
+geometry, authoring, loading and retained-appearance tests remain applicable;
+this goal does not manufacture an individual styling API to replace that
+contract. Interactive appearance, audio and input review remains V5.
+
+Discrete values (roles, enums, flags, counts and colors) compare exactly.
+Configuration floats use `1e-4 + 1e-5 * max(abs(a), abs(b))`; simulated values
+use absolute tolerance `0.002`, with unwrapped degree orientations. Direct
+composition fields compare exactly where no numerical transformation occurs.
+No tolerances were loosened to make a discrepancy pass.
+
+Verification completed 2026-10-21:
+
+- Linux full build and CTest: **111/111 pass**, including the native comparison,
+  both generated installed-SDK comparisons and inventory checks.
+- ASan/UBSan with leak detection: **10/10 focused suites pass**:
+  `editor_construction_parity`, `editor_configuration_parity`, `object_instances`,
+  `empty_animations`, `viewport_descriptions`, `shared_sources`, `animation_assets`,
+  `font_assets`, `text_assets` and `editor_sources`. Both fixture generators and
+  both generated consumers also pass with the sanitizer-installed SDK.
+- Windows engine/editor/tests, general installed-SDK consumer and both generated
+  consumers cross-build. Native Windows execution was not performed.
+- The starter and eight standalone examples independently build against fresh
+  Linux and Windows SDKs: `center_of_mass`, `soft-body`, `player_controller`,
+  `joints`, `user-interface`, `view-port`, `audio`, `game-state`. Linux launches
+  from `/tmp` pass with staged assets. Graphical examples use bounded dummy-SDL
+  startup checks; the starter also shuts down cleanly after an interrupt.
+- No compiler warnings or sanitizer findings remain. Nix dirty-tree notices
+  are expected. Unrelated user edits in `notes.txt` remain untouched.
+
+Reproduce with goal 2's installed-SDK setup using fresh
+`/tmp/parity_goal4_sdk` and `/tmp/parity_goal4_sdk_windows` prefixes. Enable
+`ROHR_BUILD_SDK_CONSUMER_TESTS` and set `ROHR_SDK_INSTALL_PREFIX` before running:
+
+```sh
+nix develop -c ctest --test-dir build --output-on-failure
+```
+
+The new [`construction_generation.cmake`](../tools/editor_core/tests/construction_generation.cmake)
+accepts `TEST_EXECUTABLE`, `FIXTURE`, `SDK_PREFIX` and optional `TOOLCHAIN`.
+[`configuration_generation.cmake`](../tools/editor_core/tests/configuration_generation.cmake)
+also requires `FONT` and `CONSUMER_SOURCE`. Both compile standalone generated
+consumers and run native executables outside the source directory. For sanitizer
+consumers, use an SDK installed from `ROHR_ENABLE_SANITIZERS=ON` and matching
+consumer compile/link sanitizer flags; run with `ASAN_OPTIONS=detect_leaks=1`
+and `UBSAN_OPTIONS=halt_on_error=1` outside the process-inspection sandbox.
 
 ## Frozen fixture plan
 

@@ -10,4 +10,15 @@ project dir.
 - Exiting soft body editor to object editor leaves soft body buttons up.
 - Soft body collision and gravity is missing from physics accordian also
   dynamic/static
-- 
+- The editors when going back to top level all stay it seams not just soft
+  bodies
+- Scrolling not working in object joint editor not sure about others
+- Joints should clamp imedietly, rn only applies once movement is done in editor
+- Render layer should be in appearance accordian not transform
+- Some things like anchors have no editor graphics layer option
+- Once an editor is open cant scroll in object editor. Other editor menus seam
+  to overlay the object editor and persist until viewport or off column click
+  but still not scroll
+- Generate C fail not shown in terminal. Output should always be redirected to
+  terminal for any building like this
+- One big failure was making a not fully defined joint

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #define OK(call) assert(!rohr_error_check(call))
+#include "configuration_direct_checks.h"
 
 int main(void) {
     OK(rohr_directory_working_set(rohr_directory_base_get()));
@@ -48,7 +49,12 @@ int main(void) {
     assert(project_audio.sounds.impact.loop && project_audio.sounds.impact.playback_rate == 1.5f);
     assert(!strcmp(project_audio.music.theme.path, "assets/theme.ogg") && project_audio.music.theme.volume == 0);
     ProjectViewports views = {0}; OK(project_viewports_create(&views, &objects_in_scene));
-    assert(views.screen_count == 2 && views.text_count == 2 && views.ui_element_count == 2);
+    assert(views.screen_count == 2 && views.text_count == 2 && views.ui_element_count == 3);
+    direct_composition(instance,&views); direct_assets(instance);
+    ProjectViewports repeated={0}; OK(project_viewports_create(&repeated,&objects_in_scene));
+    OK(rohr_graphics_ui_slider_value_set(repeated.ui_elements[2],-1));
+    assert(rohr_graphics_ui_slider_value_get(views.ui_elements[2]).result.value==3);
+    project_viewports_destroy(&repeated);
     ScreenDescription first = rohr_screen_description_get(views.screens[0]).result.value;
     ScreenDescription second = rohr_screen_description_get(views.screens[1]).result.value;
     assert(first.width == 320 && first.height == 200 && second.width == 480 && second.height == 360);
