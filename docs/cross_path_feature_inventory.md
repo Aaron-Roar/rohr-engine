@@ -464,7 +464,7 @@ returning. The original failed fixture remains available for comparison.
 | 2. Visuals and visibility | Inspect `push_marker`, `spin_marker`, pin/weld/spring, the mirrored sprite, playing animations and `empty_animation`. Spring endpoints have different colors/scales/offsets. Toggle editor eyes separately from Visible in App, including the parent; rebuild and verify only app visibility affects runtime drawing and hidden bodies still simulate. Restore parent visibility without changing child settings. Empty animation must not prevent rendering. | Pending |
 | 3. Editor interaction | Select geometry, drag from the selecting press, use child-selection and rotation handles, and undo/redo each gesture. Pick force targets/references from menus and the viewport, checking hover highlights. Scroll a long selector; check modal menus do not move underlying items. Drag the slider thumb without moving its parent. Rename via Enter/Escape and confirm subsequent keyboard navigation works. | User-reported failures: oversized force/torque picking, persistent/overlapping child panels, first-element activation, object/joint scrolling, and delayed joint clamping. Corrections C6/C8/C14 and retests pending. |
 | 4. Input and audio | Exercise the starter's configured logical input actions and text entry without unintended gameplay input while editing. Run the installed-SDK `audio` example: Play Water Splash produces sound; music play/pause/resume and track switching work; Quit/escape shuts down. Review window size/aspect settings. Muted description defaults and queued/applied audio state retain their automated fixture evidence; silent startup alone is not proof of muted playback. | Pending |
-| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, and C4 partial-spawn startup complete with verification below; C5 and broader interactive retests pending. |
+| 5. Project lifecycle and delivery | Build/run the application and Simulate Scene. The application includes direct-API extras; scene simulation contains authored objects. Verify run/pause/stop, return to Editor, close/reopen/reorder tabs through View, rebuild a visible edit and replay. Close/switch a project during an active build and verify cancellation; terminal interrupt reaches the subprocess. Launch installed-SDK artifacts outside their source directories. | User-reported failures: relocation, repeat builds, missing CMake recovery, generation diagnostics, and incomplete-joint generation. Startup error 21 reproduced in rohr-project-1. C1 diagnostics, C2 relocation/repeat builds, C3 missing CMake recovery, C4 partial-spawn startup, and C5 incomplete joints complete with verification below; C6–C14 and broader interactive retests pending. |
 
 Preparation evidence (2026-10-21): full Linux build and **111/111 CTest tests
 pass**, including the installed-SDK comparisons and scene/build lifecycle
@@ -565,8 +565,8 @@ developer gameplay code; verification is recorded below.
 
 The engine already accepts joints with unset endpoints and retains their
 definitions when the physics pipeline skips unavailable contributions with a
-warning. The editor object-document conversion currently requires both anchors;
-C5 removes that parity gap while preserving validation of malformed data.
+warning. C5 extends this behavior through editor object-document conversion and
+generated constructors while preserving validation of malformed data.
 
 **C1 verification:** generation/build diagnostics always reach the embedded
 terminal, regardless of visibility or optional generated-tree output. The build
@@ -664,7 +664,28 @@ also built independently against the SDK and ran from outside its source tree
 until the intentional smoke-test timeout. Focused ASan/UBSan checks passed.
 Windows editor/CLI, graphics/reporting, viewport, and generation tests
 cross-compiled without compiler warnings; native Windows execution was not
-performed. C5–C14 and broader interactive acceptance remain open.
+performed.
+
+**C5 verification:** editor conversion retains unset joint endpoints instead of
+rejecting the object, and direct generated constructors emit these joints rather
+than omitting them. Soft-node anchors have generated fields and bindings, and
+are created once after their nodes exist. Invalid nonzero authored anchor IDs,
+negative spring parameters, and nonfinite joint values still fail conversion.
+The generation-diagnostics fixture now uses an invalid nonzero anchor reference.
+The physics pipeline and public API semantics are unchanged.
+
+`editor_incomplete_joints` checks pin, weld, and spring joints with zero endpoints,
+only A, only B, and both, using rigid-body, world, and soft-node anchors. It covers
+editor and runtime persistence, retained identity/settings/visuals, relationship
+commands, report warnings, and completion of the same runtime entity. `joints`
+also verifies free motion while incomplete and physical response after completion.
+`editor_incomplete_joints_generated` compiles and runs direct constructors,
+compiled catalogs, JSON loading, and physics-only spawning against the installed
+SDK outside the source directory; it also builds and starts Simulate Scene.
+All 117 Linux tests and three focused ASan/UBSan tests passed. Linux examples
+built, and Windows editor/CLI and joint tests cross-compiled without compiler
+warnings. Native Windows execution was not performed. C6–C14 and broader
+interactive acceptance remain open.
 
 ## Frozen fixture plan
 

@@ -297,6 +297,10 @@ The tutorial records ownership immediately after every creation so partial
 initialization is safe to destroy. Soft-body topology remains inside its spawn.
 Whole-object spawning resolves internal connections automatically; separately
 spawned joints are connected explicitly using the returned body-anchor handles.
+Unset joint endpoints remain zero in generated descriptions and individual API
+constructors. These joints still spawn; their unavailable physics contributions
+produce report warnings until their endpoints are completed. Missing nonzero
+authored anchor references and invalid joint numbers fail generation.
 `project_objects_create_all` uses the same catalog path, including authored
 appearance and placement. Existing individual generated constructors remain
 available. Drawing visits each object's own visuals without an additional global

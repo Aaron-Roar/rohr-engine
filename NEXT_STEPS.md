@@ -222,7 +222,7 @@ contracts, and generated examples when a goal changes supported behavior.
    partial/full/missing-camera applications and scene startup, focused ASan/UBSan,
    and Windows cross-builds passed. User visual verification: PASS. See the
    corrective issue mapping for evidence and platform limitations.
-5. [ ] **C5 — Incomplete joint parity.** Preserve otherwise valid joints with
+5. [x] **C5 — Incomplete joint parity.** Preserve otherwise valid joints with
    unset endpoints in the editor, saved project, generated descriptions, and
    runtime instances. Match the engine: retain the definition, skip only the
    unavailable physics contribution, and expose diagnostics. Do not drop the
@@ -230,6 +230,13 @@ contracts, and generated examples when a goal changes supported behavior.
    endpoint. Invalid numerical data and nonzero stale handles remain errors.
    Verify zero/one/two endpoints, save/load, generation, execution, and later
    completion of the same joint.
+   Complete: object conversion and both generated constructor paths retain
+   unset endpoints. Soft-node anchor declarations/bindings and creation order
+   are corrected. Existing physics skip/report behavior is unchanged; completing
+   endpoints activates the same entity. Invalid authored references/numbers
+   still fail. All 117 Linux tests, including installed-SDK application and scene
+   startup, three focused ASan/UBSan checks, and Windows cross-builds passed.
+   Native Windows execution was not performed; see the corrective issue mapping.
 6. [ ] **C6 — Shared panel lifecycle and scrolling.** Remove inactive child
    controls when returning to object/top-level editors. Fix overlapping panels,
    first-element activation glitches, stale input capture, and blocked scrolling

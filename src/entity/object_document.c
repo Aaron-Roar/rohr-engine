@@ -285,8 +285,13 @@ static bool attachments_read(ImportContext *c, ObjectDescription *root, const Ed
         const EditorJoint *s = &o->joint_items[i];
         ObjectDescription *d = add(c, root, o, NULL, OBJECT_JOINT, s->id, s->name);
         ObjectDescription *a = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_a), *b = find(c, o, NULL, OBJECT_ANCHOR, s->anchor_b);
-        if(!d || !a || !b || !object_visuals_check(s->visuals)) return false;
-        d->endpoint_a = a->id; d->endpoint_b = b->id; d->visuals = s->visuals;
+        if(!d || (s->anchor_a && !a) || (s->anchor_b && !b) ||
+                s->kind < EDITOR_JOINT_REVOLUTE || s->kind > EDITOR_JOINT_SPRING ||
+                !isfinite(s->rest_length) || s->rest_length < 0 ||
+                !isfinite(s->stiffness) || s->stiffness < 0 ||
+                !isfinite(s->damping) || s->damping < 0 ||
+                !isfinite(s->rest_angle) || !object_visuals_check(s->visuals)) return false;
+        d->endpoint_a = a ? a->id : 0; d->endpoint_b = b ? b->id : 0; d->visuals = s->visuals;
         d->color = (Color){225, 190, 85, 255};
         d->joint_type = s->kind == EDITOR_JOINT_REVOLUTE ? JOINT_PIN : s->kind == EDITOR_JOINT_WELD ? JOINT_WELD : JOINT_SPRING;
         d->rest_length = s->rest_length; d->stiffness = s->stiffness; d->damping = s->damping; d->rest_angle = s->rest_angle;

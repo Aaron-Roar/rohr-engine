@@ -19,6 +19,40 @@ static JointDescription description_get(Entity joint) {
     JointDescriptionResult result = rohr_physics_joint_description_get(joint); OK(result);
     return result.result.value;
 }
+static void incomplete_tests(void) {
+    const JointType kinds[] = {JOINT_PIN, JOINT_WELD, JOINT_SPRING};
+    for(unsigned kind = 0; kind < 3; ++kind) for(unsigned endpoints = 0; endpoints < 3; ++endpoints) {
+        Entity a = named_entity("draft_a"), b = named_entity("draft_b");
+        OK(rohr_physics_position_set(a, (Position){0}));
+        OK(rohr_physics_position_set(b, (Position){10, 0}));
+        OK(rohr_physics_dynamic_set(a)); OK(rohr_physics_dynamic_set(b));
+        OK(rohr_physics_mass_set(a, 1)); OK(rohr_physics_mass_set(b, 1));
+        OK(rohr_physics_velocity_set(a, (Velocity){1, 0}));
+        OK(rohr_physics_velocity_set(b, (Velocity){0}));
+        JointAnchorIdResult aa = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = a}); OK(aa);
+        JointAnchorIdResult bb = rohr_physics_joint_anchor_add((JointAnchorDescription){.entity = b}); OK(bb);
+        JointDescription description = {.type = kinds[kind], .stiffness = 10,
+            .rest_length_explicit = true, .rest_angle_explicit = true,
+            .anchor_a = endpoints & 1 ? aa.result.value : 0,
+            .anchor_b = endpoints & 2 ? bb.result.value : 0};
+        EntityResult joint = rohr_physics_joint_add(description); OK(joint);
+        Report report = rohr_system_physics_update(.1);
+        assert(!report.has_fatal && report.diagnostic_count == 1);
+        assert(report.diagnostics[0].source.id == joint.result.value &&
+            report.diagnostics[0].severity == ROHR_REPORT_SEVERITY_WARNING &&
+            report.diagnostics[0].recovery == ROHR_REPORT_CONTRIBUTION_SKIPPED);
+        assert(fabsf(rohr_physics_position_get(a).result.value.x - .1f) < .0001f);
+        assert(rohr_physics_position_get(b).result.value.x == 10);
+        assert(description_get(joint.result.value).anchor_a == description.anchor_a);
+        description.anchor_a = aa.result.value; description.anchor_b = bb.result.value;
+        OK(rohr_physics_joint_description_set(joint.result.value, description));
+        report = rohr_system_physics_update(.1);
+        assert(!report.has_fatal && report.diagnostic_count == 0);
+        assert(rohr_entity_alive_check(joint.result.value));
+        assert(rohr_physics_position_get(b).result.value.x < 10);
+        OK(rohr_entity_delete(joint.result.value)); OK(rohr_entity_delete(a)); OK(rohr_entity_delete(b));
+    }
+}
 static void description_tests(void) {
     Entity root = named_entity("joint_root"), other = named_entity("joint_other");
     Entity a = named_entity("joint_a"), b = named_entity("joint_b");
@@ -257,6 +291,7 @@ int main(void) {
 
     if(rohr_error_check(rohr_engine_start())) return 1;
     description_tests();
+    incomplete_tests();
     placement_tests();
 
     /* Anchor placement is body-origin-relative and must not depend on hitbox geometry. */

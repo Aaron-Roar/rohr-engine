@@ -151,6 +151,15 @@ reported through inspection/update reports. Stale nonzero references, invalid
 numbers, and corrupt ownership remain errors. Deleting a target disconnects external
 connections without deleting their entities.
 
+Pin, weld, and spring joints may have neither endpoint, only A, or only B set.
+The editor, project JSON, compiled catalogs, direct generated constructors, and
+scene simulation preserve these definitions and their settings. An unset
+endpoint is zero; a nonzero authored anchor ID must resolve to an existing
+anchor. The physics report identifies each unavailable joint contribution as
+skipped with a warning. Completing its `JointDescription` activates the same
+entity; there is no need to spawn a replacement joint. Anchors attached to soft
+nodes are created after those nodes and exposed by generated instance bindings.
+
 ## Restoration and failure
 
 Runtime saves preserve ownership, member identities, incomplete topology, and

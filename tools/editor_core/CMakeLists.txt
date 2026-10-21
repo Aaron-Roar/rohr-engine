@@ -39,12 +39,13 @@ if(ROHR_BUILD_TESTS)
     add_executable(editor_configuration_parity_test tests/editor_configuration_parity.c
         ${PROJECT_SOURCE_DIR}/tools/editor/src/editor_history.c)
     add_executable(editor_construction_parity_test tests/editor_construction_parity.c)
+    add_executable(editor_incomplete_joints_test tests/editor_incomplete_joints.c)
     add_executable(editor_interaction_fixture tests/editor_interaction_fixture.c)
     add_executable(scene_child_test tests/scene_child.c)
     add_executable(editor_scene_session_test tests/editor_scene_session.c)
     add_executable(editor_build_test tests/editor_build.c)
     add_executable(editor_scene_generation_test tests/editor_scene_generation.c)
-    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_interaction_fixture)
+    foreach(scene_target scene_child_test editor_scene_session_test editor_build_test editor_scene_generation_test editor_configuration_parity_test editor_construction_parity_test editor_incomplete_joints_test editor_interaction_fixture)
         target_include_directories(${scene_target} PRIVATE ${PROJECT_SOURCE_DIR}/src)
         target_link_libraries(${scene_target} PRIVATE rohr_editor_core)
         if(NOT MSVC)
@@ -59,6 +60,9 @@ if(ROHR_BUILD_TESTS)
         set_target_properties(${scene_target} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${ROHR_BUILD_OUTPUT_DIRECTORY}/tests)
     endforeach()
     add_test(NAME editor_construction_parity COMMAND editor_construction_parity_test)
+    add_test(NAME editor_incomplete_joints COMMAND editor_incomplete_joints_test)
+    set_tests_properties(editor_incomplete_joints PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     set_tests_properties(editor_construction_parity PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     add_test(NAME editor_configuration_parity COMMAND editor_configuration_parity_test)
@@ -91,6 +95,13 @@ if(ROHR_BUILD_TESTS)
             "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/construction_generation.cmake")
         set_tests_properties(editor_construction_generated PROPERTIES LABELS "sdk;linux")
+        add_test(NAME editor_incomplete_joints_generated COMMAND ${CMAKE_COMMAND}
+            -DTEST_EXECUTABLE=$<TARGET_FILE:editor_incomplete_joints_test>
+            -DPROBE=$<TARGET_FILE:editor_build_test>
+            "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/incomplete joints generated project"
+            "-DSDK_PREFIX=${ROHR_SDK_INSTALL_PREFIX}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/incomplete_joints_generation.cmake")
+        set_tests_properties(editor_incomplete_joints_generated PROPERTIES LABELS "sdk;linux")
         add_test(NAME editor_configuration_generated COMMAND ${CMAKE_COMMAND}
             -DTEST_EXECUTABLE=$<TARGET_FILE:editor_configuration_parity_test>
             "-DFIXTURE=${CMAKE_CURRENT_BINARY_DIR}/configuration generated project"

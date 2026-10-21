@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
 
     /* Deliberate generation failure before any build process, then recovery. */
     EditorJoint *joint = editor_project_joint_add(&project, &project.objects[0], EDITOR_JOINT_REVOLUTE);
-    assert(joint); joint->anchor_a = 0; joint->anchor_b = 0;
+    assert(joint); joint->anchor_a = UINT32_MAX; joint->anchor_b = 0;
     EditorResult expected = editor_workspace_editor_generate(&workspace, &project);
     assert(editor_result_check(expected));
     begin_output(); action(EDITOR_BUILD_ACTION_GENERATE);
